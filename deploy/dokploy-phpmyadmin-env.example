@@ -1,0 +1,5 @@
+PMA_HOST=youtube-board-db
+PMA_PORT=3306
+PMA_USER=youtube_board
+PMA_PASSWORD=
+UPLOAD_LIMIT=256M
