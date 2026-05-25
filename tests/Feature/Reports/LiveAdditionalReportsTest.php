@@ -263,6 +263,63 @@ class LiveAdditionalReportsTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_live_hours_page_prefers_legacy_hour_cache_when_available(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 18:00:00', 'Asia/Taipei'));
+        $this->createLegacyLiveTables();
+        $this->createLiveTagCacheTable();
+
+        DB::table('urt_tag')->insert([
+            ['tag_id' => 1, 'tag_name' => '社論'],
+        ]);
+        DB::table('urt_count')->insert([
+            ['u_id' => 10, 'tags' => '[1]'],
+        ]);
+        DB::table('urt_show_live_tag_date')->insert([
+            'pk' => 1,
+            'ctime' => '2026-05-20 00:00:00',
+            'mtime' => '2026-05-20 01:00:00',
+            'stime' => '2026-05-20 00:30:00',
+            'tagid' => '1',
+            'tag_or' => null,
+            'tag_not' => null,
+            'count_channels' => 1,
+            'count_videos' => 3,
+            'count_tags' => 1,
+            'the_date' => '2026-05-20',
+            'tags_count' => 1,
+            'total_views' => 1234,
+            'hour_result' => json_encode([
+                '10' => ['count' => 3, 'views' => 1234],
+                '11' => ['count' => 1, 'views' => 456],
+            ], JSON_UNESCAPED_UNICODE),
+            'videos_result' => '{}',
+            'all_result' => '{}',
+            'tags_video' => '{}',
+            'tags_views' => '{}',
+        ]);
+        DB::table('urt_video_live_log')->insert([
+            [
+                'videoId' => 'raw-hour',
+                'u_id' => 10,
+                'the_date' => '2026-05-20',
+                'max_current' => 9999,
+                'log_json' => json_encode(['10:00' => 9999]),
+            ],
+        ]);
+
+        $response = $this->get('/live/hours?tagid=1&from=2026-05-20&to=2026-05-20');
+
+        $response->assertOk();
+        $response->assertSee('社論 從 2026-05-20 到 2026-05-20 的直播小時熱度');
+        $response->assertSee('1,234');
+        $response->assertSee('3 部');
+        $response->assertSee('456');
+        $response->assertDontSee('9,999');
+
+        Carbon::setTestNow();
+    }
+
     public function test_live_period_page_renders_range_video_ranking(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-25 18:00:00', 'Asia/Taipei'));
@@ -348,7 +405,7 @@ class LiveAdditionalReportsTest extends TestCase
 
     private function createLegacyLiveTables(): void
     {
-        foreach (['urt_video_live_log', 'urt_show_video_live', 'urt_video_live', 'urt_channel', 'urt_count', 'urt_tag'] as $table) {
+        foreach (['urt_show_live_tag_date', 'urt_video_live_log', 'urt_show_video_live', 'urt_video_live', 'urt_channel', 'urt_count', 'urt_tag'] as $table) {
             Schema::dropIfExists($table);
         }
 
@@ -398,6 +455,30 @@ class LiveAdditionalReportsTest extends TestCase
             $table->date('the_date');
             $table->integer('max_current')->nullable();
             $table->text('log_json')->nullable();
+        });
+    }
+
+    private function createLiveTagCacheTable(): void
+    {
+        Schema::create('urt_show_live_tag_date', function ($table): void {
+            $table->integer('pk');
+            $table->dateTime('ctime');
+            $table->dateTime('mtime')->nullable();
+            $table->dateTime('stime')->nullable();
+            $table->string('tagid')->nullable();
+            $table->string('tag_or')->nullable();
+            $table->string('tag_not')->nullable();
+            $table->integer('count_channels')->nullable();
+            $table->integer('count_videos')->nullable();
+            $table->integer('count_tags')->nullable();
+            $table->date('the_date');
+            $table->integer('tags_count')->nullable();
+            $table->integer('total_views')->nullable();
+            $table->text('hour_result')->nullable();
+            $table->text('videos_result')->nullable();
+            $table->longText('all_result')->nullable();
+            $table->longText('tags_video')->nullable();
+            $table->longText('tags_views')->nullable();
         });
     }
 }

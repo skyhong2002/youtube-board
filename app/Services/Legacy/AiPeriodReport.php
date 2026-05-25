@@ -187,14 +187,14 @@ class AiPeriodReport
         return collect($rawTopics)
             ->map(function (mixed $topic): array {
                 $topic = is_array($topic) ? $topic : [];
-                $mediaEvents = $topic['媒體事件'] ?? $topic['media_events'] ?? [];
+                $mediaEvents = $topic['媒體事件'] ?? $topic['media_events'] ?? $topic['mediaEvents'] ?? [];
                 $mediaCount = is_array($mediaEvents) ? count($mediaEvents) : 0;
                 $eventCount = collect(is_array($mediaEvents) ? $mediaEvents : [])
                     ->map(fn (mixed $events): int => is_array($events) ? count($events) : 0)
                     ->sum();
 
                 return [
-                    'event' => $this->text($topic, ['標題', 'title', 'topic']),
+                    'event' => $this->text($topic, ['標題', '議題', 'title', 'topic']),
                     'media_count' => $mediaCount,
                     'video_count' => $eventCount,
                     'keyword_count' => 0,
@@ -268,6 +268,13 @@ class AiPeriodReport
 
         if (! is_array($decoded)) {
             return [];
+        }
+
+        foreach (['events', '事件', 'topics', '議題', 'result', 'data'] as $key) {
+            if (! array_is_list($decoded) && isset($decoded[$key]) && is_array($decoded[$key])) {
+                $decoded = $decoded[$key];
+                break;
+            }
         }
 
         return array_is_list($decoded) ? $decoded : array_values($decoded);

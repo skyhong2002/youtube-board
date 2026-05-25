@@ -52,6 +52,86 @@ class GroupMetricReportsRouteTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_group_two_legacy_url_redirects_to_read_only_position_trend(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 05:00:00', 'Asia/Taipei'));
+        $this->createTables();
+        DB::table('urt_show_tag_date')->insert([
+            [
+                'pk' => 10,
+                'the_date' => '2026-05-23',
+                'tagid' => '9,48',
+                'tag_or' => '',
+                'tag_not' => '',
+                'count_channels' => 1,
+                'count_videos' => 1,
+                'total_views' => 10,
+            ],
+            [
+                'pk' => 11,
+                'the_date' => '2026-05-24',
+                'tagid' => '9,48',
+                'tag_or' => '',
+                'tag_not' => '',
+                'count_channels' => 1,
+                'count_videos' => 2,
+                'total_views' => 40,
+            ],
+            [
+                'pk' => 12,
+                'the_date' => '2026-05-23',
+                'tagid' => '9,49',
+                'tag_or' => '',
+                'tag_not' => '',
+                'count_channels' => 1,
+                'count_videos' => 1,
+                'total_views' => 20,
+            ],
+            [
+                'pk' => 13,
+                'the_date' => '2026-05-24',
+                'tagid' => '9,49',
+                'tag_or' => '',
+                'tag_not' => '',
+                'count_channels' => 1,
+                'count_videos' => 3,
+                'total_views' => 60,
+            ],
+        ]);
+
+        $this->get('/group_two.php?from=2026-05-22&to=2026-05-24&type=total_views')
+            ->assertStatus(308)
+            ->assertRedirect(route('groups.trends', [
+                'groupName' => 'two',
+                'from' => '2026-05-22',
+                'to' => '2026-05-24',
+                'type' => 'total_views',
+            ]));
+
+        $response = $this->get('/groups/two/trends?from=2026-05-22&to=2026-05-24&type=total_views');
+
+        $response->assertOk();
+        $response->assertSee('台灣立場 vs 中國立場 在 2天 的逐日線圖');
+        $response->assertSee('台灣立場 tagid=9,48');
+        $response->assertSee('中國立場 tagid=9,49');
+        $response->assertSee('50');
+        $response->assertSee('80');
+        $response->assertDontSee('api/cloud_tag_date.php');
+
+        Carbon::setTestNow();
+    }
+
+    public function test_group_two_all_legacy_url_preserves_expanded_legacy_group_set(): void
+    {
+        $this->get('/group_two.php?all=1&days=30&type=count_videos')
+            ->assertStatus(308)
+            ->assertRedirect(route('groups.trends', [
+                'groupName' => 'two_all',
+                'days' => '30',
+                'type' => 'count_videos',
+            ]));
+    }
+
     public function test_legacy_group_chart_and_line_urls_redirect_to_clean_group_reports(): void
     {
         $this->get('/group_chart.php?group=media&days=7&type=total_views')

@@ -122,7 +122,7 @@ class LegacyTagChannelApiReport
             $row = DB::table('urt_show_data')
                 ->where('data_name', 'tags_all')
                 ->first();
-            $result = $this->decodeMap($row->the_result ?? null);
+            $result = $this->decodeMetricMap($row->the_result ?? null);
 
             return [
                 'result' => $result === [] ? new stdClass() : $result,
@@ -327,7 +327,7 @@ class LegacyTagChannelApiReport
                 ->orderByDesc('pk');
             $this->applyCacheFilters($query, $filters);
             $row = $query->first();
-            $result = $this->decodeMap($row->tags_result ?? null);
+            $result = $this->decodeWeightedMap($row->tags_result ?? null);
 
             return $this->tagCachePayload($result, 'urt_show_tag_cloud', [
                 'filters' => $filters,
@@ -363,8 +363,8 @@ class LegacyTagChannelApiReport
                 'count_channels' => (int) ($row->count_channels ?? 0),
                 'count_videos' => (int) ($row->count_videos ?? 0),
                 'count_tags' => (int) ($row->count_tags ?? 0),
-                'result' => $this->decodeMap($row->tags_json ?? null),
-                'videos' => $this->decodeMap($row->videos_json ?? null),
+                'result' => $this->decodeWeightedMap($row->tags_json ?? null),
+                'videos' => $this->decodeWeightedMap($row->videos_json ?? null),
                 'meta' => [
                     'available' => $row !== null,
                     'source' => 'urt_show_video_tag_date',
@@ -394,7 +394,7 @@ class LegacyTagChannelApiReport
                 ->where('the_month', $month);
             $this->applyCacheFilters($query, $filters);
             $row = $query->first();
-            $result = $this->decodeMap($row->tags_result ?? null);
+            $result = $this->decodeDateMetricMap($row->tags_result ?? null);
 
             return $this->tagCachePayload($result, 'urt_show_tag_month', [
                 'filters' => $filters,
@@ -430,7 +430,7 @@ class LegacyTagChannelApiReport
             $result = [];
 
             foreach ($rows as $row) {
-                $result = array_replace($result, $this->decodeMap($row->tags_result ?? null));
+                $result = array_replace($result, $this->decodeDateMetricMap($row->tags_result ?? null));
             }
 
             return $this->tagCachePayload($result, 'urt_show_tag_month period', [
@@ -460,7 +460,7 @@ class LegacyTagChannelApiReport
                 ->where('days', $days);
             $this->applyCacheFilters($query, $filters);
             $row = $query->first();
-            $result = $this->decodeMap($row->tags_result ?? null);
+            $result = $this->decodeWrappedMap($row->tags_result ?? null, ['tags_result', 'tags', 'result', 'data']);
 
             return [
                 'result' => $result === [] ? new stdClass() : $result,
@@ -469,7 +469,7 @@ class LegacyTagChannelApiReport
                 'count_videos' => (int) ($row->count_videos ?? 0),
                 'count_tags' => (int) ($row->count_tags ?? 0),
                 'tags_count' => (int) ($row->tags_count ?? 0),
-                'videos' => $this->decodeMap($row->videos_json ?? null),
+                'videos' => $this->decodeWrappedMap($row->videos_json ?? null, ['videos_json', 'videos', 'result', 'data']),
                 'meta' => [
                     'available' => $row !== null && $result !== [],
                     'source' => 'urt_show_tag_cloud_tag',
@@ -766,6 +766,103 @@ class LegacyTagChannelApiReport
         $decoded = json_decode($json, true);
 
         return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function decodeMetricMap(mixed $json): array
+    {
+        $decoded = $this->decodeWrappedMap($json, ['result', 'tags_all', 'data']);
+
+        return collect($decoded)
+            ->mapWithKeys(function (mixed $value, mixed $key): array {
+                if (is_array($value)) {
+                    $tag = (string) ($value['tag'] ?? $value['keyword'] ?? $value['name'] ?? $key);
+
+                    if ($tag === '') {
+                        return [];
+                    }
+
+                    unset($value['tag'], $value['keyword'], $value['name']);
+
+                    return [$tag => $value];
+                }
+
+                return is_string($key) ? [$key => $value] : [];
+            })
+            ->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function decodeWeightedMap(mixed $json): array
+    {
+        $decoded = $this->decodeMap($json);
+
+        foreach (['tags_json', 'videos_json', 'tags_result', 'tags_video', 'tags_views', 'tags', 'videos', 'result', 'data'] as $key) {
+            if (isset($decoded[$key]) && is_array($decoded[$key])) {
+                $decoded = $decoded[$key];
+                break;
+            }
+        }
+
+        return collect($decoded)
+            ->mapWithKeys(function (mixed $value, mixed $key): array {
+                if (is_array($value)) {
+                    $name = (string) ($value['tag'] ?? $value['keyword'] ?? $value['word'] ?? $value['videoId'] ?? $value['video_id'] ?? $value['id'] ?? $key);
+                    $count = $value['count'] ?? $value['weight'] ?? $value['score'] ?? $value['value'] ?? $value['views'] ?? null;
+
+                    return $name !== '' && $count !== null ? [$name => $count] : [];
+                }
+
+                return is_string($key) ? [$key => $value] : [];
+            })
+            ->all();
+    }
+
+    /**
+     * @param list<string> $wrapperKeys
+     * @return array<string, mixed>
+     */
+    private function decodeWrappedMap(mixed $json, array $wrapperKeys): array
+    {
+        $decoded = $this->decodeMap($json);
+
+        foreach ($wrapperKeys as $key) {
+            if (isset($decoded[$key]) && is_array($decoded[$key])) {
+                return $decoded[$key];
+            }
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function decodeDateMetricMap(mixed $json): array
+    {
+        $decoded = $this->decodeWrappedMap($json, ['tags_result', 'period', 'daily', 'result', 'data']);
+
+        return collect($decoded)
+            ->mapWithKeys(function (mixed $value, mixed $key): array {
+                if (is_array($value)) {
+                    $date = (string) ($value['date'] ?? $value['the_date'] ?? $key);
+
+                    if ($date === '') {
+                        return [];
+                    }
+
+                    unset($value['date'], $value['the_date']);
+
+                    return [$date => $value];
+                }
+
+                return is_string($key) ? [$key => $value] : [];
+            })
+            ->all();
     }
 
     /**

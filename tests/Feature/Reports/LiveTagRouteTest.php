@@ -67,6 +67,33 @@ class LiveTagRouteTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_live_tag_page_reads_wrapped_cache_payloads(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 02:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        DB::table('urt_show_live_tag_date')->insert([
+            'pk' => 1,
+            'tagid' => '1',
+            'tag_or' => '',
+            'tag_not' => '',
+            'the_date' => '2026-05-24',
+            'count_videos' => 4,
+            'count_tags' => 20,
+            'total_views' => 1200,
+            'tags_video' => json_encode(['tags_video' => ['川普' => ['10' => 7]]], JSON_UNESCAPED_UNICODE),
+            'tags_views' => json_encode(['tags_views' => ['川普' => ['10' => 800]]], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->get('/live/tags?tagid=1&from=2026-05-24&to=2026-05-24&type=tags_result');
+
+        $response->assertOk();
+        $response->assertSee('川普');
+        $response->assertSee('800');
+
+        Carbon::setTestNow();
+    }
+
     private function createTables(): void
     {
         foreach (['urt_show_live_tag_date', 'urt_tag'] as $table) {

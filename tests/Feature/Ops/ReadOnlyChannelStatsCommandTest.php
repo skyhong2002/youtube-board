@@ -7,6 +7,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -24,6 +25,7 @@ class ReadOnlyChannelStatsCommandTest extends TestCase
     {
         Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        Http::preventStrayRequests();
         $this->createTables();
 
         DB::table('urt_channel')->insert([
@@ -200,6 +202,161 @@ class ReadOnlyChannelStatsCommandTest extends TestCase
         $this->assertSame('execute', $result['mode']);
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $result['summary']);
         $this->assertSame('executed', $result['jobs'][0]['action']);
+    }
+
+    public function test_youtube_channels_stats_execute_requires_api_key_and_does_not_write_when_missing(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', null);
+        $this->createTables();
+
+        DB::table('urt_channel')->insert([
+            'u_id' => 10,
+            'ctime' => '2026-05-20 00:00:00',
+            'mtime' => null,
+            'stime' => null,
+            'flag_del' => null,
+            'youtube_id' => 'UC-missing-key',
+            'title' => 'Missing Key Channel',
+            'viewCount' => 100,
+            'subscriberCount' => 10,
+            'videoCount' => 1,
+        ]);
+
+        $exitCode = Artisan::call('youtube:channels:stats', [
+            '--execute' => true,
+            '--limit' => 1,
+        ]);
+
+        $this->assertSame(1, $exitCode);
+        $output = Artisan::output();
+        $this->assertStringContainsString('YOUTUBE_API_KEY is not configured', $output, $output);
+        $this->assertStringContainsString('secrets=not', $output, $output);
+        $this->assertNull(DB::table('urt_channel')->where('u_id', 10)->value('stime'));
+        $this->assertSame(100, DB::table('urt_channel')->where('u_id', 10)->value('viewCount'));
+        $this->assertSame(0, DB::table('urt_log')->count());
+    }
+
+    public function test_youtube_channels_stats_execute_parses_api_and_upserts_idempotently(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+
+        DB::table('urt_channel')->insert([
+            'u_id' => 10,
+            'ctime' => '2026-05-20 00:00:00',
+            'mtime' => null,
+            'stime' => null,
+            'flag_del' => null,
+            'youtube_id' => 'UC-execute',
+            'title' => 'Execute Channel',
+            'viewCount' => 100,
+            'subscriberCount' => 10,
+            'videoCount' => 1,
+        ]);
+
+        Http::fake([
+            'www.googleapis.com/youtube/v3/channels*' => Http::response([
+                'items' => [[
+                    'id' => 'UC-execute',
+                    'statistics' => [
+                        'viewCount' => '1234',
+                        'subscriberCount' => '55',
+                        'hiddenSubscriberCount' => false,
+                        'videoCount' => '9',
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $firstExitCode = Artisan::call('youtube:channels:stats', [
+            '--execute' => true,
+            '--channel' => 10,
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $firstPayload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $firstExitCode);
+        $this->assertSame('local-execute', $firstPayload['mode']);
+        $this->assertSame(1, $firstPayload['updated_rows']);
+        $this->assertContains('urt_channel.viewCount', $firstPayload['write_targets']);
+        $this->assertSame(1234, DB::table('urt_channel')->where('u_id', 10)->value('viewCount'));
+        $this->assertSame(55, DB::table('urt_count')->where('u_id', 10)->value('subscriberCount'));
+        $this->assertSame(1, DB::table('urt_log')->where('u_id', 10)->where('themonth', '2026-05-01')->count());
+
+        $log = json_decode((string) DB::table('urt_log')->where('u_id', 10)->value('thedata'), true);
+        $this->assertSame(1234, $log['2026-05-24']['view']);
+        $this->assertSame(55, $log['2026-05-24']['subscriber']);
+        $this->assertSame(9, $log['2026-05-24']['video']);
+
+        $secondExitCode = Artisan::call('youtube:channels:stats', [
+            '--execute' => true,
+            '--channel' => 10,
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+
+        $this->assertSame(0, $secondExitCode);
+        $this->assertSame(1, DB::table('urt_log')->where('u_id', 10)->where('themonth', '2026-05-01')->count());
+        $this->assertSame(1, DB::table('urt_count')->where('u_id', 10)->count());
+        Http::assertSentCount(2);
+    }
+
+    public function test_scheduler_enabled_local_polling_allowlist_can_fetch_channel_stats(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.local_polling_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['youtube.channels.stats']);
+        $this->createTables();
+
+        DB::table('urt_channel')->insert([
+            'u_id' => 10,
+            'ctime' => '2026-05-20 00:00:00',
+            'mtime' => null,
+            'stime' => null,
+            'flag_del' => null,
+            'youtube_id' => 'UC-scheduled-execute',
+            'title' => 'Scheduled Execute Channel',
+            'viewCount' => 100,
+            'subscriberCount' => 10,
+            'videoCount' => 1,
+        ]);
+
+        Http::fake([
+            'www.googleapis.com/youtube/v3/channels*' => Http::response([
+                'items' => [[
+                    'id' => 'UC-scheduled-execute',
+                    'statistics' => [
+                        'viewCount' => '777',
+                        'subscriberCount' => '88',
+                        'hiddenSubscriberCount' => false,
+                        'videoCount' => '11',
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $result = app(IngestionSchedulerRunner::class)->run(
+            at: CarbonImmutable::parse('2026-05-25 00:09:00', 'Asia/Taipei'),
+            execute: true,
+            jobKey: 'youtube.channels.stats',
+        );
+
+        $this->assertSame('execute', $result['mode']);
+        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $result['summary']);
+        $this->assertSame('executed:local-polling', $result['jobs'][0]['action']);
+        $this->assertSame('youtube:channels:stats --execute --limit=1', $result['jobs'][0]['effective_command']);
+        $this->assertSame(777, DB::table('urt_channel')->where('u_id', 10)->value('viewCount'));
+        $this->assertSame(88, DB::table('urt_count')->where('u_id', 10)->value('subscriberCount'));
+        $this->assertSame(1, DB::table('urt_log')->where('u_id', 10)->where('themonth', '2026-05-01')->count());
+        Http::assertSentCount(1);
     }
 
     private function createTables(): void

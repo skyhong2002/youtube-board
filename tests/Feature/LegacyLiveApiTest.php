@@ -172,6 +172,42 @@ class LegacyLiveApiTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_legacy_live_tag_date_api_reads_wrapped_cache_columns(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 02:00:00', 'Asia/Taipei'));
+        $this->createLiveTagCacheTable();
+
+        DB::table('urt_show_live_tag_date')->insert([
+            'pk' => 1,
+            'ctime' => '2026-05-24 00:00:00',
+            'mtime' => '2026-05-24 01:00:00',
+            'tagid' => '',
+            'tag_or' => '',
+            'tag_not' => '',
+            'the_date' => '2026-05-24',
+            'count_channels' => 2,
+            'count_videos' => 3,
+            'count_tags' => 4,
+            'tags_count' => 2,
+            'total_views' => 1200,
+            'hour_result' => json_encode(['hour' => ['10' => ['count' => 2, 'views' => 900]]], JSON_UNESCAPED_UNICODE),
+            'videos_result' => json_encode(['data' => ['live-a' => ['10' => 900]]], JSON_UNESCAPED_UNICODE),
+            'all_result' => json_encode(['all' => ['videos' => ['10' => 2], 'views' => ['10' => 900]]], JSON_UNESCAPED_UNICODE),
+            'tags_video' => json_encode(['tags_video' => ['川普' => ['10' => 2]]], JSON_UNESCAPED_UNICODE),
+            'tags_views' => json_encode(['tags_views' => ['川普' => ['10' => 900]]], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->getJson('/api/api_live_tag_date.php?date=2026-05-24');
+
+        $response->assertOk();
+        $this->assertSame(900, $response->json('result')['views']['川普']['10']);
+        $this->assertSame(2, $response->json('result')['videos']['川普']['10']);
+        $this->assertSame(900, $response->json('result')['hour']['10']['views']);
+        $this->assertSame(900, $response->json('result')['data']['live-a']['10']);
+
+        Carbon::setTestNow();
+    }
+
     public function test_legacy_live_date_list_api_filters_logs_without_generating_cache(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-25 02:00:00', 'Asia/Taipei'));

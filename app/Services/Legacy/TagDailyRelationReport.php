@@ -269,10 +269,35 @@ class TagDailyRelationReport
             return [];
         }
 
+        $decoded = $this->unwrapPairs($decoded);
+
         return collect($decoded)
-            ->filter(fn (mixed $value, mixed $key): bool => is_string($key) && is_numeric($value))
-            ->map(fn (mixed $value): float => (float) $value)
+            ->mapWithKeys(function (mixed $value, mixed $key): array {
+                if (is_array($value)) {
+                    $tag = (string) ($value['tag'] ?? $value['keyword'] ?? $value['word'] ?? $key);
+                    $count = $value['count'] ?? $value['weight'] ?? $value['score'] ?? $value['value'] ?? null;
+
+                    return $tag !== '' && is_numeric($count) ? [$tag => (float) $count] : [];
+                }
+
+                return is_string($key) && is_numeric($value) ? [$key => (float) $value] : [];
+            })
             ->all();
+    }
+
+    /**
+     * @param array<mixed> $decoded
+     * @return array<mixed>
+     */
+    private function unwrapPairs(array $decoded): array
+    {
+        foreach (['tags_result', 'tags_video', 'tags_views', 'tags_json', 'tags', 'result', 'data'] as $key) {
+            if (isset($decoded[$key]) && is_array($decoded[$key])) {
+                return $decoded[$key];
+            }
+        }
+
+        return $decoded;
     }
 
     /**

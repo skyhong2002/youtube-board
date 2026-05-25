@@ -48,6 +48,58 @@ class KeywordGroupTrendRouteTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_keyword_group_trend_reads_wrapped_and_list_shaped_period_cache(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 04:00:00', 'Asia/Taipei'));
+        $this->createTagMonthTable();
+
+        DB::table('urt_show_tag_month')->insert([
+            [
+                'pk' => 1,
+                'tag' => '柯文哲',
+                'tagid' => '3',
+                'tag_or' => '',
+                'tag_not' => '',
+                'the_month' => '2026-05-01',
+                'count_videos' => 6,
+                'total_views' => 300,
+                'tags_result' => json_encode([
+                    'result' => [
+                        ['date' => '2026-05-23', 'tags_views' => 200, 'tags_video' => 4],
+                        ['the_date' => '2026-05-24', 'tags_views' => 300, 'tags_video' => 6],
+                    ],
+                ], JSON_UNESCAPED_UNICODE),
+            ],
+            [
+                'pk' => 2,
+                'tag' => '柯文哲',
+                'tagid' => '4',
+                'tag_or' => '',
+                'tag_not' => '',
+                'the_month' => '2026-05-01',
+                'count_videos' => 2,
+                'total_views' => 120,
+                'tags_result' => json_encode([
+                    'tags_result' => [
+                        '2026-05-24' => ['tags_views' => 120, 'tags_video' => 2],
+                    ],
+                ], JSON_UNESCAPED_UNICODE),
+            ],
+        ]);
+
+        $response = $this->get('/keywords/柯文哲/groups/trends?view=position&days=2&from=2026-05-23&to=2026-05-24&type=total_views&today=0');
+
+        $response->assertOk();
+        $response->assertSee('泛藍');
+        $response->assertSee('泛綠');
+        $response->assertSee('500');
+        $response->assertSee('120');
+        $response->assertSee('cache rows 2');
+        $response->assertDontSee('api/tag_period.php');
+
+        Carbon::setTestNow();
+    }
+
     public function test_keyword_group_trend_reports_missing_cache_without_generating_data(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-25 04:00:00', 'Asia/Taipei'));

@@ -266,6 +266,11 @@ class TagCloudReport
         $words = [];
 
         foreach ($decoded as $word => $value) {
+            if (is_array($value) && array_is_list($decoded)) {
+                $word = $value['word'] ?? $value['keyword'] ?? $value['tag'] ?? '';
+                $value = $value['weight'] ?? $value['count'] ?? $value['score'] ?? $value['value'] ?? null;
+            }
+
             $word = trim((string) $word);
 
             if ($word === '') {
@@ -302,6 +307,12 @@ class TagCloudReport
         }
 
         $decoded = json_decode($json, true);
+
+        foreach (['result', 'keywords', 'keywords_json', 'tags_result', 'data'] as $key) {
+            if (isset($decoded[$key]) && is_array($decoded[$key])) {
+                return $decoded[$key];
+            }
+        }
 
         return is_array($decoded) ? $decoded : [];
     }

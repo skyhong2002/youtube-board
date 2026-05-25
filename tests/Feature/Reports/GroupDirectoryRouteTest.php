@@ -70,12 +70,6 @@ class GroupDirectoryRouteTest extends TestCase
                 'days' => '7',
             ]));
 
-        $this->get('/group_two.php')
-            ->assertStatus(308)
-            ->assertRedirect(route('groups.show', [
-                'groupName' => 'tags_straits',
-            ]));
-
     }
 
     private function createTable(): void

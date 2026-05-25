@@ -66,9 +66,10 @@ class LegacyAiApiReport
             $cachedVideo = $this->decodeMap($row->video_json ?? null);
             $cachedTopic = $this->decodeMap($row->data_json ?? null);
             $raw = $this->decodeJson($row->result_json ?? null);
+            $topics = $this->topicList($raw);
             $channelId = $this->channelMap($row->channel_id ?? null);
             $usedCache = $cachedVideo !== [] && $cachedTopic !== [] && (int) $request->query('force', 0) < 1;
-            $topic = $usedCache ? $cachedTopic : $this->deriveTopicStats($raw);
+            $topic = $usedCache ? $cachedTopic : $this->deriveTopicStats($topics);
 
             return [
                 'result' => [
@@ -110,12 +111,12 @@ class LegacyAiApiReport
 
             $date = substr((string) $row->date_to, 0, 10);
             $event = trim((string) $request->query('event', '')) ?: $this->firstTopicTitle($row->result_json ?? null);
-            $match = $event === '' ? [] : [$date => [$event]];
-            $pk = [$date => (string) $row->pk];
-            $periodRows = $this->periodRowsCount();
+            $history = $event === ''
+                ? ['match' => [], 'pk' => [$date => (string) $row->pk], 'period_rows' => $this->periodRowsCount(), 'blocked_reason' => 'missing event name']
+                : $this->periodHistory($row, $event);
             $result = [
-                'match' => $match === [] ? new stdClass() : $match,
-                'pk' => $pk,
+                'match' => $history['match'] === [] ? new stdClass() : $history['match'],
+                'pk' => $history['pk'],
             ];
 
             if ($request->query->has('prefetch')) {
@@ -129,14 +130,14 @@ class LegacyAiApiReport
                 'result' => $result,
                 'meta' => [
                     'available' => $event !== '',
-                    'source' => 'urt_ai_date'.($periodRows > 0 ? ' + urt_ai_period' : ''),
+                    'source' => 'urt_ai_date'.($history['period_rows'] > 0 ? ' + urt_ai_period' : ''),
                     'pk' => (int) $row->pk,
                     'event' => $event,
                     'condition' => $row->condition_type ?: $condition,
-                    'history_available' => $periodRows > 0,
-                    'period_rows' => $periodRows,
+                    'history_available' => $history['period_rows'] > 0,
+                    'period_rows' => $history['period_rows'],
                     'read_only' => true,
-                    'blocked_reason' => $periodRows === 0 ? 'local urt_ai_period has no rows, so legacy multi-day event tracing is unavailable' : null,
+                    'blocked_reason' => $history['blocked_reason'],
                 ],
             ];
         } catch (QueryException) {
@@ -279,8 +280,8 @@ class LegacyAiApiReport
         return collect($raw)
             ->mapWithKeys(function (mixed $topic): array {
                 $topic = is_array($topic) ? $topic : [];
-                $title = $this->text($topic, ['標題', 'title', 'topic']);
-                $mediaEvents = $topic['媒體事件'] ?? $topic['media_events'] ?? [];
+                $title = $this->text($topic, ['標題', '議題', 'title', 'topic']);
+                $mediaEvents = $topic['媒體事件'] ?? $topic['media_events'] ?? $topic['mediaEvents'] ?? [];
                 $mediaCount = is_array($mediaEvents) ? count($mediaEvents) : 0;
                 $eventCount = collect(is_array($mediaEvents) ? $mediaEvents : [])
                     ->sum(fn (mixed $events): int => is_array($events) ? count($events) : 0);
@@ -301,9 +302,29 @@ class LegacyAiApiReport
     private function firstTopicTitle(mixed $json): string
     {
         $raw = $this->decodeJson($json);
-        $first = is_array($raw) ? reset($raw) : null;
+        $topics = $this->topicList($raw);
+        $first = reset($topics);
 
-        return is_array($first) ? $this->text($first, ['標題', 'title', 'topic']) : '';
+        return is_array($first) ? $this->text($first, ['標題', '議題', 'title', 'topic']) : '';
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function topicList(mixed $raw): array
+    {
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        foreach (['events', '事件', 'topics', '議題', 'result', 'data'] as $key) {
+            if (! array_is_list($raw) && isset($raw[$key]) && is_array($raw[$key])) {
+                $raw = $raw[$key];
+                break;
+            }
+        }
+
+        return array_is_list($raw) ? $raw : array_values($raw);
     }
 
     private function periodRowsCount(): int
@@ -313,6 +334,124 @@ class LegacyAiApiReport
         } catch (QueryException) {
             return 0;
         }
+    }
+
+    /**
+     * @return array{match: array<string, list<string>>, pk: array<string, string>, period_rows: int, blocked_reason: string|null}
+     */
+    private function periodHistory(object $row, string $event): array
+    {
+        $periodRows = $this->periodRowsCount();
+        $currentDate = substr((string) $row->date_to, 0, 10);
+        $condition = (string) ($row->condition_type ?: 'all');
+        $lastEvents = [$event];
+        $lastPk = (string) $row->pk;
+        $match = [$currentDate => $lastEvents];
+        $pk = [$currentDate => $lastPk];
+
+        try {
+            for ($offset = 0; $offset < 60 && $lastEvents !== []; $offset++) {
+                $to = date('Y-m-d', strtotime($currentDate) - $offset * 86400);
+                $from = date('Y-m-d', strtotime($currentDate) - ($offset + 1) * 86400);
+                $period = DB::table('urt_ai_period')
+                    ->whereDate('date_from', $from)
+                    ->whereDate('date_to', $to)
+                    ->whereNull('del_flag')
+                    ->where('condition_type', $condition)
+                    ->orderByDesc('pk')
+                    ->first();
+
+                if (! $period) {
+                    break;
+                }
+
+                $periodMatches = $this->periodMatches($period->result_json ?? null, $from, $to, $lastEvents);
+
+                if ($periodMatches === []) {
+                    break;
+                }
+
+                $match[$from] = $periodMatches;
+                $lastEvents = $periodMatches;
+
+                foreach ($this->stringListFromJson($period->data_json ?? null) as $periodPk) {
+                    if ($periodPk !== $lastPk) {
+                        $pk[$from] = $periodPk;
+                        $lastPk = $periodPk;
+                        break;
+                    }
+                }
+            }
+        } catch (QueryException) {
+            return [
+                'match' => $match,
+                'pk' => $pk,
+                'period_rows' => $periodRows,
+                'blocked_reason' => 'local urt_ai_period schema is missing legacy history columns',
+            ];
+        }
+
+        return [
+            'match' => $match,
+            'pk' => $pk,
+            'period_rows' => $periodRows,
+            'blocked_reason' => $periodRows === 0
+                ? 'local urt_ai_period has no rows, so legacy multi-day event tracing is unavailable'
+                : (count($match) > 1 ? null : 'local urt_ai_period has no matching previous-day event chain for this event'),
+        ];
+    }
+
+    /**
+     * @param list<string> $lastEvents
+     * @return list<string>
+     */
+    private function periodMatches(mixed $json, string $from, string $to, array $lastEvents): array
+    {
+        $decoded = $this->decodeMap($json);
+        $matches = [];
+
+        foreach ($decoded as $eventPair) {
+            if (! is_array($eventPair)) {
+                continue;
+            }
+
+            $toEvents = $this->stringListFromArray($eventPair[$to] ?? []);
+            $fromEvents = $this->stringListFromArray($eventPair[$from] ?? []);
+
+            if ($fromEvents !== [] && array_intersect($toEvents, $lastEvents) !== []) {
+                array_push($matches, ...$fromEvents);
+            }
+        }
+
+        return array_values(array_unique($matches));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function stringListFromJson(mixed $json): array
+    {
+        if (! is_string($json) || trim($json) === '') {
+            return [];
+        }
+
+        return $this->stringListFromArray(json_decode($json, true));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function stringListFromArray(mixed $items): array
+    {
+        if (! is_array($items)) {
+            return [];
+        }
+
+        return collect($items)
+            ->filter(fn (mixed $value): bool => is_scalar($value) && trim((string) $value) !== '')
+            ->map(fn (mixed $value): string => trim((string) $value))
+            ->values()
+            ->all();
     }
 
     private function condition(mixed $value): string

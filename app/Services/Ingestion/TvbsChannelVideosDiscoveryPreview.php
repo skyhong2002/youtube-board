@@ -15,6 +15,8 @@ class TvbsChannelVideosDiscoveryPreview
      */
     public function preview(
         int $tagId = 29,
+        ?int $uId = null,
+        ?string $channel = null,
         int $hours = 700,
         int $force = 1,
         int $limit = 20,
@@ -25,6 +27,8 @@ class TvbsChannelVideosDiscoveryPreview
             ? CarbonImmutable::now($timezone)
             : CarbonImmutable::instance($now->toDateTimeImmutable())->setTimezone($timezone);
         $tagId = max(1, $tagId);
+        $uId = $uId !== null ? max(1, $uId) : null;
+        $channel = is_string($channel) && trim($channel) !== '' ? trim($channel) : null;
         $hours = max(1, min(24 * 365, $hours));
         $force = max(1, min(20, $force));
         $limit = max(1, min(80, $limit));
@@ -35,6 +39,14 @@ class TvbsChannelVideosDiscoveryPreview
             ->whereNull('flag_del')
             ->whereIn('u_id', $taggedUIds->isNotEmpty() ? $taggedUIds->all() : [0])
             ->orderBy('u_id');
+
+        if ($uId !== null) {
+            $query->where('u_id', $uId);
+        }
+
+        if ($channel !== null) {
+            $query->where('youtube_id', $channel);
+        }
 
         $eligibleRows = (clone $query)->count();
         $channels = (clone $query)
@@ -48,8 +60,12 @@ class TvbsChannelVideosDiscoveryPreview
         return [
             'mode' => 'read-only-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
-            'source' => 'tvbs_tag_'.$tagId.'_all_channels',
+            'source' => $uId !== null
+                ? 'tvbs_single_channel_id'
+                : ($channel !== null ? 'tvbs_single_channel_youtube_id' : 'tvbs_tag_'.$tagId.'_all_channels'),
             'tvbs_tag_id' => $tagId,
+            'target_u_id' => $uId,
+            'target_channel' => $channel,
             'hours' => $hours,
             'force' => $force,
             'limit' => $limit,

@@ -6,6 +6,7 @@ use App\Services\Ingestion\IngestionSchedulerRunner;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -14,6 +15,8 @@ class ReadOnlyAiHourlyCommandTest extends TestCase
     protected function tearDown(): void
     {
         CarbonImmutable::setTestNow();
+        config()->set('app.env', 'testing');
+        app()->detectEnvironment(fn () => 'testing');
 
         parent::tearDown();
     }
@@ -108,6 +111,237 @@ class ReadOnlyAiHourlyCommandTest extends TestCase
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $result['summary']);
         $this->assertSame('executed', $result['jobs'][0]['action']);
         $this->assertSame(0, DB::table('urt_ai_hour')->count());
+    }
+
+    public function test_ai_hourly_execute_calls_opencode_and_upserts_hour_row_idempotently(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDefaultFixtures();
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::response([
+                'choices' => [
+                    [
+                        'message' => [
+                            'content' => '[{"事件":"測試事件","描述":"測試描述","videoId":["blue-video"]}]',
+                        ],
+                    ],
+                ],
+                'usage' => [
+                    'prompt_tokens' => 123,
+                    'completion_tokens' => 45,
+                ],
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('ai:hourly', [
+            '--execute' => true,
+            '--condition' => 'blue',
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('execute', $payload['mode']);
+        $this->assertSame('blue', $payload['condition_type']);
+        $this->assertSame('qwen-test', $payload['model']);
+        $this->assertTrue($payload['inserted']);
+        $this->assertFalse($payload['updated']);
+        $this->assertSame('not_printed', $payload['secrets']);
+        $this->assertSame(1, DB::table('urt_ai_hour')->count());
+        $this->assertDatabaseHas('urt_ai_hour', [
+            'date_from' => '2026-05-25 09:00:00',
+            'date_to' => '2026-05-25 09:59:59',
+            'condition_type' => 'blue',
+            'ai_type' => 'qwen-test',
+            'data_type' => 'each',
+            'user_token' => 'cli',
+            'result_json' => '[{"事件":"測試事件","描述":"測試描述","videoId":["blue-video"]}]',
+        ]);
+
+        $exitCode = Artisan::call('ai:hourly', [
+            '--execute' => true,
+            '--condition' => 'blue',
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertFalse($payload['inserted']);
+        $this->assertTrue($payload['updated']);
+        $this->assertSame(1, DB::table('urt_ai_hour')->count());
+        Http::assertSentCount(2);
+        Http::assertSent(function ($request): bool {
+            return $request->hasHeader('Authorization', 'Bearer test-key')
+                && $request['model'] === 'qwen-test'
+                && str_contains($request['messages'][0]['content'], 'blue-video');
+        });
+    }
+
+    public function test_ai_hourly_dry_run_does_not_call_opencode_or_write_by_default(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDefaultFixtures();
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::response([
+                'choices' => [
+                    [
+                        'message' => [
+                            'content' => '[{"事件":"production gate","videoId":["include-default"]}]',
+                        ],
+                    ],
+                ],
+            ]),
+            '*' => Http::response([
+                'choices' => [
+                    [
+                        'message' => [
+                            'content' => '[{"事件":"production gate","videoId":["include-default"]}]',
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('ai:hourly', [
+            '--condition' => 'blue',
+            '--json' => true,
+        ]);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(0, DB::table('urt_ai_hour')->count());
+        Http::assertNothingSent();
+    }
+
+    public function test_ai_hourly_execute_skips_empty_source_window_without_calling_opencode(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
+        $this->createTables();
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::response([
+                'choices' => [
+                    [
+                        'message' => [
+                            'content' => '[{"事件":"production gate","videoId":["include-default"]}]',
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('ai:hourly', [
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('execute', $payload['mode']);
+        $this->assertTrue($payload['skipped']);
+        $this->assertSame('no_source_videos', $payload['skip_reason']);
+        $this->assertFalse($payload['upserted']);
+        $this->assertSame([], $payload['write_targets']);
+        $this->assertSame(0, DB::table('urt_ai_hour')->count());
+        Http::assertNothingSent();
+    }
+
+    public function test_ingestion_scheduler_can_run_allowlisted_ai_hourly_execute_when_due(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDefaultFixtures();
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.local_polling_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['ai.hourly']);
+
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::response([
+                'choices' => [
+                    [
+                        'message' => [
+                            'content' => '[{"事件":"排程事件","videoId":["include-default"]}]',
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $result = app(IngestionSchedulerRunner::class)->run(
+            at: CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'),
+            execute: true,
+            jobKey: 'ai.hourly',
+        );
+
+        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $result['summary']);
+        $this->assertSame('executed:local-polling', $result['jobs'][0]['action']);
+        $this->assertSame('ai:hourly --execute --limit=20', $result['jobs'][0]['effective_command']);
+        $this->assertSame(1, DB::table('urt_ai_hour')->count());
+        Http::assertSentCount(1);
+    }
+
+    public function test_production_scheduler_requires_production_polling_gate_for_ai_hourly(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDefaultFixtures();
+        config()->set('app.env', 'production');
+        app()->detectEnvironment(fn () => 'production');
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.local_polling_enabled', true);
+        config()->set('ingestion.production_polling_enabled', false);
+        config()->set('ingestion.scheduled_write_allowlist', ['ai.hourly']);
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::response([
+                'choices' => [
+                    [
+                        'message' => [
+                            'content' => '[{"事件":"production gate","videoId":["include-default"]}]',
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $blocked = app(IngestionSchedulerRunner::class)->run(
+            at: CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'),
+            execute: true,
+            jobKey: 'ai.hourly',
+        );
+
+        $this->assertSame('executed', $blocked['jobs'][0]['action']);
+        $this->assertSame('ai:hourly', $blocked['jobs'][0]['effective_command']);
+        $this->assertFalse($blocked['jobs'][0]['scheduled_write']['allowed']);
+        $this->assertContains('Production polling is not explicitly enabled.', $blocked['jobs'][0]['scheduled_write']['blocks']);
+        $this->assertSame(0, DB::table('urt_ai_hour')->count());
+        Http::assertNothingSent();
+
+        config()->set('ingestion.production_polling_enabled', true);
+
+        $allowed = app(IngestionSchedulerRunner::class)->run(
+            at: CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'),
+            execute: true,
+            jobKey: 'ai.hourly',
+        );
+
+        $this->assertSame('executed:local-polling', $allowed['jobs'][0]['action'], json_encode($allowed['jobs'][0], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        $this->assertSame('ai:hourly --execute --limit=20', $allowed['jobs'][0]['effective_command']);
+        $this->assertTrue($allowed['jobs'][0]['scheduled_write']['allowed']);
+        $this->assertSame(1, DB::table('urt_ai_hour')->count());
+        Http::assertSentCount(1);
     }
 
     private function createTables(): void

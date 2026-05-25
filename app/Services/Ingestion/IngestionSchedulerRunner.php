@@ -98,6 +98,7 @@ class IngestionSchedulerRunner
             'key' => (string) ($job['key'] ?? ''),
             'status' => $status,
             'command' => $command,
+            'effective_command' => $command,
             'schedule' => (string) ($job['schedule'] ?? ''),
             'due' => $due,
             'executed' => false,
@@ -130,18 +131,29 @@ class IngestionSchedulerRunner
         }
 
         try {
-            $exitCode = Artisan::call($command);
+            $scheduledWrite = $this->registry->scheduledWriteProfile($job);
+            $effectiveCommand = $scheduledWrite['allowed']
+                ? $this->registry->scheduledExecutionCommand($job)
+                : $command;
+            $exitCode = Artisan::call($effectiveCommand);
+            $output = trim(Artisan::output());
 
             return array_merge($base, [
-                'action' => $exitCode === 0 ? 'executed' : 'failed',
+                'action' => $exitCode === 0
+                    ? ($effectiveCommand !== $command ? 'executed:local-polling' : 'executed')
+                    : 'failed',
                 'executed' => $exitCode === 0,
                 'failed' => $exitCode !== 0,
                 'exit_code' => $exitCode,
+                'effective_command' => $effectiveCommand,
+                'output' => mb_strimwidth($output, 0, 2000, '...', 'UTF-8'),
+                'scheduled_write' => $scheduledWrite,
             ]);
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
             return array_merge($base, [
                 'action' => 'failed:exception',
                 'failed' => true,
+                'error' => mb_strimwidth($exception->getMessage(), 0, 1000, '...', 'UTF-8'),
             ]);
         }
     }

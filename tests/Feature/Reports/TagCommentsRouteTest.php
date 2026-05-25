@@ -39,6 +39,47 @@ class TagCommentsRouteTest extends TestCase
             ->assertSee('or=1');
     }
 
+    public function test_tag_comments_page_accepts_list_shaped_authors_json(): void
+    {
+        $this->createTables();
+
+        DB::table('urt_tag')->insert(['tag_id' => 1, 'tag_name' => '社論']);
+        DB::table('urt_count')->insert(['u_id' => 10, 'tags' => '[1]']);
+        DB::table('urt_video')->insert([
+            'videoId' => 'video-list-author',
+            'u_id' => 10,
+            'title' => '列表作者影片',
+            'channelTitle' => '頻道 A',
+            'thumbnails' => 'https://example.test/video-list-author.jpg',
+            'publishedAt' => '2026-05-24 08:00:00',
+        ]);
+        DB::table('urt_comment')->insert([
+            'videoId' => 'video-list-author',
+            'u_id' => 10,
+            'authors_count' => null,
+            'likes_count' => 2,
+            'threads_count' => 1,
+            'replies_count' => 0,
+            'comments_count' => 1,
+            'latest_time' => '2026-05-24 10:00:00',
+            'ctime' => '2026-05-24 10:05:00',
+            'authors_json' => json_encode([
+                [
+                    'ChannelId' => 'UC-list-author',
+                    'DisplayName' => '列表作者',
+                    'ImageUrl' => 'https://example.test/list-author.jpg',
+                    'ChannelUrl' => 'https://youtube.test/list-author',
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->get('/tags/1/comments?limit=5');
+
+        $response->assertOk();
+        $response->assertSee('列表作者');
+        $response->assertSee('列表作者影片');
+    }
+
     private function createTables(): void
     {
         foreach (['urt_tag', 'urt_count', 'urt_video', 'urt_comment', 'urt_comment_author'] as $table) {

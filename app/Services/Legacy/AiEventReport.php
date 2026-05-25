@@ -19,6 +19,7 @@ class AiEventReport
      *     people: array<string, mixed>|null,
      *     media: array<string, mixed>|null,
      *     videos: list<array<string, string>>,
+     *     history: array{available: bool, match: array<string, list<string>>, pk: array<string, string>, source: string, blocked_reason: string|null},
      *     mode: string,
      *     has_event_ai: bool,
      *     history_available: bool,
@@ -42,6 +43,7 @@ class AiEventReport
             $summaryEvents = $this->summaryEvents($summaryRow?->result_json);
             $people = $this->people($peopleRow?->result_json);
             $media = $this->media($mediaRow?->result_json);
+            $history = $this->periodHistory($daily, $event);
 
             return [
                 'available' => true,
@@ -53,9 +55,10 @@ class AiEventReport
                 'people' => $people,
                 'media' => $media,
                 'videos' => $this->wallVideos($summaryEvents, $people),
+                'history' => $history,
                 'mode' => in_array($mode, ['show', 'people', 'wall'], true) ? $mode : 'show',
                 'has_event_ai' => $summaryRow !== null || $peopleRow !== null || $mediaRow !== null,
-                'history_available' => $this->periodTableHasData(),
+                'history_available' => $history['available'],
                 'generated_at' => now('Asia/Taipei')->format('Y-m-d H:i:s'),
             ];
         } catch (QueryException) {
@@ -90,6 +93,137 @@ class AiEventReport
         } catch (QueryException) {
             return false;
         }
+    }
+
+    /**
+     * @return array{available: bool, match: array<string, list<string>>, pk: array<string, string>, source: string, blocked_reason: string|null}
+     */
+    private function periodHistory(?object $daily, string $event): array
+    {
+        if (! $daily || $event === '') {
+            return $this->emptyHistory('missing daily row or event name');
+        }
+
+        $currentDate = substr((string) $daily->date_to, 0, 10);
+        $condition = (string) ($daily->condition_type ?: 'all');
+        $lastEvents = [$event];
+        $lastPk = (string) $daily->pk;
+        $match = [$currentDate => $lastEvents];
+        $pk = [$currentDate => $lastPk];
+
+        try {
+            for ($offset = 0; $offset < 60 && $lastEvents !== []; $offset++) {
+                $to = date('Y-m-d', strtotime($currentDate) - $offset * 86400);
+                $from = date('Y-m-d', strtotime($currentDate) - ($offset + 1) * 86400);
+                $row = DB::table('urt_ai_period')
+                    ->whereDate('date_from', $from)
+                    ->whereDate('date_to', $to)
+                    ->whereNull('del_flag')
+                    ->where('condition_type', $condition)
+                    ->orderByDesc('pk')
+                    ->first();
+
+                if (! $row) {
+                    break;
+                }
+
+                $periodMatches = $this->periodMatches($row->result_json ?? null, $from, $to, $lastEvents);
+
+                if ($periodMatches === []) {
+                    break;
+                }
+
+                $match[$from] = $periodMatches;
+                $lastEvents = $periodMatches;
+
+                foreach ($this->stringListFromJson($row->data_json ?? null) as $periodPk) {
+                    if ($periodPk !== $lastPk) {
+                        $pk[$from] = $periodPk;
+                        $lastPk = $periodPk;
+                        break;
+                    }
+                }
+            }
+        } catch (QueryException) {
+            return $this->emptyHistory('local urt_ai_period schema is missing legacy history columns');
+        }
+
+        return [
+            'available' => count($match) > 1,
+            'match' => $match,
+            'pk' => $pk,
+            'source' => 'urt_ai_date + urt_ai_period',
+            'blocked_reason' => count($match) > 1 ? null : 'local urt_ai_period has no matching previous-day event chain for this event',
+        ];
+    }
+
+    /**
+     * @param list<string> $lastEvents
+     * @return list<string>
+     */
+    private function periodMatches(mixed $json, string $from, string $to, array $lastEvents): array
+    {
+        $decoded = $this->decodeObject($json);
+        $matches = [];
+
+        foreach ($decoded as $eventPair) {
+            if (! is_array($eventPair)) {
+                continue;
+            }
+
+            $toEvents = $this->stringListFromArray($eventPair[$to] ?? []);
+            $fromEvents = $this->stringListFromArray($eventPair[$from] ?? []);
+
+            if ($fromEvents !== [] && array_intersect($toEvents, $lastEvents) !== []) {
+                array_push($matches, ...$fromEvents);
+            }
+        }
+
+        return array_values(array_unique($matches));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function stringListFromJson(mixed $json): array
+    {
+        if (! is_string($json) || trim($json) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($json, true);
+
+        return $this->stringListFromArray($decoded);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function stringListFromArray(mixed $items): array
+    {
+        if (! is_array($items)) {
+            return [];
+        }
+
+        return collect($items)
+            ->filter(fn (mixed $value): bool => is_scalar($value) && trim((string) $value) !== '')
+            ->map(fn (mixed $value): string => trim((string) $value))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array{available: bool, match: array<string, list<string>>, pk: array<string, string>, source: string, blocked_reason: string|null}
+     */
+    private function emptyHistory(string $reason): array
+    {
+        return [
+            'available' => false,
+            'match' => [],
+            'pk' => [],
+            'source' => 'urt_ai_period',
+            'blocked_reason' => $reason,
+        ];
     }
 
     /**
@@ -404,7 +538,7 @@ class AiEventReport
     }
 
     /**
-     * @return array{available: bool, aipk: int, event: string, title: string, date: string|null, summary_events: list<array<string, mixed>>, people: array<string, mixed>|null, media: array<string, mixed>|null, videos: list<array<string, string>>, mode: string, has_event_ai: bool, history_available: bool, generated_at: string}
+     * @return array{available: bool, aipk: int, event: string, title: string, date: string|null, summary_events: list<array<string, mixed>>, people: array<string, mixed>|null, media: array<string, mixed>|null, videos: list<array<string, string>>, history: array{available: bool, match: array<string, list<string>>, pk: array<string, string>, source: string, blocked_reason: string|null}, mode: string, has_event_ai: bool, history_available: bool, generated_at: string}
      */
     private function empty(bool $available, int $aipk, string $event, string $mode): array
     {
@@ -418,6 +552,7 @@ class AiEventReport
             'people' => null,
             'media' => null,
             'videos' => [],
+            'history' => $this->emptyHistory('local AI event rows are unavailable'),
             'mode' => in_array($mode, ['show', 'people', 'wall'], true) ? $mode : 'show',
             'has_event_ai' => false,
             'history_available' => false,

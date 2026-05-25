@@ -7,6 +7,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -24,6 +25,7 @@ class ReadOnlyVideoStatsCommandTest extends TestCase
     {
         Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        Http::preventStrayRequests();
         $this->createTables();
 
         for ($i = 1; $i <= 5; $i++) {
@@ -92,6 +94,134 @@ class ReadOnlyVideoStatsCommandTest extends TestCase
         $this->assertSame(101, DB::table('urt_video_schedule')->where('videoId', 'due-video-1')->value('viewCount'));
         $this->assertSame(0, DB::table('urt_video_log_history')->count());
         $this->assertSame(0, DB::table('urt_video_log')->count());
+    }
+
+    public function test_youtube_videos_stats_execute_requires_api_key_and_does_not_write_when_missing(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', null);
+        Http::preventStrayRequests();
+        $this->createTables();
+
+        DB::table('urt_video')->insert([
+            'pk' => 1,
+            'ctime' => '2026-05-24 00:00:00',
+            'mtime' => null,
+            'stime' => null,
+            'u_id' => 10,
+            'videoId' => 'missing-key-video',
+            'title' => 'Missing Key Video',
+            'channelTitle' => 'Channel A',
+            'publishedAt' => '2026-05-20 12:00:00',
+            'viewCount' => null,
+            'likeCount' => null,
+            'commentCount' => null,
+        ]);
+
+        $exitCode = Artisan::call('youtube:videos:stats', [
+            '--execute' => true,
+            '--videoId' => 'missing-key-video',
+            '--limit' => 1,
+        ]);
+        $output = Artisan::output();
+
+        $this->assertSame(1, $exitCode);
+        $this->assertStringContainsString('YOUTUBE_API_KEY is not configured', $output, $output);
+        $this->assertStringContainsString('secrets=not_printed', $output, $output);
+        $this->assertNull(DB::table('urt_video')->where('videoId', 'missing-key-video')->value('viewCount'));
+        $this->assertSame(0, DB::table('urt_video_schedule')->count());
+        $this->assertSame(0, DB::table('urt_video_log_history')->count());
+        $this->assertSame(0, DB::table('urt_video_log')->count());
+    }
+
+    public function test_youtube_videos_stats_execute_parses_api_and_upserts_idempotently(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+
+        DB::table('urt_video')->insert([
+            'pk' => 1,
+            'ctime' => '2026-05-24 00:00:00',
+            'mtime' => null,
+            'stime' => null,
+            'u_id' => 10,
+            'videoId' => 'stats-video',
+            'title' => 'Stats Video',
+            'channelTitle' => 'Channel A',
+            'publishedAt' => '2026-05-20 12:00:00',
+            'viewCount' => null,
+            'likeCount' => null,
+            'commentCount' => null,
+        ]);
+        DB::table('urt_video_schedule')->insert([
+            'pk' => 1,
+            'ctime' => '2026-05-24 00:00:00',
+            'mtime' => null,
+            'stime' => null,
+            'videoId' => 'stats-video',
+            'publishedAt' => '2026-05-20 12:00:00',
+            'viewCount' => null,
+            'likeCount' => null,
+            'commentCount' => null,
+        ]);
+
+        Http::fake([
+            'www.googleapis.com/youtube/v3/videos*' => Http::response([
+                'items' => [
+                    [
+                        'id' => 'stats-video',
+                        'statistics' => [
+                            'viewCount' => '1234',
+                            'likeCount' => '56',
+                            'favoriteCount' => '0',
+                            'commentCount' => '7',
+                        ],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $firstExitCode = Artisan::call('youtube:videos:stats', [
+            '--execute' => true,
+            '--videoId' => 'stats-video',
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $firstPayload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $firstExitCode);
+        $this->assertSame('local-execute', $firstPayload['mode']);
+        $this->assertSame(1, $firstPayload['updated_videos']);
+        $this->assertContains('urt_video.viewCount', $firstPayload['write_targets']);
+        $this->assertSame(1234, DB::table('urt_video')->where('videoId', 'stats-video')->value('viewCount'));
+        $this->assertSame(56, DB::table('urt_video')->where('videoId', 'stats-video')->value('likeCount'));
+        $this->assertSame(7, DB::table('urt_video')->where('videoId', 'stats-video')->value('commentCount'));
+        $this->assertSame(1234, DB::table('urt_video_schedule')->where('videoId', 'stats-video')->value('viewCount'));
+        $this->assertSame('2026-06-23 18:00:00', DB::table('urt_video_schedule')->where('videoId', 'stats-video')->value('stime'));
+        $this->assertSame(1, DB::table('urt_video_log_history')->where('videoId', 'stats-video')->count());
+        $this->assertSame(1, DB::table('urt_video_log')->where('videoId', 'stats-video')->count());
+
+        $log = DB::table('urt_video_log')->where('videoId', 'stats-video')->first();
+        $this->assertIsObject($log);
+        $logData = json_decode((string) $log->thedata, true);
+        $this->assertSame(1234, $logData['2026-05-24']['view']);
+        $this->assertSame(56, $logData['2026-05-24']['like']);
+        $this->assertSame(7, $logData['2026-05-24']['comment']);
+
+        $secondExitCode = Artisan::call('youtube:videos:stats', [
+            '--execute' => true,
+            '--videoId' => 'stats-video',
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+
+        $this->assertSame(0, $secondExitCode);
+        $this->assertSame(1, DB::table('urt_video_log_history')->where('videoId', 'stats-video')->count());
+        $this->assertSame(1, DB::table('urt_video_log')->where('videoId', 'stats-video')->count());
+        Http::assertSentCount(2);
     }
 
     public function test_youtube_videos_stats_supports_today_missing_view_count_branch(): void

@@ -163,6 +163,61 @@ class TagCloudRouteTest extends TestCase
         $response->assertDontSee('自訂停用詞');
     }
 
+    public function test_tag_cloud_reads_wrapped_and_list_shaped_cache_payloads(): void
+    {
+        $this->createTagTable();
+        $this->createTagCloudTable();
+
+        DB::table('urt_show_tag_cloud')->insert([
+            [
+                'pk' => 1,
+                'ctime' => '2026-05-24 00:00:00',
+                'mtime' => '2026-05-24 01:00:00',
+                'tagid' => '1',
+                'tag_or' => '',
+                'tag_not' => '',
+                'count_channels' => 2,
+                'count_videos' => 3,
+                'count_tags' => 4,
+                'days' => 3,
+                'tags_count' => 2,
+                'tags_result' => json_encode([
+                    'result' => [
+                        ['word' => '包裝標籤', 'weight' => '30.000'],
+                        ['keyword' => '列表標籤', 'score' => '20.000'],
+                    ],
+                ], JSON_UNESCAPED_UNICODE),
+            ],
+            [
+                'pk' => 2,
+                'ctime' => '2026-05-24 00:00:00',
+                'mtime' => '2026-05-24 01:00:00',
+                'tagid' => '1',
+                'tag_or' => '',
+                'tag_not' => '',
+                'count_channels' => 4,
+                'count_videos' => 5,
+                'count_tags' => 6,
+                'days' => 7,
+                'tags_count' => 2,
+                'tags_result' => json_encode([
+                    'tags_result' => [
+                        '包裝標籤' => ['weight' => '14.000'],
+                        '列表標籤' => ['count' => '7.000'],
+                    ],
+                ], JSON_UNESCAPED_UNICODE),
+            ],
+        ]);
+
+        $response = $this->get('/tags/1/cloud?days=3&limit=10');
+
+        $response->assertOk();
+        $response->assertSee('包裝標籤');
+        $response->assertSee('列表標籤');
+        $response->assertSee('23.000');
+        $response->assertSee('16.500');
+    }
+
     private function createTagTable(): void
     {
         Schema::create('urt_tag', function ($table): void {

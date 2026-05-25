@@ -83,6 +83,44 @@ class LegacyTagChannelApiTest extends TestCase
         $this->assertSame(0, DB::table('urt_show_data')->count());
     }
 
+    public function test_tags_all_api_reads_wrapped_and_list_shaped_cache(): void
+    {
+        Schema::create('urt_show_data', function ($table): void {
+            $table->integer('pk');
+            $table->dateTime('ctime');
+            $table->dateTime('mtime')->nullable();
+            $table->dateTime('stime')->nullable();
+            $table->string('data_name');
+            $table->string('api')->nullable();
+            $table->string('para')->nullable();
+            $table->longText('the_result')->nullable();
+        });
+
+        DB::table('urt_show_data')->insert([
+            'pk' => 1,
+            'ctime' => '2026-05-24 00:00:00',
+            'mtime' => '2026-05-24 01:00:00',
+            'stime' => null,
+            'data_name' => 'tags_all',
+            'api' => null,
+            'para' => null,
+            'the_result' => json_encode([
+                'result' => [
+                    ['tag' => '柯文哲', 'video' => 8, 'views' => 7000, 'views_all' => 21000],
+                    ['keyword' => '賴清德', 'video' => 4, 'views' => 3000, 'views_all' => 9000],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->getJson('/api/tags_all.php');
+
+        $response->assertOk();
+        $response->assertJsonPath('meta.available', true);
+        $response->assertJsonPath('result.柯文哲.video', 8);
+        $response->assertJsonPath('result.賴清德.views_all', 9000);
+        $this->assertSame(1, DB::table('urt_show_data')->count());
+    }
+
     public function test_video_tags_apis_compute_keywords_read_only_when_cache_is_empty(): void
     {
         $this->createTagsTable();
@@ -243,6 +281,36 @@ class LegacyTagChannelApiTest extends TestCase
         $this->assertSame(1, DB::table('urt_show_tag_cloud')->count());
     }
 
+    public function test_tag_cloud_cache_api_reads_wrapped_and_list_payloads(): void
+    {
+        $this->createTagCloudTable();
+        DB::table('urt_show_tag_cloud')->insert([
+            'pk' => 1,
+            'ctime' => '2026-05-24 00:00:00',
+            'mtime' => '2026-05-24 01:00:00',
+            'tagid' => '1',
+            'tag_or' => '',
+            'tag_not' => '',
+            'count_channels' => 2,
+            'count_videos' => 3,
+            'count_tags' => 4,
+            'days' => 3,
+            'tags_count' => 2,
+            'tags_result' => json_encode([
+                'tags_result' => [
+                    ['tag' => '川普', 'weight' => '9.500'],
+                    ['word' => '白宮', 'score' => 4],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->getJson('/api/tags_day.php?tagid=1&days=3');
+
+        $response->assertOk();
+        $this->assertSame('9.500', $response->json('result')['川普']);
+        $this->assertSame(4, $response->json('result')['白宮']);
+    }
+
     public function test_tag_relation_month_period_and_tags_days_cache_apis_are_read_only(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-25 02:00:00', 'Asia/Taipei'));
@@ -331,6 +399,127 @@ class LegacyTagChannelApiTest extends TestCase
         $this->assertSame(1, DB::table('urt_show_video_tag_date')->count());
         $this->assertSame(2, DB::table('urt_show_tag_month')->count());
         $this->assertSame(1, DB::table('urt_show_tag_cloud_tag')->count());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_tag_relation_date_api_reads_wrapped_and_list_shaped_payloads(): void
+    {
+        $this->createTagRelationDateTable();
+
+        DB::table('urt_show_video_tag_date')->insert([
+            'pk' => 1,
+            'ctime' => '2026-05-24 00:00:00',
+            'mtime' => '2026-05-24 01:00:00',
+            'the_date' => '2026-05-24',
+            'tag' => '蔡英文',
+            'count_videos' => 2,
+            'count_tags' => 3,
+            'count_channels' => 1,
+            'videos_json' => json_encode([
+                'videos' => [
+                    ['videoId' => 'video-a', 'count' => 10],
+                    ['video_id' => 'video-b', 'value' => 7],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+            'tags_json' => json_encode([
+                'tags' => [
+                    ['tag' => '川普', 'count' => 2],
+                    ['word' => '白宮', 'score' => 5],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->getJson('/api/tags_relation_date.php?tag=蔡英文&date=2026-05-24');
+
+        $response->assertOk();
+        $this->assertSame(2, $response->json('result')['川普']);
+        $this->assertSame(5, $response->json('result')['白宮']);
+        $this->assertSame(10, $response->json('videos')['video-a']);
+        $this->assertSame(7, $response->json('videos')['video-b']);
+    }
+
+    public function test_tag_month_period_and_tags_days_apis_read_wrapped_payloads(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 02:00:00', 'Asia/Taipei'));
+        $this->createTagMonthTable();
+        $this->createTagCloudTagTable();
+
+        DB::table('urt_show_tag_month')->insert([
+            [
+                'pk' => 1,
+                'ctime' => '2026-05-01 00:00:00',
+                'mtime' => '2026-05-24 01:00:00',
+                'tag' => '蔡英文',
+                'tagid' => '',
+                'tag_or' => '',
+                'tag_not' => '',
+                'the_month' => '2026-05-01',
+                'count_videos' => 2,
+                'total_views' => 2000,
+                'tags_result' => json_encode([
+                    'result' => [
+                        ['date' => '2026-05-24', 'tags_video' => 2, 'tags_views' => 2000],
+                    ],
+                ], JSON_UNESCAPED_UNICODE),
+            ],
+            [
+                'pk' => 2,
+                'ctime' => '2026-04-01 00:00:00',
+                'mtime' => '2026-04-30 01:00:00',
+                'tag' => '蔡英文',
+                'tagid' => '',
+                'tag_or' => '',
+                'tag_not' => '',
+                'the_month' => '2026-04-01',
+                'count_videos' => 1,
+                'total_views' => 1000,
+                'tags_result' => json_encode([
+                    'tags_result' => [
+                        '2026-04-30' => ['tags_video' => 1, 'tags_views' => 1000],
+                    ],
+                ], JSON_UNESCAPED_UNICODE),
+            ],
+        ]);
+        DB::table('urt_show_tag_cloud_tag')->insert([
+            'pk' => 1,
+            'ctime' => '2026-05-24 00:00:00',
+            'mtime' => '2026-05-24 01:00:00',
+            'tag' => '蔡英文',
+            'tagid' => '',
+            'tag_or' => '',
+            'tag_not' => '',
+            'count_channels' => 1,
+            'count_videos' => 2,
+            'count_tags' => 3,
+            'days' => 3,
+            'tags_count' => 1,
+            'tags_result' => json_encode([
+                'tags_result' => [
+                    '川普' => ['videos' => 1, 'views' => 100, 'weight' => '10.00'],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+            'videos_json' => json_encode([
+                'videos' => [
+                    'video-a' => ['u_id' => 10],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $month = $this->getJson('/api/tag_month.php?tag=蔡英文&month=2026-05-01');
+        $period = $this->getJson('/api/tag_period.php?tag=蔡英文&days=60');
+        $tagsDays = $this->getJson('/api/tag_tags_days.php?tag=蔡英文&days=3');
+
+        $month->assertOk();
+        $this->assertSame(2, $month->json('result')['2026-05-24']['tags_video']);
+
+        $period->assertOk();
+        $this->assertSame(1, $period->json('result')['2026-04-30']['tags_video']);
+        $this->assertSame(2, $period->json('result')['2026-05-24']['tags_video']);
+
+        $tagsDays->assertOk();
+        $this->assertSame('10.00', $tagsDays->json('result')['川普']['weight']);
+        $this->assertSame(10, $tagsDays->json('videos')['video-a']['u_id']);
 
         Carbon::setTestNow();
     }

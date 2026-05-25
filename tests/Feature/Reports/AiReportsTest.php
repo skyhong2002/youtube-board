@@ -92,6 +92,61 @@ class AiReportsTest extends TestCase
         $response->assertSee('https://i.ytimg.com/vi/abc123/mqdefault.jpg', false);
     }
 
+    public function test_ai_daily_page_expands_wrapped_legacy_topic_payloads(): void
+    {
+        $this->createAiDailyTables();
+
+        DB::table('urt_ai_date')->insert([
+            'pk' => 11,
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
+            'condition_type' => 'all',
+            'data_type' => 'oneday',
+            'del_flag' => null,
+            'channel_id' => json_encode([15 => '頭條開講'], JSON_UNESCAPED_UNICODE),
+            'result_json' => json_encode([
+                'topics' => [
+                    [
+                        '議題' => '包裝格式每日事件',
+                        'mediaEvents' => [
+                            '頭條開講' => ['包裝事件A'],
+                        ],
+                    ],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        DB::table('urt_channel_ai')->insert([
+            'pk' => 110,
+            'u_id' => 15,
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
+            'del_flag' => null,
+            'result_json' => json_encode([
+                'events' => [
+                    [
+                        '議題' => '包裝事件A',
+                        '角度' => '台灣',
+                        '陣營' => '民進黨',
+                        'keywords' => ['包裝', '每日'],
+                        'people' => ['測試人物'],
+                        'video_id' => 'wrapped-daily',
+                    ],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        DB::table('urt_count')->insert(['u_id' => 15, 'tags' => '[4]']);
+
+        $response = $this->get('/ai/days/2026-05-24/all');
+
+        $response->assertOk();
+        $response->assertSee('包裝格式每日事件');
+        $response->assertSee('包裝(1)');
+        $response->assertSee('測試人物(1)');
+        $response->assertSee('wrapped-daily');
+    }
+
     public function test_ai_event_page_renders_summary_and_people_prompts(): void
     {
         $this->createAiEventTables();
@@ -160,11 +215,28 @@ class AiReportsTest extends TestCase
                 ], JSON_UNESCAPED_UNICODE),
             ],
         ]);
+        DB::table('urt_ai_period')->insert([
+            'pk' => 30,
+            'date_from' => '2026-05-22 00:00:00',
+            'date_to' => '2026-05-23 23:59:59',
+            'condition_type' => 'all',
+            'del_flag' => null,
+            'result_json' => json_encode([
+                [
+                    '2026-05-23' => ['毒駕事件'],
+                    '2026-05-22' => ['交通事故修法'],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+            'data_json' => json_encode(['9', '10'], JSON_UNESCAPED_UNICODE),
+        ]);
 
         $response = $this->get('/ai/events/10?event=毒駕事件');
 
         $response->assertOk();
         $response->assertSee('毒駕事件 到 2026-05-23 的相關報導');
+        $response->assertSee('逐日事件線');
+        $response->assertSee('交通事故修法');
+        $response->assertSee('pk=9');
         $response->assertSee('事件分析');
         $response->assertSee('毒駕事件引起交通安全討論');
         $response->assertSee('毒駕');
@@ -288,6 +360,45 @@ class AiReportsTest extends TestCase
         $response->assertDontSee('舊事件');
     }
 
+    public function test_ai_hourly_page_expands_wrapped_legacy_topic_payloads(): void
+    {
+        $this->createAiHourTable();
+
+        DB::table('urt_ai_hour')->insert([
+            'pk' => 1,
+            'date_from' => '2026-05-24 12:00:00',
+            'date_to' => '2026-05-24 12:59:59',
+            'condition_type' => 'all',
+            'ai_type' => 'qwen',
+            'data_type' => 'each',
+            'user_token' => 'CLI',
+            'del_flag' => null,
+            'result_json' => json_encode([
+                'events' => [
+                    [
+                        '議題' => '包裝格式事件',
+                        '說明' => '這筆資料包在 events key 裡。',
+                        '類型' => '政治',
+                        'keywords' => ['包裝', '解析'],
+                        'people' => ['測試人物'],
+                        'places' => ['台北'],
+                        'videos' => ['wrapped123'],
+                    ],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->get('/ai/hours?date=2026-05-24');
+
+        $response->assertOk();
+        $response->assertSee('包裝格式事件');
+        $response->assertSee('這筆資料包在 events key 裡');
+        $response->assertSee('政治');
+        $response->assertSee('包裝');
+        $response->assertSee('測試人物');
+        $response->assertSee('wrapped123');
+    }
+
     private function createAiHourTable(): void
     {
         Schema::dropIfExists('urt_ai_hour');
@@ -339,7 +450,7 @@ class AiReportsTest extends TestCase
 
     private function createAiEventTables(): void
     {
-        foreach (['urt_ai_date', 'urt_ai_event'] as $table) {
+        foreach (['urt_ai_period', 'urt_ai_date', 'urt_ai_event'] as $table) {
             Schema::dropIfExists($table);
         }
 
@@ -364,6 +475,16 @@ class AiReportsTest extends TestCase
             $table->string('prompt_type')->nullable();
             $table->integer('del_flag')->nullable();
             $table->text('result_json')->nullable();
+        });
+
+        Schema::create('urt_ai_period', function ($table): void {
+            $table->integer('pk');
+            $table->dateTime('date_from');
+            $table->dateTime('date_to');
+            $table->string('condition_type')->nullable();
+            $table->integer('del_flag')->nullable();
+            $table->text('result_json')->nullable();
+            $table->text('data_json')->nullable();
         });
     }
 }

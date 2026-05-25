@@ -58,6 +58,13 @@ class LegacyRedirectTest extends TestCase
             'videoId' => 'abc123',
             'limit' => '24',
         ]));
+
+        $this->get('/live_line.php?limit=24')
+            ->assertStatus(308)
+            ->assertRedirect(route('live.videos.trend', [
+                'videoId' => 'oka2UDaeFZw',
+                'limit' => '24',
+            ]));
     }
 
     public function test_legacy_live_day_line_url_redirects_to_daily_trend(): void
@@ -83,15 +90,22 @@ class LegacyRedirectTest extends TestCase
         ]));
     }
 
-    public function test_legacy_live_channel_url_redirects_to_channel_aggregate(): void
+    public function test_legacy_live_channel_url_redirects_to_video_ranking(): void
     {
-        $response = $this->get('/live_channel.php?date=2026-05-24&tagid=1');
-
-        $response->assertStatus(308);
-        $response->assertRedirect(route('live.channels', [
+        $this->get('/live_channel.php?date=2026-05-24&tagid=1')
+            ->assertStatus(308)
+            ->assertRedirect(route('live.days.date', [
             'date' => '2026-05-24',
             'tagid' => '1',
-        ]));
+            ]));
+
+        $this->get('/live_channel.php?from=2026-05-23&to=2026-05-24&or=1')
+            ->assertStatus(308)
+            ->assertRedirect(route('live.periods', [
+                'from' => '2026-05-23',
+                'to' => '2026-05-24',
+                'or' => '1',
+            ]));
     }
 
     public function test_legacy_live_hour_url_redirects_to_hourly_heatmap(): void
@@ -360,15 +374,22 @@ class LegacyRedirectTest extends TestCase
             ]));
     }
 
-    public function test_legacy_live_videos_url_redirects_to_tag_live_videos(): void
+    public function test_legacy_live_videos_url_redirects_to_video_ranking(): void
     {
-        $response = $this->get('/live_videos.php?tagid=1&not=9&date=2026-05-24');
+        $this->get('/live_videos.php?tagid=1&not=9&date=2026-05-24')
+            ->assertStatus(308)
+            ->assertRedirect(route('live.days.date', [
+                'date' => '2026-05-24',
+                'tagid' => '1',
+                'not' => '9',
+            ]));
 
-        $response->assertStatus(308);
-        $response->assertRedirect(route('tags.live.videos', [
-            'tagId' => 1,
-            'not' => '9',
-            'date' => '2026-05-24',
+        $this->get('/live_videos.php?from=2026-05-20&to=2026-05-24&or=1')
+            ->assertStatus(308)
+            ->assertRedirect(route('live.periods', [
+                'from' => '2026-05-20',
+                'to' => '2026-05-24',
+                'or' => '1',
             ]));
     }
 

@@ -6,6 +6,7 @@ use App\Services\Ingestion\IngestionSchedulerRunner;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -20,6 +21,7 @@ class ReadOnlyLivePollingCommandTest extends TestCase
 
     public function test_youtube_live_poll_previews_legacy_stale_live_rows_without_api_or_writes(): void
     {
+        Http::preventStrayRequests();
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
         $this->createTables();
 
@@ -87,6 +89,100 @@ class ReadOnlyLivePollingCommandTest extends TestCase
 
         $this->assertSame('2026-05-25 11:00:00', DB::table('urt_video_live')->where('videoId', 'eligible-01')->value('mtime'));
         $this->assertSame(1, DB::table('urt_video_live_log')->count());
+    }
+
+    public function test_youtube_live_poll_execute_requires_api_key_and_does_not_write_when_missing(): void
+    {
+        Http::preventStrayRequests();
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', null);
+        $this->createTables();
+
+        DB::table('urt_video_live')->insert($this->liveRow('missing-key-live', 1, '2026-05-25 11:00:00'));
+
+        $exitCode = Artisan::call('youtube:live:poll', [
+            '--execute' => true,
+            '--videoId' => 'missing-key-live',
+            '--limit' => 1,
+        ]);
+        $output = Artisan::output();
+
+        $this->assertSame(1, $exitCode);
+        $this->assertStringContainsString('YOUTUBE_API_KEY is not configured', $output, $output);
+        $this->assertStringContainsString('secrets=not_printed', $output, $output);
+        $this->assertSame('2026-05-25 11:00:00', DB::table('urt_video_live')->where('videoId', 'missing-key-live')->value('mtime'));
+        $this->assertSame(0, DB::table('urt_video_live_log')->count());
+    }
+
+    public function test_youtube_live_poll_execute_parses_api_and_upserts_log_idempotently(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 20:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+
+        DB::table('urt_video_live')->insert($this->liveRow(
+            videoId: 'execute-live',
+            uId: 7,
+            mtime: '2026-05-25 19:00:00',
+            scheduledStartTime: '2026-05-25 19:30:00',
+            concurrentViewers: 100,
+            maxCurrent: 120,
+        ));
+
+        Http::fake([
+            'www.googleapis.com/youtube/v3/videos*' => Http::response([
+                'items' => [
+                    [
+                        'id' => 'execute-live',
+                        'liveStreamingDetails' => [
+                            'actualStartTime' => '2026-05-25T11:30:00Z',
+                            'scheduledStartTime' => '2026-05-25T11:00:00Z',
+                            'activeLiveChatId' => 'chat-execute-live-new',
+                            'concurrentViewers' => '456',
+                        ],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $firstExitCode = Artisan::call('youtube:live:poll', [
+            '--execute' => true,
+            '--videoId' => 'execute-live',
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $firstPayload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $firstExitCode);
+        $this->assertSame('local-execute', $firstPayload['mode']);
+        $this->assertSame(1, $firstPayload['updated_videos']);
+        $this->assertContains('urt_video_live.concurrentViewers', $firstPayload['write_targets']);
+        $this->assertSame('2026-05-25 20:00:00', DB::table('urt_video_live')->where('videoId', 'execute-live')->value('mtime'));
+        $this->assertSame('2026-05-25 19:30:00', DB::table('urt_video_live')->where('videoId', 'execute-live')->value('actualStartTime'));
+        $this->assertSame('2026-05-25 19:00:00', DB::table('urt_video_live')->where('videoId', 'execute-live')->value('scheduledStartTime'));
+        $this->assertSame('chat-execute-live-new', DB::table('urt_video_live')->where('videoId', 'execute-live')->value('activeLiveChatId'));
+        $this->assertSame(456, DB::table('urt_video_live')->where('videoId', 'execute-live')->value('concurrentViewers'));
+        $this->assertSame(456, DB::table('urt_video_live')->where('videoId', 'execute-live')->value('max_current'));
+        $this->assertSame(1, DB::table('urt_video_live_log')->where('videoId', 'execute-live')->count());
+
+        $log = DB::table('urt_video_live_log')->where('videoId', 'execute-live')->first();
+        $this->assertIsObject($log);
+        $this->assertSame('2026-05-25', (string) $log->the_date);
+        $this->assertSame(7, (int) $log->u_id);
+        $this->assertSame(456, (int) $log->max_current);
+        $this->assertSame(['20:00' => 456], json_decode((string) $log->log_json, true));
+
+        $secondExitCode = Artisan::call('youtube:live:poll', [
+            '--execute' => true,
+            '--videoId' => 'execute-live',
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+
+        $this->assertSame(0, $secondExitCode);
+        $this->assertSame(1, DB::table('urt_video_live_log')->where('videoId', 'execute-live')->count());
+        $this->assertSame(['20:00' => 456], json_decode((string) DB::table('urt_video_live_log')->where('videoId', 'execute-live')->value('log_json'), true));
+        Http::assertSentCount(2);
     }
 
     public function test_youtube_live_poll_preserves_legacy_minimum_batch_skip(): void

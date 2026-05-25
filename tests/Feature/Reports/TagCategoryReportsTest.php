@@ -60,6 +60,38 @@ class TagCategoryReportsTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_keyword_list_reads_wrapped_and_list_shaped_tags_all_metrics(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        $this->createKeywordTables();
+
+        DB::table('tags')->insert([
+            ['tag' => '柯文哲', 'ctime' => '2026-05-20 00:00:00', 'mtime' => '2026-05-24 12:00:00', 'max_count' => 1200, 'hours_count' => 80, 'max_hours' => '2026-05-24 12:00:00', 'no_tag' => null],
+            ['tag' => '賴清德', 'ctime' => '2026-05-20 00:00:00', 'mtime' => '2026-05-23 12:00:00', 'max_count' => 800, 'hours_count' => 50, 'max_hours' => '2026-05-23 12:00:00', 'no_tag' => null],
+        ]);
+        DB::table('urt_show_data')->insert([
+            'data_name' => 'tags_all',
+            'the_result' => json_encode([
+                'result' => [
+                    ['tag' => '柯文哲', 'video' => 8, 'views' => 7000, 'views_all' => 21000],
+                    ['keyword' => '賴清德', 'video' => 4, 'views' => 3000, 'views_all' => 9000],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->get('/keywords?limit=20');
+
+        $response->assertOk();
+        $response->assertSee('柯文哲');
+        $response->assertSee('7,000');
+        $response->assertSee('8');
+        $response->assertSee('賴清德');
+        $response->assertSee('3,000');
+        $response->assertSee('4');
+
+        Carbon::setTestNow();
+    }
+
     public function test_tag_videos_filters_channels_and_recent_videos(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-24 12:00:00', 'Asia/Taipei'));

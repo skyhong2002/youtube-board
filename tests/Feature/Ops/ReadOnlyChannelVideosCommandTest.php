@@ -7,6 +7,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -24,6 +25,7 @@ class ReadOnlyChannelVideosCommandTest extends TestCase
     {
         Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        Http::preventStrayRequests();
         $this->createTables();
 
         DB::table('urt_channel')->insert([
@@ -250,6 +252,134 @@ class ReadOnlyChannelVideosCommandTest extends TestCase
         $this->assertSame('executed', $liveGroup['jobs'][0]['action']);
     }
 
+    public function test_youtube_channels_videos_execute_requires_api_key_and_does_not_write_when_missing(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', null);
+        $this->createTables();
+
+        DB::table('urt_channel')->insert([
+            'u_id' => 10,
+            'ctime' => '2026-05-20 00:00:00',
+            'mtime' => null,
+            'vtime' => null,
+            'flag_del' => null,
+            'youtube_id' => 'UC-missing-key',
+            'title' => 'Missing Key Uploads Channel',
+            'uploads' => 'UU-missing-key',
+            'videoCount' => 10,
+        ]);
+
+        $exitCode = Artisan::call('youtube:channels:videos', [
+            '--execute' => true,
+            '--channel' => 10,
+            '--limit' => 1,
+        ]);
+        $output = Artisan::output();
+
+        $this->assertSame(1, $exitCode);
+        $this->assertStringContainsString('YOUTUBE_API_KEY is not configured', $output, $output);
+        $this->assertStringContainsString('secrets=not', $output, $output);
+        $this->assertNull(DB::table('urt_channel')->where('u_id', 10)->value('vtime'));
+        $this->assertSame(0, DB::table('urt_video')->count());
+        $this->assertSame(0, DB::table('urt_video_schedule')->count());
+        $this->assertSame(0, DB::table('urt_video_live')->count());
+    }
+
+    public function test_youtube_channels_videos_execute_parses_playlist_and_upserts_idempotently(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+
+        DB::table('urt_channel')->insert([
+            'u_id' => 10,
+            'ctime' => '2026-05-20 00:00:00',
+            'mtime' => null,
+            'vtime' => null,
+            'flag_del' => null,
+            'youtube_id' => 'UC-execute',
+            'title' => 'Execute Uploads Channel',
+            'uploads' => 'UU-execute',
+            'videoCount' => 10,
+        ]);
+
+        Http::fake([
+            'www.googleapis.com/youtube/v3/playlistItems*' => Http::response([
+                'items' => [
+                    [
+                        'id' => 'playlist-item-a',
+                        'snippet' => [
+                            'publishedAt' => '2026-05-24T09:00:00Z',
+                            'channelId' => 'UC-execute',
+                            'title' => 'Uploaded Video',
+                            'description' => 'First description',
+                            'thumbnails' => ['default' => ['url' => 'https://img.youtube.test/a.jpg']],
+                            'channelTitle' => 'Execute Uploads Channel',
+                            'playlistId' => 'UU-execute',
+                            'position' => 0,
+                            'resourceId' => ['videoId' => 'video-execute-a'],
+                            'liveBroadcastContent' => 'none',
+                        ],
+                    ],
+                    [
+                        'id' => 'playlist-item-live',
+                        'snippet' => [
+                            'publishedAt' => '2026-05-23T09:00:00Z',
+                            'channelId' => 'UC-execute',
+                            'title' => 'Upcoming Live',
+                            'description' => 'Live description',
+                            'thumbnails' => ['default' => ['url' => 'https://img.youtube.test/default_live.jpg']],
+                            'channelTitle' => 'Execute Uploads Channel',
+                            'playlistId' => 'UU-execute',
+                            'position' => 1,
+                            'resourceId' => ['videoId' => 'video-execute-live'],
+                            'liveBroadcastContent' => 'upcoming',
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $firstExitCode = Artisan::call('youtube:channels:videos', [
+            '--execute' => true,
+            '--channel' => 10,
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $firstPayload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $firstExitCode);
+        $this->assertSame('local-execute', $firstPayload['mode']);
+        $this->assertSame(1, $firstPayload['updated_channels']);
+        $this->assertSame(2, $firstPayload['applied'][0]['video_upserts']);
+        $this->assertSame(2, $firstPayload['applied'][0]['schedule_upserts']);
+        $this->assertSame(1, $firstPayload['applied'][0]['live_upserts']);
+        $this->assertSame('2026-05-25 22:00:00', $firstPayload['applied'][0]['final_vtime']);
+        $this->assertContains('urt_video.videoId', $firstPayload['write_targets']);
+
+        $this->assertSame(2, DB::table('urt_video')->count());
+        $this->assertSame(2, DB::table('urt_video_schedule')->count());
+        $this->assertSame(1, DB::table('urt_video_live')->count());
+        $this->assertSame('Uploaded Video', DB::table('urt_video')->where('videoId', 'video-execute-a')->value('title'));
+        $this->assertSame('2026-05-25 22:00:00', (string) DB::table('urt_channel')->where('u_id', 10)->value('vtime'));
+
+        $secondExitCode = Artisan::call('youtube:channels:videos', [
+            '--execute' => true,
+            '--channel' => 10,
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+
+        $this->assertSame(0, $secondExitCode);
+        $this->assertSame(2, DB::table('urt_video')->count());
+        $this->assertSame(2, DB::table('urt_video_schedule')->count());
+        $this->assertSame(1, DB::table('urt_video_live')->count());
+        Http::assertSentCount(2);
+    }
+
     private function createTables(): void
     {
         foreach (['urt_video_schedule', 'urt_video_live', 'urt_video', 'urt_count', 'urt_channel'] as $table) {
@@ -277,8 +407,16 @@ class ReadOnlyChannelVideosCommandTest extends TestCase
             $table->integer('pk');
             $table->dateTime('ctime');
             $table->integer('u_id');
+            $table->string('id')->nullable();
             $table->string('videoId');
             $table->dateTime('publishedAt');
+            $table->string('channelId')->nullable();
+            $table->string('title')->nullable();
+            $table->string('thumbnails')->nullable();
+            $table->string('channelTitle')->nullable();
+            $table->string('playlistId')->nullable();
+            $table->integer('position')->nullable();
+            $table->text('description')->nullable();
         });
 
         Schema::create('urt_video_live', function ($table): void {

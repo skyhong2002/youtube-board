@@ -56,7 +56,7 @@ Treat these as provisional names until a read-only DB dump confirms column types
 
 | Provider | Legacy usage | Modern adapter |
 | --- | --- | --- |
-| YouTube Data API v3 `channels.list` | Channel metadata/statistics in `app/admin.php`, `redir/renew.php`, `maint/get_statics.php`. | `App\Services\YouTube\YouTubeDataClient` |
+| YouTube Data API v3 `channels.list` | Channel metadata/statistics in `app/admin.php`, `redir/renew.php`, `maint/get_statics.php`. | Not implemented in the read-only rebuild; ingestion surfaces remain preview-only and skip external YouTube calls. |
 | YouTube Data API v3 `playlistItems.list` | Upload discovery in `maint/get_video.php`, `maint/get_video_tvbs.php`, `maint/make_live.php`. | `DiscoverChannelVideos` job |
 | YouTube Data API v3 `videos.list` | Video statistics, live status, duration, manual add flows. | `RefreshVideoStatistics`, `PollLiveStreams`, `RefreshVideoDurations` jobs |
 | YouTube Data API v3 `commentThreads.list` | Comment ingestion in `maint/get_comment.php`. | `FetchVideoComments` job |

@@ -45,6 +45,32 @@ class LegacyAiApiTest extends TestCase
         $this->assertSame(1, DB::table('urt_ai_date')->count());
     }
 
+    public function test_api_topic_derives_stats_from_wrapped_legacy_topic_payload_without_writeback(): void
+    {
+        $this->createAiDateTable();
+        $this->insertAiDayFixture([
+            'result_json' => json_encode([
+                'topics' => [
+                    [
+                        '議題' => 'Wrapped Topic',
+                        'mediaEvents' => [
+                            'News A' => ['事件A', '事件B'],
+                        ],
+                    ],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->getJson('/api/api_topic.php?date=2026-05-23&condition=world');
+
+        $response->assertOk();
+        $response->assertJsonPath('meta.source', 'urt_ai_date.result_json derived read-only');
+        $response->assertJsonPath('meta.cache_writeback_skipped', true);
+        $response->assertJsonPath('result.topic.Wrapped Topic.媒體數', 1);
+        $response->assertJsonPath('result.topic.Wrapped Topic.影片數', 2);
+        $this->assertSame(1, DB::table('urt_ai_date')->count());
+    }
+
     public function test_api_event_returns_current_match_and_marks_missing_period_history(): void
     {
         $this->createAiDateTable();
@@ -59,6 +85,38 @@ class LegacyAiApiTest extends TestCase
         $this->assertSame(['Topic A'], $response->json('result.match.2026-05-23'));
         $this->assertSame('10', $response->json('result.pk.2026-05-23'));
         $this->assertSame(0, DB::table('urt_ai_period')->count());
+    }
+
+    public function test_api_event_expands_legacy_period_history_read_only(): void
+    {
+        $this->createAiDateTable();
+        $this->createAiPeriodTable();
+        $this->insertAiDayFixture();
+        DB::table('urt_ai_period')->insert([
+            'pk' => 20,
+            'date_from' => '2026-05-22 00:00:00',
+            'date_to' => '2026-05-23 23:59:59',
+            'condition_type' => 'world',
+            'del_flag' => null,
+            'result_json' => json_encode([
+                [
+                    '2026-05-23' => ['Topic A'],
+                    '2026-05-22' => ['Topic Before'],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+            'data_json' => json_encode(['9', '10'], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->getJson('/api/api_event.php?pk=10&event=Topic%20A');
+
+        $response->assertOk();
+        $response->assertJsonPath('meta.history_available', true);
+        $response->assertJsonPath('meta.period_rows', 1);
+        $response->assertJsonPath('meta.blocked_reason', null);
+        $this->assertSame(['Topic A'], $response->json('result.match.2026-05-23'));
+        $this->assertSame(['Topic Before'], $response->json('result.match.2026-05-22'));
+        $this->assertSame('9', $response->json('result.pk.2026-05-22'));
+        $this->assertSame(1, DB::table('urt_ai_period')->count());
     }
 
     public function test_api_comment_reads_local_comment_and_skips_log_api_insert(): void

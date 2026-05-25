@@ -136,12 +136,14 @@ class ChannelCommentsReport
         foreach ($commentRows as $comment) {
             $decoded = $this->decodeMap($comment->authors_json ?? null);
 
-            foreach ($decoded as $channelId => $author) {
-                if (! is_array($author)) {
+            foreach ($decoded as $key => $author) {
+                $author = is_array($author) ? $author : [];
+                $channelId = (string) ($author['ChannelId'] ?? $author['channelId'] ?? $author['channel_id'] ?? $key);
+
+                if ($channelId === '') {
                     continue;
                 }
 
-                $channelId = (string) $channelId;
                 $authors[$channelId] ??= [
                     'channel_id' => $channelId,
                     'display_name' => (string) ($author['DisplayName'] ?? $author['displayName'] ?? $channelId),
@@ -170,6 +172,12 @@ class ChannelCommentsReport
         return collect($videos)
             ->map(function (object $video, int $index) use ($commentRows): array {
                 $comment = $commentRows[(string) $video->videoId] ?? null;
+                $authorsCount = $comment ? (int) ($comment->authors_count ?? 0) : 0;
+                $commentsCount = $comment ? (int) ($comment->comments_count ?? 0) : 0;
+
+                if ($comment && $authorsCount < 1) {
+                    $authorsCount = count($this->decodeMap($comment->authors_json ?? null));
+                }
 
                 return [
                     'rank' => $index + 1,
@@ -178,8 +186,8 @@ class ChannelCommentsReport
                     'thumbnail' => (string) ($video->thumbnails ?? 'https://img.youtube.com/vi/'.$video->videoId.'/0.jpg'),
                     'published_at' => (string) ($video->publishedAt ?? ''),
                     'view_count' => (int) ($video->viewCount ?? 0),
-                    'authors_count' => $comment ? (int) ($comment->authors_count ?? 0) : 0,
-                    'comments_count' => $comment ? (int) ($comment->comments_count ?? 0) : 0,
+                    'authors_count' => $authorsCount,
+                    'comments_count' => $commentsCount,
                     'latest_time' => $comment ? (string) ($comment->latest_time ?? '') : '',
                     'youtube_url' => 'https://www.youtube.com/watch?v='.$video->videoId,
                 ];

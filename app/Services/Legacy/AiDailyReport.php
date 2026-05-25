@@ -213,11 +213,11 @@ class AiDailyReport
         return collect($this->decodeList($row->result_json ?? null))
             ->map(function (mixed $topic) use ($titleToUId, $channelAi, $channelTags): array {
                 $topic = is_array($topic) ? $topic : [];
-                $mediaEvents = $this->mediaEvents($topic['媒體事件'] ?? $topic['media_events'] ?? []);
+                $mediaEvents = $this->mediaEvents($topic['媒體事件'] ?? $topic['media_events'] ?? $topic['mediaEvents'] ?? []);
                 $stats = $this->topicStats($mediaEvents, $titleToUId, $channelAi, $channelTags);
 
                 return [
-                    'title' => $this->text($topic, ['標題', 'title', 'topic']),
+                    'title' => $this->text($topic, ['標題', '議題', 'title', 'topic']),
                     'media_events' => $mediaEvents,
                     'media_count' => count($mediaEvents),
                     'video_count' => $stats['video_count'],
@@ -291,7 +291,7 @@ class AiDailyReport
                     continue;
                 }
 
-                $videoIds = $this->stringList($match, ['videoId', 'video_ids', 'videos']);
+                $videoIds = $this->stringList($match, ['videoId', 'video_id', 'video_ids', 'videos']);
                 $videoCount = count($videoIds);
                 $stats['video_count'] += $videoCount;
 
@@ -357,7 +357,7 @@ class AiDailyReport
                 continue;
             }
 
-            if ($this->text($item, ['事件', 'event', 'title']) === $eventName) {
+            if ($this->text($item, ['事件', '議題', '標題', 'event', 'topic', 'title']) === $eventName) {
                 return $item;
             }
         }
@@ -401,6 +401,13 @@ class AiDailyReport
     private function decodeList(mixed $json): array
     {
         $decoded = $this->decodeObject($json);
+
+        foreach (['events', '事件', 'topics', '議題', 'result', 'data'] as $key) {
+            if (! array_is_list($decoded) && isset($decoded[$key]) && is_array($decoded[$key])) {
+                $decoded = $decoded[$key];
+                break;
+            }
+        }
 
         return array_is_list($decoded) ? $decoded : array_values($decoded);
     }

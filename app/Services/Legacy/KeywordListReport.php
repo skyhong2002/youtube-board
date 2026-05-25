@@ -111,7 +111,34 @@ class KeywordListReport
 
         $decoded = json_decode($json, true);
 
-        return is_array($decoded) ? $decoded : [];
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        foreach (['result', 'tags_all', 'data'] as $key) {
+            if (isset($decoded[$key]) && is_array($decoded[$key])) {
+                $decoded = $decoded[$key];
+                break;
+            }
+        }
+
+        return collect($decoded)
+            ->mapWithKeys(function (mixed $value, mixed $key): array {
+                if (is_array($value)) {
+                    $tag = (string) ($value['tag'] ?? $value['keyword'] ?? $value['name'] ?? $key);
+
+                    if ($tag === '') {
+                        return [];
+                    }
+
+                    unset($value['tag'], $value['keyword'], $value['name']);
+
+                    return [$tag => $value];
+                }
+
+                return is_string($key) ? [$key => $value] : [];
+            })
+            ->all();
     }
 
     /**

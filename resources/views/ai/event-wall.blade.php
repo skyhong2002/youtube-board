@@ -53,7 +53,7 @@
             </nav>
 
             @if (! $history_available)
-                <p class="notice">Legacy wall 的逐日追蹤需要 `urt_ai_period`；目前先從 `urt_ai_event` summary/people JSON 顯示可驗證影片。</p>
+                <p class="notice">Legacy wall 的逐日追蹤需要 `urt_ai_period`；{{ $history['blocked_reason'] ?? '目前先從 `urt_ai_event` summary/people JSON 顯示可驗證影片' }}。</p>
             @endif
 
             @if ($videos !== [])

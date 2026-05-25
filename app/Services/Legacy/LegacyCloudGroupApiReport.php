@@ -23,7 +23,7 @@ class LegacyCloudGroupApiReport
                 ->where('days', $days)
                 ->orderByDesc('pk')
                 ->first();
-            $result = $this->decodeMap($row->keywords_json ?? null);
+            $result = $this->decodeWeightedMap($row->keywords_json ?? null);
 
             return $this->payload($result, 'urt_show_cloud.keywords_json', [
                 'u_id' => $uId,
@@ -61,8 +61,8 @@ class LegacyCloudGroupApiReport
 
             $row = $query->first();
             $result = $type === 'all'
-                ? $this->decodeMap($row->tags_result ?? null)
-                : $this->decodeMap($row?->{$type} ?? null);
+                ? $this->decodeWeightedMap($row->tags_result ?? null)
+                : $this->decodeWeightedMap($row?->{$type} ?? null);
 
             $payload = $this->payload($result, $noApi ? 'urt_show_tag_date.noapi' : 'urt_show_tag_date', [
                 'filters' => $filters,
@@ -78,9 +78,9 @@ class LegacyCloudGroupApiReport
             $payload['count_tags'] = (int) ($row->count_tags ?? 0);
 
             if ($type === 'all') {
-                $payload['tags_result'] = $this->decodeMap($row->tags_result ?? null);
-                $payload['tags_video'] = $this->decodeMap($row->tags_video ?? null);
-                $payload['tags_views'] = $this->decodeMap($row->tags_views ?? null);
+                $payload['tags_result'] = $this->decodeWeightedMap($row->tags_result ?? null);
+                $payload['tags_video'] = $this->decodeWeightedMap($row->tags_video ?? null);
+                $payload['tags_views'] = $this->decodeWeightedMap($row->tags_views ?? null);
             }
 
             return $payload;
@@ -385,5 +385,33 @@ class LegacyCloudGroupApiReport
         $decoded = json_decode($json, true);
 
         return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function decodeWeightedMap(mixed $json): array
+    {
+        $decoded = $this->decodeMap($json);
+
+        foreach (['keywords_json', 'keywords', 'tags_result', 'tags_video', 'tags_views', 'tags', 'result', 'data'] as $key) {
+            if (isset($decoded[$key]) && is_array($decoded[$key])) {
+                $decoded = $decoded[$key];
+                break;
+            }
+        }
+
+        return collect($decoded)
+            ->mapWithKeys(function (mixed $value, mixed $key): array {
+                if (is_array($value)) {
+                    $tag = (string) ($value['tag'] ?? $value['keyword'] ?? $value['word'] ?? $key);
+                    $count = $value['count'] ?? $value['weight'] ?? $value['score'] ?? $value['value'] ?? null;
+
+                    return $tag !== '' && $count !== null ? [$tag => $count] : [];
+                }
+
+                return is_string($key) ? [$key => $value] : [];
+            })
+            ->all();
     }
 }

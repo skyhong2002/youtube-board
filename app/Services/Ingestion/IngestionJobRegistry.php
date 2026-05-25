@@ -48,7 +48,8 @@ class IngestionJobRegistry
      *     at: string,
      *     is_due_now: bool,
      *     schedule_previews: list<array{expression: string, valid: bool, next_runs: list<string>, error?: string}>,
-     *     execution: array{read_only: bool, can_execute_when_due: bool, external_calls: bool, risk_label: string, blocks: list<string>}
+     *     execution: array{read_only: bool, can_execute_when_due: bool, external_calls: bool, risk_label: string, blocks: list<string>},
+     *     scheduled_write: array{allowed: bool, blocks: list<string>}
      * }|null
      */
     public function describe(string $key, ?CarbonInterface $at = null, int $nextRunLimit = 5): ?array
@@ -70,6 +71,7 @@ class IngestionJobRegistry
             'is_due_now' => $this->isDue($job, $at),
             'schedule_previews' => $this->schedulePreviews($job, $at, $nextRunLimit),
             'execution' => $this->executionProfile($job),
+            'scheduled_write' => $this->scheduledWriteProfile($job),
         ];
     }
 
@@ -163,6 +165,52 @@ class IngestionJobRegistry
 
     /**
      * @param  array<string, mixed>  $job
+     */
+    public function scheduledExecutionCommand(array $job): string
+    {
+        $command = trim((string) ($job['scheduled_execute_command'] ?? ''));
+
+        return $command !== '' ? $command : trim((string) ($job['modern_command'] ?? ''));
+    }
+
+    /**
+     * @param  array<string, mixed>  $job
+     * @return array{allowed: bool, blocks: list<string>}
+     */
+    public function scheduledWriteProfile(array $job): array
+    {
+        $blocks = [];
+        $key = (string) ($job['key'] ?? '');
+        $scheduledCommand = trim((string) ($job['scheduled_execute_command'] ?? ''));
+        $allowlist = collect(config('ingestion.scheduled_write_allowlist', []))
+            ->map(fn (mixed $value): string => trim((string) $value))
+            ->filter()
+            ->values();
+
+        if (! (bool) config('ingestion.local_polling_enabled', false)) {
+            $blocks[] = 'INGESTION_LOCAL_POLLING_ENABLED is false.';
+        }
+
+        if ($scheduledCommand === '') {
+            $blocks[] = 'Job has no scheduled_execute_command.';
+        }
+
+        if ($key === '' || ! $allowlist->contains($key)) {
+            $blocks[] = 'Job key is not in INGESTION_SCHEDULED_WRITE_ALLOWLIST.';
+        }
+
+        if (app()->environment('production') && ! (bool) config('ingestion.production_polling_enabled', false)) {
+            $blocks[] = 'Production polling is not explicitly enabled.';
+        }
+
+        return [
+            'allowed' => $blocks === [],
+            'blocks' => $blocks,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $job
      * @return array<string, mixed>
      */
     private function withCommandAvailability(array $job): array
@@ -248,7 +296,7 @@ class IngestionJobRegistry
     }
 
     /**
-     * @return array{total: int, planned: int, active: int, blocked: int, command_ready: int, command_missing: int, scheduler_enabled: bool}
+     * @return array{total: int, planned: int, active: int, blocked: int, command_ready: int, command_missing: int, scheduler_enabled: bool, local_polling_enabled: bool, scheduled_write_allowlist: list<string>}
      */
     public function summary(): array
     {
@@ -262,6 +310,12 @@ class IngestionJobRegistry
             'command_ready' => $jobs->where('command_exists', true)->count(),
             'command_missing' => $jobs->where('command_exists', false)->count(),
             'scheduler_enabled' => (bool) config('ingestion.scheduler_enabled', false),
+            'local_polling_enabled' => (bool) config('ingestion.local_polling_enabled', false),
+            'scheduled_write_allowlist' => collect(config('ingestion.scheduled_write_allowlist', []))
+                ->map(fn (mixed $value): string => trim((string) $value))
+                ->filter()
+                ->values()
+                ->all(),
         ];
     }
 }

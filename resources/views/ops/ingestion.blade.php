@@ -61,6 +61,9 @@
                     <span class="badge {{ $summary['scheduler_enabled'] ? 'active' : 'disabled' }}">
                         {{ $summary['scheduler_enabled'] ? 'scheduler enabled' : 'scheduler disabled' }}
                     </span>
+                    <span class="badge {{ $summary['local_polling_enabled'] ? 'active' : 'disabled' }}">
+                        {{ $summary['local_polling_enabled'] ? 'local polling enabled' : 'local polling disabled' }}
+                    </span>
                 </div>
             </header>
 
@@ -72,6 +75,7 @@
                 <span>{{ number_format($summary['command_ready']) }} command-ready</span>
                 <span>{{ number_format($summary['command_missing']) }} command-missing</span>
                 <span>timezone {{ config('ingestion.timezone') }}</span>
+                <span>scheduled write allowlist {{ count($summary['scheduled_write_allowlist']) }}</span>
                 <span>dry-run <code>php artisan ingestion:run</code></span>
             </div>
 
@@ -121,7 +125,7 @@
                     </label>
                     <button type="submit">Run Once</button>
                 </form>
-                <p class="muted">Execute mode temporarily enables the local runner for this request only. Registry guardrails still block jobs that are not read-only, command-ready, and due.</p>
+                <p class="muted">Execute mode temporarily enables the local runner for this request only. Local write polling still requires <code>INGESTION_LOCAL_POLLING_ENABLED=true</code>, an allowlisted job key, and each job's capped scheduled execute command.</p>
             </section>
 
             <section class="runs">

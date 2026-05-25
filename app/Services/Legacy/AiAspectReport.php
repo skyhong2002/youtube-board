@@ -151,6 +151,8 @@ class AiAspectReport
             return ['values' => $values, 'descriptions' => $descriptions];
         }
 
+        $decoded = $this->unwrapAspectPayload($decoded);
+
         foreach ($this->itemsFromGroups($decoded, ['兩岸角度', '兩岸']) as $item) {
             $name = $this->text($item, ['項目', 'item', 'name']);
 
@@ -170,6 +172,39 @@ class AiAspectReport
         }
 
         return ['values' => $values, 'descriptions' => $descriptions];
+    }
+
+    /**
+     * @param array<string, mixed> $decoded
+     * @return array<string, mixed>
+     */
+    private function unwrapAspectPayload(array $decoded): array
+    {
+        foreach (['aspect', 'aspects', '立場', 'result', 'data'] as $key) {
+            if (! array_is_list($decoded) && isset($decoded[$key]) && is_array($decoded[$key])) {
+                return $this->unwrapAspectPayload($decoded[$key]);
+            }
+        }
+
+        if (array_is_list($decoded)) {
+            $groups = [];
+
+            foreach ($decoded as $item) {
+                if (! is_array($item)) {
+                    continue;
+                }
+
+                $group = $this->text($item, ['分類', '群組', '類型', 'group', 'category', 'type']);
+
+                if ($group !== '') {
+                    $groups[$group][] = $item;
+                }
+            }
+
+            return $groups !== [] ? $groups : ['政治' => $decoded, '兩岸' => $decoded];
+        }
+
+        return $decoded;
     }
 
     /**

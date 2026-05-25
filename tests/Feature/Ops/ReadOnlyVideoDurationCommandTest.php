@@ -7,6 +7,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -24,6 +25,7 @@ class ReadOnlyVideoDurationCommandTest extends TestCase
     {
         Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        Http::preventStrayRequests();
         $this->createTables();
 
         DB::table('urt_video')->insert([
@@ -157,6 +159,171 @@ class ReadOnlyVideoDurationCommandTest extends TestCase
 
         $this->assertNull(DB::table('urt_video_duration')->where('videoId', 'video-a')->value('stime'));
         $this->assertNull(DB::table('urt_video_duration')->where('videoId', 'video-a')->value('duration'));
+    }
+
+    public function test_youtube_videos_duration_execute_requires_api_key_and_does_not_write_when_missing(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', null);
+        Http::preventStrayRequests();
+        $this->createTables();
+
+        DB::table('urt_video_duration')->insert([
+            'pk_video' => 1,
+            'ctime' => '2026-05-24 00:00:00',
+            'mtime' => null,
+            'stime' => null,
+            'publishedAt' => '2026-05-23 12:00:00',
+            'u_id' => 10,
+            'videoId' => 'missing-key-duration',
+            'duration' => null,
+            'caption' => null,
+        ]);
+
+        $exitCode = Artisan::call('youtube:videos:duration', [
+            '--execute' => true,
+            '--videoId' => 'missing-key-duration',
+            '--limit' => 1,
+        ]);
+        $output = Artisan::output();
+
+        $this->assertSame(1, $exitCode);
+        $this->assertStringContainsString('YOUTUBE_API_KEY is not configured', $output, $output);
+        $this->assertStringContainsString('secrets=not_printed', $output, $output);
+        $this->assertNull(DB::table('urt_video_duration')->where('videoId', 'missing-key-duration')->value('mtime'));
+        $this->assertNull(DB::table('urt_video_duration')->where('videoId', 'missing-key-duration')->value('stime'));
+        $this->assertNull(DB::table('urt_video_duration')->where('videoId', 'missing-key-duration')->value('duration'));
+    }
+
+    public function test_youtube_videos_duration_execute_parses_content_details_and_updates_idempotently(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+
+        DB::table('urt_video_duration')->insert([
+            'pk_video' => 1,
+            'ctime' => '2026-05-24 00:00:00',
+            'mtime' => null,
+            'stime' => null,
+            'publishedAt' => '2026-05-23 12:00:00',
+            'u_id' => 10,
+            'videoId' => 'duration-video',
+            'duration' => null,
+            'caption' => null,
+        ]);
+
+        Http::fake([
+            'www.googleapis.com/youtube/v3/videos*' => Http::response([
+                'items' => [
+                    [
+                        'id' => 'duration-video',
+                        'contentDetails' => [
+                            'duration' => 'PT1H2M3S',
+                            'caption' => 'true',
+                        ],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $firstExitCode = Artisan::call('youtube:videos:duration', [
+            '--execute' => true,
+            '--videoId' => 'duration-video',
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $firstPayload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $firstExitCode);
+        $this->assertSame('local-execute', $firstPayload['mode']);
+        $this->assertSame(1, $firstPayload['updated_videos']);
+        $this->assertContains('urt_video_duration.duration', $firstPayload['write_targets']);
+        $this->assertSame(3723, DB::table('urt_video_duration')->where('videoId', 'duration-video')->value('duration'));
+        $this->assertSame('true', DB::table('urt_video_duration')->where('videoId', 'duration-video')->value('caption'));
+        $this->assertSame('2026-05-24 18:00:00', DB::table('urt_video_duration')->where('videoId', 'duration-video')->value('mtime'));
+        $this->assertSame('2026-05-24 18:00:00', DB::table('urt_video_duration')->where('videoId', 'duration-video')->value('stime'));
+
+        $secondExitCode = Artisan::call('youtube:videos:duration', [
+            '--execute' => true,
+            '--videoId' => 'duration-video',
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $secondPayload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $secondExitCode);
+        $this->assertSame(0, $secondPayload['selected_rows']);
+        $this->assertSame(0, $secondPayload['updated_videos']);
+        $this->assertSame(1, DB::table('urt_video_duration')->where('videoId', 'duration-video')->count());
+        $this->assertSame(3723, DB::table('urt_video_duration')->where('videoId', 'duration-video')->value('duration'));
+        Http::assertSentCount(1);
+    }
+
+    public function test_youtube_videos_duration_execute_can_explicitly_enqueue_existing_local_video(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+
+        DB::table('urt_video')->insert([
+            'pk' => 1,
+            'ctime' => '2026-05-24 00:00:00',
+            'mtime' => null,
+            'stime' => null,
+            'u_id' => 10,
+            'id' => 'upload-enqueue',
+            'publishedAt' => '2026-05-23 12:00:00',
+            'channelId' => 'channel-enqueue',
+            'title' => 'Enqueue Video',
+            'thumbnails' => 'https://example.test/enqueue.jpg',
+            'channelTitle' => 'Channel Enqueue',
+            'playlistId' => 'playlist-enqueue',
+            'position' => 1,
+            'videoId' => 'enqueue-video',
+            'viewCount' => 100,
+            'likeCount' => 1,
+            'dislikeCount' => 0,
+            'favoriteCount' => 0,
+            'commentCount' => 0,
+            'description' => '',
+        ]);
+
+        Http::fake([
+            'www.googleapis.com/youtube/v3/videos*' => Http::response([
+                'items' => [
+                    [
+                        'id' => 'enqueue-video',
+                        'contentDetails' => [
+                            'duration' => 'PT5M4S',
+                            'caption' => 'false',
+                        ],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $exitCode = Artisan::call('youtube:videos:duration', [
+            '--execute' => true,
+            '--videoId' => 'enqueue-video',
+            '--limit' => 1,
+            '--enqueue-missing' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, $payload['queued_videos']);
+        $this->assertSame(1, $payload['selected_rows']);
+        $this->assertSame(1, $payload['updated_videos']);
+        $this->assertContains('urt_video_duration.videoId', $payload['write_targets']);
+        $this->assertSame(304, DB::table('urt_video_duration')->where('videoId', 'enqueue-video')->value('duration'));
+        $this->assertSame('false', DB::table('urt_video_duration')->where('videoId', 'enqueue-video')->value('caption'));
+        $this->assertSame(10, DB::table('urt_video_duration')->where('videoId', 'enqueue-video')->value('u_id'));
+        Http::assertSentCount(1);
     }
 
     public function test_youtube_videos_duration_supports_single_queued_video_preview(): void

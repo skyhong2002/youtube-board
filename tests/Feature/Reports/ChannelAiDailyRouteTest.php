@@ -116,6 +116,44 @@ class ChannelAiDailyRouteTest extends TestCase
             ->assertDontSee('指定日期事件');
     }
 
+    public function test_channel_ai_daily_page_expands_wrapped_legacy_topic_payloads(): void
+    {
+        $this->createTables();
+
+        DB::table('urt_channel_ai')->insert([
+            'pk' => 3,
+            'u_id' => 10,
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
+            'data_type' => 'oneday',
+            'del_flag' => null,
+            'result_json' => json_encode([
+                'events' => [
+                    [
+                        '議題' => '包裝頻道事件',
+                        '說明' => '這筆頻道 AI 資料包在 events key 裡。',
+                        '類型' => '政治',
+                        'keywords' => ['包裝', '頻道'],
+                        'people' => ['測試人物'],
+                        'places' => ['台中'],
+                        'video_id' => 'channel-wrapped',
+                    ],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->get('/channels/10/ai/days/2026-05-24');
+
+        $response->assertOk();
+        $response->assertSee('包裝頻道事件');
+        $response->assertSee('這筆頻道 AI 資料包在 events key 裡');
+        $response->assertSee('政治');
+        $response->assertSee('包裝');
+        $response->assertSee('測試人物');
+        $response->assertSee('台中');
+        $response->assertSee('channel-wrapped');
+    }
+
     private function createTables(): void
     {
         foreach (['urt_channel', 'urt_channel_ai'] as $table) {

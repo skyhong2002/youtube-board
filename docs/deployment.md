@@ -27,7 +27,16 @@ DB_PASSWORD=<dokploy-secret>
 
 Use the MariaDB service's **General -> Internal Credentials -> Internal Host** value for `DB_HOST`. Dokploy may append a generated suffix to the app name; do not assume the internal host is the human service name.
 
-Keep `INGESTION_SCHEDULER_ENABLED=false` until the write-capable ingestion commands and backups are explicitly enabled.
+Production polling is still off in the template. To enable it after a backup and rollback point are verified, set the scheduler flags and an exact job allowlist in the app service environment:
+
+```env
+INGESTION_SCHEDULER_ENABLED=true
+INGESTION_LOCAL_POLLING_ENABLED=true
+INGESTION_PRODUCTION_POLLING_ENABLED=true
+INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.channels.stats,ai.hourly
+```
+
+The scheduler service must run `php artisan schedule:run` every minute, or the equivalent Dokploy cron service must be enabled. Keep the allowlist narrow at first; each allowlisted job uses its capped `scheduled_execute_command`.
 
 ## MariaDB Environment
 

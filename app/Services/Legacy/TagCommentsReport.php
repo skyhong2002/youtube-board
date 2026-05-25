@@ -153,12 +153,14 @@ class TagCommentsReport
         foreach ($comments as $comment) {
             $decoded = $this->decodeMap($comment->authors_json ?? null);
 
-            foreach ($decoded as $channelId => $author) {
-                if (! is_array($author)) {
+            foreach ($decoded as $key => $author) {
+                $author = is_array($author) ? $author : [];
+                $channelId = (string) ($author['ChannelId'] ?? $author['channelId'] ?? $author['channel_id'] ?? $key);
+
+                if ($channelId === '') {
                     continue;
                 }
 
-                $channelId = (string) $channelId;
                 $authors[$channelId] ??= [
                     'channel_id' => $channelId,
                     'display_name' => (string) ($author['DisplayName'] ?? $author['displayName'] ?? $channelId),

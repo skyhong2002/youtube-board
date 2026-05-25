@@ -236,10 +236,10 @@ class ChannelProfileReport
 
         return [
             'title' => $this->text($item, ['事件', '議題', 'topic', '標題', 'title']),
-            'description' => $this->text($item, ['描述', 'description', '內容', 'content']),
+            'description' => $this->text($item, ['描述', '說明', 'description', '內容', 'content']),
             'keywords' => $this->stringList($item, ['關鍵字', 'keywords']),
             'people' => $this->stringList($item, ['人物', 'people', 'persons']),
-            'video_ids' => $this->stringList($item, ['videoId', 'videoIds', 'videos']),
+            'video_ids' => $this->stringList($item, ['videoId', 'video_id', 'videoIds', 'videos']),
         ];
     }
 

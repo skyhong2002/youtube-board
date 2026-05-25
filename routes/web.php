@@ -199,15 +199,11 @@ Route::get('/live_day.php', function (Request $request) {
 })->name('legacy.live.day');
 
 Route::get('/live_line.php', function (Request $request) {
-    $videoId = $request->query('videoId');
+    $videoId = trim((string) $request->query('videoId', 'oka2UDaeFZw')) ?: 'oka2UDaeFZw';
     $query = $request->query();
     unset($query['videoId']);
 
-    if (is_string($videoId) && $videoId !== '') {
-        return redirect()->route('live.videos.trend', ['videoId' => $videoId] + $query, 308);
-    }
-
-    return redirect()->route('live.current', $query, 308);
+    return redirect()->route('live.videos.trend', ['videoId' => $videoId] + $query, 308);
 })->name('legacy.live.video.trend');
 
 Route::get('/live_day_line.php', function (Request $request) {
@@ -227,7 +223,20 @@ Route::get('/live_channels.php', function (Request $request) {
 })->name('legacy.live.channels');
 
 Route::get('/live_channel.php', function (Request $request) {
-    return redirect()->route('live.channels', $request->query(), 308);
+    $query = $request->query();
+
+    if (isset($query['from'])) {
+        return redirect()->route('live.periods', $query, 308);
+    }
+
+    $date = $query['date'] ?? null;
+    unset($query['date']);
+
+    if (is_string($date) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        return redirect()->route('live.days.date', ['date' => $date] + $query, 308);
+    }
+
+    return redirect()->route('live.days.index', $query, 308);
 })->name('legacy.live.channel');
 
 Route::get('/live_hour.php', function (Request $request) {
@@ -542,7 +551,11 @@ Route::get('/group_live.php', function (Request $request) {
 })->name('legacy.groups.live');
 
 Route::get('/group_two.php', function (Request $request) {
-    return redirect()->route('groups.show', ['groupName' => 'tags_straits'] + $request->query(), 308);
+    $query = $request->query();
+    $group = (int) ($query['all'] ?? 0) > 0 ? 'two_all' : 'two';
+    unset($query['group'], $query['all']);
+
+    return redirect()->route('groups.trends', ['groupName' => $group] + $query, 308);
 })->name('legacy.groups.two');
 
 Route::get('/group_chart.php', function (Request $request) {
@@ -612,16 +625,21 @@ Route::get('/videos.php', function (Request $request) {
 })->name('legacy.tags.videos');
 
 Route::get('/live_videos.php', function (Request $request) {
-    $tagId = (int) $request->query('tagid', 0);
     $query = $request->query();
-    unset($query['tagid']);
 
-    if ($tagId > 0) {
-        return redirect()->route('tags.live.videos', ['tagId' => $tagId] + $query, 308);
+    if (isset($query['from'])) {
+        return redirect()->route('live.periods', $query, 308);
     }
 
-    return redirect()->route('tags.live.videos.index', $query, 308);
-})->name('legacy.tags.live.videos');
+    $date = $query['date'] ?? null;
+    unset($query['date']);
+
+    if (is_string($date) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        return redirect()->route('live.days.date', ['date' => $date] + $query, 308);
+    }
+
+    return redirect()->route('live.days.index', $query, 308);
+})->name('legacy.live.videos');
 
 Route::get('/video.php', function (Request $request) {
     $videoId = trim((string) $request->query('videoId', 'oka2UDaeFZw'));

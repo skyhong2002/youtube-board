@@ -138,7 +138,17 @@ class AiHourlyReport
             return [];
         }
 
-        return array_is_list($decoded) ? $decoded : array_values($decoded);
+        if (array_is_list($decoded)) {
+            return $decoded;
+        }
+
+        foreach (['events', '事件', 'topics', '議題', 'result', 'data'] as $key) {
+            if (isset($decoded[$key]) && is_array($decoded[$key])) {
+                return array_is_list($decoded[$key]) ? $decoded[$key] : array_values($decoded[$key]);
+            }
+        }
+
+        return array_values($decoded);
     }
 
     /**
@@ -150,9 +160,9 @@ class AiHourlyReport
         $videoIds = $this->stringList($item, ['videoId', 'video_ids', 'videos']);
 
         return [
-            'event' => $this->text($item, ['事件', 'event', 'title']),
-            'description' => $this->text($item, ['描述', 'description', 'content']),
-            'category' => $this->text($item, ['分類', 'category']),
+            'event' => $this->text($item, ['事件', '議題', '標題', 'event', 'topic', 'title']),
+            'description' => $this->text($item, ['描述', '說明', 'description', 'content']),
+            'category' => $this->text($item, ['分類', '類型', 'category', 'type']),
             'angle' => $this->text($item, ['角度', 'angle']),
             'camp' => $this->text($item, ['陣營', 'camp', 'stance']),
             'keywords' => $this->stringList($item, ['關鍵字', 'keywords']),

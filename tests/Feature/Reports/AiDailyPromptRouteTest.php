@@ -62,6 +62,40 @@ class AiDailyPromptRouteTest extends TestCase
         $response->assertDontSee('Finance Channel');
     }
 
+    public function test_ai_daily_prompt_preview_expands_wrapped_legacy_topic_payloads(): void
+    {
+        $this->createTables();
+
+        DB::table('urt_channel')->insert(['u_id' => 40, 'title' => 'Wrapped Channel']);
+        DB::table('urt_count')->insert(['u_id' => 40, 'tags' => '[4]']);
+        DB::table('urt_channel_ai')->insert([
+            'pk' => 103,
+            'u_id' => 40,
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
+            'data_type' => 'oneday',
+            'del_flag' => null,
+            'result_json' => json_encode([
+                'events' => [
+                    [
+                        '議題' => '包裝 prompt 事件',
+                        '說明' => '包裝 prompt 描述。',
+                        'keywords' => ['包裝', 'prompt'],
+                        'video_id' => ['wrapped-a', 'wrapped-b'],
+                    ],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->get('/ai/days/2026-05-24/all/prompt');
+
+        $response->assertOk();
+        $response->assertSee('Wrapped Channel');
+        $response->assertSee('包裝 prompt 事件');
+        $response->assertSee('包裝 prompt 描述');
+        $response->assertSee('包裝, prompt');
+    }
+
     private function createTables(): void
     {
         foreach (['urt_channel_ai', 'urt_channel', 'urt_count'] as $table) {

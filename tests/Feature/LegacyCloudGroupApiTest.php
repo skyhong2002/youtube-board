@@ -67,6 +67,62 @@ class LegacyCloudGroupApiTest extends TestCase
         $this->assertSame(1, DB::table('urt_show_tag_date')->count());
     }
 
+    public function test_cloud_apis_read_wrapped_and_list_shaped_payloads(): void
+    {
+        $this->createChannelCloudTable();
+        $this->createTagDateTable();
+
+        DB::table('urt_show_cloud')->insert([
+            'pk' => 1,
+            'u_id' => 10,
+            'ctime' => '2026-05-24 00:00:00',
+            'mtime' => '2026-05-24 01:00:00',
+            'days' => 30,
+            'keywords_json' => json_encode([
+                'keywords' => [
+                    ['word' => '白宮', 'weight' => '3.000'],
+                    ['keyword' => '川普', 'score' => '8.500'],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+        DB::table('urt_show_tag_date')->insert([
+            'pk' => 2,
+            'ctime' => '2026-05-24 00:00:00',
+            'mtime' => '2026-05-24 01:00:00',
+            'stime' => null,
+            'tagid' => '',
+            'tag_or' => '',
+            'tag_not' => '',
+            'count_channels' => 4,
+            'count_videos' => 5,
+            'count_tags' => 6,
+            'the_date' => '2026-05-24',
+            'tags_count' => 2,
+            'total_views' => 7000,
+            'tags_result' => json_encode([
+                'tags_result' => [
+                    ['tag' => '交通', 'count' => 9],
+                    ['word' => '政策', 'value' => 4],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+            'tags_video' => json_encode(['result' => [['tag' => '交通', 'count' => 3]]], JSON_UNESCAPED_UNICODE),
+            'tags_views' => json_encode(['data' => [['tag' => '交通', 'value' => 7000]]], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $cloud = $this->getJson('/api/cloud.php?uid=10&days=30');
+        $tagDate = $this->getJson('/api/cloud_tag_date.php?date=2026-05-24&type=all');
+
+        $cloud->assertOk();
+        $this->assertSame('8.500', $cloud->json('result')['川普']);
+        $this->assertSame('3.000', $cloud->json('result')['白宮']);
+
+        $tagDate->assertOk();
+        $this->assertSame(9, $tagDate->json('result')['交通']);
+        $this->assertSame(4, $tagDate->json('result')['政策']);
+        $this->assertSame(3, $tagDate->json('tags_video')['交通']);
+        $this->assertSame(7000, $tagDate->json('tags_views')['交通']);
+    }
+
     public function test_group_view_api_derives_membership_shell_when_legacy_cache_is_missing(): void
     {
         $this->createTagGroupTable();

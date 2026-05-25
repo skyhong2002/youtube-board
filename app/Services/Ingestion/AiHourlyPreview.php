@@ -70,6 +70,7 @@ class AiHourlyPreview
             'prompt_video_rows' => $rows->count(),
             'prompt_bounds' => $bounds,
             'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
+            'prompt' => $prompt,
             'existing_ai_hour_rows' => $this->existingAiHourRows($conditionType, $periodWindow),
             'would_call_ai_requests' => 1,
             'would_insert_ai_hour_rows' => 1,

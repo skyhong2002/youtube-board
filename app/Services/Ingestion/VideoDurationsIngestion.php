@@ -1,0 +1,223 @@
+<?php
+
+namespace App\Services\Ingestion;
+
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use RuntimeException;
+
+class VideoDurationsIngestion
+{
+    public function __construct(
+        private readonly VideoDurationsPreview $preview,
+        private readonly YoutubeDataApiClient $youtube,
+    ) {
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function execute(
+        ?string $videoId = null,
+        int $batchSize = 1,
+        int $loops = 1,
+        bool $enqueueMissing = false,
+        ?CarbonInterface $now = null,
+    ): array {
+        $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
+        $now = $now === null
+            ? CarbonImmutable::now($timezone)
+            : CarbonImmutable::instance($now->toDateTimeImmutable())->setTimezone($timezone);
+        $batchSize = max(1, min(50, $batchSize));
+        $loops = max(1, min(20, $loops));
+        $preview = $this->preview->preview(
+            videoId: $videoId,
+            batchSize: $batchSize,
+            loops: $loops,
+            now: $now,
+        );
+        $rows = collect($preview['rows'] ?? [])
+            ->filter(fn (array $row): bool => trim((string) ($row['video_id'] ?? '')) !== '')
+            ->values();
+        $queued = [];
+
+        if ($rows->isEmpty() && $enqueueMissing && is_string($videoId) && trim($videoId) !== '') {
+            $queued = $this->enqueueMissingVideo(trim($videoId), $now);
+
+            if ($queued !== []) {
+                $preview = $this->preview->preview(
+                    videoId: $videoId,
+                    batchSize: $batchSize,
+                    loops: $loops,
+                    now: $now,
+                );
+                $rows = collect($preview['rows'] ?? [])
+                    ->filter(fn (array $row): bool => trim((string) ($row['video_id'] ?? '')) !== '')
+                    ->values();
+            }
+        }
+
+        if (! (bool) ($preview['would_call_api'] ?? false) || $rows->isEmpty()) {
+            return $this->summary($preview, [], [], $queued, $now);
+        }
+
+        $detailsByVideo = $this->youtube->videoContentDetails(
+            $rows->pluck('video_id')->map(fn (mixed $id): string => (string) $id)->all(),
+        );
+        $applied = [];
+        $skipped = [];
+
+        foreach ($rows as $row) {
+            $rowVideoId = (string) $row['video_id'];
+            $details = $detailsByVideo[$rowVideoId] ?? null;
+
+            if ($details === null || $details['durationSeconds'] === null) {
+                $skipped[] = [
+                    'videoId' => $rowVideoId,
+                    'reason' => $details === null ? 'api_item_missing' : 'duration_missing',
+                ];
+
+                continue;
+            }
+
+            DB::transaction(function () use ($rowVideoId, $details, $now): void {
+                $this->updateDuration($rowVideoId, $details, $now);
+            });
+
+            $applied[] = [
+                'videoId' => $rowVideoId,
+                'duration' => $details['duration'],
+                'durationSeconds' => $details['durationSeconds'],
+                'caption' => $details['caption'],
+            ];
+        }
+
+        return $this->summary($preview, $applied, $skipped, $queued, $now);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function enqueueMissingVideo(string $videoId, CarbonImmutable $now): array
+    {
+        if (! Schema::hasTable('urt_video_duration')) {
+            throw new RuntimeException('Missing local table: urt_video_duration');
+        }
+
+        if (DB::table('urt_video_duration')->where('videoId', $videoId)->exists()) {
+            return [];
+        }
+
+        $video = Schema::hasTable('urt_video')
+            ? DB::table('urt_video')->where('videoId', $videoId)->first()
+            : null;
+
+        if ($video === null) {
+            return [];
+        }
+
+        $insert = $this->onlyExistingColumns('urt_video_duration', [
+            'ctime' => $now->format('Y-m-d H:i:s'),
+            'mtime' => null,
+            'stime' => null,
+            'publishedAt' => $video->publishedAt ?? null,
+            'u_id' => $video->u_id ?? null,
+            'videoId' => $videoId,
+            'duration' => null,
+            'caption' => null,
+        ]);
+
+        if (Schema::hasColumn('urt_video_duration', 'pk_video') && ! array_key_exists('pk_video', $insert)) {
+            $insert['pk_video'] = ((int) DB::table('urt_video_duration')->max('pk_video')) + 1;
+        }
+
+        DB::table('urt_video_duration')->insert($insert);
+
+        return [[
+            'videoId' => $videoId,
+            'source' => 'urt_video',
+        ]];
+    }
+
+    /**
+     * @param  array{duration: string|null, durationSeconds: int|null, caption: string|null}  $details
+     */
+    private function updateDuration(string $videoId, array $details, CarbonImmutable $now): void
+    {
+        if (! Schema::hasTable('urt_video_duration')) {
+            throw new RuntimeException('Missing local table: urt_video_duration');
+        }
+
+        $values = $this->onlyExistingColumns('urt_video_duration', [
+            'mtime' => $now->format('Y-m-d H:i:s'),
+            'stime' => $now->format('Y-m-d H:i:s'),
+            'duration' => $details['durationSeconds'],
+            'caption' => $details['caption'],
+        ]);
+
+        if ($values === []) {
+            return;
+        }
+
+        DB::table('urt_video_duration')
+            ->where('videoId', $videoId)
+            ->update($values);
+    }
+
+    /**
+     * @param  array<string, mixed>  $values
+     * @return array<string, mixed>
+     */
+    private function onlyExistingColumns(string $table, array $values): array
+    {
+        $columns = Schema::getColumnListing($table);
+
+        return collect($values)
+            ->filter(fn (mixed $value, string $column): bool => in_array($column, $columns, true))
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $preview
+     * @param  list<array<string, mixed>>  $applied
+     * @param  list<array<string, mixed>>  $skipped
+     * @return array<string, mixed>
+     */
+    private function summary(array $preview, array $applied, array $skipped, array $queued, CarbonImmutable $now): array
+    {
+        $writeTargets = [
+            'urt_video_duration.mtime',
+            'urt_video_duration.stime',
+            'urt_video_duration.duration',
+            'urt_video_duration.caption',
+        ];
+
+        if ($queued !== []) {
+            array_unshift(
+                $writeTargets,
+                'urt_video_duration.ctime',
+                'urt_video_duration.publishedAt',
+                'urt_video_duration.u_id',
+                'urt_video_duration.videoId',
+            );
+        }
+
+        return [
+            'mode' => 'local-execute',
+            'generated_at' => $now->format('Y-m-d H:i:s'),
+            'selected_rows' => (int) ($preview['selected_rows'] ?? 0),
+            'queued_videos' => count($queued),
+            'api_requested_videos' => count($applied) + count($skipped),
+            'updated_videos' => count($applied),
+            'skipped_videos' => count($skipped),
+            'write_targets' => $writeTargets,
+            'external_calls' => ['YouTube Data API videos.list(part=contentDetails)'],
+            'queued' => $queued,
+            'applied' => $applied,
+            'skipped' => $skipped,
+            'secrets' => 'not printed',
+        ];
+    }
+}

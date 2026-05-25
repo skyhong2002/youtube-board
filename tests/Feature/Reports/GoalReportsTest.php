@@ -208,6 +208,62 @@ class GoalReportsTest extends TestCase
         $response->assertSee('議題角度');
     }
 
+    public function test_channel_profile_expands_wrapped_daily_ai_payloads(): void
+    {
+        $this->createChannelProfileTables();
+
+        DB::table('urt_tag')->insert(['tag_id' => 1, 'tag_name' => '社論']);
+        DB::table('urt_channel')->insert([
+            'u_id' => 10,
+            'youtube_id' => 'UC10',
+            'title' => 'Profile Channel',
+            'thumbnails' => 'https://example.test/channel.jpg',
+            'publishedAt' => '2020-01-01 00:00:00',
+            'description' => 'Channel description',
+            'flag_del' => null,
+        ]);
+        DB::table('urt_count')->insert([
+            'u_id' => 10,
+            'viewCount' => 10000,
+            'subscriberCount' => 1000,
+            'videoCount' => 100,
+            'view_week' => 500,
+            'view_month' => 1000,
+            'sub_week' => 20,
+            'sub_month' => 80,
+            'video_week' => 5,
+            'video_month' => 20,
+            'tags' => '[1]',
+        ]);
+        DB::table('urt_channel_ai')->insert([
+            'pk' => 5,
+            'u_id' => 10,
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
+            'data_type' => 'oneday',
+            'result_json' => json_encode([
+                'events' => [
+                    [
+                        '議題' => '包裝 profile 事件',
+                        '說明' => '包裝 profile 描述',
+                        'keywords' => ['包裝'],
+                        'people' => ['測試人物'],
+                        'video_id' => 'profile-wrapped',
+                    ],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+            'del_flag' => null,
+        ]);
+
+        $response = $this->get('/channels/10');
+
+        $response->assertOk();
+        $response->assertSee('包裝 profile 事件');
+        $response->assertSee('包裝 profile 描述');
+        $response->assertSee('測試人物');
+        $response->assertSee('profile-wrapped');
+    }
+
     private function createLiveTrendTables(): void
     {
         foreach (['urt_video_live_log', 'urt_show_video_live', 'urt_video_live'] as $table) {

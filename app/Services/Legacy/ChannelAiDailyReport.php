@@ -103,12 +103,12 @@ class ChannelAiDailyReport
         return collect($this->decodeList($json))
             ->map(function (mixed $item): array {
                 $item = is_array($item) ? $item : [];
-                $videoIds = $this->stringList($item, ['videoId', 'video_ids', 'videos']);
+                $videoIds = $this->stringList($item, ['videoId', 'video_id', 'video_ids', 'videos']);
 
                 return [
                     'event' => $this->text($item, ['事件', '議題', 'topic', 'title']),
-                    'description' => $this->text($item, ['描述', 'description']),
-                    'category' => $this->text($item, ['分類', '類型', 'category']),
+                    'description' => $this->text($item, ['描述', '說明', 'description', 'content']),
+                    'category' => $this->text($item, ['分類', '類型', 'category', 'type']),
                     'angle' => $this->text($item, ['角度', 'angle']),
                     'camp' => $this->text($item, ['陣營', 'camp', 'stance']),
                     'keywords' => $this->stringList($item, ['關鍵字', 'keywords']),
@@ -136,6 +136,13 @@ class ChannelAiDailyReport
 
         if (json_last_error() !== JSON_ERROR_NONE || ! is_array($decoded)) {
             return [];
+        }
+
+        foreach (['events', '事件', 'topics', '議題', 'result', 'data'] as $key) {
+            if (! array_is_list($decoded) && isset($decoded[$key]) && is_array($decoded[$key])) {
+                $decoded = $decoded[$key];
+                break;
+            }
         }
 
         return array_is_list($decoded) ? $decoded : array_values($decoded);

@@ -96,6 +96,43 @@ class AiPeriodRouteTest extends TestCase
         $response->assertSee('to=2026-05-31');
     }
 
+    public function test_ai_period_page_derives_wrapped_legacy_topic_payloads(): void
+    {
+        $this->createTable();
+
+        DB::table('urt_ai_date')->insert([
+            'pk' => 30,
+            'ctime' => '2026-05-24 01:00:00',
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
+            'ai_type' => 'qwen',
+            'data_type' => 'oneday',
+            'condition_type' => 'all',
+            'user_token' => 'CLI',
+            'del_flag' => null,
+            'channel_id' => '{}',
+            'result_json' => json_encode([
+                'topics' => [
+                    [
+                        '議題' => '包裝期間事件',
+                        'mediaEvents' => [
+                            '媒體A' => ['事件A', '事件B'],
+                        ],
+                    ],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+            'data_json' => null,
+            'video_json' => null,
+        ]);
+
+        $response = $this->get('/ai/periods?from=2026-05-24&to=2026-05-24&condition=all');
+
+        $response->assertOk();
+        $response->assertSee('包裝期間事件');
+        $response->assertSee('2026-05-24');
+        $response->assertSee('2');
+    }
+
     public function test_legacy_ai_period_url_redirects_to_period_report(): void
     {
         $this->get('/ai_period.php?from=2026-05-22&to=2026-05-23&condition=all')

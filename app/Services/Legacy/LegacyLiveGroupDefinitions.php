@@ -160,6 +160,13 @@ class LegacyLiveGroupDefinitions
                 'groups' => [
                     ['name' => '台灣立場', 'tag_para' => 'tagid=9,48'],
                     ['name' => '中國立場', 'tag_para' => 'tagid=9,49'],
+                ],
+            ],
+            'two_all' => [
+                'label' => '台灣立場 vs 中國立場',
+                'groups' => [
+                    ['name' => '台灣立場', 'tag_para' => 'tagid=9,48'],
+                    ['name' => '中國立場', 'tag_para' => 'tagid=9,49'],
                     ['name' => '新聞', 'tag_para' => 'tagid=13'],
                     ['name' => '個人社論', 'tag_para' => 'tagid=1 not=2,9,10,13'],
                     ['name' => '全部', 'tag_para' => 'or=1,2,13,14'],

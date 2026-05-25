@@ -14,7 +14,7 @@ class LiveHoursReport
     }
 
     /**
-     * @return array{available: bool, title: string, rows: array<int, array<string, mixed>>, totals: array<string, array{views: int, videos: int}>, dates: array<int, string>, generated_at: string, filters: array<string, mixed>, period: array<string, mixed>}
+     * @return array{available: bool, title: string, rows: array<int, array<string, mixed>>, totals: array<string, array{views: int, videos: int}>, dates: array<int, string>, generated_at: string, filters: array<string, mixed>, period: array<string, mixed>, source: string}
      */
     public function forRequest(Request $request): array
     {
@@ -23,8 +23,9 @@ class LiveHoursReport
         try {
             $filters = $this->tagFilter->filters($request);
             $tagNames = $this->tagFilter->tagNames();
+            $cached = $this->cacheAggregate($request, $period);
             $channelTags = $this->tagFilter->matchingChannelTags($filters)->keyBy('u_id');
-            $aggregate = $this->aggregate($period, $channelTags);
+            $aggregate = $cached ?? $this->aggregate($period, $channelTags);
 
             return [
                 'available' => true,
@@ -35,6 +36,7 @@ class LiveHoursReport
                 'generated_at' => now('Asia/Taipei')->format('Y-m-d H:i:s'),
                 'filters' => $request->query(),
                 'period' => $period,
+                'source' => $aggregate['source'],
             ];
         } catch (QueryException) {
             return [
@@ -46,6 +48,7 @@ class LiveHoursReport
                 'generated_at' => now('Asia/Taipei')->format('Y-m-d H:i:s'),
                 'filters' => $request->query(),
                 'period' => $period,
+                'source' => 'unavailable',
             ];
         }
     }
@@ -153,7 +156,68 @@ class LiveHoursReport
     /**
      * @param array{from: string, to: string, days: int, dates: array<int, string>, mode: string} $period
      * @param \Illuminate\Support\Collection<int, object> $channelTagsById
-     * @return array{rows: array<int, array<string, mixed>>, totals: array<string, array{views: int, videos: int}>}
+     * @return array{rows: array<int, array<string, mixed>>, totals: array<string, array{views: int, videos: int}>, source: string}
+     */
+    private function cacheAggregate(Request $request, array $period): ?array
+    {
+        $filters = $this->sortedTagFilters($request);
+
+        try {
+            $query = DB::table('urt_show_live_tag_date')
+                ->select(['the_date', 'hour_result'])
+                ->whereBetween('the_date', [$period['from'], $period['to']]);
+
+            foreach (['tagid' => 'tagid', 'or' => 'tag_or', 'not' => 'tag_not'] as $filterKey => $column) {
+                $this->whereNullableEmptyString($query, $column, $filters[$filterKey.'_string']);
+            }
+
+            $records = $query->get()->keyBy(fn (object $row): string => substr((string) $row->the_date, 0, 10));
+        } catch (QueryException) {
+            return null;
+        }
+
+        if ($records->isEmpty()) {
+            return null;
+        }
+
+        $matrix = [];
+        $totals = $this->emptyTotals($period['dates']);
+        $hasHourData = false;
+
+        foreach ($period['dates'] as $date) {
+            $hours = $this->decodeMap($records[$date]->hour_result ?? null);
+
+            for ($hour = 0; $hour < 24; $hour++) {
+                $hourKey = sprintf('%02d', $hour);
+                $legacyHour = $hours[$hourKey] ?? $hours[(string) $hour] ?? [];
+                $views = (int) ($legacyHour['views'] ?? 0);
+                $videos = (int) ($legacyHour['count'] ?? $legacyHour['videos'] ?? 0);
+
+                if ($views > 0 || $videos > 0) {
+                    $hasHourData = true;
+                }
+
+                $matrix[$hourKey][$date] = ['views' => $views, 'videos' => $videos];
+                $totals[$date]['views'] += $views;
+                $totals[$date]['videos'] += $videos;
+            }
+        }
+
+        if (! $hasHourData) {
+            return null;
+        }
+
+        return [
+            'rows' => $this->rowsFromMatrix($matrix),
+            'totals' => $totals,
+            'source' => 'urt_show_live_tag_date.hour_result cache',
+        ];
+    }
+
+    /**
+     * @param array{from: string, to: string, days: int, dates: array<int, string>, mode: string} $period
+     * @param \Illuminate\Support\Collection<int, object> $channelTagsById
+     * @return array{rows: array<int, array<string, mixed>>, totals: array<string, array{views: int, videos: int}>, source: string}
      */
     private function aggregate(array $period, $channelTagsById): array
     {
@@ -161,6 +225,7 @@ class LiveHoursReport
             return [
                 'rows' => $this->emptyRows($period['dates']),
                 'totals' => $this->emptyTotals($period['dates']),
+                'source' => 'urt_video_live_log derived read-only',
             ];
         }
 
@@ -206,21 +271,11 @@ class LiveHoursReport
             }
         }
 
-        $rows = collect(range(0, 23))
-            ->map(function (int $hour) use ($matrix): array {
-                $hourKey = sprintf('%02d', $hour);
-                $cells = $matrix[$hourKey] ?? [];
-
-                return [
-                    'hour' => $hourKey,
-                    'views' => collect($cells)->sum('views'),
-                    'videos' => collect($cells)->sum('videos'),
-                    'cells' => $cells,
-                ];
-            })
-            ->all();
-
-        return ['rows' => $rows, 'totals' => $totals];
+        return [
+            'rows' => $this->rowsFromMatrix($matrix),
+            'totals' => $totals,
+            'source' => 'urt_video_live_log derived read-only',
+        ];
     }
 
     /**
@@ -286,6 +341,100 @@ class LiveHoursReport
         }
 
         return $hours;
+    }
+
+    /**
+     * @param array<string, array<string, array{views: int, videos: int}>> $matrix
+     * @return array<int, array{hour: string, views: int, videos: int, cells: array<string, array{views: int, videos: int}>}>
+     */
+    private function rowsFromMatrix(array $matrix): array
+    {
+        return collect(range(0, 23))
+            ->map(function (int $hour) use ($matrix): array {
+                $hourKey = sprintf('%02d', $hour);
+                $cells = $matrix[$hourKey] ?? [];
+
+                return [
+                    'hour' => $hourKey,
+                    'views' => collect($cells)->sum('views'),
+                    'videos' => collect($cells)->sum('videos'),
+                    'cells' => $cells,
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function decodeMap(mixed $json): array
+    {
+        if (! is_string($json) || trim($json) === '' || trim($json) === 'null') {
+            return [];
+        }
+
+        $decoded = json_decode($json, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * @return array{tagid: list<int>, or: list<int>, not: list<int>, tagid_string: string, or_string: string, not_string: string}
+     */
+    private function sortedTagFilters(Request $request): array
+    {
+        $tagid = $this->sortedIntegers($request->query('tagid'));
+        $or = $this->sortedIntegers($request->query('or'));
+        $not = $this->sortedIntegers($request->query('not'));
+
+        return [
+            'tagid' => $tagid,
+            'or' => $or,
+            'not' => $not,
+            'tagid_string' => implode(',', $tagid),
+            'or_string' => implode(',', $or),
+            'not_string' => implode(',', $not),
+        ];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function sortedIntegers(mixed $value): array
+    {
+        if (is_array($value)) {
+            $items = $value;
+        } else {
+            $items = explode(',', (string) $value);
+        }
+
+        $integers = collect($items)
+            ->map(fn (mixed $item): int => (int) trim((string) $item))
+            ->filter(fn (int $item): bool => $item > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        sort($integers);
+
+        return $integers;
+    }
+
+    /**
+     * @param \Illuminate\Database\Query\Builder $query
+     */
+    private function whereNullableEmptyString($query, string $column, string $value): void
+    {
+        if ($value !== '') {
+            $query->where($column, $value);
+
+            return;
+        }
+
+        $query->where(function ($query) use ($column): void {
+            $query->where($column, '')
+                ->orWhereNull($column);
+        });
     }
 
     /**

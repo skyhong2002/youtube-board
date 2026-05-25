@@ -284,6 +284,33 @@ class KeywordGroupTrendReport
 
         $decoded = json_decode($json, true);
 
-        return is_array($decoded) ? $decoded : [];
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        foreach (['tags_result', 'period', 'daily', 'result', 'data'] as $key) {
+            if (isset($decoded[$key]) && is_array($decoded[$key])) {
+                $decoded = $decoded[$key];
+                break;
+            }
+        }
+
+        return collect($decoded)
+            ->mapWithKeys(function (mixed $value, mixed $key): array {
+                if (is_array($value)) {
+                    $date = (string) ($value['date'] ?? $value['the_date'] ?? $key);
+
+                    if ($date === '') {
+                        return [];
+                    }
+
+                    unset($value['date'], $value['the_date']);
+
+                    return [$date => $value];
+                }
+
+                return is_string($key) ? [$key => $value] : [];
+            })
+            ->all();
     }
 }

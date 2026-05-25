@@ -161,6 +161,27 @@ class KeywordVideosReport
             return [];
         }
 
+        foreach (['videos', 'videos_json', 'result', 'data'] as $key) {
+            if (! array_is_list($decoded) && isset($decoded[$key]) && is_array($decoded[$key])) {
+                $decoded = $decoded[$key];
+                break;
+            }
+        }
+
+        if (array_is_list($decoded)) {
+            return collect($decoded)
+                ->map(function (mixed $item): string {
+                    if (is_array($item)) {
+                        return trim((string) ($item['videoId'] ?? $item['video_id'] ?? $item['id'] ?? ''));
+                    }
+
+                    return trim((string) $item);
+                })
+                ->filter(fn (string $videoId): bool => $videoId !== '')
+                ->values()
+                ->all();
+        }
+
         return collect($decoded)
             ->keys()
             ->map(fn (mixed $videoId): string => trim((string) $videoId))

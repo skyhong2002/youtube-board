@@ -78,6 +78,48 @@ class ChannelCloudRouteTest extends TestCase
         $response->assertDontSee('自訂停用詞');
     }
 
+    public function test_channel_cloud_reads_wrapped_and_list_shaped_cache_payloads(): void
+    {
+        $this->createTables();
+
+        DB::table('urt_show_cloud')->insert([
+            [
+                'pk' => 1,
+                'ctime' => '2026-05-24 00:00:00',
+                'mtime' => '2026-05-24 01:00:00',
+                'u_id' => 10,
+                'days' => 3,
+                'keywords_json' => json_encode([
+                    'keywords' => [
+                        ['word' => '包裝詞', 'weight' => '30.00000'],
+                        ['keyword' => '列表詞', 'score' => '20.00000'],
+                    ],
+                ], JSON_UNESCAPED_UNICODE),
+            ],
+            [
+                'pk' => 2,
+                'ctime' => '2026-05-24 00:00:00',
+                'mtime' => '2026-05-24 01:00:00',
+                'u_id' => 10,
+                'days' => 7,
+                'keywords_json' => json_encode([
+                    'result' => [
+                        '包裝詞' => ['weight' => '14.00000'],
+                        '列表詞' => ['count' => '7.00000'],
+                    ],
+                ], JSON_UNESCAPED_UNICODE),
+            ],
+        ]);
+
+        $response = $this->get('/channels/10/cloud?days=3&limit=10');
+
+        $response->assertOk();
+        $response->assertSee('包裝詞');
+        $response->assertSee('列表詞');
+        $response->assertSee('23.000');
+        $response->assertSee('16.500');
+    }
+
     private function createTables(): void
     {
         Schema::create('urt_channel', function ($table): void {

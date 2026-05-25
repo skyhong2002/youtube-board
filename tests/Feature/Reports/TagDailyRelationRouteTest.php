@@ -103,6 +103,69 @@ class TagDailyRelationRouteTest extends TestCase
         $response->assertDontSee('search_query=%E6%96%B0%E8%81%9E', false);
     }
 
+    public function test_daily_relation_pages_read_wrapped_and_list_shaped_cache_payloads(): void
+    {
+        $this->createTables();
+
+        DB::table('urt_tag')->insert([
+            ['tag_id' => 1, 'tag_name' => '新聞'],
+        ]);
+
+        DB::table('urt_show_tag_date')->insert([
+            [
+                'pk' => 1,
+                'ctime' => '2026-05-21 00:00:00',
+                'tagid' => '1',
+                'tag_or' => '',
+                'tag_not' => '',
+                'the_date' => '2026-05-21',
+                'count_channels' => 2,
+                'count_videos' => 3,
+                'count_tags' => 2,
+                'total_views' => 500,
+                'tags_result' => json_encode([
+                    'result' => [
+                        ['tag' => '交通', 'count' => 12],
+                        ['keyword' => '政策', 'weight' => 7],
+                    ],
+                ], JSON_UNESCAPED_UNICODE),
+                'tags_video' => '{}',
+                'tags_views' => '{}',
+            ],
+        ]);
+
+        DB::table('urt_show_video_tag_date')->insert([
+            [
+                'pk' => 2,
+                'ctime' => '2026-05-21 00:00:00',
+                'the_date' => '2026-05-21',
+                'tag' => '蔡英文',
+                'count_videos' => 4,
+                'count_tags' => 2,
+                'count_channels' => 2,
+                'videos_json' => '{}',
+                'tags_json' => json_encode([
+                    'tags' => [
+                        ['word' => '外交', 'score' => 9],
+                        ['tag' => '能源', 'value' => 6],
+                    ],
+                ], JSON_UNESCAPED_UNICODE),
+            ],
+        ]);
+
+        $tagResponse = $this->get('/tags/1/days?from=2026-05-21&to=2026-05-21&diff=0');
+
+        $tagResponse->assertOk();
+        $tagResponse->assertSee('交通');
+        $tagResponse->assertSee('政策');
+
+        $keywordResponse = $this->get('/keywords/%E8%94%A1%E8%8B%B1%E6%96%87/days?from=2026-05-21&to=2026-05-21&diff=0');
+
+        $keywordResponse->assertOk();
+        $keywordResponse->assertSee('外交');
+        $keywordResponse->assertSee('能源');
+    }
+
     public function test_tag_daily_relation_page_reports_empty_local_cache(): void
     {
         $this->createTables();

@@ -6,6 +6,7 @@ use App\Services\Ingestion\IngestionSchedulerRunner;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -20,6 +21,7 @@ class ReadOnlyCommentQueueCommandTest extends TestCase
 
     public function test_youtube_comments_queue_previews_legacy_candidates_without_inserting_queue_rows(): void
     {
+        Http::preventStrayRequests();
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
         $this->createTables();
 
@@ -76,6 +78,51 @@ class ReadOnlyCommentQueueCommandTest extends TestCase
         $this->assertFalse($payload['rows'][0]['already_queued']);
         $this->assertTrue($payload['rows'][0]['would_insert_queue']);
         $this->assertSame(1, DB::table('urt_comment_queue')->count());
+    }
+
+    public function test_youtube_comments_queue_execute_inserts_local_queue_rows_idempotently(): void
+    {
+        Http::preventStrayRequests();
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        DB::table('urt_count')->insert([
+            ['u_id' => 1, 'tags' => '[1]'],
+        ]);
+        DB::table('urt_video')->insert([
+            $this->videoRow(1, 'queue-execute', '2026-05-25 11:00:00', 1200, 650, 'Queue Execute'),
+        ]);
+
+        $firstExitCode = Artisan::call('youtube:comments:queue', [
+            '--or' => '1',
+            '--hours' => 24,
+            '--min' => 500,
+            '--limit' => 1,
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $firstPayload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $firstExitCode);
+        $this->assertSame('local-execute', $firstPayload['mode']);
+        $this->assertSame(1, $firstPayload['inserted_queue_rows']);
+        $this->assertContains('urt_comment_queue.videoId', $firstPayload['write_targets']);
+        $this->assertSame(1, DB::table('urt_comment_queue')->where('videoId', 'queue-execute')->count());
+        $this->assertSame('2026-05-25 12:00:00', DB::table('urt_comment_queue')->where('videoId', 'queue-execute')->value('ctime'));
+
+        $secondExitCode = Artisan::call('youtube:comments:queue', [
+            '--or' => '1',
+            '--hours' => 24,
+            '--min' => 500,
+            '--limit' => 1,
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $secondPayload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $secondExitCode);
+        $this->assertSame(0, $secondPayload['inserted_queue_rows']);
+        $this->assertSame(1, DB::table('urt_comment_queue')->where('videoId', 'queue-execute')->count());
     }
 
     public function test_youtube_comments_queue_supports_legacy_and_tagid_filter(): void

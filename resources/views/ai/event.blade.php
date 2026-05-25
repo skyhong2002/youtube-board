@@ -27,6 +27,8 @@
             .chip { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 7px; border-radius: 6px; background: var(--chip); color: #344054; font-size: 12px; }
             .chip.hot { background: var(--accent-bg); color: var(--accent); }
             .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+            .history { margin: 0 0 16px; padding: 0; list-style: none; display: grid; gap: 8px; }
+            .history li { margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
             ul { margin: 8px 0 0 20px; padding: 0; }
             li { margin-bottom: 6px; }
             .person { padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: #f9fbfd; }
@@ -64,8 +66,25 @@
                 <p class="notice">這個 daily topic 目前沒有對應的 `urt_ai_event` summary/people 內容；先顯示可用的事件入口，歷史追蹤待 `urt_ai_period` dump 後補齊。</p>
             @endif
 
-            @if (! $history_available)
-                <p class="notice">Legacy event history relies on `urt_ai_period` and `api_topic.php`; local dump does not currently include populated `urt_ai_period`, so 逐日事件線先標示 unavailable。</p>
+            @if ($history_available && ($history['match'] ?? []) !== [])
+                <h2>逐日事件線</h2>
+                <ul class="history">
+                    @foreach ($history['match'] as $historyDate => $events)
+                        <li>
+                            <strong>{{ $historyDate }}</strong>
+                            @if (isset($history['pk'][$historyDate]))
+                                <a href="{{ route('ai.events.show', ['id' => $history['pk'][$historyDate], 'event' => $events[0] ?? $event]) }}">pk={{ $history['pk'][$historyDate] }}</a>
+                            @endif
+                            <div class="chips">
+                                @foreach ($events as $historyEvent)
+                                    <span class="chip">{{ $historyEvent }}</span>
+                                @endforeach
+                            </div>
+                        </li>
+                    @endforeach
+                </ul>
+            @else
+                <p class="notice">Legacy event history relies on `urt_ai_period`; {{ $history['blocked_reason'] ?? 'local dump does not currently include populated history rows' }}.</p>
             @endif
 
             <h2>事件分析</h2>

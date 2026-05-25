@@ -95,6 +95,35 @@ class AiAspectRouteTest extends TestCase
         $response->assertSee('Included Channel');
     }
 
+    public function test_ai_aspect_page_expands_wrapped_and_flat_legacy_payloads(): void
+    {
+        $this->createTables();
+
+        DB::table('urt_channel_ai')->insert([
+            'pk' => 3,
+            'u_id' => 10,
+            'data_type' => 'aspect',
+            'result_json' => json_encode([
+                'aspects' => [
+                    ['分類' => '政治傾向', '項目' => '泛藍', '偏好度' => 2, '描述' => 'wrapped blue'],
+                    ['分類' => '政治傾向', '項目' => '泛綠', '偏好度' => 7, '描述' => 'wrapped green'],
+                    ['分類' => '政治傾向', '項目' => '泛紅', '偏好度' => 1],
+                    ['分類' => '政治傾向', '項目' => '泛白', '偏好度' => 3],
+                    ['分類' => '兩岸角度', '項目' => '台灣', '偏好度' => 8, '描述' => 'wrapped taiwan'],
+                    ['分類' => '兩岸角度', '項目' => '中國', '偏好度' => 1, '描述' => 'wrapped china'],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->get('/ai/aspects?tagid=1');
+
+        $response->assertOk();
+        $response->assertSee('Included Channel');
+        $response->assertSee('wrapped green');
+        $response->assertSee('wrapped taiwan');
+        $response->assertSee('14');
+    }
+
     private function createTables(): void
     {
         foreach (['urt_channel_ai', 'urt_count', 'urt_channel', 'urt_tag'] as $table) {

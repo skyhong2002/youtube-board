@@ -6,12 +6,17 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
 use Carbon\CarbonImmutable;
 use App\Services\Ingestion\AiDailyPreview;
+use App\Services\Ingestion\AiHourlyIngestion;
 use App\Services\Ingestion\AiHourlyPreview;
+use App\Services\Ingestion\CommentFetchIngestion;
 use App\Services\Ingestion\CommentFetchPreview;
+use App\Services\Ingestion\CommentQueueIngestion;
 use App\Services\Ingestion\CommentQueuePreview;
 use App\Services\Ingestion\GroupReportsPreview;
 use App\Services\Ingestion\ChannelCountsPreview;
+use App\Services\Ingestion\ChannelStatisticsIngestion;
 use App\Services\Ingestion\ChannelStatisticsPreview;
+use App\Services\Ingestion\ChannelVideosDiscoveryIngestion;
 use App\Services\Ingestion\ChannelVideosDiscoveryPreview;
 use App\Services\Ingestion\IngestionJobRegistry;
 use App\Services\Ingestion\IngestionRunHistory;
@@ -19,15 +24,20 @@ use App\Services\Ingestion\IngestionSchedulerRunner;
 use App\Services\Ingestion\KeywordReportsPreview;
 use App\Services\Ingestion\LiveCleanupPreview;
 use App\Services\Ingestion\LiveDisplayCachePreview;
+use App\Services\Ingestion\LivePollingIngestion;
 use App\Services\Ingestion\LivePollingPreview;
 use App\Services\Ingestion\LiveStaticHtmlPreview;
 use App\Services\Ingestion\MayorStaticReportsPreview;
 use App\Services\Ingestion\PeopleReportsPreview;
 use App\Services\Ingestion\ScheduleReportsPreview;
 use App\Services\Ingestion\StaticHtmlReportsPreview;
+use App\Services\Ingestion\TvbsChannelVideosDiscoveryIngestion;
 use App\Services\Ingestion\TvbsChannelVideosDiscoveryPreview;
+use App\Services\Ingestion\TvbsLivePollingIngestion;
 use App\Services\Ingestion\TvbsLivePollingPreview;
+use App\Services\Ingestion\VideoDurationsIngestion;
 use App\Services\Ingestion\VideoDurationsPreview;
+use App\Services\Ingestion\VideoStatisticsIngestion;
 use App\Services\Ingestion\VideoStatisticsPreview;
 use Illuminate\Database\QueryException;
 
@@ -93,7 +103,7 @@ Artisan::command('ingestion:run {--execute : Execute active due jobs instead of 
             $job['due'] ? 'due' : 'not-due',
             $job['key'],
             $job['action'],
-            $job['command'],
+            $job['effective_command'] ?? $job['command'],
             $job['schedule'],
         ));
     }
@@ -113,12 +123,65 @@ Artisan::command('ingestion:run {--execute : Execute active due jobs instead of 
     }
 })->purpose('Evaluate or execute due ingestion jobs from the legacy cron registry');
 
-Artisan::command('youtube:channels:stats {--u_id= : Optional channel u_id to preview} {--hours=22 : Legacy stime expiration window} {--limit=20 : Number of channels to print, capped at the legacy loop count} {--json : Emit JSON instead of text}', function (ChannelStatisticsPreview $preview) {
-    $uId = $this->option('u_id') !== null ? max(1, (int) $this->option('u_id')) : null;
+Artisan::command('youtube:channels:stats {--u_id= : Optional channel u_id to preview} {--channel= : Alias for --u_id when running a local execute smoke} {--hours=22 : Legacy stime expiration window} {--limit=20 : Number of channels to print, capped at the legacy loop count} {--execute : Call YouTube and write the selected rows to local DB} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (ChannelStatisticsPreview $preview, ChannelStatisticsIngestion $ingestion) {
+    $channelOption = $this->option('channel') ?? $this->option('u_id');
+    $uId = $channelOption !== null ? max(1, (int) $channelOption) : null;
     $hours = max(1, min(168, (int) $this->option('hours')));
     $limit = max(1, min(61, (int) $this->option('limit')));
+    $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
 
     try {
+        if ($execute) {
+            $youtubeApiKey = config('services.youtube.api_key');
+
+            if (! is_string($youtubeApiKey) || trim($youtubeApiKey) === '') {
+                $this->line('youtube:channels:stats execute unavailable: YOUTUBE_API_KEY is not configured. secrets=not_printed');
+
+                return 1;
+            }
+
+            $payload = $ingestion->execute(uId: $uId, hours: $hours, limit: min($limit, 5));
+
+            if ((bool) $this->option('json')) {
+                $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+                return 0;
+            }
+
+            $this->line(sprintf(
+                'youtube:channels:stats mode=local-execute selected_rows=%d api_requested_rows=%d updated_rows=%d skipped_rows=%d write_targets="%s" external_calls="%s" secrets=%s',
+                $payload['selected_rows'],
+                $payload['api_requested_rows'],
+                $payload['updated_rows'],
+                $payload['skipped_rows'],
+                implode(',', $payload['write_targets']),
+                implode(',', $payload['external_calls']),
+                $payload['secrets'],
+            ));
+
+            foreach ($payload['applied'] as $row) {
+                $this->line(sprintf(
+                    'updated u_id=%d youtube_id=%s view=%s sub=%s videos=%s',
+                    $row['u_id'],
+                    $row['youtube_id'],
+                    number_format($row['viewCount']),
+                    number_format($row['subscriberCount']),
+                    number_format($row['videoCount']),
+                ));
+            }
+
+            foreach ($payload['skipped'] as $row) {
+                $this->line(sprintf(
+                    'skipped u_id=%d youtube_id=%s reason=%s',
+                    $row['u_id'],
+                    $row['youtube_id'],
+                    $row['reason'],
+                ));
+            }
+
+            return 0;
+        }
+
         $payload = $preview->preview(uId: $uId, hours: $hours, limit: $limit);
 
         if ((bool) $this->option('json')) {
@@ -162,17 +225,90 @@ Artisan::command('youtube:channels:stats {--u_id= : Optional channel u_id to pre
         $this->error('youtube:channels:stats unavailable: '.$exception->getMessage());
 
         return 1;
-    }
-})->purpose('Read-only preview of legacy channel statistics polling; does not call YouTube or update channel/count/log tables');
+    } catch (\RuntimeException $exception) {
+        $this->line('youtube:channels:stats execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
-Artisan::command('youtube:channels:videos {--id= : Optional legacy channel u_id to preview} {--live= : Legacy live filter, 1 uses tag 52 and 2 uses tag 89} {--rescan : Preview legacy large-channel rescan branch} {--hours=700 : Legacy hours option, retained for compatibility} {--force=1 : Legacy duplicate-process threshold, shown only} {--limit=20 : Number of channels to print, capped at legacy loop count} {--json : Emit JSON instead of text}', function (ChannelVideosDiscoveryPreview $preview) {
-    $uId = $this->option('id') !== null ? max(1, (int) $this->option('id')) : null;
+        return 1;
+    } catch (\Throwable $exception) {
+        $this->line('youtube:channels:stats execute unavailable: '.$exception->getMessage().' secrets=not_printed');
+
+        return 1;
+    }
+})->purpose('Dry-run preview of legacy channel statistics polling, with explicit local-only --execute support');
+
+Artisan::command('youtube:channels:videos {--id= : Optional legacy channel u_id to preview} {--channel= : Alias for --id when running a local execute smoke} {--live= : Legacy live filter, 1 uses tag 52 and 2 uses tag 89} {--rescan : Preview legacy large-channel rescan branch} {--hours=700 : Legacy hours option, retained for compatibility} {--force=1 : Legacy duplicate-process threshold, shown only} {--limit=20 : Number of channels to print, capped at legacy loop count} {--max-results=5 : Execute-mode playlist item cap, max 50} {--execute : Call YouTube and write selected playlist items to local DB} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (ChannelVideosDiscoveryPreview $preview, ChannelVideosDiscoveryIngestion $ingestion) {
+    $channelOption = $this->option('channel') ?? $this->option('id');
+    $uId = $channelOption !== null ? max(1, (int) $channelOption) : null;
     $live = $this->option('live') !== null ? (int) $this->option('live') : null;
     $hours = max(1, min(24 * 365, (int) $this->option('hours')));
     $force = max(1, min(20, (int) $this->option('force')));
     $limit = max(1, min(81, (int) $this->option('limit')));
+    $maxResults = max(1, min(50, (int) $this->option('max-results')));
+    $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
 
     try {
+        if ($execute) {
+            $youtubeApiKey = config('services.youtube.api_key');
+
+            if (! is_string($youtubeApiKey) || trim($youtubeApiKey) === '') {
+                $this->line('youtube:channels:videos execute unavailable: YOUTUBE_API_KEY is not configured. secrets=not_printed');
+
+                return 1;
+            }
+
+            $payload = $ingestion->execute(
+                uId: $uId,
+                live: $live,
+                rescan: (bool) $this->option('rescan'),
+                hours: $hours,
+                force: $force,
+                limit: min($limit, 3),
+                maxResults: $maxResults,
+            );
+
+            if ((bool) $this->option('json')) {
+                $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+                return 0;
+            }
+
+            $this->line(sprintf(
+                'youtube:channels:videos mode=local-execute selected_rows=%d api_requested_channels=%d max_results=%d updated_channels=%d skipped_channels=%d write_targets="%s" external_calls="%s" secrets=%s',
+                $payload['selected_rows'],
+                $payload['api_requested_channels'],
+                $payload['api_max_results_per_channel'],
+                $payload['updated_channels'],
+                $payload['skipped_channels'],
+                implode(',', $payload['write_targets']),
+                implode(',', $payload['external_calls']),
+                $payload['secrets'],
+            ));
+
+            foreach ($payload['applied'] as $row) {
+                $this->line(sprintf(
+                    'updated u_id=%d uploads=%s api_items=%d videos=%d schedules=%d live=%d final_vtime=%s',
+                    $row['u_id'],
+                    $row['uploads'],
+                    $row['api_items'],
+                    $row['video_upserts'],
+                    $row['schedule_upserts'],
+                    $row['live_upserts'],
+                    $row['final_vtime'],
+                ));
+            }
+
+            foreach ($payload['skipped'] as $row) {
+                $this->line(sprintf(
+                    'skipped u_id=%d uploads=%s reason=%s',
+                    $row['u_id'],
+                    $row['uploads'],
+                    $row['reason'],
+                ));
+            }
+
+            return 0;
+        }
+
         $payload = $preview->preview(
             uId: $uId,
             live: $live,
@@ -221,18 +357,89 @@ Artisan::command('youtube:channels:videos {--id= : Optional legacy channel u_id 
         $this->error('youtube:channels:videos unavailable: '.$exception->getMessage());
 
         return 1;
-    }
-})->purpose('Read-only preview of legacy channel playlist discovery; does not call YouTube or insert video/live/schedule rows');
+    } catch (\RuntimeException $exception) {
+        $this->line('youtube:channels:videos execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
-Artisan::command('youtube:tvbs:videos {--tag=29 : Legacy TVBS channel tag id in urt_count.tags} {--hours=700 : Legacy hours option, retained for compatibility} {--force=1 : Legacy duplicate-process threshold, shown only} {--limit=20 : Number of channels to print, capped at the legacy loop count} {--json : Emit JSON instead of text}', function (TvbsChannelVideosDiscoveryPreview $preview) {
+        return 1;
+    } catch (\Throwable $exception) {
+        $this->line('youtube:channels:videos execute unavailable: '.$exception->getMessage().' secrets=not_printed');
+
+        return 1;
+    }
+})->purpose('Dry-run preview of legacy channel playlist discovery, with explicit local-only --execute support');
+
+Artisan::command('youtube:tvbs:videos {--tag=29 : Legacy TVBS channel tag id in urt_count.tags} {--id= : Optional u_id to fetch} {--channel= : Optional YouTube channel id to fetch} {--hours=700 : Legacy hours option, retained for compatibility} {--force=1 : Legacy duplicate-process threshold, shown only} {--limit=20 : Number of channels to print, capped lower for --execute} {--max-results=5 : Maximum playlist items per channel in execute mode, capped at 50} {--execute : Call YouTube and write selected TVBS playlist items to local DB} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (TvbsChannelVideosDiscoveryPreview $preview, TvbsChannelVideosDiscoveryIngestion $ingestion) {
     $tagId = max(1, (int) $this->option('tag'));
+    $uId = $this->option('id') !== null ? max(1, (int) $this->option('id')) : null;
+    $channel = $this->option('channel') ? (string) $this->option('channel') : null;
     $hours = max(1, min(24 * 365, (int) $this->option('hours')));
     $force = max(1, min(20, (int) $this->option('force')));
     $limit = max(1, min(80, (int) $this->option('limit')));
+    $maxResults = max(1, min(50, (int) $this->option('max-results')));
+    $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
 
     try {
+        if ($execute) {
+            $youtubeApiKey = config('services.youtube.api_key');
+
+            if (! is_string($youtubeApiKey) || trim($youtubeApiKey) === '') {
+                $this->line('youtube:tvbs:videos execute unavailable: YOUTUBE_API_KEY is not configured. secrets=not_printed');
+
+                return 1;
+            }
+
+            $payload = $ingestion->execute(
+                tagId: $tagId,
+                uId: $uId,
+                channel: $channel,
+                hours: $hours,
+                force: $force,
+                limit: $limit,
+                maxResults: $maxResults,
+            );
+
+            if ((bool) $this->option('json')) {
+                $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+                return 0;
+            }
+
+            $this->line(sprintf(
+                'youtube:tvbs:videos mode=local-execute source=%s selected_rows=%d api_requested_channels=%d api_max_results_per_channel=%d updated_channels=%d skipped_channels=%d write_targets="%s" external_calls="%s" secrets=%s',
+                $payload['source'],
+                $payload['selected_rows'],
+                $payload['api_requested_channels'],
+                $payload['api_max_results_per_channel'],
+                $payload['updated_channels'],
+                $payload['skipped_channels'],
+                implode(',', $payload['write_targets']),
+                implode(',', $payload['external_calls']),
+                $payload['secrets'],
+            ));
+
+            foreach ($payload['applied'] as $row) {
+                $this->line(sprintf(
+                    'updated u_id=%d uploads=%s api_items=%d videos=%d schedules=%d tvbs_live=%d',
+                    $row['u_id'],
+                    $row['uploads'],
+                    $row['api_items'],
+                    $row['video_upserts'],
+                    $row['schedule_upserts'],
+                    $row['tvbs_live_upserts'],
+                ));
+            }
+
+            foreach ($payload['skipped'] as $row) {
+                $this->line(sprintf('skipped u_id=%d reason=%s', $row['u_id'], $row['reason']));
+            }
+
+            return 0;
+        }
+
         $payload = $preview->preview(
             tagId: $tagId,
+            uId: $uId,
+            channel: $channel,
             hours: $hours,
             force: $force,
             limit: $limit,
@@ -277,15 +484,70 @@ Artisan::command('youtube:tvbs:videos {--tag=29 : Legacy TVBS channel tag id in 
         $this->error('youtube:tvbs:videos unavailable: '.$exception->getMessage());
 
         return 1;
-    }
-})->purpose('Read-only preview of legacy TVBS channel playlist discovery; does not call YouTube or insert video/live/schedule rows');
+    } catch (\RuntimeException $exception) {
+        $this->line('youtube:tvbs:videos execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
-Artisan::command('youtube:live:poll {--videoId= : Optional live video id to preview} {--interval=11 : Legacy freshness interval in minutes} {--limit=20 : Number of live rows to print, capped at the legacy loop count} {--json : Emit JSON instead of text}', function (LivePollingPreview $preview) {
+        return 1;
+    } catch (\Throwable $exception) {
+        $this->line('youtube:tvbs:videos execute unavailable: '.$exception->getMessage().' secrets=not_printed');
+
+        return 1;
+    }
+})->purpose('Dry-run preview of legacy TVBS channel playlist discovery, with explicit local-only --execute support');
+
+Artisan::command('youtube:live:poll {--videoId= : Optional live video id to preview} {--interval=11 : Legacy freshness interval in minutes} {--limit=20 : Number of live rows to print, capped at the legacy loop count} {--execute : Call YouTube and write selected live details to local DB} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (LivePollingPreview $preview, LivePollingIngestion $ingestion) {
     $videoId = $this->option('videoId') ? (string) $this->option('videoId') : null;
     $interval = max(1, min(240, (int) $this->option('interval')));
     $limit = max(1, min(50, (int) $this->option('limit')));
+    $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
 
     try {
+        if ($execute) {
+            $youtubeApiKey = config('services.youtube.api_key');
+
+            if (! is_string($youtubeApiKey) || trim($youtubeApiKey) === '') {
+                $this->line('youtube:live:poll execute unavailable: YOUTUBE_API_KEY is not configured. secrets=not_printed');
+
+                return 1;
+            }
+
+            $payload = $ingestion->execute(videoId: $videoId, intervalMinutes: $interval, limit: $limit);
+
+            if ((bool) $this->option('json')) {
+                $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+                return 0;
+            }
+
+            $this->line(sprintf(
+                'youtube:live:poll mode=local-execute source=%s selected_rows=%d api_requested_videos=%d updated_videos=%d skipped_videos=%d write_targets="%s" external_calls="%s" secrets=%s',
+                $payload['source'],
+                $payload['selected_rows'],
+                $payload['api_requested_videos'],
+                $payload['updated_videos'],
+                $payload['skipped_videos'],
+                implode(',', $payload['write_targets']),
+                implode(',', $payload['external_calls']),
+                $payload['secrets'],
+            ));
+
+            foreach ($payload['applied'] as $row) {
+                $this->line(sprintf(
+                    'updated videoId=%s viewers=%s minute=%s ended=%s',
+                    $row['videoId'],
+                    $row['concurrentViewers'] !== null ? number_format($row['concurrentViewers']) : 'n/a',
+                    $row['loggedMinute'] ?? 'n/a',
+                    $row['actualEndTime'] ?? 'n/a',
+                ));
+            }
+
+            foreach ($payload['skipped'] as $row) {
+                $this->line(sprintf('skipped videoId=%s reason=%s', $row['videoId'], $row['reason']));
+            }
+
+            return 0;
+        }
+
         $payload = $preview->preview(videoId: $videoId, intervalMinutes: $interval, limit: $limit);
 
         if ((bool) $this->option('json')) {
@@ -333,16 +595,71 @@ Artisan::command('youtube:live:poll {--videoId= : Optional live video id to prev
         $this->error('youtube:live:poll unavailable: '.$exception->getMessage());
 
         return 1;
-    }
-})->purpose('Read-only preview of legacy live stream polling; does not call YouTube or update live/log tables');
+    } catch (\RuntimeException $exception) {
+        $this->line('youtube:live:poll execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
-Artisan::command('youtube:tvbs:live:poll {--videoId= : Optional TVBS live video id to preview} {--interval=11 : Legacy interval option retained; get_live_tvbs.php uses a hard-coded 40 seconds} {--stale-seconds=40 : Actual TVBS freshness cutoff in seconds} {--limit=20 : Number of live rows to print, capped at the legacy batch count} {--json : Emit JSON instead of text}', function (TvbsLivePollingPreview $preview) {
+        return 1;
+    } catch (\Throwable $exception) {
+        $this->line('youtube:live:poll execute unavailable: '.$exception->getMessage().' secrets=not_printed');
+
+        return 1;
+    }
+})->purpose('Dry-run preview of legacy live stream polling, with explicit local-only --execute support');
+
+Artisan::command('youtube:tvbs:live:poll {--videoId= : Optional TVBS live video id to preview} {--interval=11 : Legacy interval option retained; get_live_tvbs.php uses a hard-coded 40 seconds} {--stale-seconds=40 : Actual TVBS freshness cutoff in seconds} {--limit=20 : Number of live rows to print, capped at the legacy batch count} {--execute : Call YouTube and write selected TVBS live rows to local DB} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (TvbsLivePollingPreview $preview, TvbsLivePollingIngestion $ingestion) {
     $videoId = $this->option('videoId') ? (string) $this->option('videoId') : null;
     $interval = max(1, min(240, (int) $this->option('interval')));
     $staleSeconds = max(10, min(3600, (int) $this->option('stale-seconds')));
     $limit = max(1, min(50, (int) $this->option('limit')));
+    $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
 
     try {
+        if ($execute) {
+            $youtubeApiKey = config('services.youtube.api_key');
+
+            if (! is_string($youtubeApiKey) || trim($youtubeApiKey) === '') {
+                $this->line('youtube:tvbs:live:poll execute unavailable: YOUTUBE_API_KEY is not configured. secrets=not_printed');
+
+                return 1;
+            }
+
+            $payload = $ingestion->execute(videoId: $videoId, intervalMinutes: $interval, staleSeconds: $staleSeconds, limit: $limit);
+
+            if ((bool) $this->option('json')) {
+                $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+                return 0;
+            }
+
+            $this->line(sprintf(
+                'youtube:tvbs:live:poll mode=local-execute source=%s selected_rows=%d api_requested_videos=%d updated_videos=%d skipped_videos=%d write_targets="%s" external_calls="%s" secrets=%s',
+                $payload['source'],
+                $payload['selected_rows'],
+                $payload['api_requested_videos'],
+                $payload['updated_videos'],
+                $payload['skipped_videos'],
+                implode(',', $payload['write_targets']),
+                implode(',', $payload['external_calls']),
+                $payload['secrets'],
+            ));
+
+            foreach ($payload['applied'] as $row) {
+                $this->line(sprintf(
+                    'updated videoId=%s viewers=%s minute=%s ended=%s',
+                    $row['videoId'],
+                    $row['concurrentViewers'] !== null ? number_format($row['concurrentViewers']) : 'n/a',
+                    $row['loggedMinute'] ?? 'n/a',
+                    $row['actualEndTime'] ?? 'n/a',
+                ));
+            }
+
+            foreach ($payload['skipped'] as $row) {
+                $this->line(sprintf('skipped videoId=%s reason=%s', $row['videoId'], $row['reason']));
+            }
+
+            return 0;
+        }
+
         $payload = $preview->preview(videoId: $videoId, intervalMinutes: $interval, staleSeconds: $staleSeconds, limit: $limit);
 
         if ((bool) $this->option('json')) {
@@ -394,8 +711,16 @@ Artisan::command('youtube:tvbs:live:poll {--videoId= : Optional TVBS live video 
         $this->error('youtube:tvbs:live:poll unavailable: '.$exception->getMessage());
 
         return 1;
+    } catch (\RuntimeException $exception) {
+        $this->line('youtube:tvbs:live:poll execute unavailable: '.$exception->getMessage().' secrets=not_printed');
+
+        return 1;
+    } catch (\Throwable $exception) {
+        $this->line('youtube:tvbs:live:poll execute unavailable: '.$exception->getMessage().' secrets=not_printed');
+
+        return 1;
     }
-})->purpose('Read-only preview of legacy TVBS live stream polling; does not call YouTube or update TVBS live/log tables');
+})->purpose('Dry-run preview of legacy TVBS live stream polling, with explicit local-only --execute support');
 
 Artisan::command('reports:live:show {--limit=10 : Number of top live rows to print} {--json : Emit JSON instead of text}', function () {
     $limit = max(1, min(50, (int) $this->option('limit')));
@@ -737,12 +1062,69 @@ Artisan::command('reports:mayor:static {--city= : Optional mayor city key to pre
     }
 })->purpose('Read-only preview of legacy mayor static HTML generation; does not write HTML files');
 
-Artisan::command('youtube:videos:duration {--videoId= : Optional queued video id to preview} {--batch-size=50 : Legacy batch size, capped at 50} {--loops=1 : Number of batches to preview} {--json : Emit JSON instead of text}', function (VideoDurationsPreview $preview) {
+Artisan::command('youtube:videos:duration {--videoId= : Optional queued video id to preview} {--batch-size=50 : Legacy batch size, capped at 50} {--limit= : Alias for --batch-size when running limited smoke checks} {--loops=1 : Number of batches to preview} {--enqueue-missing : With --execute and --videoId, create a local duration queue row from existing urt_video if missing} {--execute : Call YouTube and write selected video durations to local DB} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (VideoDurationsPreview $preview, VideoDurationsIngestion $ingestion) {
+    $batchSizeOption = $this->option('limit') !== null ? $this->option('limit') : $this->option('batch-size');
+    $batchSize = max(1, min(50, (int) $batchSizeOption));
+    $loops = max(1, min(20, (int) $this->option('loops')));
+    $videoId = $this->option('videoId') ? (string) $this->option('videoId') : null;
+    $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
+
     try {
+        if ($execute) {
+            $youtubeApiKey = config('services.youtube.api_key');
+
+            if (! is_string($youtubeApiKey) || trim($youtubeApiKey) === '') {
+                $this->line('youtube:videos:duration execute unavailable: YOUTUBE_API_KEY is not configured. secrets=not_printed');
+
+                return 1;
+            }
+
+            $payload = $ingestion->execute(
+                videoId: $videoId,
+                batchSize: $batchSize,
+                loops: $loops,
+                enqueueMissing: (bool) $this->option('enqueue-missing'),
+            );
+
+            if ((bool) $this->option('json')) {
+                $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+                return 0;
+            }
+
+            $this->line(sprintf(
+                'youtube:videos:duration mode=local-execute selected_rows=%d queued_videos=%d api_requested_videos=%d updated_videos=%d skipped_videos=%d write_targets="%s" external_calls="%s" secrets=%s',
+                $payload['selected_rows'],
+                $payload['queued_videos'],
+                $payload['api_requested_videos'],
+                $payload['updated_videos'],
+                $payload['skipped_videos'],
+                implode(',', $payload['write_targets']),
+                implode(',', $payload['external_calls']),
+                $payload['secrets'],
+            ));
+
+            foreach ($payload['applied'] as $row) {
+                $this->line(sprintf(
+                    'updated videoId=%s duration=%s seconds=%d caption=%s',
+                    $row['videoId'],
+                    $row['duration'] ?? 'n/a',
+                    $row['durationSeconds'],
+                    $row['caption'] ?? 'n/a',
+                ));
+            }
+
+            foreach ($payload['skipped'] as $row) {
+                $this->line(sprintf('skipped videoId=%s reason=%s', $row['videoId'], $row['reason']));
+            }
+
+            return 0;
+        }
+
         $payload = $preview->preview(
-            videoId: $this->option('videoId') ? (string) $this->option('videoId') : null,
-            batchSize: (int) $this->option('batch-size'),
-            loops: (int) $this->option('loops'),
+            videoId: $videoId,
+            batchSize: $batchSize,
+            loops: $loops,
         );
 
         if ((bool) $this->option('json')) {
@@ -788,15 +1170,76 @@ Artisan::command('youtube:videos:duration {--videoId= : Optional queued video id
         $this->error('youtube:videos:duration unavailable: '.$exception->getMessage());
 
         return 1;
-    }
-})->purpose('Read-only preview of legacy video duration refresh queue; does not call YouTube or update duration rows');
+    } catch (\RuntimeException $exception) {
+        $this->line('youtube:videos:duration execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
-Artisan::command('youtube:videos:stats {--videoId= : Optional video id to preview through the legacy single-video branch} {--today : Preview the legacy today/missing-viewCount branch from urt_video} {--batch-size=50 : Legacy batch size, capped at 50} {--loops=1 : Number of batches to preview, capped at the legacy loop count} {--json : Emit JSON instead of text}', function (VideoStatisticsPreview $preview) {
-    $batchSize = max(1, min(50, (int) $this->option('batch-size')));
+        return 1;
+    } catch (\Throwable $exception) {
+        $this->line('youtube:videos:duration execute unavailable: '.$exception->getMessage().' secrets=not_printed');
+
+        return 1;
+    }
+})->purpose('Dry-run preview of legacy video duration refresh queue, with explicit local-only --execute support');
+
+Artisan::command('youtube:videos:stats {--videoId= : Optional video id to preview through the legacy single-video branch} {--today : Preview the legacy today/missing-viewCount branch from urt_video} {--batch-size=50 : Legacy batch size, capped at 50} {--limit= : Alias for --batch-size when running limited smoke checks} {--loops=1 : Number of batches to preview, capped at the legacy loop count} {--execute : Call YouTube and write selected video statistics to local DB} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (VideoStatisticsPreview $preview, VideoStatisticsIngestion $ingestion) {
+    $batchSizeOption = $this->option('limit') !== null ? $this->option('limit') : $this->option('batch-size');
+    $batchSize = max(1, min(50, (int) $batchSizeOption));
     $loops = max(1, min(31, (int) $this->option('loops')));
     $videoId = $this->option('videoId') ? (string) $this->option('videoId') : null;
+    $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
 
     try {
+        if ($execute) {
+            $youtubeApiKey = config('services.youtube.api_key');
+
+            if (! is_string($youtubeApiKey) || trim($youtubeApiKey) === '') {
+                $this->line('youtube:videos:stats execute unavailable: YOUTUBE_API_KEY is not configured. secrets=not_printed');
+
+                return 1;
+            }
+
+            $payload = $ingestion->execute(
+                videoId: $videoId,
+                today: (bool) $this->option('today'),
+                batchSize: $batchSize,
+                loops: $loops,
+            );
+
+            if ((bool) $this->option('json')) {
+                $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+                return 0;
+            }
+
+            $this->line(sprintf(
+                'youtube:videos:stats mode=local-execute source=%s selected_rows=%d api_requested_videos=%d updated_videos=%d skipped_videos=%d write_targets="%s" external_calls="%s" secrets=%s',
+                $payload['source'],
+                $payload['selected_rows'],
+                $payload['api_requested_videos'],
+                $payload['updated_videos'],
+                $payload['skipped_videos'],
+                implode(',', $payload['write_targets']),
+                implode(',', $payload['external_calls']),
+                $payload['secrets'],
+            ));
+
+            foreach ($payload['applied'] as $row) {
+                $this->line(sprintf(
+                    'updated videoId=%s view=%s like=%s comments=%s',
+                    $row['videoId'],
+                    number_format($row['viewCount']),
+                    number_format($row['likeCount']),
+                    number_format($row['commentCount']),
+                ));
+            }
+
+            foreach ($payload['skipped'] as $row) {
+                $this->line(sprintf('skipped videoId=%s reason=%s', $row['videoId'], $row['reason']));
+            }
+
+            return 0;
+        }
+
         $payload = $preview->preview(
             videoId: $videoId,
             today: (bool) $this->option('today'),
@@ -843,8 +1286,16 @@ Artisan::command('youtube:videos:stats {--videoId= : Optional video id to previe
         $this->error('youtube:videos:stats unavailable: '.$exception->getMessage());
 
         return 1;
+    } catch (\RuntimeException $exception) {
+        $this->line('youtube:videos:stats execute unavailable: '.$exception->getMessage().' secrets=not_printed');
+
+        return 1;
+    } catch (\Throwable $exception) {
+        $this->line('youtube:videos:stats execute unavailable: '.$exception->getMessage().' secrets=not_printed');
+
+        return 1;
     }
-})->purpose('Read-only preview of legacy video statistics refresh queue; does not call YouTube or update video stats tables');
+})->purpose('Dry-run preview of legacy video statistics refresh queue, with explicit local-only --execute support');
 
 Artisan::command('reports:counts:build {--id= : Optional u_id to preview, matching legacy id=... behavior} {--limit=20 : Number of changed preview rows to print} {--json : Emit JSON instead of text}', function (ChannelCountsPreview $preview) {
     $uId = $this->option('id') !== null ? max(1, (int) $this->option('id')) : null;
@@ -1146,8 +1597,46 @@ Artisan::command('ai:daily {--date= : Legacy date, defaults to yesterday in Asia
     }
 })->purpose('Read-only preview of legacy daily AI summary generation; does not call AI or insert urt_channel_ai/urt_ai_date rows');
 
-Artisan::command('ai:hourly {--condition= : Optional legacy condition; omitted matches cron default} {--hour=1 : Legacy hours-back offset} {--period=1 : Legacy number of hourly buckets to include} {--limit=20 : Number of candidate videos to print} {--json : Emit JSON instead of text}', function (AiHourlyPreview $preview) {
+Artisan::command('ai:hourly {--condition= : Optional legacy condition; omitted matches cron default} {--hour=1 : Legacy hours-back offset} {--period=1 : Legacy number of hourly buckets to include} {--limit=20 : Number of candidate videos to print} {--execute : Call OpenCode-compatible chat completions and upsert urt_ai_hour} {--dry-run : Force dry-run preview; this is the default} {--user-token=cli : user_token value for execute-mode upsert} {--json : Emit JSON instead of text}', function (AiHourlyPreview $preview, AiHourlyIngestion $ingestion) {
     try {
+        $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
+
+        if ($execute) {
+            $payload = $ingestion->execute(
+                condition: $this->option('condition') ? (string) $this->option('condition') : null,
+                hour: (int) $this->option('hour'),
+                period: (int) $this->option('period'),
+                limit: (int) $this->option('limit'),
+                userToken: (string) $this->option('user-token'),
+            );
+
+            if ((bool) $this->option('json')) {
+                $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+                return 0;
+            }
+
+            $usage = is_array($payload['usage']) ? json_encode($payload['usage'], JSON_UNESCAPED_SLASHES) : 'null';
+            $this->line(sprintf(
+                'ai:hourly mode=execute source=%s condition=%s date_from=%s date_to=%s prompt_video_rows=%d prompt_chars=%d model=%s inserted=%s updated=%s skipped=%s skip_reason=%s secrets=not_printed usage=%s',
+                $payload['source'],
+                $payload['condition_type'],
+                $payload['date_from'],
+                $payload['date_to'],
+                $payload['prompt_video_rows'],
+                $payload['prompt_chars'],
+                $payload['model'],
+                $payload['inserted'] ? 'yes' : 'no',
+                $payload['updated'] ? 'yes' : 'no',
+                $payload['skipped'] ? 'yes' : 'no',
+                $payload['skip_reason'] ?? '-',
+                $usage,
+            ));
+            $this->line('write_targets='.($payload['write_targets'] === [] ? 'none' : implode(',', $payload['write_targets'])));
+
+            return 0;
+        }
+
         $payload = $preview->preview(
             condition: $this->option('condition') ? (string) $this->option('condition') : null,
             hour: (int) $this->option('hour'),
@@ -1202,11 +1691,57 @@ Artisan::command('ai:hourly {--condition= : Optional legacy condition; omitted m
         $this->error('ai:hourly unavailable: '.$exception->getMessage());
 
         return 1;
-    }
-})->purpose('Read-only preview of legacy hourly AI summary generation; does not call AI or insert urt_ai_hour rows');
+    } catch (\Throwable $exception) {
+        $this->line('ai:hourly execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
-Artisan::command('youtube:comments:queue {--tagid= : Legacy AND tag filter} {--or= : Legacy OR tag filter} {--not= : Legacy NOT tag filter} {--hours=24 : Recent publishedAt window} {--min=500 : Minimum viewCount and commentCount threshold} {--limit=20 : Number of candidate rows to print} {--json : Emit JSON instead of text}', function (CommentQueuePreview $preview) {
+        return 1;
+    }
+})->purpose('Dry-run preview of legacy hourly AI summary generation, with explicit --execute support for OpenCode-compatible urt_ai_hour upsert');
+
+Artisan::command('youtube:comments:queue {--tagid= : Legacy AND tag filter} {--or= : Legacy OR tag filter} {--not= : Legacy NOT tag filter} {--hours=24 : Recent publishedAt window} {--min=500 : Minimum viewCount and commentCount threshold} {--limit=20 : Number of candidate rows to print, capped lower for --execute} {--execute : Insert selected queue rows into local DB} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (CommentQueuePreview $preview, CommentQueueIngestion $ingestion) {
     try {
+        $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
+
+        if ($execute) {
+            $payload = $ingestion->execute(
+                tagid: $this->option('tagid') ? (string) $this->option('tagid') : null,
+                or: $this->option('or') ? (string) $this->option('or') : null,
+                not: $this->option('not') ? (string) $this->option('not') : null,
+                min: (int) $this->option('min'),
+                hours: (int) $this->option('hours'),
+                limit: (int) $this->option('limit'),
+            );
+
+            if ((bool) $this->option('json')) {
+                $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+                return 0;
+            }
+
+            $this->line(sprintf(
+                'youtube:comments:queue mode=local-execute matching_channels=%d recent_video_rows=%d comment_threshold_rows=%d would_insert_queue_rows=%d inserted_queue_rows=%d skipped_rows=%d write_targets="%s" external_calls="%s" secrets=%s',
+                $payload['matching_channels'],
+                $payload['recent_video_rows'],
+                $payload['comment_threshold_rows'],
+                $payload['would_insert_queue_rows'],
+                $payload['inserted_queue_rows'],
+                $payload['skipped_rows'],
+                implode(',', $payload['write_targets']),
+                implode(',', $payload['external_calls']),
+                $payload['secrets'],
+            ));
+
+            foreach ($payload['inserted'] as $row) {
+                $this->line(sprintf('queued videoId=%s', $row['videoId']));
+            }
+
+            foreach ($payload['skipped'] as $row) {
+                $this->line(sprintf('skipped videoId=%s reason=%s', $row['videoId'], $row['reason']));
+            }
+
+            return 0;
+        }
+
         $payload = $preview->preview(
             tagid: $this->option('tagid') ? (string) $this->option('tagid') : null,
             or: $this->option('or') ? (string) $this->option('or') : null,
@@ -1256,11 +1791,66 @@ Artisan::command('youtube:comments:queue {--tagid= : Legacy AND tag filter} {--o
         $this->error('youtube:comments:queue unavailable: '.$exception->getMessage());
 
         return 1;
-    }
-})->purpose('Read-only preview of legacy comment queue generation; does not insert urt_comment_queue rows');
+    } catch (\Throwable $exception) {
+        $this->line('youtube:comments:queue execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
-Artisan::command('youtube:comments:fetch {--videoId= : Optional queued video id to preview} {--limit=20 : Number of queued rows to print} {--json : Emit JSON instead of text}', function (CommentFetchPreview $preview) {
+        return 1;
+    }
+})->purpose('Dry-run preview of legacy comment queue generation, with explicit local-only --execute support');
+
+Artisan::command('youtube:comments:fetch {--videoId= : Optional queued video id to preview} {--limit=20 : Number of queued rows to print, capped lower for --execute} {--max-pages=1 : Maximum commentThreads pages per video in execute mode, capped at 3} {--execute : Call YouTube and drain selected local queue rows} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (CommentFetchPreview $preview, CommentFetchIngestion $ingestion) {
     try {
+        $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
+
+        if ($execute) {
+            $youtubeApiKey = config('services.youtube.api_key');
+
+            if (! is_string($youtubeApiKey) || trim($youtubeApiKey) === '') {
+                $this->line('youtube:comments:fetch execute unavailable: YOUTUBE_API_KEY is not configured. secrets=not_printed');
+
+                return 1;
+            }
+
+            $payload = $ingestion->execute(
+                videoId: $this->option('videoId') ? (string) $this->option('videoId') : null,
+                limit: (int) $this->option('limit'),
+                maxPages: (int) $this->option('max-pages'),
+            );
+
+            if ((bool) $this->option('json')) {
+                $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+                return 0;
+            }
+
+            $this->line(sprintf(
+                'youtube:comments:fetch mode=local-execute selected_rows=%d api_called_videos=%d moved_to_done_rows=%d skipped_rows=%d write_targets="%s" external_calls="%s" secrets=%s',
+                $payload['selected_rows'],
+                $payload['api_called_videos'],
+                $payload['moved_to_done_rows'],
+                $payload['skipped_rows'],
+                implode(',', $payload['write_targets']),
+                implode(',', $payload['external_calls']),
+                $payload['secrets'],
+            ));
+
+            foreach ($payload['applied'] as $row) {
+                $this->line(sprintf(
+                    'drained videoId=%s api=%s comments=%s authors=%s',
+                    $row['videoId'],
+                    $row['apiCalled'] ? 'yes' : 'no',
+                    $row['commentsCount'] ?? 'n/a',
+                    $row['authorsCount'] ?? 'n/a',
+                ));
+            }
+
+            foreach ($payload['skipped'] as $row) {
+                $this->line(sprintf('skipped videoId=%s reason=%s', $row['videoId'], $row['reason']));
+            }
+
+            return 0;
+        }
+
         $payload = $preview->preview(
             videoId: $this->option('videoId') ? (string) $this->option('videoId') : null,
             limit: (int) $this->option('limit'),
@@ -1305,8 +1895,12 @@ Artisan::command('youtube:comments:fetch {--videoId= : Optional queued video id 
         $this->error('youtube:comments:fetch unavailable: '.$exception->getMessage());
 
         return 1;
+    } catch (\Throwable $exception) {
+        $this->line('youtube:comments:fetch execute unavailable: '.$exception->getMessage().' secrets=not_printed');
+
+        return 1;
     }
-})->purpose('Read-only preview of legacy comment queue drain; does not call YouTube, update comments, or move queue rows');
+})->purpose('Dry-run preview of legacy comment queue drain, with explicit local-only --execute support');
 
 if (config('ingestion.scheduler_enabled', false)) {
     Schedule::command('ingestion:run --execute --record')

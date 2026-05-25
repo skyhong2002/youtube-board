@@ -283,7 +283,17 @@ class LiveTagReport
 
         $decoded = json_decode($json, true);
 
-        return is_array($decoded) ? $decoded : [];
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        foreach (['tags_views', 'tags_video', 'views', 'videos', 'result', 'data'] as $key) {
+            if (isset($decoded[$key]) && is_array($decoded[$key])) {
+                return $decoded[$key];
+            }
+        }
+
+        return $decoded;
     }
 
     private function maxHourValue(mixed $hours): int

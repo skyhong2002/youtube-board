@@ -26,6 +26,46 @@ class ChannelCommentsRouteTest extends TestCase
         $response->assertSee('hours=72');
     }
 
+    public function test_channel_comments_page_uses_authors_json_when_count_columns_are_empty(): void
+    {
+        $this->createTables();
+
+        DB::table('urt_channel')->insert([
+            'u_id' => 10,
+            'title' => 'Example Channel',
+            'thumbnails' => 'https://example.test/channel.jpg',
+        ]);
+        DB::table('urt_video')->insert([
+            'videoId' => 'video-json-only',
+            'u_id' => 10,
+            'title' => 'JSON-only comments video',
+            'thumbnails' => 'https://example.test/video-json-only.jpg',
+            'viewCount' => 3000,
+            'publishedAt' => now('Asia/Taipei')->subHours(2)->format('Y-m-d H:i:s'),
+        ]);
+        DB::table('urt_comment')->insert([
+            'videoId' => 'video-json-only',
+            'u_id' => 10,
+            'authors_count' => null,
+            'comments_count' => null,
+            'latest_time' => now('Asia/Taipei')->subHour()->format('Y-m-d H:i:s'),
+            'authors_json' => json_encode([
+                [
+                    'ChannelId' => 'UC-list-author',
+                    'DisplayName' => '列表留言者',
+                    'ImageUrl' => 'https://example.test/list-author.jpg',
+                    'ChannelUrl' => 'https://youtube.test/list-author',
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->get('/channels/10/comments?hours=72&limit=10');
+
+        $response->assertOk();
+        $response->assertSee('列表留言者');
+        $response->assertSee('JSON-only comments video');
+    }
+
     private function createTables(): void
     {
         foreach (['urt_channel', 'urt_video', 'urt_comment', 'urt_comment_author'] as $table) {

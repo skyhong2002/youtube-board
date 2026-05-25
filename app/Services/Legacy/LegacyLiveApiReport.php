@@ -156,11 +156,11 @@ class LegacyLiveApiReport
 
             return [
                 'result' => [
-                    'views' => $this->decodeMap($row->tags_views ?? null),
-                    'videos' => $this->decodeMap($row->tags_video ?? null),
-                    'all' => $this->decodeMap($row->all_result ?? null),
-                    'hour' => $this->decodeMap($row->hour_result ?? null),
-                    'data' => $this->decodeMap($row->videos_result ?? null),
+                    'views' => $this->decodeLiveCacheMap($row->tags_views ?? null),
+                    'videos' => $this->decodeLiveCacheMap($row->tags_video ?? null),
+                    'all' => $this->decodeLiveCacheMap($row->all_result ?? null),
+                    'hour' => $this->decodeLiveCacheMap($row->hour_result ?? null),
+                    'data' => $this->decodeLiveCacheMap($row->videos_result ?? null),
                 ],
                 'meta' => [
                     'available' => $row !== null,
@@ -600,6 +600,22 @@ class LegacyLiveApiReport
         $decoded = json_decode($json, true);
 
         return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function decodeLiveCacheMap(mixed $json): array
+    {
+        $decoded = $this->decodeMap($json);
+
+        foreach (['tags_views', 'tags_video', 'all_result', 'hour_result', 'videos_result', 'views', 'videos', 'all', 'hour', 'data', 'result'] as $key) {
+            if (isset($decoded[$key]) && is_array($decoded[$key])) {
+                return $decoded[$key];
+            }
+        }
+
+        return $decoded;
     }
 
     /**

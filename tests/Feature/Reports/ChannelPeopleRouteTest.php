@@ -63,6 +63,36 @@ class ChannelPeopleRouteTest extends TestCase
         $response->assertDontSee('無</span>', false);
     }
 
+    public function test_channel_people_page_aggregates_wrapped_legacy_topic_payloads(): void
+    {
+        $this->createTables();
+
+        DB::table('urt_channel_ai')->insert([
+            'pk' => 3,
+            'u_id' => 10,
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
+            'data_type' => 'oneday',
+            'del_flag' => null,
+            'result_json' => json_encode([
+                'events' => [
+                    [
+                        '議題' => '包裝頻道人物事件',
+                        'people' => ['測試人物'],
+                        'video_id' => 'wrapped-person',
+                    ],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->get('/channels/10/people?days=1&limit=1');
+
+        $response->assertOk();
+        $response->assertSee('測試人物');
+        $response->assertSee('1 部 / 1 則');
+        $response->assertSee('2026-05-24');
+    }
+
     private function createTables(): void
     {
         foreach (['urt_channel', 'urt_channel_ai'] as $table) {

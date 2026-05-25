@@ -6,6 +6,7 @@ use App\Services\Ingestion\IngestionSchedulerRunner;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -20,6 +21,7 @@ class ReadOnlyTvbsIngestionCommandTest extends TestCase
 
     public function test_youtube_tvbs_videos_previews_legacy_tag_29_discovery_without_api_or_writes(): void
     {
+        Http::preventStrayRequests();
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
         $this->createVideoDiscoveryTables();
 
@@ -76,8 +78,120 @@ class ReadOnlyTvbsIngestionCommandTest extends TestCase
         $this->assertSame(2, DB::table('urt_video_live_tvbs')->count());
     }
 
+    public function test_youtube_tvbs_videos_execute_requires_api_key_and_does_not_write_when_missing(): void
+    {
+        Http::preventStrayRequests();
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', null);
+        $this->createVideoDiscoveryTables();
+
+        DB::table('urt_channel')->insert($this->channelRow(1, 'TVBS Primary', 'uploads-primary'));
+        DB::table('urt_count')->insert(['u_id' => 1, 'tags' => '[29]']);
+
+        $exitCode = Artisan::call('youtube:tvbs:videos', [
+            '--execute' => true,
+            '--id' => 1,
+            '--limit' => 1,
+            '--max-results' => 1,
+        ]);
+        $output = Artisan::output();
+
+        $this->assertSame(1, $exitCode);
+        $this->assertStringContainsString('YOUTUBE_API_KEY is not configured', $output, $output);
+        $this->assertStringContainsString('secrets=not_printed', $output, $output);
+        $this->assertSame(0, DB::table('urt_video')->count());
+        $this->assertSame(0, DB::table('urt_video_schedule')->count());
+        $this->assertSame(0, DB::table('urt_video_live_tvbs')->count());
+    }
+
+    public function test_youtube_tvbs_videos_execute_parses_api_and_upserts_tvbs_live_idempotently(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createVideoDiscoveryTables();
+
+        DB::table('urt_channel')->insert($this->channelRow(1, 'TVBS Primary', 'uploads-primary'));
+        DB::table('urt_count')->insert(['u_id' => 1, 'tags' => '[29]']);
+
+        Http::fake([
+            'www.googleapis.com/youtube/v3/playlistItems*' => Http::response([
+                'items' => [
+                    [
+                        'id' => 'playlist-item-live',
+                        'snippet' => [
+                            'publishedAt' => '2026-05-25T03:30:00Z',
+                            'channelId' => 'channel-1',
+                            'title' => 'TVBS live item',
+                            'description' => 'local fake TVBS live',
+                            'thumbnails' => ['default' => ['url' => 'https://i.ytimg.com/default_live.jpg']],
+                            'channelTitle' => 'TVBS Primary',
+                            'playlistId' => 'uploads-primary',
+                            'position' => 0,
+                            'resourceId' => ['videoId' => 'tvbs-video-live'],
+                            'liveBroadcastContent' => 'live',
+                        ],
+                    ],
+                    [
+                        'id' => 'playlist-item-normal',
+                        'snippet' => [
+                            'publishedAt' => '2026-05-24T03:30:00Z',
+                            'channelId' => 'channel-1',
+                            'title' => 'TVBS normal item',
+                            'description' => 'local fake TVBS normal',
+                            'thumbnails' => ['default' => ['url' => 'https://i.ytimg.com/default.jpg']],
+                            'channelTitle' => 'TVBS Primary',
+                            'playlistId' => 'uploads-primary',
+                            'position' => 1,
+                            'resourceId' => ['videoId' => 'tvbs-video-normal'],
+                            'liveBroadcastContent' => 'none',
+                        ],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $firstExitCode = Artisan::call('youtube:tvbs:videos', [
+            '--execute' => true,
+            '--id' => 1,
+            '--limit' => 1,
+            '--max-results' => 2,
+            '--json' => true,
+        ]);
+        $firstPayload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $firstExitCode);
+        $this->assertSame('local-execute', $firstPayload['mode']);
+        $this->assertSame('tvbs_single_channel_id', $firstPayload['source']);
+        $this->assertSame(1, $firstPayload['api_requested_channels']);
+        $this->assertSame(2, $firstPayload['applied'][0]['video_upserts']);
+        $this->assertSame(2, $firstPayload['applied'][0]['schedule_upserts']);
+        $this->assertSame(1, $firstPayload['applied'][0]['tvbs_live_upserts']);
+        $this->assertContains('urt_video_live_tvbs.videoId', $firstPayload['write_targets']);
+        $this->assertSame(2, DB::table('urt_video')->count());
+        $this->assertSame(2, DB::table('urt_video_schedule')->count());
+        $this->assertSame(1, DB::table('urt_video_live_tvbs')->where('videoId', 'tvbs-video-live')->count());
+        $this->assertSame(0, DB::table('urt_video_live_tvbs')->where('videoId', 'tvbs-video-normal')->count());
+        $this->assertSame('TVBS live item', DB::table('urt_video')->where('videoId', 'tvbs-video-live')->value('title'));
+        $this->assertSame('2026-05-25 11:30:00', DB::table('urt_video')->where('videoId', 'tvbs-video-live')->value('publishedAt'));
+
+        $secondExitCode = Artisan::call('youtube:tvbs:videos', [
+            '--execute' => true,
+            '--id' => 1,
+            '--limit' => 1,
+            '--max-results' => 2,
+            '--json' => true,
+        ]);
+
+        $this->assertSame(0, $secondExitCode);
+        $this->assertSame(2, DB::table('urt_video')->count());
+        $this->assertSame(2, DB::table('urt_video_schedule')->count());
+        $this->assertSame(1, DB::table('urt_video_live_tvbs')->where('videoId', 'tvbs-video-live')->count());
+        Http::assertSentCount(2);
+    }
+
     public function test_youtube_tvbs_live_poll_previews_stale_rows_without_api_or_writes(): void
     {
+        Http::preventStrayRequests();
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
         $this->createLivePollingTables();
 
@@ -132,6 +246,101 @@ class ReadOnlyTvbsIngestionCommandTest extends TestCase
 
         $this->assertNull(DB::table('urt_video_live_tvbs')->where('videoId', 'eligible-tvbs-01')->value('mtime'));
         $this->assertSame(1, DB::table('urt_video_live_log_tvbs')->count());
+    }
+
+    public function test_youtube_tvbs_live_poll_execute_requires_api_key_and_does_not_write_when_missing(): void
+    {
+        Http::preventStrayRequests();
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', null);
+        $this->createLivePollingTables();
+
+        DB::table('urt_video_live_tvbs')->insert($this->tvbsLiveRow('missing-key-tvbs', 1, '2026-05-25 11:59:00'));
+
+        $exitCode = Artisan::call('youtube:tvbs:live:poll', [
+            '--execute' => true,
+            '--videoId' => 'missing-key-tvbs',
+            '--limit' => 1,
+        ]);
+        $output = Artisan::output();
+
+        $this->assertSame(1, $exitCode);
+        $this->assertStringContainsString('YOUTUBE_API_KEY is not configured', $output, $output);
+        $this->assertStringContainsString('secrets=not_printed', $output, $output);
+        $this->assertSame('2026-05-25 11:59:00', DB::table('urt_video_live_tvbs')->where('videoId', 'missing-key-tvbs')->value('mtime'));
+        $this->assertSame(0, DB::table('urt_video_live_log_tvbs')->count());
+    }
+
+    public function test_youtube_tvbs_live_poll_execute_parses_api_and_upserts_log_idempotently(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 20:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createLivePollingTables();
+
+        DB::table('urt_video_live_tvbs')->insert($this->tvbsLiveRow(
+            videoId: 'execute-tvbs-live',
+            uId: 29,
+            mtime: '2026-05-25 19:59:00',
+            scheduledStartTime: '2026-05-25 19:30:00',
+            concurrentViewers: 100,
+            maxCurrent: 120,
+        ));
+
+        Http::fake([
+            'www.googleapis.com/youtube/v3/videos*' => Http::response([
+                'items' => [
+                    [
+                        'id' => 'execute-tvbs-live',
+                        'liveStreamingDetails' => [
+                            'actualStartTime' => '2026-05-25T11:30:00Z',
+                            'scheduledStartTime' => '2026-05-25T11:00:00Z',
+                            'activeLiveChatId' => 'chat-execute-tvbs-new',
+                            'concurrentViewers' => '456',
+                        ],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $firstExitCode = Artisan::call('youtube:tvbs:live:poll', [
+            '--execute' => true,
+            '--videoId' => 'execute-tvbs-live',
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $firstPayload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $firstExitCode);
+        $this->assertSame('local-execute', $firstPayload['mode']);
+        $this->assertSame('single_tvbs_video', $firstPayload['source']);
+        $this->assertSame(1, $firstPayload['updated_videos']);
+        $this->assertContains('urt_video_live_tvbs.concurrentViewers', $firstPayload['write_targets']);
+        $this->assertSame('2026-05-25 20:00:00', DB::table('urt_video_live_tvbs')->where('videoId', 'execute-tvbs-live')->value('mtime'));
+        $this->assertSame('2026-05-25 19:30:00', DB::table('urt_video_live_tvbs')->where('videoId', 'execute-tvbs-live')->value('actualStartTime'));
+        $this->assertSame('2026-05-25 19:00:00', DB::table('urt_video_live_tvbs')->where('videoId', 'execute-tvbs-live')->value('scheduledStartTime'));
+        $this->assertSame('chat-execute-tvbs-new', DB::table('urt_video_live_tvbs')->where('videoId', 'execute-tvbs-live')->value('activeLiveChatId'));
+        $this->assertSame(456, DB::table('urt_video_live_tvbs')->where('videoId', 'execute-tvbs-live')->value('concurrentViewers'));
+        $this->assertSame(456, DB::table('urt_video_live_tvbs')->where('videoId', 'execute-tvbs-live')->value('max_current'));
+        $this->assertSame(1, DB::table('urt_video_live_log_tvbs')->where('videoId', 'execute-tvbs-live')->count());
+
+        $log = DB::table('urt_video_live_log_tvbs')->where('videoId', 'execute-tvbs-live')->first();
+        $this->assertIsObject($log);
+        $this->assertSame('2026-05-25', (string) $log->the_date);
+        $this->assertSame(29, (int) $log->u_id);
+        $this->assertSame(456, (int) $log->max_current);
+        $this->assertSame(['20:00' => 456], json_decode((string) $log->log_json, true));
+
+        $secondExitCode = Artisan::call('youtube:tvbs:live:poll', [
+            '--execute' => true,
+            '--videoId' => 'execute-tvbs-live',
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+
+        $this->assertSame(0, $secondExitCode);
+        $this->assertSame(1, DB::table('urt_video_live_log_tvbs')->where('videoId', 'execute-tvbs-live')->count());
+        $this->assertSame(['20:00' => 456], json_decode((string) DB::table('urt_video_live_log_tvbs')->where('videoId', 'execute-tvbs-live')->value('log_json'), true));
+        Http::assertSentCount(2);
     }
 
     public function test_youtube_tvbs_live_poll_keeps_single_video_preview_in_tvbs_scope(): void
@@ -208,10 +417,16 @@ class ReadOnlyTvbsIngestionCommandTest extends TestCase
         Schema::create('urt_video', function ($table): void {
             $table->increments('pk');
             $table->dateTime('ctime')->nullable();
+            $table->string('id')->nullable();
             $table->integer('u_id')->nullable();
             $table->string('videoId');
             $table->string('title')->nullable();
+            $table->string('channelId')->nullable();
+            $table->string('thumbnails')->nullable();
             $table->string('channelTitle')->nullable();
+            $table->string('playlistId')->nullable();
+            $table->integer('position')->nullable();
+            $table->text('description')->nullable();
             $table->dateTime('publishedAt')->nullable();
         });
 

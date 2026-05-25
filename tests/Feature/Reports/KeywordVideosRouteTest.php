@@ -80,6 +80,63 @@ class KeywordVideosRouteTest extends TestCase
         $this->assertSame(2, DB::table('urt_show_video_tag_date')->count());
     }
 
+    public function test_keyword_videos_page_reads_wrapped_and_list_relation_payloads(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        DB::table('urt_show_video_tag_date')->insert([
+            [
+                'pk' => 3,
+                'ctime' => '2026-05-25 00:00:00',
+                'mtime' => '2026-05-25 01:00:00',
+                'the_date' => '2026-05-25',
+                'tag' => '蔡英文',
+                'count_videos' => 2,
+                'count_tags' => 2,
+                'count_channels' => 1,
+                'videos_json' => json_encode([
+                    'videos' => [
+                        ['videoId' => 'video-list-a'],
+                        'video-list-b',
+                    ],
+                ], JSON_UNESCAPED_UNICODE),
+                'tags_json' => json_encode(['政策' => 3], JSON_UNESCAPED_UNICODE),
+            ],
+        ]);
+
+        DB::table('urt_video')->insert([
+            [
+                'videoId' => 'video-list-a',
+                'u_id' => 10,
+                'thumbnails' => 'https://example.test/list-a.jpg',
+                'channelTitle' => 'Channel A',
+                'publishedAt' => '2026-05-25 10:00:00',
+                'title' => '列表影片 A',
+                'viewCount' => 1000,
+                'likeCount' => 10,
+                'commentCount' => 3,
+            ],
+            [
+                'videoId' => 'video-list-b',
+                'u_id' => 11,
+                'thumbnails' => 'https://example.test/list-b.jpg',
+                'channelTitle' => 'Channel B',
+                'publishedAt' => '2026-05-25 11:00:00',
+                'title' => '列表影片 B',
+                'viewCount' => 3000,
+                'likeCount' => 20,
+                'commentCount' => 8,
+            ],
+        ]);
+
+        $response = $this->get('/keywords/%E8%94%A1%E8%8B%B1%E6%96%87/videos?days=1&hours=24&limit=10');
+
+        $response->assertOk();
+        $response->assertSee('列表影片 B');
+        $response->assertSee('列表影片 A');
+    }
+
     private function createTables(): void
     {
         Schema::create('urt_show_video_tag_date', function ($table): void {

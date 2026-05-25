@@ -1,6 +1,7 @@
 @php
     $job = $detail['job'];
     $execution = $detail['execution'];
+    $scheduledWrite = $detail['scheduled_write'];
     $atForCommand = preg_replace('/ [^ ]+$/', '', $detail['at']);
 @endphp
 <!DOCTYPE html>
@@ -54,6 +55,7 @@
                 </div>
                 <div class="badges">
                     <span class="badge {{ $summary['scheduler_enabled'] ? 'active' : 'disabled' }}">{{ $summary['scheduler_enabled'] ? 'scheduler enabled' : 'scheduler disabled' }}</span>
+                    <span class="badge {{ $summary['local_polling_enabled'] ? 'active' : 'disabled' }}">{{ $summary['local_polling_enabled'] ? 'local polling enabled' : 'local polling disabled' }}</span>
                     <span class="badge {{ $job['status'] }}">{{ $job['status'] }}</span>
                     <span class="badge {{ $job['command_exists'] ? 'ready' : 'missing' }}">{{ $job['command_exists'] ? 'command ready' : 'command missing' }}</span>
                     <span class="badge {{ $execution['read_only'] ? 'safe' : 'risky' }}">{{ $execution['risk_label'] }}</span>
@@ -102,11 +104,31 @@
                 @endif
             </div>
 
+            @if (! empty($job['scheduled_execute_command']))
+                <h2>Scheduled Local Polling</h2>
+                <div class="panel">
+                    @if ($scheduledWrite['allowed'])
+                        <p>This job is allowlisted for scheduler-enabled local polling. The scheduler will use the capped command below when <code>ingestion:run --execute</code> evaluates it as due.</p>
+                    @else
+                        <p>Scheduler-enabled local polling is blocked for this job until every explicit gate is satisfied.</p>
+                        <ul>
+                            @foreach ($scheduledWrite['blocks'] as $block)
+                                <li>{{ $block }}</li>
+                            @endforeach
+                        </ul>
+                    @endif
+                    <p><code>{{ $job['scheduled_execute_command'] }}</code></p>
+                </div>
+            @endif
+
             <h2>Safe Commands</h2>
             <div class="commands">
                 <code>php artisan ingestion:run --job={{ $job['key'] }} --at="{{ $atForCommand }}"</code>
                 @if ($execution['can_execute_when_due'])
                     <code>INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job={{ $job['key'] }}</code>
+                    @if (! empty($job['scheduled_execute_command']))
+                        <code>INGESTION_SCHEDULER_ENABLED=true INGESTION_LOCAL_POLLING_ENABLED=true INGESTION_SCHEDULED_WRITE_ALLOWLIST={{ $job['key'] }} php artisan ingestion:run --execute --job={{ $job['key'] }}</code>
+                    @endif
                 @endif
             </div>
 

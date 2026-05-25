@@ -99,7 +99,7 @@ class ChannelPeopleReport
 
             foreach ($this->decodeList($row->result_json ?? null) as $topic) {
                 $topic = is_array($topic) ? $topic : [];
-                $videoCount = max(1, count($this->stringList($topic, ['videoId', 'video_ids', 'videos'])));
+                $videoCount = max(1, count($this->stringList($topic, ['videoId', 'video_id', 'video_ids', 'videos'])));
 
                 foreach ($this->stringList($topic, ['人物', 'people']) as $person) {
                     if (in_array($person, self::EXCLUDED_PEOPLE, true)) {
@@ -173,6 +173,13 @@ class ChannelPeopleReport
 
         if (json_last_error() !== JSON_ERROR_NONE || ! is_array($decoded)) {
             return [];
+        }
+
+        foreach (['events', '事件', 'topics', '議題', 'result', 'data'] as $key) {
+            if (! array_is_list($decoded) && isset($decoded[$key]) && is_array($decoded[$key])) {
+                $decoded = $decoded[$key];
+                break;
+            }
         }
 
         return array_is_list($decoded) ? $decoded : array_values($decoded);
