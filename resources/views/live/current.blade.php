@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>目前直播排行 - YouTube Board</title>
+        <style>
+            :root {
+                color-scheme: light;
+                --bg: #f7f8fa;
+                --surface: #ffffff;
+                --text: #18202a;
+                --muted: #667085;
+                --line: #d7dde6;
+                --accent: #0f766e;
+                --accent-bg: #e6f4f1;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            body {
+                margin: 0;
+                background: var(--bg);
+                color: var(--text);
+                font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                font-size: 14px;
+            }
+
+            a {
+                color: #0b5cad;
+                text-decoration: none;
+            }
+
+            a:hover {
+                text-decoration: underline;
+            }
+
+            main {
+                max-width: 1400px;
+                margin: 0 auto;
+                padding: 24px;
+            }
+
+            header {
+                display: flex;
+                align-items: end;
+                justify-content: space-between;
+                gap: 18px;
+                margin-bottom: 18px;
+            }
+
+            h1 {
+                margin: 0;
+                font-size: 28px;
+                line-height: 1.2;
+            }
+
+            .meta {
+                color: var(--muted);
+                white-space: nowrap;
+            }
+
+            .filters {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                margin: 0 0 16px;
+                padding: 0;
+                list-style: none;
+            }
+
+            .filters li,
+            .tag {
+                display: inline-flex;
+                align-items: center;
+                min-height: 24px;
+                padding: 3px 8px;
+                border: 1px solid var(--line);
+                border-radius: 6px;
+                background: var(--surface);
+                color: var(--muted);
+                font-size: 12px;
+            }
+
+            .tag {
+                border-color: #b7ded6;
+                background: var(--accent-bg);
+                color: var(--accent);
+                margin-left: 4px;
+            }
+
+            .table-wrap {
+                overflow-x: auto;
+                border: 1px solid var(--line);
+                background: var(--surface);
+            }
+
+            table {
+                width: 100%;
+                min-width: 1120px;
+                border-collapse: collapse;
+            }
+
+            th,
+            td {
+                padding: 8px 10px;
+                border-bottom: 1px solid var(--line);
+                vertical-align: middle;
+                text-align: left;
+            }
+
+            th {
+                position: sticky;
+                top: 0;
+                z-index: 1;
+                background: #eef2f6;
+                color: #344054;
+                font-size: 12px;
+                font-weight: 700;
+                white-space: nowrap;
+            }
+
+            tbody tr:hover {
+                background: #f9fbfd;
+            }
+
+            .rank,
+            .number {
+                text-align: right;
+                font-variant-numeric: tabular-nums;
+                white-space: nowrap;
+            }
+
+            .thumb {
+                width: 88px;
+            }
+
+            .thumb img {
+                display: block;
+                width: 72px;
+                height: 54px;
+                object-fit: cover;
+                background: #d7dde6;
+            }
+
+            .title-cell {
+                min-width: 420px;
+                line-height: 1.45;
+            }
+
+            .channel,
+            .time {
+                white-space: nowrap;
+            }
+
+            .trend {
+                max-width: 180px;
+                color: var(--muted);
+                font-size: 12px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .empty {
+                padding: 28px;
+                color: var(--muted);
+                text-align: center;
+            }
+
+            @media (max-width: 720px) {
+                main {
+                    padding: 16px;
+                }
+
+                header {
+                    display: block;
+                }
+
+                .meta {
+                    margin-top: 8px;
+                    white-space: normal;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <main>
+            <header>
+                <div>
+                    <nav>
+                        <a href="{{ route('home') }}">YouTube Board</a>
+                        <a href="{{ route('live.periods') }}">期間直播排行</a>
+                        <a href="{{ route('live.channels') }}">直播頻道排行</a>
+                        <a href="{{ route('live.hours') }}">小時熱度</a>
+                        <a href="{{ route('live.trends.daily') }}">直播趨勢</a>
+                    </nav>
+                    <h1>目前直播排行</h1>
+                </div>
+                <div class="meta">{{ count($rows) }} 筆 · {{ $generatedAt }}</div>
+            </header>
+
+            @if ($filters !== [])
+                <ul class="filters" aria-label="Legacy filters">
+                    @foreach ($filters as $name => $value)
+                        <li>{{ $name }}={{ is_array($value) ? implode(',', $value) : $value }}</li>
+                    @endforeach
+                </ul>
+            @endif
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th scope="col">排名</th>
+                            <th scope="col">縮圖</th>
+                            <th scope="col">頻道</th>
+                            <th scope="col">時間</th>
+                            <th scope="col">標題</th>
+                            <th scope="col">觀看人數</th>
+                            <th scope="col">今日最高</th>
+                            <th scope="col">最近趨勢</th>
+                            <th scope="col">最高人數</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($rows as $row)
+                            <tr>
+                                <td class="rank">
+                                    <a href="{{ route('live.videos.trend', ['videoId' => $row['video_id']]) }}">{{ $row['rank'] }}</a>
+                                </td>
+                                <td class="thumb">
+                                    <a href="{{ $row['youtube_url'] }}" rel="noreferrer">
+                                        @if ($row['thumbnail'])
+                                            <img src="{{ $row['thumbnail'] }}" alt="">
+                                        @endif
+                                    </a>
+                                </td>
+                                <td class="channel">
+                                    <a href="/channels/{{ $row['u_id'] }}">{{ $row['channel_title'] }}</a>
+                                </td>
+                                <td class="time">{{ $row['published_at'] }}</td>
+                                <td class="title-cell">
+                                    {{ $row['title'] }}
+                                    @foreach ($row['tags'] as $tag)
+                                        <a class="tag" href="/live/current?tagid={{ $tag['id'] }}">{{ $tag['name'] }}</a>
+                                    @endforeach
+                                </td>
+                                <td class="number">{{ number_format($row['current_viewers']) }}</td>
+                                <td class="number">{{ $row['today_peak'] !== null ? number_format($row['today_peak']) : '' }}</td>
+                                <td class="trend" title="{{ $row['trend_label'] }}">{{ $row['trend_label'] }}</td>
+                                <td class="number">{{ $row['all_time_peak'] !== null ? number_format($row['all_time_peak']) : '' }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td class="empty" colspan="9">
+                                    {{ $dataAvailable ? '目前沒有符合條件的直播資料。' : '本機尚未匯入 legacy live tables。' }}
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </body>
+</html>

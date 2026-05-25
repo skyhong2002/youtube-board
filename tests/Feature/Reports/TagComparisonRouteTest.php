@@ -1,0 +1,148 @@
+<?php
+
+namespace Tests\Feature\Reports;
+
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Tests\TestCase;
+
+class TagComparisonRouteTest extends TestCase
+{
+    public function test_tag_comparison_reads_legacy_tag_date_json_and_builds_weekly_series(): void
+    {
+        $this->createTables();
+
+        DB::table('urt_tag')->insert([
+            ['tag_id' => 1, 'tag_name' => '政治'],
+        ]);
+
+        foreach ([
+            ['2026-05-18', 2, 100, 10],
+            ['2026-05-19', 3, 200, 20],
+            ['2026-05-20', 4, 300, 30],
+            ['2026-05-21', 5, 400, 40],
+        ] as $index => [$date, $videos, $views, $commentary]) {
+            DB::table('urt_show_tag_date')->insert([
+                'pk' => $index + 1,
+                'ctime' => $date.' 00:00:00',
+                'tagid' => '1',
+                'tag_or' => '',
+                'tag_not' => '9',
+                'the_date' => $date,
+                'count_channels' => 3,
+                'count_videos' => $videos,
+                'count_tags' => 2,
+                'tags_count' => 2,
+                'total_views' => $views * 10,
+                'tags_result' => json_encode(['柯文哲' => 1.5, '侯友宜' => 2.5], JSON_UNESCAPED_UNICODE),
+                'tags_video' => json_encode(['柯文哲' => $videos, '侯友宜' => $videos + 1], JSON_UNESCAPED_UNICODE),
+                'tags_views' => json_encode(['柯文哲' => $views, '侯友宜' => $commentary], JSON_UNESCAPED_UNICODE),
+            ]);
+        }
+
+        $response = $this->get('/tags/compare?tagid=1&not=9&tags=柯文哲,侯友宜&type=tags_views&from=2026-05-20&to=2026-05-21');
+
+        $response->assertOk();
+        $response->assertSee('政治 多關鍵字趨勢比較');
+        $response->assertSee('cache rows 4');
+        $response->assertSee('tags=柯文哲,侯友宜');
+        $response->assertSee('2026-05-20');
+        $response->assertSee('2026-05-21');
+        $response->assertSee('600');
+        $response->assertSee('1,000');
+        $response->assertSee('60');
+        $response->assertSee('100');
+        $response->assertDontSee('legacy cache generation');
+    }
+
+    public function test_tag_comparison_defaults_to_legacy_tag_one_when_no_filter_is_provided(): void
+    {
+        $this->createTables();
+
+        DB::table('urt_tag')->insert([
+            ['tag_id' => 1, 'tag_name' => '政治'],
+        ]);
+
+        DB::table('urt_show_tag_date')->insert([
+            'pk' => 1,
+            'ctime' => '2026-05-21 00:00:00',
+            'tagid' => '1',
+            'tag_or' => '',
+            'tag_not' => '',
+            'the_date' => '2026-05-21',
+            'count_channels' => 3,
+            'count_videos' => 2,
+            'count_tags' => 1,
+            'tags_count' => 1,
+            'total_views' => 1000,
+            'tags_result' => json_encode(['柯文哲' => 2.5], JSON_UNESCAPED_UNICODE),
+            'tags_video' => json_encode(['柯文哲' => 2], JSON_UNESCAPED_UNICODE),
+            'tags_views' => json_encode(['柯文哲' => 1000], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->get('/tags/compare?tags=柯文哲&type=tags_view&from=2026-05-21&to=2026-05-21');
+
+        $response->assertOk();
+        $response->assertSee('type=tags_views');
+        $response->assertSee('tagid=1');
+        $response->assertSee('1,000');
+    }
+
+    public function test_tag_comparison_reports_empty_local_cache_without_generation(): void
+    {
+        $this->createTables();
+
+        DB::table('urt_tag')->insert([
+            ['tag_id' => 1, 'tag_name' => '政治'],
+        ]);
+
+        $response = $this->get('/tags/compare?tags=柯文哲&type=tags_video&from=2026-05-20&to=2026-05-21');
+
+        $response->assertOk();
+        $response->assertSee('cache rows 0');
+        $response->assertSee('目前沒有符合條件的多關鍵字趨勢 cache');
+    }
+
+    public function test_legacy_tag_php_redirects_to_tag_comparison(): void
+    {
+        $this->get('/tag.php?tagid=1&tags=柯文哲,侯友宜&type=tags_video&days=10')
+            ->assertStatus(308)
+            ->assertRedirect(route('tags.compare', [
+                'tagid' => '1',
+                'tags' => '柯文哲,侯友宜',
+                'type' => 'tags_video',
+                'days' => '10',
+            ]));
+    }
+
+    private function createTables(): void
+    {
+        foreach (['urt_show_tag_date', 'urt_tag'] as $table) {
+            Schema::dropIfExists($table);
+        }
+
+        Schema::create('urt_tag', function ($table): void {
+            $table->integer('tag_id');
+            $table->string('tag_name');
+        });
+
+        Schema::create('urt_show_tag_date', function ($table): void {
+            $table->integer('pk');
+            $table->dateTime('ctime');
+            $table->dateTime('mtime')->nullable();
+            $table->dateTime('stime')->nullable();
+            $table->string('tagid')->nullable();
+            $table->string('tag_or')->nullable();
+            $table->string('tag_not')->nullable();
+            $table->integer('count_channels')->nullable();
+            $table->integer('count_videos')->nullable();
+            $table->integer('count_tags')->nullable();
+            $table->date('the_date');
+            $table->integer('tags_count')->nullable();
+            $table->integer('total_views')->nullable();
+            $table->text('tags_result')->nullable();
+            $table->text('tags_video')->nullable();
+            $table->text('tags_views')->nullable();
+        });
+    }
+}

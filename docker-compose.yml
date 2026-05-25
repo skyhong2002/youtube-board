@@ -1,0 +1,88 @@
+name: youtube-board
+
+x-app: &app
+  build:
+    context: .
+    dockerfile: docker/php/Dockerfile
+  user: "${UID:-501}:${GID:-20}"
+  working_dir: /var/www/html
+  volumes:
+    - .:/var/www/html
+    - /Users/sky/Documents/youtube-board-legacy:/Users/sky/Documents/youtube-board-legacy:ro
+  env_file:
+    - .env
+  environment:
+    APP_ENV: local
+    APP_DEBUG: "true"
+    APP_URL: http://localhost:8080
+    DB_CONNECTION: mysql
+    DB_HOST: mysql
+    DB_PORT: 3306
+    DB_DATABASE: youtube_board
+    DB_USERNAME: youtube_board
+    DB_PASSWORD: youtube_board
+    CACHE_STORE: redis
+    QUEUE_CONNECTION: redis
+    SESSION_DRIVER: redis
+    REDIS_HOST: redis
+    LEGACY_GROUND_TRUTH_PATH: /Users/sky/Documents/youtube-board-legacy
+    LEGACY_PUBLIC_SITE_URL: https://youtube.board.tw
+  depends_on:
+    mysql:
+      condition: service_healthy
+    redis:
+      condition: service_started
+
+services:
+  app:
+    <<: *app
+    command: php artisan serve --host=0.0.0.0 --port=8000
+    ports:
+      - "8080:8000"
+
+  worker:
+    <<: *app
+    command: php artisan queue:work --sleep=3 --tries=1 --timeout=120
+
+  scheduler:
+    <<: *app
+    command: sh -c "while true; do php artisan schedule:run --verbose --no-interaction; sleep 60; done"
+
+  mysql:
+    image: mariadb:11.4
+    environment:
+      MARIADB_DATABASE: youtube_board
+      MARIADB_USER: youtube_board
+      MARIADB_PASSWORD: youtube_board
+      MARIADB_ROOT_PASSWORD: youtube_board_root
+    ports:
+      - "33060:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "63790:6379"
+
+  phpmyadmin:
+    image: phpmyadmin:5-apache
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: youtube_board
+      PMA_PASSWORD: youtube_board
+      UPLOAD_LIMIT: 256M
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  mysql-data:

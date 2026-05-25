@@ -1,0 +1,42 @@
+# Ground Truth Policy
+
+## Canonical Sources
+
+1. `/Users/sky/Documents/youtube-board-legacy`
+   - Read-only hard copy of the original CentOS PHP project.
+   - Includes `urtube/`, `vh-board.conf`, and `urtube/cron`.
+   - Use this for legacy routes, cron schedules, SQL behavior, API endpoint behavior, and domain vocabulary.
+2. `https://youtube.board.tw`
+   - Use this for externally visible behavior: page layout, labels, old URL behavior, redirect compatibility, ranking order, and public report semantics.
+   - Public-site checks are secondary when the site is unavailable from this environment, but should be used when browser access works.
+3. Local imported MariaDB
+   - Contains extracted schema and sample/content data from the approved dumps.
+   - It may be read and updated locally during reconstruction work, but new public/report features should still remain read-only unless a write path is explicitly approved.
+
+## Approved DB Artifacts
+
+- Schema-only dump: `storage/app/db-dumps/urtube-schema-20260524-173342.sql`
+- Compressed copy: `storage/app/db-dumps/urtube-schema-20260524-173342.sql.gz`
+- Dump notes and checksums: `docs/legacy-inventory/db-dumps.md`
+
+The dump directory is ignored by git. Later approved local imports also include recent live/report data and AI table content for read-only reconstruction.
+
+## Local Mounts
+
+- Docker mounts `/Users/sky/Documents/youtube-board-legacy` into the app container as read-only, at the same absolute path.
+- Laravel can parse legacy source files such as `mayor/make_mayor.sh` and `mayor/{city}.php` directly, while the container cannot write to the legacy snapshot.
+
+## Not Ground Truth
+
+- Generated local Laravel defaults.
+- Any credentials or absolute production paths in legacy code.
+- Guesses inferred without a source path or public-site observation.
+- The active CentOS machine, unless explicitly approved for read-only inspection.
+
+## Guardrails
+
+- Do not modify `/Users/sky/Documents/youtube-board-legacy`.
+- Do not run Composer, npm, migrations, formatters, linters, or codegen in the legacy snapshot.
+- Do not copy legacy secrets into this repository.
+- Write all inventory notes under `/Users/sky/Projects/youtube-board/docs/legacy-inventory`.
+- Do not write production DB or enable production polling/generation without explicit approval.

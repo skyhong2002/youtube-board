@@ -1,0 +1,77 @@
+<?php
+
+namespace App\Services\Ingestion;
+
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\DB;
+
+class PeopleReportsPreview
+{
+    /**
+     * @return array{
+     *     mode: string,
+     *     generated_at: string,
+     *     group_name: string,
+     *     tagid: int,
+     *     days: int,
+     *     candidates: int,
+     *     latest_time: string|null,
+     *     rows: list<array<string, mixed>>,
+     *     cache_generation_skipped: string,
+     *     writes: list<string>
+     * }
+     */
+    public function preview(string $groupName = '政治人物', int $tagId = 13, int $days = 37, int $limit = 20, ?CarbonInterface $now = null): array
+    {
+        $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
+        $now = $now === null
+            ? CarbonImmutable::now($timezone)
+            : CarbonImmutable::instance($now->toDateTimeImmutable())->setTimezone($timezone);
+        $groupName = trim($groupName) ?: '政治人物';
+        $tagId = max(1, $tagId);
+        $days = max(1, min(365, $days));
+        $limit = max(1, min(200, $limit));
+
+        $base = DB::table('tag_group')
+            ->where('group_name', $groupName)
+            ->where(function ($query): void {
+                $query->whereNull('del_flag')->orWhere('del_flag', '<', '1');
+            });
+
+        $candidates = (clone $base)->count();
+        $latestTime = (clone $base)->max('latest_time');
+        $rows = (clone $base)
+            ->orderByDesc('latest_time')
+            ->orderBy('tag')
+            ->limit($limit)
+            ->get(['tag', 'latest_time'])
+            ->map(fn (object $row): array => [
+                'tag' => (string) $row->tag,
+                'latest_time' => (string) $row->latest_time,
+                'tagid' => $tagId,
+                'days' => $days,
+                'legacy_command' => sprintf('/usr/bin/php /home/urtube/api/tag_period.php tag=%s tagid=%d days=%d', $row->tag, $tagId, $days),
+                'modern_api_preview' => '/api/tag_period.php?'.http_build_query([
+                    'tag' => (string) $row->tag,
+                    'tagid' => $tagId,
+                    'days' => $days,
+                ]),
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'mode' => 'read-only-preview',
+            'generated_at' => $now->format('Y-m-d H:i:s'),
+            'group_name' => $groupName,
+            'tagid' => $tagId,
+            'days' => $days,
+            'candidates' => $candidates,
+            'latest_time' => $latestTime !== null ? (string) $latestTime : null,
+            'rows' => $rows,
+            'cache_generation_skipped' => 'legacy api/tag_period.php calls are intentionally not executed in read-only mode',
+            'writes' => [],
+        ];
+    }
+}

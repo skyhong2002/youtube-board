@@ -1,0 +1,237 @@
+<?php
+
+namespace App\Services\Legacy;
+
+use Carbon\CarbonImmutable;
+use Illuminate\Database\QueryException;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+class AiHourlyReport
+{
+    /**
+     * @return array{
+     *     available: bool,
+     *     date: string|null,
+     *     title: string,
+     *     condition: string,
+     *     limit: int,
+     *     hours: list<array{hour: string, row_pk: int, date_from: string, topics: list<array<string, mixed>>}>,
+     *     rows_count: int,
+     *     generated_at: string
+     * }
+     */
+    public function forRequest(Request $request): array
+    {
+        $condition = $this->condition($request->query('condition'));
+        $limit = max(1, min(1000, (int) $request->query('limit', 1000)));
+
+        try {
+            $date = $this->date($request, $condition);
+
+            if ($date === null) {
+                return $this->empty(true, null, $condition, $limit);
+            }
+
+            $from = $date.' 00:00:00';
+            $to = $date.' 23:59:59';
+
+            $query = DB::table('urt_ai_hour')
+                ->whereNull('del_flag')
+                ->whereBetween('date_from', [$from, $to]);
+
+            if ($condition === 'all') {
+                $query->where(function ($inner): void {
+                    $inner->whereNull('condition_type')->orWhere('condition_type', 'all');
+                });
+            } else {
+                $query->where('condition_type', $condition);
+            }
+
+            if (is_string($request->query('type')) && $request->query('type') !== '') {
+                $query->where('data_type', (string) $request->query('type'));
+            }
+
+            $rows = $query
+                ->orderByDesc('date_from')
+                ->orderByDesc('pk')
+                ->limit(48)
+                ->get();
+
+            $hours = $rows
+                ->map(function (object $row) use ($limit): array {
+                    $topics = collect($this->decode($row->result_json ?? null))
+                        ->take($limit)
+                        ->map(fn (mixed $item): array => $this->topic($item))
+                        ->filter(fn (array $item): bool => $item['event'] !== '')
+                        ->values()
+                        ->all();
+
+                    return [
+                        'hour' => substr((string) $row->date_from, 11, 2),
+                        'row_pk' => (int) $row->pk,
+                        'date_from' => (string) $row->date_from,
+                        'topics' => $topics,
+                    ];
+                })
+                ->filter(fn (array $hour): bool => $hour['topics'] !== [])
+                ->values()
+                ->all();
+
+            return [
+                'available' => true,
+                'date' => $date,
+                'title' => $this->title($date, $condition),
+                'condition' => $condition,
+                'limit' => $limit,
+                'hours' => $hours,
+                'rows_count' => $rows->count(),
+                'generated_at' => now('Asia/Taipei')->format('Y-m-d H:i:s'),
+            ];
+        } catch (QueryException) {
+            return $this->empty(false, null, $condition, $limit);
+        }
+    }
+
+    private function condition(mixed $value): string
+    {
+        $condition = is_string($value) && $value !== '' ? $value : 'all';
+
+        return preg_match('/^[a-zA-Z0-9_-]{1,40}$/', $condition) ? $condition : 'all';
+    }
+
+    private function date(Request $request, string $condition): ?string
+    {
+        $date = $request->query('date');
+
+        if (is_string($date) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            return $date;
+        }
+
+        $query = DB::table('urt_ai_hour')->whereNull('del_flag');
+
+        if ($condition === 'all') {
+            $query->where(function ($inner): void {
+                $inner->whereNull('condition_type')->orWhere('condition_type', 'all');
+            });
+        } else {
+            $query->where('condition_type', $condition);
+        }
+
+        $latest = $query->max('date_from');
+
+        return is_string($latest) && $latest !== '' ? substr($latest, 0, 10) : null;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function decode(mixed $json): array
+    {
+        if (! is_string($json) || trim($json) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($json, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE || ! is_array($decoded)) {
+            return [];
+        }
+
+        return array_is_list($decoded) ? $decoded : array_values($decoded);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function topic(mixed $item): array
+    {
+        $item = is_array($item) ? $item : [];
+        $videoIds = $this->stringList($item, ['videoId', 'video_ids', 'videos']);
+
+        return [
+            'event' => $this->text($item, ['事件', 'event', 'title']),
+            'description' => $this->text($item, ['描述', 'description', 'content']),
+            'category' => $this->text($item, ['分類', 'category']),
+            'angle' => $this->text($item, ['角度', 'angle']),
+            'camp' => $this->text($item, ['陣營', 'camp', 'stance']),
+            'keywords' => $this->stringList($item, ['關鍵字', 'keywords']),
+            'people' => $this->stringList($item, ['人物', 'people']),
+            'places' => $this->stringList($item, ['地名', 'places']),
+            'video_ids' => $videoIds,
+            'video_count' => count($videoIds),
+            'first_video_id' => $videoIds[0] ?? null,
+        ];
+    }
+
+    /**
+     * @param  list<string>  $keys
+     */
+    private function text(array $item, array $keys): string
+    {
+        foreach ($keys as $key) {
+            if (isset($item[$key]) && is_scalar($item[$key])) {
+                return trim((string) $item[$key]);
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param  list<string>  $keys
+     * @return list<string>
+     */
+    private function stringList(array $item, array $keys): array
+    {
+        foreach ($keys as $key) {
+            if (! isset($item[$key])) {
+                continue;
+            }
+
+            if (is_array($item[$key])) {
+                return collect($item[$key])
+                    ->flatten()
+                    ->filter(fn (mixed $value): bool => is_scalar($value) && trim((string) $value) !== '')
+                    ->map(fn (mixed $value): string => trim((string) $value))
+                    ->values()
+                    ->all();
+            }
+
+            if (is_scalar($item[$key]) && trim((string) $item[$key]) !== '') {
+                return [trim((string) $item[$key])];
+            }
+        }
+
+        return [];
+    }
+
+    private function title(string $date, string $condition): string
+    {
+        return match ($condition) {
+            'green' => '泛綠媒體在 '.$date.' 每小時主要報導',
+            'blue' => '泛藍媒體在 '.$date.' 每小時主要報導',
+            'neutral' => '較無偏媒體在 '.$date.' 每小時主要報導',
+            'world' => $date.' 國際新聞每小時報導',
+            'finance' => $date.' 財經新聞每小時報導',
+            default => $date.' 當日分時事件整理',
+        };
+    }
+
+    /**
+     * @return array{available: bool, date: string|null, title: string, condition: string, limit: int, hours: list<array<string, mixed>>, rows_count: int, generated_at: string}
+     */
+    private function empty(bool $available, ?string $date, string $condition, int $limit): array
+    {
+        return [
+            'available' => $available,
+            'date' => $date,
+            'title' => $date ? $this->title($date, $condition) : '當日分時事件整理',
+            'condition' => $condition,
+            'limit' => $limit,
+            'hours' => [],
+            'rows_count' => 0,
+            'generated_at' => now('Asia/Taipei')->format('Y-m-d H:i:s'),
+        ];
+    }
+}

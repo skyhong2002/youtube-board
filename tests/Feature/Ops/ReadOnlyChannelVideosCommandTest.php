@@ -1,0 +1,315 @@
+<?php
+
+namespace Tests\Feature\Ops;
+
+use App\Services\Ingestion\IngestionSchedulerRunner;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Tests\TestCase;
+
+class ReadOnlyChannelVideosCommandTest extends TestCase
+{
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
+
+        parent::tearDown();
+    }
+
+    public function test_youtube_channels_videos_previews_legacy_due_vtime_discovery_without_api_or_writes(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        DB::table('urt_channel')->insert([
+            [
+                'u_id' => 1,
+                'ctime' => '2026-05-20 00:00:00',
+                'mtime' => null,
+                'vtime' => null,
+                'flag_del' => null,
+                'youtube_id' => 'channel-null',
+                'title' => 'Unchecked Uploads Channel',
+                'uploads' => 'uploads-null',
+                'videoCount' => 120,
+            ],
+            [
+                'u_id' => 2,
+                'ctime' => '2026-05-20 00:00:00',
+                'mtime' => null,
+                'vtime' => '2026-05-24 12:00:00',
+                'flag_del' => null,
+                'youtube_id' => 'channel-due',
+                'title' => 'Due Uploads Channel',
+                'uploads' => 'uploads-due',
+                'videoCount' => 40,
+            ],
+            [
+                'u_id' => 3,
+                'ctime' => '2026-05-20 00:00:00',
+                'mtime' => null,
+                'vtime' => '2026-05-25 12:00:00',
+                'flag_del' => null,
+                'youtube_id' => 'channel-fresh',
+                'title' => 'Fresh Uploads Channel',
+                'uploads' => 'uploads-fresh',
+                'videoCount' => 15,
+            ],
+            [
+                'u_id' => 4,
+                'ctime' => '2026-05-20 00:00:00',
+                'mtime' => null,
+                'vtime' => null,
+                'flag_del' => 1,
+                'youtube_id' => 'channel-deleted',
+                'title' => 'Deleted Uploads Channel',
+                'uploads' => 'uploads-deleted',
+                'videoCount' => 10,
+            ],
+        ]);
+
+        DB::table('urt_video')->insert([
+            $this->videoRow(1, 'video-a', '2026-05-24 12:00:00'),
+            $this->videoRow(1, 'video-b', '2026-05-23 12:00:00'),
+            $this->videoRow(1, 'video-c', '2026-05-22 12:00:00'),
+            $this->videoRow(1, 'old-video', '2026-04-01 12:00:00'),
+            $this->videoRow(2, 'due-old-video', '2026-04-01 12:00:00'),
+        ]);
+
+        DB::table('urt_video_live')->insert([
+            'pk' => 1,
+            'ctime' => '2026-05-24 00:00:00',
+            'videoId' => 'live-a',
+            'publishedAt' => '2026-05-24 12:00:00',
+            'u_id' => 1,
+        ]);
+
+        $exitCode = Artisan::call('youtube:channels:videos', [
+            '--limit' => 10,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('read-only-preview', $payload['mode']);
+        $this->assertSame('due_vtime', $payload['source']);
+        $this->assertSame(3, $payload['active_channels']);
+        $this->assertSame(2, $payload['due_channels']);
+        $this->assertSame(2, $payload['eligible_rows']);
+        $this->assertSame(2, $payload['selected_rows']);
+        $this->assertTrue($payload['would_call_api']);
+        $this->assertSame('2026-05-24 19:00:00', $payload['would_set_initial_vtime']);
+        $this->assertSame([], $payload['writes']);
+        $this->assertSame(1, $payload['rows'][0]['u_id']);
+        $this->assertSame('uploads-null', $payload['rows'][0]['uploads']);
+        $this->assertSame(3, $payload['rows'][0]['local_recent_week_count']);
+        $this->assertSame(4, $payload['rows'][0]['local_video_rows']);
+        $this->assertSame(1, $payload['rows'][0]['local_live_rows']);
+        $this->assertSame('2026-05-25 12:40:00', $payload['rows'][0]['estimated_next_vtime_from_local_week_count']);
+        $this->assertContains('urt_video insert for playlist items', $payload['writes_skipped']);
+
+        $this->assertNull(DB::table('urt_channel')->where('u_id', 1)->value('vtime'));
+        $this->assertSame(5, DB::table('urt_video')->count());
+        $this->assertSame(0, DB::table('urt_video_schedule')->count());
+    }
+
+    public function test_youtube_channels_videos_supports_legacy_live_tag_branches(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        DB::table('urt_channel')->insert([
+            [
+                'u_id' => 1,
+                'ctime' => '2026-05-20 00:00:00',
+                'mtime' => null,
+                'vtime' => '2026-05-25 12:00:00',
+                'flag_del' => null,
+                'youtube_id' => 'channel-live',
+                'title' => 'Live Channel',
+                'uploads' => 'uploads-live',
+                'videoCount' => 120,
+            ],
+            [
+                'u_id' => 2,
+                'ctime' => '2026-05-20 00:00:00',
+                'mtime' => null,
+                'vtime' => '2026-05-25 12:00:00',
+                'flag_del' => null,
+                'youtube_id' => 'channel-group',
+                'title' => 'Live Group Channel',
+                'uploads' => 'uploads-group',
+                'videoCount' => 120,
+            ],
+        ]);
+
+        DB::table('urt_count')->insert([
+            ['u_id' => 1, 'tags' => '[52],[1]'],
+            ['u_id' => 2, 'tags' => '[89],[1]'],
+        ]);
+
+        $exitCode = Artisan::call('youtube:channels:videos', [
+            '--live' => 1,
+            '--force' => 3,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('live_tag_52', $payload['source']);
+        $this->assertSame(1, $payload['live']);
+        $this->assertSame(52, $payload['live_tag_id']);
+        $this->assertSame(1, $payload['tagged_channels']);
+        $this->assertSame(1, $payload['selected_rows']);
+        $this->assertSame(1, $payload['rows'][0]['u_id']);
+
+        $exitCode = Artisan::call('youtube:channels:videos', [
+            '--live' => 2,
+            '--force' => 3,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('live_tag_89', $payload['source']);
+        $this->assertSame(2, $payload['live']);
+        $this->assertSame(89, $payload['live_tag_id']);
+        $this->assertSame(2, $payload['rows'][0]['u_id']);
+    }
+
+    public function test_youtube_channels_videos_supports_single_channel_rescan_and_scheduler_variants(): void
+    {
+        $this->createTables();
+        config()->set('ingestion.scheduler_enabled', true);
+
+        DB::table('urt_channel')->insert([
+            [
+                'u_id' => 10,
+                'ctime' => '2026-05-20 00:00:00',
+                'mtime' => null,
+                'vtime' => '2026-05-24 12:00:00',
+                'flag_del' => null,
+                'youtube_id' => 'target-channel',
+                'title' => 'Target Channel',
+                'uploads' => 'target-uploads',
+                'videoCount' => 15000,
+            ],
+        ]);
+        DB::table('urt_count')->insert([
+            ['u_id' => 10, 'tags' => '[52],[89]'],
+        ]);
+
+        $exitCode = Artisan::call('youtube:channels:videos', [
+            '--id' => 10,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('single_channel', $payload['source']);
+        $this->assertSame(10, $payload['target_u_id']);
+        $this->assertSame('target-uploads', $payload['rows'][0]['uploads']);
+
+        $exitCode = Artisan::call('youtube:channels:videos', [
+            '--rescan' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('rescan_large_channels', $payload['source']);
+        $this->assertSame(1, $payload['selected_rows']);
+
+        $general = app(IngestionSchedulerRunner::class)->run(
+            at: CarbonImmutable::parse('2026-05-25 00:05:00', 'Asia/Taipei'),
+            execute: true,
+            jobKey: 'youtube.channels.videos.general',
+        );
+        $live = app(IngestionSchedulerRunner::class)->run(
+            at: CarbonImmutable::parse('2026-05-25 02:05:00', 'Asia/Taipei'),
+            execute: true,
+            jobKey: 'youtube.channels.videos.live',
+        );
+        $liveGroup = app(IngestionSchedulerRunner::class)->run(
+            at: CarbonImmutable::parse('2026-05-25 00:01:00', 'Asia/Taipei'),
+            execute: true,
+            jobKey: 'youtube.channels.videos.live_group',
+        );
+
+        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $general['summary']);
+        $this->assertSame('executed', $general['jobs'][0]['action']);
+        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $live['summary']);
+        $this->assertSame('executed', $live['jobs'][0]['action']);
+        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $liveGroup['summary']);
+        $this->assertSame('executed', $liveGroup['jobs'][0]['action']);
+    }
+
+    private function createTables(): void
+    {
+        foreach (['urt_video_schedule', 'urt_video_live', 'urt_video', 'urt_count', 'urt_channel'] as $table) {
+            Schema::dropIfExists($table);
+        }
+
+        Schema::create('urt_channel', function ($table): void {
+            $table->integer('u_id');
+            $table->dateTime('ctime');
+            $table->dateTime('mtime')->nullable();
+            $table->dateTime('vtime')->nullable();
+            $table->integer('flag_del')->nullable();
+            $table->string('youtube_id')->nullable();
+            $table->string('title')->nullable();
+            $table->string('uploads')->nullable();
+            $table->integer('videoCount')->nullable();
+        });
+
+        Schema::create('urt_count', function ($table): void {
+            $table->integer('u_id');
+            $table->text('tags')->nullable();
+        });
+
+        Schema::create('urt_video', function ($table): void {
+            $table->integer('pk');
+            $table->dateTime('ctime');
+            $table->integer('u_id');
+            $table->string('videoId');
+            $table->dateTime('publishedAt');
+        });
+
+        Schema::create('urt_video_live', function ($table): void {
+            $table->integer('pk');
+            $table->dateTime('ctime');
+            $table->string('videoId');
+            $table->dateTime('publishedAt');
+            $table->integer('u_id');
+        });
+
+        Schema::create('urt_video_schedule', function ($table): void {
+            $table->integer('pk')->nullable();
+            $table->dateTime('ctime')->nullable();
+            $table->string('videoId')->nullable();
+            $table->dateTime('publishedAt')->nullable();
+        });
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function videoRow(int $uId, string $videoId, string $publishedAt): array
+    {
+        static $pk = 1;
+
+        return [
+            'pk' => $pk++,
+            'ctime' => '2026-05-24 00:00:00',
+            'u_id' => $uId,
+            'videoId' => $videoId,
+            'publishedAt' => $publishedAt,
+        ];
+    }
+}

@@ -1,0 +1,83 @@
+<?php
+
+namespace App\Services\Ingestion;
+
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\DB;
+
+class GroupReportsPreview
+{
+    /**
+     * @return array{
+     *     mode: string,
+     *     generated_at: string,
+     *     hours: int,
+     *     group_name: string|null,
+     *     group_count: int,
+     *     tag_rows: int,
+     *     active_rows: int,
+     *     deleted_rows: int,
+     *     latest_time: string|null,
+     *     rows: list<array<string, mixed>>,
+     *     external_fetch_skipped: string,
+     *     writes: list<string>
+     * }
+     */
+    public function preview(?string $groupName = null, int $hours = 22, int $limit = 20, ?CarbonInterface $now = null): array
+    {
+        $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
+        $now = $now === null
+            ? CarbonImmutable::now($timezone)
+            : CarbonImmutable::instance($now->toDateTimeImmutable())->setTimezone($timezone);
+        $hours = max(1, min(168, $hours));
+        $limit = max(1, min(200, $limit));
+        $groupName = $groupName !== null && trim($groupName) !== '' ? trim($groupName) : null;
+
+        $base = DB::table('tag_group')
+            ->when($groupName !== null, fn ($query) => $query->where('group_name', $groupName));
+
+        $groupCount = (clone $base)->distinct()->count('group_name');
+        $tagRows = (clone $base)->count();
+        $activeRows = (clone $base)
+            ->where(fn ($query) => $query->whereNull('del_flag')->orWhere('del_flag', '<', '1'))
+            ->count();
+        $deletedRows = $tagRows - $activeRows;
+        $latestTime = (clone $base)->max('latest_time');
+
+        $rows = (clone $base)
+            ->selectRaw('group_name, COUNT(*) AS tag_rows')
+            ->selectRaw("SUM(CASE WHEN del_flag IS NULL OR del_flag < '1' THEN 1 ELSE 0 END) AS active_rows")
+            ->selectRaw("SUM(CASE WHEN del_flag IS NOT NULL AND del_flag >= '1' THEN 1 ELSE 0 END) AS deleted_rows")
+            ->selectRaw('MAX(latest_time) AS latest_time')
+            ->groupBy('group_name')
+            ->orderByDesc('active_rows')
+            ->orderBy('group_name')
+            ->limit($limit)
+            ->get()
+            ->map(fn (object $row): array => [
+                'group_name' => (string) $row->group_name,
+                'tag_rows' => (int) $row->tag_rows,
+                'active_rows' => (int) $row->active_rows,
+                'deleted_rows' => (int) $row->deleted_rows,
+                'latest_time' => $row->latest_time !== null ? (string) $row->latest_time : null,
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'mode' => 'read-only-preview',
+            'generated_at' => $now->format('Y-m-d H:i:s'),
+            'hours' => $hours,
+            'group_name' => $groupName,
+            'group_count' => $groupCount,
+            'tag_rows' => $tagRows,
+            'active_rows' => $activeRows,
+            'deleted_rows' => $deletedRows,
+            'latest_time' => $latestTime !== null ? (string) $latestTime : null,
+            'rows' => $rows,
+            'external_fetch_skipped' => 'legacy tag.analysis.tw group sync is intentionally not called in read-only mode',
+            'writes' => [],
+        ];
+    }
+}
