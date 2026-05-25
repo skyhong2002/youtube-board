@@ -41,6 +41,11 @@ return [
         'max_tokens' => (int) env('OPENAI_MAX_TOKENS', 1200),
     ],
 
+    'dokploy' => [
+        'deploy_webhook_url' => env('DOKPLOY_DEPLOY_WEBHOOK_URL'),
+        'deploy_relay_secret' => env('DOKPLOY_DEPLOY_RELAY_SECRET'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

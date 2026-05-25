@@ -102,6 +102,16 @@ Current behavior:
 - `ingestion:run --record` writes local JSON history for scheduler and one-shot runs.
 - `/ops/ingestion` uses the same JSON history to show external scheduler liveness. It only treats records with `request.source=artisan`, `request.mode=execute`, and `result.mode=execute` as external scheduler evidence, so web one-shot runs do not mask a paused Dokploy schedule.
 
+## Dokploy Autodeploy Relay
+
+The Dokploy deploy webhook URL is a tailnet-only address, so GitHub's hosted webhook delivery cannot reach it directly. The production app exposes `POST /ops/deploy/dokploy` as a narrow relay for GitHub push events:
+
+- The route is inert unless both `DOKPLOY_DEPLOY_WEBHOOK_URL` and `DOKPLOY_DEPLOY_RELAY_SECRET` are configured in the runtime environment.
+- The GitHub webhook must use the same relay secret; the route validates `X-Hub-Signature-256` with HMAC-SHA256 before doing anything.
+- Only `X-GitHub-Event: push` and `ref=refs/heads/main` can trigger the internal Dokploy deploy webhook.
+- The route forwards only a minimal `{ "ref": "refs/heads/main" }` payload and never logs or returns secrets.
+- The Dokploy URL and relay secret must stay in deployment/GitHub configuration, not in code.
+
 Required before scheduled write polling:
 
 - Record per-job run summaries with selected rows, API calls, write targets, skipped rows, and sanitized failure reason.

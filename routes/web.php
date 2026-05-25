@@ -47,6 +47,7 @@ use App\Http\Controllers\LegacyApi\CloudGroupApiController;
 use App\Http\Controllers\LegacyApi\ChannelReportApiController;
 use App\Http\Controllers\LegacyApi\AiApiController;
 use App\Http\Controllers\LegacyApi\MediaApiController;
+use App\Http\Controllers\Ops\DokployDeployWebhookController;
 use App\Http\Controllers\Ops\IngestionDashboardController;
 use App\Http\Controllers\Ops\LegacyPromptGuardController;
 use App\Http\Controllers\Ops\LegacyWriteGuardController;
@@ -130,6 +131,7 @@ Route::get('/ops/ingestion/runs/{runId}', [IngestionDashboardController::class, 
     ->where('runId', '\d{8}-\d{6}-[0-9a-f-]{36}')
     ->name('ops.ingestion.runs.show');
 Route::get('/ops/ingestion/{jobKey}', [IngestionDashboardController::class, 'show'])->where('jobKey', '[A-Za-z0-9_.-]+')->name('ops.ingestion.show');
+Route::post('/ops/deploy/dokploy', DokployDeployWebhookController::class)->name('ops.deploy.dokploy');
 Route::match(['GET', 'POST'], '/redir/{script}.php', LegacyWriteGuardController::class)
     ->where('script', 'add_live|add_live_tvbs|add_video|ai_day|ai_hour|channel_ai|channel_gpt|make_live|renew|tag')
     ->name('legacy.redir.guard');
