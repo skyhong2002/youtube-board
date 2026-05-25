@@ -24,6 +24,10 @@
             .badge.missing { border-color: #fecdca; background: var(--blocked-bg); color: var(--blocked); }
             .meta { color: var(--muted); white-space: nowrap; }
             .panel { border: 1px solid var(--line); background: var(--surface); padding: 14px; margin-bottom: 14px; }
+            .status-grid { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(320px, 1.4fr); gap: 14px; margin-bottom: 14px; }
+            .status-grid h2 { margin-top: 0; }
+            .status-line { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+            .reason-list { margin: 8px 0 0; padding-left: 18px; color: var(--muted); }
             form.run-form { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(220px, 1fr) minmax(180px, 1fr) auto; gap: 10px; align-items: end; }
             label { display: grid; gap: 5px; color: #344054; font-size: 12px; font-weight: 700; }
             select, input[type="text"] { width: 100%; min-height: 36px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--text); padding: 6px 8px; font: inherit; }
@@ -58,6 +62,7 @@
                     <h1>Ingestion Scheduler</h1>
                 </div>
                 <div class="meta">
+                    Web request gates
                     <span class="badge {{ $summary['scheduler_enabled'] ? 'active' : 'disabled' }}">
                         {{ $summary['scheduler_enabled'] ? 'scheduler enabled' : 'scheduler disabled' }}
                     </span>
@@ -67,6 +72,53 @@
                 </div>
             </header>
 
+            <section class="status-grid" aria-label="Scheduler status">
+                <div class="panel">
+                    <h2>Web Request Gates</h2>
+                    <div class="status-line">
+                        <span class="badge {{ $summary['scheduler_enabled'] ? 'active' : 'disabled' }}">
+                            {{ $summary['scheduler_enabled'] ? 'scheduler enabled' : 'scheduler disabled' }}
+                        </span>
+                        <span class="badge {{ $summary['local_polling_enabled'] ? 'active' : 'disabled' }}">
+                            {{ $summary['local_polling_enabled'] ? 'local polling enabled' : 'local polling disabled' }}
+                        </span>
+                        <span>scheduled write allowlist {{ count($summary['scheduled_write_allowlist']) }}</span>
+                    </div>
+                    <p class="muted">These gates describe this web request only. Dokploy scheduled tasks may inject separate env flags for their one-shot CLI process without enabling polling for normal web traffic.</p>
+                </div>
+
+                <div class="panel">
+                    <h2>External Scheduler Activity</h2>
+                    <div class="status-line">
+                        <span class="badge {{ $externalSchedulerActivity['active'] ? 'active' : 'disabled' }}">
+                            {{ $externalSchedulerActivity['active'] ? 'external scheduler active' : 'external scheduler not observed' }}
+                        </span>
+                        <span>window {{ $externalSchedulerActivity['window_minutes'] }} minutes</span>
+                    </div>
+                    @if ($externalSchedulerActivity['latest'])
+                        @php($externalSummary = $externalSchedulerActivity['summary'])
+                        <p class="muted">
+                            latest={{ $externalSchedulerActivity['latest_created_at'] ?? '-' }}
+                            age={{ $externalSchedulerActivity['latest_age_seconds'] ?? '-' }}s
+                            evaluated={{ $externalSummary['evaluated'] ?? 0 }}
+                            due={{ $externalSummary['due'] ?? 0 }}
+                            executed={{ $externalSummary['executed'] ?? 0 }}
+                            skipped={{ $externalSummary['skipped'] ?? 0 }}
+                            failed={{ $externalSummary['failed'] ?? 0 }}
+                        </p>
+                    @else
+                        <p class="muted">No external <code>ingestion:run --execute --record</code> run file has been observed.</p>
+                    @endif
+                    @unless ($externalSchedulerActivity['active'])
+                        <ul class="reason-list">
+                            @foreach ($externalSchedulerActivity['not_observed_reasons'] as $reason)
+                                <li>{{ $reason }}</li>
+                            @endforeach
+                        </ul>
+                    @endunless
+                </div>
+            </section>
+
             <div class="summary" aria-label="Job summary">
                 <span>{{ number_format($summary['total']) }} jobs</span>
                 <span>{{ number_format($summary['planned']) }} planned</span>
@@ -75,7 +127,6 @@
                 <span>{{ number_format($summary['command_ready']) }} command-ready</span>
                 <span>{{ number_format($summary['command_missing']) }} command-missing</span>
                 <span>timezone {{ config('ingestion.timezone') }}</span>
-                <span>scheduled write allowlist {{ count($summary['scheduled_write_allowlist']) }}</span>
                 <span>dry-run <code>php artisan ingestion:run</code></span>
             </div>
 

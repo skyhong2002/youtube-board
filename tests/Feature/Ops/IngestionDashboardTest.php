@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Ops;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -10,12 +11,18 @@ class IngestionDashboardTest extends TestCase
 {
     public function test_ingestion_dashboard_renders_legacy_cron_registry_without_enabling_polling(): void
     {
+        Storage::fake('local');
+
         $response = $this->get('/ops/ingestion');
 
         $response->assertOk();
         $response->assertSee('Ingestion Scheduler');
+        $response->assertSee('Web Request Gates');
         $response->assertSee('scheduler disabled');
         $response->assertSee('local polling disabled');
+        $response->assertSee('External Scheduler Activity');
+        $response->assertSee('external scheduler not observed');
+        $response->assertSee('No external');
         $response->assertSee('scheduled write allowlist 0');
         $response->assertSee('command-missing');
         $response->assertSee('command-ready');
@@ -35,6 +42,109 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('One-shot Runner');
         $response->assertSee('Latest One-shot Runs');
         $response->assertSee('Run Once');
+    }
+
+    public function test_ingestion_dashboard_shows_recent_external_scheduler_activity_while_web_gates_are_disabled(): void
+    {
+        Storage::fake('local');
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-26 02:52:30', 'Asia/Taipei'));
+
+        try {
+            config()->set('ingestion.scheduler_enabled', false);
+            config()->set('ingestion.local_polling_enabled', false);
+
+            Storage::disk('local')->put('ingestion-runs/20260526-025200-00000000-0000-4000-8000-000000000000.json', json_encode([
+                'id' => '20260526-025200-00000000-0000-4000-8000-000000000000',
+                'path' => 'ingestion-runs/20260526-025200-00000000-0000-4000-8000-000000000000.json',
+                'created_at' => '2026-05-26 02:52:00 Asia/Taipei',
+                'request' => [
+                    'source' => 'artisan',
+                    'mode' => 'execute',
+                    'job' => null,
+                ],
+                'result' => [
+                    'mode' => 'execute',
+                    'summary' => [
+                        'evaluated' => 25,
+                        'due' => 2,
+                        'executed' => 2,
+                        'skipped' => 0,
+                        'failed' => 0,
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $response = $this->get('/ops/ingestion');
+
+            $response->assertOk();
+            $response->assertSee('Web Request Gates');
+            $response->assertSee('scheduler disabled');
+            $response->assertSee('local polling disabled');
+            $response->assertSee('External Scheduler Activity');
+            $response->assertSee('external scheduler active');
+            $response->assertSee('latest=2026-05-26 02:52:00 Asia/Taipei');
+            $response->assertSee('executed=2');
+            $response->assertDontSee('external scheduler not observed');
+        } finally {
+            CarbonImmutable::setTestNow();
+        }
+    }
+
+    public function test_ingestion_dashboard_does_not_treat_old_or_web_runs_as_active_external_scheduler_activity(): void
+    {
+        Storage::fake('local');
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-26 02:52:30', 'Asia/Taipei'));
+
+        try {
+            Storage::disk('local')->put('ingestion-runs/20260526-024800-00000000-0000-4000-8000-000000000000.json', json_encode([
+                'id' => '20260526-024800-00000000-0000-4000-8000-000000000000',
+                'created_at' => '2026-05-26 02:48:00 Asia/Taipei',
+                'request' => [
+                    'source' => 'artisan',
+                    'mode' => 'execute',
+                    'job' => null,
+                ],
+                'result' => [
+                    'mode' => 'execute',
+                    'summary' => [
+                        'evaluated' => 25,
+                        'due' => 2,
+                        'executed' => 2,
+                        'skipped' => 0,
+                        'failed' => 0,
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            Storage::disk('local')->put('ingestion-runs/20260526-025220-11111111-1111-4111-8111-111111111111.json', json_encode([
+                'id' => '20260526-025220-11111111-1111-4111-8111-111111111111',
+                'created_at' => '2026-05-26 02:52:20 Asia/Taipei',
+                'request' => [
+                    'mode' => 'execute',
+                    'job' => 'reports.live.static',
+                    'scheduler_enabled_temporarily' => true,
+                ],
+                'result' => [
+                    'mode' => 'execute',
+                    'summary' => [
+                        'evaluated' => 1,
+                        'due' => 1,
+                        'executed' => 1,
+                        'skipped' => 0,
+                        'failed' => 0,
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $response = $this->get('/ops/ingestion');
+
+            $response->assertOk();
+            $response->assertSee('external scheduler not observed');
+            $response->assertSee('No external scheduler run file was created within the recent activity window.');
+            $response->assertDontSee('external scheduler active');
+        } finally {
+            CarbonImmutable::setTestNow();
+        }
     }
 
     public function test_ingestion_dashboard_can_run_one_read_only_job_once_and_store_history(): void

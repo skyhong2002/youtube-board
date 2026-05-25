@@ -20,6 +20,7 @@ class IngestionDashboardController extends Controller
             'groups' => $registry->grouped(),
             'summary' => $registry->summary(),
             'recentRuns' => $history->latest(),
+            'externalSchedulerActivity' => $history->externalSchedulerActivity(),
         ]);
     }
 

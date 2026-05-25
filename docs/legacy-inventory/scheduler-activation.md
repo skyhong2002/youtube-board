@@ -12,6 +12,8 @@ This document defines how legacy ingestion parity can move from manual local smo
 - Allowlisted scheduled local polling uses each job's capped `scheduled_execute_command`, for example `youtube:channels:stats --execute --limit=1`.
 - Manual pipeline smokes use the individual command-level `--execute` flags, not the scheduler runner.
 - Manual execute commands must remain local-only, limited, idempotent, and explicit.
+- `/ops/ingestion` now separates web request gates from external scheduler activity. The web request may correctly show `scheduler disabled` / `local polling disabled` because those env flags are not permanently enabled for normal HTTP traffic. A Dokploy scheduled task can still inject the scheduler/polling env flags only for its one-shot CLI process; the dashboard detects that separately from recent `ingestion:run --execute --record` JSON run files.
+- External scheduler activity is considered active when the latest artisan execute run-history record is no more than three minutes old. If no recent external record exists, the dashboard reports `external scheduler not observed` and lists likely causes without reading secrets, calling Dokploy, or SSHing production.
 
 ## Activation Levels
 
@@ -98,6 +100,7 @@ Current behavior:
 - Individual execute commands catch API/config/runtime errors and return non-zero sanitized output.
 - Manual writes are transactional or idempotent, so re-running a failed smoke is the recovery path.
 - `ingestion:run --record` writes local JSON history for scheduler and one-shot runs.
+- `/ops/ingestion` uses the same JSON history to show external scheduler liveness. It only treats records with `request.source=artisan`, `request.mode=execute`, and `result.mode=execute` as external scheduler evidence, so web one-shot runs do not mask a paused Dokploy schedule.
 
 Required before scheduled write polling:
 
