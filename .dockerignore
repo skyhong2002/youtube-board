@@ -4,6 +4,8 @@
 node_modules
 public/build
 storage/logs/*
+storage/app/db-dumps/*
+storage/app/private/ingestion-runs/*
 storage/framework/cache/data/*
 storage/framework/sessions/*
 storage/framework/views/*
