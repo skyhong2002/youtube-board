@@ -189,7 +189,7 @@ class ReadOnlyAiHourlyCommandTest extends TestCase
         $this->seedDefaultFixtures();
         config()->set('services.opencode_go.api_key', 'test-key');
         config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
-        config()->set('services.opencode_go.model', 'qwen3.6-plus');
+        config()->set('services.opencode_go.model', 'minimax-m2.7');
         config()->set('services.opencode_go.endpoint_style', 'auto');
 
         Http::fake([
@@ -215,18 +215,18 @@ class ReadOnlyAiHourlyCommandTest extends TestCase
         $payload = json_decode(trim(Artisan::output()), true);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame('qwen3.6-plus', $payload['model']);
+        $this->assertSame('minimax-m2.7', $payload['model']);
         $this->assertTrue($payload['inserted']);
         $this->assertDatabaseHas('urt_ai_hour', [
             'date_from' => '2026-05-25 09:00:00',
             'date_to' => '2026-05-25 09:59:59',
             'condition_type' => 'blue',
-            'ai_type' => 'qwen3.6-plus',
+            'ai_type' => 'minimax-m2.7',
             'result_json' => '[{"事件":"messages endpoint","videoId":["blue-video"]}]',
         ]);
         Http::assertSent(function ($request): bool {
             return (string) $request->url() === 'https://opencode.test/v1/messages'
-                && $request['model'] === 'qwen3.6-plus'
+                && $request['model'] === 'minimax-m2.7'
                 && str_contains($request['messages'][0]['content'], 'blue-video');
         });
     }

@@ -97,10 +97,8 @@ class OpenCodeChatClient
         }
 
         return in_array($model, [
-            'qwen3.6-plus',
-            'qwen3.5-plus',
-            'minimax-m2.7',
             'minimax-m2.5',
+            'minimax-m2.7',
         ], true);
     }
 
