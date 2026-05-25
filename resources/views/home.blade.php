@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>所有分類列表 - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; }
+@extends('layouts.report')
+
+@section('title')
+所有分類列表
+@endsection
+
+@section('meta')
+{{ count($rows) }} 筆 · sort={{ $sort }} · {{ $generatedAt }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -39,24 +44,11 @@
                 .meta { margin-top: 8px; white-space: normal; }
                 .summary { grid-template-columns: 1fr; }
             }
-        </style>
-    </head>
-    <body>
-        <main>
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('keywords.index') }}">關鍵字</a>
-                        <a href="{{ route('live.current') }}">直播排行</a>
-                        <a href="{{ route('live.continuous') }}">帶狀直播</a>
-                    </nav>
-                    <h1>所有分類列表</h1>
-                </div>
-                <div class="meta">{{ count($rows) }} 筆 · sort={{ $sort }} · {{ $generatedAt }}</div>
-            </header>
+</style>
+@endpush
 
-            <div class="actions" aria-label="常用報表">
+@section('content')
+<div class="actions" aria-label="常用報表">
                 <a class="action primary" href="{{ route('live.current', ['or' => '1,2,12,13,14,81']) }}">直播排行榜</a>
                 <a class="action" href="{{ route('keywords.index') }}">關鍵字</a>
                 <a class="action" href="{{ route('tags.channels', ['tagId' => 1, 'not' => '2,9,10,12,13,33,36,81']) }}">個人社論</a>
@@ -123,6 +115,4 @@
                     </tbody>
                 </table>
             </div>
-        </main>
-    </body>
-</html>
+@endsection

@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $title }} - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; }
+@extends('layouts.report')
+
+@section('title')
+{{ $title }}
+@endsection
+
+@section('meta')
+{{ $period['from'] }} - {{ $period['to'] }} · {{ $generated_at }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -28,26 +33,11 @@
             .number { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
             .empty { padding: 28px; color: var(--muted); text-align: center; border: 1px solid var(--line); background: var(--surface); }
             @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; white-space: normal; } .video { grid-template-columns: 72px 1fr; } .video img { width: 72px; } .number { grid-column: 2; text-align: left; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        @if ($channel)
-                            <a href="{{ route('channels.show', ['u_id' => $channel['u_id']]) }}">頻道基本資料</a>
-                            <a href="{{ route('channels.videos', ['u_id' => $channel['u_id']]) }}">頻道影片</a>
-                            <a href="{{ route('channels.ai.days', ['u_id' => $channel['u_id']]) }}">每日重點</a>
-                        @endif
-                    </nav>
-                    <h1>{{ $title }}</h1>
-                </div>
-                <div class="meta">{{ $period['from'] }} - {{ $period['to'] }} · {{ $generated_at }}</div>
-            </header>
+</style>
+@endpush
 
-            @if ($channel)
+@section('content')
+@if ($channel)
                 <nav class="switcher" aria-label="日期">
                     <a href="{{ route('channels.prompt', ['u_id' => $channel['u_id'], 'date' => $period['previous']] + request()->except('date', 'from', 'to')) }}">{{ $period['previous'] }}</a>
                     <a class="active" href="{{ route('channels.prompt', ['u_id' => $channel['u_id'], 'date' => substr($period['from'], 0, 10)] + request()->except('date', 'from', 'to')) }}">{{ $period['date'] }}</a>
@@ -81,6 +71,4 @@
                     </article>
                 @endforeach
             @endif
-        </main>
-    </body>
-</html>
+@endsection

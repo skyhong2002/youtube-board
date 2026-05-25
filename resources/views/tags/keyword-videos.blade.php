@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $title }} - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0b5cad; --accent-bg: #e6f4f1; --ok: #0f766e; --warn: #b54708; --warn-bg: #fff8e6; --blocked: #b42318; --blocked-bg: #fee4e2; }
+@extends('layouts.report')
+
+@section('title')
+{{ $title }}
+@endsection
+
+@section('meta')
+{{ $keyword }} {{ $section_title }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0b5cad; --accent-bg: #e6f4f1; --ok: #0f766e; --warn: #b54708; --warn-bg: #fff8e6; --blocked: #b42318; --blocked-bg: #fee4e2; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: var(--accent); text-decoration: none; }
@@ -37,11 +42,13 @@
             .badge.present { border-color: #8ccfbe; background: var(--accent-bg); color: var(--ok); }
             code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
             @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; white-space: normal; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            @php
+</style>
+@endpush
+
+@section('content')
+<div class="meta">{{ count($rows) }} 筆 · cache {{ $cache_rows }} rows · {{ $generated_at }}</div>
+
+@php
                 $query = request()->query();
                 unset($query['hours'], $query['days']);
                 $periods = [
@@ -51,19 +58,7 @@
                 ];
             @endphp
 
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('keywords.index') }}">關鍵字</a>
-                        <a href="{{ route('keywords.days', ['keyword' => $keyword]) }}">逐日排行</a>
-                        <a href="{{ route('keywords.cloud', ['keyword' => $keyword]) }}">文字雲</a>
-                    </nav>
-                    <h1>{{ $title }}</h1>
-                    <div class="meta">{{ $keyword }} {{ $section_title }}</div>
-                </div>
-                <div class="meta">{{ count($rows) }} 筆 · cache {{ $cache_rows }} rows · {{ $generated_at }}</div>
-            </header>
+
 
             <nav class="subnav" aria-label="時間範圍">
                 @foreach ($periods as $period)
@@ -154,6 +149,4 @@
 
                 <p class="meta">Legacy source: {{ $legacy_file }}; writes=0</p>
             @endif
-        </main>
-    </body>
-</html>
+@endsection

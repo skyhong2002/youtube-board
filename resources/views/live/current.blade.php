@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>目前直播排行 - YouTube Board</title>
-        <style>
-            :root {
+@extends('layouts.report')
+
+@section('title')
+目前直播排行
+@endsection
+
+@section('meta')
+{{ count($rows) }} 筆 · {{ $generatedAt }}
+@endsection
+
+@push('styles')
+<style>
+:root {
                 color-scheme: light;
                 --bg: #f7f8fa;
                 --surface: #ffffff;
@@ -184,25 +189,11 @@
                     white-space: normal;
                 }
             }
-        </style>
-    </head>
-    <body>
-        <main>
-            <header>
-                <div>
-                    <nav>
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('live.periods') }}">期間直播排行</a>
-                        <a href="{{ route('live.channels') }}">直播頻道排行</a>
-                        <a href="{{ route('live.hours') }}">小時熱度</a>
-                        <a href="{{ route('live.trends.daily') }}">直播趨勢</a>
-                    </nav>
-                    <h1>目前直播排行</h1>
-                </div>
-                <div class="meta">{{ count($rows) }} 筆 · {{ $generatedAt }}</div>
-            </header>
+</style>
+@endpush
 
-            @if ($filters !== [])
+@section('content')
+@if ($filters !== [])
                 <ul class="filters" aria-label="Legacy filters">
                     @foreach ($filters as $name => $value)
                         <li>{{ $name }}={{ is_array($value) ? implode(',', $value) : $value }}</li>
@@ -263,6 +254,4 @@
                     </tbody>
                 </table>
             </div>
-        </main>
-    </body>
-</html>
+@endsection

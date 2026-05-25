@@ -1,11 +1,12 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $video['title'] ?? $videoId }} - 直播趨勢 - YouTube Board</title>
-        <style>
-            :root {
+@extends('layouts.report')
+
+@section('title')
+{{ $video['title'] ?? $videoId }}
+@endsection
+
+@push('styles')
+<style>
+:root {
                 color-scheme: light;
                 --bg: #f7f8fa;
                 --surface: #ffffff;
@@ -43,27 +44,11 @@
                 header, .summary { display: block; }
                 .summary img { margin-bottom: 12px; }
             }
-        </style>
-    </head>
-    <body>
-        <main>
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('live.current') }}">目前直播排行</a>
-                        <a href="{{ route('live.continuous') }}">帶狀直播排行</a>
-                        <a href="{{ route('live.days.index') }}">單日直播排行</a>
-                        <a href="{{ route('live.periods') }}">期間直播排行</a>
-                        <a href="{{ route('live.channels') }}">直播頻道排行</a>
-                        <a href="{{ route('live.hours') }}">小時熱度</a>
-                    </nav>
-                    <h1>{{ $video['title'] ?? $videoId }}</h1>
-                    <div class="muted">直播趨勢 · {{ $generatedAt }}</div>
-                </div>
-            </header>
+</style>
+@endpush
 
-            @if ($video)
+@section('content')
+@if ($video)
                 <section class="summary">
                     <a href="{{ $video['youtube_url'] }}" rel="noreferrer">
                         <img src="{{ $video['thumbnail'] }}" alt="">
@@ -143,6 +128,4 @@
                     @endforelse
                 </tbody>
             </table>
-        </main>
-    </body>
-</html>
+@endsection

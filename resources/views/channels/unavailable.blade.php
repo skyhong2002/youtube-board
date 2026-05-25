@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $channel['title'] ?? 'Channel' }} {{ $section['title'] }} - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --warn: #b54708; --warn-bg: #fff8e6; --chip: #f2f4f7; --blocked: #b42318; --blocked-bg: #fee4e2; --ok: #0f766e; --ok-bg: #e6f4f1; }
+@extends('layouts.report')
+
+@section('title')
+{{ $section['title'] }}
+@endsection
+
+@section('meta')
+{{ $generated_at }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --warn: #b54708; --warn-bg: #fff8e6; --chip: #f2f4f7; --blocked: #b42318; --blocked-bg: #fee4e2; --ok: #0f766e; --ok-bg: #e6f4f1; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -27,25 +32,11 @@
             .channel { display: flex; align-items: center; gap: 12px; }
             .channel img { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; border: 1px solid var(--line); }
             @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; text-align: left; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        @if ($channel)
-                            <a href="{{ route('channels.show', ['u_id' => $channel['u_id']]) }}">頻道基本資料</a>
-                            <a href="{{ route('channels.videos', ['u_id' => $channel['u_id']]) }}">頻道影片</a>
-                        @endif
-                    </nav>
-                    <h1>{{ $section['title'] }}</h1>
-                </div>
-                <div class="meta">{{ $generated_at }}</div>
-            </header>
+</style>
+@endpush
 
-            @if ($channel)
+@section('content')
+@if ($channel)
                 <div class="channel">
                     @if ($channel['thumbnail'])
                         <img src="{{ $channel['thumbnail'] }}" alt="{{ $channel['title'] }}">
@@ -88,6 +79,4 @@
                 </table>
                 <p class="meta">Legacy source: {{ $section['legacy_file'] }}</p>
             </section>
-        </main>
-    </body>
-</html>
+@endsection

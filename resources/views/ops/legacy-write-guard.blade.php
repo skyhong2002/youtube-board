@@ -1,11 +1,12 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Read-only guard - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --blocked: #b42318; --blocked-bg: #fee4e2; }
+@extends('layouts.report')
+
+@section('title')
+Read-only guard
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --blocked: #b42318; --blocked-bg: #fee4e2; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -24,17 +25,11 @@
             ul { margin: 0; padding-left: 18px; }
             .muted { color: var(--muted); }
             @media (max-width: 720px) { main { padding: 16px; } dl { grid-template-columns: 1fr; } dt { border-bottom: 0; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            <nav class="nav">
-                <a href="{{ route('home') }}">YouTube Board</a>
-                <a href="{{ route('ops.ingestion') }}">Ingestion Scheduler</a>
-            </nav>
+</style>
+@endpush
 
-            <h1>Legacy Writeback Disabled</h1>
-            <div class="panel blocked">{{ $blocked_reason }}</div>
+@section('content')
+<div class="panel blocked">{{ $blocked_reason }}</div>
 
             <dl>
                 <dt>Legacy endpoint</dt>
@@ -66,6 +61,4 @@
             @endif
 
             <p class="muted">This compatibility endpoint exists to make legacy forms and admin links fail safely while the Laravel rebuild remains read-only.</p>
-        </main>
-    </body>
-</html>
+@endsection

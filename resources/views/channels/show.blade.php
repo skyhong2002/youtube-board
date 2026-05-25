@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $channel['title'] ?? $uId }} 基本資料 - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; }
+@extends('layouts.report')
+
+@section('title')
+{{ $channel['title'] ?? 'Unknown channel' }}
+@endsection
+
+@section('meta')
+頻道基本資料 · {{ $generatedAt }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -38,23 +43,11 @@
                 .profile img { margin-bottom: 12px; }
                 .stats { grid-template-columns: repeat(2, minmax(130px, 1fr)); }
             }
-        </style>
-    </head>
-    <body>
-        <main>
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('live.current') }}">直播排行</a>
-                        <a href="{{ route('channels.videos', ['u_id' => $uId]) }}">影片</a>
-                    </nav>
-                    <h1>{{ $channel['title'] ?? 'Unknown channel' }}</h1>
-                    <div class="meta">頻道基本資料 · {{ $generatedAt }}</div>
-                </div>
-            </header>
+</style>
+@endpush
 
-            @if (! $channel)
+@section('content')
+@if (! $channel)
                 <div class="empty">{{ $dataAvailable ? '找不到此頻道。' : '本機尚未匯入 legacy channel tables。' }}</div>
             @else
                 <section class="profile">
@@ -175,6 +168,4 @@
                     </section>
                 @endif
             @endif
-        </main>
-    </body>
-</html>
+@endsection

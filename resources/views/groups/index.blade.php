@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $title }} - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --ok: #0f766e; --ok-bg: #e6f4f1; }
+@extends('layouts.report')
+
+@section('title')
+{{ $title }}
+@endsection
+
+@section('meta')
+{{ $generated_at }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --ok: #0f766e; --ok-bg: #e6f4f1; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -23,23 +28,11 @@
             td.number { text-align: right; white-space: nowrap; }
             .empty { padding: 28px; color: var(--muted); text-align: center; border: 1px solid var(--line); background: var(--surface); }
             @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; text-align: left; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('tags.index') }}">頻道標籤列表</a>
-                        <a href="{{ route('keywords.index') }}">關鍵字</a>
-                    </nav>
-                    <h1>{{ $title }}</h1>
-                </div>
-                <div class="meta">{{ $generated_at }}</div>
-            </header>
+</style>
+@endpush
 
-            <section class="stats" aria-label="Group stats">
+@section('content')
+<section class="stats" aria-label="Group stats">
                 <div class="stat">groups {{ number_format(count($groups)) }}</div>
                 @foreach ($dependencies as $dependency)
                     <div class="stat">{{ $dependency['table'] }} {{ $dependency['rows'] === null ? '-' : number_format($dependency['rows']) }}</div>
@@ -71,6 +64,4 @@
                     </tbody>
                 </table>
             @endif
-        </main>
-    </body>
-</html>
+@endsection

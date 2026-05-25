@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $title }} 影片牆 - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; --chip: #f2f4f7; --warn: #b54708; --warn-bg: #fff8e6; }
+@extends('layouts.report')
+
+@section('title')
+{{ $title }} 影片牆
+@endsection
+
+@section('meta')
+aipk={{ $aipk }} · {{ count($videos) }} videos · {{ $generated_at }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; --chip: #f2f4f7; --warn: #b54708; --warn-bg: #fff8e6; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -30,23 +35,11 @@
             .notice { border-color: #f7d58b; border-radius: 6px; background: var(--warn-bg); color: var(--warn); }
             @media (max-width: 1000px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
             @media (max-width: 620px) { main { padding: 16px; } header { display: block; } .grid { grid-template-columns: 1fr; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('ai.days.index') }}">每日主要事件</a>
-                        @if ($date)<a href="{{ route('ai.days.date', ['date' => $date]) }}">{{ $date }}</a>@endif
-                    </nav>
-                    <h1>{{ $title }} 影片牆</h1>
-                </div>
-                <div class="meta">aipk={{ $aipk }} · {{ count($videos) }} videos · {{ $generated_at }}</div>
-            </header>
+</style>
+@endpush
 
-            <nav class="tabs" aria-label="事件頁面">
+@section('content')
+<nav class="tabs" aria-label="事件頁面">
                 <a href="{{ route('ai.events.show', ['id' => $aipk, 'event' => $event]) }}">事件分析</a>
                 <a href="{{ route('ai.events.people', ['id' => $aipk, 'event' => $event]) }}">人物觀點</a>
                 <a class="active" href="{{ route('ai.events.wall', ['id' => $aipk, 'event' => $event]) }}">影片牆</a>
@@ -74,6 +67,4 @@
             @else
                 <div class="empty">目前沒有可從 event JSON 擷取的影片。</div>
             @endif
-        </main>
-    </body>
-</html>
+@endsection

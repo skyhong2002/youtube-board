@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $title }} - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; --warn: #b54708; --warn-bg: #fff8e6; }
+@extends('layouts.report')
+
+@section('title')
+{{ $title }}
+@endsection
+
+@section('meta')
+{{ $type_name }} · {{ $range['from'] }} - {{ $range['to'] }} · cache rows {{ number_format($cache_rows) }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; --warn: #b54708; --warn-bg: #fff8e6; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -35,11 +40,11 @@
             .number { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
             .empty { padding: 28px; color: var(--muted); text-align: center; border: 1px solid var(--line); background: var(--surface); }
             @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; white-space: normal; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            @php
+</style>
+@endpush
+
+@section('content')
+@php
                 $chartWidth = 940;
                 $chartHeight = 320;
                 $padLeft = 64;
@@ -63,18 +68,7 @@
                 $typeOptions = ['views' => '直播觀看數', 'videos' => '直播影片數'];
             @endphp
 
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('keywords.index') }}">關鍵字</a>
-                        <a href="{{ route('tags.compare', ['tags' => $keyword]) }}">關鍵字趨勢</a>
-                        <a href="{{ route('live.tags') }}">直播標籤</a>
-                    </nav>
-                    <h1>{{ $title }}</h1>
-                </div>
-                <div class="meta">{{ $type_name }} · {{ $range['from'] }} - {{ $range['to'] }} · cache rows {{ number_format($cache_rows) }}</div>
-            </header>
+
 
             <nav class="switcher" aria-label="日期範圍">
                 @foreach ([7 => '一週', 10 => '十天', 30 => '一個月', 60 => '兩個月'] as $days => $label)
@@ -169,6 +163,4 @@
                     </tbody>
                 </table>
             </div>
-        </main>
-    </body>
-</html>
+@endsection

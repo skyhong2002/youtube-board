@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $title }} - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; }
+@extends('layouts.report')
+
+@section('title')
+{{ $title }}
+@endsection
+
+@section('meta')
+{{ $generated_at }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -23,24 +28,11 @@
             .frame { width: 100%; aspect-ratio: 16 / 9; background: #111827; }
             iframe { display: block; width: 100%; height: 100%; border: 0; }
             @media (max-width: 860px) { main { padding: 14px; } header { display: block; } .meta { margin-top: 8px; white-space: normal; } .wall { grid-template-columns: 1fr; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('live.current') }}">直播排行</a>
-                        <a href="{{ route('live.wall', ['variant' => 'news']) }}">四窗直播</a>
-                        <a href="{{ route('live.wall', ['variant' => 'china']) }}">中國四窗</a>
-                    </nav>
-                    <h1>{{ $title }}</h1>
-                </div>
-                <div class="meta">{{ $generated_at }}</div>
-            </header>
+</style>
+@endpush
 
-            @if ($tabs !== [])
+@section('content')
+@if ($tabs !== [])
                 <nav class="tabs" aria-label="四窗類型">
                     @foreach ($tabs as $tabType => $label)
                         <a class="{{ $type === $tabType ? 'active' : '' }}" href="{{ route('live.wall', ['variant' => 'news', 'type' => $tabType]) }}">{{ $label }}</a>
@@ -61,6 +53,4 @@
                     </article>
                 @endforeach
             </section>
-        </main>
-    </body>
-</html>
+@endsection

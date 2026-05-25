@@ -1,11 +1,22 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Ingestion Scheduler - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; --warn: #b54708; --warn-bg: #fff8e6; --blocked: #b42318; --blocked-bg: #fee4e2; }
+@extends('layouts.report')
+
+@section('title')
+Ingestion Scheduler
+@endsection
+
+@section('meta')
+Web request gates
+                    <span class="badge {{ $summary['scheduler_enabled'] ? 'active' : 'disabled' }}">
+                        {{ $summary['scheduler_enabled'] ? 'scheduler enabled' : 'scheduler disabled' }}
+                    </span>
+                    <span class="badge {{ $summary['local_polling_enabled'] ? 'active' : 'disabled' }}">
+                        {{ $summary['local_polling_enabled'] ? 'local polling enabled' : 'local polling disabled' }}
+                    </span>
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; --warn: #b54708; --warn-bg: #fff8e6; --blocked: #b42318; --blocked-bg: #fee4e2; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -47,32 +58,11 @@
             .writes span { display: inline-flex; padding: 2px 6px; border-radius: 5px; background: #f2f4f7; color: #344054; font-size: 12px; }
             @media (max-width: 900px) { form.run-form { grid-template-columns: 1fr; } }
             @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; white-space: normal; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('live.current') }}">直播排行</a>
-                        <a href="{{ route('live.channels') }}">直播頻道排行</a>
-                        <a href="{{ route('live.hours') }}">小時熱度</a>
-                    </nav>
-                    <h1>Ingestion Scheduler</h1>
-                </div>
-                <div class="meta">
-                    Web request gates
-                    <span class="badge {{ $summary['scheduler_enabled'] ? 'active' : 'disabled' }}">
-                        {{ $summary['scheduler_enabled'] ? 'scheduler enabled' : 'scheduler disabled' }}
-                    </span>
-                    <span class="badge {{ $summary['local_polling_enabled'] ? 'active' : 'disabled' }}">
-                        {{ $summary['local_polling_enabled'] ? 'local polling enabled' : 'local polling disabled' }}
-                    </span>
-                </div>
-            </header>
+</style>
+@endpush
 
-            <section class="status-grid" aria-label="Scheduler status">
+@section('content')
+<section class="status-grid" aria-label="Scheduler status">
                 <div class="panel">
                     <h2>Web Request Gates</h2>
                     <div class="status-line">
@@ -274,6 +264,4 @@
                     </table>
                 </div>
             @endforeach
-        </main>
-    </body>
-</html>
+@endsection

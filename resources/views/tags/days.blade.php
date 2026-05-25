@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $title }} - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; }
+@extends('layouts.report')
+
+@section('title')
+{{ $title }}
+@endsection
+
+@section('meta')
+{{ $range['from'] }} - {{ $range['to'] }} · {{ $generated_at }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -30,11 +35,11 @@
             .value { color: var(--muted); font-size: 12px; margin-top: 2px; }
             .table-wrap { overflow-x: auto; border-radius: 8px; }
             @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; white-space: normal; } th, td { padding: 7px; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            @php
+</style>
+@endpush
+
+@section('content')
+@php
                 $query = request()->query();
                 $typeQuery = $query;
                 unset($typeQuery['type']);
@@ -46,17 +51,7 @@
                     : (($filters['tagid'] ?? null) ? ['tagId' => (int) explode(',', (string) $filters['tagid'])[0]] : []);
             @endphp
 
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('keywords.index') }}">關鍵字</a>
-                        <a href="{{ route('tags.index') }}">頻道標籤列表</a>
-                    </nav>
-                    <h1>{{ $title }}</h1>
-                </div>
-                <div class="meta">{{ $range['from'] }} - {{ $range['to'] }} · {{ $generated_at }}</div>
-            </header>
+
 
             <nav class="switcher" aria-label="天數">
                 @foreach ([1 => '一天', 3 => '三天', 7 => '一週', 10 => '十天'] as $days => $label)
@@ -157,6 +152,4 @@
                     </table>
                 </div>
             @endif
-        </main>
-    </body>
-</html>
+@endsection

@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $subject }} {{ $section['title'] }} - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --warn: #b54708; --warn-bg: #fff8e6; --blocked: #b42318; --blocked-bg: #fee4e2; --ok: #0f766e; --ok-bg: #e6f4f1; }
+@extends('layouts.report')
+
+@section('title')
+{{ $subject }} {{ $section['title'] }}
+@endsection
+
+@section('meta')
+{{ $generated_at }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --warn: #b54708; --warn-bg: #fff8e6; --blocked: #b42318; --blocked-bg: #fee4e2; --ok: #0f766e; --ok-bg: #e6f4f1; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -27,23 +32,11 @@
             th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; }
             th { background: #eef2f6; color: #344054; font-size: 12px; }
             @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; text-align: left; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('tags.index') }}">頻道標籤列表</a>
-                        <a href="{{ route('keywords.index') }}">關鍵字</a>
-                    </nav>
-                    <h1>{{ $subject }} {{ $section['title'] }}</h1>
-                </div>
-                <div class="meta">{{ $generated_at }}</div>
-            </header>
+</style>
+@endpush
 
-            <nav class="tabs" aria-label="Tag unavailable subpages">
+@section('content')
+<nav class="tabs" aria-label="Tag unavailable subpages">
                 <a class="{{ $section['key'] === 'comments' ? 'active' : '' }}" href="{{ route('tags.comments.index', request()->query()) }}">近期留言</a>
                 <a class="{{ $section['key'] === 'tag-cloud' ? 'active' : '' }}" href="{{ route('tags.cloud.index', request()->query()) }}">標籤文字雲</a>
                 @if (isset($filters['tag']))
@@ -83,6 +76,4 @@
                 </table>
                 <p class="meta">Legacy source: {{ $section['legacy_file'] }}</p>
             </section>
-        </main>
-    </body>
-</html>
+@endsection

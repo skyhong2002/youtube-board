@@ -4,14 +4,15 @@
     $summary = $result['summary'] ?? [];
     $jobs = $result['jobs'] ?? [];
 @endphp
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $record['id'] ?? 'Run' }} - Ingestion Scheduler</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; --warn: #b54708; --warn-bg: #fff8e6; --blocked: #b42318; --blocked-bg: #fee4e2; }
+@extends('layouts.report')
+
+@section('title')
+{{ $record['id'] ?? 'Ingestion run' }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; --warn: #b54708; --warn-bg: #fff8e6; --blocked: #b42318; --blocked-bg: #fee4e2; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -38,25 +39,16 @@
             .muted { color: var(--muted); }
             .right { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
             @media (max-width: 720px) { main { padding: 16px; } header { display: block; } dl { grid-template-columns: 1fr; } dt { border-bottom: 0; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('ops.ingestion') }}">Ingestion Scheduler</a>
-                    </nav>
-                    <h1>{{ $record['id'] ?? 'Ingestion run' }}</h1>
-                </div>
-                <div class="summary">
+</style>
+@endpush
+
+@section('content')
+<div class="summary">
                     <span class="badge {{ ($result['mode'] ?? '') === 'execute' ? 'active' : 'dry-run' }}">{{ $result['mode'] ?? '-' }}</span>
                     <span class="badge {{ ($summary['failed'] ?? 0) > 0 ? 'failed' : 'executed' }}">failed={{ number_format((int) ($summary['failed'] ?? 0)) }}</span>
                 </div>
-            </header>
 
-            <dl>
+<dl>
                 <dt>Created</dt>
                 <dd>{{ $record['created_at'] ?? '-' }}</dd>
                 <dt>Evaluation time</dt>
@@ -119,6 +111,4 @@
                     </tbody>
                 </table>
             </div>
-        </main>
-    </body>
-</html>
+@endsection

@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>關鍵字列表 - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; }
+@extends('layouts.report')
+
+@section('title')
+關鍵字列表
+@endsection
+
+@section('meta')
+{{ count($rows) }} 筆 · sort={{ $sort }} · {{ $generatedAt }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -27,23 +32,11 @@
             .keyword { min-width: 220px; font-weight: 700; }
             .empty { padding: 28px; color: var(--muted); text-align: center; }
             @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; white-space: normal; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('tags.index') }}">頻道標籤列表</a>
-                        <a href="{{ route('live.current') }}">直播排行</a>
-                    </nav>
-                    <h1>關鍵字列表</h1>
-                </div>
-                <div class="meta">{{ count($rows) }} 筆 · sort={{ $sort }} · {{ $generatedAt }}</div>
-            </header>
+</style>
+@endpush
 
-            @unless ($cachedMetricsAvailable)
+@section('content')
+@unless ($cachedMetricsAvailable)
                 <p class="notice">本機 `urt_show_data.tags_all` 尚無快取，因此影片數、觀看數、成長欄位先以空值呈現。</p>
             @endunless
 
@@ -103,6 +96,4 @@
                     </tbody>
                 </table>
             </div>
-        </main>
-    </body>
-</html>
+@endsection

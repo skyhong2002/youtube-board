@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $video['title'] ?? $video_id }} - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; --warn: #b54708; --warn-bg: #fff8e6; }
+@extends('layouts.report')
+
+@section('title')
+{{ $video['title'] ?? $video_id }}
+@endsection
+
+@section('meta')
+影片基本資料 · {{ $generated_at }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; --warn: #b54708; --warn-bg: #fff8e6; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -34,25 +39,11 @@
             .number { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
             .empty { padding: 28px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); text-align: center; }
             @media (max-width: 720px) { main { padding: 16px; } header, .summary { display: block; } .summary img { width: 100%; margin-bottom: 12px; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('live.current') }}">直播排行</a>
-                        @if ($video && $video['u_id'] > 0)
-                            <a href="{{ route('channels.show', ['u_id' => $video['u_id']]) }}">頻道</a>
-                        @endif
-                    </nav>
-                    <h1>{{ $video['title'] ?? $video_id }}</h1>
-                    <div class="meta">影片基本資料 · {{ $generated_at }}</div>
-                </div>
-            </header>
+</style>
+@endpush
 
-            @if (! $available)
+@section('content')
+@if (! $available)
                 <p class="notice">本機尚未匯入影片相關 legacy tables。</p>
             @endif
 
@@ -122,6 +113,4 @@
             @else
                 <div class="empty">沒有 `urt_video_log` 資料；不會觸發 legacy 統計抓取。</div>
             @endif
-        </main>
-    </body>
-</html>
+@endsection

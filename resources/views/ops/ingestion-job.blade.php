@@ -4,14 +4,15 @@
     $scheduledWrite = $detail['scheduled_write'];
     $atForCommand = preg_replace('/ [^ ]+$/', '', $detail['at']);
 @endphp
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $job['key'] }} - Ingestion Scheduler</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; --warn: #b54708; --warn-bg: #fff8e6; --blocked: #b42318; --blocked-bg: #fee4e2; }
+@extends('layouts.report')
+
+@section('title')
+{{ $job['key'] }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; --warn: #b54708; --warn-bg: #fff8e6; --blocked: #b42318; --blocked-bg: #fee4e2; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -41,19 +42,11 @@
             .commands code { display: block; width: 100%; padding: 10px 12px; border: 1px solid var(--line); background: #111827; color: #f9fafb; }
             .schedule-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
             @media (max-width: 720px) { main { padding: 16px; } header { display: block; } dl { grid-template-columns: 1fr; } dt { border-bottom: 0; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('ops.ingestion') }}">Ingestion Scheduler</a>
-                    </nav>
-                    <h1>{{ $job['key'] }}</h1>
-                </div>
-                <div class="badges">
+</style>
+@endpush
+
+@section('content')
+<div class="badges">
                     <span class="badge {{ $summary['scheduler_enabled'] ? 'active' : 'disabled' }}">{{ $summary['scheduler_enabled'] ? 'scheduler enabled' : 'scheduler disabled' }}</span>
                     <span class="badge {{ $summary['local_polling_enabled'] ? 'active' : 'disabled' }}">{{ $summary['local_polling_enabled'] ? 'local polling enabled' : 'local polling disabled' }}</span>
                     <span class="badge {{ $job['status'] }}">{{ $job['status'] }}</span>
@@ -61,9 +54,8 @@
                     <span class="badge {{ $execution['read_only'] ? 'safe' : 'risky' }}">{{ $execution['risk_label'] }}</span>
                     <span class="badge {{ $detail['is_due_now'] ? 'active' : 'disabled' }}">{{ $detail['is_due_now'] ? 'due now' : 'not due now' }}</span>
                 </div>
-            </header>
 
-            @if ($invalidAt !== null)
+@if ($invalidAt !== null)
                 <div class="panel warning">Invalid <code>at</code> value ignored: <code>{{ $invalidAt }}</code></div>
             @endif
 
@@ -149,6 +141,4 @@
                     </section>
                 @endforeach
             </div>
-        </main>
-    </body>
-</html>
+@endsection

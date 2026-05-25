@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $title }} - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; --chip: #f2f4f7; --warn: #b54708; --warn-bg: #fff8e6; }
+@extends('layouts.report')
+
+@section('title')
+{{ $title }}
+@endsection
+
+@section('meta')
+{{ $rows_count }} rows · {{ $generated_at }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; --chip: #f2f4f7; --warn: #b54708; --warn-bg: #fff8e6; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -37,11 +42,11 @@
             .empty { padding: 28px; color: var(--muted); text-align: center; }
             .notice { margin: 0 0 16px; padding: 10px 12px; border: 1px solid #f7d58b; border-radius: 6px; background: var(--warn-bg); color: var(--warn); }
             @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; white-space: normal; } table { min-width: 900px; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            @php
+</style>
+@endpush
+
+@section('content')
+@php
                 $query = request()->query();
                 $dateForNav = $date ?: now('Asia/Taipei')->format('Y-m-d');
                 $prevDate = \Carbon\CarbonImmutable::parse($dateForNav, 'Asia/Taipei')->subDay()->format('Y-m-d');
@@ -50,18 +55,7 @@
                 unset($conditionQuery['condition']);
             @endphp
 
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('live.current') }}">直播排行</a>
-                        <a href="{{ route('ai.hours') }}">今日每小時</a>
-                        <a href="{{ route('ops.ingestion') }}">Ingestion</a>
-                    </nav>
-                    <h1>{{ $title }}</h1>
-                </div>
-                <div class="meta">{{ $rows_count }} rows · {{ $generated_at }}</div>
-            </header>
+
 
             <nav class="switcher" aria-label="日期">
                 <a href="{{ route('ai.hours', $query + ['date' => $prevDate]) }}">{{ $prevDate }}</a>
@@ -157,6 +151,4 @@
                     <div class="empty">{{ $available ? '目前沒有符合條件的每小時 AI 摘要。' : '本機尚未匯入 legacy AI hourly table。' }}</div>
                 </div>
             @endforelse
-        </main>
-    </body>
-</html>
+@endsection

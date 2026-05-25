@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $title }} - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; --warn: #b54708; --warn-bg: #fff8e6; --blocked: #b42318; --blocked-bg: #fee4e2; }
+@extends('layouts.report')
+
+@section('title')
+頻道留言
+@endsection
+
+@section('meta')
+{{ $generated_at }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; --warn: #b54708; --warn-bg: #fff8e6; --blocked: #b42318; --blocked-bg: #fee4e2; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -32,28 +37,11 @@
             .channel img { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; border: 1px solid var(--line); }
             .empty { padding: 24px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); text-align: center; }
             @media (max-width: 720px) { main { padding: 16px; } header { display: block; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        @if ($channel)
-                            <a href="{{ route('channels.show', ['u_id' => $channel['u_id']]) }}">頻道基本資料</a>
-                            <a href="{{ route('channels.videos', ['u_id' => $channel['u_id']]) }}">頻道影片</a>
-                            <a href="{{ route('channels.cloud', ['u_id' => $channel['u_id']]) }}">文字雲</a>
-                            <a href="{{ route('channels.trends', ['u_id' => $channel['u_id']]) }}">線圖</a>
-                        @endif
-                    </nav>
-                    <h1>頻道留言</h1>
-                    <div class="muted">{{ $title }}</div>
-                </div>
-                <div class="meta">{{ $generated_at }}</div>
-            </header>
+</style>
+@endpush
 
-            @if ($channel)
+@section('content')
+@if ($channel)
                 <div class="channel">
                     @if ($channel['thumbnail'] !== '')
                         <img src="{{ $channel['thumbnail'] }}" alt="{{ $channel['title'] }}">
@@ -175,6 +163,4 @@
             @else
                 <div class="empty">沒有可顯示的來源影片。</div>
             @endif
-        </main>
-    </body>
-</html>
+@endsection

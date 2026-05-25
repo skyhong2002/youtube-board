@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $title }} - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; --chip: #eef2f6; --warn: #b54708; --warn-bg: #fff8e6; }
+@extends('layouts.report')
+
+@section('title')
+{{ $title }}
+@endsection
+
+@section('meta')
+{{ $generated_at }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; --chip: #eef2f6; --warn: #b54708; --warn-bg: #fff8e6; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -33,26 +38,11 @@
             .score { background: var(--accent-bg); color: var(--accent); font-weight: 700; }
             .notice, .empty { margin: 0 0 14px; padding: 12px; border: 1px solid #f7d58b; border-radius: 6px; background: var(--warn-bg); color: var(--warn); }
             @media (max-width: 860px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; text-align: left; max-width: none; } .layout { grid-template-columns: 1fr; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        @if ($channel)
-                            <a href="{{ route('channels.show', ['u_id' => $channel['u_id']]) }}">頻道基本資料</a>
-                            <a href="{{ route('channels.videos', ['u_id' => $channel['u_id']]) }}">頻道影片</a>
-                            <a href="{{ route('channels.ai.days', ['u_id' => $channel['u_id']]) }}">每日重點</a>
-                        @endif
-                    </nav>
-                    <h1>{{ $title }}</h1>
-                </div>
-                <div class="meta">{{ $generated_at }}</div>
-            </header>
+</style>
+@endpush
 
-            @if ($channel)
+@section('content')
+@if ($channel)
                 <nav class="tabs" aria-label="頻道頁面">
                     <a href="{{ route('channels.show', ['u_id' => $channel['u_id']]) }}">基本資料</a>
                     <a href="{{ route('channels.ai.days', ['u_id' => $channel['u_id']]) }}">每日重點</a>
@@ -151,6 +141,4 @@
                     </ol>
                 </aside>
             </div>
-        </main>
-    </body>
-</html>
+@endsection

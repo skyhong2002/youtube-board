@@ -1,11 +1,12 @@
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Integration Check - YouTube Board</title>
-    <style>
-        body {
+@extends('layouts.report')
+
+@section('title')
+Integration Check
+@endsection
+
+@push('styles')
+<style>
+body {
             margin: 0;
             background: #f6f7f9;
             color: #18202a;
@@ -54,12 +55,11 @@
             color: #b42318;
             font-weight: 700;
         }
-    </style>
-</head>
-<body>
-    <main>
-        <h1>Integration Check</h1>
-        <dl>
+</style>
+@endpush
+
+@section('content')
+<dl>
             <dt>Service</dt>
             <dd>{{ $payload['service'] ?? 'unknown' }}</dd>
 
@@ -91,6 +91,4 @@
                 <dd>{{ $payload['error'] ?? 'Unknown error' }}</dd>
             @endif
         </dl>
-    </main>
-</body>
-</html>
+@endsection

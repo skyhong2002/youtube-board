@@ -23,14 +23,19 @@
             ->implode(' ');
     };
 @endphp
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $title }} - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --ok: #0f766e; --ok-bg: #e6f4f1; --warn: #b54708; --warn-bg: #fff8e6; }
+@extends('layouts.report')
+
+@section('title')
+{{ $title }}
+@endsection
+
+@section('meta')
+{{ $generated_at }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --ok: #0f766e; --ok-bg: #e6f4f1; --warn: #b54708; --warn-bg: #fff8e6; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -52,24 +57,11 @@
             svg { display: block; width: 180px; height: 42px; }
             polyline { fill: none; stroke: #0f766e; stroke-width: 2; }
             @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; text-align: left; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('groups.index') }}">Groups</a>
-                        <a href="{{ route('groups.show', ['groupName' => $tag_set['name']]) }}">Group tags</a>
-                        <a href="{{ route('live.groups.hours', ['group' => $comparison['name']]) }}">每小時直播矩陣</a>
-                    </nav>
-                    <h1>{{ $title }}</h1>
-                </div>
-                <div class="meta">{{ $generated_at }}</div>
-            </header>
+</style>
+@endpush
 
-            <section class="stats" aria-label="Group live stats">
+@section('content')
+<section class="stats" aria-label="Group live stats">
                 <div class="stat">{{ $from }} to {{ $to }}</div>
                 <div class="stat">{{ $metric['label'] }}</div>
                 <div class="stat">tag set {{ $tag_set['source_status'] }}</div>
@@ -118,6 +110,4 @@
                     </div>
                 @endforeach
             @endif
-        </main>
-    </body>
-</html>
+@endsection

@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>現在帶狀直播排行 - YouTube Board</title>
-        <style>
-            :root {
+@extends('layouts.report')
+
+@section('title')
+現在帶狀直播排行
+@endsection
+
+@section('meta')
+{{ count($rows) }} 筆 · {{ $period['from'] }} - {{ $period['to'] }} · {{ $generatedAt }}
+@endsection
+
+@push('styles')
+<style>
+:root {
                 color-scheme: light;
                 --bg: #f7f8fa;
                 --surface: #ffffff;
@@ -71,28 +76,11 @@
                 header { display: block; }
                 .meta { margin-top: 8px; white-space: normal; }
             }
-        </style>
-    </head>
-    <body>
-        <main>
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('live.current', request()->query()) }}">現在正直播排行</a>
-                        <a href="{{ route('live.continuous', request()->query()) }}">現在帶狀直播排行</a>
-                        <a href="{{ route('live.days.index', request()->query()) }}">單日直播排行</a>
-                        <a href="{{ route('live.periods', request()->query()) }}">期間直播排行</a>
-                        <a href="{{ route('live.channels', request()->query()) }}">直播頻道排行</a>
-                        <a href="{{ route('live.hours', request()->query()) }}">小時熱度</a>
-                        <a href="{{ route('live.trends.daily') }}">直播趨勢</a>
-                    </nav>
-                    <h1>現在帶狀直播排行</h1>
-                </div>
-                <div class="meta">{{ count($rows) }} 筆 · {{ $period['from'] }} - {{ $period['to'] }} · {{ $generatedAt }}</div>
-            </header>
+</style>
+@endpush
 
-            @if ($filters !== [])
+@section('content')
+@if ($filters !== [])
                 <ul class="filters" aria-label="Legacy filters">
                     @foreach ($filters as $name => $value)
                         <li>{{ $name }}={{ is_array($value) ? implode(',', $value) : $value }}</li>
@@ -149,6 +137,4 @@
                     </tbody>
                 </table>
             </div>
-        </main>
-    </body>
-</html>
+@endsection

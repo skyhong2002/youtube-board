@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $title }} - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --ok: #0f766e; --ok-bg: #e6f4f1; --warn: #b54708; --warn-bg: #fff8e6; }
+@extends('layouts.report')
+
+@section('title')
+{{ $group['label'] }}
+@endsection
+
+@section('meta')
+{{ $generated_at }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --ok: #0f766e; --ok-bg: #e6f4f1; --warn: #b54708; --warn-bg: #fff8e6; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -21,23 +26,11 @@
             .meta { color: var(--muted); text-align: right; }
             .empty { padding: 28px; color: var(--warn); text-align: center; border: 1px solid #f7d58b; background: var(--warn-bg); }
             @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; text-align: left; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('groups.index') }}">Groups</a>
-                        <a href="{{ route('tags.index') }}">頻道標籤列表</a>
-                    </nav>
-                    <h1>{{ $group['label'] }}</h1>
-                </div>
-                <div class="meta">{{ $generated_at }}</div>
-            </header>
+</style>
+@endpush
 
-            <section class="stats" aria-label="Group detail stats">
+@section('content')
+<section class="stats" aria-label="Group detail stats">
                 <div class="stat">tags {{ number_format(count($tags)) }}</div>
                 <div class="stat">{{ $group['source'] }}</div>
                 <div class="stat">read-only membership</div>
@@ -57,6 +50,4 @@
                     @endforeach
                 </section>
             @endif
-        </main>
-    </body>
-</html>
+@endsection

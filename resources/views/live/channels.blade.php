@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $title }} - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; }
+@extends('layouts.report')
+
+@section('title')
+{{ $title }}
+@endsection
+
+@section('meta')
+{{ count($rows) }} 筆 · {{ $period['from'] }} - {{ $period['to'] }} · {{ $generatedAt }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -36,11 +41,11 @@
             .subtle { color: var(--muted); font-size: 12px; }
             .empty { padding: 28px; color: var(--muted); text-align: center; }
             @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; white-space: normal; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            @php
+</style>
+@endpush
+
+@section('content')
+@php
                 $query = request()->query();
                 $periodQuery = $query;
                 unset($periodQuery['days'], $periodQuery['date'], $periodQuery['from'], $periodQuery['to']);
@@ -48,21 +53,7 @@
                 unset($dateQuery['days'], $dateQuery['from'], $dateQuery['to']);
             @endphp
 
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('live.current') }}">現在正直播排行</a>
-                        <a href="{{ route('live.continuous') }}">現在帶狀直播排行</a>
-                        <a href="{{ route('live.days.index') }}">單日直播排行</a>
-                        <a href="{{ route('live.periods') }}">期間直播排行</a>
-                        <a href="{{ route('live.hours') }}">小時熱度</a>
-                        <a href="{{ route('live.trends.daily') }}">直播趨勢</a>
-                    </nav>
-                    <h1>{{ $title }}</h1>
-                </div>
-                <div class="meta">{{ count($rows) }} 筆 · {{ $period['from'] }} - {{ $period['to'] }} · {{ $generatedAt }}</div>
-            </header>
+
 
             <nav class="switcher" aria-label="日期範圍">
                 @foreach ([7 => '一週', 30 => '一月', 90 => '一季'] as $days => $label)
@@ -133,6 +124,4 @@
                     </tbody>
                 </table>
             </div>
-        </main>
-    </body>
-</html>
+@endsection

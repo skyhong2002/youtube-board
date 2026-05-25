@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ ($author['display_name'] ?? $author_key) }} 的留言 - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; --warn: #b54708; --warn-bg: #fff8e6; --blocked: #b42318; --blocked-bg: #fee4e2; }
+@extends('layouts.report')
+
+@section('title')
+{{ ($author['display_name'] ?? $author_key) }} 的留言
+@endsection
+
+@section('meta')
+{{ $generated_at }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; --warn: #b54708; --warn-bg: #fff8e6; --blocked: #b42318; --blocked-bg: #fee4e2; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -34,23 +39,11 @@
             .comment-text { max-width: 560px; }
             .thumb { width: 96px; height: 72px; object-fit: cover; background: #eef2f6; }
             @media (max-width: 860px) { main { padding: 16px; } header { display: block; } .grid { grid-template-columns: 1fr; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('tags.comments.index') }}">標籤近期留言</a>
-                        <a href="{{ route('keywords.index') }}">關鍵字</a>
-                    </nav>
-                    <h1>{{ ($author['display_name'] ?? $author_key) }} 的留言</h1>
-                </div>
-                <div class="meta">{{ $generated_at }}</div>
-            </header>
+</style>
+@endpush
 
-            <ul class="filters" aria-label="Legacy filters">
+@section('content')
+<ul class="filters" aria-label="Legacy filters">
                 <li>lookup={{ $filters['lookup'] }}</li>
                 <li>hours={{ $filters['hours'] }}</li>
                 <li>limit={{ $filters['limit'] }}</li>
@@ -189,6 +182,4 @@
             @else
                 <div class="empty">沒有留言內容。</div>
             @endif
-        </main>
-    </body>
-</html>
+@endsection

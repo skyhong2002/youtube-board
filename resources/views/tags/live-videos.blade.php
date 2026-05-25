@@ -1,11 +1,22 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $title }} - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; }
+@extends('layouts.report')
+
+@section('title')
+{{ $title }}
+@endsection
+
+@section('meta')
+{{ count($rows) }} 筆 ·
+                    @if ($period['is_range'])
+                        {{ $period['from'] }} - {{ $period['to'] }}
+                    @else
+                        {{ $period['date'] }}
+                    @endif
+                    · {{ $generatedAt }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -33,11 +44,11 @@
             .trend { max-width: 180px; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
             .empty { padding: 28px; color: var(--muted); text-align: center; }
             @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; white-space: normal; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            @php
+</style>
+@endpush
+
+@section('content')
+@php
                 $baseParams = $filters;
                 unset($baseParams['date'], $baseParams['from'], $baseParams['to']);
                 $targetRoute = $tag['id'] > 0 ? 'tags.live.videos' : 'tags.live.videos.index';
@@ -45,27 +56,7 @@
                 $today = now('Asia/Taipei')->toDateString();
             @endphp
 
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('tags.index') }}">頻道標籤列表</a>
-                        <a href="{{ route('tags.channels', ['tagId' => $tag['id'] > 0 ? $tag['id'] : 1]) }}">排名</a>
-                        <a href="{{ $tag['id'] > 0 ? route('tags.videos', ['tagId' => $tag['id']]) : route('tags.videos.index') }}">影片</a>
-                        <a href="{{ route('live.current') }}">直播排行</a>
-                    </nav>
-                    <h1>{{ $title }}</h1>
-                </div>
-                <div class="meta">
-                    {{ count($rows) }} 筆 ·
-                    @if ($period['is_range'])
-                        {{ $period['from'] }} - {{ $period['to'] }}
-                    @else
-                        {{ $period['date'] }}
-                    @endif
-                    · {{ $generatedAt }}
-                </div>
-            </header>
+
 
             <nav class="range-nav" aria-label="時間範圍">
                 <a href="{{ route($targetRoute, $targetBase + $baseParams + ['date' => $today]) }}">一天</a>
@@ -124,6 +115,4 @@
                     </tbody>
                 </table>
             </div>
-        </main>
-    </body>
-</html>
+@endsection

@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $title }} - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; --chip: #f2f4f7; }
+@extends('layouts.report')
+
+@section('title')
+{{ $title }}
+@endsection
+
+@section('meta')
+{{ $period['type_name'] }} · {{ $period['from'] ?? '-' }} - {{ $period['to'] ?? '-' }} · {{ $generated_at }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; --chip: #f2f4f7; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -35,11 +40,11 @@
             .keyword { font-weight: 700; white-space: nowrap; }
             .empty { padding: 28px; color: var(--muted); text-align: center; border: 1px solid var(--line); background: var(--surface); }
             @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; white-space: normal; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            @php
+</style>
+@endpush
+
+@section('content')
+@php
                 $query = request()->query();
                 $periodQuery = $query;
                 unset($periodQuery['days'], $periodQuery['from'], $periodQuery['to']);
@@ -47,19 +52,7 @@
                 unset($typeQuery['type']);
             @endphp
 
-            <header>
-                <div>
-                    <nav class="nav">
-                        <a href="{{ route('home') }}">YouTube Board</a>
-                        <a href="{{ route('live.current') }}">現在正直播排行</a>
-                        <a href="{{ route('live.channels') }}">直播頻道排行</a>
-                        <a href="{{ route('live.trends.daily') }}">直播趨勢</a>
-                        <a href="{{ route('live.hours') }}">小時熱度</a>
-                    </nav>
-                    <h1>{{ $title }}</h1>
-                </div>
-                <div class="meta">{{ $period['type_name'] }} · {{ $period['from'] ?? '-' }} - {{ $period['to'] ?? '-' }} · {{ $generated_at }}</div>
-            </header>
+
 
             <nav class="switcher" aria-label="日期範圍">
                 @foreach ([1 => '一天', 3 => '三天', 7 => '一週', 10 => '十天'] as $days => $label)
@@ -125,6 +118,4 @@
                     </table>
                 </div>
             @endif
-        </main>
-    </body>
-</html>
+@endsection

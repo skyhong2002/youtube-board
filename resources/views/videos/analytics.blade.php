@@ -1,11 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $video['title'] ?? $video_id }} - 留言分析 - YouTube Board</title>
-        <style>
-            :root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --warn: #b54708; --warn-bg: #fff8e6; }
+@extends('layouts.report')
+
+@section('title')
+{{ $video['title'] ?? $video_id }} 留言分析
+@endsection
+
+@section('meta')
+{{ $generated_at }}
+@endsection
+
+@push('styles')
+<style>
+:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --warn: #b54708; --warn-bg: #fff8e6; }
             * { box-sizing: border-box; }
             body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
             a { color: #0b5cad; text-decoration: none; }
@@ -31,26 +36,11 @@
             .comment-text { max-width: 560px; }
             .empty { padding: 28px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); text-align: center; }
             @media (max-width: 860px) { main { padding: 16px; } .grid { grid-template-columns: 1fr; } }
-        </style>
-    </head>
-    <body>
-        <main>
-            <header>
-                <nav class="nav">
-                    <a href="{{ route('home') }}">YouTube Board</a>
-                    <a href="{{ route('videos.show', ['videoId' => $video_id]) }}">影片</a>
-                    @if ($live['log_rows'] > 0)
-                        <a href="{{ route('live.videos.trend', ['videoId' => $video_id]) }}">直播趨勢</a>
-                    @endif
-                    @if ($video && $video['u_id'] > 0)
-                        <a href="{{ route('channels.show', ['u_id' => $video['u_id']]) }}">頻道</a>
-                    @endif
-                </nav>
-                <h1>{{ $video['title'] ?? $video_id }} 留言分析</h1>
-                <div class="meta">{{ $generated_at }}</div>
-            </header>
+</style>
+@endpush
 
-            @if (! $available)
+@section('content')
+@if (! $available)
                 <p class="notice">本機尚未匯入影片分析相關 legacy tables。</p>
             @endif
 
@@ -160,6 +150,4 @@
             @else
                 <div class="empty">沒有留言文本。</div>
             @endif
-        </main>
-    </body>
-</html>
+@endsection
