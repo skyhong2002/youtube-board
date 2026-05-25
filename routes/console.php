@@ -31,6 +31,7 @@ use App\Services\Ingestion\MayorStaticReportsPreview;
 use App\Services\Ingestion\PeopleReportsPreview;
 use App\Services\Ingestion\ScheduleReportsPreview;
 use App\Services\Ingestion\StaticHtmlReportsPreview;
+use App\Services\Ingestion\TagsAllCacheBuilder;
 use App\Services\Ingestion\TvbsChannelVideosDiscoveryIngestion;
 use App\Services\Ingestion\TvbsChannelVideosDiscoveryPreview;
 use App\Services\Ingestion\TvbsLivePollingIngestion;
@@ -1394,6 +1395,64 @@ Artisan::command('reports:keywords:build {--limit=20 : Number of preview keyword
         return 1;
     }
 })->purpose('Read-only preview of legacy keyword JSON generation from local tags; skips external fetch and file writes');
+
+Artisan::command('reports:keywords:cache {--execute : Write the rebuilt tags_all cache to local DB} {--days=31 : Calendar-day window to aggregate, matching legacy tags_all.php} {--recent-days=7 : Recent window used for video/views metrics; legacy includes today plus this many previous days} {--keyword-limit=1000 : Number of ranked keywords to scan} {--video-limit= : Optional cap for smoke tests} {--json : Emit JSON instead of text}', function (TagsAllCacheBuilder $builder) {
+    $days = max(1, min(90, (int) $this->option('days')));
+    $recentDays = max(1, min($days, (int) $this->option('recent-days')));
+    $keywordLimit = max(1, min(10000, (int) $this->option('keyword-limit')));
+    $videoLimit = $this->option('video-limit') !== null ? max(1, (int) $this->option('video-limit')) : null;
+    $execute = (bool) $this->option('execute');
+
+    try {
+        $payload = $builder->build(
+            days: $days,
+            recentDays: $recentDays,
+            keywordLimit: $keywordLimit,
+            videoLimit: $videoLimit,
+            execute: $execute,
+        );
+
+        if ((bool) $this->option('json')) {
+            $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+            return 0;
+        }
+
+        $this->line(sprintf(
+            'reports:keywords:cache mode=%s days=%d recent_days=%d keyword_limit=%d videos_scanned=%d tags_with_metrics=%d writes=%d',
+            $payload['mode'],
+            $days,
+            $recentDays,
+            $keywordLimit,
+            $payload['videos_scanned'],
+            $payload['tags_with_metrics'],
+            $payload['writes'],
+        ));
+        $this->line('write_targets='.implode('; ', $payload['write_targets']));
+        $this->line(sprintf(
+            'source=local_db legacy=api/tags_all.php force=1 external_api=none categories=%s generated_at=%s',
+            implode(',', $payload['category_tags']),
+            $payload['generated_at'],
+        ));
+
+        foreach ($payload['sample'] as $tag => $metrics) {
+            $this->line(sprintf(
+                '%s video=%d views=%d video_all=%d views_all=%d',
+                $tag,
+                $metrics['video'],
+                $metrics['views'],
+                $metrics['video_all'],
+                $metrics['views_all'],
+            ));
+        }
+
+        return 0;
+    } catch (QueryException $exception) {
+        $this->error('reports:keywords:cache unavailable: '.$exception->getMessage());
+
+        return 1;
+    }
+})->purpose('Rebuild legacy urt_show_data.tags_all keyword metric cache from local videos; dry-run by default');
 
 Artisan::command('reports:people:build {--group=政治人物 : tag_group group_name to preview} {--tagid=13 : Legacy tagid filter passed to tag_period.php} {--days=37 : Legacy period length passed to tag_period.php} {--limit=20 : Number of people tags to print} {--json : Emit JSON instead of text}', function (PeopleReportsPreview $preview) {
     $groupName = trim((string) $this->option('group')) ?: '政治人物';
