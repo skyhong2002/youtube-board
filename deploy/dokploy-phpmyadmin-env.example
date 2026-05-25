@@ -1,4 +1,4 @@
-PMA_HOST=youtube-board-db
+PMA_HOST=your-dokploy-mariadb-internal-host
 PMA_PORT=3306
 PMA_USER=youtube_board
 PMA_PASSWORD=

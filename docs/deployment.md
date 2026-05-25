@@ -18,12 +18,14 @@ Expected database values:
 
 ```env
 DB_CONNECTION=mysql
-DB_HOST=youtube-board-db
+DB_HOST=<Dokploy MariaDB Internal Host>
 DB_PORT=3306
 DB_DATABASE=youtube_board
 DB_USERNAME=youtube_board
 DB_PASSWORD=<dokploy-secret>
 ```
+
+Use the MariaDB service's **General -> Internal Credentials -> Internal Host** value for `DB_HOST`. Dokploy may append a generated suffix to the app name; do not assume the internal host is the human service name.
 
 Keep `INGESTION_SCHEDULER_ENABLED=false` until the write-capable ingestion commands and backups are explicitly enabled.
 
@@ -39,7 +41,7 @@ The database service must have a persistent volume:
 
 ## phpMyAdmin Environment
 
-Use `deploy/dokploy-phpmyadmin-env.example` for phpMyAdmin. The `PMA_PASSWORD` value should match the application database user's password, not the root password.
+Use `deploy/dokploy-phpmyadmin-env.example` for phpMyAdmin. `PMA_HOST` must use the same Dokploy MariaDB internal host as Laravel. The `PMA_PASSWORD` value should match the application database user's password, not the root password.
 
 The phpMyAdmin service should be exposed only on a protected hostname such as:
 
