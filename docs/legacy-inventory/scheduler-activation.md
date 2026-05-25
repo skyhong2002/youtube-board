@@ -75,7 +75,7 @@ Before scheduled local polling, add per-job quota budgets and daily counters. A 
 - `playlistItems.list`: at most 1 channel and `maxResults=1` per scheduled run in the current capped scheduler command.
 - `videos.list`: at most 1 video per scheduled run in the current capped scheduler command.
 - `commentThreads.list`: at most 1 queued video and 1 page per scheduled run.
-- AI hourly: capped scheduler command `ai:hourly --execute --limit=20` exists, but it only runs when the scheduler, local/production polling flag, and allowlist gates are all enabled.
+- AI hourly: capped scheduler command `ai:hourly --execute --limit=20` exists, but it only runs when the scheduler, local/production polling flag, and allowlist gates are all enabled. `OPENAI_ENDPOINT_STYLE=auto` routes OpenCode Go Anthropic-style models such as `qwen3.6-plus` to `/messages`; chat-completions-compatible models remain on `/chat/completions`.
 
 ## Locks
 

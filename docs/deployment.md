@@ -34,6 +34,7 @@ INGESTION_SCHEDULER_ENABLED=true
 INGESTION_LOCAL_POLLING_ENABLED=true
 INGESTION_PRODUCTION_POLLING_ENABLED=true
 INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.channels.stats,ai.hourly
+OPENAI_ENDPOINT_STYLE=auto
 ```
 
 The scheduler service must run `php artisan schedule:run` every minute, or the equivalent Dokploy cron service must be enabled. Keep the allowlist narrow at first; each allowlisted job uses its capped `scheduled_execute_command`.

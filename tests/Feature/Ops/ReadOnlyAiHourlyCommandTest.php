@@ -182,6 +182,130 @@ class ReadOnlyAiHourlyCommandTest extends TestCase
         });
     }
 
+    public function test_ai_hourly_execute_supports_opencode_messages_endpoint_models(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDefaultFixtures();
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen3.6-plus');
+        config()->set('services.opencode_go.endpoint_style', 'auto');
+
+        Http::fake([
+            'https://opencode.test/v1/messages' => Http::response([
+                'content' => [
+                    [
+                        'type' => 'text',
+                        'text' => '[{"事件":"messages endpoint","videoId":["blue-video"]}]',
+                    ],
+                ],
+                'usage' => [
+                    'input_tokens' => 22,
+                    'output_tokens' => 11,
+                ],
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('ai:hourly', [
+            '--execute' => true,
+            '--condition' => 'blue',
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('qwen3.6-plus', $payload['model']);
+        $this->assertTrue($payload['inserted']);
+        $this->assertDatabaseHas('urt_ai_hour', [
+            'date_from' => '2026-05-25 09:00:00',
+            'date_to' => '2026-05-25 09:59:59',
+            'condition_type' => 'blue',
+            'ai_type' => 'qwen3.6-plus',
+            'result_json' => '[{"事件":"messages endpoint","videoId":["blue-video"]}]',
+        ]);
+        Http::assertSent(function ($request): bool {
+            return (string) $request->url() === 'https://opencode.test/v1/messages'
+                && $request['model'] === 'qwen3.6-plus'
+                && str_contains($request['messages'][0]['content'], 'blue-video');
+        });
+    }
+
+    public function test_ai_hourly_execute_accepts_chat_content_arrays_and_reasoning_fallback(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDefaultFixtures();
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'deepseek-v4-flash');
+
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::response([
+                'choices' => [
+                    [
+                        'message' => [
+                            'content' => [
+                                [
+                                    'type' => 'text',
+                                    'text' => '[{"事件":"array content","videoId":["blue-video"]}]',
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('ai:hourly', [
+            '--execute' => true,
+            '--condition' => 'blue',
+            '--json' => true,
+        ]);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertDatabaseHas('urt_ai_hour', [
+            'ai_type' => 'deepseek-v4-flash',
+            'result_json' => '[{"事件":"array content","videoId":["blue-video"]}]',
+        ]);
+
+    }
+
+    public function test_ai_hourly_execute_accepts_chat_reasoning_fallback(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDefaultFixtures();
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'deepseek-v4-pro');
+
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::response([
+                'choices' => [
+                    [
+                        'message' => [
+                            'content' => '',
+                            'reasoning_content' => '[{"事件":"reasoning fallback","videoId":["blue-video"]}]',
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('ai:hourly', [
+            '--execute' => true,
+            '--condition' => 'blue',
+            '--json' => true,
+        ]);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertDatabaseHas('urt_ai_hour', [
+            'ai_type' => 'deepseek-v4-pro',
+            'result_json' => '[{"事件":"reasoning fallback","videoId":["blue-video"]}]',
+        ]);
+    }
+
     public function test_ai_hourly_dry_run_does_not_call_opencode_or_write_by_default(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));

@@ -36,6 +36,7 @@ return [
         'base_url' => env('OPENAI_BASE_URL', 'https://opencode.ai/zen/go/v1'),
         'api_key' => env('OPENAI_API_KEY'),
         'model' => env('OPENAI_MODEL', 'qwen3.6-plus'),
+        'endpoint_style' => env('OPENAI_ENDPOINT_STYLE', 'auto'),
         'timeout' => (int) env('OPENAI_TIMEOUT', 180),
         'max_tokens' => (int) env('OPENAI_MAX_TOKENS', 1200),
     ],
