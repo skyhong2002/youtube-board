@@ -48,6 +48,23 @@ class DokployDeployWebhookTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_dokploy_deploy_relay_ignores_signed_non_push_events(): void
+    {
+        config()->set('services.dokploy.deploy_webhook_url', 'http://dokploy.example/api/deploy/token');
+        config()->set('services.dokploy.deploy_relay_secret', 'relay-secret');
+        Http::fake();
+
+        $payload = json_encode(['zen' => 'Keep it logically awesome.'], JSON_THROW_ON_ERROR);
+
+        $this->call('POST', '/ops/deploy/dokploy', [], [], [], [
+            'HTTP_X_GITHUB_EVENT' => 'ping',
+            'HTTP_X_HUB_SIGNATURE_256' => 'sha256='.hash_hmac('sha256', $payload, 'relay-secret'),
+            'CONTENT_TYPE' => 'application/json',
+        ], $payload)->assertAccepted();
+
+        Http::assertNothingSent();
+    }
+
     public function test_dokploy_deploy_relay_triggers_internal_webhook_for_signed_main_push(): void
     {
         config()->set('services.dokploy.deploy_webhook_url', 'http://dokploy.example/api/deploy/token');

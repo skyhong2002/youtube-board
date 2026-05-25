@@ -18,16 +18,16 @@ class DokployDeployWebhookController extends Controller
             abort(404);
         }
 
-        if ($request->header('X-GitHub-Event') !== 'push') {
-            return response()->json(['message' => 'ignored'], 202);
-        }
-
         $payload = $request->getContent();
         $expectedSignature = 'sha256='.hash_hmac('sha256', $payload, $secret);
         $actualSignature = (string) $request->header('X-Hub-Signature-256', '');
 
         if (! hash_equals($expectedSignature, $actualSignature)) {
             abort(403);
+        }
+
+        if ($request->header('X-GitHub-Event') !== 'push') {
+            return response()->json(['message' => 'ignored'], 202);
         }
 
         if ($request->input('ref') !== 'refs/heads/main') {
