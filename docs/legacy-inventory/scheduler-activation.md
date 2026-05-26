@@ -9,7 +9,7 @@ This document defines how legacy ingestion parity can move from manual local smo
 - `IngestionSchedulerRunner` still applies the registry execution profile before calling any command.
 - With only `INGESTION_SCHEDULER_ENABLED=true`, jobs still run their default dry-run/read-only command forms; command-level `--execute` is not passed automatically.
 - Scheduled local polling requires all three gates: `INGESTION_SCHEDULER_ENABLED=true`, `INGESTION_LOCAL_POLLING_ENABLED=true`, and the job key in `INGESTION_SCHEDULED_WRITE_ALLOWLIST`.
-- Allowlisted scheduled local polling uses each job's capped `scheduled_execute_command`, for example `youtube:channels:stats --execute --limit=1`.
+- Allowlisted scheduled local polling uses each job's capped `scheduled_execute_command`, for example `youtube:live:poll --execute --limit=50`.
 - Manual pipeline smokes use the individual command-level `--execute` flags, not the scheduler runner.
 - Manual execute commands must remain local-only, limited, idempotent, and explicit.
 - `/ops/ingestion` now separates web request gates from external scheduler activity. The web request may correctly show `scheduler disabled` / `local polling disabled` because those env flags are not permanently enabled for normal HTTP traffic. A Dokploy scheduled task can still inject the scheduler/polling env flags only for its one-shot CLI process; the dashboard detects that separately from recent `ingestion:run --execute --record` JSON run files.
@@ -43,6 +43,18 @@ Level `3` is implemented for local-only, allowlisted one-shot/scheduler executio
 
 Production polling remains blocked by default. In `APP_ENV=production`, `INGESTION_PRODUCTION_POLLING_ENABLED=true` is additionally required before scheduled write polling can run.
 
+For live/current production parity, enable only the live jobs first:
+
+```env
+INGESTION_SCHEDULER_ENABLED=true
+INGESTION_LOCAL_POLLING_ENABLED=true
+INGESTION_PRODUCTION_POLLING_ENABLED=true
+INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.live.poll,youtube.channels.videos.live,youtube.channels.videos.live_group,reports.live.build
+YOUTUBE_API_KEY=<youtube-data-api-key>
+```
+
+Those jobs map to `urt_video_live` / `urt_video_live_log` polling, live/upcoming video discovery into `urt_video` / `urt_video_schedule` / `urt_video_live`, and local display-cache upserts into `urt_show_video_live`. Legacy mutating PHP routes remain disabled; Laravel artisan commands own these writes.
+
 ## Command-Level Safety Rules
 
 Every write-capable command must keep these properties before it can be considered for scheduled polling:
@@ -74,8 +86,8 @@ Manual local smoke defaults should stay below these caps:
 Before scheduled local polling, add per-job quota budgets and daily counters. A safe first pass is:
 
 - `channels.list`: at most 1 channel per scheduled run in the current capped scheduler command.
-- `playlistItems.list`: at most 1 channel and `maxResults=1` per scheduled run in the current capped scheduler command.
-- `videos.list`: at most 1 video per scheduled run in the current capped scheduler command.
+- `playlistItems.list`: live discovery uses at most 3 channels and `maxResults=5` per scheduled run in the current capped scheduler commands.
+- `videos.list`: live polling uses at most 50 videos per scheduled run in the current capped scheduler command.
 - `commentThreads.list`: at most 1 queued video and 1 page per scheduled run.
 - AI hourly: capped scheduler command `ai:hourly --execute --limit=20` exists, but it only runs when the scheduler, local/production polling flag, and allowlist gates are all enabled. `OPENAI_ENDPOINT_STYLE=auto` follows the OpenCode Go endpoint table: MiniMax M2.5/M2.7 uses `/messages`, while Qwen, GLM, Kimi, MiMo, and DeepSeek models remain on `/chat/completions`.
 

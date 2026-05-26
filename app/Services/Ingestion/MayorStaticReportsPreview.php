@@ -9,7 +9,10 @@ use Illuminate\Http\Request;
 
 class MayorStaticReportsPreview
 {
-    public function __construct(private readonly MayorReport $mayorReport)
+    public function __construct(
+        private readonly MayorReport $mayorReport,
+        private readonly TagDateCacheBuilder $tagDateCacheBuilder,
+    )
     {
     }
 
@@ -59,6 +62,77 @@ class MayorStaticReportsPreview
             'rows' => $rows,
             'writes' => [],
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function execute(?string $city = null, int $limit = 20, int $keywordLimit = 5000, ?CarbonInterface $now = null): array
+    {
+        $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
+        $now = $now === null
+            ? CarbonImmutable::now($timezone)
+            : CarbonImmutable::instance($now->toDateTimeImmutable())->setTimezone($timezone);
+
+        $payload = $this->preview($city, $limit, $now);
+        $targetReports = [];
+        $targetKeywords = [];
+
+        foreach ($payload['rows'] as $row) {
+            $request = Request::create($row['modern_path'], 'GET', $row['query']);
+            $targetReports[] = [$row, $this->mayorReport->report($request, $row['city'])];
+        }
+
+        foreach ($targetReports as [, $report]) {
+            foreach ($report['city']['candidates'] ?? [] as $candidate) {
+                $targetKeywords[] = $candidate;
+            }
+        }
+
+        $targetKeywords = array_values(array_unique($targetKeywords));
+        $cacheJobs = [];
+        $seenCacheJobs = [];
+        $written = 0;
+
+        foreach ($targetReports as [, $report]) {
+            $range = $report['range'];
+
+            foreach ($this->dateRange($range['cache_from'], $range['to']) as $date) {
+                foreach ([3, 4, 5, 6] as $tagId) {
+                    $cacheKey = $tagId.'|'.$date;
+
+                    if (isset($seenCacheJobs[$cacheKey])) {
+                        continue;
+                    }
+
+                    $seenCacheJobs[$cacheKey] = true;
+                    $result = $this->tagDateCacheBuilder->build(
+                        tagIds: [$tagId],
+                        date: $date,
+                        keywordLimit: $keywordLimit,
+                        onlyKeywords: $targetKeywords,
+                        execute: true,
+                        now: $now,
+                    );
+                    $written += (int) $result['writes'];
+                    $cacheJobs[] = $result;
+                }
+            }
+        }
+
+        $rows = collect($payload['rows'])
+            ->map(fn (array $target): array => $this->withDynamicPreview($target))
+            ->values()
+            ->all();
+
+        return array_merge($payload, [
+            'mode' => 'execute',
+            'rows' => $rows,
+            'target_keywords' => $targetKeywords,
+            'cache_jobs' => count($cacheJobs),
+            'cache_writes' => $written,
+            'writes' => ['urt_show_tag_date'],
+        ]);
     }
 
     /**
@@ -173,6 +247,23 @@ class MayorStaticReportsPreview
             ->filter()
             ->values()
             ->all();
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function dateRange(string $from, string $to): array
+    {
+        $dates = [];
+        $cursor = CarbonImmutable::parse($from, 'Asia/Taipei');
+        $end = CarbonImmutable::parse($to, 'Asia/Taipei');
+
+        while ($cursor <= $end && count($dates) < 400) {
+            $dates[] = $cursor->toDateString();
+            $cursor = $cursor->addDay();
+        }
+
+        return $dates;
     }
 
     /**

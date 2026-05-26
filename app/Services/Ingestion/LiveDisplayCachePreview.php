@@ -4,6 +4,7 @@ namespace App\Services\Ingestion;
 
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class LiveDisplayCachePreview
 {
@@ -21,7 +22,7 @@ class LiveDisplayCachePreview
      *     writes: list<string>
      * }
      */
-    public function preview(int $hours = 2, int $limit = 20, ?CarbonInterface $now = null): array
+    public function preview(int $hours = 2, int $limit = 20, ?CarbonInterface $now = null, bool $execute = false): array
     {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
         $now = $now?->copy()->setTimezone($timezone) ?? now($timezone);
@@ -61,6 +62,7 @@ class LiveDisplayCachePreview
                 'video.channelTitle',
                 'video.title',
                 'video.thumbnails',
+                'video.description',
             ])
             ->orderByDesc('live.ctime')
             ->limit($limit)
@@ -76,12 +78,17 @@ class LiveDisplayCachePreview
                 'channel_title' => (string) $row->channelTitle,
                 'title' => (string) $row->title,
                 'thumbnail' => (string) $row->thumbnails,
+                'description' => (string) $row->description,
             ])
             ->values()
             ->all();
 
+        if ($execute && $rows !== []) {
+            $this->writeRows($rows, $generatedAt);
+        }
+
         return [
-            'mode' => 'read-only-preview',
+            'mode' => $execute ? 'execute' : 'read-only-preview',
             'generated_at' => $generatedAt,
             'expire_time' => $expireTime,
             'hours' => $hours,
@@ -90,8 +97,51 @@ class LiveDisplayCachePreview
             'would_insert' => $wouldInsert,
             'missing_video_metadata' => $missingVideoMetadata,
             'rows' => $rows,
-            'writes' => [],
+            'writes' => $execute ? count($rows) : [],
+            'cache_writes' => $execute ? count($rows) : 0,
+            'write_targets' => $execute ? ['urt_show_video_live'] : [],
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     */
+    private function writeRows(array $rows, string $generatedAt): void
+    {
+        DB::transaction(function () use ($rows, $generatedAt): void {
+            foreach ($rows as $row) {
+                $values = $this->onlyExistingColumns('urt_show_video_live', [
+                    'ctime' => $generatedAt,
+                    'mtime' => $generatedAt,
+                    'pk_live' => (int) $row['pk_live'],
+                    'v_pk' => (int) $row['v_pk'],
+                    'videoId' => (string) $row['video_id'],
+                    'u_id' => (int) $row['u_id'],
+                    'publishedAt' => (string) $row['published_at'],
+                    'channelId' => (string) $row['channel_id'],
+                    'channelTitle' => (string) $row['channel_title'],
+                    'title' => (string) $row['title'],
+                    'thumbnails' => (string) $row['thumbnail'],
+                    'description' => (string) $row['description'],
+                ]);
+
+                $query = DB::table('urt_show_video_live');
+
+                if (Schema::hasColumn('urt_show_video_live', 'pk_live')) {
+                    $query->where('pk_live', (int) $row['pk_live']);
+                } else {
+                    $query->where('videoId', (string) $row['video_id']);
+                }
+
+                if ((clone $query)->exists()) {
+                    $query->update($values);
+
+                    continue;
+                }
+
+                DB::table('urt_show_video_live')->insert($values);
+            }
+        });
     }
 
     private function joinVideo($query)
@@ -120,5 +170,18 @@ class LiveDisplayCachePreview
         }
 
         return $query->leftJoin('urt_video as video', 'video.videoId', '=', 'live.videoId');
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     * @return array<string, mixed>
+     */
+    private function onlyExistingColumns(string $table, array $values): array
+    {
+        $columns = Schema::getColumnListing($table);
+
+        return collect($values)
+            ->filter(fn (mixed $value, string $column): bool => in_array($column, $columns, true))
+            ->all();
     }
 }

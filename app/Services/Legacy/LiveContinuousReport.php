@@ -48,7 +48,7 @@ class LiveContinuousReport
      */
     private function period(Request $request): array
     {
-        $today = now('Asia/Taipei')->toDateString();
+        $today = $this->latestLogDate() ?? now('Asia/Taipei')->toDateString();
         $days = max(1, min(366, (int) $request->query('days', 7)));
 
         if ($request->filled('from')) {
@@ -67,7 +67,7 @@ class LiveContinuousReport
             ];
         }
 
-        $from = now('Asia/Taipei')->subDays($days)->toDateString();
+        $from = Carbon::parse($today, 'Asia/Taipei')->subDays($days - 1)->toDateString();
 
         return [
             'from' => $from,
@@ -75,6 +75,19 @@ class LiveContinuousReport
             'days' => $days,
             'is_range' => false,
         ];
+    }
+
+    private function latestLogDate(): ?string
+    {
+        try {
+            $date = DB::table('urt_video_live_log')->max('the_date');
+
+            return is_string($date) && preg_match('/^\d{4}-\d{2}-\d{2}/', $date)
+                ? substr($date, 0, 10)
+                : null;
+        } catch (QueryException) {
+            return null;
+        }
     }
 
     private function boundedDate(string $date, string $today): string

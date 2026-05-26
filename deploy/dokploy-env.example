@@ -30,6 +30,12 @@ INGESTION_PRODUCTION_POLLING_ENABLED=false
 INGESTION_SCHEDULED_WRITE_ALLOWLIST=
 INGESTION_TIMEZONE=Asia/Taipei
 
+# Live/current production parity activation, after backup/rollback verification:
+# INGESTION_SCHEDULER_ENABLED=true
+# INGESTION_LOCAL_POLLING_ENABLED=true
+# INGESTION_PRODUCTION_POLLING_ENABLED=true
+# INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.live.poll,youtube.channels.videos.live,youtube.channels.videos.live_group,reports.live.build
+
 YOUTUBE_API_KEY=
 OPENAI_BASE_URL=https://opencode.ai/zen/go/v1
 OPENAI_MODEL=qwen3.6-plus

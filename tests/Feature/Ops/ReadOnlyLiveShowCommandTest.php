@@ -202,6 +202,69 @@ class ReadOnlyLiveShowCommandTest extends TestCase
         $this->assertSame(1, DB::table('urt_show_video_live')->count());
     }
 
+    public function test_reports_live_build_execute_writes_display_cache_rows_idempotently(): void
+    {
+        $this->createTables();
+        $now = now('Asia/Taipei');
+
+        $videoPk = DB::table('urt_video')->insertGetId([
+            'ctime' => $now->copy()->subMinutes(12)->format('Y-m-d H:i:s'),
+            'u_id' => 10,
+            'id' => 'execute-cache',
+            'publishedAt' => $now->copy()->subHour()->format('Y-m-d H:i:s'),
+            'channelId' => 'UCexecute',
+            'title' => '需要寫入 display cache 的直播',
+            'thumbnails' => 'https://example.test/execute.jpg',
+            'channelTitle' => '頻道 Execute',
+            'playlistId' => '',
+            'position' => 0,
+            'videoId' => 'execute-cache',
+            'description' => 'execute row',
+        ]);
+
+        $livePk = DB::table('urt_video_live')->insertGetId([
+            'ctime' => $now->copy()->subMinutes(10)->format('Y-m-d H:i:s'),
+            'videoId' => 'execute-cache',
+            'u_id' => 10,
+            'publishedAt' => $now->copy()->subHour()->format('Y-m-d H:i:s'),
+            'actualStartTime' => $now->copy()->subMinutes(50)->format('Y-m-d H:i:s'),
+            'actualEndTime' => null,
+            'concurrentViewers' => 250,
+            'max_current' => 500,
+            'mtime' => $now->format('Y-m-d H:i:s'),
+        ]);
+
+        $firstExitCode = Artisan::call('reports:live:build', [
+            '--hours' => 2,
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $firstPayload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $firstExitCode);
+        $this->assertSame('execute', $firstPayload['mode']);
+        $this->assertSame(1, $firstPayload['cache_writes']);
+        $this->assertSame(1, DB::table('urt_show_video_live')->count());
+        $display = DB::table('urt_show_video_live')->first();
+        $this->assertSame($livePk, (int) $display->pk_live);
+        $this->assertSame($videoPk, (int) $display->v_pk);
+        $this->assertSame('execute-cache', $display->videoId);
+        $this->assertSame('需要寫入 display cache 的直播', $display->title);
+        $this->assertSame('頻道 Execute', $display->channelTitle);
+
+        $secondExitCode = Artisan::call('reports:live:build', [
+            '--hours' => 2,
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $secondPayload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $secondExitCode);
+        $this->assertSame('execute', $secondPayload['mode']);
+        $this->assertSame(0, $secondPayload['cache_writes']);
+        $this->assertSame(1, DB::table('urt_show_video_live')->count());
+    }
+
     public function test_ingestion_scheduler_can_execute_read_only_live_build_preview_when_due(): void
     {
         $this->createTables();

@@ -31,6 +31,7 @@ use App\Services\Ingestion\MayorStaticReportsPreview;
 use App\Services\Ingestion\PeopleReportsPreview;
 use App\Services\Ingestion\ScheduleReportsPreview;
 use App\Services\Ingestion\StaticHtmlReportsPreview;
+use App\Services\Ingestion\TagDateCacheBuilder;
 use App\Services\Ingestion\TagsAllCacheBuilder;
 use App\Services\Ingestion\TvbsChannelVideosDiscoveryIngestion;
 use App\Services\Ingestion\TvbsChannelVideosDiscoveryPreview;
@@ -819,12 +820,13 @@ Artisan::command('reports:live:show {--limit=10 : Number of top live rows to pri
     }
 })->purpose('Read-only local snapshot of the live display report; does not call YouTube or write cache tables');
 
-Artisan::command('reports:live:build {--hours=2 : Live rows newer than this many hours are considered} {--limit=20 : Number of preview rows to print} {--json : Emit JSON instead of text}', function (LiveDisplayCachePreview $preview) {
+Artisan::command('reports:live:build {--hours=2 : Live rows newer than this many hours are considered} {--limit=20 : Number of preview rows to print} {--execute : Write missing urt_show_video_live display cache rows} {--json : Emit JSON instead of text}', function (LiveDisplayCachePreview $preview) {
     $hours = max(1, min(720, (int) $this->option('hours')));
     $limit = max(1, min(100, (int) $this->option('limit')));
+    $execute = (bool) $this->option('execute');
 
     try {
-        $payload = $preview->preview(hours: $hours, limit: $limit);
+        $payload = $preview->preview(hours: $hours, limit: $limit, execute: $execute);
 
         if ((bool) $this->option('json')) {
             $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
@@ -833,7 +835,8 @@ Artisan::command('reports:live:build {--hours=2 : Live rows newer than this many
         }
 
         $this->line(sprintf(
-            'reports:live:build mode=read-only-preview candidates=%d already_cached=%d would_insert=%d missing_video_metadata=%d hours=%d expire_time=%s generated_at=%s writes=0',
+            'reports:live:build mode=%s candidates=%d already_cached=%d would_insert=%d missing_video_metadata=%d hours=%d expire_time=%s generated_at=%s writes=%d',
+            $payload['mode'],
             $payload['candidates'],
             $payload['already_cached'],
             $payload['would_insert'],
@@ -841,6 +844,7 @@ Artisan::command('reports:live:build {--hours=2 : Live rows newer than this many
             $payload['hours'],
             $payload['expire_time'],
             $payload['generated_at'],
+            $payload['cache_writes'] ?? (is_array($payload['writes']) ? count($payload['writes']) : (int) $payload['writes']),
         ));
 
         foreach ($payload['rows'] as $index => $row) {
@@ -861,7 +865,7 @@ Artisan::command('reports:live:build {--hours=2 : Live rows newer than this many
 
         return 1;
     }
-})->purpose('Read-only preview of legacy live display cache inserts; does not call YouTube or write cache tables');
+})->purpose('Preview or execute legacy live display cache inserts without calling YouTube');
 
 Artisan::command('youtube:live:cleanup {--limit=20 : Number of stale live rows to print} {--json : Emit JSON instead of text}', function (LiveCleanupPreview $preview) {
     try {
@@ -1018,12 +1022,13 @@ Artisan::command('reports:static:build {--limit=20 : Number of static group targ
     }
 })->purpose('Read-only preview of legacy group static HTML generation; does not write HTML files');
 
-Artisan::command('reports:mayor:static {--city= : Optional mayor city key to preview} {--limit=20 : Number of mayor static targets to print} {--json : Emit JSON instead of text}', function (MayorStaticReportsPreview $preview) {
+Artisan::command('reports:mayor:static {--city= : Optional mayor city key to preview} {--limit=20 : Number of mayor static targets to print} {--keyword-limit=5000 : Number of local keywords to scan when --execute builds tag-date cache} {--execute : Build missing local tag-date cache for mayor targets} {--json : Emit JSON instead of text}', function (MayorStaticReportsPreview $preview) {
     try {
-        $payload = $preview->preview(
-            city: $this->option('city') ? (string) $this->option('city') : null,
-            limit: (int) $this->option('limit'),
-        );
+        $city = $this->option('city') ? (string) $this->option('city') : null;
+        $limit = (int) $this->option('limit');
+        $payload = (bool) $this->option('execute')
+            ? $preview->execute(city: $city, limit: $limit, keywordLimit: (int) $this->option('keyword-limit'))
+            : $preview->preview(city: $city, limit: $limit);
 
         if ((bool) $this->option('json')) {
             $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
@@ -1032,11 +1037,14 @@ Artisan::command('reports:mayor:static {--city= : Optional mayor city key to pre
         }
 
         $this->line(sprintf(
-            'reports:mayor:static mode=read-only-preview targets=%d would_generate=%d source_status="%s" generated_at=%s writes=0 static_write=skipped',
+            'reports:mayor:static mode=%s targets=%d would_generate=%d source_status="%s" generated_at=%s cache_jobs=%d cache_writes=%d static_write=skipped',
+            $payload['mode'],
             $payload['targets'],
             $payload['would_generate'],
             $payload['source_status'],
             $payload['generated_at'],
+            $payload['cache_jobs'] ?? 0,
+            $payload['cache_writes'] ?? 0,
         ));
 
         foreach ($payload['rows'] as $index => $row) {
@@ -1061,7 +1069,110 @@ Artisan::command('reports:mayor:static {--city= : Optional mayor city key to pre
 
         return 1;
     }
-})->purpose('Read-only preview of legacy mayor static HTML generation; does not write HTML files');
+})->purpose('Preview legacy mayor static HTML generation; --execute rebuilds required local tag-date cache but does not write HTML files');
+
+Artisan::command('reports:tag-date:build {--tagid= : Comma-separated required channel tag ids} {--or= : Comma-separated OR channel tag ids} {--not= : Comma-separated excluded channel tag ids} {--date= : Single cache date} {--from= : Start date for cache range} {--to= : End date for cache range} {--days=30 : Relative day count when --from is omitted} {--today=0 : Days before today for relative end date} {--keyword-limit=5000 : Number of local keywords to scan} {--keywords= : Optional comma-separated keyword subset for focused cache rebuilds} {--execute : Write urt_show_tag_date rows} {--json : Emit JSON instead of text}', function (TagDateCacheBuilder $builder) {
+    $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
+    $now = CarbonImmutable::now($timezone);
+    $tagIds = collect(explode(',', (string) $this->option('tagid')))
+        ->map(fn (string $id): int => (int) trim($id))
+        ->filter(fn (int $id): bool => $id > 0)
+        ->values()
+        ->all();
+
+    if ($tagIds === []) {
+        $this->error('reports:tag-date:build requires --tagid');
+
+        return 1;
+    }
+
+    $to = $this->option('date')
+        ? (string) $this->option('date')
+        : ($this->option('to') ? (string) $this->option('to') : $now->subDays(max(0, (int) $this->option('today')))->toDateString());
+    $from = $this->option('date')
+        ? $to
+        : ($this->option('from') ? (string) $this->option('from') : CarbonImmutable::parse($to, $timezone)->subDays(max(1, (int) $this->option('days')) - 1)->toDateString());
+
+    if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) {
+        $this->error('reports:tag-date:build date options must use YYYY-MM-DD');
+
+        return 1;
+    }
+
+    if ($from > $to) {
+        [$from, $to] = [$to, $from];
+    }
+
+    $ids = fn (string $option): array => collect(explode(',', (string) $this->option($option)))
+        ->map(fn (string $id): int => (int) trim($id))
+        ->filter(fn (int $id): bool => $id > 0)
+        ->values()
+        ->all();
+    $keywords = collect(explode(',', (string) $this->option('keywords')))
+        ->map(fn (string $keyword): string => trim($keyword))
+        ->filter(fn (string $keyword): bool => $keyword !== '')
+        ->values()
+        ->all();
+
+    $rows = [];
+    $writes = 0;
+    $cursor = CarbonImmutable::parse($from, $timezone);
+    $end = CarbonImmutable::parse($to, $timezone);
+
+    while ($cursor <= $end && count($rows) < 400) {
+        $result = $builder->build(
+            tagIds: $tagIds,
+            date: $cursor->toDateString(),
+            orTagIds: $ids('or'),
+            notTagIds: $ids('not'),
+            keywordLimit: (int) $this->option('keyword-limit'),
+            onlyKeywords: $keywords,
+            execute: (bool) $this->option('execute'),
+            now: $now,
+        );
+        $writes += (int) $result['writes'];
+        $rows[] = $result;
+        $cursor = $cursor->addDay();
+    }
+
+    $payload = [
+        'mode' => (bool) $this->option('execute') ? 'execute' : 'dry-run',
+        'from' => $from,
+        'to' => $to,
+        'rows' => $rows,
+        'writes' => $writes,
+    ];
+
+    if ((bool) $this->option('json')) {
+        $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        return 0;
+    }
+
+    $this->line(sprintf(
+        'reports:tag-date:build mode=%s tagid=%s from=%s to=%s rows=%d writes=%d',
+        $payload['mode'],
+        implode(',', $tagIds),
+        $from,
+        $to,
+        count($rows),
+        $writes,
+    ));
+
+    foreach (array_slice($rows, 0, 20) as $row) {
+        $this->line(sprintf(
+            '%s channels=%d videos=%d tags=%d views=%d writes=%d',
+            $row['date'],
+            $row['channels_matched'],
+            $row['videos_scanned'],
+            $row['tags_count'],
+            $row['total_views'],
+            $row['writes'],
+        ));
+    }
+
+    return 0;
+})->purpose('Build legacy urt_show_tag_date rows from local videos and tags; dry-run by default');
 
 Artisan::command('youtube:videos:duration {--videoId= : Optional queued video id to preview} {--batch-size=50 : Legacy batch size, capped at 50} {--limit= : Alias for --batch-size when running limited smoke checks} {--loops=1 : Number of batches to preview} {--enqueue-missing : With --execute and --videoId, create a local duration queue row from existing urt_video if missing} {--execute : Call YouTube and write selected video durations to local DB} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (VideoDurationsPreview $preview, VideoDurationsIngestion $ingestion) {
     $batchSizeOption = $this->option('limit') !== null ? $this->option('limit') : $this->option('batch-size');
