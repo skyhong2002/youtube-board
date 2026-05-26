@@ -313,7 +313,7 @@ class IngestionDashboardTest extends TestCase
 
         $general->assertSee('youtube.channels.videos.general');
         $general->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.channels.videos.general');
-        $general->assertSee('Scheduler 不傳 `--execute`，仍是 dry-run');
+        $general->assertSee('單一 playlist API 失敗會跳過該 channel 並延後重試，避免整個 job 卡死');
         $live->assertSee('youtube.channels.videos.live');
         $live->assertSee('youtube:channels:videos --live=1 --force=3');
         $live->assertSee('Scheduler 在 write allowlist 開啟時使用 scheduled execute command；未開啟仍是 dry-run');
@@ -519,7 +519,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('manual local-only `--execute --limit`');
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.comments.queue');
-        $response->assertSee('Scheduler 不傳 `--execute`，仍是 dry-run');
+        $response->assertSee('Scheduler 在 write allowlist 開啟時每小時第 23 分用 capped execute command 補 queue rows');
     }
 
     public function test_ingestion_job_detail_allows_comment_fetch_read_only_preview(): void
@@ -533,7 +533,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('due now');
         $response->assertSee('This job is not executable under the current read-only migration guardrail.');
         $response->assertSee('php artisan ingestion:run --job=youtube.comments.fetch', false);
-        $response->assertSee('Scheduler 不傳 `--execute`，仍是 dry-run');
+        $response->assertSee('Scheduler 在 write allowlist 開啟時於每小時第 5、25 分用 capped execute command 消化 queue');
     }
 
     public function test_ingestion_job_detail_returns_404_for_unknown_job(): void

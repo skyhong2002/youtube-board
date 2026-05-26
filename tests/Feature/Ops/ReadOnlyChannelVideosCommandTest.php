@@ -380,6 +380,79 @@ class ReadOnlyChannelVideosCommandTest extends TestCase
         Http::assertSentCount(2);
     }
 
+    public function test_youtube_channels_videos_execute_skips_bad_playlist_without_failing_batch(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+
+        DB::table('urt_channel')->insert([
+            [
+                'u_id' => 10,
+                'ctime' => '2026-05-20 00:00:00',
+                'mtime' => null,
+                'vtime' => null,
+                'flag_del' => null,
+                'youtube_id' => 'UC-bad',
+                'title' => 'Bad Uploads Channel',
+                'uploads' => 'UU-bad',
+                'videoCount' => 10,
+            ],
+            [
+                'u_id' => 11,
+                'ctime' => '2026-05-20 00:00:00',
+                'mtime' => null,
+                'vtime' => null,
+                'flag_del' => null,
+                'youtube_id' => 'UC-good',
+                'title' => 'Good Uploads Channel',
+                'uploads' => 'UU-good',
+                'videoCount' => 10,
+            ],
+        ]);
+
+        Http::fakeSequence()
+            ->push(['error' => ['message' => 'The playlist cannot be found.']], 404)
+            ->push([
+                'items' => [
+                    [
+                        'id' => 'playlist-item-recovered',
+                        'snippet' => [
+                            'publishedAt' => '2026-05-25T03:00:00Z',
+                            'channelId' => 'UC-good',
+                            'title' => 'Recovered Upload',
+                            'description' => 'Recovered description',
+                            'thumbnails' => ['default' => ['url' => 'https://img.youtube.test/recovered.jpg']],
+                            'channelTitle' => 'Good Uploads Channel',
+                            'playlistId' => 'UU-good',
+                            'position' => 0,
+                            'resourceId' => ['videoId' => 'video-recovered'],
+                            'liveBroadcastContent' => 'none',
+                        ],
+                    ],
+                ],
+            ]);
+
+        $exitCode = Artisan::call('youtube:channels:videos', [
+            '--execute' => true,
+            '--limit' => 2,
+            '--max-results' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, $payload['updated_channels']);
+        $this->assertSame(1, $payload['skipped_channels']);
+        $this->assertSame(10, $payload['skipped'][0]['u_id']);
+        $this->assertStringStartsWith('playlist_api_error:', $payload['skipped'][0]['reason']);
+        $this->assertSame(11, $payload['applied'][0]['u_id']);
+        $this->assertSame('Recovered Upload', DB::table('urt_video')->where('videoId', 'video-recovered')->value('title'));
+        $this->assertSame('2026-05-25 13:00:00', (string) DB::table('urt_channel')->where('u_id', 10)->value('vtime'));
+        Http::assertSentCount(2);
+    }
+
     private function createTables(): void
     {
         foreach (['urt_video_schedule', 'urt_video_live', 'urt_video', 'urt_count', 'urt_channel'] as $table) {

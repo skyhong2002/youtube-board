@@ -62,7 +62,21 @@ class ChannelVideosDiscoveryIngestion
                 continue;
             }
 
-            $items = $this->youtube->playlistItems($uploads, $maxResults);
+            try {
+                $items = $this->youtube->playlistItems($uploads, $maxResults);
+            } catch (RuntimeException $exception) {
+                $this->updateExisting('urt_channel', 'u_id', $rowUId, [
+                    'vtime' => $now->addHour()->format('Y-m-d H:i:s'),
+                ]);
+
+                $skipped[] = [
+                    'u_id' => $rowUId,
+                    'uploads' => $uploads,
+                    'reason' => 'playlist_api_error: '.$exception->getMessage(),
+                ];
+
+                continue;
+            }
             $result = DB::transaction(function () use ($rowUId, $items, $now): array {
                 return $this->upsertChannelItems($rowUId, $items, $now);
             });

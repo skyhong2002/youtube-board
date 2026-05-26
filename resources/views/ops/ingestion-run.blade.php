@@ -83,6 +83,8 @@
                             <th>Action</th>
                             <th>Command</th>
                             <th>Schedule</th>
+                            <th>Effective</th>
+                            <th>Output / Error</th>
                             <th class="right">Exit</th>
                         </tr>
                     </thead>
@@ -101,11 +103,23 @@
                                 <td><span class="badge {{ ($job['failed'] ?? false) ? 'failed' : (($job['executed'] ?? false) ? 'executed' : 'skipped') }}">{{ $job['action'] ?? '-' }}</span></td>
                                 <td><code>{{ $job['command'] ?? '-' }}</code></td>
                                 <td><code>{{ $job['schedule'] ?? '-' }}</code></td>
+                                <td><code>{{ $job['effective_command'] ?? ($job['command'] ?? '-') }}</code></td>
+                                <td>
+                                    @if (! empty($job['error']))
+                                        <code>{{ $job['error'] }}</code>
+                                    @elseif (! empty($job['output']))
+                                        <code>{{ $job['output'] }}</code>
+                                    @elseif (! empty($job['scheduled_write']['blocks'] ?? []))
+                                        <code>{{ implode('; ', $job['scheduled_write']['blocks']) }}</code>
+                                    @else
+                                        <span class="muted">-</span>
+                                    @endif
+                                </td>
                                 <td class="right">{{ $job['exit_code'] ?? '-' }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="muted">No job rows were recorded for this run.</td>
+                                <td colspan="9" class="muted">No job rows were recorded for this run.</td>
                             </tr>
                         @endforelse
                     </tbody>
