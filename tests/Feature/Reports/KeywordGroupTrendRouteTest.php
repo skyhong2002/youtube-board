@@ -116,6 +116,47 @@ class KeywordGroupTrendRouteTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_keyword_group_trend_falls_back_to_daily_tag_date_cache_when_period_cache_is_absent(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 04:00:00', 'Asia/Taipei'));
+        Schema::dropIfExists('urt_show_tag_month');
+        $this->createTagDateTable();
+
+        DB::table('urt_show_tag_date')->insert([
+            [
+                'pk' => 1,
+                'tagid' => '3',
+                'tag_or' => '',
+                'tag_not' => '',
+                'the_date' => '2026-05-24',
+                'tags_views' => json_encode(['毒駕' => 220], JSON_UNESCAPED_UNICODE),
+                'tags_video' => json_encode(['毒駕' => 4], JSON_UNESCAPED_UNICODE),
+                'tags_result' => json_encode(['毒駕' => 12.5], JSON_UNESCAPED_UNICODE),
+            ],
+            [
+                'pk' => 2,
+                'tagid' => '4',
+                'tag_or' => '',
+                'tag_not' => '',
+                'the_date' => '2026-05-24',
+                'tags_views' => json_encode(['毒駕' => 80], JSON_UNESCAPED_UNICODE),
+                'tags_video' => json_encode(['毒駕' => 2], JSON_UNESCAPED_UNICODE),
+                'tags_result' => json_encode(['毒駕' => 4.5], JSON_UNESCAPED_UNICODE),
+            ],
+        ]);
+
+        $response = $this->get('/keywords/毒駕/groups/trends?view=position&days=2&from=2026-05-23&to=2026-05-24&type=total_views');
+
+        $response->assertOk();
+        $response->assertSee('毒駕 依 政治立場 在 2 天的逐日線圖');
+        $response->assertSee('220');
+        $response->assertSee('80');
+        $response->assertSee('cache rows 2');
+        $response->assertDontSee('api/tag_period.php');
+
+        Carbon::setTestNow();
+    }
+
     public function test_legacy_tag_group_url_redirects_to_keyword_group_trend(): void
     {
         $this->get('/tag_group.php?tag=柯文哲&view=position&days=7&type=views_video')
@@ -142,6 +183,22 @@ class KeywordGroupTrendRouteTest extends TestCase
             $table->integer('count_videos')->nullable();
             $table->integer('total_views')->nullable();
             $table->text('tags_result')->nullable();
+        });
+    }
+
+    private function createTagDateTable(): void
+    {
+        Schema::dropIfExists('urt_show_tag_date');
+
+        Schema::create('urt_show_tag_date', function ($table): void {
+            $table->integer('pk');
+            $table->string('tagid')->nullable();
+            $table->string('tag_or')->nullable();
+            $table->string('tag_not')->nullable();
+            $table->date('the_date');
+            $table->longText('tags_views')->nullable();
+            $table->longText('tags_video')->nullable();
+            $table->longText('tags_result')->nullable();
         });
     }
 

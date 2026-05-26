@@ -6,6 +6,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class AiDailyReport
 {
@@ -29,6 +30,12 @@ class AiDailyReport
             $row = $this->row($request, $condition);
 
             if (! $row) {
+                $fallback = $this->channelAiFallback($request, $condition);
+
+                if ($fallback !== null) {
+                    return $fallback;
+                }
+
                 return $this->empty(true, $this->routeDate($request), $condition);
             }
 
@@ -99,6 +106,144 @@ class AiDailyReport
         return $query->orderByDesc('pk')->first();
     }
 
+    /**
+     * Build a read-only daily page from existing per-channel AI rows when
+     * legacy `urt_ai_date` has not been generated for that date/condition.
+     *
+     * @return array{available: bool, row: array<string, mixed>|null, date: string|null, condition: string, title: string, topics: list<array<string, mixed>>, channels_count: int, generated_at: string}|null
+     */
+    private function channelAiFallback(Request $request, string $condition): ?array
+    {
+        $date = $this->routeDate($request);
+
+        if ($date === null || is_string($request->query('pk'))) {
+            return null;
+        }
+
+        $dateFrom = $date.' 00:00:00';
+        $dateTo = $date.' 23:59:59';
+        $rows = $this->channelAiFallbackRows($dateFrom, $dateTo, $condition);
+
+        if ($rows->isEmpty()) {
+            return null;
+        }
+
+        $channelMap = $rows
+            ->mapWithKeys(fn (object $row): array => [(int) $row->u_id => trim((string) ($row->title ?: 'Channel '.$row->u_id))])
+            ->all();
+        $channelAi = $rows
+            ->mapWithKeys(fn (object $row): array => [(int) $row->u_id => $this->decodeList($row->result_json ?? null)])
+            ->all();
+        $channelTags = $this->channelTags(array_keys($channelMap));
+        $syntheticRow = (object) [
+            'result_json' => json_encode($this->dailyTopicsFromChannelRows($channelMap, $channelAi), JSON_UNESCAPED_UNICODE),
+        ];
+
+        return [
+            'available' => true,
+            'row' => null,
+            'date' => $date,
+            'condition' => $condition,
+            'title' => $this->title($date, $condition),
+            'topics' => $this->topics($syntheticRow, $channelMap, $channelAi, $channelTags),
+            'channels_count' => count($channelMap),
+            'generated_at' => now('Asia/Taipei')->format('Y-m-d H:i:s'),
+        ];
+    }
+
+    private function channelAiFallbackRows(string $dateFrom, string $dateTo, string $condition): Collection
+    {
+        $query = DB::table('urt_channel_ai as ai')
+            ->where('ai.date_from', $dateFrom)
+            ->where('ai.date_to', $dateTo)
+            ->whereNull('ai.del_flag')
+            ->orderByDesc('ai.pk');
+
+        if ($this->hasColumn('urt_channel_ai', 'data_type')) {
+            $query->where(function ($inner): void {
+                $inner->whereNull('ai.data_type')->orWhereIn('ai.data_type', ['oneday', 'todate']);
+            });
+        }
+
+        if ($this->hasTable('urt_channel')) {
+            $query->leftJoin('urt_channel as c', 'ai.u_id', '=', 'c.u_id')
+                ->select(['ai.pk', 'ai.u_id', 'ai.result_json', 'c.title']);
+        } else {
+            $query->select(['ai.pk', 'ai.u_id', 'ai.result_json', DB::raw('NULL as title')]);
+        }
+
+        $rows = $query->get()->unique('u_id')->values();
+
+        if ($condition === 'all') {
+            return $rows;
+        }
+
+        $channelTags = $this->channelTags($rows->pluck('u_id')->map(fn (mixed $id): int => (int) $id)->all());
+
+        return $rows
+            ->filter(fn (object $row): bool => $this->channelMatchesCondition($channelTags[(int) $row->u_id] ?? [], $condition))
+            ->values();
+    }
+
+    /**
+     * @param array<int, string> $channelMap
+     * @param array<int, list<array<string, mixed>>> $channelAi
+     * @return list<array<string, mixed>>
+     */
+    private function dailyTopicsFromChannelRows(array $channelMap, array $channelAi): array
+    {
+        $events = [];
+
+        foreach ($channelMap as $uId => $title) {
+            foreach ($channelAi[$uId] ?? [] as $event) {
+                if (! is_array($event)) {
+                    continue;
+                }
+
+                $eventName = $this->text($event, ['事件', '議題', '標題', 'event', 'topic', 'title']);
+
+                if ($eventName === '') {
+                    continue;
+                }
+
+                $events[$eventName][$title][] = $eventName;
+            }
+        }
+
+        return collect($events)
+            ->map(fn (array $mediaEvents, string $eventName): array => [
+                '標題' => $eventName,
+                '媒體事件' => $mediaEvents,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param list<int> $tags
+     */
+    private function channelMatchesCondition(array $tags, string $condition): bool
+    {
+        return match ($condition) {
+            'green' => in_array(4, $tags, true),
+            'blue' => in_array(3, $tags, true),
+            'neutral' => ! array_intersect($tags, [3, 4, 5, 6, 31, 41]),
+            'finance' => in_array(31, $tags, true),
+            'world' => in_array(41, $tags, true),
+            default => true,
+        };
+    }
+
+    private function hasTable(string $table): bool
+    {
+        return Schema::hasTable($table);
+    }
+
+    private function hasColumn(string $table, string $column): bool
+    {
+        return Schema::hasColumn($table, $column);
+    }
+
     private function latestDate(string $condition): ?string
     {
         $query = DB::table('urt_ai_date')
@@ -122,7 +267,15 @@ class AiDailyReport
     {
         $date = $request->route('date') ?? $request->query('date');
 
-        return is_string($date) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) ? $date : null;
+        if (is_string($date) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            return $date;
+        }
+
+        $source = $request->path().' '.$request->getRequestUri().' '.$request->fullUrl();
+
+        return preg_match('#(?:^|/)ai/days/(?P<date>\d{4}-\d{2}-\d{2})(?:/|$|\?)#', $source, $matches)
+            ? $matches['date']
+            : null;
     }
 
     private function condition(mixed $value): string

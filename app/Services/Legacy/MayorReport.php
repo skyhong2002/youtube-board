@@ -17,18 +17,26 @@ class MayorReport
     {
         $cityKey = $this->normalizeCity($cityKey ?? (string) $request->query('city', 'taipei'));
         $city = $this->city($cityKey);
-        $range = $this->range($request);
         $type = $this->type($request);
+        $range = $this->range($request);
 
         try {
             $records = $this->records($range['cache_from'], $range['to'], $type);
             $series = $this->series($city, $range['dates'], $records);
 
+            if (! $this->seriesHasData($series) && ! $this->hasExplicitDate($request)) {
+                $latestDate = $this->latestCacheDate($type);
+
+                if ($latestDate !== null && $latestDate !== $range['to']) {
+                    $range = $this->range($request, $latestDate);
+                    $records = $this->records($range['cache_from'], $range['to'], $type);
+                    $series = $this->series($city, $range['dates'], $records);
+                }
+            }
+
             return [
                 'available' => true,
-                'data_available' => collect($series)->contains(
-                    fn (array $row): bool => collect($row['raw'])->contains(fn (float $value): bool => abs($value) > 0.000001),
-                ),
+                'data_available' => $this->seriesHasData($series),
                 'title' => $city['label'].'候選人影片觀看支持度',
                 'city' => $city,
                 'cities' => $this->cities(),
@@ -99,7 +107,7 @@ class MayorReport
     /**
      * @return array{from: string, to: string, cache_from: string, dates: list<string>, days: int, today: int, display_days: int}
      */
-    private function range(Request $request): array
+    private function range(Request $request, ?string $defaultTo = null): array
     {
         $now = CarbonImmutable::now('Asia/Taipei');
         $days = max(1, min(366, (int) $request->query('days', 30)));
@@ -110,9 +118,11 @@ class MayorReport
             $to = $this->dateString($request->query('to'), $fallbackTo);
             $from = $this->dateString($request->query('from'), CarbonImmutable::parse($to, 'Asia/Taipei')->subDays($days - 1)->toDateString());
         } else {
-            $to = $request->has('today')
+            $to = $defaultTo !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $defaultTo)
+                ? $defaultTo
+                : ($request->has('today')
                 ? $now->subDays($today)->toDateString()
-                : $now->subDay()->toDateString();
+                : $now->subDay()->toDateString());
             $from = CarbonImmutable::parse($to, 'Asia/Taipei')->subDays($days - 1)->toDateString();
         }
 
@@ -202,6 +212,39 @@ class MayorReport
         }
 
         return $byDate;
+    }
+
+    private function latestCacheDate(string $type): ?string
+    {
+        $latest = DB::table('urt_show_tag_date')
+            ->whereIn('tagid', collect($this->tagIds())->map(fn (int $tagId): string => (string) $tagId)->all())
+            ->where(function (Builder $query): void {
+                $query->whereNull('tag_or')->orWhere('tag_or', '');
+            })
+            ->where(function (Builder $query): void {
+                $query->whereNull('tag_not')->orWhere('tag_not', '');
+            })
+            ->whereNotNull($type)
+            ->max('the_date');
+
+        return is_string($latest) && preg_match('/^\d{4}-\d{2}-\d{2}/', $latest)
+            ? substr($latest, 0, 10)
+            : null;
+    }
+
+    private function hasExplicitDate(Request $request): bool
+    {
+        return $request->filled('from') || $request->filled('to') || $request->has('today');
+    }
+
+    /**
+     * @param list<array{raw: array<string, float>}> $series
+     */
+    private function seriesHasData(array $series): bool
+    {
+        return collect($series)->contains(
+            fn (array $row): bool => collect($row['raw'])->contains(fn (float $value): bool => abs($value) > 0.000001),
+        );
     }
 
     /**

@@ -147,6 +147,40 @@ class AiReportsTest extends TestCase
         $response->assertSee('wrapped-daily');
     }
 
+    public function test_ai_daily_page_assembles_read_only_fallback_from_channel_ai_when_daily_summary_is_missing(): void
+    {
+        $this->createAiDailyTables();
+
+        DB::table('urt_channel_ai')->insert([
+            'pk' => 120,
+            'u_id' => 15,
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
+            'del_flag' => null,
+            'result_json' => json_encode([
+                [
+                    '事件' => '毒駕事故後續',
+                    '角度' => '台灣',
+                    '陣營' => '民進黨',
+                    '關鍵字' => ['毒駕', '交通'],
+                    '人物' => ['行政院'],
+                    'videoId' => ['fallback-daily'],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        DB::table('urt_count')->insert(['u_id' => 15, 'tags' => '[4]']);
+
+        $response = $this->get('/ai/days/2026-05-24/all');
+
+        $response->assertOk();
+        $response->assertSee('毒駕事故後續');
+        $response->assertSee('毒駕(1)');
+        $response->assertSee('行政院(1)');
+        $response->assertSee('fallback-daily');
+        $response->assertDontSee('目前沒有符合條件的 AI daily summary');
+    }
+
     public function test_ai_event_page_renders_summary_and_people_prompts(): void
     {
         $this->createAiEventTables();

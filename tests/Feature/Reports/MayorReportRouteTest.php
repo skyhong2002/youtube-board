@@ -51,6 +51,22 @@ class MayorReportRouteTest extends TestCase
         $response->assertSee('目前沒有可繪製的候選人趨勢資料');
     }
 
+    public function test_mayor_index_defaults_to_latest_imported_tag_date_cache_when_yesterday_is_empty(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTagDateCacheTable();
+        $this->seedTaipeiCache('2026-05-08', '2026-05-10');
+
+        $response = $this->get('/mayor');
+
+        $response->assertOk();
+        $response->assertSee('台北市候選人影片觀看支持度');
+        $response->assertSee('2026-05-10');
+        $response->assertSee('候選人支持度趨勢');
+        $response->assertDontSee('api/cloud_tag_date.php');
+        $response->assertDontSee('html_*.html');
+    }
+
     public function test_mayor_legacy_dynamic_url_redirects_to_clean_city_route(): void
     {
         $response = $this->get('/mayor/city.php?city=taichung&days=7&type=tags_video');
