@@ -19,7 +19,7 @@ class IngestionDashboardController extends Controller
         return view('ops.ingestion', [
             'groups' => $registry->grouped(),
             'summary' => $registry->summary(),
-            'recentRuns' => $history->latest(),
+            'recentRuns' => $history->latest(30),
             'externalSchedulerActivity' => $history->externalSchedulerActivity(),
         ]);
     }
