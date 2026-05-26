@@ -4,6 +4,8 @@ YouTube Board Modern is a Laravel rebuild of the public `youtube.board.tw` repor
 
 The project focuses on preserving the existing public report surfaces while moving the implementation into a maintainable Laravel codebase. Rebuilt pages are read-only by default, with compatibility redirects and API-shaped responses for legacy PHP URLs.
 
+![YouTube Board tour](docs/assets/youtube-board-tour.gif)
+
 ## Features
 
 - Public YouTube report pages for keywords, tags, channels, videos, comments, groups, mayor reports, live streams, and AI summaries.
