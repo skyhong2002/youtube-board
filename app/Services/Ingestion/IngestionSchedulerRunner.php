@@ -122,8 +122,15 @@ class IngestionSchedulerRunner
             return array_merge($base, ['action' => 'skip:command-missing']);
         }
 
-        if (! $this->registry->executionProfile($job)['can_execute_when_due']) {
-            return array_merge($base, ['action' => 'skip:read-only-guardrail']);
+        $scheduledWrite = $this->registry->scheduledWriteProfile($job);
+        $executionProfile = $this->registry->executionProfile($job);
+
+        if (! $executionProfile['can_execute_when_due'] && ! ($execute && $scheduledWrite['allowed'])) {
+            return array_merge($base, [
+                'action' => 'skip:read-only-guardrail',
+                'scheduled_write' => $scheduledWrite,
+                'execution' => $executionProfile,
+            ]);
         }
 
         if (! $execute) {
@@ -131,7 +138,6 @@ class IngestionSchedulerRunner
         }
 
         try {
-            $scheduledWrite = $this->registry->scheduledWriteProfile($job);
             $effectiveCommand = $scheduledWrite['allowed']
                 ? $this->registry->scheduledExecutionCommand($job)
                 : $command;

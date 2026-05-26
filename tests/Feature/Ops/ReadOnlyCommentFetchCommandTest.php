@@ -262,6 +262,63 @@ class ReadOnlyCommentFetchCommandTest extends TestCase
         $this->assertSame(0, DB::table('urt_comment_queue_done')->count());
     }
 
+    public function test_ingestion_scheduler_executes_allowlisted_comment_fetch_command_when_due(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 05:25:00', 'Asia/Taipei'));
+        $this->createTables(withAuthors: true);
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.local_polling_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['youtube.comments.fetch']);
+
+        DB::table('urt_comment_queue')->insert($this->queueRow(1, 'scheduled-comments', '2026-05-25 04:00:00'));
+        DB::table('urt_video')->insert($this->videoRow(99, 'scheduled-comments', 'Scheduled Comments Video'));
+        DB::table('urt_channel')->insert([
+            'u_id' => 99,
+            'youtube_id' => 'channel-from-comment-api',
+        ]);
+
+        Http::fake([
+            'www.googleapis.com/youtube/v3/commentThreads*' => Http::response([
+                'items' => [
+                    [
+                        'id' => 'thread-1',
+                        'snippet' => [
+                            'channelId' => 'channel-from-comment-api',
+                            'topLevelComment' => [
+                                'snippet' => [
+                                    'textDisplay' => 'Top display',
+                                    'textOriginal' => 'Top original',
+                                    'authorChannelId' => ['value' => 'author-top'],
+                                    'authorDisplayName' => 'Top Author',
+                                    'authorProfileImageUrl' => 'https://example.test/top.jpg',
+                                    'authorChannelUrl' => 'https://youtube.test/top',
+                                    'publishedAt' => '2026-05-25T03:00:00Z',
+                                    'updatedAt' => '2026-05-25T03:05:00Z',
+                                    'likeCount' => 7,
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $result = app(IngestionSchedulerRunner::class)->run(
+            at: CarbonImmutable::parse('2026-05-25 05:25:00', 'Asia/Taipei'),
+            execute: true,
+            jobKey: 'youtube.comments.fetch',
+        );
+
+        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $result['summary']);
+        $this->assertSame('executed:local-polling', $result['jobs'][0]['action']);
+        $this->assertSame('youtube:comments:fetch --execute --limit=5 --max-pages=1', $result['jobs'][0]['effective_command']);
+        $this->assertStringContainsString('moved_to_done_rows=1', $result['jobs'][0]['output']);
+        $this->assertSame(0, DB::table('urt_comment_queue')->count());
+        $this->assertSame(1, DB::table('urt_comment_queue_done')->where('videoId', 'scheduled-comments')->count());
+        $this->assertSame(1, DB::table('urt_comment')->where('videoId', 'scheduled-comments')->count());
+    }
+
     private function createTables(bool $withAuthors = false): void
     {
         foreach (['urt_comment_queue_done', 'urt_comment_queue', 'urt_comment_rev', 'urt_comment_author', 'urt_channel', 'urt_comment', 'urt_video'] as $table) {
