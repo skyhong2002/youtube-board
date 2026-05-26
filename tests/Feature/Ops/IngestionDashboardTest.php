@@ -515,7 +515,7 @@ class IngestionDashboardTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('youtube.comments.queue');
-        $response->assertSee('youtube:comments:queue --or=1,2,3,4,5,6,13,14,81 --hours=72 --min=500');
+        $response->assertSee('youtube:comments:queue --or=1,2,3,4,5,6,13,14,81 --hours=168 --min=100');
         $response->assertSee('manual local-only `--execute --limit`');
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.comments.queue');
@@ -573,7 +573,7 @@ class IngestionDashboardTest extends TestCase
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_video_count.php -> youtube:videos:stats', $output);
         $this->assertStringContainsString('active command:ready /home/urtube/maint/make_ai_day.sh -> ai:daily', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/prompt/ai_hour_prompt.php do=1 -> ai:hourly', $output);
-        $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/make_comments.php or=1,2,3,4,5,6,13,14,81 hours=72 min=500 -> youtube:comments:queue --or=1,2,3,4,5,6,13,14,81 --hours=72 --min=500', $output);
+        $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/make_comments.php or=1,2,3,4,5,6,13,14,81 hours=168 min=100 -> youtube:comments:queue --or=1,2,3,4,5,6,13,14,81 --hours=168 --min=100', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/do_comments.php -> youtube:comments:fetch', $output);
         $this->assertStringContainsString('youtube:live:poll', $output);
     }
