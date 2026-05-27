@@ -1,36 +1,69 @@
 <?php
 
-namespace App\Http\Controllers\Dev;
+namespace App\Http\Controllers\Ops;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 
-class IntegrationProbeController extends Controller
+class IntegrationCheckController extends Controller
 {
+    public function index(): Response
+    {
+        return $this->renderPage($this->youtubeConfigPayload(), 'config-only · external services and dependencies');
+    }
+
+    public function devCheck(): Response|RedirectResponse
+    {
+        if (! app()->environment(['local', 'testing'])) {
+            return redirect()->route('ops.integrations', [], 308);
+        }
+
+        [$payload] = $this->youtubeLivePayload();
+
+        return $this->renderPage($payload, 'live probe · external services and dependencies');
+    }
+
     public function youtube(): JsonResponse
     {
-        [$payload, $status] = $this->youtubePayload();
+        [$payload, $status] = $this->youtubeLivePayload();
 
         return response()->json($payload, $status);
     }
 
-    public function youtubePage(): Response
+    private function renderPage(array $youtubePayload, string $meta): Response
     {
-        [$payload] = $this->youtubePayload();
-
-        return response()->view('dev.youtube-check', [
-            'payload' => $payload,
-            'checks' => $this->integrationChecks($payload),
+        return response()->view('ops.integrations', [
+            'checks' => $this->integrationChecks($youtubePayload),
+            'meta' => $meta,
+            'liveProbe' => ($youtubePayload['probe_mode'] ?? null) === 'live',
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function youtubeConfigPayload(): array
+    {
+        $apiKey = config('services.youtube.api_key');
+        $configured = is_string($apiKey) && trim($apiKey) !== '';
+
+        return [
+            'ok' => $configured,
+            'service' => 'youtube_data_api_v3',
+            'probe_mode' => 'config',
+            'configured' => $configured,
+            'error' => $configured ? null : 'YOUTUBE_API_KEY is not configured.',
+        ];
     }
 
     /**
      * @return array{0: array<string, mixed>, 1: int}
      */
-    private function youtubePayload(): array
+    private function youtubeLivePayload(): array
     {
         $apiKey = config('services.youtube.api_key');
 
@@ -38,6 +71,7 @@ class IntegrationProbeController extends Controller
             return [[
                 'ok' => false,
                 'service' => 'youtube_data_api_v3',
+                'probe_mode' => 'live',
                 'error' => 'YOUTUBE_API_KEY is not configured.',
             ], 500];
         }
@@ -52,6 +86,7 @@ class IntegrationProbeController extends Controller
             return [[
                 'ok' => false,
                 'service' => 'youtube_data_api_v3',
+                'probe_mode' => 'live',
                 'http_status' => $response->status(),
                 'error' => $response->json('error.message') ?? 'YouTube API request failed.',
             ], 502];
@@ -62,6 +97,7 @@ class IntegrationProbeController extends Controller
         return [[
             'ok' => true,
             'service' => 'youtube_data_api_v3',
+            'probe_mode' => 'live',
             'http_status' => $response->status(),
             'video' => [
                 'id' => $item['id'] ?? null,
@@ -92,6 +128,22 @@ class IntegrationProbeController extends Controller
      */
     private function youtubeCheck(array $payload): array
     {
+        if (($payload['probe_mode'] ?? null) === 'config') {
+            $configured = (bool) ($payload['configured'] ?? false);
+
+            return [
+                'name' => 'YouTube Data API v3',
+                'description' => '影片、直播、頻道統計與留言擷取使用的 Google API。',
+                'state' => $configured ? 'configured' : 'missing',
+                'status' => $configured ? 'configured' : 'missing',
+                'details' => [
+                    ['label' => 'Check', 'value' => 'config only; no external request'],
+                    ['label' => 'API key', 'value' => $configured ? 'configured' : 'missing'],
+                    ['label' => 'Live probe', 'value' => 'local/testing only'],
+                ],
+            ];
+        }
+
         $ok = (bool) ($payload['ok'] ?? false);
         $missingKey = ($payload['error'] ?? null) === 'YOUTUBE_API_KEY is not configured.';
 
@@ -99,15 +151,15 @@ class IntegrationProbeController extends Controller
             'name' => 'YouTube Data API v3',
             'description' => '影片、直播、頻道統計與留言擷取使用的 Google API。',
             'state' => $ok ? 'ok' : ($missingKey ? 'missing' : 'failed'),
-            'status' => $ok ? 'OK' : ($missingKey ? '未設定' : 'Failed'),
+            'status' => $ok ? 'OK' : ($missingKey ? 'missing' : 'failed'),
             'details' => array_values(array_filter([
-                ['label' => '檢查方式', 'value' => 'live probe: videos.list(snippet,statistics)'],
-                ['label' => 'HTTP 狀態', 'value' => (string) ($payload['http_status'] ?? 'n/a')],
-                ['label' => '測試影片 ID', 'value' => (string) data_get($payload, 'video.id', 'n/a')],
-                ['label' => '標題', 'value' => (string) data_get($payload, 'video.title', 'n/a')],
-                ['label' => '頻道', 'value' => (string) data_get($payload, 'video.channel_title', 'n/a')],
-                ['label' => 'viewCount 欄位', 'value' => data_get($payload, 'video.view_count_available') ? 'available' : 'missing'],
-                ! $ok ? ['label' => '錯誤', 'value' => (string) ($payload['error'] ?? 'Unknown error')] : null,
+                ['label' => 'Check', 'value' => 'live probe: videos.list(snippet,statistics)'],
+                ['label' => 'HTTP status', 'value' => (string) ($payload['http_status'] ?? 'n/a')],
+                ['label' => 'Test video ID', 'value' => (string) data_get($payload, 'video.id', 'n/a')],
+                ['label' => 'Title', 'value' => (string) data_get($payload, 'video.title', 'n/a')],
+                ['label' => 'Channel', 'value' => (string) data_get($payload, 'video.channel_title', 'n/a')],
+                ['label' => 'viewCount field', 'value' => data_get($payload, 'video.view_count_available') ? 'available' : 'missing'],
+                ! $ok ? ['label' => 'Error', 'value' => (string) ($payload['error'] ?? 'Unknown error')] : null,
             ])),
         ];
     }
@@ -126,12 +178,12 @@ class IntegrationProbeController extends Controller
         $fallbackConfigured = is_string($fallbackApiKey) && trim($fallbackApiKey) !== '';
 
         return [
-            'name' => 'OpenAI 相容 AI API',
+            'name' => 'OpenAI-compatible AI API',
             'description' => 'AI 每日、每小時與頻道摘要產生使用的 chat/messages 相容端點。',
             'state' => $configured || $fallbackConfigured ? 'configured' : 'missing',
-            'status' => $configured || $fallbackConfigured ? '已設定' : '未設定',
+            'status' => $configured || $fallbackConfigured ? 'configured' : 'missing',
             'details' => [
-                ['label' => '檢查方式', 'value' => '設定檢查；不主動呼叫模型，避免產生成本。'],
+                ['label' => 'Check', 'value' => 'config only; no model request'],
                 ['label' => 'Base URL', 'value' => is_string($baseUrl) && $baseUrl !== '' ? $baseUrl : 'n/a'],
                 ['label' => 'Model', 'value' => is_string($model) && $model !== '' ? $model : 'n/a'],
                 ['label' => 'Primary key', 'value' => $configured ? 'configured' : 'missing'],
@@ -154,9 +206,9 @@ class IntegrationProbeController extends Controller
             'name' => 'Dokploy deploy relay',
             'description' => 'main branch push 後觸發 Dokploy 重新部署的受簽章保護 relay。',
             'state' => $webhookConfigured && $secretConfigured ? 'configured' : 'missing',
-            'status' => $webhookConfigured && $secretConfigured ? '已設定' : '未設定',
+            'status' => $webhookConfigured && $secretConfigured ? 'configured' : 'missing',
             'details' => [
-                ['label' => '檢查方式', 'value' => '設定檢查；不呼叫 webhook，避免觸發部署。'],
+                ['label' => 'Check', 'value' => 'config only; no webhook request'],
                 ['label' => 'Webhook URL', 'value' => $webhookConfigured ? 'configured' : 'missing'],
                 ['label' => 'Relay secret', 'value' => $secretConfigured ? 'configured' : 'missing'],
             ],
@@ -172,9 +224,9 @@ class IntegrationProbeController extends Controller
             'name' => 'tag.analysis.tw APIs',
             'description' => '關鍵字與群組資料同步 execute mode 會使用的 legacy 外部端點。',
             'state' => 'not_checked',
-            'status' => '未執行',
+            'status' => 'not checked',
             'details' => [
-                ['label' => '檢查方式', 'value' => '端點列示；不主動呼叫外部 legacy API。'],
+                ['label' => 'Check', 'value' => 'endpoint inventory only; no external request'],
                 ['label' => 'Keyword endpoint', 'value' => 'https://tag.analysis.tw/api/tag_json.php'],
                 ['label' => 'Group endpoint', 'value' => 'https://tag.analysis.tw/api/group.php'],
             ],
@@ -190,26 +242,26 @@ class IntegrationProbeController extends Controller
             DB::select('select 1');
 
             return [
-                'name' => 'Local database',
-                'description' => '報表、cache fallback 與 ingestion preview 使用的本機資料庫連線。',
+                'name' => 'Database',
+                'description' => '報表、cache fallback 與 ingestion preview 使用的資料庫連線。',
                 'state' => 'ok',
                 'status' => 'OK',
                 'details' => [
-                    ['label' => '檢查方式', 'value' => 'read-only: select 1'],
+                    ['label' => 'Check', 'value' => 'read-only: select 1'],
                     ['label' => 'Connection', 'value' => (string) config('database.default')],
                     ['label' => 'Database', 'value' => (string) config('database.connections.'.config('database.default').'.database')],
                 ],
             ];
         } catch (\Throwable $exception) {
             return [
-                'name' => 'Local database',
-                'description' => '報表、cache fallback 與 ingestion preview 使用的本機資料庫連線。',
+                'name' => 'Database',
+                'description' => '報表、cache fallback 與 ingestion preview 使用的資料庫連線。',
                 'state' => 'failed',
-                'status' => 'Failed',
+                'status' => 'failed',
                 'details' => [
-                    ['label' => '檢查方式', 'value' => 'read-only: select 1'],
+                    ['label' => 'Check', 'value' => 'read-only: select 1'],
                     ['label' => 'Connection', 'value' => (string) config('database.default')],
-                    ['label' => '錯誤', 'value' => $exception->getMessage()],
+                    ['label' => 'Error', 'value' => $exception->getMessage()],
                 ],
             ];
         }

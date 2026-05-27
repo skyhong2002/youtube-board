@@ -1,16 +1,16 @@
 <?php
 
-use App\Http\Controllers\Reports\LiveCurrentController;
-use App\Http\Controllers\Reports\LiveChannelsController;
-use App\Http\Controllers\Reports\LiveContinuousController;
-use App\Http\Controllers\Reports\LiveDailyTrendController;
-use App\Http\Controllers\Reports\LiveDayController;
-use App\Http\Controllers\Reports\LiveGroupHoursController;
-use App\Http\Controllers\Reports\LiveHoursController;
-use App\Http\Controllers\Reports\LivePeriodController;
-use App\Http\Controllers\Reports\LiveTagController;
-use App\Http\Controllers\Reports\LiveVideoTrendController;
-use App\Http\Controllers\Reports\LiveWallController;
+use App\Http\Controllers\LegacyApi\AiApiController;
+use App\Http\Controllers\LegacyApi\ChannelReportApiController;
+use App\Http\Controllers\LegacyApi\CloudGroupApiController;
+use App\Http\Controllers\LegacyApi\LiveApiController;
+use App\Http\Controllers\LegacyApi\MediaApiController;
+use App\Http\Controllers\LegacyApi\TagChannelApiController;
+use App\Http\Controllers\Ops\DokployDeployWebhookController;
+use App\Http\Controllers\Ops\IngestionDashboardController;
+use App\Http\Controllers\Ops\IntegrationCheckController;
+use App\Http\Controllers\Ops\LegacyPromptGuardController;
+use App\Http\Controllers\Ops\LegacyWriteGuardController;
 use App\Http\Controllers\Reports\AiAspectController;
 use App\Http\Controllers\Reports\AiDailyController;
 use App\Http\Controllers\Reports\AiDailyPromptController;
@@ -18,19 +18,11 @@ use App\Http\Controllers\Reports\AiEventController;
 use App\Http\Controllers\Reports\AiHourlyController;
 use App\Http\Controllers\Reports\AiPeriodController;
 use App\Http\Controllers\Reports\AuthorCommentsController;
-use App\Http\Controllers\Reports\TagChannelRankingController;
-use App\Http\Controllers\Reports\TagComparisonController;
-use App\Http\Controllers\Reports\TagDailyRelationController;
-use App\Http\Controllers\Reports\TagDataGapController;
-use App\Http\Controllers\Reports\TagLiveVideosController;
-use App\Http\Controllers\Reports\TagTrendController;
-use App\Http\Controllers\Reports\TagVideosController;
-use App\Http\Controllers\Reports\VideoDetailController;
-use App\Http\Controllers\Reports\ChannelProfileController;
-use App\Http\Controllers\Reports\ChannelDataGapController;
 use App\Http\Controllers\Reports\ChannelAiDailyController;
 use App\Http\Controllers\Reports\ChannelAiOverviewController;
+use App\Http\Controllers\Reports\ChannelDataGapController;
 use App\Http\Controllers\Reports\ChannelPeopleController;
+use App\Http\Controllers\Reports\ChannelProfileController;
 use App\Http\Controllers\Reports\ChannelPromptController;
 use App\Http\Controllers\Reports\ChannelVideosController;
 use App\Http\Controllers\Reports\GroupDirectoryController;
@@ -40,18 +32,26 @@ use App\Http\Controllers\Reports\HomeController;
 use App\Http\Controllers\Reports\KeywordGroupTrendController;
 use App\Http\Controllers\Reports\KeywordListController;
 use App\Http\Controllers\Reports\KeywordLiveTrendController;
+use App\Http\Controllers\Reports\LiveChannelsController;
+use App\Http\Controllers\Reports\LiveContinuousController;
+use App\Http\Controllers\Reports\LiveCurrentController;
+use App\Http\Controllers\Reports\LiveDailyTrendController;
+use App\Http\Controllers\Reports\LiveDayController;
+use App\Http\Controllers\Reports\LiveGroupHoursController;
+use App\Http\Controllers\Reports\LiveHoursController;
+use App\Http\Controllers\Reports\LivePeriodController;
+use App\Http\Controllers\Reports\LiveTagController;
+use App\Http\Controllers\Reports\LiveVideoTrendController;
+use App\Http\Controllers\Reports\LiveWallController;
 use App\Http\Controllers\Reports\MayorReportController;
-use App\Http\Controllers\LegacyApi\LiveApiController;
-use App\Http\Controllers\LegacyApi\TagChannelApiController;
-use App\Http\Controllers\LegacyApi\CloudGroupApiController;
-use App\Http\Controllers\LegacyApi\ChannelReportApiController;
-use App\Http\Controllers\LegacyApi\AiApiController;
-use App\Http\Controllers\LegacyApi\MediaApiController;
-use App\Http\Controllers\Ops\DokployDeployWebhookController;
-use App\Http\Controllers\Ops\IngestionDashboardController;
-use App\Http\Controllers\Ops\LegacyPromptGuardController;
-use App\Http\Controllers\Ops\LegacyWriteGuardController;
-use App\Http\Controllers\Dev\IntegrationProbeController;
+use App\Http\Controllers\Reports\TagChannelRankingController;
+use App\Http\Controllers\Reports\TagComparisonController;
+use App\Http\Controllers\Reports\TagDailyRelationController;
+use App\Http\Controllers\Reports\TagDataGapController;
+use App\Http\Controllers\Reports\TagLiveVideosController;
+use App\Http\Controllers\Reports\TagTrendController;
+use App\Http\Controllers\Reports\TagVideosController;
+use App\Http\Controllers\Reports\VideoDetailController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -125,6 +125,7 @@ Route::get('/ai/events/{id}/wall', [AiEventController::class, 'wall'])->whereNum
 Route::get('/ai/events/{id}', AiEventController::class)->whereNumber('id')->name('ai.events.show');
 Route::get('/ai/hours', AiHourlyController::class)->name('ai.hours');
 Route::get('/ai/periods', AiPeriodController::class)->name('ai.periods');
+Route::get('/ops/integrations', [IntegrationCheckController::class, 'index'])->name('ops.integrations');
 Route::get('/ops/ingestion', IngestionDashboardController::class)->name('ops.ingestion');
 Route::post('/ops/ingestion/run', [IngestionDashboardController::class, 'run'])->name('ops.ingestion.run');
 Route::get('/ops/ingestion/runs/{runId}', [IngestionDashboardController::class, 'runShow'])
@@ -824,11 +825,11 @@ Route::get('/ch/{u_id}', function (Request $request, int $u_id) {
     return redirect()->route('channels.show', ['u_id' => $u_id] + $request->query(), 308);
 })->whereNumber('u_id')->name('legacy.channel.show');
 
-if (app()->environment(['local', 'testing'])) {
-    $youtubeProbe = [IntegrationProbeController::class, 'youtube'];
+Route::get('/dev/check', [IntegrationCheckController::class, 'devCheck'])
+    ->name('dev.check');
 
-    Route::get('/dev/check', [IntegrationProbeController::class, 'youtubePage'])
-        ->name('dev.check');
+if (app()->environment(['local', 'testing'])) {
+    $youtubeProbe = [IntegrationCheckController::class, 'youtube'];
 
     Route::get('/dev/yt-check', $youtubeProbe)
         ->name('dev.yt.check');

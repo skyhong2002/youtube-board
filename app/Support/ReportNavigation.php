@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use Illuminate\Http\Request;
+
 class ReportNavigation
 {
     /**
@@ -32,15 +33,8 @@ class ReportNavigation
 
         $items = [
             self::item('擷取排程', 'ops.ingestion', str_starts_with($routeName, 'ops.ingestion')),
+            self::item('整合檢查', 'ops.integrations', $routeName === 'ops.integrations' || str_starts_with($routeName, 'dev.')),
         ];
-
-        if (app()->environment(['local', 'testing'])) {
-            $items[] = [
-                'label' => '整合檢查',
-                'url' => url('/dev/check'),
-                'active' => str_starts_with($routeName, 'dev.'),
-            ];
-        }
 
         return $items;
     }
@@ -124,7 +118,7 @@ class ReportNavigation
         }
 
         if (str_starts_with($routeName, 'ops.')) {
-            return self::opsSection($routeName);
+            return [];
         }
 
         return [];
@@ -311,16 +305,6 @@ class ReportNavigation
             self::item('分類逐日', 'tags.days.index', $routeName === 'tags.days.index'),
             self::item('分類趨勢', 'tags.trends.index', $routeName === 'tags.trends.index'),
             self::item('分類比較', 'tags.compare', $routeName === 'tags.compare'),
-        ];
-    }
-
-    /**
-     * @return array<int, array{label: string, url: string, active: bool}>
-     */
-    private static function opsSection(string $routeName): array
-    {
-        return [
-            self::item('擷取排程', 'ops.ingestion', $routeName === 'ops.ingestion'),
         ];
     }
 }

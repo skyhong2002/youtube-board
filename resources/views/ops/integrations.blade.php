@@ -4,29 +4,15 @@
 整合檢查
 @endsection
 
-@section('meta')
-外部服務與本機依賴
-@endsection
+@section('meta', $meta)
 
 @push('styles')
 <style>
-body {
-            margin: 0;
-            background: #f6f7f9;
-            color: #18202a;
-            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        }
-
-        main {
-            max-width: 760px;
-            margin: 48px auto;
-            padding: 0 20px;
-        }
-
-        h1 {
-            margin: 0 0 18px;
-            font-size: 24px;
-            font-weight: 700;
+        .integration-note {
+            max-width: 820px;
+            margin: 0 0 16px;
+            color: #5f6b7a;
+            line-height: 1.55;
         }
 
         .checks-grid {
@@ -36,7 +22,7 @@ body {
         }
 
         .check-card {
-            padding: 24px;
+            padding: 20px;
             background: #fff;
             border: 1px solid #d8dde5;
             border-radius: 8px;
@@ -115,16 +101,6 @@ body {
             word-break: break-word;
         }
 
-        .ok {
-            color: #0c7a43;
-            font-weight: 700;
-        }
-
-        .fail {
-            color: #b42318;
-            font-weight: 700;
-        }
-
         @media (max-width: 720px) {
             .checks-grid {
                 grid-template-columns: 1fr;
@@ -147,23 +123,31 @@ body {
 @endpush
 
 @section('content')
-<section class="checks-grid" aria-label="整合檢查項目">
-            @foreach ($checks as $check)
-                <article class="check-card">
-                    <div class="check-head">
-                        <h2>{{ $check['name'] }}</h2>
-                        <span class="status {{ $check['state'] }}">{{ $check['status'] }}</span>
-                    </div>
+    <p class="integration-note">
+        @if ($liveProbe)
+            Local live probe 已啟用；標示為 live probe 的檢查可能會呼叫外部 API。
+        @else
+            公開 ops 頁面預設只做 config-only checks，不會主動呼叫 YouTube、AI、Dokploy 或 legacy external APIs。
+        @endif
+    </p>
 
-                    <p class="check-description">{{ $check['description'] }}</p>
+    <section class="checks-grid" aria-label="整合檢查項目">
+        @foreach ($checks as $check)
+            <article class="check-card">
+                <div class="check-head">
+                    <h2>{{ $check['name'] }}</h2>
+                    <span class="status {{ $check['state'] }}">{{ $check['status'] }}</span>
+                </div>
 
-                    <dl>
-                        @foreach ($check['details'] as $detail)
-                            <dt>{{ $detail['label'] }}</dt>
-                            <dd>{{ $detail['value'] }}</dd>
-                        @endforeach
-                    </dl>
-                </article>
-            @endforeach
-        </section>
+                <p class="check-description">{{ $check['description'] }}</p>
+
+                <dl>
+                    @foreach ($check['details'] as $detail)
+                        <dt>{{ $detail['label'] }}</dt>
+                        <dd>{{ $detail['value'] }}</dd>
+                    @endforeach
+                </dl>
+            </article>
+        @endforeach
+    </section>
 @endsection

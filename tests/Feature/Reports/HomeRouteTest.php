@@ -49,7 +49,7 @@ class HomeRouteTest extends TestCase
         $response->assertDontSee('本機尚未匯入');
     }
 
-    public function test_home_page_hides_dev_check_link_outside_local_environments(): void
+    public function test_home_page_links_to_public_integration_check_outside_local_environments(): void
     {
         $this->app->detectEnvironment(fn () => 'production');
         $this->createTagIndexTables();
@@ -61,7 +61,8 @@ class HomeRouteTest extends TestCase
         $response = $this->get('/');
 
         $response->assertOk();
-        $response->assertDontSee('整合檢查');
+        $response->assertSee('整合檢查');
+        $response->assertSee('/ops/integrations', false);
         $response->assertDontSee('/dev/check');
     }
 
