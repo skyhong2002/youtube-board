@@ -33,7 +33,7 @@ Production polling is still off in the template. To enable it after a backup and
 INGESTION_SCHEDULER_ENABLED=true
 INGESTION_LOCAL_POLLING_ENABLED=true
 INGESTION_PRODUCTION_POLLING_ENABLED=true
-INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.live.poll,youtube.channels.videos.live,youtube.channels.videos.live_group,reports.live.build
+INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.live.poll,youtube.channels.videos.live,youtube.channels.videos.live_group,reports.live.build,ai.hourly,ai.daily
 YOUTUBE_API_KEY=<youtube-data-api-key>
 # Optional comma-separated fallback keys, configured only in Dokploy secrets/env:
 YOUTUBE_API_KEYS=<youtube-data-api-key-2>,<youtube-data-api-key-3>
@@ -46,6 +46,11 @@ For `/live/current` parity with the legacy site, the minimum live allowlist is:
 - `youtube.channels.videos.live`: discovers live/upcoming rows from channels tagged `[52]`.
 - `youtube.channels.videos.live_group`: discovers live/upcoming rows from group channels tagged `[89]`.
 - `reports.live.build`: fills `urt_show_video_live` display cache from local live/video rows.
+
+For AI page freshness, add:
+
+- `ai.hourly`: refreshes `urt_ai_hour` from the previous complete hour of `urt_video`.
+- `ai.daily`: refreshes configured channel-level `urt_channel_ai` rows first, then writes six daily `urt_ai_date` condition rows from those channel summaries.
 
 The scheduler service must run `php artisan schedule:run` every minute, or the equivalent Dokploy cron service must be enabled. Keep the allowlist narrow at first; each allowlisted job uses its capped `scheduled_execute_command`.
 

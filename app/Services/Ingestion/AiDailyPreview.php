@@ -34,6 +34,14 @@ class AiDailyPreview
     }
 
     /**
+     * @return list<int>
+     */
+    public static function channelAiUids(): array
+    {
+        return self::CHANNEL_AI_UIDS;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function preview(
@@ -42,6 +50,7 @@ class AiDailyPreview
         string $dataType = 'oneday',
         int $limit = 1000,
         ?CarbonInterface $now = null,
+        bool $includePrompts = false,
     ): array {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
         $now = $now === null
@@ -57,7 +66,7 @@ class AiDailyPreview
         ];
 
         $conditionRows = collect($conditions)
-            ->map(fn (string $condition): array => $this->conditionPreview($condition, $period, $dataType, $limit))
+            ->map(fn (string $condition): array => $this->conditionPreview($condition, $period, $dataType, $limit, $includePrompts))
             ->values();
         $channelRefresh = $this->channelAiRefreshPreview($period, $now);
 
@@ -123,7 +132,7 @@ class AiDailyPreview
      * @param  array{from: string, to: string}  $period
      * @return array<string, mixed>
      */
-    private function conditionPreview(string $condition, array $period, string $dataType, int $limit): array
+    private function conditionPreview(string $condition, array $period, string $dataType, int $limit, bool $includePrompts): array
     {
         $filters = $this->conditionFilters($condition);
         $matchingUIds = $this->matchingUIds($filters);
@@ -134,7 +143,7 @@ class AiDailyPreview
         $bounds = $this->promptBounds($condition);
         $prompt = $this->prompt($rows, $bounds, $condition);
 
-        return [
+        $row = [
             'condition' => $condition,
             'filters' => [
                 'tagid' => $filters['tagid'],
@@ -165,6 +174,18 @@ class AiDailyPreview
                 ->values()
                 ->all(),
         ];
+
+        if ($includePrompts) {
+            $row['prompt'] = $prompt;
+            $row['channel_id_json'] = json_encode(
+                collect($rows)
+                    ->mapWithKeys(fn (array $row): array => [(string) $row['u_id'] => $row['title']])
+                    ->all(),
+                JSON_UNESCAPED_UNICODE,
+            );
+        }
+
+        return $row;
     }
 
     /**

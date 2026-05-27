@@ -6,6 +6,7 @@ use App\Services\Ingestion\IngestionSchedulerRunner;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -129,6 +130,150 @@ class ReadOnlyAiDailyCommandTest extends TestCase
         $this->assertSame(0, DB::table('urt_channel_ai')->count());
     }
 
+    public function test_ai_daily_execute_refreshes_channel_ai_then_upserts_daily_ai_rows(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDailyAiFixtures();
+        $this->seedRefreshChannelVideos();
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::sequence()
+                ->push([
+                    'choices' => [
+                        [
+                            'message' => [
+                                'content' => '[{"事件":"頻道事件","描述":"頻道描述","關鍵字":["測試"],"videoId":["refresh-video-10","refresh-video-9"]}]',
+                            ],
+                        ],
+                    ],
+                    'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5],
+                ])
+                ->push([
+                    'choices' => [
+                        [
+                            'message' => [
+                                'content' => '[{"標題":"每日事件","媒體事件":{"Configured News Channel":["頻道事件"]}}]',
+                            ],
+                        ],
+                    ],
+                    'usage' => ['prompt_tokens' => 20, 'completion_tokens' => 6],
+                ])
+                ->push([
+                    'choices' => [
+                        [
+                            'message' => [
+                                'content' => '[{"事件":"頻道事件更新","描述":"頻道描述","關鍵字":["測試"],"videoId":["refresh-video-10","refresh-video-9"]}]',
+                            ],
+                        ],
+                    ],
+                    'usage' => ['prompt_tokens' => 11, 'completion_tokens' => 5],
+                ])
+                ->push([
+                    'choices' => [
+                        [
+                            'message' => [
+                                'content' => '[{"標題":"每日事件更新","媒體事件":{"Configured News Channel":["頻道事件更新"]}}]',
+                            ],
+                        ],
+                    ],
+                    'usage' => ['prompt_tokens' => 21, 'completion_tokens' => 6],
+                ]),
+        ]);
+
+        $exitCode = Artisan::call('ai:daily', [
+            '--execute' => true,
+            '--date' => '2026-05-24',
+            '--condition' => 'all',
+            '--channel-limit' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('execute', $payload['mode']);
+        $this->assertSame(1, $payload['channel_ai']['inserted']);
+        $this->assertSame(1, $payload['daily_ai']['inserted']);
+        $this->assertSame('not_printed', $payload['secrets']);
+        $this->assertDatabaseHas('urt_channel_ai', [
+            'u_id' => 76,
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
+            'ai_type' => 'qwen-test',
+            'data_type' => 'oneday',
+            'user_token' => 'CLI',
+            'result_json' => '[{"事件":"頻道事件","描述":"頻道描述","關鍵字":["測試"],"videoId":["refresh-video-10","refresh-video-9"]}]',
+        ]);
+        $this->assertDatabaseHas('urt_ai_date', [
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
+            'condition_type' => 'all',
+            'ai_type' => 'qwen-test',
+            'data_type' => 'oneday',
+            'user_token' => 'CLI',
+            'channel_id' => '{"76":"Configured News Channel","30":"Finance Channel","20":"Blue Channel","10":"Green Channel"}',
+            'result_json' => '[{"標題":"每日事件","媒體事件":{"Configured News Channel":["頻道事件"]}}]',
+        ]);
+
+        $exitCode = Artisan::call('ai:daily', [
+            '--execute' => true,
+            '--date' => '2026-05-24',
+            '--condition' => 'all',
+            '--channel-limit' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, $payload['channel_ai']['updated']);
+        $this->assertSame(1, $payload['daily_ai']['updated']);
+        $this->assertSame(4, DB::table('urt_channel_ai')->count());
+        $this->assertSame(1, DB::table('urt_ai_date')->count());
+        Http::assertSentCount(4);
+    }
+
+    public function test_ingestion_scheduler_executes_allowlisted_ai_daily_command_when_due(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDailyAiFixtures();
+        $this->seedRefreshChannelVideos();
+        config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.local_polling_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['ai.daily']);
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::response([
+                'choices' => [
+                    [
+                        'message' => [
+                            'content' => '[{"事件":"排程事件","描述":"排程描述","關鍵字":["測試"],"videoId":["refresh-video-10","refresh-video-9"]}]',
+                        ],
+                    ],
+                ],
+                'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5],
+            ]),
+        ]);
+
+        $result = app(IngestionSchedulerRunner::class)->run(
+            at: CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'),
+            execute: true,
+            jobKey: 'ai.daily',
+        );
+
+        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $result['summary']);
+        $this->assertSame('executed:local-polling', $result['jobs'][0]['action']);
+        $this->assertStringContainsString('ai:daily --execute', $result['jobs'][0]['effective_command']);
+        $this->assertGreaterThanOrEqual(1, DB::table('urt_channel_ai')->count());
+        $this->assertGreaterThanOrEqual(1, DB::table('urt_ai_date')->count());
+    }
+
     private function createTables(): void
     {
         foreach (['urt_video', 'urt_ai_date', 'urt_channel_ai', 'urt_count', 'urt_channel'] as $table) {
@@ -183,7 +328,23 @@ class ReadOnlyAiDailyCommandTest extends TestCase
             $table->dateTime('publishedAt');
             $table->string('title')->nullable();
             $table->string('channelTitle')->nullable();
+            $table->integer('viewCount')->nullable();
         });
+    }
+
+    private function seedRefreshChannelVideos(): void
+    {
+        DB::table('urt_channel')->insert(['u_id' => 76, 'title' => 'Configured News Channel']);
+        for ($index = 1; $index <= 10; $index++) {
+            DB::table('urt_video')->insert([
+                'u_id' => 76,
+                'videoId' => 'refresh-video-'.$index,
+                'publishedAt' => '2026-05-24 '.str_pad((string) $index, 2, '0', STR_PAD_LEFT).':00:00',
+                'title' => 'Refresh Video '.$index,
+                'channelTitle' => 'Configured News Channel',
+                'viewCount' => 1000 + $index,
+            ]);
+        }
     }
 
     private function seedDailyAiFixtures(): void

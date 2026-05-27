@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
 use Carbon\CarbonImmutable;
+use App\Services\Ingestion\AiDailyIngestion;
 use App\Services\Ingestion\AiDailyPreview;
 use App\Services\Ingestion\AiHourlyIngestion;
 use App\Services\Ingestion\AiHourlyPreview;
@@ -1698,8 +1699,47 @@ Artisan::command('reports:schedule:build {--videoId= : Preview one scheduled vid
     }
 })->purpose('Read-only preview of legacy schedule stime recalculation; does not update urt_video_schedule');
 
-Artisan::command('ai:daily {--date= : Legacy date, defaults to yesterday in Asia/Taipei} {--condition= : Optional single legacy condition; default previews make_ai_day.sh conditions} {--type=oneday : Legacy urt_channel_ai data_type} {--limit=1000 : Max channel AI rows per condition} {--json : Emit JSON instead of text}', function (AiDailyPreview $preview) {
+Artisan::command('ai:daily {--date= : Legacy date, defaults to yesterday in Asia/Taipei} {--condition= : Optional single legacy condition; default previews make_ai_day.sh conditions} {--type=oneday : Legacy urt_channel_ai data_type} {--limit=1000 : Max channel AI rows per condition} {--channel-limit=39 : Max configured channels to refresh in execute mode} {--execute : Call OpenCode-compatible chat completions and upsert urt_channel_ai/urt_ai_date} {--dry-run : Force dry-run preview; this is the default} {--user-token=CLI : user_token value for execute-mode upserts} {--json : Emit JSON instead of text}', function (AiDailyPreview $preview, AiDailyIngestion $ingestion) {
     try {
+        $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
+
+        if ($execute) {
+            $payload = $ingestion->execute(
+                date: $this->option('date') ? (string) $this->option('date') : null,
+                condition: $this->option('condition') ? (string) $this->option('condition') : null,
+                dataType: (string) $this->option('type'),
+                limit: (int) $this->option('limit'),
+                channelLimit: (int) $this->option('channel-limit'),
+                userToken: (string) $this->option('user-token'),
+            );
+
+            if ((bool) $this->option('json')) {
+                $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+                return 0;
+            }
+
+            $this->line(sprintf(
+                'ai:daily mode=execute source=%s date=%s type=%s conditions=%d channel_attempted=%d channel_inserted=%d channel_updated=%d channel_skipped=%d daily_attempted=%d daily_inserted=%d daily_updated=%d daily_skipped=%d secrets=not_printed generated_at=%s',
+                $payload['source'],
+                $payload['date'],
+                $payload['data_type'],
+                count($payload['conditions']),
+                $payload['channel_ai']['attempted'],
+                $payload['channel_ai']['inserted'],
+                $payload['channel_ai']['updated'],
+                $payload['channel_ai']['skipped'],
+                $payload['daily_ai']['attempted'],
+                $payload['daily_ai']['inserted'],
+                $payload['daily_ai']['updated'],
+                $payload['daily_ai']['skipped'],
+                $payload['generated_at'],
+            ));
+            $this->line('write_targets='.implode(',', $payload['write_targets']));
+
+            return 0;
+        }
+
         $payload = $preview->preview(
             date: $this->option('date') ? (string) $this->option('date') : null,
             condition: $this->option('condition') ? (string) $this->option('condition') : null,

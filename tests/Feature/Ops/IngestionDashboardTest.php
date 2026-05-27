@@ -246,10 +246,12 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('ai.daily');
         $response->assertSee('ai:daily');
-        $response->assertSee('read-only daily AI prompt/run preview');
+        $response->assertSee('explicit `--execute` calls OpenCode-compatible chat completions and upserts `urt_channel_ai` / `urt_ai_date`');
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=ai.daily');
-        $response->assertSee('不呼叫 AI、不新增 `urt_channel_ai`、不新增 `urt_ai_date`');
+        $response->assertSee('Scheduled Local Polling');
+        $response->assertSee('ai:daily --execute --channel-limit=39 --limit=1000');
+        $response->assertSee('INGESTION_LOCAL_POLLING_ENABLED is false.');
     }
 
     public function test_ingestion_job_detail_allows_live_poll_read_only_preview(): void

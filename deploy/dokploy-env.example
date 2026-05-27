@@ -34,7 +34,7 @@ INGESTION_TIMEZONE=Asia/Taipei
 # INGESTION_SCHEDULER_ENABLED=true
 # INGESTION_LOCAL_POLLING_ENABLED=true
 # INGESTION_PRODUCTION_POLLING_ENABLED=true
-# INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.live.poll,youtube.channels.videos.live,youtube.channels.videos.live_group,reports.live.build
+# INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.live.poll,youtube.channels.videos.live,youtube.channels.videos.live_group,reports.live.build,ai.hourly,ai.daily
 
 YOUTUBE_API_KEY=
 # Optional comma-separated fallback keys. Keep these in Dokploy secrets/env only.
