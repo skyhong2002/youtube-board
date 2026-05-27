@@ -30,6 +30,7 @@ return [
 
     'youtube' => [
         'api_key' => env('YOUTUBE_API_KEY'),
+        'api_keys' => env('YOUTUBE_API_KEYS'),
     ],
 
     'opencode_go' => [

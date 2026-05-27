@@ -3,6 +3,7 @@
 namespace App\Services\Ingestion;
 
 use Illuminate\Support\Facades\Http;
+use Illuminate\Http\Client\Response;
 use RuntimeException;
 
 class YoutubeDataApiClient
@@ -13,12 +14,6 @@ class YoutubeDataApiClient
      */
     public function channelStatistics(array $channelIds): array
     {
-        $apiKey = config('services.youtube.api_key');
-
-        if (! is_string($apiKey) || trim($apiKey) === '') {
-            throw new RuntimeException('YOUTUBE_API_KEY is not configured.');
-        }
-
         $channelIds = collect($channelIds)
             ->map(fn (string $id): string => trim($id))
             ->filter()
@@ -30,17 +25,12 @@ class YoutubeDataApiClient
             return [];
         }
 
-        $response = Http::timeout(15)->get('https://www.googleapis.com/youtube/v3/channels', [
+        $response = $this->get('https://www.googleapis.com/youtube/v3/channels', [
             'part' => 'statistics',
             'id' => implode(',', $channelIds),
-            'key' => $apiKey,
-        ]);
+        ], 15, 'YouTube channels.list request failed.');
 
-        if (! $response->ok()) {
-            $message = $response->json('error.message') ?? 'YouTube channels.list request failed.';
-
-            throw new RuntimeException('YouTube API error '.$response->status().': '.$message);
-        }
+        $this->throwIfFailed($response, 'YouTube channels.list request failed.');
 
         return collect($response->json('items', []))
             ->mapWithKeys(function (array $item): array {
@@ -76,30 +66,19 @@ class YoutubeDataApiClient
      */
     public function playlistItems(string $playlistId, int $maxResults = 50): array
     {
-        $apiKey = config('services.youtube.api_key');
-
-        if (! is_string($apiKey) || trim($apiKey) === '') {
-            throw new RuntimeException('YOUTUBE_API_KEY is not configured.');
-        }
-
         $playlistId = trim($playlistId);
 
         if ($playlistId === '') {
             return [];
         }
 
-        $response = Http::timeout(15)->get('https://www.googleapis.com/youtube/v3/playlistItems', [
+        $response = $this->get('https://www.googleapis.com/youtube/v3/playlistItems', [
             'part' => 'snippet',
             'maxResults' => max(1, min(50, $maxResults)),
             'playlistId' => $playlistId,
-            'key' => $apiKey,
-        ]);
+        ], 15, 'YouTube playlistItems.list request failed.');
 
-        if (! $response->ok()) {
-            $message = $response->json('error.message') ?? 'YouTube playlistItems.list request failed.';
-
-            throw new RuntimeException('YouTube API error '.$response->status().': '.$message);
-        }
+        $this->throwIfFailed($response, 'YouTube playlistItems.list request failed.');
 
         return collect($response->json('items', []))
             ->map(function (array $item): array {
@@ -134,12 +113,6 @@ class YoutubeDataApiClient
      */
     public function videoStatistics(array $videoIds): array
     {
-        $apiKey = config('services.youtube.api_key');
-
-        if (! is_string($apiKey) || trim($apiKey) === '') {
-            throw new RuntimeException('YOUTUBE_API_KEY is not configured.');
-        }
-
         $videoIds = collect($videoIds)
             ->map(fn (string $id): string => trim($id))
             ->filter()
@@ -152,18 +125,13 @@ class YoutubeDataApiClient
             return [];
         }
 
-        $response = Http::timeout(15)->get('https://www.googleapis.com/youtube/v3/videos', [
+        $response = $this->get('https://www.googleapis.com/youtube/v3/videos', [
             'part' => 'statistics',
             'id' => implode(',', $videoIds),
             'maxResults' => 50,
-            'key' => $apiKey,
-        ]);
+        ], 15, 'YouTube videos.list request failed.');
 
-        if (! $response->ok()) {
-            $message = $response->json('error.message') ?? 'YouTube videos.list request failed.';
-
-            throw new RuntimeException('YouTube API error '.$response->status().': '.$message);
-        }
+        $this->throwIfFailed($response, 'YouTube videos.list request failed.');
 
         return collect($response->json('items', []))
             ->mapWithKeys(function (array $item): array {
@@ -189,12 +157,6 @@ class YoutubeDataApiClient
      */
     public function videoContentDetails(array $videoIds): array
     {
-        $apiKey = config('services.youtube.api_key');
-
-        if (! is_string($apiKey) || trim($apiKey) === '') {
-            throw new RuntimeException('YOUTUBE_API_KEY is not configured.');
-        }
-
         $videoIds = collect($videoIds)
             ->map(fn (string $id): string => trim($id))
             ->filter()
@@ -207,18 +169,13 @@ class YoutubeDataApiClient
             return [];
         }
 
-        $response = Http::timeout(15)->get('https://www.googleapis.com/youtube/v3/videos', [
+        $response = $this->get('https://www.googleapis.com/youtube/v3/videos', [
             'part' => 'contentDetails',
             'id' => implode(',', $videoIds),
             'maxResults' => 50,
-            'key' => $apiKey,
-        ]);
+        ], 15, 'YouTube videos.list request failed.');
 
-        if (! $response->ok()) {
-            $message = $response->json('error.message') ?? 'YouTube videos.list request failed.';
-
-            throw new RuntimeException('YouTube API error '.$response->status().': '.$message);
-        }
+        $this->throwIfFailed($response, 'YouTube videos.list request failed.');
 
         return collect($response->json('items', []))
             ->mapWithKeys(function (array $item): array {
@@ -243,12 +200,6 @@ class YoutubeDataApiClient
      */
     public function videoLiveStreamingDetails(array $videoIds): array
     {
-        $apiKey = config('services.youtube.api_key');
-
-        if (! is_string($apiKey) || trim($apiKey) === '') {
-            throw new RuntimeException('YOUTUBE_API_KEY is not configured.');
-        }
-
         $videoIds = collect($videoIds)
             ->map(fn (string $id): string => trim($id))
             ->filter()
@@ -261,18 +212,13 @@ class YoutubeDataApiClient
             return [];
         }
 
-        $response = Http::timeout(15)->get('https://www.googleapis.com/youtube/v3/videos', [
+        $response = $this->get('https://www.googleapis.com/youtube/v3/videos', [
             'part' => 'liveStreamingDetails',
             'id' => implode(',', $videoIds),
             'maxResults' => 50,
-            'key' => $apiKey,
-        ]);
+        ], 15, 'YouTube videos.list request failed.');
 
-        if (! $response->ok()) {
-            $message = $response->json('error.message') ?? 'YouTube videos.list request failed.';
-
-            throw new RuntimeException('YouTube API error '.$response->status().': '.$message);
-        }
+        $this->throwIfFailed($response, 'YouTube videos.list request failed.');
 
         return collect($response->json('items', []))
             ->mapWithKeys(function (array $item): array {
@@ -289,12 +235,6 @@ class YoutubeDataApiClient
      */
     public function commentThreads(string $videoId, ?string $pageToken = null, int $maxResults = 100): array
     {
-        $apiKey = config('services.youtube.api_key');
-
-        if (! is_string($apiKey) || trim($apiKey) === '') {
-            throw new RuntimeException('YOUTUBE_API_KEY is not configured.');
-        }
-
         $videoId = trim($videoId);
 
         if ($videoId === '') {
@@ -305,20 +245,15 @@ class YoutubeDataApiClient
             'part' => 'id,replies,snippet',
             'maxResults' => max(1, min(100, $maxResults)),
             'videoId' => $videoId,
-            'key' => $apiKey,
         ];
 
         if (is_string($pageToken) && trim($pageToken) !== '') {
             $query['pageToken'] = trim($pageToken);
         }
 
-        $response = Http::timeout(20)->get('https://www.googleapis.com/youtube/v3/commentThreads', $query);
+        $response = $this->get('https://www.googleapis.com/youtube/v3/commentThreads', $query, 20, 'YouTube commentThreads.list request failed.');
 
-        if (! $response->ok()) {
-            $message = $response->json('error.message') ?? 'YouTube commentThreads.list request failed.';
-
-            throw new RuntimeException('YouTube API error '.$response->status().': '.$message);
-        }
+        $this->throwIfFailed($response, 'YouTube commentThreads.list request failed.');
 
         return [
             'items' => collect($response->json('items', []))
@@ -340,5 +275,72 @@ class YoutubeDataApiClient
             + ((int) ($matches[3] ?? 0) * 3600)
             + ((int) ($matches[4] ?? 0) * 60)
             + (int) ($matches[5] ?? 0);
+    }
+
+    /**
+     * @param  array<string, mixed>  $query
+     */
+    private function get(string $url, array $query, int $timeout, string $fallbackMessage): Response
+    {
+        $responses = [];
+
+        foreach ($this->apiKeys() as $apiKey) {
+            $response = Http::timeout($timeout)->get($url, $query + ['key' => $apiKey]);
+            $responses[] = $response;
+
+            if ($response->ok() || ! $this->isQuotaOrRateLimitFailure($response)) {
+                return $response;
+            }
+        }
+
+        return $responses[array_key_last($responses)] ?? throw new RuntimeException('YOUTUBE_API_KEY is not configured.');
+    }
+
+    private function throwIfFailed(Response $response, string $fallbackMessage): void
+    {
+        if ($response->ok()) {
+            return;
+        }
+
+        $message = $response->json('error.message') ?? $fallbackMessage;
+
+        throw new RuntimeException('YouTube API error '.$response->status().': '.$message);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function apiKeys(): array
+    {
+        $keys = collect([
+            config('services.youtube.api_key'),
+            ...explode(',', (string) config('services.youtube.api_keys', '')),
+        ])
+            ->map(fn (mixed $key): string => trim((string) $key))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($keys === []) {
+            throw new RuntimeException('YOUTUBE_API_KEY is not configured.');
+        }
+
+        return $keys;
+    }
+
+    private function isQuotaOrRateLimitFailure(Response $response): bool
+    {
+        if (! in_array($response->status(), [403, 429], true)) {
+            return false;
+        }
+
+        $reason = (string) ($response->json('error.errors.0.reason') ?? '');
+        $message = (string) ($response->json('error.message') ?? '');
+
+        return str_contains(strtolower($reason), 'quota')
+            || str_contains(strtolower($reason), 'rate')
+            || str_contains(strtolower($message), 'quota')
+            || str_contains(strtolower($message), 'rate');
     }
 }

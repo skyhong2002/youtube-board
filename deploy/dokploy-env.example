@@ -37,6 +37,8 @@ INGESTION_TIMEZONE=Asia/Taipei
 # INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.live.poll,youtube.channels.videos.live,youtube.channels.videos.live_group,reports.live.build
 
 YOUTUBE_API_KEY=
+# Optional comma-separated fallback keys. Keep these in Dokploy secrets/env only.
+YOUTUBE_API_KEYS=
 OPENAI_BASE_URL=https://opencode.ai/zen/go/v1
 OPENAI_MODEL=qwen3.6-plus
 OPENAI_ENDPOINT_STYLE=auto

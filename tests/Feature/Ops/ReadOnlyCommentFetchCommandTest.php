@@ -264,7 +264,7 @@ class ReadOnlyCommentFetchCommandTest extends TestCase
 
     public function test_ingestion_scheduler_executes_allowlisted_comment_fetch_command_when_due(): void
     {
-        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 05:25:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 05:05:00', 'Asia/Taipei'));
         $this->createTables(withAuthors: true);
         config()->set('services.youtube.api_key', 'test-key');
         config()->set('ingestion.scheduler_enabled', true);
@@ -305,7 +305,7 @@ class ReadOnlyCommentFetchCommandTest extends TestCase
         ]);
 
         $result = app(IngestionSchedulerRunner::class)->run(
-            at: CarbonImmutable::parse('2026-05-25 05:25:00', 'Asia/Taipei'),
+            at: CarbonImmutable::parse('2026-05-25 05:05:00', 'Asia/Taipei'),
             execute: true,
             jobKey: 'youtube.comments.fetch',
         );

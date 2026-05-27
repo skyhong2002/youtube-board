@@ -35,6 +35,8 @@ INGESTION_LOCAL_POLLING_ENABLED=true
 INGESTION_PRODUCTION_POLLING_ENABLED=true
 INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.live.poll,youtube.channels.videos.live,youtube.channels.videos.live_group,reports.live.build
 YOUTUBE_API_KEY=<youtube-data-api-key>
+# Optional comma-separated fallback keys, configured only in Dokploy secrets/env:
+YOUTUBE_API_KEYS=<youtube-data-api-key-2>,<youtube-data-api-key-3>
 OPENAI_ENDPOINT_STYLE=auto
 ```
 

@@ -277,7 +277,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.tvbs.live.poll');
         $response->assertSee('manual local-only `--execute --videoId/--limit`');
-        $response->assertSee('Scheduler 不傳 `--execute`，仍是 dry-run');
+        $response->assertSee('Scheduler 沒有 scheduled execute command，避免 allowlist 誤啟動 standalone TVBS loop');
     }
 
     public function test_ingestion_job_detail_allows_channel_stats_read_only_preview(): void
@@ -333,7 +333,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.tvbs.videos');
         $response->assertSee('manual local-only `--execute --id/--channel --limit --max-results`');
-        $response->assertSee('Scheduler 不傳 `--execute`，仍是 dry-run');
+        $response->assertSee('Scheduler 沒有 scheduled execute command，避免 allowlist 誤啟動 standalone TVBS loop');
     }
 
     public function test_ingestion_job_detail_allows_live_build_read_only_preview(): void
@@ -515,11 +515,11 @@ class IngestionDashboardTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('youtube.comments.queue');
-        $response->assertSee('youtube:comments:queue --or=1,2,3,4,5,6,13,14,81 --hours=168 --min=100');
+        $response->assertSee('youtube:comments:queue --or=1,2,3,4,5,6,13,14,81 --hours=72 --min=500');
         $response->assertSee('manual local-only `--execute --limit`');
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.comments.queue');
-        $response->assertSee('Scheduler 在 write allowlist 開啟時每小時第 23 分用 capped execute command 補 queue rows');
+        $response->assertSee('Production crontab 使用 `hours=72 min=500` 且只在 04/10/16 點第 23 分排程');
     }
 
     public function test_ingestion_job_detail_allows_comment_fetch_read_only_preview(): void
@@ -533,7 +533,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('due now');
         $response->assertSee('This job is not executable under the current read-only migration guardrail.');
         $response->assertSee('php artisan ingestion:run --job=youtube.comments.fetch', false);
-        $response->assertSee('Scheduler 在 write allowlist 開啟時於每小時第 5、25 分用 capped execute command 消化 queue');
+        $response->assertSee('Production crontab 只在每小時第 5 分排程');
     }
 
     public function test_ingestion_job_detail_returns_404_for_unknown_job(): void
@@ -573,7 +573,7 @@ class IngestionDashboardTest extends TestCase
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_video_count.php -> youtube:videos:stats', $output);
         $this->assertStringContainsString('active command:ready /home/urtube/maint/make_ai_day.sh -> ai:daily', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/prompt/ai_hour_prompt.php do=1 -> ai:hourly', $output);
-        $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/make_comments.php or=1,2,3,4,5,6,13,14,81 hours=168 min=100 -> youtube:comments:queue --or=1,2,3,4,5,6,13,14,81 --hours=168 --min=100', $output);
+        $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/make_comments.php or=1,2,3,4,5,6,13,14,81 hours=72 min=500 -> youtube:comments:queue --or=1,2,3,4,5,6,13,14,81 --hours=72 --min=500', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/do_comments.php -> youtube:comments:fetch', $output);
         $this->assertStringContainsString('youtube:live:poll', $output);
     }
