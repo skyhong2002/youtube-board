@@ -275,11 +275,13 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('youtube.tvbs.live.poll');
         $response->assertSee('youtube:tvbs:live:poll');
-        $response->assertSee('read-only TVBS live polling queue preview');
+        $response->assertSee('updates `urt_video_live_tvbs` and `urt_video_live_log_tvbs`');
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.tvbs.live.poll');
-        $response->assertSee('manual local-only `--execute --videoId/--limit`');
-        $response->assertSee('Scheduler 沒有 scheduled execute command，避免 allowlist 誤啟動 standalone TVBS loop');
+        $response->assertSee('Scheduled Local Polling');
+        $response->assertSee('youtube:tvbs:live:poll --execute --limit=20');
+        $response->assertSee('manual/scheduled `--execute --videoId/--limit`');
+        $response->assertSee('Scheduler 在 write allowlist 開啟時使用 capped scheduled execute command；未開啟仍是 dry-run');
     }
 
     public function test_ingestion_job_detail_allows_channel_stats_read_only_preview(): void
@@ -334,8 +336,10 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('manual local-only `--execute` inserts videos/schedules/TVBS live rows');
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.tvbs.videos');
-        $response->assertSee('manual local-only `--execute --id/--channel --limit --max-results`');
-        $response->assertSee('Scheduler 沒有 scheduled execute command，避免 allowlist 誤啟動 standalone TVBS loop');
+        $response->assertSee('Scheduled Local Polling');
+        $response->assertSee('youtube:tvbs:videos --execute --limit=1 --max-results=1');
+        $response->assertSee('manual/scheduled `--execute --id/--channel --limit --max-results`');
+        $response->assertSee('Scheduler 在 write allowlist 開啟時使用 capped scheduled execute command；未開啟仍是 dry-run');
     }
 
     public function test_ingestion_job_detail_allows_live_build_read_only_preview(): void

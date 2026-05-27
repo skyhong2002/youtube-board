@@ -369,6 +369,13 @@ class ReadOnlyTvbsIngestionCommandTest extends TestCase
         $this->createVideoDiscoveryTables();
         $this->createLivePollingTables(dropVideoTable: false);
         config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.local_polling_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['youtube.tvbs.videos', 'youtube.tvbs.live.poll']);
+        config()->set('services.youtube.api_key', 'test-key');
+        Http::fake([
+            'www.googleapis.com/youtube/v3/playlistItems*' => Http::response(['items' => []], 200),
+            'www.googleapis.com/youtube/v3/videos*' => Http::response(['items' => []], 200),
+        ]);
 
         DB::table('urt_channel')->insert($this->channelRow(1, 'TVBS Primary', 'uploads-primary'));
         DB::table('urt_count')->insert(['u_id' => 1, 'tags' => '[29]']);
@@ -386,9 +393,9 @@ class ReadOnlyTvbsIngestionCommandTest extends TestCase
         );
 
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $videos['summary']);
-        $this->assertSame('executed', $videos['jobs'][0]['action']);
+        $this->assertSame('executed:local-polling', $videos['jobs'][0]['action']);
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $livePoll['summary']);
-        $this->assertSame('executed', $livePoll['jobs'][0]['action']);
+        $this->assertSame('executed:local-polling', $livePoll['jobs'][0]['action']);
     }
 
     private function createVideoDiscoveryTables(): void

@@ -33,7 +33,7 @@ Production polling is still off in the template. To enable it after a backup and
 INGESTION_SCHEDULER_ENABLED=true
 INGESTION_LOCAL_POLLING_ENABLED=true
 INGESTION_PRODUCTION_POLLING_ENABLED=true
-INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.live.poll,youtube.channels.videos.live,youtube.channels.videos.live_group,reports.live.build,reports.live.clean,youtube.live.cleanup,reports.counts.build,reports.schedule.build,reports.keywords.build,reports.groups.build,reports.people.build,ai.hourly,ai.daily
+INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.live.poll,youtube.tvbs.live.poll,youtube.channels.videos.live,youtube.channels.videos.live_group,youtube.tvbs.videos,reports.live.build,reports.live.clean,youtube.live.cleanup,reports.counts.build,reports.schedule.build,reports.keywords.build,reports.groups.build,reports.people.build,ai.hourly,ai.daily
 YOUTUBE_API_KEY=<youtube-data-api-key>
 # Optional comma-separated fallback keys, configured only in Dokploy secrets/env:
 YOUTUBE_API_KEYS=<youtube-data-api-key-2>,<youtube-data-api-key-3>
@@ -43,8 +43,10 @@ OPENAI_ENDPOINT_STYLE=auto
 For `/live/current` parity with the legacy site, the minimum live allowlist is:
 
 - `youtube.live.poll`: refreshes active `urt_video_live` rows and upserts `urt_video_live_log`.
+- `youtube.tvbs.live.poll`: refreshes active `urt_video_live_tvbs` rows and upserts `urt_video_live_log_tvbs`.
 - `youtube.channels.videos.live`: discovers live/upcoming rows from channels tagged `[52]`.
 - `youtube.channels.videos.live_group`: discovers live/upcoming rows from group channels tagged `[89]`.
+- `youtube.tvbs.videos`: discovers TVBS tagged `[29]` uploads and live/upcoming rows into `urt_video_live_tvbs`.
 - `reports.live.build`: fills `urt_show_video_live` display cache from local live/video rows.
 
 For AI page freshness, add:
