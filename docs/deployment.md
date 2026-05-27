@@ -27,22 +27,22 @@ DB_PASSWORD=<dokploy-secret>
 
 Use the MariaDB service's **General -> Internal Credentials -> Internal Host** value for `DB_HOST`. Dokploy may append a generated suffix to the app name; do not assume the internal host is the human service name.
 
-Production polling is still off in the template. To enable it after a backup and rollback point are verified, set the scheduler flags and an exact job allowlist in the app service environment:
+Production polling is enabled in Dokploy for the web service and the ingestion schedule. Keep the scheduler flags, exact job allowlist, and AI fallback provider in the app service environment:
 
 ```env
 INGESTION_SCHEDULER_ENABLED=true
 INGESTION_LOCAL_POLLING_ENABLED=true
 INGESTION_PRODUCTION_POLLING_ENABLED=true
-INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.live.poll,youtube.tvbs.live.poll,youtube.channels.videos.live,youtube.channels.videos.live_group,youtube.tvbs.videos,youtube.channels.stats,youtube.videos.stats,reports.live.build,reports.live.clean,youtube.live.cleanup,reports.counts.build,reports.schedule.build,reports.keywords.build,reports.groups.build,reports.people.build,ai.hourly,ai.daily
+INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.channels.stats,youtube.videos.stats,ai.daily,ai.hourly,youtube.live.poll,youtube.channels.videos.live,youtube.channels.videos.live_group,youtube.channels.videos.general,youtube.tvbs.videos,youtube.tvbs.live.poll,youtube.live.cleanup,youtube.videos.duration,youtube.comments.queue,youtube.comments.fetch,reports.live.build,reports.live.clean,reports.counts.build,reports.schedule.build,reports.keywords.build,reports.groups.build,reports.people.build,reports.mayor.static
 YOUTUBE_API_KEY=<youtube-data-api-key>
 # Optional comma-separated fallback keys, configured only in Dokploy secrets/env:
 YOUTUBE_API_KEYS=<youtube-data-api-key-2>,<youtube-data-api-key-3>
 OPENAI_ENDPOINT_STYLE=auto
-# Optional AI fallback provider. Keep the fallback key in Dokploy secrets/env only.
-# OPENAI_FALLBACK_BASE_URL=https://api.openai.com/v1
-# OPENAI_FALLBACK_MODEL=gpt-4o-mini
-# OPENAI_FALLBACK_ENDPOINT_STYLE=chat
-# OPENAI_FALLBACK_TIMEOUT=300
+# AI fallback provider. Keep the fallback key in Dokploy secrets/env only.
+OPENAI_FALLBACK_BASE_URL=https://api.openai.com/v1
+OPENAI_FALLBACK_MODEL=gpt-4o-mini
+OPENAI_FALLBACK_ENDPOINT_STYLE=chat
+OPENAI_FALLBACK_TIMEOUT=240
 ```
 
 For `/live/current` parity with the legacy site, the minimum live allowlist is:
