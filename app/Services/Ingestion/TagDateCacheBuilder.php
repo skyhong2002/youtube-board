@@ -106,7 +106,7 @@ class TagDateCacheBuilder
             $query->whereIn('tag', $onlyKeywords);
         }
 
-        return $this->keywordCache[$cacheKey] = $query
+        $keywords = $query
             ->orderByDesc('hours_count')
             ->limit(max($limit * 2, 1000))
             ->get()
@@ -132,6 +132,19 @@ class TagDateCacheBuilder
             ->map(fn (array $row): array => ['tag' => $row['tag'], 'divisor' => $row['divisor']])
             ->values()
             ->all();
+
+        if ($onlyKeywords !== []) {
+            $selected = array_fill_keys(array_column($keywords, 'tag'), true);
+
+            foreach ($onlyKeywords as $keyword) {
+                if (! isset($selected[$keyword]) && $this->eligibleKeyword($keyword)) {
+                    $keywords[] = ['tag' => $keyword, 'divisor' => 1.0];
+                    $selected[$keyword] = true;
+                }
+            }
+        }
+
+        return $this->keywordCache[$cacheKey] = $keywords;
     }
 
     private function eligibleKeyword(string $tag): bool

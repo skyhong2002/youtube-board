@@ -165,6 +165,45 @@ class ReadOnlyPeopleBuildCommandTest extends TestCase
         $this->assertStringContainsString('柯文哲', (string) DB::table('urt_show_tag_date')->value('tags_result'));
     }
 
+    public function test_reports_people_build_execute_scans_focused_keywords_missing_from_tags_table(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        DB::table('tag_group')->insert([
+            'ctime' => '2026-05-20 10:00:00',
+            'latest_time' => '2026-05-24 10:00:00',
+            'tag' => '陳瑩',
+            'group_name' => '政治人物',
+            'del_flag' => '0',
+        ]);
+        DB::table('urt_count')->insert([
+            'u_id' => 1001,
+            'tags' => '[13]',
+        ]);
+        DB::table('urt_video')->insert([
+            'u_id' => 1001,
+            'videoId' => 'video-1',
+            'publishedAt' => '2026-05-25 08:00:00',
+            'title' => '陳瑩 台東新聞',
+            'description' => '陳瑩',
+            'viewCount' => 4321,
+        ]);
+
+        $exitCode = Artisan::call('reports:people:build', [
+            '--execute' => true,
+            '--days' => 1,
+            '--limit' => 1,
+            '--keyword-limit' => 10,
+            '--json' => true,
+        ]);
+        $tagsViews = json_decode((string) DB::table('urt_show_tag_date')->value('tags_views'), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, DB::table('urt_show_tag_date')->count());
+        $this->assertSame(4321, $tagsViews['陳瑩']);
+    }
+
     public function test_reports_people_build_execute_merges_focused_keywords_into_existing_tag_date_cache(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
