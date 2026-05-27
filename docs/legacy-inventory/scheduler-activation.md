@@ -90,7 +90,7 @@ Before scheduled local polling, add per-job quota budgets and daily counters. A 
 - `videos.list`: live polling uses at most 50 videos per scheduled run in the current capped scheduler command.
 - `commentThreads.list`: at most 1 queued video and 1 page per scheduled run.
 - AI hourly: capped scheduler command `ai:hourly --execute --limit=20` exists, but it only runs when the scheduler, local/production polling flag, and allowlist gates are all enabled. `OPENAI_ENDPOINT_STYLE=auto` follows the OpenCode Go endpoint table: MiniMax M2.5/M2.7 uses `/messages`, while Qwen, GLM, Kimi, MiMo, and DeepSeek models remain on `/chat/completions`.
-- AI daily: capped scheduler command `ai:daily --execute --channel-limit=39 --limit=1000` matches the legacy daily batch. It can make up to 39 channel-summary AI calls plus six condition-merge AI calls when enough source videos/channel summaries exist.
+- AI daily: capped scheduler command `ai:daily --execute --channel-limit=3 --limit=1000` intentionally starts below the legacy full 39-channel batch because the OpenCode-compatible endpoint can return long 524 timeouts. It can be raised after production run history shows stable completion times.
 
 ## Locks
 
@@ -198,4 +198,4 @@ To promote a pipeline to production polling, repeat the checklist against produc
 | TVBS live polling | implemented and smoked | allowlist-ready | Capped scheduler command exists with `--execute --limit=1`; still off by default. |
 | derived reports/cache builds | preview only | blocked | Write targets need per-command execute design. |
 | hourly AI | implemented and smoked | allowlist-ready | `ai:hourly --execute --hour=3 --limit=5` called OpenCode-compatible chat completions and upserted `urt_ai_hour` for `2026-05-25 22:00:00` with sanitized usage; capped scheduler command is `ai:hourly --execute --limit=20`, still off unless allowlisted. Empty source windows return a sanitized skipped summary with exit code 0 so the daemon does not treat normal quiet hours as failures. |
-| daily AI | implemented and tested | allowlist-ready | `ai:daily --execute` refreshes legacy configured channel summaries from raw `urt_video` rows, then upserts `urt_ai_date` condition rows; capped scheduler command is `ai:daily --execute --channel-limit=39 --limit=1000`, still off unless allowlisted. |
+| daily AI | implemented and tested | allowlist-ready | `ai:daily --execute` refreshes legacy configured channel summaries from raw `urt_video` rows, then upserts `urt_ai_date` condition rows; capped scheduler command is `ai:daily --execute --channel-limit=3 --limit=1000`, still off unless allowlisted. |

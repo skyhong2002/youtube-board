@@ -50,7 +50,7 @@ For `/live/current` parity with the legacy site, the minimum live allowlist is:
 For AI page freshness, add:
 
 - `ai.hourly`: refreshes `urt_ai_hour` from the previous complete hour of `urt_video`.
-- `ai.daily`: refreshes configured channel-level `urt_channel_ai` rows first, then writes six daily `urt_ai_date` condition rows from those channel summaries.
+- `ai.daily`: refreshes configured channel-level `urt_channel_ai` rows in capped batches first, then writes six daily `urt_ai_date` condition rows from those channel summaries.
 
 The scheduler service must run `php artisan schedule:run` every minute, or the equivalent Dokploy cron service must be enabled. Keep the allowlist narrow at first; each allowlisted job uses its capped `scheduled_execute_command`.
 
