@@ -162,7 +162,12 @@ class MayorStaticReportsPreview
             return [$this->fallbackTargets(), 'fallback: no active mayor static targets found'];
         }
 
-        return [$targets, 'parsed'];
+        $mergedTargets = $this->mergeCurrentTargets($targets);
+        $status = count($mergedTargets) === count($targets)
+            ? 'parsed'
+            : 'parsed+fallback: filled missing current mayor targets';
+
+        return [$mergedTargets, $status];
     }
 
     /**
@@ -236,17 +241,34 @@ class MayorStaticReportsPreview
      */
     private function fallbackTargets(): array
     {
-        return collect([
-            '/usr/bin/php -d memory_limit=500M /home/urtube/mayor/city.php days=30 city=taipei > /home/urtube/mayor/html_taipei.html',
-            '/usr/bin/php -d memory_limit=500M /home/urtube/mayor/city.php days=30 city=taoyuan > /home/urtube/mayor/html_taoyuan.html',
-            '/usr/bin/php -d memory_limit=500M /home/urtube/mayor/city.php days=30 city=newtaipei > /home/urtube/mayor/html_newtaipei.html',
-            '/usr/bin/php -d memory_limit=500M /home/urtube/mayor/city.php days=30 city=hsinchu > /home/urtube/mayor/html_hsinchu.html',
-            '/usr/bin/php -d memory_limit=500M /home/urtube/mayor/city.php days=30 city=taichung > /home/urtube/mayor/html_taichung.html',
-        ])
+        return collect($this->mayorReport->staticCityKeys())
+            ->map(fn (string $city): string => "/usr/bin/php -d memory_limit=500M /home/urtube/mayor/city.php days=30 city={$city} > /home/urtube/mayor/html_{$city}.html")
             ->map(fn (string $line): ?array => $this->parseShellLine($line))
             ->filter()
             ->values()
             ->all();
+    }
+
+    /**
+     * @param list<array<string, mixed>> $targets
+     * @return list<array<string, mixed>>
+     */
+    private function mergeCurrentTargets(array $targets): array
+    {
+        $fallbackByCity = collect($this->fallbackTargets())->keyBy('city');
+        $parsedByCity = collect($targets)->keyBy('city');
+        $knownCities = collect($this->mayorReport->staticCityKeys());
+
+        $merged = $knownCities
+            ->map(fn (string $city): ?array => $parsedByCity->get($city) ?? $fallbackByCity->get($city))
+            ->filter()
+            ->values();
+
+        $extraParsed = $parsedByCity
+            ->reject(fn (array $target, string $city): bool => $knownCities->contains($city))
+            ->values();
+
+        return $merged->concat($extraParsed)->values()->all();
     }
 
     /**

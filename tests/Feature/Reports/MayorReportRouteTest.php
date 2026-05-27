@@ -29,8 +29,8 @@ class MayorReportRouteTest extends TestCase
         $response->assertOk();
         $response->assertSee('台北市候選人影片觀看支持度');
         $response->assertSee('蔣萬安');
-        $response->assertSee('黃珊珊');
-        $response->assertSee('陳時中');
+        $response->assertSee('沈伯洋');
+        $response->assertSee('郭璽');
         $response->assertSee('cache rows 52');
         $response->assertSee('候選人支持度趨勢');
         $response->assertSee('關鍵字趨勢');
@@ -65,6 +65,27 @@ class MayorReportRouteTest extends TestCase
         $response->assertSee('候選人支持度趨勢');
         $response->assertDontSee('api/cloud_tag_date.php');
         $response->assertDontSee('html_*.html');
+    }
+
+    public function test_mayor_nav_and_city_page_cover_current_county_city_candidate_list(): void
+    {
+        $this->createTagDateCacheTable();
+
+        $response = $this->get('/mayor/cities/kinmen?from=2026-05-20&to=2026-05-20');
+
+        $response->assertOk();
+        $response->assertSee('台北市');
+        $response->assertSee('新北市');
+        $response->assertSee('桃園市');
+        $response->assertSee('台中市');
+        $response->assertSee('台南市');
+        $response->assertSee('高雄市');
+        $response->assertSee('新竹縣');
+        $response->assertSee('嘉義市');
+        $response->assertSee('金門縣候選人影片觀看支持度');
+        $response->assertSee('陳玉珍');
+        $response->assertSee('楊鎮浯');
+        $response->assertSee('李文良');
     }
 
     public function test_mayor_legacy_dynamic_url_redirects_to_clean_city_route(): void
@@ -143,10 +164,10 @@ class MayorReportRouteTest extends TestCase
     private function candidateWeights(int $tagId): array
     {
         return match ($tagId) {
-            3 => ['蔣萬安' => 100, '黃珊珊' => 1, '陳時中' => 1],
-            4 => ['蔣萬安' => 1, '黃珊珊' => 1, '陳時中' => 100],
-            5 => ['蔣萬安' => 100, '黃珊珊' => 10, '陳時中' => 1],
-            default => ['蔣萬安' => 1, '黃珊珊' => 100, '陳時中' => 1],
+            3 => ['蔣萬安' => 100, '沈伯洋' => 1, '郭璽' => 1],
+            4 => ['蔣萬安' => 1, '沈伯洋' => 100, '郭璽' => 1],
+            5 => ['蔣萬安' => 100, '沈伯洋' => 1, '郭璽' => 10],
+            default => ['蔣萬安' => 1, '沈伯洋' => 1, '郭璽' => 100],
         };
     }
 }

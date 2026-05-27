@@ -42,15 +42,16 @@ class ReadOnlyMayorStaticCommandTest extends TestCase
         $this->seedSingleMayorCacheRow();
 
         $exitCode = Artisan::call('reports:mayor:static', [
+            '--limit' => 30,
             '--json' => true,
         ]);
         $payload = json_decode(trim(Artisan::output()), true);
 
         $this->assertSame(0, $exitCode);
         $this->assertSame('read-only-preview', $payload['mode']);
-        $this->assertSame('parsed', $payload['source_status']);
-        $this->assertSame(5, $payload['targets']);
-        $this->assertSame(5, $payload['would_generate']);
+        $this->assertSame('parsed+fallback: filled missing current mayor targets', $payload['source_status']);
+        $this->assertSame(22, $payload['targets']);
+        $this->assertSame(22, $payload['would_generate']);
         $this->assertSame([], $payload['writes']);
 
         $this->assertSame('/home/urtube/mayor/html_taipei.html', $payload['rows'][0]['output_path']);
@@ -62,6 +63,7 @@ class ReadOnlyMayorStaticCommandTest extends TestCase
         $this->assertTrue($payload['rows'][0]['dynamic_report_available']);
         $this->assertSame(30, $payload['rows'][0]['dynamic_rows']);
         $this->assertSame(1, $payload['rows'][0]['cache_rows']);
+        $this->assertSame('/mayor/cities/lienchiang?days=30', $payload['rows'][21]['modern_url']);
 
         $this->assertFileDoesNotExist($this->legacyRoot.'/urtube/mayor/html_taipei.html');
         $this->assertFileDoesNotExist($this->legacyRoot.'/urtube/mayor/html_taichung.html');
@@ -143,9 +145,9 @@ class ReadOnlyMayorStaticCommandTest extends TestCase
             'total_views' => 1000,
             'count_videos' => 10,
             'count_channels' => 3,
-            'tags_views' => json_encode(['蔣萬安' => 100, '黃珊珊' => 1, '陳時中' => 1], JSON_UNESCAPED_UNICODE),
-            'tags_video' => json_encode(['蔣萬安' => 100, '黃珊珊' => 1, '陳時中' => 1], JSON_UNESCAPED_UNICODE),
-            'tags_result' => json_encode(['蔣萬安' => 100, '黃珊珊' => 1, '陳時中' => 1], JSON_UNESCAPED_UNICODE),
+            'tags_views' => json_encode(['蔣萬安' => 100, '沈伯洋' => 1, '郭璽' => 1], JSON_UNESCAPED_UNICODE),
+            'tags_video' => json_encode(['蔣萬安' => 100, '沈伯洋' => 1, '郭璽' => 1], JSON_UNESCAPED_UNICODE),
+            'tags_result' => json_encode(['蔣萬安' => 100, '沈伯洋' => 1, '郭璽' => 1], JSON_UNESCAPED_UNICODE),
         ]);
     }
 }

@@ -10,6 +10,31 @@ use Illuminate\Support\Facades\DB;
 
 class MayorReport
 {
+    private const CURRENT_CITY_KEYS = [
+        'taipei',
+        'newtaipei',
+        'taoyuan',
+        'taichung',
+        'tainan',
+        'kaohsiung',
+        'keelung',
+        'hsinchu',
+        'hsinchucounty',
+        'miaoli',
+        'changhua',
+        'nantou',
+        'yunlin',
+        'chiayi',
+        'chiayicity',
+        'pingtung',
+        'yilan',
+        'hualien',
+        'taitung',
+        'penghu',
+        'kinmen',
+        'lienchiang',
+    ];
+
     /**
      * @return array<string, mixed>
      */
@@ -48,7 +73,7 @@ class MayorReport
                 'series' => $series,
                 'cache_rows' => collect($records)->flatten(1)->count(),
                 'tagids' => $this->tagIds(),
-                'legacy_source' => $this->legacyCityPath($cityKey),
+                'legacy_source' => $city['source'],
                 'generated_at' => CarbonImmutable::now('Asia/Taipei')->format('Y-m-d H:i:s'),
             ];
         } catch (QueryException) {
@@ -61,7 +86,7 @@ class MayorReport
      */
     public function staticCityKeys(): array
     {
-        return ['taipei', 'newtaipei', 'taoyuan', 'hsinchu', 'taichung'];
+        return self::CURRENT_CITY_KEYS;
     }
 
     /**
@@ -69,14 +94,7 @@ class MayorReport
      */
     public function cities(): array
     {
-        $fallback = $this->fallbackCities();
-        $cities = [];
-
-        foreach (array_keys($fallback) as $key) {
-            $cities[$key] = $this->parseCityFile($key) ?? $fallback[$key];
-        }
-
-        return $cities;
+        return $this->fallbackCities();
     }
 
     /**
@@ -86,7 +104,7 @@ class MayorReport
     {
         $cities = $this->cities();
 
-        return $cities[$key] ?? $cities['taipei'];
+        return $cities[$key] ?? $this->parseCityFile($key) ?? $cities['taipei'];
     }
 
     private function normalizeCity(string $key): string
@@ -396,69 +414,135 @@ class MayorReport
      */
     private function fallbackCities(): array
     {
-        return [
-            'taipei' => $this->fallbackCity('taipei', '台北市', ['蔣萬安', '黃珊珊', '陳時中'], [
-                '陳時中' => [3 => -0.2, 4 => 3.0, 5 => -0.4, 6 => -1.0],
-                '蔣萬安' => [3 => 1.0, 4 => -0.3, 5 => 1.4, 6 => -0.5],
-                '黃珊珊' => [3 => 0.3, 4 => -0.3, 5 => 1.4, 6 => 5.0],
+        return collect([
+            $this->fallbackCity('taipei', '台北市', [
+                '蔣萬安' => 'blue',
+                '沈伯洋' => 'green',
+                '郭璽' => 'other',
             ]),
-            'taoyuan' => $this->fallbackCity('taoyuan', '桃園市', ['張善政', '賴香伶', '鄭運鵬', '鄭寶清'], [
-                '張善政' => [3 => 1.0, 4 => -0.9, 5 => 1.4, 6 => -1.0],
-                '鄭運鵬' => [3 => -0.1, 4 => 2.4, 5 => -0.2, 6 => -0.5],
-                '賴香伶' => [3 => 0.5, 4 => -0.3, 5 => 1.0, 6 => 5.0],
-                '鄭寶清' => [3 => 0.5, 4 => -0.3, 5 => 1.0, 6 => 0.5],
+            $this->fallbackCity('newtaipei', '新北市', [
+                '李四川' => 'blue',
+                '蘇巧慧' => 'green',
             ]),
-            'newtaipei' => $this->fallbackCity('newtaipei', '新北市', ['侯友宜', '林佳龍'], [
-                '侯友宜' => [3 => 1.0, 4 => -0.9, 5 => 2.0, 6 => 5.0],
-                '林佳龍' => [3 => -0.1, 4 => 3.0, 5 => -0.2, 6 => -0.5],
+            $this->fallbackCity('taoyuan', '桃園市', [
+                '張善政' => 'blue',
+                '黃世杰' => 'green',
             ]),
-            'hsinchu' => $this->fallbackCity('hsinchu', '新竹市', ['林耕仁', '高虹安', '沈慧虹'], [
-                '沈慧虹' => [3 => -0.05, 4 => 3.0, 5 => -0.1, 6 => -0.25],
-                '林耕仁' => [3 => 1.0, 4 => -0.15, 5 => 1.4, 6 => -0.25],
-                '高虹安' => [3 => -0.1, 4 => -0.3, 5 => 1.4, 6 => 5.0],
+            $this->fallbackCity('taichung', '台中市', [
+                '江啟臣' => 'blue',
+                '何欣純' => 'green',
             ]),
-            'taichung' => $this->fallbackCity('taichung', '台中市', ['盧秀燕', '蔡其昌'], [
-                '盧秀燕' => [3 => 1.0, 4 => -0.9, 5 => 1.0, 6 => 1.0],
-                '蔡其昌' => [3 => -0.1, 4 => 3.0, 5 => -0.2, 6 => 0.5],
+            $this->fallbackCity('tainan', '台南市', [
+                '謝龍介' => 'blue',
+                '陳亭妃' => 'green',
             ]),
-            'kaohsiung' => $this->fallbackCity('kaohsiung', '高雄市', ['柯志恩', '陳其邁'], [
-                '柯志恩' => [3 => 1.0, 4 => -0.9, 5 => 1.0, 6 => -0.5],
-                '陳其邁' => [3 => -0.05, 4 => 3.0, 5 => -0.1, 6 => 2.5],
+            $this->fallbackCity('kaohsiung', '高雄市', [
+                '柯志恩' => 'blue',
+                '賴瑞隆' => 'green',
+                '張靜' => 'other',
             ]),
-            'keelung' => $this->fallbackCity('keelung', '基隆市', ['謝國樑', '蔡適應'], [
-                '謝國樑' => [3 => 1.0, 4 => -0.9, 5 => 1.0, 6 => 1.0],
-                '蔡適應' => [3 => -0.1, 4 => 3.0, 5 => -0.2, 6 => 0.5],
+            $this->fallbackCity('keelung', '基隆市', [
+                '謝國樑' => 'blue',
+                '童子瑋' => 'green',
             ]),
-            'penghu' => $this->fallbackCity('penghu', '澎湖縣', ['陳光復', '賴峰偉'], [
-                '陳光復' => [3 => 1.0, 4 => -0.9, 5 => 1.0, 6 => 1.0],
-                '賴峰偉' => [3 => -0.1, 4 => 3.0, 5 => -0.2, 6 => 0.5],
+            $this->fallbackCity('hsinchu', '新竹市', [
+                '高虹安' => 'white',
+                '莊競程' => 'green',
             ]),
-            'tainan' => $this->fallbackCity('tainan', '台南市', ['謝龍介', '林義豐', '黃偉哲'], [
-                '謝龍介' => [3 => 0.1, 4 => -0.9, 5 => 1.0, 6 => -1.0],
-                '黃偉哲' => [3 => -0.01, 4 => 3.0, 5 => -0.02, 6 => 0.5],
-                '林義豐' => [3 => 0.5, 4 => -0.3, 5 => 1.0, 6 => 5.0],
+            $this->fallbackCity('hsinchucounty', '新竹縣', [
+                '徐欣瑩' => 'blue',
             ]),
-            'yilan' => $this->fallbackCity('yilan', '宜蘭縣', ['林姿妙', '江聰淵'], [
-                '林姿妙' => [3 => 1.0, 4 => -0.9, 5 => 1.0, 6 => 1.0],
-                '江聰淵' => [3 => -0.1, 4 => 3.0, 5 => -0.2, 6 => 0.5],
+            $this->fallbackCity('miaoli', '苗栗縣', [
+                '鍾東錦' => 'blue',
+                '陳品安' => 'green',
             ]),
-        ];
+            $this->fallbackCity('changhua', '彰化縣', [
+                '魏平政' => 'blue',
+                '陳素月' => 'green',
+                '蔡壁如' => 'white',
+            ]),
+            $this->fallbackCity('nantou', '南投縣', [
+                '許淑華' => 'blue',
+                '溫世政' => 'green',
+            ]),
+            $this->fallbackCity('yunlin', '雲林縣', [
+                '張嘉郡' => 'blue',
+                '劉建國' => 'green',
+            ]),
+            $this->fallbackCity('chiayi', '嘉義縣', [
+                '蔡易餘' => 'green',
+            ]),
+            $this->fallbackCity('chiayicity', '嘉義市', [
+                '張啓楷' => 'white',
+                '王美惠' => 'green',
+                '黃宏成台灣阿成世界偉人財神總統' => 'other',
+            ]),
+            $this->fallbackCity('pingtung', '屏東縣', [
+                '周春米' => 'green',
+                '蘇清泉' => 'blue',
+            ]),
+            $this->fallbackCity('yilan', '宜蘭縣', [
+                '吳宗憲' => 'blue',
+                '林國漳' => 'green',
+                '陳琬惠' => 'white',
+            ]),
+            $this->fallbackCity('hualien', '花蓮縣', [
+                '游淑貞' => 'blue',
+                '張峻' => 'other',
+                '魏嘉賢' => 'other',
+            ]),
+            $this->fallbackCity('taitung', '台東縣', [
+                '吳秀華' => 'blue',
+                '陳瑩' => 'green',
+            ]),
+            $this->fallbackCity('penghu', '澎湖縣', [
+                '陳光復' => 'green',
+                '陳振中' => 'blue',
+                '葉竹林' => 'other',
+                '陳盡川' => 'other',
+                '許智富' => 'other',
+            ]),
+            $this->fallbackCity('kinmen', '金門縣', [
+                '陳玉珍' => 'blue',
+                '楊鎮浯' => 'blue',
+                '李文良' => 'other',
+            ]),
+            $this->fallbackCity('lienchiang', '連江縣', [
+                '王忠銘' => 'blue',
+            ]),
+        ])
+            ->keyBy('key')
+            ->all();
     }
 
     /**
-     * @param list<string> $candidates
-     * @param array<string, array<int, float>> $factors
+     * @param array<string, string> $candidateBlocs
      * @return array{key: string, label: string, candidates: list<string>, factors: array<string, array<int, float>>, source: string}
      */
-    private function fallbackCity(string $key, string $label, array $candidates, array $factors): array
+    private function fallbackCity(string $key, string $label, array $candidateBlocs): array
     {
         return [
             'key' => $key,
             'label' => $label,
-            'candidates' => $candidates,
-            'factors' => $factors,
-            'source' => 'fallback',
+            'candidates' => array_keys($candidateBlocs),
+            'factors' => collect($candidateBlocs)
+                ->map(fn (string $bloc): array => $this->factorTemplate($bloc))
+                ->all(),
+            'source' => 'curated: 2026 county/city head election public nomination and declaration list, updated 2026-05-28',
         ];
+    }
+
+    /**
+     * @return array<int, float>
+     */
+    private function factorTemplate(string $bloc): array
+    {
+        return match ($bloc) {
+            'green' => [3 => -0.1, 4 => 3.0, 5 => -0.2, 6 => 0.5],
+            'white' => [3 => 0.5, 4 => -0.3, 5 => 1.0, 6 => 5.0],
+            'other' => [3 => 0.2, 4 => 0.2, 5 => 0.8, 6 => 0.8],
+            default => [3 => 1.0, 4 => -0.9, 5 => 1.0, 6 => 1.0],
+        };
     }
 
     /**

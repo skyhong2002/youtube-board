@@ -299,7 +299,7 @@ Source: `nav_index.php`, `nav_live.php`, `nav_channel.php`, `nav_tag.php`, `nav_
 | Group ranking | `/group_chart.php` | `/groups/{groupName}/ranking` | Implemented as read-only aggregate from `urt_show_tag_date`; no `api/cloud_tag_date.php` generation is triggered. |
 | Group daily trend | `/group_line.php` | `/groups/{groupName}/trends` | Implemented as read-only rolling daily trend from `urt_show_tag_date`; no cache generation is triggered. |
 | Group live trend | `/group_live.php` | `/groups/{groupName}/live` | Implemented as read-only daily max plus seven-day rolling live trend from `urt_show_live_tag_date.tags_views` / `tags_video`; no `api_live_tag_date.php` generation is triggered. |
-| 六都市長候選人 | `/mayor/html_*.html`, `/mayor/city.php`, `mayor/make_mayor.sh` | `/mayor/cities/{city}`, `reports:mayor:static` preview | Implemented as read-only support trend from `urt_show_tag_date` with legacy candidate/factor configs parsed from `mayor/{city}.php`; no `api/cloud_tag_date.php` generation and no static HTML writes. |
+| 2026縣市長已提名／已表態人選 | `/mayor/html_*.html`, `/mayor/city.php`, `mayor/make_mayor.sh` | `/mayor/cities/{city}`, `reports:mayor:static` preview | Implemented as read-only support trend from `urt_show_tag_date` with a curated 22-county/city 2026 candidate list updated 2026-05-28; no `api/cloud_tag_date.php` generation and no static HTML writes. |
 | 現在正直播排行 | `/live.php` | `/live/current` | Current live streams. |
 | 現在帶狀直播排行 | `/live_cont.php` | `/live/continuous` | Continuous live streams. |
 | 單日直播排行 | `/live_day.php` | `/live/days/{date}` | Historical live daily ranking. |
