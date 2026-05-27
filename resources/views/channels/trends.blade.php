@@ -59,6 +59,8 @@
                 @if ($filters['videos'])<span>videos=1</span>@endif
             </div>
 
+            <p class="muted">頻道線圖 · Legacy source: {{ $legacy_file }} · table: <code>urt_log</code></p>
+
             @if (! $data_available)
                 <section class="panel">
                     <p class="notice">Data unavailable locally. {{ $blocked_reason ?? 'local urt_log has no rows for this channel' }}</p>

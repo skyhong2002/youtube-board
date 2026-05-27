@@ -1,7 +1,8 @@
 @php
     use App\Support\ReportNavigation;
 
-    $pageTitle = $title ?? trim($__env->yieldContent('title'));
+    $sectionTitle = trim($__env->yieldContent('title'));
+    $pageTitle = $sectionTitle !== '' ? $sectionTitle : ($title ?? '');
     $pageTitle = $pageTitle === '' ? 'YouTube Board' : $pageTitle;
     $pageMeta = $meta ?? trim($__env->yieldContent('meta'));
     $mainNav = $mainNav ?? ReportNavigation::main(request());

@@ -1,7 +1,7 @@
 @extends('layouts.report')
 
 @section('title')
-Read-only guard
+Legacy Writeback Disabled
 @endsection
 
 @push('styles')

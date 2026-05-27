@@ -67,6 +67,8 @@
                 <span>limit={{ $filters['limit'] }}</span>
             </div>
 
+            <h2>{{ $title }}</h2>
+
             @if (! $data_available)
                 <section class="panel">
                     <p class="notice">Data unavailable locally. {{ $blocked_reason }}</p>
