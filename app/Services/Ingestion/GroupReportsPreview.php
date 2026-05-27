@@ -5,6 +5,7 @@ namespace App\Services\Ingestion;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 
 class GroupReportsPreview
 {
@@ -24,7 +25,7 @@ class GroupReportsPreview
      *     writes: list<string>
      * }
      */
-    public function preview(?string $groupName = null, int $hours = 22, int $limit = 20, ?CarbonInterface $now = null): array
+    public function preview(?string $groupName = null, int $hours = 22, int $limit = 20, ?CarbonInterface $now = null, bool $execute = false): array
     {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
         $now = $now === null
@@ -33,6 +34,7 @@ class GroupReportsPreview
         $hours = max(1, min(168, $hours));
         $limit = max(1, min(200, $limit));
         $groupName = $groupName !== null && trim($groupName) !== '' ? trim($groupName) : null;
+        $syncedRows = $execute ? $this->syncLegacyGroups($now, $hours) : 0;
 
         $base = DB::table('tag_group')
             ->when($groupName !== null, fn ($query) => $query->where('group_name', $groupName));
@@ -66,7 +68,7 @@ class GroupReportsPreview
             ->all();
 
         return [
-            'mode' => 'read-only-preview',
+            'mode' => $execute ? 'execute' : 'read-only-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'hours' => $hours,
             'group_name' => $groupName,
@@ -77,7 +79,75 @@ class GroupReportsPreview
             'latest_time' => $latestTime !== null ? (string) $latestTime : null,
             'rows' => $rows,
             'external_fetch_skipped' => 'legacy tag.analysis.tw group sync is intentionally not called in read-only mode',
-            'writes' => [],
+            'synced_rows' => $syncedRows,
+            'writes' => $execute ? ['tag_group'] : [],
         ];
+    }
+
+    private function syncLegacyGroups(CarbonImmutable $now, int $hours): int
+    {
+        $hours = max(1, min(168, $hours));
+        $response = Http::timeout(30)
+            ->retry(2, 500)
+            ->get('https://tag.analysis.tw/api/group.php', ['hours' => $hours]);
+
+        if (! $response->successful()) {
+            throw new \RuntimeException('legacy group sync failed status='.$response->status());
+        }
+
+        $payload = $response->json();
+        $rows = is_array($payload) && is_array($payload['result'] ?? null) ? $payload['result'] : [];
+        $synced = 0;
+        $generatedAt = $now->format('Y-m-d H:i:s');
+
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $tag = trim((string) ($row['tag'] ?? ''));
+            $group = trim((string) ($row['group'] ?? ''));
+
+            if ($tag === '' || $group === '') {
+                continue;
+            }
+
+            $latestTime = max(
+                $this->dateTime($row['ctime'] ?? null, $generatedAt),
+                $this->dateTime($row['mtime'] ?? null, $generatedAt),
+            );
+            $delFlag = (string) ($row['del_flag'] ?? '0');
+            $existing = DB::table('tag_group')
+                ->where('tag', $tag)
+                ->where('group_name', $group)
+                ->first(['pk', 'latest_time']);
+
+            if ($existing === null) {
+                DB::table('tag_group')->insert([
+                    'ctime' => $generatedAt,
+                    'latest_time' => $latestTime,
+                    'tag' => $tag,
+                    'group_name' => $group,
+                    'del_flag' => $delFlag,
+                ]);
+            } elseif ((string) ($existing->latest_time ?? '') < $latestTime) {
+                DB::table('tag_group')->where('pk', $existing->pk)->update([
+                    'mtime' => $generatedAt,
+                    'latest_time' => $latestTime,
+                    'del_flag' => $delFlag,
+                ]);
+            }
+
+            $synced++;
+        }
+
+        return $synced;
+    }
+
+    private function dateTime(mixed $value, string $fallback): string
+    {
+        return is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $value)
+            ? $value
+            : $fallback;
     }
 }

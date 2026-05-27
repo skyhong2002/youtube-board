@@ -6,6 +6,7 @@ use App\Services\Ingestion\IngestionSchedulerRunner;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -104,6 +105,11 @@ class ReadOnlyKeywordsBuildCommandTest extends TestCase
     {
         $this->createTables();
         config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.local_polling_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['reports.keywords.build']);
+        Http::fake([
+            'https://tag.analysis.tw/api/tag_json.php*' => Http::response([]),
+        ]);
 
         $result = app(IngestionSchedulerRunner::class)->run(
             at: CarbonImmutable::parse('2026-05-25 03:27:00', 'Asia/Taipei'),
@@ -113,7 +119,56 @@ class ReadOnlyKeywordsBuildCommandTest extends TestCase
 
         $this->assertSame('execute', $result['mode']);
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $result['summary']);
-        $this->assertSame('executed', $result['jobs'][0]['action']);
+        $this->assertSame('executed:local-polling', $result['jobs'][0]['action']);
+    }
+
+    public function test_reports_keywords_build_execute_syncs_external_tag_rows(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+        DB::table('tags')->insert([
+            'tag' => '既有',
+            'ctime' => '2026-05-20 10:00:00',
+            'mtime' => '2026-05-20 10:00:00',
+            'max_count' => 1,
+            'hours_count' => 1,
+            'max_hours' => '2026-05-20 10:00:00',
+            'no_tag' => 0,
+        ]);
+        Http::fake([
+            'https://tag.analysis.tw/api/tag_json.php*' => Http::response([
+                [
+                    'tag' => '既有',
+                    'max_count' => 10,
+                    'hours_count' => 20,
+                    'max_hours' => '2026-05-25 11:00:00',
+                    'mtime' => '2026-05-25 11:00:00',
+                    'no_tag' => 0,
+                ],
+                [
+                    'tag' => '新增',
+                    'max_count' => 30,
+                    'hours_count' => 40,
+                    'max_hours' => '2026-05-25 11:30:00',
+                    'mtime' => '2026-05-25 11:30:00',
+                    'no_tag' => 1,
+                ],
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('reports:keywords:build', [
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('execute', $payload['mode']);
+        $this->assertSame(2, $payload['synced_rows']);
+        $this->assertSame(['tags'], $payload['writes']);
+        $this->assertSame(2, DB::table('tags')->count());
+        $this->assertSame(10, DB::table('tags')->where('tag', '既有')->value('max_count'));
+        $this->assertSame(1, DB::table('tags')->where('tag', '新增')->value('no_tag'));
     }
 
     private function createTables(): void

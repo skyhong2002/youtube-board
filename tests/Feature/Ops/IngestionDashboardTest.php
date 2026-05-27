@@ -466,10 +466,11 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('reports.keywords.build');
         $response->assertSee('reports:keywords:build');
-        $response->assertSee('read-only keyword JSON preview');
+        $response->assertSee('scheduled/local `--execute` upserts local `tags` rows');
         $response->assertSee('due now');
-        $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=reports.keywords.build');
-        $response->assertSee('不打外部 API、不寫檔案、不更新 DB');
+        $response->assertSee('reports:keywords:build --execute --hours=2 --limit=100');
+        $response->assertSee('Scheduler-enabled local polling is blocked');
+        $response->assertSee('tag.analysis.tw/api/tag_json.php');
     }
 
     public function test_ingestion_job_detail_allows_groups_build_read_only_preview(): void
@@ -479,10 +480,11 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('reports.groups.build');
         $response->assertSee('reports:groups:build');
-        $response->assertSee('read-only tag_group sync preview');
+        $response->assertSee('scheduled/local `--execute` upserts local `tag_group` rows');
         $response->assertSee('due now');
-        $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=reports.groups.build');
-        $response->assertSee('不打外部服務、不更新 DB');
+        $response->assertSee('reports:groups:build --execute --hours=22 --limit=100');
+        $response->assertSee('Scheduler-enabled local polling is blocked');
+        $response->assertSee('external group API');
     }
 
     public function test_ingestion_job_detail_allows_people_build_read_only_preview(): void
@@ -492,10 +494,10 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('reports.people.build');
         $response->assertSee('reports:people:build');
-        $response->assertSee('read-only people period preview');
+        $response->assertSee('scheduled/local `--execute` upserts people `urt_show_tag_date` cache rows');
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=reports.people.build');
-        $response->assertSee('不呼叫 API、不生成 cache、不寫 DB');
+        $response->assertSee('TagDateCacheBuilder');
     }
 
     public function test_ingestion_job_detail_allows_schedule_build_read_only_preview(): void

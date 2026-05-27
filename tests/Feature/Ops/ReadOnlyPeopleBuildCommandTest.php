@@ -98,6 +98,8 @@ class ReadOnlyPeopleBuildCommandTest extends TestCase
     {
         $this->createTables();
         config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.local_polling_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['reports.people.build']);
 
         $result = app(IngestionSchedulerRunner::class)->run(
             at: CarbonImmutable::parse('2026-05-25 03:27:00', 'Asia/Taipei'),
@@ -107,12 +109,69 @@ class ReadOnlyPeopleBuildCommandTest extends TestCase
 
         $this->assertSame('execute', $result['mode']);
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $result['summary']);
-        $this->assertSame('executed', $result['jobs'][0]['action']);
+        $this->assertSame('executed:local-polling', $result['jobs'][0]['action']);
+    }
+
+    public function test_reports_people_build_execute_writes_people_tag_date_cache(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        DB::table('tag_group')->insert([
+            'ctime' => '2026-05-20 10:00:00',
+            'latest_time' => '2026-05-24 10:00:00',
+            'tag' => '柯文哲',
+            'group_name' => '政治人物',
+            'del_flag' => '0',
+        ]);
+        DB::table('tags')->insert([
+            'tag' => '柯文哲',
+            'ctime' => '2026-05-25 10:00:00',
+            'mtime' => '2026-05-25 10:00:00',
+            'max_count' => 100,
+            'hours_count' => 50,
+            'max_hours' => '2026-05-25 10:00:00',
+            'no_tag' => 0,
+        ]);
+        DB::table('urt_count')->insert([
+            'u_id' => 1001,
+            'tags' => '[13]',
+        ]);
+        DB::table('urt_video')->insert([
+            'u_id' => 1001,
+            'videoId' => 'video-1',
+            'publishedAt' => '2026-05-25 08:00:00',
+            'title' => '柯文哲 柯文哲 新聞',
+            'description' => '柯文哲',
+            'viewCount' => 1234,
+        ]);
+
+        $exitCode = Artisan::call('reports:people:build', [
+            '--execute' => true,
+            '--days' => 1,
+            '--limit' => 1,
+            '--keyword-limit' => 10,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('execute', $payload['mode']);
+        $this->assertSame(1, $payload['cache_writes']);
+        $this->assertSame(['urt_show_tag_date'], $payload['writes']);
+        $this->assertSame(1, DB::table('urt_show_tag_date')->count());
+        $this->assertSame('13', DB::table('urt_show_tag_date')->value('tagid'));
+        $this->assertSame('2026-05-25', DB::table('urt_show_tag_date')->value('the_date'));
+        $this->assertStringContainsString('柯文哲', (string) DB::table('urt_show_tag_date')->value('tags_result'));
     }
 
     private function createTables(): void
     {
         Schema::dropIfExists('tag_group');
+        Schema::dropIfExists('tags');
+        Schema::dropIfExists('urt_count');
+        Schema::dropIfExists('urt_video');
+        Schema::dropIfExists('urt_show_tag_date');
 
         Schema::create('tag_group', function ($table): void {
             $table->increments('pk');
@@ -122,6 +181,52 @@ class ReadOnlyPeopleBuildCommandTest extends TestCase
             $table->string('tag');
             $table->string('group_name');
             $table->string('del_flag')->nullable();
+        });
+
+        Schema::create('tags', function ($table): void {
+            $table->increments('pk');
+            $table->string('tag');
+            $table->dateTime('ctime');
+            $table->dateTime('mtime');
+            $table->integer('max_count');
+            $table->integer('hours_count');
+            $table->dateTime('max_hours');
+            $table->tinyInteger('no_tag')->nullable();
+        });
+
+        Schema::create('urt_count', function ($table): void {
+            $table->increments('pk');
+            $table->unsignedInteger('u_id');
+            $table->text('tags')->nullable();
+        });
+
+        Schema::create('urt_video', function ($table): void {
+            $table->increments('pk');
+            $table->unsignedInteger('u_id');
+            $table->string('videoId')->nullable();
+            $table->dateTime('publishedAt');
+            $table->text('title')->nullable();
+            $table->text('description')->nullable();
+            $table->unsignedInteger('viewCount')->default(0);
+        });
+
+        Schema::create('urt_show_tag_date', function ($table): void {
+            $table->increments('pk');
+            $table->dateTime('ctime')->nullable();
+            $table->dateTime('mtime')->nullable();
+            $table->dateTime('stime')->nullable();
+            $table->unsignedInteger('count_channels')->default(0);
+            $table->unsignedInteger('count_videos')->default(0);
+            $table->unsignedInteger('count_tags')->default(0);
+            $table->date('the_date');
+            $table->unsignedInteger('tags_count')->default(0);
+            $table->unsignedInteger('total_views')->default(0);
+            $table->longText('tags_result')->nullable();
+            $table->longText('tags_video')->nullable();
+            $table->longText('tags_views')->nullable();
+            $table->string('tagid')->nullable();
+            $table->string('tag_or')->nullable();
+            $table->string('tag_not')->nullable();
         });
     }
 }

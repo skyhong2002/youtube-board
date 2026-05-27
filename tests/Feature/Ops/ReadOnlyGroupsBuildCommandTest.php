@@ -6,6 +6,7 @@ use App\Services\Ingestion\IngestionSchedulerRunner;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -111,6 +112,11 @@ class ReadOnlyGroupsBuildCommandTest extends TestCase
     {
         $this->createTable();
         config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.local_polling_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['reports.groups.build']);
+        Http::fake([
+            'https://tag.analysis.tw/api/group.php*' => Http::response(['result' => []]),
+        ]);
 
         $result = app(IngestionSchedulerRunner::class)->run(
             at: CarbonImmutable::parse('2026-05-25 03:27:00', 'Asia/Taipei'),
@@ -120,7 +126,55 @@ class ReadOnlyGroupsBuildCommandTest extends TestCase
 
         $this->assertSame('execute', $result['mode']);
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $result['summary']);
-        $this->assertSame('executed', $result['jobs'][0]['action']);
+        $this->assertSame('executed:local-polling', $result['jobs'][0]['action']);
+    }
+
+    public function test_reports_groups_build_execute_syncs_external_group_rows(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTable();
+        DB::table('tag_group')->insert([
+            'ctime' => '2026-05-20 10:00:00',
+            'mtime' => null,
+            'latest_time' => '2026-05-20 10:00:00',
+            'tag' => '既有',
+            'group_name' => '政治人物',
+            'del_flag' => '0',
+        ]);
+        Http::fake([
+            'https://tag.analysis.tw/api/group.php*' => Http::response([
+                'result' => [
+                    [
+                        'tag' => '既有',
+                        'group' => '政治人物',
+                        'ctime' => '2026-05-20 10:00:00',
+                        'mtime' => '2026-05-25 11:00:00',
+                        'del_flag' => '1',
+                    ],
+                    [
+                        'tag' => '新增',
+                        'group' => '政黨',
+                        'ctime' => '2026-05-25 11:30:00',
+                        'mtime' => '2026-05-25 11:30:00',
+                        'del_flag' => '0',
+                    ],
+                ],
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('reports:groups:build', [
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('execute', $payload['mode']);
+        $this->assertSame(2, $payload['synced_rows']);
+        $this->assertSame(['tag_group'], $payload['writes']);
+        $this->assertSame(2, DB::table('tag_group')->count());
+        $this->assertSame('1', DB::table('tag_group')->where('tag', '既有')->value('del_flag'));
+        $this->assertSame('政黨', DB::table('tag_group')->where('tag', '新增')->value('group_name'));
     }
 
     private function createTable(): void

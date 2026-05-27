@@ -5,6 +5,7 @@ namespace App\Services\Ingestion;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 
 class KeywordReportsPreview
 {
@@ -23,7 +24,7 @@ class KeywordReportsPreview
      *     writes: list<string>
      * }
      */
-    public function preview(int $limit = 20, int $recentDays = 7, ?CarbonInterface $now = null): array
+    public function preview(int $limit = 20, int $recentDays = 7, ?CarbonInterface $now = null, bool $execute = false, int $hours = 2): array
     {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
         $now = $now === null
@@ -32,6 +33,11 @@ class KeywordReportsPreview
         $limit = max(1, min(100, $limit));
         $recentDays = max(1, min(30, $recentDays));
         $recentSince = $now->subDays($recentDays)->format('Y-m-d H:i:s');
+        $syncedRows = 0;
+
+        if ($execute) {
+            $syncedRows = $this->syncLegacyTags($now, $hours);
+        }
 
         $sourceRows = DB::table('tags')
             ->select(['tag', 'max_count', 'hours_count', 'max_hours', 'mtime', 'no_tag'])
@@ -89,7 +95,7 @@ class KeywordReportsPreview
             ->all();
 
         return [
-            'mode' => 'read-only-preview',
+            'mode' => $execute ? 'execute' : 'read-only-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'recent_since' => $recentSince,
             'source_tags' => $sourceRows->count(),
@@ -102,8 +108,67 @@ class KeywordReportsPreview
                 'data/keyword_all.json',
             ],
             'external_fetch_skipped' => 'legacy tag.analysis.tw fetch is intentionally skipped in read-only mode',
-            'writes' => [],
+            'synced_rows' => $syncedRows,
+            'writes' => $execute ? ['tags'] : [],
         ];
+    }
+
+    private function syncLegacyTags(CarbonImmutable $now, int $hours): int
+    {
+        $hours = max(1, min(168, $hours));
+        $response = Http::timeout(30)
+            ->retry(2, 500)
+            ->get('https://tag.analysis.tw/api/tag_json.php', ['hours' => $hours]);
+
+        if (! $response->successful()) {
+            throw new \RuntimeException('legacy keyword sync failed status='.$response->status());
+        }
+
+        $rows = $response->json();
+
+        if (! is_array($rows)) {
+            throw new \RuntimeException('legacy keyword sync returned non-json payload');
+        }
+
+        $synced = 0;
+        $generatedAt = $now->format('Y-m-d H:i:s');
+
+        foreach ($rows as $row) {
+            if (! is_array($row) || trim((string) ($row['tag'] ?? '')) === '') {
+                continue;
+            }
+
+            $tag = trim((string) $row['tag']);
+            $values = [
+                'mtime' => $this->dateTime($row['mtime'] ?? null, $generatedAt),
+                'max_count' => max(0, (int) ($row['max_count'] ?? 0)),
+                'max_hours' => $this->dateTime($row['max_hours'] ?? null, $generatedAt),
+                'hours_count' => max(0, (int) ($row['hours_count'] ?? 0)),
+                'no_tag' => (int) ($row['no_tag'] ?? 0) < 1 ? 0 : 1,
+            ];
+
+            $existingPk = DB::table('tags')->where('tag', $tag)->value('pk');
+
+            if ($existingPk === null) {
+                DB::table('tags')->insert($values + [
+                    'ctime' => $generatedAt,
+                    'tag' => $tag,
+                ]);
+            } else {
+                DB::table('tags')->where('pk', $existingPk)->update($values);
+            }
+
+            $synced++;
+        }
+
+        return $synced;
+    }
+
+    private function dateTime(mixed $value, string $fallback): string
+    {
+        return is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $value)
+            ? $value
+            : $fallback;
     }
 
     private function exclusionReason(string $tag, int $noTag): ?string

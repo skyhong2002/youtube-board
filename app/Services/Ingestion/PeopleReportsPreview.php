@@ -22,8 +22,15 @@ class PeopleReportsPreview
      *     writes: list<string>
      * }
      */
-    public function preview(string $groupName = '政治人物', int $tagId = 13, int $days = 37, int $limit = 20, ?CarbonInterface $now = null): array
-    {
+    public function preview(
+        string $groupName = '政治人物',
+        int $tagId = 13,
+        int $days = 37,
+        int $limit = 20,
+        ?CarbonInterface $now = null,
+        bool $execute = false,
+        int $keywordLimit = 5000,
+    ): array {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
         $now = $now === null
             ? CarbonImmutable::now($timezone)
@@ -60,9 +67,32 @@ class PeopleReportsPreview
             ])
             ->values()
             ->all();
+        $cacheWrites = 0;
+
+        if ($execute && $rows !== []) {
+            $builder = app(TagDateCacheBuilder::class);
+            $from = $now->subDays($days - 1);
+
+            foreach ($rows as $row) {
+                $cursor = $from;
+
+                while ($cursor <= $now) {
+                    $result = $builder->build(
+                        tagIds: [$tagId],
+                        date: $cursor->toDateString(),
+                        keywordLimit: $keywordLimit,
+                        onlyKeywords: [$row['tag']],
+                        execute: true,
+                        now: $now,
+                    );
+                    $cacheWrites += (int) $result['writes'];
+                    $cursor = $cursor->addDay();
+                }
+            }
+        }
 
         return [
-            'mode' => 'read-only-preview',
+            'mode' => $execute ? 'execute' : 'read-only-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'group_name' => $groupName,
             'tagid' => $tagId,
@@ -70,8 +100,9 @@ class PeopleReportsPreview
             'candidates' => $candidates,
             'latest_time' => $latestTime !== null ? (string) $latestTime : null,
             'rows' => $rows,
+            'cache_writes' => $cacheWrites,
             'cache_generation_skipped' => 'legacy api/tag_period.php calls are intentionally not executed in read-only mode',
-            'writes' => [],
+            'writes' => $execute ? ['urt_show_tag_date'] : [],
         ];
     }
 }

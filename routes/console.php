@@ -1476,12 +1476,17 @@ Artisan::command('reports:counts:build {--id= : Optional u_id to preview, matchi
     }
 })->purpose('Preview or execute legacy channel weekly/monthly count delta updates');
 
-Artisan::command('reports:keywords:build {--limit=20 : Number of preview keywords to print} {--recent-days=7 : Window for keyword_all preview, matching legacy weekly freshness} {--json : Emit JSON instead of text}', function (KeywordReportsPreview $preview) {
+Artisan::command('reports:keywords:build {--limit=20 : Number of preview keywords to print} {--recent-days=7 : Window for keyword_all preview, matching legacy weekly freshness} {--hours=2 : Legacy tag.analysis.tw lookback hours for execute sync} {--execute : Fetch tag.analysis.tw keyword JSON and upsert local tags} {--json : Emit JSON instead of text}', function (KeywordReportsPreview $preview) {
     $limit = max(1, min(100, (int) $this->option('limit')));
     $recentDays = max(1, min(30, (int) $this->option('recent-days')));
 
     try {
-        $payload = $preview->preview(limit: $limit, recentDays: $recentDays);
+        $payload = $preview->preview(
+            limit: $limit,
+            recentDays: $recentDays,
+            execute: (bool) $this->option('execute'),
+            hours: (int) $this->option('hours'),
+        );
 
         if ((bool) $this->option('json')) {
             $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
@@ -1490,12 +1495,15 @@ Artisan::command('reports:keywords:build {--limit=20 : Number of preview keyword
         }
 
         $this->line(sprintf(
-            'reports:keywords:build mode=read-only-preview source_tags=%d eligible_keywords=%d recent_keywords=%d recent_since=%s generated_at=%s writes=0 external_fetch=skipped',
+            'reports:keywords:build mode=%s source_tags=%d synced=%d eligible_keywords=%d recent_keywords=%d recent_since=%s generated_at=%s writes=%d',
+            $payload['mode'],
             $payload['source_tags'],
+            $payload['synced_rows'],
             $payload['eligible_keywords'],
             $payload['recent_keywords'],
             $payload['recent_since'],
             $payload['generated_at'],
+            count($payload['writes']),
         ));
         $this->line(sprintf(
             'excluded no_tag=%d single_char=%d numeric=%d short_ascii=%d targets=%s',
@@ -1524,8 +1532,12 @@ Artisan::command('reports:keywords:build {--limit=20 : Number of preview keyword
         $this->error('reports:keywords:build unavailable: '.$exception->getMessage());
 
         return 1;
+    } catch (\RuntimeException $exception) {
+        $this->line('reports:keywords:build execute unavailable: '.$exception->getMessage().' secrets=not_printed');
+
+        return 1;
     }
-})->purpose('Read-only preview of legacy keyword JSON generation from local tags; skips external fetch and file writes');
+})->purpose('Preview or execute legacy keyword sync from tag.analysis.tw; file writes remain disabled');
 
 Artisan::command('reports:keywords:cache {--execute : Write the rebuilt tags_all cache to local DB} {--days=31 : Calendar-day window to aggregate, matching legacy tags_all.php} {--recent-days=7 : Recent window used for video/views metrics; legacy includes today plus this many previous days} {--keyword-limit=1000 : Number of ranked keywords to scan} {--video-limit= : Optional cap for smoke tests} {--json : Emit JSON instead of text}', function (TagsAllCacheBuilder $builder) {
     $days = max(1, min(90, (int) $this->option('days')));
@@ -1585,14 +1597,21 @@ Artisan::command('reports:keywords:cache {--execute : Write the rebuilt tags_all
     }
 })->purpose('Rebuild legacy urt_show_data.tags_all keyword metric cache from local videos; dry-run by default');
 
-Artisan::command('reports:people:build {--group=政治人物 : tag_group group_name to preview} {--tagid=13 : Legacy tagid filter passed to tag_period.php} {--days=37 : Legacy period length passed to tag_period.php} {--limit=20 : Number of people tags to print} {--json : Emit JSON instead of text}', function (PeopleReportsPreview $preview) {
+Artisan::command('reports:people:build {--group=政治人物 : tag_group group_name to preview} {--tagid=13 : Legacy tagid filter passed to tag_period.php} {--days=37 : Legacy period length passed to tag_period.php} {--limit=20 : Number of people tags to print/build} {--keyword-limit=5000 : Number of local keywords to scan when building tag-date cache} {--execute : Build selected local people tag-date cache rows} {--json : Emit JSON instead of text}', function (PeopleReportsPreview $preview) {
     $groupName = trim((string) $this->option('group')) ?: '政治人物';
     $tagId = max(1, (int) $this->option('tagid'));
     $days = max(1, min(365, (int) $this->option('days')));
     $limit = max(1, min(200, (int) $this->option('limit')));
 
     try {
-        $payload = $preview->preview(groupName: $groupName, tagId: $tagId, days: $days, limit: $limit);
+        $payload = $preview->preview(
+            groupName: $groupName,
+            tagId: $tagId,
+            days: $days,
+            limit: $limit,
+            execute: (bool) $this->option('execute'),
+            keywordLimit: (int) $this->option('keyword-limit'),
+        );
 
         if ((bool) $this->option('json')) {
             $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
@@ -1601,13 +1620,16 @@ Artisan::command('reports:people:build {--group=政治人物 : tag_group group_n
         }
 
         $this->line(sprintf(
-            'reports:people:build mode=read-only-preview group="%s" candidates=%d latest_time=%s tagid=%d days=%d generated_at=%s writes=0 cache_generation=skipped',
+            'reports:people:build mode=%s group="%s" candidates=%d latest_time=%s tagid=%d days=%d cache_writes=%d generated_at=%s writes=%d',
+            $payload['mode'],
             $payload['group_name'],
             $payload['candidates'],
             $payload['latest_time'] ?? 'n/a',
             $payload['tagid'],
             $payload['days'],
+            $payload['cache_writes'],
             $payload['generated_at'],
+            count($payload['writes']),
         ));
 
         foreach ($payload['rows'] as $index => $row) {
@@ -1626,14 +1648,15 @@ Artisan::command('reports:people:build {--group=政治人物 : tag_group group_n
 
     return 1;
 }
-})->purpose('Read-only preview of legacy political-people tag period generation; does not call tag_period.php');
+})->purpose('Preview or execute legacy political-people tag-date cache generation from local DB');
 
-Artisan::command('reports:groups:build {--group= : Preview one tag_group group_name} {--hours=22 : Legacy tag.analysis.tw lookback parameter, shown only} {--limit=20 : Number of groups to print} {--json : Emit JSON instead of text}', function (GroupReportsPreview $preview) {
+Artisan::command('reports:groups:build {--group= : Preview one tag_group group_name} {--hours=22 : Legacy tag.analysis.tw lookback parameter} {--limit=20 : Number of groups to print} {--execute : Fetch tag.analysis.tw group JSON and upsert local tag_group} {--json : Emit JSON instead of text}', function (GroupReportsPreview $preview) {
     try {
         $payload = $preview->preview(
             groupName: $this->option('group') ? (string) $this->option('group') : null,
             hours: (int) $this->option('hours'),
             limit: (int) $this->option('limit'),
+            execute: (bool) $this->option('execute'),
         );
 
         if ($this->option('json')) {
@@ -1643,14 +1666,17 @@ Artisan::command('reports:groups:build {--group= : Preview one tag_group group_n
         }
 
         $this->line(sprintf(
-            'reports:groups:build mode=read-only-preview groups=%d tag_rows=%d active_rows=%d deleted_rows=%d latest_time=%s hours=%d generated_at=%s writes=0 external_fetch=skipped',
+            'reports:groups:build mode=%s groups=%d tag_rows=%d synced=%d active_rows=%d deleted_rows=%d latest_time=%s hours=%d generated_at=%s writes=%d',
+            $payload['mode'],
             $payload['group_count'],
             $payload['tag_rows'],
+            $payload['synced_rows'],
             $payload['active_rows'],
             $payload['deleted_rows'],
             $payload['latest_time'] ?? '-',
             $payload['hours'],
             $payload['generated_at'],
+            count($payload['writes']),
         ));
 
         foreach ($payload['rows'] as $index => $row) {
@@ -1670,8 +1696,12 @@ Artisan::command('reports:groups:build {--group= : Preview one tag_group group_n
         $this->error('reports:groups:build unavailable: '.$exception->getMessage());
 
         return 1;
+    } catch (\RuntimeException $exception) {
+        $this->line('reports:groups:build execute unavailable: '.$exception->getMessage().' secrets=not_printed');
+
+        return 1;
     }
-})->purpose('Read-only preview of legacy tag_group sync; does not call tag.analysis.tw or write tag_group');
+})->purpose('Preview or execute legacy tag_group sync from tag.analysis.tw');
 
 Artisan::command('reports:schedule:build {--videoId= : Preview one scheduled video} {--hours=1 : Lookback window for recently refreshed schedule rows} {--limit=20 : Number of schedule rows to print/update} {--execute : Update selected urt_video_schedule stime rows} {--json : Emit JSON instead of text}', function (ScheduleReportsPreview $preview) {
     try {
