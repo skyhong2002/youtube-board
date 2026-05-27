@@ -57,6 +57,18 @@ class MayorReport
                 }
             }
 
+            if (! $this->seriesHasData($series) && ! $request->filled('type') && $type === 'tags_views') {
+                $fallbackType = 'tags_video';
+                $fallbackRecords = $this->records($range['cache_from'], $range['to'], $fallbackType);
+                $fallbackSeries = $this->series($city, $range['dates'], $fallbackRecords);
+
+                if ($this->seriesHasData($fallbackSeries)) {
+                    $type = $fallbackType;
+                    $records = $fallbackRecords;
+                    $series = $fallbackSeries;
+                }
+            }
+
             return [
                 'available' => true,
                 'data_available' => $this->seriesHasData($series),

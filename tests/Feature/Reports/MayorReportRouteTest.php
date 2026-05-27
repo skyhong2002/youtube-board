@@ -51,6 +51,33 @@ class MayorReportRouteTest extends TestCase
         $response->assertSee('目前沒有可繪製的候選人趨勢資料');
     }
 
+    public function test_mayor_city_page_defaults_to_video_metric_when_view_metric_has_no_candidate_data(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTagDateCacheTable();
+
+        DB::table('urt_show_tag_date')->insert([
+            'pk' => 1,
+            'tagid' => '4',
+            'tag_or' => null,
+            'tag_not' => null,
+            'the_date' => '2026-05-20',
+            'total_views' => 0,
+            'count_videos' => 1,
+            'count_channels' => 1,
+            'tags_views' => json_encode([], JSON_UNESCAPED_UNICODE),
+            'tags_video' => json_encode(['陳瑩' => 1], JSON_UNESCAPED_UNICODE),
+            'tags_result' => json_encode([], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->get('/mayor/cities/taitung?from=2026-05-20&to=2026-05-20');
+
+        $response->assertOk();
+        $response->assertSee('影片數 · 2026-05-20 - 2026-05-20');
+        $response->assertSee('候選人支持度趨勢');
+        $response->assertDontSee('目前沒有符合這組 city/date/type');
+    }
+
     public function test_mayor_index_defaults_to_latest_imported_tag_date_cache_when_yesterday_is_empty(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
