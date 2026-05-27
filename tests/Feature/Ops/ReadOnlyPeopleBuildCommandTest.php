@@ -165,6 +165,81 @@ class ReadOnlyPeopleBuildCommandTest extends TestCase
         $this->assertStringContainsString('柯文哲', (string) DB::table('urt_show_tag_date')->value('tags_result'));
     }
 
+    public function test_reports_people_build_execute_merges_focused_keywords_into_existing_tag_date_cache(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        DB::table('tag_group')->insert([
+            'ctime' => '2026-05-20 10:00:00',
+            'latest_time' => '2026-05-24 10:00:00',
+            'tag' => '柯文哲',
+            'group_name' => '政治人物',
+            'del_flag' => '0',
+        ]);
+        DB::table('tags')->insert([
+            'tag' => '柯文哲',
+            'ctime' => '2026-05-25 10:00:00',
+            'mtime' => '2026-05-25 10:00:00',
+            'max_count' => 100,
+            'hours_count' => 50,
+            'max_hours' => '2026-05-25 10:00:00',
+            'no_tag' => 0,
+        ]);
+        DB::table('urt_count')->insert([
+            'u_id' => 1001,
+            'tags' => '[13]',
+        ]);
+        DB::table('urt_video')->insert([
+            'u_id' => 1001,
+            'videoId' => 'video-1',
+            'publishedAt' => '2026-05-25 08:00:00',
+            'title' => '柯文哲 柯文哲 新聞',
+            'description' => '柯文哲',
+            'viewCount' => 1234,
+        ]);
+        DB::table('urt_show_tag_date')->insert([
+            'ctime' => '2026-05-24 10:00:00',
+            'mtime' => '2026-05-24 10:00:00',
+            'stime' => '2026-05-24 10:00:00',
+            'count_channels' => 10,
+            'count_videos' => 50,
+            'count_tags' => 500,
+            'the_date' => '2026-05-25',
+            'tags_count' => 1,
+            'total_views' => 9999,
+            'tags_result' => json_encode(['既有關鍵字' => '7.500'], JSON_UNESCAPED_UNICODE),
+            'tags_video' => json_encode(['既有關鍵字' => 2], JSON_UNESCAPED_UNICODE),
+            'tags_views' => json_encode(['既有關鍵字' => 300], JSON_UNESCAPED_UNICODE),
+            'tagid' => '13',
+            'tag_or' => null,
+            'tag_not' => null,
+        ]);
+
+        $exitCode = Artisan::call('reports:people:build', [
+            '--execute' => true,
+            '--days' => 1,
+            '--limit' => 1,
+            '--keyword-limit' => 10,
+            '--json' => true,
+        ]);
+        $row = DB::table('urt_show_tag_date')->where('tagid', '13')->where('the_date', '2026-05-25')->first();
+        $tagsResult = json_decode((string) $row->tags_result, true);
+        $tagsVideo = json_decode((string) $row->tags_video, true);
+        $tagsViews = json_decode((string) $row->tags_views, true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, DB::table('urt_show_tag_date')->count());
+        $this->assertArrayHasKey('既有關鍵字', $tagsResult);
+        $this->assertArrayHasKey('柯文哲', $tagsResult);
+        $this->assertSame(2, $tagsVideo['既有關鍵字']);
+        $this->assertSame(1, $tagsVideo['柯文哲']);
+        $this->assertSame(300, $tagsViews['既有關鍵字']);
+        $this->assertSame(1234, $tagsViews['柯文哲']);
+        $this->assertSame(2, (int) $row->tags_count);
+        $this->assertSame(9999, (int) $row->total_views);
+    }
+
     private function createTables(): void
     {
         Schema::dropIfExists('tag_group');

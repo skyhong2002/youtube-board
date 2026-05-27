@@ -47,7 +47,7 @@ class TagDateCacheBuilder
         $generatedAt = $now->format('Y-m-d H:i:s');
 
         if ($execute) {
-            $this->upsertCache($tagIds, $orTagIds, $notTagIds, $date, $metrics, count($channelIds), $generatedAt);
+            $this->upsertCache($tagIds, $orTagIds, $notTagIds, $date, $metrics, count($channelIds), $generatedAt, $onlyKeywords !== []);
         }
 
         return [
@@ -294,13 +294,13 @@ class TagDateCacheBuilder
      * @param list<int> $notTagIds
      * @param array{tags_result: array<string, string>, tags_video: array<string, int>, tags_views: array<string, int>, count_tags: int, count_videos: int, total_views: int} $metrics
      */
-    private function upsertCache(array $tagIds, array $orTagIds, array $notTagIds, string $date, array $metrics, int $countChannels, string $generatedAt): void
+    private function upsertCache(array $tagIds, array $orTagIds, array $notTagIds, string $date, array $metrics, int $countChannels, string $generatedAt, bool $mergeKeywords): void
     {
         $tagIdString = implode(',', $tagIds);
         $tagOrString = $orTagIds === [] ? null : implode(',', $orTagIds);
         $tagNotString = $notTagIds === [] ? null : implode(',', $notTagIds);
 
-        DB::transaction(function () use ($tagIdString, $tagOrString, $tagNotString, $date, $metrics, $countChannels, $generatedAt): void {
+        DB::transaction(function () use ($tagIdString, $tagOrString, $tagNotString, $date, $metrics, $countChannels, $generatedAt, $mergeKeywords): void {
             $payload = [
                 'mtime' => $generatedAt,
                 'stime' => $generatedAt,
@@ -329,7 +329,26 @@ class TagDateCacheBuilder
                         : $query->where('tag_not', $tagNotString);
                 });
 
-            if ($query->exists()) {
+            $existing = (clone $query)->first(['tags_result', 'tags_video', 'tags_views']);
+
+            if ($existing !== null) {
+                if ($mergeKeywords) {
+                    $tagsResult = $this->mergedMetricJson((string) ($existing->tags_result ?? ''), $metrics['tags_result']);
+                    $tagsVideo = $this->mergedMetricJson((string) ($existing->tags_video ?? ''), $metrics['tags_video']);
+                    $tagsViews = $this->mergedMetricJson((string) ($existing->tags_views ?? ''), $metrics['tags_views']);
+
+                    $query->update([
+                        'mtime' => $generatedAt,
+                        'stime' => $generatedAt,
+                        'tags_count' => count($this->decodeMetricJson($tagsResult)),
+                        'tags_result' => $tagsResult,
+                        'tags_video' => $tagsVideo,
+                        'tags_views' => $tagsViews,
+                    ]);
+
+                    return;
+                }
+
                 $query->update($payload);
 
                 return;
@@ -344,5 +363,43 @@ class TagDateCacheBuilder
             $payload['tag_not'] = $tagNotString;
             DB::table('urt_show_tag_date')->insert($payload);
         });
+    }
+
+    /**
+     * @param array<string, int|string> $updates
+     */
+    private function mergedMetricJson(string $existingJson, array $updates): string
+    {
+        $merged = $this->decodeMetricJson($existingJson);
+
+        foreach ($updates as $tag => $value) {
+            if (is_string($tag) && is_numeric($value)) {
+                $merged[$tag] = $value;
+            }
+        }
+
+        arsort($merged, SORT_NUMERIC);
+
+        return json_encode($merged, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
+     * @return array<string, int|float|string>
+     */
+    private function decodeMetricJson(string $json): array
+    {
+        $decoded = json_decode($json, true);
+
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        if (isset($decoded['data']) && is_array($decoded['data'])) {
+            $decoded = $decoded['data'];
+        }
+
+        return collect($decoded)
+            ->filter(fn (mixed $value, mixed $key): bool => is_string($key) && is_numeric($value))
+            ->all();
     }
 }
