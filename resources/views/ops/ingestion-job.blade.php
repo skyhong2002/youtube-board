@@ -116,11 +116,9 @@
             <h2>Safe Commands</h2>
             <div class="commands">
                 <code>php artisan ingestion:run --job={{ $job['key'] }} --at="{{ $atForCommand }}"</code>
-                @if ($execution['can_execute_when_due'])
-                    <code>INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job={{ $job['key'] }}</code>
-                    @if (! empty($job['scheduled_execute_command']))
-                        <code>INGESTION_SCHEDULER_ENABLED=true INGESTION_LOCAL_POLLING_ENABLED=true INGESTION_SCHEDULED_WRITE_ALLOWLIST={{ $job['key'] }} php artisan ingestion:run --execute --job={{ $job['key'] }}</code>
-                    @endif
+                <code>INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job={{ $job['key'] }}</code>
+                @if (! empty($job['scheduled_execute_command']))
+                    <code>INGESTION_SCHEDULER_ENABLED=true INGESTION_LOCAL_POLLING_ENABLED=true INGESTION_SCHEDULED_WRITE_ALLOWLIST={{ $job['key'] }} php artisan ingestion:run --execute --job={{ $job['key'] }}</code>
                 @endif
             </div>
 

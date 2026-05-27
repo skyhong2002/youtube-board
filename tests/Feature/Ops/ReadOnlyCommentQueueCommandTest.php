@@ -172,8 +172,8 @@ class ReadOnlyCommentQueueCommandTest extends TestCase
             jobKey: 'youtube.comments.queue',
         );
 
-        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $result['summary']);
-        $this->assertSame('executed', $result['jobs'][0]['action']);
+        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 0, 'skipped' => 1, 'failed' => 0], $result['summary']);
+        $this->assertSame('skip:read-only-guardrail', $result['jobs'][0]['action']);
         $this->assertSame(0, DB::table('urt_comment_queue')->count());
     }
 

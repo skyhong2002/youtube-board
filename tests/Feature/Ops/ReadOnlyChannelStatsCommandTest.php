@@ -200,8 +200,8 @@ class ReadOnlyChannelStatsCommandTest extends TestCase
         );
 
         $this->assertSame('execute', $result['mode']);
-        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $result['summary']);
-        $this->assertSame('executed', $result['jobs'][0]['action']);
+        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 0, 'skipped' => 1, 'failed' => 0], $result['summary']);
+        $this->assertSame('skip:read-only-guardrail', $result['jobs'][0]['action']);
     }
 
     public function test_youtube_channels_stats_execute_requires_api_key_and_does_not_write_when_missing(): void

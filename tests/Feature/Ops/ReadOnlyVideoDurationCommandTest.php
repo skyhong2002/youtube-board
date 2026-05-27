@@ -368,7 +368,7 @@ class ReadOnlyVideoDurationCommandTest extends TestCase
         $this->assertSame('target-video', $payload['rows'][0]['video_id']);
     }
 
-    public function test_ingestion_scheduler_can_execute_read_only_duration_preview_when_due(): void
+    public function test_ingestion_scheduler_requires_allowlist_for_duration_execute_when_due(): void
     {
         $this->createTables();
         config()->set('ingestion.scheduler_enabled', true);
@@ -380,8 +380,8 @@ class ReadOnlyVideoDurationCommandTest extends TestCase
         );
 
         $this->assertSame('execute', $result['mode']);
-        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $result['summary']);
-        $this->assertSame('executed', $result['jobs'][0]['action']);
+        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 0, 'skipped' => 1, 'failed' => 0], $result['summary']);
+        $this->assertSame('skip:read-only-guardrail', $result['jobs'][0]['action']);
     }
 
     private function createTables(): void

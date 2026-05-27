@@ -244,12 +244,12 @@ class ReadOnlyChannelVideosCommandTest extends TestCase
             jobKey: 'youtube.channels.videos.live_group',
         );
 
-        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $general['summary']);
-        $this->assertSame('executed', $general['jobs'][0]['action']);
-        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $live['summary']);
-        $this->assertSame('executed', $live['jobs'][0]['action']);
-        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $liveGroup['summary']);
-        $this->assertSame('executed', $liveGroup['jobs'][0]['action']);
+        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 0, 'skipped' => 1, 'failed' => 0], $general['summary']);
+        $this->assertSame('skip:read-only-guardrail', $general['jobs'][0]['action']);
+        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 0, 'skipped' => 1, 'failed' => 0], $live['summary']);
+        $this->assertSame('skip:read-only-guardrail', $live['jobs'][0]['action']);
+        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 0, 'skipped' => 1, 'failed' => 0], $liveGroup['summary']);
+        $this->assertSame('skip:read-only-guardrail', $liveGroup['jobs'][0]['action']);
     }
 
     public function test_youtube_channels_videos_execute_requires_api_key_and_does_not_write_when_missing(): void

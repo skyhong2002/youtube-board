@@ -113,7 +113,7 @@ class ReadOnlyAiDailyCommandTest extends TestCase
         $this->assertSame(0, DB::table('urt_ai_date')->count());
     }
 
-    public function test_ingestion_scheduler_can_execute_read_only_ai_daily_preview_when_due(): void
+    public function test_ingestion_scheduler_requires_allowlist_for_ai_daily_execute_when_due(): void
     {
         $this->createTables();
         config()->set('ingestion.scheduler_enabled', true);
@@ -124,8 +124,8 @@ class ReadOnlyAiDailyCommandTest extends TestCase
             jobKey: 'ai.daily',
         );
 
-        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $result['summary']);
-        $this->assertSame('executed', $result['jobs'][0]['action']);
+        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 0, 'skipped' => 1, 'failed' => 0], $result['summary']);
+        $this->assertSame('skip:read-only-guardrail', $result['jobs'][0]['action']);
         $this->assertSame(0, DB::table('urt_ai_date')->count());
         $this->assertSame(0, DB::table('urt_channel_ai')->count());
     }

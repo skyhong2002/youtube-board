@@ -97,7 +97,7 @@ class ReadOnlyAiHourlyCommandTest extends TestCase
         $this->assertSame('explicit-all-video', $payload['rows'][0]['video_id']);
     }
 
-    public function test_ingestion_scheduler_can_execute_read_only_ai_hourly_preview_when_due(): void
+    public function test_ingestion_scheduler_requires_allowlist_for_ai_hourly_execute_when_due(): void
     {
         $this->createTables();
         config()->set('ingestion.scheduler_enabled', true);
@@ -108,8 +108,8 @@ class ReadOnlyAiHourlyCommandTest extends TestCase
             jobKey: 'ai.hourly',
         );
 
-        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $result['summary']);
-        $this->assertSame('executed', $result['jobs'][0]['action']);
+        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 0, 'skipped' => 1, 'failed' => 0], $result['summary']);
+        $this->assertSame('skip:read-only-guardrail', $result['jobs'][0]['action']);
         $this->assertSame(0, DB::table('urt_ai_hour')->count());
     }
 
@@ -497,7 +497,7 @@ class ReadOnlyAiHourlyCommandTest extends TestCase
             jobKey: 'ai.hourly',
         );
 
-        $this->assertSame('executed', $blocked['jobs'][0]['action']);
+        $this->assertSame('skip:read-only-guardrail', $blocked['jobs'][0]['action']);
         $this->assertSame('ai:hourly', $blocked['jobs'][0]['effective_command']);
         $this->assertFalse($blocked['jobs'][0]['scheduled_write']['allowed']);
         $this->assertContains('Production polling is not explicitly enabled.', $blocked['jobs'][0]['scheduled_write']['blocks']);

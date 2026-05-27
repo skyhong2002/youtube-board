@@ -279,7 +279,14 @@ class IngestionJobRegistry
             ->filter();
 
         return $writes->isEmpty()
-            || $writes->every(fn (string $write): bool => str_contains($write, 'none') || str_contains($write, 'read-only'));
+            || $writes->every(function (string $write): bool {
+                if (str_contains($write, 'none by default')) {
+                    return false;
+                }
+
+                return str_contains($write, 'read-only')
+                    || preg_match('/^none(?:\s*\(|$)/', $write) === 1;
+            });
     }
 
     /**
