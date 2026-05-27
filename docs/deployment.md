@@ -38,6 +38,11 @@ YOUTUBE_API_KEY=<youtube-data-api-key>
 # Optional comma-separated fallback keys, configured only in Dokploy secrets/env:
 YOUTUBE_API_KEYS=<youtube-data-api-key-2>,<youtube-data-api-key-3>
 OPENAI_ENDPOINT_STYLE=auto
+# Optional AI fallback provider. Keep the fallback key in Dokploy secrets/env only.
+# OPENAI_FALLBACK_BASE_URL=https://api.openai.com/v1
+# OPENAI_FALLBACK_MODEL=gpt-4o-mini
+# OPENAI_FALLBACK_ENDPOINT_STYLE=chat
+# OPENAI_FALLBACK_TIMEOUT=300
 ```
 
 For `/live/current` parity with the legacy site, the minimum live allowlist is:
@@ -53,6 +58,8 @@ For AI page freshness, add:
 
 - `ai.hourly`: refreshes `urt_ai_hour` from the previous complete hour of `urt_video`.
 - `ai.daily`: refreshes configured channel-level `urt_channel_ai` rows in capped batches first, then writes six daily `urt_ai_date` condition rows from those channel summaries.
+
+The AI client tries the primary `OPENAI_*` provider first. If it fails and `OPENAI_FALLBACK_*` is configured, it retries once against the fallback provider. This matches the observed legacy daily AI path, which used OpenAI `chat/completions` with `gpt-4o-mini`, while keeping secrets out of git.
 
 For derived report freshness, add:
 

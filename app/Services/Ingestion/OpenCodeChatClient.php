@@ -16,21 +16,42 @@ class OpenCodeChatClient
      */
     public function complete(string $prompt): array
     {
-        $apiKey = (string) config('services.opencode_go.api_key', '');
-        $baseUrl = rtrim((string) config('services.opencode_go.base_url', ''), '/');
-        $model = (string) config('services.opencode_go.model', 'qwen3.6-plus');
-        $endpointStyle = (string) config('services.opencode_go.endpoint_style', 'auto');
-        $timeout = max(5, (int) config('services.opencode_go.timeout', 180));
-        $maxTokens = max(128, (int) config('services.opencode_go.max_tokens', 1200));
+        $providers = $this->providers();
+        $failures = [];
 
-        if ($apiKey === '') {
+        if ($providers === []) {
             throw new RuntimeException('OPENAI_API_KEY is missing; secrets=not_printed');
         }
 
-        if ($baseUrl === '') {
-            throw new RuntimeException('OPENAI_BASE_URL is missing; secrets=not_printed');
+        foreach ($providers as $provider) {
+            try {
+                return $this->completeWithProvider($prompt, $provider);
+            } catch (RuntimeException $exception) {
+                $failures[] = $provider['name'].': '.$exception->getMessage();
+            }
         }
 
+        throw new RuntimeException(mb_strimwidth(
+            'OpenCode completion failed after '.count($failures).' provider(s): '.implode(' | ', $failures).' secrets=not_printed',
+            0,
+            240,
+            '...',
+            'UTF-8',
+        ));
+    }
+
+    /**
+     * @param  array{name: string, api_key: string, base_url: string, model: string, endpoint_style: string, timeout: int, max_tokens: int}  $provider
+     * @return array{content: string, model: string, usage: array<string, mixed>|null}
+     */
+    private function completeWithProvider(string $prompt, array $provider): array
+    {
+        $apiKey = $provider['api_key'];
+        $baseUrl = $provider['base_url'];
+        $model = $provider['model'];
+        $endpointStyle = $provider['endpoint_style'];
+        $timeout = $provider['timeout'];
+        $maxTokens = $provider['max_tokens'];
         $messagesStyle = $this->usesMessagesEndpoint($model, $endpointStyle);
         $path = $messagesStyle ? '/messages' : '/chat/completions';
         $body = $messagesStyle
@@ -65,7 +86,7 @@ class OpenCodeChatClient
             ->post($baseUrl.$path, $body);
 
         if (! $response->successful()) {
-            throw new RuntimeException('OpenCode completion failed status='.$response->status().' endpoint_style='.($messagesStyle ? 'messages' : 'chat').' secrets=not_printed');
+            throw new RuntimeException('status='.$response->status().' endpoint_style='.($messagesStyle ? 'messages' : 'chat'));
         }
 
         $payload = $response->json();
@@ -74,13 +95,82 @@ class OpenCodeChatClient
             : $this->extractChatContent($payload);
 
         if (! is_string($content) || trim($content) === '') {
-            throw new RuntimeException('OpenCode completion returned an empty message endpoint_style='.($messagesStyle ? 'messages' : 'chat').' secrets=not_printed');
+            throw new RuntimeException('empty_message endpoint_style='.($messagesStyle ? 'messages' : 'chat'));
         }
 
         return [
             'content' => $content,
             'model' => $model,
             'usage' => is_array(data_get($payload, 'usage')) ? data_get($payload, 'usage') : null,
+        ];
+    }
+
+    /**
+     * @return list<array{name: string, api_key: string, base_url: string, model: string, endpoint_style: string, timeout: int, max_tokens: int}>
+     */
+    private function providers(): array
+    {
+        $providers = [];
+        $primary = $this->provider(
+            name: 'primary',
+            apiKey: config('services.opencode_go.api_key'),
+            baseUrl: config('services.opencode_go.base_url'),
+            model: config('services.opencode_go.model', 'qwen3.6-plus'),
+            endpointStyle: config('services.opencode_go.endpoint_style', 'auto'),
+            timeout: config('services.opencode_go.timeout', 180),
+            maxTokens: config('services.opencode_go.max_tokens', 1200),
+        );
+
+        if ($primary !== null) {
+            $providers[] = $primary;
+        }
+
+        $fallback = $this->provider(
+            name: 'fallback',
+            apiKey: config('services.opencode_go.fallback_api_key'),
+            baseUrl: config('services.opencode_go.fallback_base_url'),
+            model: config('services.opencode_go.fallback_model'),
+            endpointStyle: config('services.opencode_go.fallback_endpoint_style', 'auto'),
+            timeout: config('services.opencode_go.fallback_timeout', config('services.opencode_go.timeout', 180)),
+            maxTokens: config('services.opencode_go.fallback_max_tokens', config('services.opencode_go.max_tokens', 1200)),
+        );
+
+        if ($fallback !== null) {
+            $providers[] = $fallback;
+        }
+
+        return $providers;
+    }
+
+    /**
+     * @return array{name: string, api_key: string, base_url: string, model: string, endpoint_style: string, timeout: int, max_tokens: int}|null
+     */
+    private function provider(
+        string $name,
+        mixed $apiKey,
+        mixed $baseUrl,
+        mixed $model,
+        mixed $endpointStyle,
+        mixed $timeout,
+        mixed $maxTokens,
+    ): ?array {
+        $apiKey = is_string($apiKey) ? trim($apiKey) : '';
+        $baseUrl = is_string($baseUrl) ? rtrim(trim($baseUrl), '/') : '';
+        $model = is_string($model) ? trim($model) : '';
+        $endpointStyle = is_string($endpointStyle) ? trim($endpointStyle) : 'auto';
+
+        if ($apiKey === '' || $baseUrl === '' || $model === '') {
+            return null;
+        }
+
+        return [
+            'name' => $name,
+            'api_key' => $apiKey,
+            'base_url' => $baseUrl,
+            'model' => $model,
+            'endpoint_style' => $endpointStyle,
+            'timeout' => max(5, (int) $timeout),
+            'max_tokens' => max(128, (int) $maxTokens),
         ];
     }
 

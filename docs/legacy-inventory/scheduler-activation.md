@@ -37,6 +37,7 @@ Level `3` is implemented for local-only, allowlisted one-shot/scheduler executio
 | `OPENAI_API_KEY` / OpenCode-compatible key | unset | AI adapters | Required for explicit AI execute modes; diagnostics print only present/missing state and sanitized failures. |
 | `OPENAI_TIMEOUT` | `180` | AI adapters | Chat completion timeout in seconds. |
 | `OPENAI_MAX_TOKENS` | `1200` | AI adapters | Output cap for OpenCode-compatible chat completions. |
+| `OPENAI_FALLBACK_BASE_URL` / `OPENAI_FALLBACK_MODEL` / `OPENAI_FALLBACK_API_KEY` | unset | AI adapters | Optional secondary provider. Used only after the primary `OPENAI_*` provider fails; keys must stay in Dokploy secrets/env. |
 | `INGESTION_LOCAL_POLLING_ENABLED` | `false` | local scheduler writes | Required before any write-capable job can be scheduled locally. |
 | `INGESTION_SCHEDULED_WRITE_ALLOWLIST` | empty | scheduler writes | Comma-separated registry job keys allowed to use capped `scheduled_execute_command`. |
 | `INGESTION_PRODUCTION_POLLING_ENABLED` | `false` | production scheduler writes | Production gate; must require deployment approval and backup verification. |
@@ -99,6 +100,7 @@ Before scheduled local polling, add per-job quota budgets and daily counters. A 
 - `commentThreads.list`: at most 1 queued video and 1 page per scheduled run.
 - AI hourly: capped scheduler command `ai:hourly --execute --limit=20` exists, but it only runs when the scheduler, local/production polling flag, and allowlist gates are all enabled. `OPENAI_ENDPOINT_STYLE=auto` follows the OpenCode Go endpoint table: MiniMax M2.5/M2.7 uses `/messages`, while Qwen, GLM, Kimi, MiMo, and DeepSeek models remain on `/chat/completions`.
 - AI daily: capped scheduler command `ai:daily --execute --channel-limit=3 --limit=1000` intentionally starts below the legacy full 39-channel batch because the OpenCode-compatible endpoint can return long 524 timeouts. While capped, the limit is spent on legacy configured channels that meet the legacy minimum 10-video threshold, so the safe cap does not empty-run on early configured channels with too few videos. It can be raised after production run history shows stable completion times.
+- AI provider fallback: legacy `make_channel_ai.php`, `get_ai_day.php`, and `ai_hour_prompt.php` call OpenAI `chat/completions` with `gpt-4o-mini`. Modern AI execution now supports one configured `OPENAI_FALLBACK_*` provider after the primary OpenCode-compatible provider fails, so production can preserve the current primary provider and add an OpenAI fallback secret without committing credentials.
 
 ## Locks
 

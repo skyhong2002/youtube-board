@@ -40,6 +40,12 @@ return [
         'endpoint_style' => env('OPENAI_ENDPOINT_STYLE', 'auto'),
         'timeout' => (int) env('OPENAI_TIMEOUT', 180),
         'max_tokens' => (int) env('OPENAI_MAX_TOKENS', 1200),
+        'fallback_base_url' => env('OPENAI_FALLBACK_BASE_URL'),
+        'fallback_api_key' => env('OPENAI_FALLBACK_API_KEY'),
+        'fallback_model' => env('OPENAI_FALLBACK_MODEL'),
+        'fallback_endpoint_style' => env('OPENAI_FALLBACK_ENDPOINT_STYLE', 'auto'),
+        'fallback_timeout' => (int) env('OPENAI_FALLBACK_TIMEOUT', env('OPENAI_TIMEOUT', 180)),
+        'fallback_max_tokens' => (int) env('OPENAI_FALLBACK_MAX_TOKENS', env('OPENAI_MAX_TOKENS', 1200)),
     ],
 
     'dokploy' => [

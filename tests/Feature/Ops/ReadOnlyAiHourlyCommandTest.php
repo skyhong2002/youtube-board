@@ -231,6 +231,57 @@ class ReadOnlyAiHourlyCommandTest extends TestCase
         });
     }
 
+    public function test_ai_hourly_execute_falls_back_to_secondary_provider_after_primary_failure(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDefaultFixtures();
+        config()->set('services.opencode_go.api_key', 'primary-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        config()->set('services.opencode_go.fallback_api_key', 'fallback-key');
+        config()->set('services.opencode_go.fallback_base_url', 'https://api.openai.test/v1');
+        config()->set('services.opencode_go.fallback_model', 'gpt-4o-mini');
+        config()->set('services.opencode_go.fallback_endpoint_style', 'chat');
+
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::response([], 524),
+            'https://api.openai.test/v1/chat/completions' => Http::response([
+                'choices' => [
+                    [
+                        'message' => [
+                            'content' => '[{"事件":"fallback ok","videoId":["blue-video"]}]',
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('ai:hourly', [
+            '--execute' => true,
+            '--condition' => 'blue',
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('gpt-4o-mini', $payload['model']);
+        $this->assertTrue($payload['inserted']);
+        $this->assertDatabaseHas('urt_ai_hour', [
+            'date_from' => '2026-05-25 09:00:00',
+            'date_to' => '2026-05-25 09:59:59',
+            'condition_type' => 'blue',
+            'ai_type' => 'gpt-4o-mini',
+            'result_json' => '[{"事件":"fallback ok","videoId":["blue-video"]}]',
+        ]);
+        Http::assertSentCount(2);
+        Http::assertSent(function ($request): bool {
+            return (string) $request->url() === 'https://api.openai.test/v1/chat/completions'
+                && $request->hasHeader('Authorization', 'Bearer fallback-key')
+                && $request['model'] === 'gpt-4o-mini';
+        });
+    }
+
     public function test_ai_hourly_execute_accepts_chat_content_arrays_and_reasoning_fallback(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
