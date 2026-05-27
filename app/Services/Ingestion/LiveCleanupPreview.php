@@ -21,7 +21,7 @@ class LiveCleanupPreview
      *     writes: list<string>
      * }
      */
-    public function staleLivePreview(int $limit = 20, ?CarbonInterface $now = null): array
+    public function staleLivePreview(int $limit = 20, ?CarbonInterface $now = null, bool $execute = false): array
     {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
         $now = $now === null
@@ -70,8 +70,16 @@ class LiveCleanupPreview
             ->values()
             ->all();
 
+        $updated = 0;
+
+        if ($execute && $rows !== []) {
+            $updated = DB::table('urt_video_live')
+                ->whereIn('pk', collect($rows)->pluck('pk')->all())
+                ->update(['del_flag' => 1]);
+        }
+
         return [
-            'mode' => 'read-only-preview',
+            'mode' => $execute ? 'execute' : 'read-only-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'too_soon' => $tooSoon->format('Y-m-d H:i:s'),
             'scheduled_before' => $scheduledBefore->format('Y-m-d H:i:s'),
@@ -79,7 +87,8 @@ class LiveCleanupPreview
             'would_mark_deleted' => $wouldMarkDeleted,
             'grace_rows' => $candidates - $wouldMarkDeleted,
             'rows' => $rows,
-            'writes' => [],
+            'updated' => $updated,
+            'writes' => $execute ? ['urt_video_live.del_flag'] : [],
         ];
     }
 
@@ -94,7 +103,7 @@ class LiveCleanupPreview
      *     writes: list<string>
      * }
      */
-    public function tagDateCachePreview(int $limit = 20, ?CarbonInterface $now = null): array
+    public function tagDateCachePreview(int $limit = 20, ?CarbonInterface $now = null, bool $execute = false): array
     {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
         $now = $now === null
@@ -111,14 +120,23 @@ class LiveCleanupPreview
             ->filter(fn (object $row): bool => $this->legacyDeletesTagDateCacheRow($row, $timezone))
             ->values();
 
+        $limitedRows = $wouldDelete->take($limit);
+        $deleted = 0;
+
+        if ($execute && $limitedRows->isNotEmpty()) {
+            $deleted = DB::table('urt_show_live_tag_date')
+                ->whereIn('pk', $limitedRows->pluck('pk')->all())
+                ->delete();
+        }
+
         return [
-            'mode' => 'read-only-preview',
+            'mode' => $execute ? 'execute' : 'read-only-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'total_rows' => $rows->count(),
             'would_delete' => $wouldDelete->count(),
             'retained_rows' => $rows->count() - $wouldDelete->count(),
-            'rows' => $wouldDelete
-                ->take($limit)
+            'deleted' => $deleted,
+            'rows' => $limitedRows
                 ->map(fn (object $row): array => [
                     'pk' => (int) $row->pk,
                     'ctime' => (string) $row->ctime,
@@ -134,7 +152,7 @@ class LiveCleanupPreview
                 ])
                 ->values()
                 ->all(),
-            'writes' => [],
+            'writes' => $execute ? ['urt_show_live_tag_date delete'] : [],
         ];
     }
 

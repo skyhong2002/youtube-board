@@ -53,7 +53,7 @@ INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.live.poll,youtube.channels.videos.li
 YOUTUBE_API_KEY=<youtube-data-api-key>
 ```
 
-Those jobs map to `urt_video_live` / `urt_video_live_log` polling, live/upcoming video discovery into `urt_video` / `urt_video_schedule` / `urt_video_live`, local display-cache upserts into `urt_show_video_live`, hourly AI upserts into `urt_ai_hour`, and daily AI upserts into `urt_channel_ai` / `urt_ai_date`. Legacy mutating PHP routes remain disabled; Laravel artisan commands own these writes.
+Those jobs map to `urt_video_live` / `urt_video_live_log` polling, live/upcoming video discovery into `urt_video` / `urt_video_schedule` / `urt_video_live`, local display/cache maintenance in `urt_show_video_live` and `urt_show_live_tag_date`, derived count/schedule updates in `urt_count` and `urt_video_schedule`, hourly AI upserts into `urt_ai_hour`, and daily AI upserts into `urt_channel_ai` / `urt_ai_date`. Legacy mutating PHP routes remain disabled; Laravel artisan commands own these writes.
 
 ## Command-Level Safety Rules
 
@@ -196,6 +196,8 @@ To promote a pipeline to production polling, repeat the checklist against produc
 | comment fetch | implemented and smoked | allowlist-ready | Capped scheduler command exists with `--execute --limit=1 --max-pages=1`; still needs queue failure policy before broader scheduling. |
 | TVBS video discovery | implemented and smoked | allowlist-ready | Capped scheduler command exists with `--execute --limit=1 --max-results=1`; still off by default. |
 | TVBS live polling | implemented and smoked | allowlist-ready | Capped scheduler command exists with `--execute --limit=1`; still off by default. |
-| derived reports/cache builds | preview only | blocked | Write targets need per-command execute design. |
+| live cleanup/cache clean | implemented and tested | allowlist-ready | `youtube:live:cleanup --execute --limit=100` marks stale live rows deleted; `reports:live:clean --execute --limit=500` deletes invalid live tag-date cache rows. Both are local DB only and still off unless allowlisted. |
+| derived count/schedule builds | implemented and tested | allowlist-ready | `reports:counts:build --execute --limit=500` updates count deltas from `urt_log`; `reports:schedule:build --execute --limit=100` updates `urt_video_schedule.stime/mtime` from recent log history. Both are local DB only and still off unless allowlisted. |
+| remaining derived report/cache builds | preview only | blocked | Keyword/group/people external sync and static report generation still need per-command execute design or confirmation that dynamic pages replace legacy file writes. |
 | hourly AI | implemented and smoked | allowlist-ready | `ai:hourly --execute --hour=3 --limit=5` called OpenCode-compatible chat completions and upserted `urt_ai_hour` for `2026-05-25 22:00:00` with sanitized usage; capped scheduler command is `ai:hourly --execute --limit=20`, still off unless allowlisted. Empty source windows return a sanitized skipped summary with exit code 0 so the daemon does not treat normal quiet hours as failures. |
 | daily AI | implemented and tested | allowlist-ready | `ai:daily --execute` refreshes legacy configured channel summaries from raw `urt_video` rows, then upserts `urt_ai_date` condition rows; capped scheduler command is `ai:daily --execute --channel-limit=3 --limit=1000`, spending the cap on configured channels with at least 10 videos, still off unless allowlisted. |

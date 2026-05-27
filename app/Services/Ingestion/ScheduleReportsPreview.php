@@ -23,7 +23,7 @@ class ScheduleReportsPreview
      *     writes: list<string>
      * }
      */
-    public function preview(?string $videoId = null, int $hours = 1, int $limit = 20, ?CarbonInterface $now = null): array
+    public function preview(?string $videoId = null, int $hours = 1, int $limit = 20, ?CarbonInterface $now = null, bool $execute = false): array
     {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
         $now = $now === null
@@ -90,6 +90,19 @@ class ScheduleReportsPreview
             ->values()
             ->all();
 
+        $updated = 0;
+
+        if ($execute && $limitedRows !== []) {
+            foreach ($limitedRows as $updateRow) {
+                $updated += DB::table('urt_video_schedule')
+                    ->where('videoId', $updateRow['video_id'])
+                    ->update([
+                        'stime' => $updateRow['estimated_stime'],
+                        'mtime' => $now->format('Y-m-d H:i:s'),
+                    ]);
+            }
+        }
+
         return $this->payload(
             now: $now,
             windowStart: $windowStart,
@@ -100,6 +113,8 @@ class ScheduleReportsPreview
             missingHistory: $missingHistory,
             wouldUpdate: $withHistory,
             rows: $limitedRows,
+            execute: $execute,
+            updated: $updated,
         );
     }
 
@@ -190,9 +205,11 @@ class ScheduleReportsPreview
         int $missingHistory,
         int $wouldUpdate,
         array $rows,
+        bool $execute = false,
+        int $updated = 0,
     ): array {
         return [
-            'mode' => 'read-only-preview',
+            'mode' => $execute ? 'execute' : 'read-only-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'window_start' => $windowStart->format('Y-m-d H:i:s'),
             'hours' => $hours,
@@ -201,8 +218,9 @@ class ScheduleReportsPreview
             'with_history' => $withHistory,
             'missing_history' => $missingHistory,
             'would_update' => $wouldUpdate,
+            'updated' => $updated,
             'rows' => $rows,
-            'writes' => [],
+            'writes' => $execute ? ['urt_video_schedule.stime', 'urt_video_schedule.mtime'] : [],
         ];
     }
 }

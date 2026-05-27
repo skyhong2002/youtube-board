@@ -126,10 +126,51 @@ class ReadOnlyCountsBuildCommandTest extends TestCase
         $this->assertSame(20, $payload['rows'][0]['computed']['view_week']);
     }
 
+    public function test_reports_counts_build_execute_updates_selected_count_rows(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        DB::table('urt_count')->insert([
+            'u_id' => 10,
+            'ctime' => '2026-05-01 00:00:00',
+            'view_week' => 0,
+            'sub_week' => 0,
+            'video_week' => 0,
+            'view_month' => 0,
+            'sub_month' => 0,
+            'video_month' => 0,
+        ]);
+        DB::table('urt_log')->insert([
+            'u_id' => 10,
+            'ctime' => '2026-05-25 12:00:00',
+            'themonth' => '2026-05-01',
+            'thedata' => json_encode([
+                '2026-05-25' => ['view' => 100, 'subscriber' => 20, 'video' => 10],
+                '2026-05-18' => ['view' => 80, 'subscriber' => 18, 'video' => 9],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $exitCode = Artisan::call('reports:counts:build', [
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('execute', $payload['mode']);
+        $this->assertSame(1, $payload['updated']);
+        $this->assertSame(20, DB::table('urt_count')->where('u_id', 10)->value('view_week'));
+        $this->assertSame(2, DB::table('urt_count')->where('u_id', 10)->value('sub_week'));
+        $this->assertSame('2026-05-25 12:00:00', DB::table('urt_count')->where('u_id', 10)->value('mtime'));
+    }
+
     public function test_ingestion_scheduler_can_execute_read_only_counts_preview_when_due(): void
     {
         $this->createTables();
         config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.local_polling_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['reports.counts.build']);
 
         $result = app(IngestionSchedulerRunner::class)->run(
             at: CarbonImmutable::parse('2026-05-25 03:27:00', 'Asia/Taipei'),
@@ -139,7 +180,7 @@ class ReadOnlyCountsBuildCommandTest extends TestCase
 
         $this->assertSame('execute', $result['mode']);
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $result['summary']);
-        $this->assertSame('executed', $result['jobs'][0]['action']);
+        $this->assertSame('executed:local-polling', $result['jobs'][0]['action']);
     }
 
     private function createTables(): void

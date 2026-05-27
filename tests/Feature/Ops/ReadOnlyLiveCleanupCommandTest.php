@@ -164,10 +164,75 @@ class ReadOnlyLiveCleanupCommandTest extends TestCase
         $this->assertSame(2, DB::table('urt_show_live_tag_date')->count());
     }
 
+    public function test_youtube_live_cleanup_execute_marks_selected_stale_rows_deleted(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        DB::table('urt_video_live')->insert([
+            'ctime' => '2026-05-25 09:00:00',
+            'videoId' => 'stale-live',
+            'u_id' => 10,
+            'publishedAt' => '2026-05-25 08:00:00',
+            'actualEndTime' => null,
+            'scheduledStartTime' => null,
+            'concurrentViewers' => 0,
+            'max_current' => 300,
+            'mtime' => '2026-05-25 10:30:00',
+            'del_flag' => null,
+        ]);
+
+        $exitCode = Artisan::call('youtube:live:cleanup', [
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('execute', $payload['mode']);
+        $this->assertSame(1, $payload['updated']);
+        $this->assertSame(['urt_video_live.del_flag'], $payload['writes']);
+        $this->assertSame(1, DB::table('urt_video_live')->where('videoId', 'stale-live')->value('del_flag'));
+    }
+
+    public function test_reports_live_clean_execute_deletes_selected_invalid_cache_rows(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        DB::table('urt_show_live_tag_date')->insert([
+            [
+                'ctime' => '2026-05-25 12:00:00',
+                'tagid' => '13',
+                'the_date' => '2026-05-24',
+            ],
+            [
+                'ctime' => '2026-05-25 12:00:00',
+                'tagid' => '13',
+                'the_date' => '2026-05-23',
+            ],
+        ]);
+
+        $exitCode = Artisan::call('reports:live:clean', [
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('execute', $payload['mode']);
+        $this->assertSame(1, $payload['deleted']);
+        $this->assertSame(['urt_show_live_tag_date delete'], $payload['writes']);
+        $this->assertSame(1, DB::table('urt_show_live_tag_date')->count());
+        $this->assertSame('2026-05-23', DB::table('urt_show_live_tag_date')->value('the_date'));
+    }
+
     public function test_ingestion_scheduler_can_execute_read_only_live_cleanup_previews_when_due(): void
     {
         $this->createTables();
         config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.local_polling_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['youtube.live.cleanup', 'reports.live.clean']);
 
         $liveCleanup = app(IngestionSchedulerRunner::class)->run(
             at: CarbonImmutable::parse('2026-05-25 04:27:00', 'Asia/Taipei'),
@@ -181,9 +246,9 @@ class ReadOnlyLiveCleanupCommandTest extends TestCase
         );
 
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $liveCleanup['summary']);
-        $this->assertSame('executed', $liveCleanup['jobs'][0]['action']);
+        $this->assertSame('executed:local-polling', $liveCleanup['jobs'][0]['action']);
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $cacheCleanup['summary']);
-        $this->assertSame('executed', $cacheCleanup['jobs'][0]['action']);
+        $this->assertSame('executed:local-polling', $cacheCleanup['jobs'][0]['action']);
     }
 
     private function createTables(): void

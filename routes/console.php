@@ -868,9 +868,12 @@ Artisan::command('reports:live:build {--hours=2 : Live rows newer than this many
     }
 })->purpose('Preview or execute legacy live display cache inserts without calling YouTube');
 
-Artisan::command('youtube:live:cleanup {--limit=20 : Number of stale live rows to print} {--json : Emit JSON instead of text}', function (LiveCleanupPreview $preview) {
+Artisan::command('youtube:live:cleanup {--limit=20 : Number of stale live rows to print} {--execute : Mark selected stale urt_video_live rows deleted} {--json : Emit JSON instead of text}', function (LiveCleanupPreview $preview) {
     try {
-        $payload = $preview->staleLivePreview(limit: (int) $this->option('limit'));
+        $payload = $preview->staleLivePreview(
+            limit: (int) $this->option('limit'),
+            execute: (bool) $this->option('execute'),
+        );
 
         if ((bool) $this->option('json')) {
             $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
@@ -879,13 +882,16 @@ Artisan::command('youtube:live:cleanup {--limit=20 : Number of stale live rows t
         }
 
         $this->line(sprintf(
-            'youtube:live:cleanup mode=read-only-preview candidates=%d would_mark_deleted=%d grace_rows=%d too_soon=%s scheduled_before=%s generated_at=%s writes=0 live_update=skipped',
+            'youtube:live:cleanup mode=%s candidates=%d would_mark_deleted=%d updated=%d grace_rows=%d too_soon=%s scheduled_before=%s generated_at=%s writes=%d',
+            $payload['mode'],
             $payload['candidates'],
             $payload['would_mark_deleted'],
+            $payload['updated'],
             $payload['grace_rows'],
             $payload['too_soon'],
             $payload['scheduled_before'],
             $payload['generated_at'],
+            count($payload['writes']),
         ));
 
         foreach ($payload['rows'] as $index => $row) {
@@ -907,9 +913,12 @@ Artisan::command('youtube:live:cleanup {--limit=20 : Number of stale live rows t
     }
 })->purpose('Read-only preview of legacy stale live cleanup; does not update urt_video_live');
 
-Artisan::command('reports:live:clean {--limit=20 : Number of invalid live tag-date cache rows to print} {--json : Emit JSON instead of text}', function (LiveCleanupPreview $preview) {
+Artisan::command('reports:live:clean {--limit=20 : Number of invalid live tag-date cache rows to print} {--execute : Delete selected invalid urt_show_live_tag_date rows} {--json : Emit JSON instead of text}', function (LiveCleanupPreview $preview) {
     try {
-        $payload = $preview->tagDateCachePreview(limit: (int) $this->option('limit'));
+        $payload = $preview->tagDateCachePreview(
+            limit: (int) $this->option('limit'),
+            execute: (bool) $this->option('execute'),
+        );
 
         if ((bool) $this->option('json')) {
             $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
@@ -918,11 +927,14 @@ Artisan::command('reports:live:clean {--limit=20 : Number of invalid live tag-da
         }
 
         $this->line(sprintf(
-            'reports:live:clean mode=read-only-preview total_rows=%d would_delete=%d retained_rows=%d generated_at=%s writes=0 cache_delete=skipped',
+            'reports:live:clean mode=%s total_rows=%d would_delete=%d deleted=%d retained_rows=%d generated_at=%s writes=%d',
+            $payload['mode'],
             $payload['total_rows'],
             $payload['would_delete'],
+            $payload['deleted'],
             $payload['retained_rows'],
             $payload['generated_at'],
+            count($payload['writes']),
         ));
 
         foreach ($payload['rows'] as $index => $row) {
@@ -1410,12 +1422,16 @@ Artisan::command('youtube:videos:stats {--videoId= : Optional video id to previe
     }
 })->purpose('Dry-run preview of legacy video statistics refresh queue, with explicit local-only --execute support');
 
-Artisan::command('reports:counts:build {--id= : Optional u_id to preview, matching legacy id=... behavior} {--limit=20 : Number of changed preview rows to print} {--json : Emit JSON instead of text}', function (ChannelCountsPreview $preview) {
+Artisan::command('reports:counts:build {--id= : Optional u_id to preview, matching legacy id=... behavior} {--limit=20 : Number of changed preview rows to print/update} {--execute : Update selected urt_count delta columns} {--json : Emit JSON instead of text}', function (ChannelCountsPreview $preview) {
     $uId = $this->option('id') !== null ? max(1, (int) $this->option('id')) : null;
     $limit = max(1, min(100, (int) $this->option('limit')));
 
     try {
-        $payload = $preview->preview(uId: $uId, limit: $limit);
+        $payload = $preview->preview(
+            uId: $uId,
+            limit: $limit,
+            execute: (bool) $this->option('execute'),
+        );
 
         if ((bool) $this->option('json')) {
             $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
@@ -1424,14 +1440,17 @@ Artisan::command('reports:counts:build {--id= : Optional u_id to preview, matchi
         }
 
         $this->line(sprintf(
-            'reports:counts:build mode=read-only-preview candidates=%d with_logs=%d missing_logs=%d would_update=%d unchanged=%d date=%s generated_at=%s writes=0',
+            'reports:counts:build mode=%s candidates=%d with_logs=%d missing_logs=%d would_update=%d updated=%d unchanged=%d date=%s generated_at=%s writes=%d',
+            $payload['mode'],
             $payload['candidates'],
             $payload['with_logs'],
             $payload['missing_logs'],
             $payload['would_update'],
+            $payload['updated'],
             $payload['unchanged'],
             $payload['date'],
             $payload['generated_at'],
+            count($payload['writes']),
         ));
 
         foreach ($payload['rows'] as $index => $row) {
@@ -1455,7 +1474,7 @@ Artisan::command('reports:counts:build {--id= : Optional u_id to preview, matchi
 
         return 1;
     }
-})->purpose('Read-only preview of legacy channel weekly/monthly count deltas; does not update urt_count');
+})->purpose('Preview or execute legacy channel weekly/monthly count delta updates');
 
 Artisan::command('reports:keywords:build {--limit=20 : Number of preview keywords to print} {--recent-days=7 : Window for keyword_all preview, matching legacy weekly freshness} {--json : Emit JSON instead of text}', function (KeywordReportsPreview $preview) {
     $limit = max(1, min(100, (int) $this->option('limit')));
@@ -1654,12 +1673,13 @@ Artisan::command('reports:groups:build {--group= : Preview one tag_group group_n
     }
 })->purpose('Read-only preview of legacy tag_group sync; does not call tag.analysis.tw or write tag_group');
 
-Artisan::command('reports:schedule:build {--videoId= : Preview one scheduled video} {--hours=1 : Lookback window for recently refreshed schedule rows} {--limit=20 : Number of schedule rows to print} {--json : Emit JSON instead of text}', function (ScheduleReportsPreview $preview) {
+Artisan::command('reports:schedule:build {--videoId= : Preview one scheduled video} {--hours=1 : Lookback window for recently refreshed schedule rows} {--limit=20 : Number of schedule rows to print/update} {--execute : Update selected urt_video_schedule stime rows} {--json : Emit JSON instead of text}', function (ScheduleReportsPreview $preview) {
     try {
         $payload = $preview->preview(
             videoId: $this->option('videoId') ? (string) $this->option('videoId') : null,
             hours: (int) $this->option('hours'),
             limit: (int) $this->option('limit'),
+            execute: (bool) $this->option('execute'),
         );
 
         if ($this->option('json')) {
@@ -1669,13 +1689,16 @@ Artisan::command('reports:schedule:build {--videoId= : Preview one scheduled vid
         }
 
         $this->line(sprintf(
-            'reports:schedule:build mode=read-only-preview candidates=%d with_history=%d missing_history=%d would_update=%d window_start=%s generated_at=%s writes=0 schedule_update=skipped',
+            'reports:schedule:build mode=%s candidates=%d with_history=%d missing_history=%d would_update=%d updated=%d window_start=%s generated_at=%s writes=%d',
+            $payload['mode'],
             $payload['candidates'],
             $payload['with_history'],
             $payload['missing_history'],
             $payload['would_update'],
+            $payload['updated'],
             $payload['window_start'],
             $payload['generated_at'],
+            count($payload['writes']),
         ));
 
         foreach ($payload['rows'] as $index => $row) {
@@ -1697,7 +1720,7 @@ Artisan::command('reports:schedule:build {--videoId= : Preview one scheduled vid
 
         return 1;
     }
-})->purpose('Read-only preview of legacy schedule stime recalculation; does not update urt_video_schedule');
+})->purpose('Preview or execute legacy schedule stime recalculation updates');
 
 Artisan::command('ai:daily {--date= : Legacy date, defaults to yesterday in Asia/Taipei} {--condition= : Optional single legacy condition; default previews make_ai_day.sh conditions} {--type=oneday : Legacy urt_channel_ai data_type} {--limit=1000 : Max channel AI rows per condition} {--channel-limit=39 : Max configured channels to refresh in execute mode} {--execute : Call OpenCode-compatible chat completions and upsert urt_channel_ai/urt_ai_date} {--dry-run : Force dry-run preview; this is the default} {--user-token=CLI : user_token value for execute-mode upserts} {--json : Emit JSON instead of text}', function (AiDailyPreview $preview, AiDailyIngestion $ingestion) {
     try {

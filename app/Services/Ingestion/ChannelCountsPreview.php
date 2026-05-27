@@ -23,7 +23,7 @@ class ChannelCountsPreview
      *     writes: list<string>
      * }
      */
-    public function preview(?int $uId = null, int $limit = 20, ?CarbonInterface $now = null): array
+    public function preview(?int $uId = null, int $limit = 20, ?CarbonInterface $now = null, bool $execute = false): array
     {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
         $now = $now === null
@@ -92,6 +92,18 @@ class ChannelCountsPreview
             ->values()
             ->all();
 
+        $updated = 0;
+
+        if ($execute && $rows !== []) {
+            foreach ($rows as $updateRow) {
+                $updated += DB::table('urt_count')
+                    ->where('u_id', $updateRow['u_id'])
+                    ->update($updateRow['computed'] + [
+                        'mtime' => $now->format('Y-m-d H:i:s'),
+                    ]);
+            }
+        }
+
         return $this->payload(
             now: $now,
             candidates: $countRows->count(),
@@ -100,6 +112,8 @@ class ChannelCountsPreview
             wouldUpdate: $wouldUpdate,
             unchanged: $unchanged,
             rows: $rows,
+            execute: $execute,
+            updated: $updated,
         );
     }
 
@@ -212,10 +226,20 @@ class ChannelCountsPreview
      *     writes: list<string>
      * }
      */
-    private function payload(CarbonImmutable $now, int $candidates, int $withLogs, int $missingLogs, int $wouldUpdate, int $unchanged, array $rows): array
+    private function payload(
+        CarbonImmutable $now,
+        int $candidates,
+        int $withLogs,
+        int $missingLogs,
+        int $wouldUpdate,
+        int $unchanged,
+        array $rows,
+        bool $execute = false,
+        int $updated = 0,
+    ): array
     {
         return [
-            'mode' => 'read-only-preview',
+            'mode' => $execute ? 'execute' : 'read-only-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'date' => $now->toDateString(),
             'candidates' => $candidates,
@@ -223,8 +247,17 @@ class ChannelCountsPreview
             'missing_logs' => $missingLogs,
             'would_update' => $wouldUpdate,
             'unchanged' => $unchanged,
+            'updated' => $updated,
             'rows' => $rows,
-            'writes' => [],
+            'writes' => $execute ? [
+                'urt_count.view_week',
+                'urt_count.sub_week',
+                'urt_count.video_week',
+                'urt_count.view_month',
+                'urt_count.sub_month',
+                'urt_count.video_month',
+                'urt_count.mtime',
+            ] : [],
         ];
     }
 }

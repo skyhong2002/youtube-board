@@ -358,10 +358,10 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('youtube.live.cleanup');
         $response->assertSee('youtube:live:cleanup');
-        $response->assertSee('read-only stale live cleanup preview');
+        $response->assertSee('scheduled/local `--execute` marks stale `urt_video_live.del_flag=1`');
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.live.cleanup');
-        $response->assertSee('不呼叫 YouTube、不更新 `del_flag`');
+        $response->assertSee('不呼叫 YouTube');
     }
 
     public function test_ingestion_job_detail_allows_live_tag_date_cleanup_read_only_preview(): void
@@ -371,10 +371,10 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('reports.live.clean');
         $response->assertSee('reports:live:clean');
-        $response->assertSee('read-only live tag-date cleanup preview');
+        $response->assertSee('scheduled/local `--execute` deletes invalid `urt_show_live_tag_date` cache rows');
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=reports.live.clean');
-        $response->assertSee('不刪 cache row');
+        $response->assertSee('限量刪除本機 cache rows');
     }
 
     public function test_ingestion_job_detail_allows_live_static_read_only_preview(): void
@@ -453,10 +453,10 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('reports.counts.build');
         $response->assertSee('reports:counts:build');
-        $response->assertSee('read-only count-delta preview');
+        $response->assertSee('scheduled/local `--execute` updates `urt_count` weekly/monthly delta columns');
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=reports.counts.build');
-        $response->assertSee('不更新 `urt_count`');
+        $response->assertSee('更新本機 `urt_count` delta columns');
     }
 
     public function test_ingestion_job_detail_allows_keywords_build_read_only_preview(): void
@@ -505,10 +505,10 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('reports.schedule.build');
         $response->assertSee('reports:schedule:build');
-        $response->assertSee('read-only schedule stime preview');
+        $response->assertSee('scheduled/local `--execute` updates `urt_video_schedule.stime/mtime`');
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=reports.schedule.build');
-        $response->assertSee('不更新 schedule row');
+        $response->assertSee('限量更新本機 schedule rows');
     }
 
     public function test_ingestion_job_detail_allows_comment_queue_read_only_preview(): void

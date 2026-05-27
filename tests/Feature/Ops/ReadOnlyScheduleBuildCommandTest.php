@@ -136,10 +136,63 @@ class ReadOnlyScheduleBuildCommandTest extends TestCase
         $this->assertSame('2026-05-25 13:00:00', $payload['rows'][0]['estimated_stime']);
     }
 
+    public function test_reports_schedule_build_execute_updates_selected_schedule_rows(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        DB::table('urt_video_schedule')->insert([
+            'ctime' => '2026-05-25 09:00:00',
+            'mtime' => '2026-05-25 11:00:00',
+            'stime' => '2026-05-25 11:30:00',
+            'videoId' => 'scheduled-a',
+            'publishedAt' => '2026-05-25 09:00:00',
+            'viewCount' => 2500,
+            'likeCount' => 10,
+            'commentCount' => 3,
+        ]);
+
+        DB::table('urt_video_log_history')->insert([
+            [
+                'ctime' => '2026-05-25 10:00:00',
+                'videoId' => 'scheduled-a',
+                'viewCount' => 500,
+                'likeCount' => 5,
+                'dislikeCount' => 0,
+                'favoriteCount' => 0,
+                'commentCount' => 1,
+            ],
+            [
+                'ctime' => '2026-05-25 12:00:00',
+                'videoId' => 'scheduled-a',
+                'viewCount' => 2500,
+                'likeCount' => 10,
+                'dislikeCount' => 0,
+                'favoriteCount' => 0,
+                'commentCount' => 3,
+            ],
+        ]);
+
+        $exitCode = Artisan::call('reports:schedule:build', [
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('execute', $payload['mode']);
+        $this->assertSame(1, $payload['updated']);
+        $this->assertSame(['urt_video_schedule.stime', 'urt_video_schedule.mtime'], $payload['writes']);
+        $this->assertSame('2026-05-25 13:00:00', DB::table('urt_video_schedule')->where('videoId', 'scheduled-a')->value('stime'));
+        $this->assertSame('2026-05-25 12:00:00', DB::table('urt_video_schedule')->where('videoId', 'scheduled-a')->value('mtime'));
+    }
+
     public function test_ingestion_scheduler_can_execute_read_only_schedule_preview_when_due(): void
     {
         $this->createTables();
         config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.local_polling_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['reports.schedule.build']);
 
         $result = app(IngestionSchedulerRunner::class)->run(
             at: CarbonImmutable::parse('2026-05-25 03:29:00', 'Asia/Taipei'),
@@ -149,7 +202,7 @@ class ReadOnlyScheduleBuildCommandTest extends TestCase
 
         $this->assertSame('execute', $result['mode']);
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $result['summary']);
-        $this->assertSame('executed', $result['jobs'][0]['action']);
+        $this->assertSame('executed:local-polling', $result['jobs'][0]['action']);
     }
 
     private function createTables(): void
