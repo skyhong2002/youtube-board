@@ -27,7 +27,7 @@ DB_PASSWORD=<dokploy-secret>
 
 Use the MariaDB service's **General -> Internal Credentials -> Internal Host** value for `DB_HOST`. Dokploy may append a generated suffix to the app name; do not assume the internal host is the human service name.
 
-Production polling is enabled in Dokploy for the web service and the ingestion schedule. Keep the scheduler flags, exact job allowlist, and AI fallback provider in the app service environment:
+Production polling is disabled by default. To enable it after an approved backup, rollback, and write-allowlist review, set the scheduler flags, exact job allowlist, and AI fallback provider in the app service environment:
 
 ```env
 INGESTION_SCHEDULER_ENABLED=true

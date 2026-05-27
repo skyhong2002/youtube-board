@@ -2,6 +2,12 @@
 
 Production DB access is read-only unless explicitly approved otherwise. Dumps should be kept out of git.
 
+## Data Capture Policy
+
+Data capture is allowed for reconstruction when it is narrow, read-only, and documented here. Prefer public HTTP responses and existing local dumps first. If fresh production data is needed, use an explicitly approved read-only export path, redact source hosts and secret-bearing values, and import the result only into local development MariaDB.
+
+Do not use these workflows to edit production code, write production DB rows, run production migrations, trigger production polling/generation, or make manual phpMyAdmin data changes.
+
 ## Schema-Only Dump
 
 Generated on 2026-05-24:

@@ -4,15 +4,16 @@ These notes are for coding agents and maintainers working inside this repository
 
 ## Project Scope
 
-This repository modernizes the public YouTube Board experience in Laravel while keeping rebuilt report pages read-only by default.
+This repository modernizes the public YouTube Board experience in Laravel while keeping rebuilt report pages read-only by default. Data capture for reconstruction is in scope when it uses public HTTP responses, approved legacy snapshots, approved DB exports, or explicitly approved read-only production inspection.
 
 Guardrails:
 
-- Do not SSH production.
+- Do not SSH production unless the user explicitly approves a read-only inspection/export task.
 - Do not write production DBs.
 - Do not run production migrations.
 - Do not put secrets in code.
-- Rebuilt public report work should be read-only unless explicitly approved.
+- Do not edit production code or operate phpMyAdmin to change production data.
+- Rebuilt public report pages should be read-only unless explicitly approved; local data import, local cache building, and local ingestion smoke tests may write only to local development databases.
 - Polling, cache generation, and AI generation stay disabled by default.
 
 ## Local Workflow
@@ -187,7 +188,8 @@ Deployment operations:
 ## Development Notes
 
 - Keep rebuilt public report slices read-only unless explicit approval changes the scope.
-- Prefer local MariaDB and public-site behavior checks when validating reports.
+- Prefer local MariaDB, approved data exports, and public-site behavior checks when validating reports.
+- When fresh production data is needed, prefer narrow read-only exports that are documented in `docs/legacy-inventory/db-dumps.md`; do not use production SSH or phpMyAdmin for manual edits.
 - Add or update focused feature tests for each route/controller/service/view slice.
 - Update `docs/legacy-inventory/feature-parity.md` and `docs/legacy-inventory/routes.md` when behavior changes.
 - Do not commit secrets from `.env`; `.env.example` is the safe template.

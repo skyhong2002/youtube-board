@@ -12,6 +12,9 @@
 3. Local imported MariaDB
    - Contains extracted schema and sample/content data from the approved dumps.
    - It may be read and updated locally during reconstruction work, but new public/report features should still remain read-only unless a write path is explicitly approved.
+4. Approved read-only production exports
+   - Use only when public responses, the legacy snapshot, and existing local dumps are insufficient.
+   - Keep exports narrow, document them in [db-dumps.md](db-dumps.md), and redact source hosts or secret-bearing values before storing artifacts.
 
 ## Approved DB Artifacts
 
@@ -31,7 +34,7 @@ The dump directory is ignored by git. Later approved local imports also include 
 - Generated local Laravel defaults.
 - Any credentials or absolute production paths in legacy code.
 - Guesses inferred without a source path or public-site observation.
-- The active CentOS machine, unless explicitly approved for read-only inspection.
+- The active CentOS machine, unless explicitly approved for read-only inspection or export.
 
 ## Guardrails
 
@@ -39,4 +42,5 @@ The dump directory is ignored by git. Later approved local imports also include 
 - Do not run Composer, npm, migrations, formatters, linters, or codegen in the legacy snapshot.
 - Do not copy legacy secrets into this repository.
 - Write all inventory notes under `/Users/sky/Projects/youtube-board/docs/legacy-inventory`.
-- Do not write production DB or enable production polling/generation without explicit approval.
+- Do not edit production code, write production DB rows, run production migrations, or enable production polling/generation without explicit approval.
+- Do not use production phpMyAdmin for manual data changes; if phpMyAdmin is used at all, keep it to approved read-only inspection/export.

@@ -2,7 +2,7 @@
 
 YouTube Board Modern is a Laravel rebuild of the public `youtube.board.tw` reporting experience.
 
-The project focuses on preserving the existing public report surfaces while moving the implementation into a maintainable Laravel codebase. Rebuilt pages are read-only by default, with compatibility redirects and API-shaped responses for legacy PHP URLs.
+The project focuses on preserving the existing public report surfaces while moving the implementation into a maintainable Laravel codebase. Rebuilt pages are read-only by default, with compatibility redirects and API-shaped responses for legacy PHP URLs. Data capture for reconstruction is supported through public-site checks, approved legacy snapshots, approved DB exports, and local imports.
 
 ![YouTube Board tour](docs/assets/youtube-board-tour.gif)
 
@@ -12,7 +12,7 @@ The project focuses on preserving the existing public report surfaces while movi
 - Legacy compatibility redirects for top-level PHP routes such as `/live.php`, `/rank.php`, `/tag_group.php`, `/group_two.php`, `/channel.php`, `/ch/{u_id}/...`, and `/ai_day.php`.
 - Read-only compatibility API routes under `/api/*.php`.
 - Guarded legacy writeback and prompt URLs for safer local and production operation.
-- Local preview tools for ingestion, scheduled jobs, cache generation, and report maintenance.
+- Local preview tools for ingestion, scheduled jobs, cache generation, report maintenance, and narrow data-import workflows.
 
 Implementation details and parity notes live in:
 
@@ -95,6 +95,10 @@ Preview ingestion jobs:
 docker compose exec app php artisan ingestion:list
 docker compose exec app php artisan ingestion:run --dry-run
 ```
+
+## Data Capture
+
+Use public `youtube.board.tw` responses, the read-only legacy snapshot, documented DB dumps, and local MariaDB imports to rebuild report parity. Production access, when explicitly approved, is limited to read-only inspection or export; do not edit production code, write production DB rows, run production migrations, or use phpMyAdmin for manual data changes.
 
 ## Deployment
 
