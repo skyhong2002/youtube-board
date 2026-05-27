@@ -19,7 +19,7 @@ class IntegrationCheckController extends Controller
     public function devCheck(): Response|RedirectResponse
     {
         if (! app()->environment(['local', 'testing'])) {
-            return redirect()->route('ops.integrations', [], 308);
+            return redirect()->to(secure_url('/ops/integrations'), 308);
         }
 
         [$payload] = $this->youtubeLivePayload();

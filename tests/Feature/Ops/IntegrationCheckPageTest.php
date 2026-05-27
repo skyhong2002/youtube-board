@@ -41,7 +41,7 @@ class IntegrationCheckPageTest extends TestCase
 
         $response = $this->get(route('dev.check'));
 
-        $response->assertRedirect(route('ops.integrations'));
+        $response->assertRedirect(secure_url('/ops/integrations'));
         $response->assertStatus(308);
     }
 }
