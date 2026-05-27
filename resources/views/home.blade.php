@@ -55,7 +55,9 @@
                 <a class="action" href="{{ route('live.continuous') }}">現在帶狀直播排行</a>
                 <a class="action" href="{{ route('live.days.index') }}">單日直播排行</a>
                 <a class="action" href="{{ route('tags.compare', ['tags' => '蔡英文,柯文哲,侯友宜,陳時中']) }}">多關鍵字趨勢</a>
-                <a class="action" href="/dev/check">API 檢查</a>
+                @if (app()->environment(['local', 'testing']))
+                    <a class="action" href="/dev/check">API 檢查</a>
+                @endif
             </div>
 
             <section class="summary" aria-label="分類摘要">

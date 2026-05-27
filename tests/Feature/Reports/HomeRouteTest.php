@@ -36,6 +36,22 @@ class HomeRouteTest extends TestCase
         $response->assertDontSee('本機尚未匯入');
     }
 
+    public function test_home_page_hides_dev_check_link_outside_local_environments(): void
+    {
+        $this->app->detectEnvironment(fn () => 'production');
+        $this->createTagIndexTables();
+
+        DB::table('urt_tag')->insert([
+            ['tag_id' => 1, 'tag_name' => '社論'],
+        ]);
+
+        $response = $this->get('/');
+
+        $response->assertOk();
+        $response->assertDontSee('API 檢查');
+        $response->assertDontSee('/dev/check');
+    }
+
     public function test_tags_url_uses_same_tag_index_and_safe_sort(): void
     {
         $this->createTagIndexTables();

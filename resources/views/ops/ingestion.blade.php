@@ -34,10 +34,11 @@ Web request gates
             .badge.ready { border-color: #b7ded6; background: var(--accent-bg); color: var(--accent); }
             .badge.missing { border-color: #fecdca; background: var(--blocked-bg); color: var(--blocked); }
             .meta { color: var(--muted); white-space: nowrap; }
-            .panel { border: 1px solid var(--line); background: var(--surface); padding: 14px; margin-bottom: 14px; }
+            .panel { min-width: 0; border: 1px solid var(--line); background: var(--surface); padding: 14px; margin-bottom: 14px; }
             .status-grid { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(320px, 1.4fr); gap: 14px; margin-bottom: 14px; }
             .status-grid h2 { margin-top: 0; }
             .status-line { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+            .status-line > span { max-width: 100%; overflow-wrap: anywhere; }
             .reason-list { margin: 8px 0 0; padding-left: 18px; color: var(--muted); }
             form.run-form { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(220px, 1fr) minmax(180px, 1fr) auto; gap: 10px; align-items: end; }
             label { display: grid; gap: 5px; color: #344054; font-size: 12px; font-weight: 700; }
@@ -56,7 +57,7 @@ Web request gates
             .detail-link { display: inline-flex; margin-top: 3px; font-size: 12px; }
             .writes { display: flex; flex-wrap: wrap; gap: 4px; }
             .writes span { display: inline-flex; padding: 2px 6px; border-radius: 5px; background: #f2f4f7; color: #344054; font-size: 12px; }
-            @media (max-width: 900px) { form.run-form { grid-template-columns: 1fr; } }
+            @media (max-width: 900px) { .status-grid { grid-template-columns: 1fr; } form.run-form { grid-template-columns: 1fr; } }
             @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; white-space: normal; } }
 </style>
 @endpush

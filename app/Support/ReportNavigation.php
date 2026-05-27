@@ -29,14 +29,19 @@ class ReportNavigation
     {
         $routeName = (string) ($request->route()?->getName() ?? '');
 
-        return [
+        $items = [
             self::item('Ingestion', 'ops.ingestion', str_starts_with($routeName, 'ops.ingestion')),
-            [
+        ];
+
+        if (app()->environment(['local', 'testing'])) {
+            $items[] = [
                 'label' => 'API 檢查',
                 'url' => url('/dev/check'),
                 'active' => str_starts_with($routeName, 'dev.'),
-            ],
-        ];
+            ];
+        }
+
+        return $items;
     }
 
     /**
