@@ -33,7 +33,7 @@ Production polling is still off in the template. To enable it after a backup and
 INGESTION_SCHEDULER_ENABLED=true
 INGESTION_LOCAL_POLLING_ENABLED=true
 INGESTION_PRODUCTION_POLLING_ENABLED=true
-INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.live.poll,youtube.tvbs.live.poll,youtube.channels.videos.live,youtube.channels.videos.live_group,youtube.tvbs.videos,reports.live.build,reports.live.clean,youtube.live.cleanup,reports.counts.build,reports.schedule.build,reports.keywords.build,reports.groups.build,reports.people.build,ai.hourly,ai.daily
+INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.live.poll,youtube.tvbs.live.poll,youtube.channels.videos.live,youtube.channels.videos.live_group,youtube.tvbs.videos,youtube.channels.stats,youtube.videos.stats,reports.live.build,reports.live.clean,youtube.live.cleanup,reports.counts.build,reports.schedule.build,reports.keywords.build,reports.groups.build,reports.people.build,ai.hourly,ai.daily
 YOUTUBE_API_KEY=<youtube-data-api-key>
 # Optional comma-separated fallback keys, configured only in Dokploy secrets/env:
 YOUTUBE_API_KEYS=<youtube-data-api-key-2>,<youtube-data-api-key-3>
@@ -60,6 +60,14 @@ For derived report freshness, add:
 - `reports.groups.build`: syncs `tag_group` from `tag.analysis.tw/api/group.php`.
 - `reports.people.build`: refreshes selected political-people `urt_show_tag_date` cache rows from local `urt_video`, `urt_count`, and `tags`.
 - `reports.counts.build` and `reports.schedule.build`: refresh local derived count deltas and schedule stime rows from existing local log/cache data.
+
+For broader long-running parity after the first production polling window is stable, explicitly approve and add these capped jobs:
+
+- `youtube.channels.videos.general`: discovers regular channel uploads into `urt_video`, `urt_video_schedule`, and live rows.
+- `youtube.videos.duration`: drains the duration queue with `videos.list(contentDetails)`.
+- `youtube.comments.queue`: queues recent high-engagement videos for comment fetch.
+- `youtube.comments.fetch`: drains queued comment jobs with one page per scheduled run.
+- `reports.mayor.static`: refreshes mayor/city `urt_show_tag_date` cache rows for the dynamic Laravel mayor pages.
 
 The scheduler service must run `php artisan schedule:run` every minute, or the equivalent Dokploy cron service must be enabled. Keep the allowlist narrow at first; each allowlisted job uses its capped `scheduled_execute_command`.
 

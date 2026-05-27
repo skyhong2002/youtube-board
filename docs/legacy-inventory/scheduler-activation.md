@@ -43,17 +43,25 @@ Level `3` is implemented for local-only, allowlisted one-shot/scheduler executio
 
 Production polling remains blocked by default. In `APP_ENV=production`, `INGESTION_PRODUCTION_POLLING_ENABLED=true` is additionally required before scheduled write polling can run.
 
-For live/current production parity, enable only the live jobs first:
+For the first production polling phase, enable only the live, stats, derived-report, and AI jobs that have already been backed up, smoke-tested, and approved:
 
 ```env
 INGESTION_SCHEDULER_ENABLED=true
 INGESTION_LOCAL_POLLING_ENABLED=true
 INGESTION_PRODUCTION_POLLING_ENABLED=true
-INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.live.poll,youtube.channels.videos.live,youtube.channels.videos.live_group,reports.live.build,ai.hourly,ai.daily
+INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.live.poll,youtube.tvbs.live.poll,youtube.channels.videos.live,youtube.channels.videos.live_group,youtube.tvbs.videos,youtube.channels.stats,youtube.videos.stats,reports.live.build,reports.live.clean,youtube.live.cleanup,reports.counts.build,reports.schedule.build,reports.keywords.build,reports.groups.build,reports.people.build,ai.hourly,ai.daily
 YOUTUBE_API_KEY=<youtube-data-api-key>
 ```
 
 Those jobs map to `urt_video_live` / `urt_video_live_log` polling, live/upcoming video discovery into `urt_video` / `urt_video_schedule` / `urt_video_live`, local display/cache maintenance in `urt_show_video_live` and `urt_show_live_tag_date`, derived count/schedule updates in `urt_count` and `urt_video_schedule`, hourly AI upserts into `urt_ai_hour`, and daily AI upserts into `urt_channel_ai` / `urt_ai_date`. Legacy mutating PHP routes remain disabled; Laravel artisan commands own these writes.
+
+The next production polling phase still needs explicit approval before enabling these additional write-capable capped jobs in production:
+
+```env
+youtube.channels.videos.general,youtube.videos.duration,youtube.comments.queue,youtube.comments.fetch,reports.mayor.static
+```
+
+They cover regular upload discovery, duration queue draining, comment queue/fetch, and mayor/city tag-date cache refreshes.
 
 ## Command-Level Safety Rules
 
@@ -187,17 +195,17 @@ To promote a pipeline to production polling, repeat the checklist against produc
 
 | Pipeline | Manual local execute | Scheduled write polling | Notes |
 | --- | --- | --- | --- |
-| channel stats | implemented and smoked | allowlist-ready | Scheduler-enabled local polling smoke succeeded with `INGESTION_LOCAL_POLLING_ENABLED=true`, allowlist `youtube.channels.stats`, and capped `--execute --limit=1`; still off by default. |
-| channel video discovery | implemented and smoked | allowlist-ready | Capped scheduler command exists with `--execute --limit=1 --max-results=1`; still off by default. |
-| video stats | implemented and smoked | allowlist-ready | Capped scheduler command exists with `--execute --limit=1`; still off by default. |
-| video duration | implemented and smoked | allowlist-ready | Capped scheduler command exists with `--execute --limit=1`; still off by default. |
-| live polling | implemented and smoked | allowlist-ready | Capped scheduler command exists with `--execute --limit=1`; still off by default. |
-| comment queue | implemented and smoked | allowlist-ready | Capped scheduler command exists with `--execute --limit=1`; no external API, but still writes queue rows and is off by default. |
-| comment fetch | implemented and smoked | allowlist-ready | Capped scheduler command exists with `--execute --limit=1 --max-pages=1`; still needs queue failure policy before broader scheduling. |
-| TVBS video discovery | implemented and smoked | allowlist-ready | Capped scheduler command exists with `--execute --limit=1 --max-results=1`; still off by default. |
-| TVBS live polling | implemented and smoked | allowlist-ready | Capped scheduler command exists with `--execute --limit=1`; still off by default. |
-| live cleanup/cache clean | implemented and tested | allowlist-ready | `youtube:live:cleanup --execute --limit=100` marks stale live rows deleted; `reports:live:clean --execute --limit=500` deletes invalid live tag-date cache rows. Both are local DB only and still off unless allowlisted. |
-| derived count/schedule/keyword/group/people builds | implemented and tested | allowlist-ready | `reports:counts:build --execute --limit=500` updates count deltas from `urt_log`; `reports:schedule:build --execute --limit=100` updates `urt_video_schedule.stime/mtime`; `reports:keywords:build --execute --hours=2 --limit=100` syncs `tags` from `tag.analysis.tw`; `reports:groups:build --execute --hours=22 --limit=100` syncs `tag_group`; `reports:people:build --execute --limit=5 --days=37 --tagid=13 --keyword-limit=5000` refreshes selected `urt_show_tag_date` people cache rows. All remain off unless allowlisted. |
-| remaining derived static report builds | preview only | blocked | Static report generation still needs execute design or confirmation that dynamic pages replace legacy file writes. |
-| hourly AI | implemented and smoked | allowlist-ready | `ai:hourly --execute --hour=3 --limit=5` called OpenCode-compatible chat completions and upserted `urt_ai_hour` for `2026-05-25 22:00:00` with sanitized usage; capped scheduler command is `ai:hourly --execute --limit=20`, still off unless allowlisted. Empty source windows return a sanitized skipped summary with exit code 0 so the daemon does not treat normal quiet hours as failures. |
-| daily AI | implemented and tested | allowlist-ready | `ai:daily --execute` refreshes legacy configured channel summaries from raw `urt_video` rows, then upserts `urt_ai_date` condition rows; capped scheduler command is `ai:daily --execute --channel-limit=3 --limit=1000`, spending the cap on configured channels with at least 10 videos, still off unless allowlisted. |
+| channel stats | implemented and smoked | production-enabled | Scheduler-enabled production polling smoke succeeded with capped `--execute --limit=1`; still gated by the production allowlist. |
+| channel video discovery | implemented and smoked | partially production-enabled | Live/group live discovery is production-allowlisted; regular upload discovery has a capped scheduler command and still needs explicit production allowlist approval. |
+| video stats | implemented and smoked | production-enabled | Capped scheduler command exists with `--execute --limit=1` and is production-allowlisted. |
+| video duration | implemented and smoked | allowlist-ready | Capped scheduler command exists with `--execute --limit=1`; still needs explicit production allowlist approval. |
+| live polling | implemented and smoked | production-enabled | Capped scheduler commands are production-allowlisted for normal and TVBS live polling. |
+| comment queue | implemented and smoked | allowlist-ready | Capped scheduler command exists with `--execute --limit=5`; no external API, but still writes queue rows and needs explicit production allowlist approval. |
+| comment fetch | implemented and smoked | allowlist-ready | Capped scheduler command exists with `--execute --limit=5 --max-pages=1`; still needs explicit production allowlist approval before broader scheduling. |
+| TVBS video discovery | implemented and smoked | production-enabled | Capped scheduler command exists with `--execute --limit=1 --max-results=1` and is production-allowlisted. |
+| TVBS live polling | implemented and smoked | production-enabled | Capped scheduler command exists with `--execute --limit=20` and is production-allowlisted. |
+| live cleanup/cache clean | implemented and tested | production-enabled | `youtube:live:cleanup --execute --limit=100` marks stale live rows deleted; `reports:live:clean --execute --limit=500` deletes invalid live tag-date cache rows. Both are production-allowlisted. |
+| derived count/schedule/keyword/group/people builds | implemented and tested | production-enabled | `reports:counts:build --execute --limit=500` updates count deltas from `urt_log`; `reports:schedule:build --execute --limit=100` updates `urt_video_schedule.stime/mtime`; `reports:keywords:build --execute --hours=2 --limit=100` syncs `tags` from `tag.analysis.tw`; `reports:groups:build --execute --hours=22 --limit=100` syncs `tag_group`; `reports:people:build --execute --limit=5 --days=37 --tagid=13 --keyword-limit=5000` refreshes selected `urt_show_tag_date` people cache rows. These are production-allowlisted. |
+| remaining derived static report builds | preview only | intentionally replaced | Legacy filesystem HTML writes are not reproduced; dynamic Laravel routes serve the rebuilt public pages. Mayor/city cache refresh has a capped execute mode and still needs explicit production allowlist approval. |
+| hourly AI | implemented and smoked | production-enabled but provider-dependent | `ai:hourly --execute --limit=20` is production-allowlisted. Empty source windows return a sanitized skipped summary with exit code 0 so the daemon does not treat normal quiet hours as failures. |
+| daily AI | implemented and tested | production-enabled but provider-blocked | `ai:daily --execute` refreshes legacy configured channel summaries from raw `urt_video` rows, then upserts `urt_ai_date` condition rows; capped scheduler command is `ai:daily --execute --channel-limit=3 --limit=1000`, spending the cap on configured channels with at least 10 videos. Production smoke found OpenCode-compatible `status=524`, so AI_day freshness is currently blocked by the provider response, not the scheduler/write gate. |

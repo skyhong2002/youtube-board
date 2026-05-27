@@ -264,7 +264,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('read-only live polling queue preview');
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.live.poll');
-        $response->assertSee('manual local-only `--execute --videoId/--limit`');
+        $response->assertSee('explicit/scheduled `--execute --videoId/--limit`');
         $response->assertSee('Scheduler 在 write allowlist 開啟時使用 scheduled execute command；未開啟仍是 dry-run');
     }
 
@@ -291,14 +291,14 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('youtube.channels.stats');
         $response->assertSee('youtube:channels:stats');
-        $response->assertSee('manual local-only `--execute` updates channel/count/log rows');
+        $response->assertSee('scheduled/local `--execute` updates channel/count/log rows');
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.channels.stats');
         $response->assertSee('Scheduled Local Polling');
         $response->assertSee('youtube:channels:stats --execute --limit=1');
         $response->assertSee('INGESTION_LOCAL_POLLING_ENABLED is false.');
         $response->assertSee('INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.channels.stats');
-        $response->assertSee('Scheduler 不傳 `--execute`，仍是 dry-run');
+        $response->assertSee('Scheduler 在 write allowlist 開啟時使用 capped scheduled execute command；未開啟仍是 dry-run');
     }
 
     public function test_ingestion_job_detail_allows_channel_video_discovery_read_only_previews(): void
@@ -310,9 +310,9 @@ class IngestionDashboardTest extends TestCase
         foreach ([$general, $live, $liveGroup] as $response) {
             $response->assertOk();
             $response->assertSee('youtube:channels:videos');
-            $response->assertSee('manual local-only `--execute` inserts videos/schedules/live rows');
+            $response->assertSee('scheduled/local `--execute` inserts videos/schedules/live rows');
             $response->assertSee('due now');
-            $response->assertSee('manual local-only `--execute --id/--channel --limit --max-results`');
+            $response->assertSee('explicit/scheduled `--execute --id/--channel --limit --max-results`');
         }
 
         $general->assertSee('youtube.channels.videos.general');
@@ -333,7 +333,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('youtube.tvbs.videos');
         $response->assertSee('youtube:tvbs:videos');
-        $response->assertSee('manual local-only `--execute` inserts videos/schedules/TVBS live rows');
+        $response->assertSee('scheduled/local `--execute` inserts videos/schedules/TVBS live rows');
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.tvbs.videos');
         $response->assertSee('Scheduled Local Polling');
@@ -429,10 +429,10 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('youtube.videos.duration');
         $response->assertSee('youtube:videos:duration');
-        $response->assertSee('manual local-only `--execute` updates duration queue rows');
+        $response->assertSee('scheduled/local `--execute` updates duration queue rows');
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.videos.duration');
-        $response->assertSee('Scheduler 不傳 `--execute`，仍是 dry-run');
+        $response->assertSee('Scheduler 在 write allowlist 開啟時使用 capped scheduled execute command；未開啟仍是 dry-run');
     }
 
     public function test_ingestion_job_detail_allows_video_stats_read_only_preview(): void
@@ -442,10 +442,10 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('youtube.videos.stats');
         $response->assertSee('youtube:videos:stats');
-        $response->assertSee('manual local-only `--execute` updates video stats/log rows');
+        $response->assertSee('scheduled/local `--execute` updates video stats/log rows');
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.videos.stats');
-        $response->assertSee('Scheduler 不傳 `--execute`，仍是 dry-run');
+        $response->assertSee('Scheduler 在 write allowlist 開啟時使用 capped scheduled execute command；未開啟仍是 dry-run');
     }
 
 
@@ -524,7 +524,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('youtube.comments.queue');
         $response->assertSee('youtube:comments:queue --or=1,2,3,4,5,6,13,14,81 --hours=72 --min=500');
-        $response->assertSee('manual local-only `--execute --limit`');
+        $response->assertSee('explicit/scheduled `--execute --limit`');
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.comments.queue');
         $response->assertSee('Production crontab 使用 `hours=72 min=500` 且只在 04/10/16 點第 23 分排程');
@@ -537,7 +537,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('youtube.comments.fetch');
         $response->assertSee('youtube:comments:fetch');
-        $response->assertSee('manual local-only `--execute --videoId/--limit --max-pages`');
+        $response->assertSee('explicit/scheduled `--execute --videoId/--limit --max-pages`');
         $response->assertSee('due now');
         $response->assertSee('This job is not executable under the current read-only migration guardrail.');
         $response->assertSee('php artisan ingestion:run --job=youtube.comments.fetch', false);
