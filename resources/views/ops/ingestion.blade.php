@@ -258,7 +258,7 @@ Web request gates
                                             @endforeach
                                         </div>
                                     </td>
-                                    <td class="compact">{{ $job['notes'] }}</td>
+                                    <td class="compact">{{ \App\Support\InlineCodeFormatter::render($job['notes']) }}</td>
                                 </tr>
                             @endforeach
                         </tbody>

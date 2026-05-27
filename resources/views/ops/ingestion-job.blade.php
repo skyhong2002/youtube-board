@@ -79,7 +79,7 @@
                     </div>
                 </dd>
                 <dt>Notes</dt>
-                <dd>{{ $job['notes'] }}</dd>
+                <dd>{{ \App\Support\InlineCodeFormatter::render($job['notes']) }}</dd>
             </dl>
 
             <h2>Execution Guardrail</h2>
