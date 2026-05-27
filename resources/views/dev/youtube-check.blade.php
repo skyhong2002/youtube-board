@@ -1,7 +1,11 @@
 @extends('layouts.report')
 
 @section('title')
-Integration Check
+整合檢查
+@endsection
+
+@section('meta')
+外部服務與本機依賴
 @endsection
 
 @push('styles')
@@ -25,15 +29,80 @@ body {
             font-weight: 700;
         }
 
-        dl {
+        .checks-grid {
             display: grid;
-            grid-template-columns: 180px 1fr;
-            gap: 12px 18px;
-            margin: 0;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 14px;
+        }
+
+        .check-card {
             padding: 24px;
             background: #fff;
             border: 1px solid #d8dde5;
             border-radius: 8px;
+        }
+
+        .check-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .check-card h2 {
+            margin: 0;
+            font-size: 18px;
+            line-height: 1.3;
+        }
+
+        .check-description {
+            min-height: 38px;
+            margin: 0 0 16px;
+            color: #5f6b7a;
+            line-height: 1.45;
+        }
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            min-height: 26px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            border: 1px solid #d8dde5;
+            background: #f8fafc;
+            color: #344054;
+            font-size: 12px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .status.ok,
+        .status.configured {
+            border-color: #98d4b2;
+            background: #ecfdf3;
+            color: #0c7a43;
+        }
+
+        .status.missing,
+        .status.failed {
+            border-color: #fda29b;
+            background: #fff1f0;
+            color: #b42318;
+        }
+
+        .status.not_checked {
+            border-color: #f3c46b;
+            background: #fff8e6;
+            color: #8a5a00;
+        }
+
+        dl {
+            display: grid;
+            grid-template-columns: minmax(118px, 0.42fr) 1fr;
+            gap: 10px 16px;
+            margin: 0;
+            padding: 0;
         }
 
         dt {
@@ -55,40 +124,46 @@ body {
             color: #b42318;
             font-weight: 700;
         }
+
+        @media (max-width: 720px) {
+            .checks-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .check-card {
+                padding: 18px;
+            }
+
+            dl {
+                grid-template-columns: 1fr;
+                gap: 4px;
+            }
+
+            dd {
+                margin-bottom: 10px;
+            }
+        }
 </style>
 @endpush
 
 @section('content')
-<dl>
-            <dt>Service</dt>
-            <dd>{{ $payload['service'] ?? 'unknown' }}</dd>
+<section class="checks-grid" aria-label="整合檢查項目">
+            @foreach ($checks as $check)
+                <article class="check-card">
+                    <div class="check-head">
+                        <h2>{{ $check['name'] }}</h2>
+                        <span class="status {{ $check['state'] }}">{{ $check['status'] }}</span>
+                    </div>
 
-            <dt>Status</dt>
-            <dd class="{{ ($payload['ok'] ?? false) ? 'ok' : 'fail' }}">
-                {{ ($payload['ok'] ?? false) ? 'OK' : 'Failed' }}
-            </dd>
+                    <p class="check-description">{{ $check['description'] }}</p>
 
-            <dt>HTTP status</dt>
-            <dd>{{ $payload['http_status'] ?? 'n/a' }}</dd>
-
-            <dt>Video ID</dt>
-            <dd>{{ data_get($payload, 'video.id', 'n/a') }}</dd>
-
-            <dt>Title</dt>
-            <dd>{{ data_get($payload, 'video.title', 'n/a') }}</dd>
-
-            <dt>Channel</dt>
-            <dd>{{ data_get($payload, 'video.channel_title', 'n/a') }}</dd>
-
-            <dt>Published</dt>
-            <dd>{{ data_get($payload, 'video.published_at', 'n/a') }}</dd>
-
-            <dt>View count field</dt>
-            <dd>{{ data_get($payload, 'video.view_count_available') ? 'available' : 'missing' }}</dd>
-
-            @if (! ($payload['ok'] ?? false))
-                <dt>Error</dt>
-                <dd>{{ $payload['error'] ?? 'Unknown error' }}</dd>
-            @endif
-        </dl>
+                    <dl>
+                        @foreach ($check['details'] as $detail)
+                            <dt>{{ $detail['label'] }}</dt>
+                            <dd>{{ $detail['value'] }}</dd>
+                        @endforeach
+                    </dl>
+                </article>
+            @endforeach
+        </section>
 @endsection

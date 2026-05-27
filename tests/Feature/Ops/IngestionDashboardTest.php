@@ -16,7 +16,7 @@ class IngestionDashboardTest extends TestCase
         $response = $this->get('/ops/ingestion');
 
         $response->assertOk();
-        $response->assertSee('Ingestion Scheduler');
+        $response->assertSee('擷取排程');
         $response->assertSee('Web Request Gates');
         $response->assertSee('scheduler disabled');
         $response->assertSee('local polling disabled');
@@ -233,7 +233,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('ai.hourly');
         $response->assertSee('ai:hourly');
-        $response->assertSee('explicit `--execute` calls OpenCode-compatible chat completions and upserts `urt_ai_hour`');
+        $response->assertSee('explicit <code>--execute</code> calls OpenCode-compatible chat completions and upserts <code>urt_ai_hour</code>', false);
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=ai.hourly');
         $response->assertSee('Scheduled Local Polling');
@@ -248,7 +248,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('ai.daily');
         $response->assertSee('ai:daily');
-        $response->assertSee('explicit `--execute` calls OpenCode-compatible chat completions and upserts `urt_channel_ai` / `urt_ai_date`');
+        $response->assertSee('explicit <code>--execute</code> calls OpenCode-compatible chat completions and upserts <code>urt_channel_ai</code> / <code>urt_ai_date</code>', false);
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=ai.daily');
         $response->assertSee('Scheduled Local Polling');
@@ -277,7 +277,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('youtube.tvbs.live.poll');
         $response->assertSee('youtube:tvbs:live:poll');
-        $response->assertSee('updates `urt_video_live_tvbs` and `urt_video_live_log_tvbs`');
+        $response->assertSee('updates <code>urt_video_live_tvbs</code> and <code>urt_video_live_log_tvbs</code>', false);
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.tvbs.live.poll');
         $response->assertSee('Scheduled Local Polling');
@@ -293,7 +293,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('youtube.channels.stats');
         $response->assertSee('youtube:channels:stats');
-        $response->assertSee('scheduled/local `--execute` updates channel/count/log rows');
+        $response->assertSee('scheduled/local <code>--execute</code> updates channel/count/log rows', false);
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.channels.stats');
         $response->assertSee('Scheduled Local Polling');
@@ -312,7 +312,7 @@ class IngestionDashboardTest extends TestCase
         foreach ([$general, $live, $liveGroup] as $response) {
             $response->assertOk();
             $response->assertSee('youtube:channels:videos');
-            $response->assertSee('scheduled/local `--execute` inserts videos/schedules/live rows');
+            $response->assertSee('scheduled/local <code>--execute</code> inserts videos/schedules/live rows', false);
             $response->assertSee('due now');
             $response->assertSee('explicit/scheduled <code>--execute --id/--channel --limit --max-results</code>', false);
         }
@@ -335,7 +335,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('youtube.tvbs.videos');
         $response->assertSee('youtube:tvbs:videos');
-        $response->assertSee('scheduled/local `--execute` inserts videos/schedules/TVBS live rows');
+        $response->assertSee('scheduled/local <code>--execute</code> inserts videos/schedules/TVBS live rows', false);
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.tvbs.videos');
         $response->assertSee('Scheduled Local Polling');
@@ -364,7 +364,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('youtube.live.cleanup');
         $response->assertSee('youtube:live:cleanup');
-        $response->assertSee('scheduled/local `--execute` marks stale `urt_video_live.del_flag=1`');
+        $response->assertSee('scheduled/local <code>--execute</code> marks stale <code>urt_video_live.del_flag=1</code>', false);
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.live.cleanup');
         $response->assertSee('不呼叫 YouTube');
@@ -377,7 +377,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('reports.live.clean');
         $response->assertSee('reports:live:clean');
-        $response->assertSee('scheduled/local `--execute` deletes invalid `urt_show_live_tag_date` cache rows');
+        $response->assertSee('scheduled/local <code>--execute</code> deletes invalid <code>urt_show_live_tag_date</code> cache rows', false);
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=reports.live.clean');
         $response->assertSee('限量刪除本機 cache rows');
@@ -431,7 +431,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('youtube.videos.duration');
         $response->assertSee('youtube:videos:duration');
-        $response->assertSee('scheduled/local `--execute` updates duration queue rows');
+        $response->assertSee('scheduled/local <code>--execute</code> updates duration queue rows', false);
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.videos.duration');
         $response->assertSee('Scheduler 在 write allowlist 開啟時使用 capped scheduled execute command；未開啟仍是 dry-run');
@@ -444,7 +444,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('youtube.videos.stats');
         $response->assertSee('youtube:videos:stats');
-        $response->assertSee('scheduled/local `--execute` updates video stats/log rows');
+        $response->assertSee('scheduled/local <code>--execute</code> updates video stats/log rows', false);
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.videos.stats');
         $response->assertSee('Scheduler 在 write allowlist 開啟時使用 capped scheduled execute command；未開啟仍是 dry-run');
@@ -459,7 +459,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('reports.counts.build');
         $response->assertSee('reports:counts:build');
-        $response->assertSee('scheduled/local `--execute` updates `urt_count` weekly/monthly delta columns');
+        $response->assertSee('scheduled/local <code>--execute</code> updates <code>urt_count</code> weekly/monthly delta columns', false);
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=reports.counts.build');
         $response->assertSee('更新本機 <code>urt_count</code> delta columns', false);
@@ -472,7 +472,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('reports.keywords.build');
         $response->assertSee('reports:keywords:build');
-        $response->assertSee('scheduled/local `--execute` upserts local `tags` rows');
+        $response->assertSee('scheduled/local <code>--execute</code> upserts local <code>tags</code> rows', false);
         $response->assertSee('due now');
         $response->assertSee('reports:keywords:build --execute --hours=2 --limit=100');
         $response->assertSee('Scheduler-enabled local polling is blocked');
@@ -486,7 +486,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('reports.groups.build');
         $response->assertSee('reports:groups:build');
-        $response->assertSee('scheduled/local `--execute` upserts local `tag_group` rows');
+        $response->assertSee('scheduled/local <code>--execute</code> upserts local <code>tag_group</code> rows', false);
         $response->assertSee('due now');
         $response->assertSee('reports:groups:build --execute --hours=22 --limit=100');
         $response->assertSee('Scheduler-enabled local polling is blocked');
@@ -500,7 +500,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('reports.people.build');
         $response->assertSee('reports:people:build');
-        $response->assertSee('scheduled/local `--execute` upserts people `urt_show_tag_date` cache rows');
+        $response->assertSee('scheduled/local <code>--execute</code> upserts people <code>urt_show_tag_date</code> cache rows', false);
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=reports.people.build');
         $response->assertSee('TagDateCacheBuilder');
@@ -513,7 +513,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('reports.schedule.build');
         $response->assertSee('reports:schedule:build');
-        $response->assertSee('scheduled/local `--execute` updates `urt_video_schedule.stime/mtime`');
+        $response->assertSee('scheduled/local <code>--execute</code> updates <code>urt_video_schedule.stime/mtime</code>', false);
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=reports.schedule.build');
         $response->assertSee('限量更新本機 schedule rows');
@@ -541,7 +541,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('youtube:comments:fetch');
         $response->assertSee('explicit/scheduled <code>--execute --videoId/--limit --max-pages</code>', false);
         $response->assertSee('due now');
-        $response->assertSee('This job is not executable under the current read-only migration guardrail.');
+        $response->assertSee('此 job 目前不會執行；下面保留 guardrail 原始原因，方便對照 CLI/output。');
         $response->assertSee('php artisan ingestion:run --job=youtube.comments.fetch', false);
         $response->assertSee('Production crontab 只在每小時第 5 分排程');
     }

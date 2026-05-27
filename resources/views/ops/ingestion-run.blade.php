@@ -7,7 +7,7 @@
 @extends('layouts.report')
 
 @section('title')
-{{ $record['id'] ?? 'Ingestion run' }}
+{{ $record['id'] ?? '擷取執行紀錄' }}
 @endsection
 
 @push('styles')

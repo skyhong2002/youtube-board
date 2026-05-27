@@ -1,7 +1,7 @@
 @extends('layouts.report')
 
 @section('title')
-Ingestion Scheduler
+擷取排程
 @endsection
 
 @section('meta')
@@ -75,7 +75,7 @@ Web request gates
                         </span>
                         <span>scheduled write allowlist {{ count($summary['scheduled_write_allowlist']) }}</span>
                     </div>
-                    <p class="muted">These gates describe this web request only. Dokploy scheduled tasks may inject separate env flags for their one-shot CLI process without enabling polling for normal web traffic.</p>
+                    <p class="muted">這些 gates 只描述目前 web request。Dokploy scheduled task 可以在單次 CLI process 注入獨立 env flag，不必讓一般 web traffic 啟用 polling。</p>
                 </div>
 
                 <div class="panel">
@@ -167,7 +167,7 @@ Web request gates
                     </label>
                     <button type="submit">Run Once</button>
                 </form>
-                <p class="muted">Execute mode temporarily enables the local runner for this request only. Local write polling still requires <code>INGESTION_LOCAL_POLLING_ENABLED=true</code>, an allowlisted job key, and each job's capped scheduled execute command.</p>
+                <p class="muted">Execute mode 只會在這次 request 暫時啟用 local runner。Local write polling 仍需要 <code>INGESTION_LOCAL_POLLING_ENABLED=true</code>、allowlisted job key，以及各 job 的 capped scheduled execute command。</p>
             </section>
 
             <section class="runs">
@@ -193,7 +193,13 @@ Web request gates
                                 <tr>
                                     <td>{{ $run['created_at'] ?? '-' }}</td>
                                     <td>{{ $run['request']['mode'] ?? ($run['result']['mode'] ?? '-') }}</td>
-                                    <td><code>{{ $run['request']['job'] ?? 'all due jobs' }}</code></td>
+                                    <td>
+                                        @if (isset($run['request']['job']))
+                                            <code>{{ $run['request']['job'] }}</code>
+                                        @else
+                                            <code>all due jobs</code>
+                                        @endif
+                                    </td>
                                     <td>{{ $runSummary['evaluated'] ?? 0 }}</td>
                                     <td>{{ $runSummary['due'] ?? 0 }}</td>
                                     <td>{{ $runSummary['executed'] ?? 0 }}</td>
@@ -254,7 +260,7 @@ Web request gates
                                     <td>
                                         <div class="writes">
                                             @foreach ($job['writes'] as $table)
-                                                <span>{{ $table }}</span>
+                                                <span>{{ \App\Support\InlineCodeFormatter::render($table) }}</span>
                                             @endforeach
                                         </div>
                                     </td>

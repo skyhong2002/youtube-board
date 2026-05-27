@@ -8,9 +8,10 @@ use Tests\TestCase;
 
 class HomeRouteTest extends TestCase
 {
-    public function test_home_page_renders_legacy_tag_index(): void
+    public function test_home_page_renders_overview_dashboard(): void
     {
         $this->createTagIndexTables();
+        $this->createKeywordTables();
 
         DB::table('urt_tag')->insert([
             ['tag_id' => 1, 'tag_name' => '社論'],
@@ -23,16 +24,28 @@ class HomeRouteTest extends TestCase
             ['u_id' => 30, 'tags' => '[2]', 'view_week' => 5],
             ['u_id' => 40, 'tags' => '[3]', 'view_week' => 80],
         ]);
+        DB::table('tags')->insert([
+            ['tag' => '柯文哲', 'ctime' => '2026-05-20 00:00:00', 'mtime' => '2026-05-24 12:00:00', 'max_count' => 1200, 'hours_count' => 80, 'max_hours' => '2026-05-24 12:00:00', 'no_tag' => null],
+        ]);
 
         $response = $this->get('/');
 
         $response->assertOk();
-        $response->assertSee('所有分類列表');
-        $response->assertSee('直播排行榜');
-        $response->assertSee('個人社論');
+        $response->assertSee('總覽');
+        $response->assertSeeInOrder(['總覽', '直播', '分類', '關鍵字', '群組', 'AI', '市長']);
+        $response->assertSee('YouTube Board 在做什麼');
+        $response->assertSee('把公開 YouTube 頻道、直播、影片、關鍵字和主題群組整理成 read-only 報表');
+        $response->assertSee('看目前直播');
+        $response->assertSee('/tags', false);
+        $response->assertSee('/keywords', false);
+        $response->assertSee('熱門分類');
+        $response->assertSee('熱門關鍵字');
+        $response->assertSee('/keywords/%E6%9F%AF%E6%96%87%E5%93%B2/videos', false);
+        $response->assertSee('/tags/1/videos', false);
+        $response->assertSee('/tags/1/trends', false);
         $response->assertSeeInOrder(['社論', '新聞', '直播']);
         $response->assertSee('400');
-        $response->assertSee('200');
+        $response->assertSee('580');
         $response->assertDontSee('本機尚未匯入');
     }
 
@@ -48,7 +61,7 @@ class HomeRouteTest extends TestCase
         $response = $this->get('/');
 
         $response->assertOk();
-        $response->assertDontSee('API 檢查');
+        $response->assertDontSee('整合檢查');
         $response->assertDontSee('/dev/check');
     }
 
@@ -70,6 +83,12 @@ class HomeRouteTest extends TestCase
         $response->assertOk();
         $response->assertSee('sort=num');
         $response->assertSee('所有分類列表');
+        $response->assertDontSee('分類報表');
+        $response->assertSee('/tags?sort=total', false);
+        $response->assertDontSee('關鍵字列表');
+        $response->assertDontSee('多關鍵字趨勢');
+        $response->assertDontSee('直播排行榜');
+        $response->assertDontSee('帶狀直播');
         $response->assertSee('社論');
         $response->assertDontSee('新聞');
     }
@@ -89,6 +108,28 @@ class HomeRouteTest extends TestCase
             $table->integer('u_id');
             $table->string('tags')->nullable();
             $table->integer('view_week')->nullable();
+        });
+    }
+
+    private function createKeywordTables(): void
+    {
+        foreach (['tags', 'urt_show_data'] as $table) {
+            Schema::dropIfExists($table);
+        }
+
+        Schema::create('tags', function ($table): void {
+            $table->string('tag');
+            $table->timestamp('ctime')->nullable();
+            $table->timestamp('mtime')->nullable();
+            $table->integer('max_count')->nullable();
+            $table->integer('hours_count')->nullable();
+            $table->timestamp('max_hours')->nullable();
+            $table->integer('no_tag')->nullable();
+        });
+
+        Schema::create('urt_show_data', function ($table): void {
+            $table->string('data_name');
+            $table->longText('the_result')->nullable();
         });
     }
 }

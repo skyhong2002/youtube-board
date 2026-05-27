@@ -74,7 +74,7 @@
                 <dd>
                     <div class="writes">
                         @foreach ($job['writes'] as $table)
-                            <span>{{ $table }}</span>
+                            <span>{{ \App\Support\InlineCodeFormatter::render($table) }}</span>
                         @endforeach
                     </div>
                 </dd>
@@ -85,9 +85,9 @@
             <h2>Execution Guardrail</h2>
             <div class="panel">
                 @if ($execution['can_execute_when_due'])
-                    <p>This job is read-only, active, command-ready, and allowed to execute when its cron expression is due. Scheduler execution still requires <code>INGESTION_SCHEDULER_ENABLED=true</code>.</p>
+                    <p>此 job 是 read-only、active、command-ready，且 cron expression 到期時允許執行。Scheduler execution 仍需要 <code>INGESTION_SCHEDULER_ENABLED=true</code>。</p>
                 @else
-                    <p>This job is not executable under the current read-only migration guardrail.</p>
+                    <p>此 job 目前不會執行；下面保留 guardrail 原始原因，方便對照 CLI/output。</p>
                     <ul>
                         @foreach ($execution['blocks'] as $block)
                             <li>{{ $block }}</li>
@@ -100,7 +100,7 @@
                 <h2>Scheduled Local Polling</h2>
                 <div class="panel">
                     @if ($scheduledWrite['allowed'])
-                        <p>This job is allowlisted for scheduler-enabled local polling. The scheduler will use the capped command below when <code>ingestion:run --execute</code> evaluates it as due.</p>
+                        <p>此 job 已 allowlisted，可以由 scheduler-enabled local polling 執行。當 <code>ingestion:run --execute</code> 評估為 due 時，scheduler 會使用下方 capped command。</p>
                     @else
                         <p>Scheduler-enabled local polling is blocked for this job until every explicit gate is satisfied.</p>
                         <ul>

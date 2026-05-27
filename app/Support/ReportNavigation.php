@@ -13,11 +13,12 @@ class ReportNavigation
         $routeName = (string) ($request->route()?->getName() ?? '');
 
         return [
-            self::item('分類', 'home', $routeName === 'home' || str_starts_with($routeName, 'tags.')),
-            self::item('關鍵字', 'keywords.index', str_starts_with($routeName, 'keywords.')),
+            self::item('總覽', 'home', $routeName === 'home'),
             self::item('直播', 'live.current', str_starts_with($routeName, 'live.')),
-            self::item('AI', 'ai.days.index', str_starts_with($routeName, 'ai.')),
+            self::item('分類', 'tags.index', str_starts_with($routeName, 'tags.')),
+            self::item('關鍵字', 'keywords.index', str_starts_with($routeName, 'keywords.')),
             self::item('群組', 'groups.index', str_starts_with($routeName, 'groups.')),
+            self::item('AI', 'ai.days.index', str_starts_with($routeName, 'ai.')),
             self::item('市長', 'mayor.index', str_starts_with($routeName, 'mayor.')),
         ];
     }
@@ -30,12 +31,12 @@ class ReportNavigation
         $routeName = (string) ($request->route()?->getName() ?? '');
 
         $items = [
-            self::item('Ingestion', 'ops.ingestion', str_starts_with($routeName, 'ops.ingestion')),
+            self::item('擷取排程', 'ops.ingestion', str_starts_with($routeName, 'ops.ingestion')),
         ];
 
         if (app()->environment(['local', 'testing'])) {
             $items[] = [
-                'label' => 'API 檢查',
+                'label' => '整合檢查',
                 'url' => url('/dev/check'),
                 'active' => str_starts_with($routeName, 'dev.'),
             ];
@@ -295,16 +296,21 @@ class ReportNavigation
             ];
         }
 
+        if (str_starts_with($routeName, 'keywords.')) {
+            return [
+                self::item('關鍵字列表', 'keywords.index', $routeName === 'keywords.index'),
+            ];
+        }
+
         return [
-            self::item('分類列表', 'home', $routeName === 'home'),
-            self::item('關鍵字列表', 'keywords.index', $routeName === 'keywords.index'),
-            self::item('標籤影片', 'tags.videos.index', $routeName === 'tags.videos.index'),
-            self::item('直播影片', 'tags.live.videos.index', $routeName === 'tags.live.videos.index'),
-            self::item('留言', 'tags.comments.index', $routeName === 'tags.comments.index'),
-            self::item('文字雲', 'tags.cloud.index', $routeName === 'tags.cloud.index'),
-            self::item('逐日', 'tags.days.index', $routeName === 'tags.days.index'),
-            self::item('趨勢', 'tags.trends.index', $routeName === 'tags.trends.index'),
-            self::item('比較', 'tags.compare', $routeName === 'tags.compare'),
+            self::item('分類列表', 'tags.index', $routeName === 'tags.index'),
+            self::item('分類影片', 'tags.videos.index', $routeName === 'tags.videos.index'),
+            self::item('分類直播', 'tags.live.videos.index', $routeName === 'tags.live.videos.index'),
+            self::item('分類留言', 'tags.comments.index', $routeName === 'tags.comments.index'),
+            self::item('分類文字雲', 'tags.cloud.index', $routeName === 'tags.cloud.index'),
+            self::item('分類逐日', 'tags.days.index', $routeName === 'tags.days.index'),
+            self::item('分類趨勢', 'tags.trends.index', $routeName === 'tags.trends.index'),
+            self::item('分類比較', 'tags.compare', $routeName === 'tags.compare'),
         ];
     }
 
@@ -314,7 +320,7 @@ class ReportNavigation
     private static function opsSection(string $routeName): array
     {
         return [
-            self::item('Ingestion', 'ops.ingestion', $routeName === 'ops.ingestion'),
+            self::item('擷取排程', 'ops.ingestion', $routeName === 'ops.ingestion'),
         ];
     }
 }

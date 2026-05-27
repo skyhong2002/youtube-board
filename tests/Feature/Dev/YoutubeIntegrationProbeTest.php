@@ -93,8 +93,15 @@ class YoutubeIntegrationProbeTest extends TestCase
         $response = $this->get(route('dev.check'));
 
         $response->assertOk();
-        $response->assertSee('youtube_data_api_v3');
+        $response->assertSee('整合檢查');
+        $response->assertSee('外部服務與本機依賴');
+        $response->assertSee('YouTube Data API v3');
+        $response->assertSee('OpenAI 相容 AI API');
+        $response->assertSee('Dokploy deploy relay');
+        $response->assertSee('tag.analysis.tw APIs');
+        $response->assertSee('Local database');
         $response->assertSee('Example video');
+        $response->assertDontSee('Integration Check');
         $response->assertDontSee('test-key');
     }
 }

@@ -18,12 +18,11 @@
             main { max-width: 1280px; margin: 0 auto; padding: 24px; }
             header { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
             h1 { margin: 0; font-size: 28px; line-height: 1.2; }
-            h2 { margin: 0 0 10px; font-size: 15px; line-height: 1.3; }
             .nav { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px; }
             .meta { color: var(--muted); white-space: nowrap; }
-            .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; }
-            .action { display: inline-flex; align-items: center; min-height: 32px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: #344054; font-weight: 600; }
-            .action.primary { border-color: #8ccfbe; background: var(--accent-bg); color: var(--accent); }
+            .row-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+            .row-actions { min-width: 340px; }
+            .row-actions a { display: inline-flex; align-items: center; min-height: 26px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: #344054; font-size: 12px; font-weight: 650; white-space: nowrap; }
             .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
             .metric { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
             .metric-label { color: var(--muted); font-size: 12px; }
@@ -31,7 +30,7 @@
             .filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; padding: 0; list-style: none; }
             .filters li { display: inline-flex; align-items: center; min-height: 24px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--muted); font-size: 12px; }
             .table-wrap { overflow-x: auto; border: 1px solid var(--line); background: var(--surface); }
-            table { width: 100%; min-width: 840px; border-collapse: collapse; }
+            table { width: 100%; min-width: 1180px; border-collapse: collapse; }
             th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; text-align: left; }
             th { position: sticky; top: 0; z-index: 1; background: #eef2f6; color: #344054; font-size: 12px; font-weight: 700; white-space: nowrap; }
             tbody tr:hover { background: #f9fbfd; }
@@ -48,18 +47,6 @@
 @endpush
 
 @section('content')
-<div class="actions" aria-label="常用報表">
-                <a class="action primary" href="{{ route('live.current', ['or' => '1,2,12,13,14,81']) }}">直播排行榜</a>
-                <a class="action" href="{{ route('keywords.index') }}">關鍵字</a>
-                <a class="action" href="{{ route('tags.channels', ['tagId' => 1, 'not' => '2,9,10,12,13,33,36,81']) }}">個人社論</a>
-                <a class="action" href="{{ route('live.continuous') }}">現在帶狀直播排行</a>
-                <a class="action" href="{{ route('live.days.index') }}">單日直播排行</a>
-                <a class="action" href="{{ route('tags.compare', ['tags' => '蔡英文,柯文哲,侯友宜,陳時中']) }}">多關鍵字趨勢</a>
-                @if (app()->environment(['local', 'testing']))
-                    <a class="action" href="/dev/check">API 檢查</a>
-                @endif
-            </div>
-
             <section class="summary" aria-label="分類摘要">
                 <div class="metric">
                     <div class="metric-label">分類數</div>
@@ -89,10 +76,11 @@
                         <tr>
                             <th>No</th>
                             <th>Tag</th>
-                            <th><a href="{{ route('home', ['sort' => 'num', 'min' => $filters['min'] ?? 10]) }}">Num</a></th>
-                            <th><a href="{{ route('home', ['sort' => 'total', 'min' => $filters['min'] ?? 10]) }}">Total</a></th>
-                            <th><a href="{{ route('home', ['sort' => 'ave', 'min' => $filters['min'] ?? 10]) }}">Average</a></th>
-                            <th><a href="{{ route('home', ['sort' => 'median', 'min' => $filters['min'] ?? 10]) }}">Median</a></th>
+                            <th><a href="{{ route('tags.index', ['sort' => 'num', 'min' => $filters['min'] ?? 10]) }}">Num</a></th>
+                            <th><a href="{{ route('tags.index', ['sort' => 'total', 'min' => $filters['min'] ?? 10]) }}">Total</a></th>
+                            <th><a href="{{ route('tags.index', ['sort' => 'ave', 'min' => $filters['min'] ?? 10]) }}">Average</a></th>
+                            <th><a href="{{ route('tags.index', ['sort' => 'median', 'min' => $filters['min'] ?? 10]) }}">Median</a></th>
+                            <th>操作</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -106,10 +94,21 @@
                                 <td class="number">{{ number_format($row['total']) }}</td>
                                 <td class="number">{{ number_format($row['ave']) }}</td>
                                 <td class="number">{{ number_format($row['median']) }}</td>
+                                <td>
+                                    <div class="row-actions" aria-label="{{ $row['name'] }} 相關報表">
+                                        <a href="{{ route('tags.channels', ['tagId' => $row['tag_id']]) }}">頻道</a>
+                                        <a href="{{ route('tags.videos', ['tagId' => $row['tag_id']]) }}">影片</a>
+                                        <a href="{{ route('tags.live.videos', ['tagId' => $row['tag_id']]) }}">直播</a>
+                                        <a href="{{ route('tags.comments', ['tagId' => $row['tag_id']]) }}">留言</a>
+                                        <a href="{{ route('tags.cloud', ['tagId' => $row['tag_id']]) }}">文字雲</a>
+                                        <a href="{{ route('tags.days', ['tagId' => $row['tag_id']]) }}">逐日</a>
+                                        <a href="{{ route('tags.trends', ['tagId' => $row['tag_id']]) }}">趨勢</a>
+                                    </div>
+                                </td>
                             </tr>
                         @empty
                             <tr>
-                                <td class="empty" colspan="6">
+                                <td class="empty" colspan="7">
                                     {{ $dataAvailable ? '目前沒有符合條件的分類資料。' : '本機尚未匯入 legacy tag/count tables。' }}
                                 </td>
                             </tr>

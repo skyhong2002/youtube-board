@@ -20,16 +20,19 @@
             h1 { margin: 0; font-size: 28px; line-height: 1.2; }
             .nav { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px; }
             .meta { color: var(--muted); white-space: nowrap; }
+            .row-actions { display: flex; flex-wrap: wrap; gap: 8px; }
             .notice { margin: 0 0 16px; color: var(--muted); }
             .filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; padding: 0; list-style: none; }
             .filters li { display: inline-flex; align-items: center; min-height: 24px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--muted); font-size: 12px; }
             .table-wrap { overflow-x: auto; border: 1px solid var(--line); background: var(--surface); }
-            table { width: 100%; min-width: 1040px; border-collapse: collapse; }
+            table { width: 100%; min-width: 1280px; border-collapse: collapse; }
             th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; text-align: left; }
             th { position: sticky; top: 0; z-index: 1; background: #eef2f6; color: #344054; font-size: 12px; font-weight: 700; white-space: nowrap; }
             tbody tr:hover { background: #f9fbfd; }
             .rank, .number { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
             .keyword { min-width: 220px; font-weight: 700; }
+            .row-actions { min-width: 420px; }
+            .row-actions a { display: inline-flex; align-items: center; min-height: 26px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: #344054; font-size: 12px; font-weight: 650; white-space: nowrap; }
             .empty { padding: 28px; color: var(--muted); text-align: center; }
             @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; white-space: normal; } }
 </style>
@@ -53,7 +56,7 @@
                     <thead>
                         <tr>
                             <th>No</th>
-                            <th>Tag</th>
+                            <th>關鍵字</th>
                             <th><a href="{{ route('keywords.index', ['sort' => 'hours_count']) }}">持續性</a></th>
                             <th><a href="{{ route('keywords.index', ['sort' => 'max_count']) }}">極值</a></th>
                             <th><a href="{{ route('keywords.index', ['sort' => 'max_hours']) }}">最熱日期</a></th>
@@ -61,7 +64,7 @@
                             <th>影片數</th>
                             <th>觀看數</th>
                             <th>成長</th>
-                            <th>觀看角度</th>
+                            <th>操作</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -69,7 +72,7 @@
                             <tr>
                                 <td class="rank">{{ $row['rank'] }}</td>
                                 <td class="keyword">
-                                    <a href="https://www.youtube.com/results?search_query={{ urlencode($row['tag']) }}&sp=CAI%253D" rel="noreferrer">{{ $row['tag'] }}</a>
+                                    <a href="{{ route('keywords.days', ['keyword' => $row['tag']]) }}">{{ $row['tag'] }}</a>
                                 </td>
                                 <td class="number">{{ number_format($row['hours_count']) }}</td>
                                 <td class="number">{{ number_format($row['max_count']) }}</td>
@@ -84,7 +87,17 @@
                                         -
                                     @endif
                                 </td>
-                                <td><a href="/tag_group.php?tag={{ urlencode($row['tag']) }}&view=all">資訊</a></td>
+                                <td>
+                                    <div class="row-actions" aria-label="{{ $row['tag'] }} 相關報表">
+                                        <a href="{{ route('keywords.days', ['keyword' => $row['tag']]) }}">逐日</a>
+                                        <a href="{{ route('keywords.videos', ['keyword' => $row['tag']]) }}">影片</a>
+                                        <a href="{{ route('keywords.cloud', ['keyword' => $row['tag'], 'days' => 3]) }}">文字雲</a>
+                                        <a href="{{ route('keywords.live.trends', ['keyword' => $row['tag']]) }}">直播趨勢</a>
+                                        <a href="{{ route('keywords.groups.trends', ['keyword' => $row['tag']]) }}">群組趨勢</a>
+                                        <a href="{{ route('tags.compare', ['tags' => $row['tag']]) }}">比較</a>
+                                        <a href="https://www.youtube.com/results?search_query={{ urlencode($row['tag']) }}&sp=CAI%253D" rel="noreferrer">YouTube</a>
+                                    </div>
+                                </td>
                             </tr>
                         @empty
                             <tr>

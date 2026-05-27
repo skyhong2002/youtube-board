@@ -31,7 +31,17 @@ class TagCategoryReportsTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('關鍵字列表');
+        $response->assertDontSee('關鍵字工具');
+        $response->assertDontSee('多關鍵字比較');
+        $response->assertDontSee('aria-label="相關頁面"', false);
+        $response->assertDontSee('回到分類');
+        $response->assertDontSee('分類列表');
+        $response->assertDontSee('/tags/cloud', false);
         $response->assertSee('柯文哲');
+        $response->assertSee('/keywords/%E6%9F%AF%E6%96%87%E5%93%B2/days', false);
+        $response->assertSee('/keywords/%E6%9F%AF%E6%96%87%E5%93%B2/cloud?days=3', false);
+        $response->assertSee('/keywords/%E6%9F%AF%E6%96%87%E5%93%B2/live/trends', false);
+        $response->assertSee('/tags/compare?tags=%E6%9F%AF%E6%96%87%E5%93%B2', false);
         $response->assertSee('7,000');
         $response->assertSee('8');
         $response->assertSee('賴清德');

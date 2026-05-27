@@ -9,6 +9,10 @@
     $systemNav = $systemNav ?? ReportNavigation::system(request());
     $breadcrumbs = $breadcrumbs ?? ReportNavigation::breadcrumbs(request());
     $sectionNav = $sectionNav ?? ReportNavigation::section(request());
+
+    if (count($sectionNav) === 1 && ($sectionNav[0]['active'] ?? false)) {
+        $sectionNav = [];
+    }
 @endphp
 <!DOCTYPE html>
 <html lang="zh-Hant">
