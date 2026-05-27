@@ -5,6 +5,7 @@ namespace App\Services\Ingestion;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class AiDailyIngestion
 {
@@ -52,7 +53,13 @@ class AiDailyIngestion
                 continue;
             }
 
-            $completion = $this->client->complete($prompt);
+            try {
+                $completion = $this->client->complete($prompt);
+            } catch (Throwable $exception) {
+                $dailyRows[] = $this->skippedDailyRow($row, $this->sanitizedFailure($exception));
+                continue;
+            }
+
             $resultJson = $this->stripJsonFence($completion['content']);
             $existingPk = DB::table('urt_ai_date')
                 ->where('date_from', $period['from'])
@@ -160,7 +167,21 @@ class AiDailyIngestion
             }
 
             $prompt = $this->channelPrompt($videos);
-            $completion = $this->client->complete($prompt);
+            try {
+                $completion = $this->client->complete($prompt);
+            } catch (Throwable $exception) {
+                $rows->push([
+                    'u_id' => $uId,
+                    'video_rows' => $videos->count(),
+                    'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
+                    'inserted' => false,
+                    'updated' => false,
+                    'skipped' => true,
+                    'skip_reason' => $this->sanitizedFailure($exception),
+                ]);
+                continue;
+            }
+
             $resultJson = $this->stripJsonFence($completion['content']);
             $attributes = [
                 'u_id' => $uId,
@@ -263,5 +284,16 @@ class AiDailyIngestion
         $content = preg_replace('/\s*```$/', '', $content) ?? $content;
 
         return trim($content);
+    }
+
+    private function sanitizedFailure(Throwable $exception): string
+    {
+        return mb_strimwidth(
+            preg_replace('/(api[_-]?key|password|secret|token|authorization)[^,\s]*/i', '$1=<redacted>', $exception->getMessage()) ?? 'ai_completion_failed',
+            0,
+            240,
+            '...',
+            'UTF-8',
+        );
     }
 }

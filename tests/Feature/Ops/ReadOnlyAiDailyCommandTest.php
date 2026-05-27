@@ -274,6 +274,38 @@ class ReadOnlyAiDailyCommandTest extends TestCase
         $this->assertGreaterThanOrEqual(1, DB::table('urt_ai_date')->count());
     }
 
+    public function test_ai_daily_execute_records_ai_failures_without_failing_whole_batch(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDailyAiFixtures();
+        $this->seedRefreshChannelVideos();
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::response([], 524),
+        ]);
+
+        $exitCode = Artisan::call('ai:daily', [
+            '--execute' => true,
+            '--date' => '2026-05-24',
+            '--condition' => 'all',
+            '--channel-limit' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, $payload['channel_ai']['skipped']);
+        $this->assertSame(1, $payload['daily_ai']['skipped']);
+        $this->assertStringContainsString('status=524', $payload['channel_ai']['rows'][0]['skip_reason']);
+        $this->assertStringContainsString('status=524', $payload['daily_ai']['rows'][0]['skip_reason']);
+        $this->assertSame(0, DB::table('urt_ai_date')->count());
+        $this->assertSame(3, DB::table('urt_channel_ai')->count());
+    }
+
     private function createTables(): void
     {
         foreach (['urt_video', 'urt_ai_date', 'urt_channel_ai', 'urt_count', 'urt_channel'] as $table) {
