@@ -10,29 +10,27 @@ use Illuminate\Support\Facades\DB;
 
 class MayorReport
 {
-    private const CURRENT_CITY_KEYS = [
-        'taipei',
-        'newtaipei',
-        'taoyuan',
-        'taichung',
-        'tainan',
-        'kaohsiung',
-        'keelung',
-        'hsinchu',
-        'hsinchucounty',
-        'miaoli',
-        'changhua',
-        'nantou',
-        'yunlin',
-        'chiayi',
-        'chiayicity',
-        'pingtung',
-        'yilan',
-        'hualien',
-        'taitung',
-        'penghu',
-        'kinmen',
-        'lienchiang',
+    private const CITY_REGIONS = [
+        'north' => [
+            'label' => '北部',
+            'cities' => ['taipei', 'newtaipei', 'taoyuan', 'keelung', 'hsinchu', 'hsinchucounty', 'yilan'],
+        ],
+        'central' => [
+            'label' => '中部',
+            'cities' => ['taichung', 'miaoli', 'changhua', 'nantou', 'yunlin'],
+        ],
+        'south' => [
+            'label' => '南部',
+            'cities' => ['tainan', 'kaohsiung', 'chiayi', 'chiayicity', 'pingtung'],
+        ],
+        'east' => [
+            'label' => '東部',
+            'cities' => ['hualien', 'taitung'],
+        ],
+        'islands' => [
+            'label' => '離島',
+            'cities' => ['penghu', 'kinmen', 'lienchiang'],
+        ],
     ];
 
     /**
@@ -65,6 +63,7 @@ class MayorReport
                 'title' => $city['label'].'候選人影片觀看支持度',
                 'city' => $city,
                 'cities' => $this->cities(),
+                'city_regions' => $this->cityRegions(),
                 'static_cities' => $this->staticCityKeys(),
                 'range' => $range,
                 'type' => $type,
@@ -86,7 +85,18 @@ class MayorReport
      */
     public function staticCityKeys(): array
     {
-        return self::CURRENT_CITY_KEYS;
+        return collect(self::CITY_REGIONS)
+            ->flatMap(fn (array $region): array => $region['cities'])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<string, array{label: string, cities: list<string>}>
+     */
+    public function cityRegions(): array
+    {
+        return self::CITY_REGIONS;
     }
 
     /**
@@ -557,6 +567,7 @@ class MayorReport
             'title' => $city['label'].'候選人影片觀看支持度',
             'city' => $city,
             'cities' => $this->cities(),
+            'city_regions' => $this->cityRegions(),
             'static_cities' => $this->staticCityKeys(),
             'range' => $range,
             'type' => $type,

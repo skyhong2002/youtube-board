@@ -74,6 +74,12 @@ class MayorReportRouteTest extends TestCase
         $response = $this->get('/mayor/cities/kinmen?from=2026-05-20&to=2026-05-20');
 
         $response->assertOk();
+        $response->assertSee('<details class="city-group" open>', false);
+        $response->assertSee('北部');
+        $response->assertSee('中部');
+        $response->assertSee('南部');
+        $response->assertSee('東部');
+        $response->assertSee('離島');
         $response->assertSee('台北市');
         $response->assertSee('新北市');
         $response->assertSee('桃園市');

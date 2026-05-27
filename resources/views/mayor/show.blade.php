@@ -24,6 +24,10 @@
             .switcher, .legend { margin-bottom: 14px; }
             .switcher a, .legend span, .facts span { display: inline-flex; align-items: center; min-height: 28px; padding: 4px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: #344054; }
             .switcher a.active { border-color: #8ccfbe; background: var(--accent-bg); color: var(--accent); font-weight: 700; }
+            .city-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 14px; }
+            .city-group { border: 1px solid var(--line); border-radius: 6px; background: var(--surface); padding: 8px; }
+            .city-group summary { margin-bottom: 8px; color: #344054; cursor: pointer; font-size: 13px; font-weight: 700; }
+            .city-group .switcher { margin-bottom: 0; }
             .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 999px; }
             .facts { margin: 0 0 16px; }
             .facts span { min-height: 24px; color: var(--muted); font-size: 12px; }
@@ -70,10 +74,19 @@
 
 
 
-            <nav class="switcher" aria-label="城市">
-                @foreach ($static_cities as $cityKey)
-                    @php $option = $cities[$cityKey]; @endphp
-                    <a class="{{ $city['key'] === $cityKey ? 'active' : '' }}" href="{{ route('mayor.show', ['city' => $cityKey] + $cityQuery) }}">{{ $option['label'] }}</a>
+            <nav class="city-groups" aria-label="城市">
+                @foreach ($city_regions as $region)
+                    <details class="city-group" open>
+                        <summary>{{ $region['label'] }}</summary>
+                        <div class="switcher">
+                            @foreach ($region['cities'] as $cityKey)
+                                @if (isset($cities[$cityKey]))
+                                    @php $option = $cities[$cityKey]; @endphp
+                                    <a class="{{ $city['key'] === $cityKey ? 'active' : '' }}" href="{{ route('mayor.show', ['city' => $cityKey] + $cityQuery) }}">{{ $option['label'] }}</a>
+                                @endif
+                            @endforeach
+                        </div>
+                    </details>
                 @endforeach
             </nav>
 
