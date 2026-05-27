@@ -235,6 +235,80 @@ class ReadOnlyAiDailyCommandTest extends TestCase
         Http::assertSentCount(4);
     }
 
+    public function test_ai_daily_execute_channel_limit_uses_eligible_legacy_channels(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDailyAiFixtures();
+        DB::table('urt_channel')->insert(['u_id' => 404, 'title' => 'Eligible Later Channel']);
+
+        for ($index = 1; $index <= 9; $index++) {
+            DB::table('urt_video')->insert([
+                'u_id' => 76,
+                'videoId' => 'short-video-'.$index,
+                'publishedAt' => '2026-05-24 '.str_pad((string) $index, 2, '0', STR_PAD_LEFT).':00:00',
+                'title' => 'Short Video '.$index,
+                'channelTitle' => 'Short Channel',
+                'viewCount' => 100 + $index,
+            ]);
+        }
+
+        for ($index = 1; $index <= 10; $index++) {
+            DB::table('urt_video')->insert([
+                'u_id' => 404,
+                'videoId' => 'later-video-'.$index,
+                'publishedAt' => '2026-05-24 '.str_pad((string) $index, 2, '0', STR_PAD_LEFT).':00:00',
+                'title' => 'Later Video '.$index,
+                'channelTitle' => 'Eligible Later Channel',
+                'viewCount' => 1000 + $index,
+            ]);
+        }
+
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::sequence()
+                ->push([
+                    'choices' => [
+                        [
+                            'message' => [
+                                'content' => '[{"事件":"後段頻道事件","描述":"後段描述","關鍵字":["測試"],"videoId":["later-video-10","later-video-9"]}]',
+                            ],
+                        ],
+                    ],
+                    'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5],
+                ])
+                ->push([
+                    'choices' => [
+                        [
+                            'message' => [
+                                'content' => '[{"標題":"每日事件","媒體事件":{"Eligible Later Channel":["後段頻道事件"]}}]',
+                            ],
+                        ],
+                    ],
+                    'usage' => ['prompt_tokens' => 20, 'completion_tokens' => 6],
+                ]),
+        ]);
+
+        $exitCode = Artisan::call('ai:daily', [
+            '--execute' => true,
+            '--date' => '2026-05-24',
+            '--condition' => 'all',
+            '--channel-limit' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, $payload['channel_ai']['attempted']);
+        $this->assertSame(1, $payload['channel_ai']['inserted']);
+        $this->assertSame(404, $payload['channel_ai']['rows'][0]['u_id']);
+        $this->assertDatabaseMissing('urt_channel_ai', ['u_id' => 76]);
+        $this->assertDatabaseHas('urt_channel_ai', ['u_id' => 404]);
+    }
+
     public function test_ingestion_scheduler_executes_allowlisted_ai_daily_command_when_due(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'));

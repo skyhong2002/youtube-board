@@ -146,7 +146,12 @@ class AiDailyIngestion
         $dataType = substr($period['from'], 0, 10) === $now->toDateString() ? 'todate' : 'oneday';
         $rows = collect();
 
-        foreach (array_slice(AiDailyPreview::channelAiUids(), 0, max(0, min(39, $channelLimit))) as $uId) {
+        $configuredUIds = AiDailyPreview::channelAiUids();
+        $uIds = $channelLimit >= count($configuredUIds)
+            ? $configuredUIds
+            : $this->eligibleChannelUIds($period, $channelLimit);
+
+        foreach ($uIds as $uId) {
             $videos = DB::table('urt_video')
                 ->where('u_id', $uId)
                 ->where('publishedAt', '>=', $period['from'])
@@ -225,6 +230,38 @@ class AiDailyIngestion
         }
 
         return $rows;
+    }
+
+    /**
+     * A capped scheduler run should spend its AI calls on channels that can produce rows.
+     * Full uncapped execution still walks the original legacy channel list and records skips.
+     *
+     * @param  array{from: string, to: string}  $period
+     * @return list<int>
+     */
+    private function eligibleChannelUIds(array $period, int $channelLimit): array
+    {
+        $limit = max(0, min(count(AiDailyPreview::channelAiUids()), $channelLimit));
+
+        if ($limit === 0) {
+            return [];
+        }
+
+        $videoCounts = DB::table('urt_video')
+            ->whereIn('u_id', AiDailyPreview::channelAiUids())
+            ->where('publishedAt', '>=', $period['from'])
+            ->where('publishedAt', '<=', $period['to'])
+            ->select('u_id', DB::raw('COUNT(*) as video_rows'))
+            ->groupBy('u_id')
+            ->pluck('video_rows', 'u_id')
+            ->mapWithKeys(fn (mixed $count, mixed $uId): array => [(int) $uId => (int) $count])
+            ->all();
+
+        return collect(AiDailyPreview::channelAiUids())
+            ->filter(fn (int $uId): bool => ($videoCounts[$uId] ?? 0) >= 10)
+            ->take($limit)
+            ->values()
+            ->all();
     }
 
     private function channelPrompt(\Illuminate\Support\Collection $videos): string
