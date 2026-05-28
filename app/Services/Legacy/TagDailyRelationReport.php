@@ -2,11 +2,13 @@
 
 namespace App\Services\Legacy;
 
+use App\Services\Ingestion\TagDateCacheBuilder;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class TagDailyRelationReport
 {
@@ -14,6 +16,7 @@ class TagDailyRelationReport
         private readonly LegacyTagFilter $tagFilter,
         private readonly LegacyStopwords $stopwords,
         private readonly KeywordRelationFallback $keywordRelationFallback,
+        private readonly TagDateCacheBuilder $tagDateCacheBuilder,
     )
     {
     }
@@ -35,17 +38,36 @@ class TagDailyRelationReport
         $tagNames = $this->safeTagNames();
         $title = $this->tagTitle($filters, $tagNames).' 在 '.$range['display_days'].' 天的逐日排行';
 
+        $base = [
+            'mode' => 'tag',
+            'title' => $title,
+            'subject' => $this->tagTitle($filters, $tagNames),
+            'type' => $type,
+            'range' => $range,
+            'filters' => $this->displayTagFilters($filters, $type, $range, $request),
+        ];
+        $diff = (bool) $request->boolean('diff', true);
+
         try {
-            return $this->result([
-                'mode' => 'tag',
-                'title' => $title,
-                'subject' => $this->tagTitle($filters, $tagNames),
-                'type' => $type,
-                'range' => $range,
-                'filters' => $this->displayTagFilters($filters, $type, $range, $request),
-            ], $this->tagCache($filters, $range, $type, (bool) $request->boolean('diff', true)));
+            $cache = $this->tagCache($filters, $range, $type, $diff);
+
+            if ($cache['rows'] === []) {
+                $fallback = $this->tagDerivedCache($filters, $range, $type, $diff);
+
+                if ($fallback['rows'] !== []) {
+                    $cache = $fallback;
+                }
+            }
+
+            return $this->result($base, $cache);
         } catch (QueryException) {
-            return $this->empty($title, 'tag', $type, $range, '本機尚未匯入 `urt_show_tag_date` cache table。', $this->tagTitle($filters, $tagNames));
+            $fallback = $this->tagDerivedCache($filters, $range, $type, $diff);
+
+            if ($fallback['rows'] !== []) {
+                return $this->result($base, $fallback);
+            }
+
+            return $this->empty($title, 'tag', $type, $range, '本機尚未匯入 `urt_show_tag_date` cache table，且無法從本機 `urt_video` / `urt_count` / `tags` 推導資料。', $this->tagTitle($filters, $tagNames));
         }
     }
 
@@ -163,6 +185,74 @@ class TagDailyRelationReport
         return $this->buildCache($range['dates'], $records, $type, $diff, 'tags') + [
             'source' => 'urt_show_tag_date cache',
         ];
+    }
+
+    /**
+     * @param array{tagid: list<int>, or: list<int>, not: list<int>} $filters
+     * @param array{from: string, to: string, dates: list<string>} $range
+     * @return array<string, mixed>
+     */
+    private function tagDerivedCache(array $filters, array $range, string $type, bool $diff): array
+    {
+        if (! Schema::hasTable('urt_video') || ! Schema::hasTable('urt_count') || ! Schema::hasTable('tags')) {
+            return ['cache_rows' => 0, 'rows' => [], 'metrics' => [], 'diff' => $diff, 'source' => 'unavailable'];
+        }
+
+        $tagIds = $this->normalizedIds($filters['tagid']);
+        $orTagIds = $this->normalizedIds($filters['or']);
+        $notTagIds = $this->normalizedIds($filters['not']);
+
+        if ($tagIds === [] && $orTagIds === []) {
+            return ['cache_rows' => 0, 'rows' => [], 'metrics' => [], 'diff' => $diff, 'source' => 'unavailable'];
+        }
+
+        $records = [];
+
+        foreach ($range['dates'] as $date) {
+            $result = $this->tagDateCacheBuilder->build(
+                tagIds: $tagIds,
+                date: $date,
+                orTagIds: $orTagIds,
+                notTagIds: $notTagIds,
+                execute: false,
+            );
+
+            if (($result['videos_scanned'] ?? 0) <= 0) {
+                continue;
+            }
+
+            $records[] = (object) [
+                'the_date' => $date,
+                'count_channels' => $result['channels_matched'] ?? 0,
+                'count_videos' => $result['count_videos'] ?? 0,
+                'total_views' => $result['total_views'] ?? 0,
+                'tags_result' => json_encode($result['tags_result'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'tags_video' => json_encode($result['tags_video'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'tags_views' => json_encode($result['tags_views'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            ];
+        }
+
+        $cache = $this->buildCache($range['dates'], $records, $type, $diff, 'tags');
+        $cache['cache_rows'] = 0;
+
+        return $cache + [
+            'source' => 'urt_video + urt_count + tags derived real-time YouTube dashboard',
+        ];
+    }
+
+    /**
+     * @param list<int|string> $values
+     * @return list<int>
+     */
+    private function normalizedIds(array $values): array
+    {
+        return collect($values)
+            ->map(fn (mixed $value): int => (int) $value)
+            ->filter(fn (int $value): bool => $value > 0)
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
     }
 
     /**

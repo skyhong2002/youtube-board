@@ -144,6 +144,69 @@ class TagDailyRelationRouteTest extends TestCase
         $this->assertSame(0, DB::table('urt_show_video_tag_date')->count());
     }
 
+    public function test_tag_daily_relation_page_derives_from_raw_video_keywords_when_cache_is_empty(): void
+    {
+        $this->createTables();
+        $this->createRawTagDateTables();
+
+        DB::table('urt_tag')->insert([
+            ['tag_id' => 1, 'tag_name' => '新聞'],
+        ]);
+        DB::table('tags')->insert([
+            ['tag' => '少子化', 'no_tag' => null, 'max_count' => 20, 'hours_count' => 50, 'max_hours' => '2026-05-22 12:00:00'],
+            ['tag' => '托育', 'no_tag' => null, 'max_count' => 15, 'hours_count' => 40, 'max_hours' => '2026-05-22 12:00:00'],
+            ['tag' => '育兒', 'no_tag' => null, 'max_count' => 10, 'hours_count' => 30, 'max_hours' => '2026-05-22 12:00:00'],
+        ]);
+        DB::table('urt_count')->insert([
+            ['u_id' => 10, 'tags' => '[1]'],
+            ['u_id' => 11, 'tags' => '[1]'],
+            ['u_id' => 12, 'tags' => '[9]'],
+        ]);
+        DB::table('urt_video')->insert([
+            [
+                'pk' => 1,
+                'videoId' => 'birthrate-a',
+                'u_id' => 10,
+                'publishedAt' => '2026-05-21 10:00:00',
+                'title' => '少子化 托育政策',
+                'description' => '育兒補助',
+                'viewCount' => 1200,
+            ],
+            [
+                'pk' => 2,
+                'videoId' => 'birthrate-b',
+                'u_id' => 11,
+                'publishedAt' => '2026-05-22 10:00:00',
+                'title' => '少子化與育兒支持',
+                'description' => '托育名額',
+                'viewCount' => 800,
+            ],
+            [
+                'pk' => 3,
+                'videoId' => 'outside-tag',
+                'u_id' => 12,
+                'publishedAt' => '2026-05-22 10:00:00',
+                'title' => '少子化 不應列入',
+                'description' => '托育',
+                'viewCount' => 500,
+            ],
+        ]);
+
+        $response = $this->get('/tags/1/days?from=2026-05-21&to=2026-05-22&diff=0');
+
+        $response->assertOk();
+        $response->assertSee('新聞 在 1 天的逐日排行');
+        $response->assertSee('cache rows 0');
+        $response->assertSee('urt_video + urt_count + tags derived real-time YouTube dashboard');
+        $response->assertSee('少子化');
+        $response->assertSee('托育');
+        $response->assertSee('育兒');
+        $response->assertSee('1,200');
+        $response->assertDontSee('不應列入');
+        $response->assertDontSee('Laravel 會透過排程擷取與快取重建補齊即時儀表板資料');
+        $this->assertSame(0, DB::table('urt_show_tag_date')->count());
+    }
+
     public function test_daily_relation_pages_read_wrapped_and_list_shaped_cache_payloads(): void
     {
         $this->createTables();
@@ -294,6 +357,32 @@ class TagDailyRelationRouteTest extends TestCase
         });
 
         Schema::create('urt_video', function ($table): void {
+            $table->string('videoId');
+            $table->integer('u_id')->nullable();
+            $table->dateTime('publishedAt')->nullable();
+            $table->string('title')->nullable();
+            $table->text('description')->nullable();
+            $table->integer('viewCount')->nullable();
+        });
+    }
+
+    private function createRawTagDateTables(): void
+    {
+        Schema::create('tags', function ($table): void {
+            $table->string('tag');
+            $table->integer('no_tag')->nullable();
+            $table->integer('max_count')->nullable();
+            $table->integer('hours_count')->nullable();
+            $table->dateTime('max_hours')->nullable();
+        });
+
+        Schema::create('urt_count', function ($table): void {
+            $table->integer('u_id');
+            $table->text('tags')->nullable();
+        });
+
+        Schema::create('urt_video', function ($table): void {
+            $table->integer('pk');
             $table->string('videoId');
             $table->integer('u_id')->nullable();
             $table->dateTime('publishedAt')->nullable();

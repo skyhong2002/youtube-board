@@ -66,6 +66,9 @@ class TagDateCacheBuilder
             'count_tags' => $metrics['count_tags'],
             'count_videos' => $metrics['count_videos'],
             'total_views' => $metrics['total_views'],
+            'tags_result' => $metrics['tags_result'],
+            'tags_video' => $metrics['tags_video'],
+            'tags_views' => $metrics['tags_views'],
             'writes' => $execute ? 1 : 0,
             'write_targets' => ['urt_show_tag_date'],
         ];
