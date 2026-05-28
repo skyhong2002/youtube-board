@@ -359,6 +359,65 @@ class ReadOnlyChannelStatsCommandTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_youtube_channels_stats_execute_honors_raised_batch_cap(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+
+        $channels = [];
+        $items = [];
+
+        for ($i = 1; $i <= 6; $i++) {
+            $channels[] = [
+                'u_id' => $i,
+                'ctime' => '2026-05-20 00:00:00',
+                'mtime' => null,
+                'stime' => null,
+                'flag_del' => null,
+                'youtube_id' => 'UC-batch-'.$i,
+                'title' => 'Batch Channel '.$i,
+                'viewCount' => 100,
+                'subscriberCount' => 10,
+                'videoCount' => 1,
+            ];
+            $items[] = [
+                'id' => 'UC-batch-'.$i,
+                'statistics' => [
+                    'viewCount' => (string) (1000 + $i),
+                    'subscriberCount' => (string) (100 + $i),
+                    'hiddenSubscriberCount' => false,
+                    'videoCount' => (string) (10 + $i),
+                ],
+            ];
+        }
+
+        DB::table('urt_channel')->insert($channels);
+
+        Http::fake([
+            'www.googleapis.com/youtube/v3/channels*' => Http::response(['items' => $items]),
+        ]);
+
+        $exitCode = Artisan::call('youtube:channels:stats', [
+            '--execute' => true,
+            '--limit' => 6,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(6, $payload['selected_rows']);
+        $this->assertSame(6, $payload['api_requested_rows']);
+        $this->assertSame(6, $payload['updated_rows']);
+        $this->assertSame(1006, DB::table('urt_channel')->where('u_id', 6)->value('viewCount'));
+        Http::assertSent(function ($request): bool {
+            parse_str(parse_url($request->url(), PHP_URL_QUERY) ?: '', $query);
+
+            return count(explode(',', (string) ($query['id'] ?? ''))) === 6;
+        });
+    }
+
     private function createTables(): void
     {
         foreach (['urt_log', 'urt_count', 'urt_channel'] as $table) {

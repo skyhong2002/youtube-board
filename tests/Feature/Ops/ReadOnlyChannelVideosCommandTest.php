@@ -453,6 +453,67 @@ class ReadOnlyChannelVideosCommandTest extends TestCase
         Http::assertSentCount(2);
     }
 
+    public function test_youtube_channels_videos_execute_honors_raised_general_batch_cap(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+
+        $channels = [];
+        $sequence = Http::fakeSequence();
+
+        for ($i = 1; $i <= 5; $i++) {
+            $channels[] = [
+                'u_id' => $i,
+                'ctime' => '2026-05-20 00:00:00',
+                'mtime' => null,
+                'vtime' => null,
+                'flag_del' => null,
+                'youtube_id' => 'UC-upload-batch-'.$i,
+                'title' => 'Upload Batch Channel '.$i,
+                'uploads' => 'UU-upload-batch-'.$i,
+                'videoCount' => 10,
+            ];
+
+            $sequence->push([
+                'items' => [[
+                    'id' => 'playlist-item-batch-'.$i,
+                    'snippet' => [
+                        'publishedAt' => '2026-05-25T03:00:00Z',
+                        'channelId' => 'UC-upload-batch-'.$i,
+                        'title' => 'Batch Upload '.$i,
+                        'description' => 'Batch upload description',
+                        'thumbnails' => ['default' => ['url' => 'https://img.youtube.test/batch-'.$i.'.jpg']],
+                        'channelTitle' => 'Upload Batch Channel '.$i,
+                        'playlistId' => 'UU-upload-batch-'.$i,
+                        'position' => 0,
+                        'resourceId' => ['videoId' => 'video-upload-batch-'.$i],
+                        'liveBroadcastContent' => 'none',
+                    ],
+                ]],
+            ]);
+        }
+
+        DB::table('urt_channel')->insert($channels);
+
+        $exitCode = Artisan::call('youtube:channels:videos', [
+            '--execute' => true,
+            '--limit' => 5,
+            '--max-results' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(5, $payload['selected_rows']);
+        $this->assertSame(5, $payload['api_requested_channels']);
+        $this->assertSame(5, $payload['updated_channels']);
+        $this->assertSame(5, DB::table('urt_video')->count());
+        $this->assertSame('Batch Upload 5', DB::table('urt_video')->where('videoId', 'video-upload-batch-5')->value('title'));
+        Http::assertSentCount(5);
+    }
+
     private function createTables(): void
     {
         foreach (['urt_video_schedule', 'urt_video_live', 'urt_video', 'urt_count', 'urt_channel'] as $table) {

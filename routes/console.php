@@ -143,7 +143,7 @@ Artisan::command('youtube:channels:stats {--u_id= : Optional channel u_id to pre
                 return 1;
             }
 
-            $payload = $ingestion->execute(uId: $uId, hours: $hours, limit: min($limit, 5));
+            $payload = $ingestion->execute(uId: $uId, hours: $hours, limit: min($limit, 50));
 
             if ((bool) $this->option('json')) {
                 $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
@@ -265,7 +265,7 @@ Artisan::command('youtube:channels:videos {--id= : Optional legacy channel u_id 
                 rescan: (bool) $this->option('rescan'),
                 hours: $hours,
                 force: $force,
-                limit: min($limit, 3),
+                limit: min($limit, 10),
                 maxResults: $maxResults,
             );
 
