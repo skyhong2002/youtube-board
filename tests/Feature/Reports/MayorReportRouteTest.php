@@ -34,6 +34,7 @@ class MayorReportRouteTest extends TestCase
         $response->assertSee('cache rows 52');
         $response->assertSee('候選人支持度趨勢');
         $response->assertSee('關鍵字趨勢');
+        $response->assertSee('/tags/compare?tagid=3%2C4%2C5%2C6&amp;tags=%E8%94%A3%E8%90%AC%E5%AE%89&amp;type=tags_views&amp;days=30&amp;from=2026-05-20&amp;to=2026-05-20', false);
         $response->assertDontSee('api/cloud_tag_date.php');
     }
 

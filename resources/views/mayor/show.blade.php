@@ -172,7 +172,7 @@
                                 @foreach ($tagids as $tagId)
                                     <td class="number">{{ number_format((float) ($city['factors'][$candidate][$tagId] ?? 0), 2) }}</td>
                                 @endforeach
-                                <td><a href="{{ route('tags.compare', ['tags' => $candidate, 'type' => $type]) }}">關鍵字趨勢</a></td>
+                                <td><a href="{{ route('tags.compare', ['tagid' => implode(',', $tagids), 'tags' => $candidate, 'type' => $type, 'days' => $range['days'], 'from' => $range['from'], 'to' => $range['to']]) }}">關鍵字趨勢</a></td>
                             </tr>
                         @endforeach
                     </tbody>

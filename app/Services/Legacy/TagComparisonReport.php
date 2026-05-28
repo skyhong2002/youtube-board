@@ -188,14 +188,10 @@ class TagComparisonReport
         $this->whereLegacyFilter($query, 'tag_not', $this->normalizedList($filters['not']));
 
         $records = $query->orderByDesc('pk')->get();
-        $byDate = [];
+        $byDate = $this->rowsByDate($records, $type);
 
-        foreach ($records as $record) {
-            $date = substr((string) ($record->the_date ?? ''), 0, 10);
-
-            if ($date !== '' && ! isset($byDate[$date])) {
-                $byDate[$date] = $record;
-            }
+        if ($byDate === [] && $this->canAggregateSingletonTagRows($filters)) {
+            $byDate = $this->aggregatedSingletonRowsByDate($filters['tagid'], $range, $type);
         }
 
         $series = [];
@@ -214,8 +210,7 @@ class TagComparisonReport
                         continue;
                     }
 
-                    $pairs = $this->decodePairs($prior->{$type} ?? null);
-                    $value = (float) ($pairs[$keyword] ?? 0);
+                    $value = (float) ($prior['pairs'][$keyword] ?? 0);
                     $sum += $type === 'tags_result' ? $value * 100 : $value;
                 }
 
@@ -227,16 +222,117 @@ class TagComparisonReport
                 'date' => $date,
                 'has_record' => $record !== null,
                 'values' => $values,
-                'count_channels' => $record ? (int) ($record->count_channels ?? 0) : null,
-                'count_videos' => $record ? (int) ($record->count_videos ?? 0) : null,
-                'total_views' => $record ? (int) ($record->total_views ?? 0) : null,
+                'count_channels' => $record ? $record['count_channels'] : null,
+                'count_videos' => $record ? $record['count_videos'] : null,
+                'total_views' => $record ? $record['total_views'] : null,
             ];
         }
 
         return [
-            'cache_rows' => count($byDate),
+            'cache_rows' => (int) collect($byDate)->sum('cache_rows'),
             'series' => $series,
         ];
+    }
+
+    /**
+     * @return array<string, array{pairs: array<string, float>, count_channels: int, count_videos: int, total_views: int, cache_rows: int}>
+     */
+    private function rowsByDate(iterable $records, string $type): array
+    {
+        $byDate = [];
+
+        foreach ($records as $record) {
+            $date = substr((string) ($record->the_date ?? ''), 0, 10);
+
+            if ($date === '' || isset($byDate[$date])) {
+                continue;
+            }
+
+            $byDate[$date] = [
+                'pairs' => $this->decodePairs($record->{$type} ?? null),
+                'count_channels' => (int) ($record->count_channels ?? 0),
+                'count_videos' => (int) ($record->count_videos ?? 0),
+                'total_views' => (int) ($record->total_views ?? 0),
+                'cache_rows' => 1,
+            ];
+        }
+
+        return $byDate;
+    }
+
+    /**
+     * @param array{tagid: list<int>, or: list<int>, not: list<int>} $filters
+     */
+    private function canAggregateSingletonTagRows(array $filters): bool
+    {
+        return count($filters['tagid']) > 1
+            && $filters['or'] === []
+            && $filters['not'] === [];
+    }
+
+    /**
+     * @param list<int> $tagIds
+     * @param array{cache_from: string, to: string} $range
+     * @return array<string, array{pairs: array<string, float>, count_channels: int, count_videos: int, total_views: int, cache_rows: int}>
+     */
+    private function aggregatedSingletonRowsByDate(array $tagIds, array $range, string $type): array
+    {
+        $records = DB::table('urt_show_tag_date')
+            ->whereBetween('the_date', [$range['cache_from'], $range['to']])
+            ->whereIn('tagid', collect($tagIds)->map(fn (int $tagId): string => (string) $tagId)->all())
+            ->where(function (Builder $query): void {
+                $query->whereNull('tag_or')->orWhere('tag_or', '');
+            })
+            ->where(function (Builder $query): void {
+                $query->whereNull('tag_not')->orWhere('tag_not', '');
+            })
+            ->orderByDesc('pk')
+            ->get();
+
+        $latest = [];
+
+        foreach ($records as $record) {
+            $date = substr((string) ($record->the_date ?? ''), 0, 10);
+            $tagId = (int) ($record->tagid ?? 0);
+            $key = $date.'|'.$tagId;
+
+            if ($date === '' || $tagId <= 0 || isset($latest[$key])) {
+                continue;
+            }
+
+            $latest[$key] = $record;
+        }
+
+        $byDate = [];
+
+        foreach ($latest as $record) {
+            $date = substr((string) ($record->the_date ?? ''), 0, 10);
+
+            if ($date === '') {
+                continue;
+            }
+
+            if (! isset($byDate[$date])) {
+                $byDate[$date] = [
+                    'pairs' => [],
+                    'count_channels' => 0,
+                    'count_videos' => 0,
+                    'total_views' => 0,
+                    'cache_rows' => 0,
+                ];
+            }
+
+            foreach ($this->decodePairs($record->{$type} ?? null) as $keyword => $value) {
+                $byDate[$date]['pairs'][$keyword] = (float) ($byDate[$date]['pairs'][$keyword] ?? 0) + $value;
+            }
+
+            $byDate[$date]['count_channels'] += (int) ($record->count_channels ?? 0);
+            $byDate[$date]['count_videos'] += (int) ($record->count_videos ?? 0);
+            $byDate[$date]['total_views'] += (int) ($record->total_views ?? 0);
+            $byDate[$date]['cache_rows']++;
+        }
+
+        return $byDate;
     }
 
     /**

@@ -88,6 +88,50 @@ class TagComparisonRouteTest extends TestCase
         $response->assertSee('1,000');
     }
 
+    public function test_tag_comparison_aggregates_singleton_tag_cache_when_combined_tagid_cache_is_missing(): void
+    {
+        $this->createTables();
+
+        DB::table('urt_tag')->insert([
+            ['tag_id' => 3, 'tag_name' => '泛藍'],
+            ['tag_id' => 4, 'tag_name' => '泛綠'],
+        ]);
+
+        foreach ([
+            ['2026-05-20', '3', 100, 5],
+            ['2026-05-20', '4', 10, 15],
+            ['2026-05-21', '3', 200, 25],
+            ['2026-05-21', '4', 20, 35],
+        ] as $index => [$date, $tagId, $views, $otherViews]) {
+            DB::table('urt_show_tag_date')->insert([
+                'pk' => $index + 1,
+                'ctime' => $date.' 00:00:00',
+                'tagid' => $tagId,
+                'tag_or' => '',
+                'tag_not' => '',
+                'the_date' => $date,
+                'count_channels' => 2,
+                'count_videos' => 3,
+                'count_tags' => 2,
+                'tags_count' => 2,
+                'total_views' => $views * 10,
+                'tags_result' => json_encode(['蔣萬安' => 1], JSON_UNESCAPED_UNICODE),
+                'tags_video' => json_encode(['蔣萬安' => 1], JSON_UNESCAPED_UNICODE),
+                'tags_views' => json_encode(['蔣萬安' => $views, '沈伯洋' => $otherViews], JSON_UNESCAPED_UNICODE),
+            ]);
+        }
+
+        $response = $this->get('/tags/compare?tagid=3,4&tags=蔣萬安,沈伯洋&type=tags_views&from=2026-05-21&to=2026-05-21');
+
+        $response->assertOk();
+        $response->assertSee('泛藍 泛綠 多關鍵字趨勢比較');
+        $response->assertSee('cache rows 4');
+        $response->assertSee('tagid=3,4');
+        $response->assertSee('330');
+        $response->assertSee('80');
+        $response->assertDontSee('目前沒有符合條件的多關鍵字趨勢 cache');
+    }
+
     public function test_tag_comparison_reports_empty_local_cache_without_generation(): void
     {
         $this->createTables();
