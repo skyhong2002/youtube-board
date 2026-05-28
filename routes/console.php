@@ -27,6 +27,7 @@ use App\Services\Ingestion\MayorStaticReportsPreview;
 use App\Services\Ingestion\PeopleReportsPreview;
 use App\Services\Ingestion\ScheduleReportsPreview;
 use App\Services\Ingestion\StaticHtmlReportsPreview;
+use App\Services\Ingestion\TagCloudCacheBuilder;
 use App\Services\Ingestion\TagDateCacheBuilder;
 use App\Services\Ingestion\TagsAllCacheBuilder;
 use App\Services\Ingestion\TvbsChannelVideosDiscoveryIngestion;
@@ -1186,6 +1187,93 @@ Artisan::command('reports:tag-date:build {--tagid= : Comma-separated required ch
 
     return 0;
 })->purpose('Build legacy urt_show_tag_date rows from local videos and tags; dry-run by default');
+
+Artisan::command('reports:tag-cloud:build {--tagid= : Comma-separated required channel tag ids} {--or= : Comma-separated OR channel tag ids} {--not= : Comma-separated excluded channel tag ids} {--days=1,3,7,30,90 : Comma-separated list of period lengths to build} {--keyword-limit=5000 : Number of local keywords to scan} {--keywords= : Optional comma-separated keyword subset} {--execute : Write urt_show_tag_cloud rows} {--json : Emit JSON instead of text}', function (TagCloudCacheBuilder $builder) {
+    $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
+    $now = CarbonImmutable::now($timezone);
+    $tagIds = collect(explode(',', (string) $this->option('tagid')))
+        ->map(fn (string $id): int => (int) trim($id))
+        ->filter(fn (int $id): bool => $id > 0)
+        ->values()
+        ->all();
+
+    if ($tagIds === []) {
+        $this->error('reports:tag-cloud:build requires --tagid');
+
+        return 1;
+    }
+
+    $ids = fn (string $option): array => collect(explode(',', (string) $this->option($option)))
+        ->map(fn (string $id): int => (int) trim($id))
+        ->filter(fn (int $id): bool => $id > 0)
+        ->values()
+        ->all();
+    $keywords = collect(explode(',', (string) $this->option('keywords')))
+        ->map(fn (string $keyword): string => trim($keyword))
+        ->filter(fn (string $keyword): bool => $keyword !== '')
+        ->values()
+        ->all();
+    $daysList = collect(explode(',', (string) $this->option('days')))
+        ->map(fn (string $d): int => max(1, min(365, (int) trim($d))))
+        ->unique()
+        ->values()
+        ->all();
+
+    $rows = [];
+    $writes = 0;
+
+    foreach ($daysList as $days) {
+        $result = $builder->build(
+            tagIds: $tagIds,
+            days: $days,
+            orTagIds: $ids('or'),
+            notTagIds: $ids('not'),
+            keywordLimit: (int) $this->option('keyword-limit'),
+            onlyKeywords: $keywords,
+            execute: (bool) $this->option('execute'),
+            now: $now,
+        );
+        $writes += (int) $result['writes'];
+        $rows[] = $result;
+    }
+
+    $payload = [
+        'mode' => (bool) $this->option('execute') ? 'execute' : 'dry-run',
+        'tagid' => implode(',', $tagIds),
+        'days_list' => $daysList,
+        'rows' => $rows,
+        'writes' => $writes,
+    ];
+
+    if ((bool) $this->option('json')) {
+        $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        return 0;
+    }
+
+    $this->line(sprintf(
+        'reports:tag-cloud:build mode=%s tagid=%s days=%s rows=%d writes=%d',
+        $payload['mode'],
+        implode(',', $tagIds),
+        implode(',', $daysList),
+        count($rows),
+        $writes,
+    ));
+
+    foreach ($rows as $row) {
+        $this->line(sprintf(
+            'days=%d channels=%d videos=%d tags=%d views=%d writes=%d',
+            $row['days'],
+            $row['channels_matched'],
+            $row['videos_scanned'],
+            $row['tags_count'],
+            $row['total_views'],
+            $row['writes'],
+        ));
+    }
+
+    return 0;
+})->purpose('Build urt_show_tag_cloud rows from local videos and tags; dry-run by default');
 
 Artisan::command('youtube:videos:duration {--videoId= : Optional queued video id to preview} {--batch-size=50 : Legacy batch size, capped at 50} {--limit= : Alias for --batch-size when running limited smoke checks} {--loops=1 : Number of batches to preview} {--enqueue-missing : With --execute, create duration queue rows from existing urt_video when missing} {--execute : Call YouTube and write selected video durations to local DB} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (VideoDurationsPreview $preview, VideoDurationsIngestion $ingestion) {
     $batchSizeOption = $this->option('limit') !== null ? $this->option('limit') : $this->option('batch-size');

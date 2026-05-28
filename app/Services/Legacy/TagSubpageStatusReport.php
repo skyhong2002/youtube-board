@@ -111,7 +111,7 @@ class TagSubpageStatusReport
             'legacy_file' => 'cloud.php + api/tags_video.php',
             'tables' => ['urt_show_tag_cloud', 'urt_video', 'urt_count'],
             'reason' => 'Legacy 會從 `urt_video` 重新計算並補寫 `urt_show_tag_cloud`；本機 cache table 目前沒有資料。',
-            'next_step' => '等 tag cloud cache dump，或先設計 real-time YouTube dashboard derived report builder 後，再以 inline SVG/HTML 呈現文字雲。',
+            'next_step' => 'Run `php artisan reports:tag-cloud:build --execute --tagid=1 --days=1,3,7,30,90` to populate `urt_show_tag_cloud` from local `urt_video`/`urt_count`/`tags`.',
         ];
     }
 
