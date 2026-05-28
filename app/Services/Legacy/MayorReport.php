@@ -328,11 +328,14 @@ class MayorReport
                     $raw[$candidate] = $score;
                 }
 
-                $total = array_sum($raw);
+                $supportScores = collect($raw)
+                    ->map(fn (float $score): float => max(0.0, $score))
+                    ->all();
+                $total = array_sum($supportScores);
                 $percentages = [];
 
-                foreach ($raw as $candidate => $score) {
-                    $percentages[$candidate] = abs($total) > 0.000001 ? ($score / $total) * 100 : 0.0;
+                foreach ($supportScores as $candidate => $score) {
+                    $percentages[$candidate] = $total > 0.000001 ? ($score / $total) * 100 : 0.0;
                 }
 
                 return [

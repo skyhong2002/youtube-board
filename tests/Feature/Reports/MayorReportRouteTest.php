@@ -38,6 +38,36 @@ class MayorReportRouteTest extends TestCase
         $response->assertDontSee('api/cloud_tag_date.php');
     }
 
+    public function test_mayor_city_support_percentages_do_not_use_negative_weighted_scores_as_support(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTagDateCacheTable();
+
+        DB::table('urt_show_tag_date')->insert([
+            'pk' => 1,
+            'tagid' => '4',
+            'tag_or' => null,
+            'tag_not' => null,
+            'the_date' => '2026-05-20',
+            'total_views' => 200000,
+            'count_videos' => 10,
+            'count_channels' => 2,
+            'tags_views' => json_encode(['謝國樑' => 100000, '童子瑋' => 100000], JSON_UNESCAPED_UNICODE),
+            'tags_video' => json_encode([], JSON_UNESCAPED_UNICODE),
+            'tags_result' => json_encode([], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->get('/mayor/cities/keelung?from=2026-05-20&to=2026-05-20&type=tags_views');
+
+        $response->assertOk();
+        $response->assertSee('0.00%');
+        $response->assertSee('-90,000.00');
+        $response->assertSee('100.00%');
+        $response->assertSee('300,000.00');
+        $response->assertDontSee('-42.86%');
+        $response->assertDontSee('142.86%');
+    }
+
     public function test_mayor_city_page_shows_unavailable_state_with_cache_refresh_guidance(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
