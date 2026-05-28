@@ -63,8 +63,8 @@ The AI client tries the primary `OPENAI_*` provider first. If it fails and `OPEN
 
 For derived report freshness, add:
 
-- `reports.keywords.build`: syncs `tags` from `tag.analysis.tw/api/tag_json.php` while leaving legacy filesystem keyword JSON writes disabled.
-- `reports.groups.build`: syncs `tag_group` from `tag.analysis.tw/api/group.php`.
+- `reports.keywords.build`: syncs `tags` from 新文易數 `tag.analysis.tw/api/tag_json.php` while leaving legacy filesystem keyword JSON writes disabled.
+- `reports.groups.build`: syncs `tag_group` from 新文易數 `tag.analysis.tw/api/group.php`.
 - `reports.people.build`: refreshes selected political-people `urt_show_tag_date` cache rows from local `urt_video`, `urt_count`, and `tags`.
 - `reports.counts.build` and `reports.schedule.build`: refresh local derived count deltas and schedule stime rows from existing local log/cache data.
 

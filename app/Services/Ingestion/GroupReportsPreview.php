@@ -78,7 +78,7 @@ class GroupReportsPreview
             'deleted_rows' => $deletedRows,
             'latest_time' => $latestTime !== null ? (string) $latestTime : null,
             'rows' => $rows,
-            'external_fetch_skipped' => 'legacy tag.analysis.tw group sync is intentionally not called in read-only mode',
+            'external_fetch_skipped' => '新文易數 tag.analysis.tw group sync is intentionally not called in read-only mode',
             'synced_rows' => $syncedRows,
             'writes' => $execute ? ['tag_group'] : [],
         ];
@@ -92,7 +92,7 @@ class GroupReportsPreview
             ->get('https://tag.analysis.tw/api/group.php', ['hours' => $hours]);
 
         if (! $response->successful()) {
-            throw new \RuntimeException('legacy group sync failed status='.$response->status());
+            throw new \RuntimeException('tag.analysis.tw group sync failed status='.$response->status());
         }
 
         $payload = $response->json();

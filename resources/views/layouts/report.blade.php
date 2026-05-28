@@ -195,6 +195,85 @@
                 background: var(--surface-2);
             }
 
+            .report-table {
+                width: 100%;
+                min-width: var(--report-table-min-width, 960px);
+                border-collapse: collapse;
+                table-layout: fixed;
+            }
+
+            .report-table th,
+            .report-table td {
+                overflow-wrap: anywhere;
+            }
+
+            .report-table .report-col-rank {
+                width: var(--report-col-rank, 56px);
+            }
+
+            .report-table .report-col-thumb {
+                width: var(--report-col-thumb, 88px);
+            }
+
+            .report-table .report-col-name,
+            .report-table .report-col-keyword,
+            .report-table .report-col-channel {
+                width: var(--report-col-label, 180px);
+            }
+
+            .report-table .report-col-time {
+                width: var(--report-col-time, 150px);
+            }
+
+            .report-table .report-col-date {
+                width: var(--report-col-date, 118px);
+            }
+
+            .report-table .report-col-number {
+                width: var(--report-col-number, 104px);
+            }
+
+            .report-table .report-col-actions {
+                width: var(--report-col-actions, 360px);
+            }
+
+            .report-table .report-col-trend {
+                width: var(--report-col-trend, 180px);
+            }
+
+            .report-table .report-col-fill {
+                width: auto;
+            }
+
+            .report-table .rank,
+            .report-table .number {
+                text-align: right;
+                font-variant-numeric: tabular-nums;
+                white-space: nowrap;
+            }
+
+            .report-table .time,
+            .report-table .trend {
+                white-space: nowrap;
+            }
+
+            .report-table .tag-name,
+            .report-table .keyword,
+            .report-table .name,
+            .report-table .channel {
+                min-width: 0;
+            }
+
+            .report-table .title-cell {
+                min-width: 0;
+                line-height: 1.45;
+            }
+
+            .report-table .row-actions {
+                min-width: 0;
+                gap: 6px;
+            }
+
             @media (max-width: 760px) {
                 .yb-shell {
                     padding: 12px 16px 22px;

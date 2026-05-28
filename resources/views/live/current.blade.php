@@ -202,7 +202,18 @@
             @endif
 
             <div class="table-wrap">
-                <table>
+                <table class="report-table" style="--report-table-min-width: 1280px; --report-col-label: 170px; --report-col-number: 96px; --report-col-time: 150px; --report-col-trend: 150px;">
+                    <colgroup>
+                        <col class="report-col-rank">
+                        <col class="report-col-thumb">
+                        <col class="report-col-channel">
+                        <col class="report-col-time">
+                        <col class="report-col-fill">
+                        <col class="report-col-number">
+                        <col class="report-col-number">
+                        <col class="report-col-trend">
+                        <col class="report-col-number">
+                    </colgroup>
                     <thead>
                         <tr>
                             <th scope="col">排名</th>

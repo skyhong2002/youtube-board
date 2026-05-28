@@ -59,6 +59,7 @@ class KeywordReportsPreview
 
             if ($reason !== null) {
                 $excluded[$reason]++;
+
                 continue;
             }
 
@@ -107,7 +108,7 @@ class KeywordReportsPreview
                 'data/keyword.json',
                 'data/keyword_all.json',
             ],
-            'external_fetch_skipped' => 'legacy tag.analysis.tw fetch is intentionally skipped in read-only mode',
+            'external_fetch_skipped' => '新文易數 tag.analysis.tw keyword fetch is intentionally skipped in read-only mode',
             'synced_rows' => $syncedRows,
             'writes' => $execute ? ['tags'] : [],
         ];
@@ -121,13 +122,13 @@ class KeywordReportsPreview
             ->get('https://tag.analysis.tw/api/tag_json.php', ['hours' => $hours]);
 
         if (! $response->successful()) {
-            throw new \RuntimeException('legacy keyword sync failed status='.$response->status());
+            throw new \RuntimeException('tag.analysis.tw keyword sync failed status='.$response->status());
         }
 
         $rows = $response->json();
 
         if (! is_array($rows)) {
-            throw new \RuntimeException('legacy keyword sync returned non-json payload');
+            throw new \RuntimeException('tag.analysis.tw keyword sync returned non-json payload');
         }
 
         $synced = 0;

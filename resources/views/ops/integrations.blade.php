@@ -125,9 +125,9 @@
 @section('content')
     <p class="integration-note">
         @if ($liveProbe)
-            Local live probe 已啟用；標示為 live probe 的檢查可能會呼叫外部 API。
+            Local live probe 已啟用；標示為 live probe 的檢查可能會呼叫外部 API。新文易數 tag.analysis.tw 會使用快取的公開端點 probe。
         @else
-            公開 ops 頁面預設只做 config-only checks，不會主動呼叫 YouTube、AI、Dokploy 或 legacy external APIs。
+            公開 ops 頁面預設只做 config-only checks，不會主動呼叫 YouTube、AI 或 Dokploy。新文易數 tag.analysis.tw 會使用快取的公開端點 probe，不寫資料庫或檔案。
         @endif
     </p>
 

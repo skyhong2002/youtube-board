@@ -60,7 +60,18 @@
             @endif
 
             <div class="table-wrap">
-                <table>
+                <table class="report-table" style="--report-table-min-width: 1180px; --report-col-label: 170px; --report-col-number: 88px; --report-col-time: 150px;">
+                    <colgroup>
+                        <col class="report-col-rank">
+                        <col class="report-col-thumb">
+                        <col class="report-col-channel">
+                        <col class="report-col-time">
+                        <col class="report-col-fill">
+                        <col class="report-col-number">
+                        <col class="report-col-number">
+                        <col class="report-col-number">
+                        <col class="report-col-number">
+                    </colgroup>
                     <thead>
                         <tr>
                             <th>排名</th>

@@ -71,7 +71,16 @@
             @endif
 
             <div class="table-wrap">
-                <table>
+                <table class="report-table" style="--report-table-min-width: 940px; --report-col-label: 170px; --report-col-number: 96px;">
+                    <colgroup>
+                        <col class="report-col-rank">
+                        <col class="report-col-name">
+                        <col class="report-col-number">
+                        <col class="report-col-number">
+                        <col class="report-col-number">
+                        <col class="report-col-number">
+                        <col class="report-col-actions">
+                    </colgroup>
                     <thead>
                         <tr>
                             <th>No</th>

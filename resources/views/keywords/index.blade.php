@@ -52,7 +52,19 @@
             @endif
 
             <div class="table-wrap">
-                <table>
+                <table class="report-table" style="--report-table-min-width: 1180px; --report-col-label: 170px; --report-col-number: 88px; --report-col-date: 112px; --report-col-actions: 330px;">
+                    <colgroup>
+                        <col class="report-col-rank">
+                        <col class="report-col-keyword">
+                        <col class="report-col-number">
+                        <col class="report-col-number">
+                        <col class="report-col-date">
+                        <col class="report-col-number">
+                        <col class="report-col-number">
+                        <col class="report-col-number">
+                        <col class="report-col-number">
+                        <col class="report-col-actions">
+                    </colgroup>
                     <thead>
                         <tr>
                             <th>No</th>

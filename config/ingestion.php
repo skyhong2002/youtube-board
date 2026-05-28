@@ -161,9 +161,9 @@ return [
             'schedule' => '27 3,8,11,13,18,23 * * *',
             'cadence' => '每日 6 次',
             'status' => 'active',
-            'external_dependency' => 'tag.analysis.tw keyword API when allowlisted',
+            'external_dependency' => '新文易數 tag.analysis.tw keyword API when allowlisted',
             'writes' => ['none by default; scheduled/local `--execute` upserts local `tags` rows'],
-            'notes' => 'Legacy 會從 `tag.analysis.tw` 抓 tag JSON、更新 `tags`，再寫 `data/keyword.json` / `data/keyword_all.json`；modern command 預設只用本機 `tags` 預覽 keyword JSON，不寫檔案。Explicit/scheduled `--execute` 會呼叫 `tag.analysis.tw/api/tag_json.php` 並 upsert 本機 `tags`，但仍不覆寫 filesystem JSON。',
+            'notes' => 'Legacy maintenance 會從新文易數 `tag.analysis.tw` 抓 tag JSON、更新 `tags`，再寫 `data/keyword.json` / `data/keyword_all.json`；modern command 預設只用本機 `tags` 預覽 keyword JSON，不寫檔案。Explicit/scheduled `--execute` 會呼叫 `tag.analysis.tw/api/tag_json.php` 並 upsert 本機 `tags`，但仍不覆寫 filesystem JSON。',
         ],
         [
             'key' => 'reports.people.build',
@@ -189,9 +189,9 @@ return [
             'schedule' => '27 3,8,11,13,18,23 * * *',
             'cadence' => '每日 6 次',
             'status' => 'active',
-            'external_dependency' => 'tag.analysis.tw group API when allowlisted',
+            'external_dependency' => '新文易數 tag.analysis.tw group API when allowlisted',
             'writes' => ['none by default; scheduled/local `--execute` upserts local `tag_group` rows'],
-            'notes' => 'Legacy 會呼叫 `https://tag.analysis.tw/api/group.php?hours=...`，再 insert/update `tag_group`；modern command 預設只彙整本機 `tag_group` 狀態。Explicit/scheduled `--execute` 會呼叫 external group API 並 upsert 本機 `tag_group`。',
+            'notes' => 'Legacy maintenance 會呼叫新文易數 `https://tag.analysis.tw/api/group.php?hours=...`，再 insert/update `tag_group`；modern command 預設只彙整本機 `tag_group` 狀態。Explicit/scheduled `--execute` 會呼叫 external group API 並 upsert 本機 `tag_group`。',
         ],
         [
             'key' => 'reports.schedule.build',

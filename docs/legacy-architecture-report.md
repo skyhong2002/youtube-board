@@ -43,7 +43,7 @@ Legacy 站台由 Apache vhost 對外提供 `youtube.board.tw`，程式根目錄�
 資料流大致是：
 
 ```text
-YouTube Data API / tag.analysis.tw / OpenAI
+YouTube Data API / 新文易數 tag.analysis.tw / OpenAI
   -> maint/*.php cron jobs
   -> MySQL core tables and JSON log columns
   -> api/*.php cache builders and urt_show_* tables
@@ -116,9 +116,9 @@ YouTube Data API / tag.analysis.tw / OpenAI
 
 共用的條件組合邏輯在 `include/condition.php`，大量 public pages 和 AI scripts 都使用相同概念。
 
-`tags` 表則存來自 `tag.analysis.tw` 的文字關鍵字。`maint/make_keyword.php` 從外部 tag analysis API 同步關鍵字，再輸出 `data/keyword.json` 與 `data/keyword_all.json`。這是文字雲與關鍵字頁的基礎。
+`tags` 表則存來自新文易數 `tag.analysis.tw` 的文字關鍵字。`maint/make_keyword.php` 從這個外部 API 同步關鍵字，再輸出 `data/keyword.json` 與 `data/keyword_all.json`。這是文字雲與關鍵字頁的基礎。
 
-`tag_group` 用來把關鍵字放進群組，例如政治人物、議題分組等。`maint/get_group.php` 從 `tag.analysis.tw/api/group.php` 同步。
+`tag_group` 用來把關鍵字放進群組，例如政治人物、議題分組等。`maint/get_group.php` 從新文易數 `tag.analysis.tw/api/group.php` 同步。
 
 ### Comments Layer
 

@@ -1,24 +1,19 @@
 <?php
 
-use Illuminate\Foundation\Inspiring;
-use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schedule;
-use Carbon\CarbonImmutable;
 use App\Services\Ingestion\AiDailyIngestion;
 use App\Services\Ingestion\AiDailyPreview;
 use App\Services\Ingestion\AiHourlyIngestion;
 use App\Services\Ingestion\AiHourlyPreview;
-use App\Services\Ingestion\CommentFetchIngestion;
-use App\Services\Ingestion\CommentFetchPreview;
-use App\Services\Ingestion\CommentQueueIngestion;
-use App\Services\Ingestion\CommentQueuePreview;
-use App\Services\Ingestion\GroupReportsPreview;
 use App\Services\Ingestion\ChannelCountsPreview;
 use App\Services\Ingestion\ChannelStatisticsIngestion;
 use App\Services\Ingestion\ChannelStatisticsPreview;
 use App\Services\Ingestion\ChannelVideosDiscoveryIngestion;
 use App\Services\Ingestion\ChannelVideosDiscoveryPreview;
+use App\Services\Ingestion\CommentFetchIngestion;
+use App\Services\Ingestion\CommentFetchPreview;
+use App\Services\Ingestion\CommentQueueIngestion;
+use App\Services\Ingestion\CommentQueuePreview;
+use App\Services\Ingestion\GroupReportsPreview;
 use App\Services\Ingestion\IngestionJobRegistry;
 use App\Services\Ingestion\IngestionRunHistory;
 use App\Services\Ingestion\IngestionSchedulerRunner;
@@ -42,7 +37,12 @@ use App\Services\Ingestion\VideoDurationsIngestion;
 use App\Services\Ingestion\VideoDurationsPreview;
 use App\Services\Ingestion\VideoStatisticsIngestion;
 use App\Services\Ingestion\VideoStatisticsPreview;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
+use Illuminate\Foundation\Inspiring;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -228,11 +228,11 @@ Artisan::command('youtube:channels:stats {--u_id= : Optional channel u_id to pre
         $this->error('youtube:channels:stats unavailable: '.$exception->getMessage());
 
         return 1;
-    } catch (\RuntimeException $exception) {
+    } catch (RuntimeException $exception) {
         $this->line('youtube:channels:stats execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
         return 1;
-    } catch (\Throwable $exception) {
+    } catch (Throwable $exception) {
         $this->line('youtube:channels:stats execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
         return 1;
@@ -360,11 +360,11 @@ Artisan::command('youtube:channels:videos {--id= : Optional legacy channel u_id 
         $this->error('youtube:channels:videos unavailable: '.$exception->getMessage());
 
         return 1;
-    } catch (\RuntimeException $exception) {
+    } catch (RuntimeException $exception) {
         $this->line('youtube:channels:videos execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
         return 1;
-    } catch (\Throwable $exception) {
+    } catch (Throwable $exception) {
         $this->line('youtube:channels:videos execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
         return 1;
@@ -487,11 +487,11 @@ Artisan::command('youtube:tvbs:videos {--tag=29 : Legacy TVBS channel tag id in 
         $this->error('youtube:tvbs:videos unavailable: '.$exception->getMessage());
 
         return 1;
-    } catch (\RuntimeException $exception) {
+    } catch (RuntimeException $exception) {
         $this->line('youtube:tvbs:videos execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
         return 1;
-    } catch (\Throwable $exception) {
+    } catch (Throwable $exception) {
         $this->line('youtube:tvbs:videos execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
         return 1;
@@ -598,11 +598,11 @@ Artisan::command('youtube:live:poll {--videoId= : Optional live video id to prev
         $this->error('youtube:live:poll unavailable: '.$exception->getMessage());
 
         return 1;
-    } catch (\RuntimeException $exception) {
+    } catch (RuntimeException $exception) {
         $this->line('youtube:live:poll execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
         return 1;
-    } catch (\Throwable $exception) {
+    } catch (Throwable $exception) {
         $this->line('youtube:live:poll execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
         return 1;
@@ -714,11 +714,11 @@ Artisan::command('youtube:tvbs:live:poll {--videoId= : Optional TVBS live video 
         $this->error('youtube:tvbs:live:poll unavailable: '.$exception->getMessage());
 
         return 1;
-    } catch (\RuntimeException $exception) {
+    } catch (RuntimeException $exception) {
         $this->line('youtube:tvbs:live:poll execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
         return 1;
-    } catch (\Throwable $exception) {
+    } catch (Throwable $exception) {
         $this->line('youtube:tvbs:live:poll execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
         return 1;
@@ -1295,11 +1295,11 @@ Artisan::command('youtube:videos:duration {--videoId= : Optional queued video id
         $this->error('youtube:videos:duration unavailable: '.$exception->getMessage());
 
         return 1;
-    } catch (\RuntimeException $exception) {
+    } catch (RuntimeException $exception) {
         $this->line('youtube:videos:duration execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
         return 1;
-    } catch (\Throwable $exception) {
+    } catch (Throwable $exception) {
         $this->line('youtube:videos:duration execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
         return 1;
@@ -1411,11 +1411,11 @@ Artisan::command('youtube:videos:stats {--videoId= : Optional video id to previe
         $this->error('youtube:videos:stats unavailable: '.$exception->getMessage());
 
         return 1;
-    } catch (\RuntimeException $exception) {
+    } catch (RuntimeException $exception) {
         $this->line('youtube:videos:stats execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
         return 1;
-    } catch (\Throwable $exception) {
+    } catch (Throwable $exception) {
         $this->line('youtube:videos:stats execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
         return 1;
@@ -1476,7 +1476,7 @@ Artisan::command('reports:counts:build {--id= : Optional u_id to preview, matchi
     }
 })->purpose('Preview or execute legacy channel weekly/monthly count delta updates');
 
-Artisan::command('reports:keywords:build {--limit=20 : Number of preview keywords to print} {--recent-days=7 : Window for keyword_all preview, matching legacy weekly freshness} {--hours=2 : Legacy tag.analysis.tw lookback hours for execute sync} {--execute : Fetch tag.analysis.tw keyword JSON and upsert local tags} {--json : Emit JSON instead of text}', function (KeywordReportsPreview $preview) {
+Artisan::command('reports:keywords:build {--limit=20 : Number of preview keywords to print} {--recent-days=7 : Window for keyword_all preview, matching legacy weekly freshness} {--hours=2 : 新文易數 tag.analysis.tw lookback hours for execute sync} {--execute : Fetch tag.analysis.tw keyword JSON and upsert local tags} {--json : Emit JSON instead of text}', function (KeywordReportsPreview $preview) {
     $limit = max(1, min(100, (int) $this->option('limit')));
     $recentDays = max(1, min(30, (int) $this->option('recent-days')));
 
@@ -1532,12 +1532,12 @@ Artisan::command('reports:keywords:build {--limit=20 : Number of preview keyword
         $this->error('reports:keywords:build unavailable: '.$exception->getMessage());
 
         return 1;
-    } catch (\RuntimeException $exception) {
+    } catch (RuntimeException $exception) {
         $this->line('reports:keywords:build execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
         return 1;
     }
-})->purpose('Preview or execute legacy keyword sync from tag.analysis.tw; file writes remain disabled');
+})->purpose('Preview or execute keyword sync from 新文易數 tag.analysis.tw; file writes remain disabled');
 
 Artisan::command('reports:keywords:cache {--execute : Write the rebuilt tags_all cache to local DB} {--days=31 : Calendar-day window to aggregate, matching legacy tags_all.php} {--recent-days=7 : Recent window used for video/views metrics; legacy includes today plus this many previous days} {--keyword-limit=1000 : Number of ranked keywords to scan} {--video-limit= : Optional cap for smoke tests} {--json : Emit JSON instead of text}', function (TagsAllCacheBuilder $builder) {
     $days = max(1, min(90, (int) $this->option('days')));
@@ -1643,14 +1643,14 @@ Artisan::command('reports:people:build {--group=政治人物 : tag_group group_n
         }
 
         return 0;
-} catch (QueryException $exception) {
-    $this->error('reports:people:build unavailable: '.$exception->getMessage());
+    } catch (QueryException $exception) {
+        $this->error('reports:people:build unavailable: '.$exception->getMessage());
 
-    return 1;
-}
+        return 1;
+    }
 })->purpose('Preview or execute legacy political-people tag-date cache generation from local DB');
 
-Artisan::command('reports:groups:build {--group= : Preview one tag_group group_name} {--hours=22 : Legacy tag.analysis.tw lookback parameter} {--limit=20 : Number of groups to print} {--execute : Fetch tag.analysis.tw group JSON and upsert local tag_group} {--json : Emit JSON instead of text}', function (GroupReportsPreview $preview) {
+Artisan::command('reports:groups:build {--group= : Preview one tag_group group_name} {--hours=22 : 新文易數 tag.analysis.tw lookback parameter} {--limit=20 : Number of groups to print} {--execute : Fetch tag.analysis.tw group JSON and upsert local tag_group} {--json : Emit JSON instead of text}', function (GroupReportsPreview $preview) {
     try {
         $payload = $preview->preview(
             groupName: $this->option('group') ? (string) $this->option('group') : null,
@@ -1696,12 +1696,12 @@ Artisan::command('reports:groups:build {--group= : Preview one tag_group group_n
         $this->error('reports:groups:build unavailable: '.$exception->getMessage());
 
         return 1;
-    } catch (\RuntimeException $exception) {
+    } catch (RuntimeException $exception) {
         $this->line('reports:groups:build execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
         return 1;
     }
-})->purpose('Preview or execute legacy tag_group sync from tag.analysis.tw');
+})->purpose('Preview or execute tag_group sync from 新文易數 tag.analysis.tw');
 
 Artisan::command('reports:schedule:build {--videoId= : Preview one scheduled video} {--hours=1 : Lookback window for recently refreshed schedule rows} {--limit=20 : Number of schedule rows to print/update} {--execute : Update selected urt_video_schedule stime rows} {--json : Emit JSON instead of text}', function (ScheduleReportsPreview $preview) {
     try {
@@ -1954,7 +1954,7 @@ Artisan::command('ai:hourly {--condition= : Optional legacy condition; omitted m
         $this->error('ai:hourly unavailable: '.$exception->getMessage());
 
         return 1;
-    } catch (\Throwable $exception) {
+    } catch (Throwable $exception) {
         $this->line('ai:hourly execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
         return 1;
@@ -2054,7 +2054,7 @@ Artisan::command('youtube:comments:queue {--tagid= : Legacy AND tag filter} {--o
         $this->error('youtube:comments:queue unavailable: '.$exception->getMessage());
 
         return 1;
-    } catch (\Throwable $exception) {
+    } catch (Throwable $exception) {
         $this->line('youtube:comments:queue execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
         return 1;
@@ -2158,7 +2158,7 @@ Artisan::command('youtube:comments:fetch {--videoId= : Optional queued video id 
         $this->error('youtube:comments:fetch unavailable: '.$exception->getMessage());
 
         return 1;
-    } catch (\Throwable $exception) {
+    } catch (Throwable $exception) {
         $this->line('youtube:comments:fetch execute unavailable: '.$exception->getMessage().' secrets=not_printed');
 
         return 1;

@@ -47,7 +47,19 @@
             @endif
 
             <div class="table-wrap">
-                <table>
+                <table class="report-table" style="--report-table-min-width: 1040px; --report-col-thumb: 72px; --report-col-label: 220px; --report-col-number: 96px;">
+                    <colgroup>
+                        <col class="report-col-rank">
+                        <col class="report-col-thumb">
+                        <col class="report-col-name">
+                        <col class="report-col-number">
+                        <col class="report-col-number">
+                        <col class="report-col-number">
+                        <col class="report-col-number">
+                        <col class="report-col-number">
+                        <col class="report-col-number">
+                        <col class="report-col-fill">
+                    </colgroup>
                     <thead>
                         <tr>
                             <th>排名</th>

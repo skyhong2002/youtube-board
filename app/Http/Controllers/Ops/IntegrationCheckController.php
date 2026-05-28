@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 
@@ -13,7 +14,11 @@ class IntegrationCheckController extends Controller
 {
     public function index(): Response
     {
-        return $this->renderPage($this->youtubeConfigPayload(), 'config-only · external services and dependencies');
+        return $this->renderPage(
+            $this->youtubeConfigPayload(),
+            $this->cachedTagAnalysisLivePayload(),
+            'config-only + public endpoint health checks',
+        );
     }
 
     public function devCheck(): Response|RedirectResponse
@@ -24,7 +29,11 @@ class IntegrationCheckController extends Controller
 
         [$payload] = $this->youtubeLivePayload();
 
-        return $this->renderPage($payload, 'live probe · external services and dependencies');
+        return $this->renderPage(
+            $payload,
+            $this->cachedTagAnalysisLivePayload(),
+            'live probe · external services and dependencies',
+        );
     }
 
     public function youtube(): JsonResponse
@@ -34,10 +43,10 @@ class IntegrationCheckController extends Controller
         return response()->json($payload, $status);
     }
 
-    private function renderPage(array $youtubePayload, string $meta): Response
+    private function renderPage(array $youtubePayload, array $tagAnalysisPayload, string $meta): Response
     {
         return response()->view('ops.integrations', [
-            'checks' => $this->integrationChecks($youtubePayload),
+            'checks' => $this->integrationChecks($youtubePayload, $tagAnalysisPayload),
             'meta' => $meta,
             'liveProbe' => ($youtubePayload['probe_mode'] ?? null) === 'live',
         ]);
@@ -112,13 +121,13 @@ class IntegrationCheckController extends Controller
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function integrationChecks(array $youtubePayload): array
+    private function integrationChecks(array $youtubePayload, array $tagAnalysisPayload): array
     {
         return [
             $this->youtubeCheck($youtubePayload),
             $this->aiProviderCheck(),
             $this->dokployDeployCheck(),
-            $this->tagAnalysisCheck(),
+            $this->tagAnalysisCheck($tagAnalysisPayload),
             $this->databaseCheck(),
         ];
     }
@@ -218,19 +227,133 @@ class IntegrationCheckController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function tagAnalysisCheck(): array
+    private function cachedTagAnalysisLivePayload(): array
     {
+        $cacheKey = 'ops.integrations.tag_analysis_live_payload';
+        $cached = Cache::get($cacheKey);
+
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        $payload = $this->tagAnalysisLivePayload();
+
+        Cache::put(
+            $cacheKey,
+            $payload,
+            now()->addMinutes((bool) ($payload['ok'] ?? false) ? 10 : 1),
+        );
+
+        return $payload;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function tagAnalysisLivePayload(): array
+    {
+        $keyword = $this->probeTagAnalysisEndpoint(
+            'keyword',
+            'https://tag.analysis.tw/api/tag_json.php',
+            ['hours' => 2],
+        );
+        $group = $this->probeTagAnalysisEndpoint(
+            'group',
+            'https://tag.analysis.tw/api/group.php',
+            ['hours' => 22],
+        );
+
+        $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
+
         return [
-            'name' => 'tag.analysis.tw APIs',
-            'description' => '關鍵字與群組資料同步 execute mode 會使用的 legacy 外部端點。',
-            'state' => 'not_checked',
-            'status' => 'not checked',
-            'details' => [
-                ['label' => 'Check', 'value' => 'endpoint inventory only; no external request'],
-                ['label' => 'Keyword endpoint', 'value' => 'https://tag.analysis.tw/api/tag_json.php'],
-                ['label' => 'Group endpoint', 'value' => 'https://tag.analysis.tw/api/group.php'],
-            ],
+            'ok' => (bool) ($keyword['ok'] ?? false) && (bool) ($group['ok'] ?? false),
+            'service' => 'shin_wen_yi_shu_tag_analysis',
+            'probe_mode' => 'live',
+            'checked_at' => now($timezone)->format('Y-m-d H:i:s'),
+            'keyword' => $keyword,
+            'group' => $group,
         ];
+    }
+
+    /**
+     * @param  array<string, int>  $query
+     * @return array<string, mixed>
+     */
+    private function probeTagAnalysisEndpoint(string $kind, string $endpoint, array $query): array
+    {
+        try {
+            $response = Http::timeout(10)
+                ->retry(1, 250)
+                ->get($endpoint, $query);
+        } catch (\Throwable $exception) {
+            return [
+                'ok' => false,
+                'endpoint' => $endpoint,
+                'http_status' => 'n/a',
+                'rows' => 0,
+                'shape' => 'request failed',
+                'error' => $exception->getMessage(),
+            ];
+        }
+
+        $payload = $response->json();
+
+        if ($kind === 'keyword') {
+            $validShape = is_array($payload) && array_is_list($payload);
+            $rows = $validShape ? count($payload) : 0;
+        } else {
+            $validShape = is_array($payload)
+                && array_key_exists('result', $payload)
+                && ($payload['result'] === null || is_array($payload['result']));
+            $rows = $validShape && is_array($payload['result']) ? count($payload['result']) : 0;
+        }
+
+        return [
+            'ok' => $response->successful() && $validShape,
+            'endpoint' => $endpoint,
+            'http_status' => $response->status(),
+            'rows' => $rows,
+            'shape' => $validShape ? 'valid JSON shape' : 'unexpected JSON shape',
+            'error' => $response->successful() && $validShape ? null : 'Unexpected response from tag.analysis.tw.',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function tagAnalysisCheck(array $payload): array
+    {
+        $ok = (bool) ($payload['ok'] ?? false);
+        $keyword = is_array($payload['keyword'] ?? null) ? $payload['keyword'] : [];
+        $group = is_array($payload['group'] ?? null) ? $payload['group'] : [];
+
+        return [
+            'name' => '新文易數 tag.analysis.tw APIs',
+            'description' => '關鍵字與群組資料同步 execute mode 會使用的新文易數公開 API。',
+            'state' => $ok ? 'ok' : 'failed',
+            'status' => $ok ? 'OK' : 'failed',
+            'details' => array_values(array_filter([
+                ['label' => 'Check', 'value' => 'cached public endpoint probe; read-only GET; no local writes'],
+                ['label' => 'Checked at', 'value' => (string) ($payload['checked_at'] ?? 'n/a')],
+                ['label' => 'Keyword endpoint', 'value' => $this->formatTagAnalysisEndpointStatus($keyword)],
+                ['label' => 'Group endpoint', 'value' => $this->formatTagAnalysisEndpointStatus($group)],
+                ! $ok ? ['label' => 'Error', 'value' => (string) (($keyword['error'] ?? null) ?: ($group['error'] ?? 'Unknown error'))] : null,
+            ])),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function formatTagAnalysisEndpointStatus(array $payload): string
+    {
+        return sprintf(
+            '%s · HTTP %s · rows=%d · %s',
+            (string) ($payload['endpoint'] ?? 'n/a'),
+            (string) ($payload['http_status'] ?? 'n/a'),
+            (int) ($payload['rows'] ?? 0),
+            (string) ($payload['shape'] ?? 'unknown shape'),
+        );
     }
 
     /**

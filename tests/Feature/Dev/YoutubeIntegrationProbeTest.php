@@ -27,6 +27,8 @@ class YoutubeIntegrationProbeTest extends TestCase
                     ],
                 ],
             ]),
+            'https://tag.analysis.tw/api/tag_json.php*' => Http::response([]),
+            'https://tag.analysis.tw/api/group.php*' => Http::response(['result' => []]),
         ]);
 
         $response = $this->get(route('dev.integrations.youtube.probe'));
@@ -58,6 +60,8 @@ class YoutubeIntegrationProbeTest extends TestCase
                     ],
                 ],
             ]),
+            'https://tag.analysis.tw/api/tag_json.php*' => Http::response([]),
+            'https://tag.analysis.tw/api/group.php*' => Http::response(['result' => []]),
         ]);
 
         $response = $this->get(route('dev.yt.check'));
@@ -88,6 +92,8 @@ class YoutubeIntegrationProbeTest extends TestCase
                     ],
                 ],
             ]),
+            'https://tag.analysis.tw/api/tag_json.php*' => Http::response([]),
+            'https://tag.analysis.tw/api/group.php*' => Http::response(['result' => []]),
         ]);
 
         $response = $this->get(route('dev.check'));
@@ -98,7 +104,7 @@ class YoutubeIntegrationProbeTest extends TestCase
         $response->assertSee('YouTube Data API v3');
         $response->assertSee('OpenAI-compatible AI API');
         $response->assertSee('Dokploy deploy relay');
-        $response->assertSee('tag.analysis.tw APIs');
+        $response->assertSee('新文易數 tag.analysis.tw APIs');
         $response->assertSee('Database');
         $response->assertSee('Example video');
         $response->assertDontSee('Integration Check');
