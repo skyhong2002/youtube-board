@@ -58,7 +58,7 @@ class TvbsChannelVideosDiscoveryPreview
         $tvbsLiveStats = $this->tvbsLiveStats($uIds);
 
         return [
-            'mode' => 'read-only-preview',
+            'mode' => 'ingestion-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'source' => $uId !== null
                 ? 'tvbs_single_channel_id'
@@ -79,7 +79,7 @@ class TvbsChannelVideosDiscoveryPreview
                 ->filter(fn (object $row): bool => trim((string) ($row->uploads ?? '')) === '')
                 ->count(),
             'would_call_api' => $channels->isNotEmpty(),
-            'playlist_api_skipped' => 'YouTube Data API playlistItems.list(snippet) is intentionally not called in read-only mode',
+            'playlist_api_skipped' => 'YouTube Data API playlistItems.list(snippet) is intentionally not called in planning mode',
             'would_fetch_per_channel' => 50,
             'tvbs_specific_table' => 'urt_video_live_tvbs',
             'writes_skipped' => [

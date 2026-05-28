@@ -1,10 +1,10 @@
 # DB Dumps
 
-Production DB access is read-only unless explicitly approved otherwise. Dumps should be kept out of git.
+Production DB access requires explicit approval and should flow through documented exports or reviewed ingestion operations. Dumps should be kept out of git.
 
 ## Data Capture Policy
 
-Data capture is allowed for reconstruction when it is narrow, read-only, and documented here. Prefer public HTTP responses and existing local dumps first. If fresh production data is needed, use an explicitly approved read-only export path, redact source hosts and secret-bearing values, and import the result only into local development MariaDB.
+Data capture is allowed for reconstruction when it is narrow, approved, and documented here. Prefer public HTTP responses and existing local dumps first. If fresh production data is needed, use an explicitly approved controlled export path, redact source hosts and secret-bearing values, and import the result only into local development MariaDB.
 
 Do not use these workflows to edit production code, write production DB rows, run production migrations, trigger production polling/generation, or make manual phpMyAdmin data changes.
 
@@ -49,7 +49,7 @@ Recommended next dump, if needed: a gzip-compressed live vertical slice subset c
 
 ## Recent Live Slice Estimate
 
-Read-only estimate generated on 2026-05-24 with `scripts/remote-live-slice-estimate.php`.
+Live slice estimate generated on 2026-05-24 with `scripts/remote-live-slice-estimate.php`.
 
 Strategy:
 
@@ -114,7 +114,7 @@ Helper:
 
 ## AI Tables Estimate
 
-Read-only estimate generated on 2026-05-24 with `scripts/remote-ai-tables-dump.php` in `AI_TABLES_MODE=estimate`.
+AI table estimate generated on 2026-05-24 with `scripts/remote-ai-tables-dump.php` in `AI_TABLES_MODE=estimate`.
 
 | Table | Rows | Estimated table size |
 | --- | ---: | ---: |

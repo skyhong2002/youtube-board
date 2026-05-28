@@ -68,7 +68,7 @@ class CommentQueuePreview
         $rows = $wouldInsertRows->take($limit)->values();
 
         return [
-            'mode' => 'read-only-preview',
+            'mode' => 'ingestion-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'source' => 'recent_high_comment_videos',
             'filters' => [
@@ -91,7 +91,7 @@ class CommentQueuePreview
                 ->count(),
             'would_insert_queue_rows' => $wouldInsertRows->count(),
             'displayed_rows' => $rows->count(),
-            'queue_insert_skipped' => '`urt_comment_queue` insert is intentionally skipped in read-only mode',
+            'queue_insert_skipped' => '`urt_comment_queue` insert is intentionally skipped in planning mode',
             'writes_skipped' => [
                 'urt_comment_queue insert',
             ],

@@ -28,7 +28,7 @@ Legacy snapshot 來源：
 
 ## High-Level Architecture
 
-Legacy 站台由 Apache vhost 對外提供 `youtube.board.tw`，程式根目錄是 `urtube/`。`vh-board.conf` 將 `/ch/...`、`/rank/...`、`/day/...` 等友善 URL rewrite 到對應 PHP，例如 `/ch/{u_id}/...` 對到 `channel*.php`，`/day/{date}/{condition}` 對到 `ai_day.php`。
+現行 PHP 站台由 Apache vhost 對外提供 `youtube.board.tw`，程式根目錄是 `urtube/`。`vh-board.conf` 將 `/ch/...`、`/rank/...`、`/day/...` 等友善 URL rewrite 到對應 PHP，例如 `/ch/{u_id}/...` 對到 `channel*.php`，`/day/{date}/{condition}` 對到 `ai_day.php`。
 
 主要目錄可以分成：
 
@@ -308,7 +308,7 @@ AI 事件設計是 legacy 系統近年最有代表性的演化。
 
 使用者可以在瀏覽 YouTube 時把目前 URL 丟回 `youtube.board.tw/app/admin.php`，快速把頻道或影片納入系統。這代表資料來源不是完全自動 crawler，而是保留了人工策展能力。對政治媒體觀測來說，這很重要，因為頻道名單與 tag 分類常常需要人的判斷。
 
-`redir/` 下的 scripts 是這些手動操作的寫入端，例如 `add_video.php`、`renew.php`、`tag.php`。現代 Laravel rebuild 已經把這些入口改成 guarded read-only，避免誤寫 production。
+`redir/` 下的 scripts 是這些手動操作的寫入端，例如 `add_video.php`、`renew.php`、`tag.php`。現代 Laravel rebuild 已經把這些入口改成 controlled Laravel ingestion workflow，避免誤寫 production。
 
 ## Static And Cache Generation
 
@@ -371,7 +371,7 @@ AI 結果沒有取代原始資料，而是保留 videoId、媒體、tag、事件
 - Tag filtering should remain expressive enough to support `tagid`, `or`, `not`, and named conditions.
 - AI reports should remain evidence-linked: event -> media -> channel -> videoId.
 - Comment analysis should keep author reverse indexing.
-- Background jobs should stay dry-run by default and clearly list write targets.
+- Background jobs should keep an explicit preview/execute split and clearly list write targets.
 - Materialized report caches should be explicit and documented.
 - Human curation should remain possible, but guarded and audited.
 
@@ -387,7 +387,7 @@ The current repo already has useful inventory files, but this report can be comp
 
 ## Known Gaps
 
-This reading report is based on the read-only legacy snapshot and schema dumps. It is enough to explain the main architecture and design intent, but a few areas would benefit from a later read-only production inspection if they become important:
+This reading report is based on the legacy snapshot and schema dumps. It is enough to explain the main architecture and design intent, but a few areas would benefit from a later production data inspection if they become important:
 
 - Current `meta3` crontab and process supervision, to confirm whether it still exactly matches the copied `urtube/cron`.
 - Runtime-only files not fully represented by the source snapshot, especially generated `data/*.json`, static `html/*.html`, and log files under `/home/urtube/log`.
@@ -396,7 +396,7 @@ This reading report is based on the read-only legacy snapshot and schema dumps. 
 - Operational history around manual curation: which `app/admin.php` and `redir/*` workflows were used regularly, and which were one-off tools.
 - Older backup/correction scripts under `maint/backup_202211` and `maint/correct`, which appear to be maintenance or repair utilities rather than core runtime paths.
 
-If production inspection is needed, keep it read-only. Useful commands would be limited to `hostname`, `pwd`, `ls`, `find`, `crontab -l`, `stat`, `du`, `tail` of non-secret logs, and read-only MySQL metadata queries. Do not edit files, restart services, run maintenance scripts, dump secrets, write to MySQL, or enable polling/generation from an SSH session.
+If production inspection is needed, keep it real-time YouTube dashboard. Useful commands would be limited to `hostname`, `pwd`, `ls`, `find`, `crontab -l`, `stat`, `du`, `tail` of non-secret logs, and real-time YouTube dashboard MySQL metadata queries. Do not edit files, restart services, run maintenance scripts, dump secrets, write to MySQL, or enable polling/generation from an SSH session.
 
 ## Key Files Read
 

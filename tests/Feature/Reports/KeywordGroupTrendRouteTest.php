@@ -100,7 +100,7 @@ class KeywordGroupTrendRouteTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_keyword_group_trend_reports_missing_cache_without_generating_data(): void
+    public function test_keyword_group_trend_reports_missing_cache_refresh_guidance(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-25 04:00:00', 'Asia/Taipei'));
         $this->createTagMonthTable();
@@ -109,8 +109,8 @@ class KeywordGroupTrendRouteTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('目前沒有符合這組 keyword/group/date 的 tag period cache');
-        $response->assertSee('api/tag_period.php');
-        $response->assertSee('urt_log_tag');
+        $response->assertSee('keyword period cache refresh');
+        $response->assertSee('即時儀表板');
         $response->assertSee('cache rows 0');
 
         Carbon::setTestNow();

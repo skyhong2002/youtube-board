@@ -98,7 +98,7 @@
             @if (! $available)
                 <p class="notice">本機尚未匯入 `urt_show_tag_month` cache table。</p>
             @elseif (! $data_available)
-                <p class="notice">目前沒有符合這組 keyword/group/date 的 tag period cache；Laravel 不會觸發 legacy `api/tag_period.php` 或 `api/tag_month.php` 產生資料，也不寫 `urt_log_tag` hits。</p>
+                <p class="notice">目前沒有符合這組 keyword/group/date 的 tag period cache；Laravel 會透過 keyword period cache refresh 補齊這張即時儀表板。</p>
             @endif
 
             <div class="legend" aria-label="群組">

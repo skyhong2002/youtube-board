@@ -37,7 +37,7 @@
                 @foreach ($dependencies as $dependency)
                     <div class="stat">{{ $dependency['table'] }} {{ $dependency['rows'] === null ? '-' : number_format($dependency['rows']) }}</div>
                 @endforeach
-                <div class="stat">read-only membership</div>
+                <div class="stat">live membership</div>
             </section>
 
             @if (! $available && $groups === [])

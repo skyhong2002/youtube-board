@@ -8,7 +8,7 @@ use Tests\TestCase;
 
 class LegacyAiApiTest extends TestCase
 {
-    public function test_ai_day_api_returns_daily_topics_and_channel_ai_read_only(): void
+    public function test_ai_day_api_returns_daily_topics_and_channel_ai_ingestion(): void
     {
         $this->createAiDateTable();
         $this->createChannelAiTable();
@@ -18,7 +18,7 @@ class LegacyAiApiTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonPath('meta.source', 'urt_ai_date + urt_channel_ai');
-        $response->assertJsonPath('meta.read_only', true);
+        $response->assertJsonPath('meta.realtime_dashboard', true);
         $response->assertJsonPath('date', '2026-05-23');
         $response->assertJsonPath('result.0.標題', 'Topic A');
         $response->assertJsonPath('channel.10.0.事件', '事件A');
@@ -27,7 +27,7 @@ class LegacyAiApiTest extends TestCase
         $this->assertSame(1, DB::table('urt_channel_ai')->count());
     }
 
-    public function test_api_topic_uses_cached_topic_and_video_json_without_writeback(): void
+    public function test_api_topic_uses_cached_topic_and_video_json_through_ingestion_workflow(): void
     {
         $this->createAiDateTable();
         $this->insertAiDayFixture([
@@ -45,7 +45,7 @@ class LegacyAiApiTest extends TestCase
         $this->assertSame(1, DB::table('urt_ai_date')->count());
     }
 
-    public function test_api_topic_derives_stats_from_wrapped_legacy_topic_payload_without_writeback(): void
+    public function test_api_topic_derives_stats_from_wrapped_legacy_topic_payload_through_ingestion_workflow(): void
     {
         $this->createAiDateTable();
         $this->insertAiDayFixture([
@@ -64,7 +64,7 @@ class LegacyAiApiTest extends TestCase
         $response = $this->getJson('/api/api_topic.php?date=2026-05-23&condition=world');
 
         $response->assertOk();
-        $response->assertJsonPath('meta.source', 'urt_ai_date.result_json derived read-only');
+        $response->assertJsonPath('meta.source', 'urt_ai_date.result_json derived real-time YouTube dashboard');
         $response->assertJsonPath('meta.cache_writeback_skipped', true);
         $response->assertJsonPath('result.topic.Wrapped Topic.媒體數', 1);
         $response->assertJsonPath('result.topic.Wrapped Topic.影片數', 2);
@@ -87,7 +87,7 @@ class LegacyAiApiTest extends TestCase
         $this->assertSame(0, DB::table('urt_ai_period')->count());
     }
 
-    public function test_api_event_expands_legacy_period_history_read_only(): void
+    public function test_api_event_expands_legacy_period_history_ingestion(): void
     {
         $this->createAiDateTable();
         $this->createAiPeriodTable();
@@ -138,7 +138,7 @@ class LegacyAiApiTest extends TestCase
         $response = $this->getJson('/api/api_comment.php?videoId=video-a&token=test-token');
 
         $response->assertOk();
-        $response->assertJsonPath('meta.log_write_skipped', 'legacy urt_log_api insert is intentionally omitted');
+        $response->assertJsonPath('meta.log_write_skipped', 'legacy urt_log_api insert is handled by Laravel ingestion jobs');
         $response->assertJsonPath('result.comment-a.text', 'hello');
         $response->assertJsonPath('authors.author-a', 1);
         $this->assertSame(0, DB::table('urt_log_api')->count());

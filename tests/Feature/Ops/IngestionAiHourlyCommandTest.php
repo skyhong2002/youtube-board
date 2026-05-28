@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
-class ReadOnlyAiHourlyCommandTest extends TestCase
+class IngestionAiHourlyCommandTest extends TestCase
 {
     protected function tearDown(): void
     {
@@ -21,7 +21,7 @@ class ReadOnlyAiHourlyCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_ai_hourly_previews_default_cron_window_without_calling_ai_or_inserting_rows(): void
+    public function test_ai_hourly_previews_default_cron_window_as_ai_preview(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
         $this->createTables();
@@ -46,7 +46,7 @@ class ReadOnlyAiHourlyCommandTest extends TestCase
         $payload = json_decode(trim(Artisan::output()), true);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame('read-only-preview', $payload['mode']);
+        $this->assertSame('ingestion-preview', $payload['mode']);
         $this->assertSame('legacy_ai_hour_prompt', $payload['source']);
         $this->assertSame('all', $payload['condition_type']);
         $this->assertFalse($payload['explicit_condition']);
@@ -109,7 +109,7 @@ class ReadOnlyAiHourlyCommandTest extends TestCase
         );
 
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 0, 'skipped' => 1, 'failed' => 0], $result['summary']);
-        $this->assertSame('skip:read-only-guardrail', $result['jobs'][0]['action']);
+        $this->assertSame('skip:controlled-execution-guardrail', $result['jobs'][0]['action']);
         $this->assertSame(0, DB::table('urt_ai_hour')->count());
     }
 
@@ -357,7 +357,7 @@ class ReadOnlyAiHourlyCommandTest extends TestCase
         ]);
     }
 
-    public function test_ai_hourly_dry_run_does_not_call_opencode_or_write_by_default(): void
+    public function test_ai_hourly_dry_run_uses_preview_mode_until_execute(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
         $this->createTables();
@@ -393,7 +393,7 @@ class ReadOnlyAiHourlyCommandTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_ai_hourly_execute_skips_empty_source_window_without_calling_opencode(): void
+    public function test_ai_hourly_execute_skips_empty_source_window_with_empty_window_skip(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
         $this->createTables();
@@ -497,7 +497,7 @@ class ReadOnlyAiHourlyCommandTest extends TestCase
             jobKey: 'ai.hourly',
         );
 
-        $this->assertSame('skip:read-only-guardrail', $blocked['jobs'][0]['action']);
+        $this->assertSame('skip:controlled-execution-guardrail', $blocked['jobs'][0]['action']);
         $this->assertSame('ai:hourly', $blocked['jobs'][0]['effective_command']);
         $this->assertFalse($blocked['jobs'][0]['scheduled_write']['allowed']);
         $this->assertContains('Production polling is not explicitly enabled.', $blocked['jobs'][0]['scheduled_write']['blocks']);

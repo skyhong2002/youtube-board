@@ -55,7 +55,7 @@ class GroupLiveRouteTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('總統候選人 分 政治立場 的直播排行');
-        $response->assertSee('read-only cache');
+        $response->assertSee('live cache');
         $response->assertSee('泛藍');
         $response->assertSee('泛綠');
         $response->assertSee('賴清德');
@@ -85,7 +85,7 @@ class GroupLiveRouteTest extends TestCase
         $response->assertSee('6');
     }
 
-    public function test_group_live_page_reports_missing_cache_without_generation(): void
+    public function test_group_live_page_reports_missing_cache_refresh_guidance(): void
     {
         Schema::dropIfExists('urt_show_live_tag_date');
 
@@ -93,8 +93,8 @@ class GroupLiveRouteTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('沒有足夠的');
-        $response->assertSee('api_live_tag_date.php');
-        $response->assertSee('沒有產生 cache');
+        $response->assertSee('live tag ingestion');
+        $response->assertSee('cache refresh');
     }
 
     public function test_legacy_group_live_url_redirects_to_clean_live_report(): void

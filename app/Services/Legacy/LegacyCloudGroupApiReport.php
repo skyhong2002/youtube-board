@@ -116,13 +116,13 @@ class LegacyCloudGroupApiReport
                     'group' => $group,
                     'view' => $view,
                     'mtime' => $row->mtime ?? null,
-                    'read_only' => true,
+                    'realtime_dashboard' => true,
                 ];
 
                 return $cached;
             }
         } catch (QueryException) {
-            // Fall through to a read-only membership shell when the cache table is absent.
+            // Fall through to a live membership shell when the cache table is absent.
         }
 
         $result = [
@@ -139,7 +139,7 @@ class LegacyCloudGroupApiReport
                 'source' => 'tag_group + legacy group config',
                 'group' => $group,
                 'view' => $view,
-                'read_only' => true,
+                'realtime_dashboard' => true,
                 'cache_available' => false,
                 'blocked_reason' => 'local urt_show_group cache is missing or empty; legacy group trend generation is intentionally not run',
             ],
@@ -368,7 +368,7 @@ class LegacyCloudGroupApiReport
             'meta' => $meta + [
                 'available' => $result !== [],
                 'source' => $source,
-                'read_only' => true,
+                'realtime_dashboard' => true,
             ],
         ];
     }

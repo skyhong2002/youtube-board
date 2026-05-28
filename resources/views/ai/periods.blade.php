@@ -70,8 +70,8 @@
 
             <section class="stats" aria-label="Period stats">
                 <div class="stat">事件 {{ number_format($rows_count) }}</div>
-                <div class="stat">read-only period summary</div>
-                <div class="stat">no cache writeback</div>
+                <div class="stat">live period summary</div>
+                <div class="stat">dashboard cache source</div>
             </section>
 
             @if (! $available)
@@ -79,7 +79,7 @@
                 <div class="empty">本機尚未匯入 `urt_ai_date` 或必要 AI tables。</div>
             @elseif ($topics === [])
                 <h2>Unavailable</h2>
-                <div class="empty">這個期間目前沒有可用的每日 AI topic cache。legacy 會呼叫 `api/api_topic.php` 補寫 cache；Laravel 目前只讀取既有資料。</div>
+                <div class="empty">這個期間目前沒有可用的每日 AI topic cache。Laravel AI workflow 會透過排程與 cache refresh 補齊即時儀表板資料。</div>
             @else
                 <h2>期間事件</h2>
                 <div class="table-wrap">

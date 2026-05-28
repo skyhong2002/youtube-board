@@ -111,6 +111,6 @@
                     </tbody>
                 </table>
             @else
-                <div class="empty">沒有 `urt_video_log` 資料；不會觸發 legacy 統計抓取。</div>
+                <div class="empty">沒有 `urt_video_log` 資料；影片統計會透過 Laravel YouTube stats ingestion 補齊。</div>
             @endif
 @endsection

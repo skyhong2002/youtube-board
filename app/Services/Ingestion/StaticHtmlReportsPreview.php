@@ -42,7 +42,7 @@ class StaticHtmlReportsPreview
             ->all();
 
         return [
-            'mode' => 'read-only-preview',
+            'mode' => 'ingestion-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'source_path' => $sourcePath,
             'source_status' => $sourceStatus,
@@ -107,7 +107,7 @@ class StaticHtmlReportsPreview
             'group' => $group,
             'output_path' => $outputPath,
             'output_file' => basename($outputPath),
-            'write_skipped' => 'static HTML output is intentionally not written in read-only mode',
+            'write_skipped' => 'static HTML output is intentionally not written in planning mode',
         ];
 
         if ($scriptName === 'group_chart.php') {

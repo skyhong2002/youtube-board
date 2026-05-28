@@ -68,7 +68,7 @@ class GroupReportsPreview
             ->all();
 
         return [
-            'mode' => $execute ? 'execute' : 'read-only-preview',
+            'mode' => $execute ? 'execute' : 'ingestion-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'hours' => $hours,
             'group_name' => $groupName,
@@ -78,7 +78,7 @@ class GroupReportsPreview
             'deleted_rows' => $deletedRows,
             'latest_time' => $latestTime !== null ? (string) $latestTime : null,
             'rows' => $rows,
-            'external_fetch_skipped' => '新文易數 tag.analysis.tw group sync is intentionally not called in read-only mode',
+            'external_fetch_skipped' => '新文易數 tag.analysis.tw group sync is intentionally not called in planning mode',
             'synced_rows' => $syncedRows,
             'writes' => $execute ? ['tag_group'] : [],
         ];

@@ -25,7 +25,7 @@ class GroupDirectoryRouteTest extends TestCase
         $response->assertSee('政治人物');
         $response->assertSee('藝人');
         $response->assertSee('tag_group 3');
-        $response->assertSee('read-only membership');
+        $response->assertSee('live membership');
     }
 
     public function test_group_detail_reads_database_or_legacy_configured_membership(): void

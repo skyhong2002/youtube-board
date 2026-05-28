@@ -43,7 +43,7 @@ class LegacyLiveApiReport
                     'source' => 'urt_video_live_log',
                     'videoId' => $videoId,
                     'period' => $period,
-                    'read_only' => true,
+                    'realtime_dashboard' => true,
                 ],
             ];
         } catch (QueryException) {
@@ -72,7 +72,7 @@ class LegacyLiveApiReport
                         'source' => 'urt_show_live_date.return_json',
                         'period' => $period,
                         'mtime' => $cache->mtime ?? null,
-                        'read_only' => true,
+                        'realtime_dashboard' => true,
                     ];
 
                     return $cached;
@@ -84,9 +84,9 @@ class LegacyLiveApiReport
             return $derived + [
                 'meta' => [
                     'available' => $derived['result']['video'] !== [],
-                    'source' => 'urt_video_live_log derived read-only',
+                    'source' => 'urt_video_live_log derived real-time YouTube dashboard',
                     'period' => $period,
-                    'read_only' => true,
+                    'realtime_dashboard' => true,
                 ],
             ];
         } catch (QueryException) {
@@ -126,9 +126,9 @@ class LegacyLiveApiReport
                 'result' => $hourly === [] ? new stdClass() : $hourly,
                 'meta' => [
                     'available' => $rows->isNotEmpty(),
-                    'source' => 'urt_video_live_log derived read-only',
+                    'source' => 'urt_video_live_log derived real-time YouTube dashboard',
                     'period' => $period,
-                    'read_only' => true,
+                    'realtime_dashboard' => true,
                 ],
             ];
         } catch (QueryException) {
@@ -174,7 +174,7 @@ class LegacyLiveApiReport
                         'total_views' => (int) ($row->total_views ?? 0),
                     ],
                     'mtime' => $row->mtime ?? null,
-                    'read_only' => true,
+                    'realtime_dashboard' => true,
                 ],
             ];
         } catch (QueryException) {
@@ -257,7 +257,7 @@ class LegacyLiveApiReport
                     'available' => $rows !== [],
                     'source' => 'urt_video_live_log_tvbs',
                     'period' => $period,
-                    'read_only' => true,
+                    'realtime_dashboard' => true,
                 ],
             ];
         } catch (QueryException) {
@@ -270,7 +270,7 @@ class LegacyLiveApiReport
                     'available' => false,
                     'source' => 'urt_video_live_log_tvbs',
                     'period' => $period,
-                    'read_only' => true,
+                    'realtime_dashboard' => true,
                 ],
             ];
         }
@@ -583,7 +583,7 @@ class LegacyLiveApiReport
                 'available' => $available && $rows !== [],
                 'source' => $source,
                 'period' => $period,
-                'read_only' => true,
+                'realtime_dashboard' => true,
             ],
         ];
     }
@@ -724,7 +724,7 @@ class LegacyLiveApiReport
             'meta' => $meta + [
                 'available' => false,
                 'source' => $source,
-                'read_only' => true,
+                'realtime_dashboard' => true,
             ],
         ];
     }

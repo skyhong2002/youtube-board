@@ -56,7 +56,7 @@
 <section class="intro" aria-label="網站總覽">
                 <div class="intro-text">
                     <h2>YouTube Board 在做什麼</h2>
-                    <p>這裡把公開 YouTube 頻道、直播、影片、關鍵字和主題群組整理成 read-only 報表。先看即時直播熱度，再用分類或關鍵字追到頻道、影片、留言、趨勢和 AI 摘要。</p>
+                    <p>這裡把公開 YouTube 頻道、直播、影片、關鍵字和主題群組整理成即時 YouTube 資料儀表板。先看即時直播熱度，再用分類或關鍵字追到頻道、影片、留言、趨勢和 AI 摘要。</p>
                     <div class="actions">
                         <a class="action primary" href="{{ route('live.current', ['or' => '1,2,12,13,14,81']) }}">看目前直播</a>
                         <a class="action" href="{{ route('tags.index') }}">瀏覽分類</a>

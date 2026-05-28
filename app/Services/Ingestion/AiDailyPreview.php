@@ -71,7 +71,7 @@ class AiDailyPreview
         $channelRefresh = $this->channelAiRefreshPreview($period, $now);
 
         return [
-            'mode' => 'read-only-preview',
+            'mode' => 'ingestion-preview',
             'source' => 'legacy_make_ai_day',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'date' => $date,
@@ -89,7 +89,7 @@ class AiDailyPreview
             'would_insert_channel_ai_rows' => $channelRefresh['would_insert_channel_ai_candidates'],
             'would_call_ai_requests' => count($conditions),
             'would_insert_ai_date_rows' => count($conditions),
-            'api_call_skipped' => 'AI chat completions are intentionally skipped in read-only mode',
+            'api_call_skipped' => 'AI chat completions are intentionally skipped in planning mode',
             'writes_skipped' => [
                 'OpenAI/OpenCode chat completion for channel AI',
                 'urt_channel_ai insert',

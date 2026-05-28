@@ -4,17 +4,17 @@ These notes are for coding agents and maintainers working inside this repository
 
 ## Project Scope
 
-This repository modernizes the public YouTube Board experience in Laravel while keeping rebuilt report pages read-only by default. Data capture for reconstruction is in scope when it uses public HTTP responses, approved legacy snapshots, approved DB exports, or explicitly approved read-only production inspection.
+This repository modernizes the public YouTube Board experience in Laravel as a real-time YouTube data dashboard. Data capture, cache rebuilding, scheduled polling, AI generation, and report rendering are in scope when they run through reviewed Laravel commands, public HTTP responses, approved legacy snapshots, approved DB exports, or explicitly approved production inspection/export tasks.
 
 Guardrails:
 
-- Do not SSH production unless the user explicitly approves a read-only inspection/export task.
+- Do not SSH production unless the user explicitly approves an inspection/export task.
 - Do not write production DBs.
 - Do not run production migrations.
 - Do not put secrets in code.
 - Do not edit production code or operate phpMyAdmin to change production data.
-- Rebuilt public report pages should be read-only unless explicitly approved; local data import, local cache building, and local ingestion smoke tests may write only to local development databases.
-- Polling, cache generation, and AI generation stay disabled by default.
+- Local data import, local cache building, and local ingestion smoke tests may write only to local development databases.
+- Polling, cache generation, and AI generation are first-class workflows, but production execution must remain controlled by env gates, allowlists, backups, rollback plans, and explicit operator approval.
 
 ## Local Workflow
 
@@ -46,7 +46,7 @@ docker compose run --rm app php artisan migrate
 
 ## Implemented Surfaces
 
-Implemented read-only surfaces include:
+Implemented real-time dashboard surfaces include:
 
 - Home and keyword/tag pages: `/`, `/keywords`, `/tags/{tagId}/channels`, `/tags/{tagId}/videos`, `/tags/{tagId}/comments`, `/tags/{tagId}/cloud`, `/tags/{tagId}/days`, `/tags/{tagId}/trends`, `/tags/compare`.
 - Keyword pages: `/keywords/{keyword}/videos`, `/keywords/{keyword}/cloud`, `/keywords/{keyword}/days`, `/keywords/{keyword}/groups/trends`, `/keywords/{keyword}/live/trends`.
@@ -55,7 +55,7 @@ Implemented read-only surfaces include:
 - AI pages: `/ai/days`, `/ai/hours`, `/ai/periods`, `/ai/events/{id}`, `/ai/events/{id}/people`, `/ai/events/{id}/wall`, `/ai/aspects`.
 - Group/mayor/video/comment reports: `/groups`, `/groups/{groupName}`, `/groups/{groupName}/ranking`, `/groups/{groupName}/trends`, `/groups/{groupName}/live`, `/mayor`, `/mayor/cities/{city}`, `/videos/{videoId}`, `/videos/{videoId}/analytics`, `/comments/authors/{authorKey}`.
 - Legacy compatibility redirects for top-level PHP URLs such as `/live.php`, `/rank.php`, `/tag_group.php`, `/group_two.php`, `/channel.php`, `/ch/{u_id}/...`, `/ai_day.php`, and related legacy paths.
-- Read-only compatibility API routes under `/api/*.php`.
+- Live compatibility API routes under `/api/*.php`.
 - Guarded legacy mutating routes under `/redir/{script}.php` and `/prompt/{script}.php`.
 
 Feature parity notes are tracked in:
@@ -81,19 +81,19 @@ docker compose exec app php artisan test tests/Feature/Reports
 docker compose exec app php artisan test tests/Feature/Ops
 ```
 
-The suite covers read-only behavior, compatibility redirects, legacy API payload shapes, cache-miss behavior, and writeback/prompt guards.
+The suite covers real-time dashboard behavior, compatibility redirects, legacy API payload shapes, cache-miss behavior, ingestion execution paths, and writeback/prompt guards.
 
-## Legacy Job Previews
+## Legacy Ingestion Jobs
 
-Scheduled and maintenance flows are represented as Laravel preview commands and `/ops/ingestion` pages.
+Scheduled and maintenance flows are represented as Laravel ingestion commands and `/ops/ingestion` pages.
 
 Open:
 
 ```text
-http://localhost:8080/ops/ingestion
+http://127.0.0.1:8080/ops/ingestion
 ```
 
-Most commands default to dry-run/read-only previews. Some local-only execute modes exist for explicit smoke tests, but they require opt-in flags, local credentials, and guardrail checks. Scheduler polling is disabled by default.
+Most commands support dry-run inspection and opt-in `--execute` modes. Local execute modes are available for smoke tests and cache/data refreshes, but they require explicit flags, local credentials, and guardrail checks. Production scheduler polling is controlled by environment gates and allowlists.
 
 Useful commands:
 
@@ -174,22 +174,22 @@ Production app environment:
 Production scheduler status:
 
 - `INGESTION_SCHEDULER_ENABLED=false` in the current Dokploy web environment.
-- Because the scheduler gate is disabled, production ingestion/polling should be treated as off even though `YOUTUBE_API_KEY` and OpenAI-compatible env vars are configured.
-- To activate production polling later, follow `docs/deployment.md` and `docs/legacy-inventory/scheduler-activation.md`; require a DB backup, rollback point, exact `INGESTION_SCHEDULED_WRITE_ALLOWLIST`, and explicit approval before enabling write/API jobs.
+- Production ingestion/polling is controlled by scheduler and polling env gates even though `YOUTUBE_API_KEY` and OpenAI-compatible env vars are configured.
+- To activate or adjust production polling, follow `docs/deployment.md` and `docs/legacy-inventory/scheduler-activation.md`; require a DB backup, rollback point, exact `INGESTION_SCHEDULED_WRITE_ALLOWLIST`, and explicit operator approval before enabling write/API jobs.
 
 Deployment operations:
 
 - Prefer Dokploy Deploy/Reload/Rebuild controls for production changes.
 - The web service Deployments tab exposes a Dokploy deploy webhook URL; do not paste the full URL into commits, issues, logs, or chat unless explicitly rotating/reconfiguring secrets.
-- Latest observed web deployment on 2026-05-26 was successful for commit `278c8c2c834b3d4aa701da7e8535329af92c0fa9` (`Fix read-only report cache fallbacks`).
+- Latest observed web deployment on 2026-05-26 was successful for commit `278c8c2c834b3d4aa701da7e8535329af92c0fa9` (`Fix real-time dashboard report cache fallbacks`).
 - If changing resource limits, volumes, Traefik config, basic auth, or cluster settings in Dokploy, redeploy afterward for the change to apply.
 - Keep `deploy/dokploy-env.example`, `deploy/dokploy-mariadb-env.example`, and `deploy/dokploy-phpmyadmin-env.example` aligned with the production shape, but never copy production secret values into those files.
 
 ## Development Notes
 
-- Keep rebuilt public report slices read-only unless explicit approval changes the scope.
+- Keep rebuilt public report slices aligned with the real-time YouTube data dashboard direction.
 - Prefer local MariaDB, approved data exports, and public-site behavior checks when validating reports.
-- When fresh production data is needed, prefer narrow read-only exports that are documented in `docs/legacy-inventory/db-dumps.md`; do not use production SSH or phpMyAdmin for manual edits.
+- When fresh production data is needed, prefer narrow controlled exports that are documented in `docs/legacy-inventory/db-dumps.md`; do not use production SSH or phpMyAdmin for manual edits.
 - Add or update focused feature tests for each route/controller/service/view slice.
 - Update `docs/legacy-inventory/feature-parity.md` and `docs/legacy-inventory/routes.md` when behavior changes.
 - Do not commit secrets from `.env`; `.env.example` is the safe template.

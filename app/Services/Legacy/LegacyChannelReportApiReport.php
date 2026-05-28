@@ -28,7 +28,7 @@ class LegacyChannelReportApiReport
                 'limit' => $limit,
                 'log_rows' => $series['log_rows'],
                 'channel' => $this->channel($uId),
-                'read_only' => true,
+                'realtime_dashboard' => true,
                 'blocked_reason' => $series['log_rows'] === 0 ? 'local urt_log has no rows for this channel' : null,
             ],
         ];
@@ -54,8 +54,8 @@ class LegacyChannelReportApiReport
                 'months_limit' => 2,
                 'log_rows' => $series['log_rows'],
                 'channel' => $this->channel($uId),
-                'read_only' => true,
-                'writeback_skipped' => 'legacy urt_count views_pred_week/month update is intentionally omitted',
+                'realtime_dashboard' => true,
+                'writeback_skipped' => 'legacy urt_count views_pred_week/month update is handled by Laravel ingestion jobs',
                 'blocked_reason' => $series['log_rows'] === 0 ? 'local urt_log has no rows for this channel' : null,
             ],
         ];

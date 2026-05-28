@@ -62,7 +62,7 @@ class AiPeriodRouteTest extends TestCase
         $response->assertSee('卓榮泰');
         $response->assertSee('5');
         $response->assertSee('國會改革');
-        $response->assertSee('no cache writeback');
+        $response->assertSee('dashboard cache source');
     }
 
     public function test_ai_period_page_supports_month_query(): void

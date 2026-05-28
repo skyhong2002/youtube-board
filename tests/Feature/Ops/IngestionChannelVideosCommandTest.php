@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
-class ReadOnlyChannelVideosCommandTest extends TestCase
+class IngestionChannelVideosCommandTest extends TestCase
 {
     protected function tearDown(): void
     {
@@ -21,7 +21,7 @@ class ReadOnlyChannelVideosCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_youtube_channels_videos_previews_legacy_due_vtime_discovery_without_api_or_writes(): void
+    public function test_youtube_channels_videos_previews_legacy_due_vtime_discovery_in_preview_mode(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
@@ -98,7 +98,7 @@ class ReadOnlyChannelVideosCommandTest extends TestCase
         $payload = json_decode(trim(Artisan::output()), true);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame('read-only-preview', $payload['mode']);
+        $this->assertSame('ingestion-preview', $payload['mode']);
         $this->assertSame('due_vtime', $payload['source']);
         $this->assertSame(3, $payload['active_channels']);
         $this->assertSame(2, $payload['due_channels']);
@@ -245,14 +245,14 @@ class ReadOnlyChannelVideosCommandTest extends TestCase
         );
 
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 0, 'skipped' => 1, 'failed' => 0], $general['summary']);
-        $this->assertSame('skip:read-only-guardrail', $general['jobs'][0]['action']);
+        $this->assertSame('skip:controlled-execution-guardrail', $general['jobs'][0]['action']);
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 0, 'skipped' => 1, 'failed' => 0], $live['summary']);
-        $this->assertSame('skip:read-only-guardrail', $live['jobs'][0]['action']);
+        $this->assertSame('skip:controlled-execution-guardrail', $live['jobs'][0]['action']);
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 0, 'skipped' => 1, 'failed' => 0], $liveGroup['summary']);
-        $this->assertSame('skip:read-only-guardrail', $liveGroup['jobs'][0]['action']);
+        $this->assertSame('skip:controlled-execution-guardrail', $liveGroup['jobs'][0]['action']);
     }
 
-    public function test_youtube_channels_videos_execute_requires_api_key_and_does_not_write_when_missing(): void
+    public function test_youtube_channels_videos_execute_requires_api_key_before_upsert(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));

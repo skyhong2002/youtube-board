@@ -135,7 +135,7 @@ class KeywordRelationFallback
 
         return [
             'available' => $words !== [],
-            'source' => 'urt_video + tags derived read-only',
+            'source' => 'urt_video + tags derived real-time YouTube dashboard',
             'counts' => [
                 'channels' => count(array_filter(array_keys($channels), fn (int $uId): bool => $uId > 0)),
                 'videos' => $selectedVideos,
@@ -467,7 +467,7 @@ class KeywordRelationFallback
     {
         return [
             'available' => false,
-            'source' => 'urt_video + tags derived read-only',
+            'source' => 'urt_video + tags derived real-time YouTube dashboard',
             'counts' => [
                 'channels' => 0,
                 'videos' => 0,

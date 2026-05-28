@@ -127,7 +127,7 @@ class IngestionSchedulerRunner
 
         if (! $executionProfile['can_execute_when_due'] && ! ($execute && $scheduledWrite['allowed'])) {
             return array_merge($base, [
-                'action' => 'skip:read-only-guardrail',
+                'action' => 'skip:controlled-execution-guardrail',
                 'scheduled_write' => $scheduledWrite,
                 'execution' => $executionProfile,
             ]);

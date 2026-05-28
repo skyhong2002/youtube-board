@@ -76,7 +76,7 @@
             <section class="stats" aria-label="Daily relation stats">
                 <div class="stat">cache rows {{ number_format($cache_rows) }}</div>
                 <div class="stat">{{ $diff ? 'diff ranking' : 'raw ranking' }}</div>
-                <div class="stat">{{ $source ?? 'read-only cache viewer' }}</div>
+                <div class="stat">{{ $source ?? 'dashboard cache source' }}</div>
             </section>
 
             @if (! $available)
@@ -84,7 +84,7 @@
                 <div class="empty">{{ $unavailable_reason }}</div>
             @elseif ($rows === [])
                 <h2>Unavailable</h2>
-                <div class="empty">本機 cache 目前沒有這個日期範圍與條件的逐日標籤資料。legacy 會在這裡呼叫 API 產生 cache；Laravel 目前只讀取既有資料。</div>
+                <div class="empty">本機 cache 目前沒有這個日期範圍與條件的逐日標籤資料。Laravel 會透過排程擷取與快取重建補齊即時儀表板資料。</div>
             @else
                 <h2>逐日標籤</h2>
                 <div class="table-wrap">

@@ -209,7 +209,7 @@ class ScheduleReportsPreview
         int $updated = 0,
     ): array {
         return [
-            'mode' => $execute ? 'execute' : 'read-only-preview',
+            'mode' => $execute ? 'execute' : 'ingestion-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'window_start' => $windowStart->format('Y-m-d H:i:s'),
             'hours' => $hours,

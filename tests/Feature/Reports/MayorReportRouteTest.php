@@ -38,7 +38,7 @@ class MayorReportRouteTest extends TestCase
         $response->assertDontSee('api/cloud_tag_date.php');
     }
 
-    public function test_mayor_city_page_shows_unavailable_state_without_triggering_legacy_cache_generation(): void
+    public function test_mayor_city_page_shows_unavailable_state_with_cache_refresh_guidance(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
         $this->createTagDateCacheTable();
@@ -47,8 +47,8 @@ class MayorReportRouteTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('台北市候選人影片觀看支持度');
-        $response->assertSee('api/cloud_tag_date.php');
-        $response->assertSee('html_*.html');
+        $response->assertSee('mayor cache refresh');
+        $response->assertSee('動態儀表板資料');
         $response->assertSee('目前沒有可繪製的候選人趨勢資料');
     }
 

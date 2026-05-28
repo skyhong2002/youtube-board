@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
-class ReadOnlyChannelStatsCommandTest extends TestCase
+class IngestionChannelStatsCommandTest extends TestCase
 {
     protected function tearDown(): void
     {
@@ -21,7 +21,7 @@ class ReadOnlyChannelStatsCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_youtube_channels_stats_previews_legacy_channel_queue_without_api_or_writes(): void
+    public function test_youtube_channels_stats_previews_legacy_channel_queue_in_preview_mode(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
@@ -96,7 +96,7 @@ class ReadOnlyChannelStatsCommandTest extends TestCase
         $payload = json_decode(trim(Artisan::output()), true);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame('read-only-preview', $payload['mode']);
+        $this->assertSame('ingestion-preview', $payload['mode']);
         $this->assertSame('stale_or_unchecked', $payload['source']);
         $this->assertSame(3, $payload['active_channels']);
         $this->assertSame(1, $payload['unchecked_channels']);
@@ -201,10 +201,10 @@ class ReadOnlyChannelStatsCommandTest extends TestCase
 
         $this->assertSame('execute', $result['mode']);
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 0, 'skipped' => 1, 'failed' => 0], $result['summary']);
-        $this->assertSame('skip:read-only-guardrail', $result['jobs'][0]['action']);
+        $this->assertSame('skip:controlled-execution-guardrail', $result['jobs'][0]['action']);
     }
 
-    public function test_youtube_channels_stats_execute_requires_api_key_and_does_not_write_when_missing(): void
+    public function test_youtube_channels_stats_execute_requires_api_key_before_upsert(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));

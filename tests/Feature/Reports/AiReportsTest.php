@@ -147,7 +147,7 @@ class AiReportsTest extends TestCase
         $response->assertSee('wrapped-daily');
     }
 
-    public function test_ai_daily_page_assembles_read_only_fallback_from_channel_ai_when_daily_summary_is_missing(): void
+    public function test_ai_daily_page_assembles_ingestion_fallback_from_channel_ai_when_daily_summary_is_missing(): void
     {
         $this->createAiDailyTables();
 

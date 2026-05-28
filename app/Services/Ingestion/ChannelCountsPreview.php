@@ -239,7 +239,7 @@ class ChannelCountsPreview
     ): array
     {
         return [
-            'mode' => $execute ? 'execute' : 'read-only-preview',
+            'mode' => $execute ? 'execute' : 'ingestion-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'date' => $now->toDateString(),
             'candidates' => $candidates,

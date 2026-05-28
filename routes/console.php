@@ -194,7 +194,7 @@ Artisan::command('youtube:channels:stats {--u_id= : Optional channel u_id to pre
         }
 
         $this->line(sprintf(
-            'youtube:channels:stats mode=read-only-preview source=%s active_channels=%d unchecked_channels=%d stale_channels=%d eligible_rows=%d selected_rows=%d missing_youtube_id=%d hours=%d expire_time=%s would_call_api=%s generated_at=%s writes=0 api_call=skipped channel_update=skipped count_update=skipped log_update=skipped',
+            'youtube:channels:stats mode=ingestion-preview source=%s active_channels=%d unchecked_channels=%d stale_channels=%d eligible_rows=%d selected_rows=%d missing_youtube_id=%d hours=%d expire_time=%s would_call_api=%s generated_at=%s writes=0 api_call=skipped channel_update=skipped count_update=skipped log_update=skipped',
             $payload['source'],
             $payload['active_channels'],
             $payload['unchecked_channels'],
@@ -328,7 +328,7 @@ Artisan::command('youtube:channels:videos {--id= : Optional legacy channel u_id 
         }
 
         $this->line(sprintf(
-            'youtube:channels:videos mode=read-only-preview source=%s active_channels=%d due_channels=%d tagged_channels=%s eligible_rows=%d selected_rows=%d missing_uploads_playlist=%d live=%s limit=%d would_call_api=%s generated_at=%s writes=0 api_call=skipped video_insert=skipped schedule_insert=skipped live_insert=skipped channel_vtime_update=skipped',
+            'youtube:channels:videos mode=ingestion-preview source=%s active_channels=%d due_channels=%d tagged_channels=%s eligible_rows=%d selected_rows=%d missing_uploads_playlist=%d live=%s limit=%d would_call_api=%s generated_at=%s writes=0 api_call=skipped video_insert=skipped schedule_insert=skipped live_insert=skipped channel_vtime_update=skipped',
             $payload['source'],
             $payload['active_channels'],
             $payload['due_channels'],
@@ -455,7 +455,7 @@ Artisan::command('youtube:tvbs:videos {--tag=29 : Legacy TVBS channel tag id in 
         }
 
         $this->line(sprintf(
-            'youtube:tvbs:videos mode=read-only-preview source=%s tag=%d active_channels=%d tagged_channels=%d eligible_rows=%d selected_rows=%d missing_uploads_playlist=%d legacy_loop_limit=%d legacy_sleep_seconds=%d would_call_api=%s generated_at=%s writes=0 api_call=skipped video_insert=skipped schedule_insert=skipped tvbs_live_insert=skipped',
+            'youtube:tvbs:videos mode=ingestion-preview source=%s tag=%d active_channels=%d tagged_channels=%d eligible_rows=%d selected_rows=%d missing_uploads_playlist=%d legacy_loop_limit=%d legacy_sleep_seconds=%d would_call_api=%s generated_at=%s writes=0 api_call=skipped video_insert=skipped schedule_insert=skipped tvbs_live_insert=skipped',
             $payload['source'],
             $payload['tvbs_tag_id'],
             $payload['active_channels'],
@@ -560,7 +560,7 @@ Artisan::command('youtube:live:poll {--videoId= : Optional live video id to prev
         }
 
         $this->line(sprintf(
-            'youtube:live:poll mode=read-only-preview source=%s active_live_rows=%d eligible_rows=%d selected_rows=%d existing_today_log_rows=%d missing_today_log_rows=%d interval_minutes=%d too_soon=%s would_call_api=%s generated_at=%s writes=0 api_call=skipped live_update=skipped log_update=skipped',
+            'youtube:live:poll mode=ingestion-preview source=%s active_live_rows=%d eligible_rows=%d selected_rows=%d existing_today_log_rows=%d missing_today_log_rows=%d interval_minutes=%d too_soon=%s would_call_api=%s generated_at=%s writes=0 api_call=skipped live_update=skipped log_update=skipped',
             $payload['source'],
             $payload['active_live_rows'],
             $payload['eligible_rows'],
@@ -672,7 +672,7 @@ Artisan::command('youtube:tvbs:live:poll {--videoId= : Optional TVBS live video 
         }
 
         $this->line(sprintf(
-            'youtube:tvbs:live:poll mode=read-only-preview source=%s active_live_rows=%d eligible_rows=%d selected_rows=%d existing_today_log_rows=%d missing_today_log_rows=%d effective_stale_seconds=%d too_soon=%s would_call_api=%s generated_at=%s writes=0 api_call=skipped tvbs_live_update=skipped tvbs_log_update=skipped',
+            'youtube:tvbs:live:poll mode=ingestion-preview source=%s active_live_rows=%d eligible_rows=%d selected_rows=%d existing_today_log_rows=%d missing_today_log_rows=%d effective_stale_seconds=%d too_soon=%s would_call_api=%s generated_at=%s writes=0 api_call=skipped tvbs_live_update=skipped tvbs_log_update=skipped',
             $payload['source'],
             $payload['active_live_rows'],
             $payload['eligible_rows'],
@@ -778,7 +778,7 @@ Artisan::command('reports:live:show {--limit=10 : Number of top live rows to pri
             ->all();
 
         $payload = [
-            'mode' => 'read-only',
+            'mode' => 'dashboard-snapshot',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'active_live' => $activeLive,
             'shown' => count($rows),
@@ -794,7 +794,7 @@ Artisan::command('reports:live:show {--limit=10 : Number of top live rows to pri
         }
 
         $this->line(sprintf(
-            'reports:live:show mode=read-only active_live=%d shown=%d log_rows_today=%d generated_at=%s writes=0',
+            'reports:live:show mode=dashboard-snapshot active_live=%d shown=%d log_rows_today=%d generated_at=%s',
             $payload['active_live'],
             $payload['shown'],
             $payload['log_rows_today'],
@@ -819,7 +819,7 @@ Artisan::command('reports:live:show {--limit=10 : Number of top live rows to pri
 
         return 1;
     }
-})->purpose('Read-only local snapshot of the live display report; does not call YouTube or write cache tables');
+})->purpose('Live dashboard snapshot of the live display report from local live/cache rows');
 
 Artisan::command('reports:live:build {--hours=2 : Live rows newer than this many hours are considered} {--limit=20 : Number of preview rows to print} {--execute : Write missing urt_show_video_live display cache rows} {--json : Emit JSON instead of text}', function (LiveDisplayCachePreview $preview) {
     $hours = max(1, min(720, (int) $this->option('hours')));
@@ -866,7 +866,7 @@ Artisan::command('reports:live:build {--hours=2 : Live rows newer than this many
 
         return 1;
     }
-})->purpose('Preview or execute legacy live display cache inserts without calling YouTube');
+})->purpose('Preview or execute legacy live display cache inserts from local live rows');
 
 Artisan::command('youtube:live:cleanup {--limit=20 : Number of stale live rows to print} {--execute : Mark selected stale urt_video_live rows deleted} {--json : Emit JSON instead of text}', function (LiveCleanupPreview $preview) {
     try {
@@ -911,7 +911,7 @@ Artisan::command('youtube:live:cleanup {--limit=20 : Number of stale live rows t
 
         return 1;
     }
-})->purpose('Read-only preview of legacy stale live cleanup; does not update urt_video_live');
+})->purpose('Ingestion preview of legacy stale live cleanup; execute mode updates urt_video_live');
 
 Artisan::command('reports:live:clean {--limit=20 : Number of invalid live tag-date cache rows to print} {--execute : Delete selected invalid urt_show_live_tag_date rows} {--json : Emit JSON instead of text}', function (LiveCleanupPreview $preview) {
     try {
@@ -955,7 +955,7 @@ Artisan::command('reports:live:clean {--limit=20 : Number of invalid live tag-da
 
         return 1;
     }
-})->purpose('Read-only preview of legacy live tag-date cache cleanup; does not delete cache rows');
+})->purpose('Ingestion preview of legacy live tag-date cache cleanup; execute mode deletes selected cache rows');
 
 Artisan::command('reports:live:static {--limit=20 : Number of static live targets to print} {--json : Emit JSON instead of text}', function (LiveStaticHtmlPreview $preview) {
     try {
@@ -968,7 +968,7 @@ Artisan::command('reports:live:static {--limit=20 : Number of static live target
         }
 
         $this->line(sprintf(
-            'reports:live:static mode=read-only-preview targets=%d would_generate=%d source_status="%s" generated_at=%s writes=0 static_write=skipped',
+            'reports:live:static mode=ingestion-preview targets=%d would_generate=%d source_status="%s" generated_at=%s writes=0 static_write=skipped',
             $payload['targets'],
             $payload['would_generate'],
             $payload['source_status'],
@@ -993,7 +993,7 @@ Artisan::command('reports:live:static {--limit=20 : Number of static live target
 
         return 1;
     }
-})->purpose('Read-only preview of legacy static live HTML generation; does not write HTML files');
+})->purpose('Ingestion preview of legacy static live HTML generation mapped to dynamic Laravel routes');
 
 Artisan::command('reports:static:build {--limit=20 : Number of static group targets to print} {--json : Emit JSON instead of text}', function (StaticHtmlReportsPreview $preview) {
     try {
@@ -1006,7 +1006,7 @@ Artisan::command('reports:static:build {--limit=20 : Number of static group targ
         }
 
         $this->line(sprintf(
-            'reports:static:build mode=read-only-preview targets=%d would_generate=%d source_status="%s" generated_at=%s writes=0 static_write=skipped',
+            'reports:static:build mode=ingestion-preview targets=%d would_generate=%d source_status="%s" generated_at=%s writes=0 static_write=skipped',
             $payload['targets'],
             $payload['would_generate'],
             $payload['source_status'],
@@ -1033,7 +1033,7 @@ Artisan::command('reports:static:build {--limit=20 : Number of static group targ
 
         return 1;
     }
-})->purpose('Read-only preview of legacy group static HTML generation; does not write HTML files');
+})->purpose('Ingestion preview of legacy group static HTML generation mapped to dynamic Laravel routes');
 
 Artisan::command('reports:mayor:static {--city= : Optional mayor city key to preview} {--limit=20 : Number of mayor static targets to print} {--keyword-limit=5000 : Number of local keywords to scan when --execute builds tag-date cache} {--execute : Build missing local tag-date cache for mayor targets} {--json : Emit JSON instead of text}', function (MayorStaticReportsPreview $preview) {
     try {
@@ -1082,7 +1082,7 @@ Artisan::command('reports:mayor:static {--city= : Optional mayor city key to pre
 
         return 1;
     }
-})->purpose('Preview legacy mayor static HTML generation; --execute rebuilds required local tag-date cache but does not write HTML files');
+})->purpose('Preview legacy mayor static HTML generation; --execute rebuilds required local tag-date cache for dynamic Laravel routes');
 
 Artisan::command('reports:tag-date:build {--tagid= : Comma-separated required channel tag ids} {--or= : Comma-separated OR channel tag ids} {--not= : Comma-separated excluded channel tag ids} {--date= : Single cache date} {--from= : Start date for cache range} {--to= : End date for cache range} {--days=30 : Relative day count when --from is omitted} {--today=0 : Days before today for relative end date} {--keyword-limit=5000 : Number of local keywords to scan} {--keywords= : Optional comma-separated keyword subset for focused cache rebuilds} {--execute : Write urt_show_tag_date rows} {--json : Emit JSON instead of text}', function (TagDateCacheBuilder $builder) {
     $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
@@ -1259,7 +1259,7 @@ Artisan::command('youtube:videos:duration {--videoId= : Optional queued video id
         }
 
         $this->line(sprintf(
-            'youtube:videos:duration mode=read-only-preview queue_total=%d ready_queue_rows=%d selected_rows=%d completed_rows=%d reserved_rows=%d failed_or_missing_rows=%d unqueued_missing_videos=%s batch_size=%d loops=%d would_call_api=%s generated_at=%s writes=0 api_call=skipped queue_update=skipped',
+            'youtube:videos:duration mode=ingestion-preview queue_total=%d ready_queue_rows=%d selected_rows=%d completed_rows=%d reserved_rows=%d failed_or_missing_rows=%d unqueued_missing_videos=%s batch_size=%d loops=%d would_call_api=%s generated_at=%s writes=0 api_call=skipped queue_update=skipped',
             $payload['queue_total'],
             $payload['ready_queue_rows'],
             $payload['selected_rows'],
@@ -1379,7 +1379,7 @@ Artisan::command('youtube:videos:stats {--videoId= : Optional video id to previe
         }
 
         $this->line(sprintf(
-            'youtube:videos:stats mode=read-only-preview source=%s schedule_total=%d due_schedule_rows=%d today_missing_rows=%d eligible_rows=%d selected_rows=%d first_batch_rows=%d batch_size=%d loops=%d would_call_api=%s generated_at=%s writes=0 api_call=skipped stats_update=skipped',
+            'youtube:videos:stats mode=ingestion-preview source=%s schedule_total=%d due_schedule_rows=%d today_missing_rows=%d eligible_rows=%d selected_rows=%d first_batch_rows=%d batch_size=%d loops=%d would_call_api=%s generated_at=%s writes=0 api_call=skipped stats_update=skipped',
             $payload['source'],
             $payload['schedule_total'],
             $payload['due_schedule_rows'],
@@ -1537,7 +1537,7 @@ Artisan::command('reports:keywords:build {--limit=20 : Number of preview keyword
 
         return 1;
     }
-})->purpose('Preview or execute keyword sync from 新文易數 tag.analysis.tw; file writes remain disabled');
+})->purpose('Preview or execute keyword sync from 新文易數 tag.analysis.tw; Laravel uses database-backed keyword cache data');
 
 Artisan::command('reports:keywords:cache {--execute : Write the rebuilt tags_all cache to local DB} {--days=31 : Calendar-day window to aggregate, matching legacy tags_all.php} {--recent-days=7 : Recent window used for video/views metrics; legacy includes today plus this many previous days} {--keyword-limit=1000 : Number of ranked keywords to scan} {--video-limit= : Optional cap for smoke tests} {--json : Emit JSON instead of text}', function (TagsAllCacheBuilder $builder) {
     $days = max(1, min(90, (int) $this->option('days')));
@@ -1752,7 +1752,7 @@ Artisan::command('reports:schedule:build {--videoId= : Preview one scheduled vid
     }
 })->purpose('Preview or execute legacy schedule stime recalculation updates');
 
-Artisan::command('ai:daily {--date= : Legacy date, defaults to yesterday in Asia/Taipei} {--condition= : Optional single legacy condition; default previews make_ai_day.sh conditions} {--type=oneday : Legacy urt_channel_ai data_type} {--limit=1000 : Max channel AI rows per condition} {--channel-limit=39 : Max configured channels to refresh in execute mode} {--execute : Call OpenCode-compatible chat completions and upsert urt_channel_ai/urt_ai_date} {--dry-run : Force dry-run preview; this is the default} {--user-token=CLI : user_token value for execute-mode upserts} {--json : Emit JSON instead of text}', function (AiDailyPreview $preview, AiDailyIngestion $ingestion) {
+Artisan::command('ai:daily {--date= : Legacy date, defaults to yesterday in Asia/Taipei} {--condition= : Optional single legacy condition; default previews make_ai_day.sh conditions} {--type=oneday : Legacy urt_channel_ai data_type} {--limit=1000 : Max channel AI rows per condition} {--channel-limit=39 : Max configured channels to refresh in execute mode} {--execute : Call OpenCode-compatible chat completions and upsert urt_channel_ai/urt_ai_date} {--dry-run : Force dry-run preview} {--user-token=CLI : user_token value for execute-mode upserts} {--json : Emit JSON instead of text}', function (AiDailyPreview $preview, AiDailyIngestion $ingestion) {
     try {
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
 
@@ -1809,7 +1809,7 @@ Artisan::command('ai:daily {--date= : Legacy date, defaults to yesterday in Asia
         $existingAiDateRows = collect($payload['condition_rows'])->sum('existing_ai_date_rows');
 
         $this->line(sprintf(
-            'ai:daily mode=read-only-preview source=%s date=%s type=%s conditions=%d channel_refresh_attempts=%d channel_refresh_candidates=%d prompt_source_rows=%d prompt_media_rows=%d prompt_event_rows=%d prompt_video_refs=%d existing_ai_date_rows=%d would_call_ai_requests=%d would_insert_ai_date_rows=%d generated_at=%s writes=0 api_call=skipped ai_date_insert=skipped channel_ai_insert=skipped',
+            'ai:daily mode=ingestion-preview source=%s date=%s type=%s conditions=%d channel_refresh_attempts=%d channel_refresh_candidates=%d prompt_source_rows=%d prompt_media_rows=%d prompt_event_rows=%d prompt_video_refs=%d existing_ai_date_rows=%d would_call_ai_requests=%d would_insert_ai_date_rows=%d generated_at=%s writes=0 api_call=skipped ai_date_insert=skipped channel_ai_insert=skipped',
             $payload['source'],
             $payload['date'],
             $payload['data_type'],
@@ -1858,7 +1858,7 @@ Artisan::command('ai:daily {--date= : Legacy date, defaults to yesterday in Asia
 
         return 1;
     }
-})->purpose('Read-only preview of legacy daily AI summary generation; does not call AI or insert urt_channel_ai/urt_ai_date rows');
+})->purpose('Ingestion preview of legacy daily AI summary generation; execute mode calls AI and upserts urt_channel_ai/urt_ai_date rows');
 
 Artisan::command('ai:hourly {--condition= : Optional legacy condition; omitted matches cron default} {--hour=1 : Legacy hours-back offset} {--period=1 : Legacy number of hourly buckets to include} {--limit=20 : Number of candidate videos to print} {--execute : Call OpenCode-compatible chat completions and upsert urt_ai_hour} {--dry-run : Force dry-run preview; this is the default} {--user-token=cli : user_token value for execute-mode upsert} {--json : Emit JSON instead of text}', function (AiHourlyPreview $preview, AiHourlyIngestion $ingestion) {
     try {
@@ -1916,7 +1916,7 @@ Artisan::command('ai:hourly {--condition= : Optional legacy condition; omitted m
         $matchingChannels = $payload['matching_channels'] === null ? 'all' : (string) $payload['matching_channels'];
 
         $this->line(sprintf(
-            'ai:hourly mode=read-only-preview source=%s condition=%s explicit_condition=%s matching_channels=%s video_rows=%d displayed_rows=%d hour=%d period=%d date_from=%s date_to=%s existing_ai_hour_rows=%d prompt_bounds=%d-%d prompt_chars=%d would_call_ai_requests=%d would_insert_ai_hour_rows=%d generated_at=%s writes=0 api_call=skipped ai_hour_insert=skipped',
+            'ai:hourly mode=ingestion-preview source=%s condition=%s explicit_condition=%s matching_channels=%s video_rows=%d displayed_rows=%d hour=%d period=%d date_from=%s date_to=%s existing_ai_hour_rows=%d prompt_bounds=%d-%d prompt_chars=%d would_call_ai_requests=%d would_insert_ai_hour_rows=%d generated_at=%s writes=0 api_call=skipped ai_hour_insert=skipped',
             $payload['source'],
             $payload['condition_type'],
             $payload['explicit_condition'] ? 'yes' : 'no',
@@ -2021,7 +2021,7 @@ Artisan::command('youtube:comments:queue {--tagid= : Legacy AND tag filter} {--o
         }
 
         $this->line(sprintf(
-            'youtube:comments:queue mode=read-only-preview matching_channels=%d recent_video_rows=%d comment_threshold_rows=%d already_queued_rows=%d already_done_rows=%d would_insert_queue_rows=%d hours=%d min=%d published_after=%s generated_at=%s writes=0 queue_insert=skipped',
+            'youtube:comments:queue mode=ingestion-preview matching_channels=%d recent_video_rows=%d comment_threshold_rows=%d already_queued_rows=%d already_done_rows=%d would_insert_queue_rows=%d hours=%d min=%d published_after=%s generated_at=%s writes=0 queue_insert=skipped',
             $payload['matching_channels'],
             $payload['recent_video_rows'],
             $payload['comment_threshold_rows'],
@@ -2126,7 +2126,7 @@ Artisan::command('youtube:comments:fetch {--videoId= : Optional queued video id 
         }
 
         $this->line(sprintf(
-            'youtube:comments:fetch mode=read-only-preview queue_total=%d selected_rows=%d existing_comment_rows=%d recent_comment_cache_rows=%d would_insert_comment_rows=%d would_call_get_comment=%d would_call_comment_threads=%d would_move_to_done_rows=%d refresh_expire_time=%s generated_at=%s writes=0 api_call=skipped queue_move=skipped',
+            'youtube:comments:fetch mode=ingestion-preview queue_total=%d selected_rows=%d existing_comment_rows=%d recent_comment_cache_rows=%d would_insert_comment_rows=%d would_call_get_comment=%d would_call_comment_threads=%d would_move_to_done_rows=%d refresh_expire_time=%s generated_at=%s writes=0 api_call=skipped queue_move=skipped',
             $payload['queue_total'],
             $payload['selected_rows'],
             $payload['existing_comment_rows'],

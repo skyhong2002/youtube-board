@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
-class ReadOnlyKeywordsBuildCommandTest extends TestCase
+class IngestionKeywordsBuildCommandTest extends TestCase
 {
     protected function tearDown(): void
     {
@@ -19,7 +19,7 @@ class ReadOnlyKeywordsBuildCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_reports_keywords_build_previews_legacy_keyword_json_without_writes(): void
+    public function test_reports_keywords_build_previews_legacy_keyword_json_in_preview_mode(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
         $this->createTables();
@@ -88,7 +88,7 @@ class ReadOnlyKeywordsBuildCommandTest extends TestCase
         $payload = json_decode(trim(Artisan::output()), true);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame('read-only-preview', $payload['mode']);
+        $this->assertSame('ingestion-preview', $payload['mode']);
         $this->assertSame(6, $payload['source_tags']);
         $this->assertSame(2, $payload['eligible_keywords']);
         $this->assertSame(1, $payload['recent_keywords']);
@@ -101,7 +101,7 @@ class ReadOnlyKeywordsBuildCommandTest extends TestCase
         $this->assertSame(6, DB::table('tags')->count());
     }
 
-    public function test_ingestion_scheduler_can_execute_read_only_keywords_preview_when_due(): void
+    public function test_ingestion_scheduler_can_execute_ingestion_keywords_preview_when_due(): void
     {
         $this->createTables();
         config()->set('ingestion.scheduler_enabled', true);

@@ -79,7 +79,7 @@ class TagSubpageStatusReport
                 'legacy_file' => 'comments_recent.php',
                 'tables' => ['urt_comment', 'urt_comment_author', 'urt_video', 'urt_count'],
                 'reason' => 'Legacy 先用 `urt_count.tags` 找頻道，再讀 `urt_comment` 和 `urt_comment_author` 做近期留言排行；本機 comment tables 目前沒有資料。',
-                'next_step' => '等 read-only comment dump 或 comment ingestion 重建完成後，再做留言排行與作者 drilldown。',
+                'next_step' => '等 comment dump 或 comment ingestion 重建完成後，再做留言排行與作者 drilldown。',
             ];
         }
 
@@ -90,7 +90,7 @@ class TagSubpageStatusReport
                 'legacy_file' => 'tag_video.php + api/tags_relation_date.php',
                 'tables' => ['urt_show_video_tag', 'urt_show_video_tag_date', 'urt_video'],
                 'reason' => 'Legacy 逐日呼叫 `api/tags_relation_date.php` 產生 keyword-video relation cache；本機 `urt_show_video_tag` 與 `urt_show_video_tag_date` 目前沒有資料。',
-                'next_step' => '等 keyword-video relation cache dump，或先完成 read-only tag relation builder 後，再顯示影片排行。',
+                'next_step' => '等 keyword-video relation cache dump，或先完成 real-time YouTube dashboard tag relation builder 後，再顯示影片排行。',
             ];
         }
 
@@ -101,7 +101,7 @@ class TagSubpageStatusReport
                 'legacy_file' => 'tag_cloud.php + api/tag_tags_days.php',
                 'tables' => ['urt_show_tag_cloud_tag', 'urt_show_video_tag', 'urt_video_log_history'],
                 'reason' => 'Legacy 會依關鍵字與頻道 tag 條件補寫 `urt_show_tag_cloud_tag`；本機相關 cache tables 目前沒有資料。',
-                'next_step' => '等 `urt_show_tag_cloud_tag` 或 keyword relation cache dump 後，再以 read-only 方式呈現文字雲。',
+                'next_step' => '等 `urt_show_tag_cloud_tag` 或 keyword relation cache dump 後，再以 real-time YouTube dashboard 方式呈現文字雲。',
             ];
         }
 
@@ -111,7 +111,7 @@ class TagSubpageStatusReport
             'legacy_file' => 'cloud.php + api/tags_video.php',
             'tables' => ['urt_show_tag_cloud', 'urt_video', 'urt_count'],
             'reason' => 'Legacy 會從 `urt_video` 重新計算並補寫 `urt_show_tag_cloud`；本機 cache table 目前沒有資料。',
-            'next_step' => '等 tag cloud cache dump，或先設計 read-only derived report builder 後，再以 inline SVG/HTML 呈現文字雲。',
+            'next_step' => '等 tag cloud cache dump，或先設計 real-time YouTube dashboard derived report builder 後，再以 inline SVG/HTML 呈現文字雲。',
         ];
     }
 

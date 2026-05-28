@@ -92,7 +92,7 @@ class PeopleReportsPreview
         }
 
         return [
-            'mode' => $execute ? 'execute' : 'read-only-preview',
+            'mode' => $execute ? 'execute' : 'ingestion-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'group_name' => $groupName,
             'tagid' => $tagId,
@@ -101,7 +101,7 @@ class PeopleReportsPreview
             'latest_time' => $latestTime !== null ? (string) $latestTime : null,
             'rows' => $rows,
             'cache_writes' => $cacheWrites,
-            'cache_generation_skipped' => 'legacy api/tag_period.php calls are intentionally not executed in read-only mode',
+            'cache_generation_skipped' => 'legacy api/tag_period.php calls are intentionally not executed in planning mode',
             'writes' => $execute ? ['urt_show_tag_date'] : [],
         ];
     }

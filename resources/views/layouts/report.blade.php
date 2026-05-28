@@ -1,14 +1,27 @@
 @php
+    use App\Support\ReportFreshness;
     use App\Support\ReportNavigation;
 
     $sectionTitle = trim($__env->yieldContent('title'));
     $pageTitle = $sectionTitle !== '' ? $sectionTitle : ($title ?? '');
     $pageTitle = $pageTitle === '' ? 'YouTube Board' : $pageTitle;
     $pageMeta = $meta ?? trim($__env->yieldContent('meta'));
+    $freshness = app(ReportFreshness::class);
+    $pageMeta = $freshness->replaceMetaTimestamp($pageMeta, $freshness->forRequest(request()));
     $mainNav = $mainNav ?? ReportNavigation::main(request());
     $systemNav = $systemNav ?? ReportNavigation::system(request());
     $breadcrumbs = $breadcrumbs ?? ReportNavigation::breadcrumbs(request());
     $sectionNav = $sectionNav ?? ReportNavigation::section(request());
+    $legacyPublicSiteUrl = rtrim((string) config('legacy.public_site_url', 'https://youtube.board.tw'), '/');
+    $routeName = (string) (request()->route()?->getName() ?? '');
+    $footerLinks = [
+        ['label' => '擷取排程', 'url' => route('ops.ingestion'), 'active' => str_starts_with($routeName, 'ops.ingestion')],
+        ['label' => '整合檢查', 'url' => route('ops.integrations'), 'active' => $routeName === 'ops.integrations' || str_starts_with($routeName, 'dev.')],
+    ];
+
+    if ($legacyPublicSiteUrl !== '') {
+        $footerLinks[] = ['label' => '現行站台', 'url' => $legacyPublicSiteUrl, 'external' => true, 'active' => false];
+    }
 
     if (count($sectionNav) === 1 && ($sectionNav[0]['active'] ?? false)) {
         $sectionNav = [];
@@ -170,6 +183,43 @@
                 min-width: 0;
             }
 
+            .yb-footer {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 18px;
+                margin-top: 34px;
+                padding-top: 18px;
+                border-top: 1px solid var(--line);
+                color: var(--muted);
+                font-size: 12px;
+                line-height: 1.6;
+            }
+
+            .yb-footer-summary {
+                max-width: 640px;
+            }
+
+            .yb-footer-summary strong {
+                display: block;
+                color: #344054;
+                font-size: 13px;
+            }
+
+            .yb-footer-nav {
+                display: flex;
+                flex: 0 1 560px;
+                flex-wrap: wrap;
+                justify-content: flex-end;
+                gap: 8px 12px;
+            }
+
+            .yb-footer-nav a {
+                color: var(--muted);
+                font-weight: 650;
+                white-space: nowrap;
+            }
+
             .filters,
             .tabs,
             .switcher,
@@ -298,6 +348,15 @@
                     text-align: left;
                     white-space: normal;
                 }
+
+                .yb-footer {
+                    display: block;
+                }
+
+                .yb-footer-nav {
+                    justify-content: flex-start;
+                    margin-top: 10px;
+                }
             }
         </style>
         @stack('styles')
@@ -311,11 +370,13 @@
                         <a href="{{ $item['url'] }}" @if ($item['active']) aria-current="page" @endif>{{ $item['label'] }}</a>
                     @endforeach
                 </nav>
-                <nav class="yb-system-nav" aria-label="系統頁面">
-                    @foreach ($systemNav as $item)
-                        <a href="{{ $item['url'] }}" @if ($item['active']) aria-current="page" @endif>{{ $item['label'] }}</a>
-                    @endforeach
-                </nav>
+                @if ($systemNav !== [])
+                    <nav class="yb-system-nav" aria-label="系統頁面">
+                        @foreach ($systemNav as $item)
+                            <a href="{{ $item['url'] }}" @if ($item['active']) aria-current="page" @endif>{{ $item['label'] }}</a>
+                        @endforeach
+                    </nav>
+                @endif
             </div>
 
             @if ($breadcrumbs !== [])
@@ -354,6 +415,18 @@
             <div class="yb-content">
                 @yield('content')
             </div>
+
+            <footer class="yb-footer" aria-label="頁尾">
+                <div class="yb-footer-summary">
+                    <strong>YouTube Board</strong>
+                    <span>即時 YouTube 資料擷取儀表板；報表瀏覽、快取重建、排程與 AI 工作流由 ops 工作台控管。</span>
+                </div>
+                <nav class="yb-footer-nav" aria-label="頁尾連結">
+                    @foreach ($footerLinks as $item)
+                        <a href="{{ $item['url'] }}" @if ($item['active'] ?? false) aria-current="page" @endif @if ($item['external'] ?? false) rel="noopener noreferrer" target="_blank" @endif>{{ $item['label'] }}</a>
+                    @endforeach
+                </nav>
+            </footer>
         </div>
     </body>
 </html>

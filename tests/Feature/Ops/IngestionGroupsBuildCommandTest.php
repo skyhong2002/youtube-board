@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
-class ReadOnlyGroupsBuildCommandTest extends TestCase
+class IngestionGroupsBuildCommandTest extends TestCase
 {
     protected function tearDown(): void
     {
@@ -19,7 +19,7 @@ class ReadOnlyGroupsBuildCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_reports_groups_build_summarizes_local_tag_group_without_external_fetch_or_writes(): void
+    public function test_reports_groups_build_summarizes_local_tag_group_from_local_state_in_preview(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
         $this->createTable();
@@ -57,7 +57,7 @@ class ReadOnlyGroupsBuildCommandTest extends TestCase
         $payload = json_decode(trim(Artisan::output()), true);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame('read-only-preview', $payload['mode']);
+        $this->assertSame('ingestion-preview', $payload['mode']);
         $this->assertSame(2, $payload['group_count']);
         $this->assertSame(3, $payload['tag_rows']);
         $this->assertSame(2, $payload['active_rows']);
@@ -108,7 +108,7 @@ class ReadOnlyGroupsBuildCommandTest extends TestCase
         $this->assertSame(1, $payload['rows'][0]['active_rows']);
     }
 
-    public function test_ingestion_scheduler_can_execute_read_only_groups_preview_when_due(): void
+    public function test_ingestion_scheduler_can_execute_ingestion_groups_preview_when_due(): void
     {
         $this->createTable();
         config()->set('ingestion.scheduler_enabled', true);

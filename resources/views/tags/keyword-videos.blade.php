@@ -77,7 +77,7 @@
             @if (! $data_available)
                 <section class="panel">
                     <p class="notice">Data unavailable locally. {{ $blocked_reason }}</p>
-                    <p>Legacy source: {{ $legacy_file }}. Laravel only reads `urt_show_video_tag_date` and `urt_video`; it does not call `api/tags_relation_date.php`.</p>
+                    <p>Legacy source: {{ $legacy_file }}. Laravel uses `urt_show_video_tag_date` and `urt_video` as dashboard sources; relation data is rebuilt through ingestion/cache jobs.</p>
                     <table>
                         <thead>
                             <tr>
@@ -148,6 +148,6 @@
                     </table>
                 </div>
 
-                <p class="meta">Legacy source: {{ $legacy_file }}; writes=0</p>
+                <p class="meta">資料來源：{{ $legacy_file }}；即時 YouTube 儀表板資料</p>
             @endif
 @endsection

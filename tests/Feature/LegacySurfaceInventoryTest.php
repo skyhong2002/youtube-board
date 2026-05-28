@@ -32,7 +32,7 @@ class LegacySurfaceInventoryTest extends TestCase
         $this->assertSame([], $missing, 'Legacy top-level PHP files missing Laravel routes or include-only notes.');
     }
 
-    public function test_every_legacy_api_php_file_has_a_read_only_compatibility_route(): void
+    public function test_every_legacy_api_php_file_has_a_ingestion_compatibility_route(): void
     {
         $legacyApiUris = array_map(
             fn (string $file): string => 'api/'.$file,
@@ -41,7 +41,7 @@ class LegacySurfaceInventoryTest extends TestCase
 
         $missing = array_values(array_diff($legacyApiUris, $this->routedUris()));
 
-        $this->assertSame([], $missing, 'Legacy API PHP files missing read-only Laravel compatibility routes.');
+        $this->assertSame([], $missing, 'Legacy API PHP files missing real-time YouTube dashboard Laravel compatibility routes.');
     }
 
     public function test_legacy_redir_and_prompt_php_files_are_guarded(): void

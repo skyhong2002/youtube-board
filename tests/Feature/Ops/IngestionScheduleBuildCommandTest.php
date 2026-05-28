@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
-class ReadOnlyScheduleBuildCommandTest extends TestCase
+class IngestionScheduleBuildCommandTest extends TestCase
 {
     protected function tearDown(): void
     {
@@ -18,7 +18,7 @@ class ReadOnlyScheduleBuildCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_reports_schedule_build_previews_legacy_stime_recalculation_without_writes(): void
+    public function test_reports_schedule_build_previews_legacy_stime_recalculation_in_preview_mode(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
         $this->createTables();
@@ -83,7 +83,7 @@ class ReadOnlyScheduleBuildCommandTest extends TestCase
         $payload = json_decode(trim(Artisan::output()), true);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame('read-only-preview', $payload['mode']);
+        $this->assertSame('ingestion-preview', $payload['mode']);
         $this->assertSame('2026-05-25 11:00:00', $payload['window_start']);
         $this->assertSame(2, $payload['candidates']);
         $this->assertSame(1, $payload['with_history']);
@@ -187,7 +187,7 @@ class ReadOnlyScheduleBuildCommandTest extends TestCase
         $this->assertSame('2026-05-25 12:00:00', DB::table('urt_video_schedule')->where('videoId', 'scheduled-a')->value('mtime'));
     }
 
-    public function test_ingestion_scheduler_can_execute_read_only_schedule_preview_when_due(): void
+    public function test_ingestion_scheduler_can_execute_ingestion_schedule_preview_when_due(): void
     {
         $this->createTables();
         config()->set('ingestion.scheduler_enabled', true);

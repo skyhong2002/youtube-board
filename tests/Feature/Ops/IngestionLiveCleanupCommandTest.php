@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
-class ReadOnlyLiveCleanupCommandTest extends TestCase
+class IngestionLiveCleanupCommandTest extends TestCase
 {
     protected function tearDown(): void
     {
@@ -18,7 +18,7 @@ class ReadOnlyLiveCleanupCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_youtube_live_cleanup_previews_stale_live_del_flag_updates_without_writes(): void
+    public function test_youtube_live_cleanup_previews_stale_live_del_flag_updates_in_preview_mode(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
         $this->createTables();
@@ -92,7 +92,7 @@ class ReadOnlyLiveCleanupCommandTest extends TestCase
         $payload = json_decode(trim(Artisan::output()), true);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame('read-only-preview', $payload['mode']);
+        $this->assertSame('ingestion-preview', $payload['mode']);
         $this->assertSame('2026-05-25 11:20:00', $payload['too_soon']);
         $this->assertSame('2026-05-25 10:00:00', $payload['scheduled_before']);
         $this->assertSame(2, $payload['candidates']);
@@ -103,7 +103,7 @@ class ReadOnlyLiveCleanupCommandTest extends TestCase
         $this->assertNull(DB::table('urt_video_live')->where('videoId', 'stale-live')->value('del_flag'));
     }
 
-    public function test_reports_live_clean_previews_tag_date_cache_deletes_without_writes(): void
+    public function test_reports_live_clean_previews_tag_date_cache_deletes_in_preview_mode(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
         $this->createTables();
@@ -155,7 +155,7 @@ class ReadOnlyLiveCleanupCommandTest extends TestCase
         $payload = json_decode(trim(Artisan::output()), true);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame('read-only-preview', $payload['mode']);
+        $this->assertSame('ingestion-preview', $payload['mode']);
         $this->assertSame(2, $payload['total_rows']);
         $this->assertSame(1, $payload['would_delete']);
         $this->assertSame(1, $payload['retained_rows']);
@@ -227,7 +227,7 @@ class ReadOnlyLiveCleanupCommandTest extends TestCase
         $this->assertSame('2026-05-23', DB::table('urt_show_live_tag_date')->value('the_date'));
     }
 
-    public function test_ingestion_scheduler_can_execute_read_only_live_cleanup_previews_when_due(): void
+    public function test_ingestion_scheduler_can_execute_ingestion_live_cleanup_previews_when_due(): void
     {
         $this->createTables();
         config()->set('ingestion.scheduler_enabled', true);

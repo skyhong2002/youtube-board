@@ -147,7 +147,7 @@ Web request gates
                         Mode
                         <select name="mode">
                             <option value="dry-run">dry-run</option>
-                            <option value="execute">execute read-only due jobs once</option>
+                            <option value="execute">execute due jobs once</option>
                         </select>
                     </label>
                     <label>

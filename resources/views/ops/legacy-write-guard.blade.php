@@ -60,5 +60,5 @@ Legacy Writeback Disabled
                 <div class="panel"><code>{{ json_encode($query, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}</code></div>
             @endif
 
-            <p class="muted">This compatibility endpoint exists to make legacy forms and admin links fail safely while the Laravel rebuild remains read-only.</p>
+            <p class="muted">This compatibility endpoint exists to route legacy forms and admin links toward Laravel ingestion workflows.</p>
 @endsection

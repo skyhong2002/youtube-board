@@ -10,11 +10,11 @@
 | Tags | `urt_tag`, `tags`, `tag_group`, `urt_show_tag_*` | Category filters and derived tag reports. |
 | Comments | `urt_comment`, queue/done/revision/author tables | Comment ingestion and author analysis. |
 | AI Events | `urt_ai_date`, `urt_ai_event`, `urt_ai_hour`, `urt_channel_ai` | Daily and hourly summaries, event grouping, media-perspective metrics. |
-| Reports | Static HTML, API cache tables, public PHP pages | Read-only outputs backed by derived tables or generated files. |
+| Reports | Static HTML, API cache tables, public PHP pages | Real-time YouTube dashboard outputs backed by derived tables or generated files. |
 
 ## First Vertical Slice
 
-Start with Live Streams because it exercises the important migration path without requiring write access to production:
+Start with Live Streams because it exercises the important migration path through local ingestion and public dashboard behavior:
 
 - Legacy public page: `/live.php`
 - Modern page: `/live/current`
@@ -24,7 +24,7 @@ Start with Live Streams because it exercises the important migration path withou
 
 ## Schema Policy
 
-Do not create final migrations from guesses alone. Use legacy query inventory first, then confirm with a future read-only DB dump before locking schema names and column types.
+Do not create final migrations from guesses alone. Use legacy query inventory first, then confirm with a future real-time YouTube dashboard DB dump before locking schema names and column types.
 
 ## Query-Derived Table Hotspots
 
@@ -50,13 +50,13 @@ The most referenced legacy tables from PHP query inventory are:
 | `tag_group` | Manual/derived grouping of keyword tags. |
 | `fanpage` | Cross-system metadata used by some tag/live pages. |
 
-Treat these as provisional names until a read-only DB dump confirms column types, indexes, and constraints.
+Treat these as provisional names until a real-time YouTube dashboard DB dump confirms column types, indexes, and constraints.
 
 ## External APIs
 
 | Provider | Legacy usage | Modern adapter |
 | --- | --- | --- |
-| YouTube Data API v3 `channels.list` | Channel metadata/statistics in `app/admin.php`, `redir/renew.php`, `maint/get_statics.php`. | Not implemented in the read-only rebuild; ingestion surfaces remain preview-only and skip external YouTube calls. |
+| YouTube Data API v3 `channels.list` | Channel metadata/statistics in `app/admin.php`, `redir/renew.php`, `maint/get_statics.php`. | Not implemented in the real-time YouTube dashboard rebuild; ingestion surfaces remain preview-only and skip external YouTube calls. |
 | YouTube Data API v3 `playlistItems.list` | Upload discovery in `maint/get_video.php`, `maint/get_video_tvbs.php`, `maint/make_live.php`. | `DiscoverChannelVideos` job |
 | YouTube Data API v3 `videos.list` | Video statistics, live status, duration, manual add flows. | `RefreshVideoStatistics`, `PollLiveStreams`, `RefreshVideoDurations` jobs |
 | YouTube Data API v3 `commentThreads.list` | Comment ingestion in `maint/get_comment.php`. | `FetchVideoComments` job |

@@ -89,7 +89,7 @@
             @if (! $available)
                 <div class="empty">本機尚未匯入 `urt_show_live_tag_date`。</div>
             @elseif ($rows === [])
-                <div class="empty">目前沒有符合這組 tag/filter/date 的直播標籤 cache。legacy 會由排程或 API 產生這張 cache，新系統目前只讀已匯入資料。</div>
+                <div class="empty">目前沒有符合這組 tag/filter/date 的直播標籤 cache。新系統會透過排程擷取、快取重建與本地資料補齊這張即時儀表板資料。</div>
             @else
                 <div class="table-wrap">
                     <table>

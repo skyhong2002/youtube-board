@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
-class ReadOnlyAiDailyCommandTest extends TestCase
+class IngestionAiDailyCommandTest extends TestCase
 {
     protected function tearDown(): void
     {
@@ -19,7 +19,7 @@ class ReadOnlyAiDailyCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_ai_daily_previews_one_legacy_condition_without_calling_ai_or_inserting_rows(): void
+    public function test_ai_daily_previews_one_legacy_condition_as_ai_preview(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
         $this->createTables();
@@ -46,7 +46,7 @@ class ReadOnlyAiDailyCommandTest extends TestCase
         $payload = json_decode(trim(Artisan::output()), true);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame('read-only-preview', $payload['mode']);
+        $this->assertSame('ingestion-preview', $payload['mode']);
         $this->assertSame('legacy_make_ai_day', $payload['source']);
         $this->assertSame('2026-05-24', $payload['date']);
         $this->assertSame('oneday', $payload['data_type']);
@@ -125,7 +125,7 @@ class ReadOnlyAiDailyCommandTest extends TestCase
         );
 
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 0, 'skipped' => 1, 'failed' => 0], $result['summary']);
-        $this->assertSame('skip:read-only-guardrail', $result['jobs'][0]['action']);
+        $this->assertSame('skip:controlled-execution-guardrail', $result['jobs'][0]['action']);
         $this->assertSame(0, DB::table('urt_ai_date')->count());
         $this->assertSame(0, DB::table('urt_channel_ai')->count());
     }

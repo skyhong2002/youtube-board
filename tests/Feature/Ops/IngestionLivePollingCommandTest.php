@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
-class ReadOnlyLivePollingCommandTest extends TestCase
+class IngestionLivePollingCommandTest extends TestCase
 {
     protected function tearDown(): void
     {
@@ -19,7 +19,7 @@ class ReadOnlyLivePollingCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_youtube_live_poll_previews_legacy_stale_live_rows_without_api_or_writes(): void
+    public function test_youtube_live_poll_previews_legacy_stale_live_rows_in_preview_mode(): void
     {
         Http::preventStrayRequests();
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
@@ -66,7 +66,7 @@ class ReadOnlyLivePollingCommandTest extends TestCase
         $payload = json_decode(trim(Artisan::output()), true);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame('read-only-preview', $payload['mode']);
+        $this->assertSame('ingestion-preview', $payload['mode']);
         $this->assertSame('stale_live_rows', $payload['source']);
         $this->assertSame('2026-05-25 11:49:00', $payload['too_soon']);
         $this->assertSame('2026-05-25 12:00:00', $payload['scheduled_before']);
@@ -91,7 +91,7 @@ class ReadOnlyLivePollingCommandTest extends TestCase
         $this->assertSame(1, DB::table('urt_video_live_log')->count());
     }
 
-    public function test_youtube_live_poll_execute_requires_api_key_and_does_not_write_when_missing(): void
+    public function test_youtube_live_poll_execute_requires_api_key_before_upsert(): void
     {
         Http::preventStrayRequests();
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
@@ -233,7 +233,7 @@ class ReadOnlyLivePollingCommandTest extends TestCase
         $this->assertSame('target-live', $payload['rows'][0]['video_id']);
     }
 
-    public function test_ingestion_scheduler_can_execute_read_only_live_poll_preview_when_due(): void
+    public function test_ingestion_scheduler_can_execute_ingestion_live_poll_preview_when_due(): void
     {
         $this->createTables();
         config()->set('ingestion.scheduler_enabled', true);

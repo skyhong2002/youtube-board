@@ -44,7 +44,7 @@ class ChannelSubpageStatusReport
                 'modern_path' => 'comments',
                 'tables' => ['urt_comment', 'urt_comment_author'],
                 'reason' => 'Legacy 會先找近期影片，再讀 `urt_comment.authors_json` 統計留言者；本地 comment tables 目前沒有資料。',
-                'next_step' => '等 read-only comment dump 或重建 comment queue 後，再做作者排行與留言 drilldown。',
+                'next_step' => '等 comment dump 或重建 comment queue 後，再做作者排行與留言 drilldown。',
             ],
             'cloud' => [
                 'key' => 'cloud',
@@ -53,7 +53,7 @@ class ChannelSubpageStatusReport
                 'modern_path' => 'cloud',
                 'tables' => ['urt_show_cloud', 'urt_show_tag_cloud'],
                 'reason' => 'Legacy 透過 `api/cloud.php` 計算文字雲 cache；本地 cloud cache tables 目前沒有資料。',
-                'next_step' => '等 cloud cache dump 或重建 read-only cloud builder 後，再用 inline SVG/HTML 呈現文字雲。',
+                'next_step' => '等 cloud cache dump 或重建 real-time YouTube dashboard cloud builder 後，再用 inline SVG/HTML 呈現文字雲。',
             ],
             default => [
                 'key' => 'trends',
@@ -62,7 +62,7 @@ class ChannelSubpageStatusReport
                 'modern_path' => 'trends',
                 'tables' => ['urt_log'],
                 'reason' => 'Legacy 從 `urt_log.thedata` 展開每日 view/subscriber trend；本地 `urt_log` 目前沒有資料。',
-                'next_step' => '等 read-only `urt_log` dump 後，再重建頻道日增觀看與移動平均線圖。',
+                'next_step' => '等 `urt_log` dump 後，再重建頻道日增觀看與移動平均線圖。',
             ],
         };
     }

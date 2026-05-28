@@ -8,7 +8,7 @@ use Tests\TestCase;
 
 class LegacyPromptGuardTest extends TestCase
 {
-    public function test_legacy_prompt_get_endpoint_renders_read_only_guard(): void
+    public function test_legacy_prompt_get_endpoint_renders_ingestion_guard(): void
     {
         $response = $this->get('/prompt/ai_hour_prompt.php?do=1&condition=green');
 
@@ -21,7 +21,7 @@ class LegacyPromptGuardTest extends TestCase
         $response->assertSee('/ai/hours');
     }
 
-    public function test_legacy_prompt_post_endpoint_returns_json_and_does_not_write(): void
+    public function test_legacy_prompt_post_endpoint_returns_controlled_json(): void
     {
         Schema::dropIfExists('urt_ai_event');
         Schema::create('urt_ai_event', function ($table): void {
@@ -38,7 +38,7 @@ class LegacyPromptGuardTest extends TestCase
 
         $response->assertStatus(403);
         $response->assertJsonPath('script', 'ai_event_prompt');
-        $response->assertJsonPath('read_only', true);
+        $response->assertJsonPath('realtime_dashboard', true);
         $response->assertJsonPath('writes', 0);
         $response->assertJsonPath('external_calls', 0);
         $response->assertJsonFragment(['insert urt_ai_event']);

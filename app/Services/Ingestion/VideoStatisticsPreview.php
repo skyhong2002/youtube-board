@@ -51,7 +51,7 @@ class VideoStatisticsPreview
         $wouldCallApi = $videoId !== null || $firstBatchCount > $threshold;
 
         return [
-            'mode' => 'read-only-preview',
+            'mode' => 'ingestion-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'source' => $source,
             'target_video_id' => $videoId,
@@ -72,7 +72,7 @@ class VideoStatisticsPreview
             'would_reserve_until' => $wouldCallApi ? $reserveUntil : null,
             'would_update_month' => $now->format('Y-m-01'),
             'would_update_date' => $now->toDateString(),
-            'api_call_skipped' => 'YouTube Data API videos.list(statistics) is intentionally not called in read-only mode',
+            'api_call_skipped' => 'YouTube Data API videos.list(statistics) is intentionally not called in planning mode',
             'writes_skipped' => [
                 'urt_video_schedule.stime reserve update',
                 'urt_video_log_history insert',

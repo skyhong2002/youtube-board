@@ -132,7 +132,7 @@ class TagComparisonRouteTest extends TestCase
         $response->assertDontSee('目前沒有符合條件的多關鍵字趨勢 cache');
     }
 
-    public function test_tag_comparison_reports_empty_local_cache_without_generation(): void
+    public function test_tag_comparison_reports_empty_local_cache_with_cache_refresh_guidance(): void
     {
         $this->createTables();
 

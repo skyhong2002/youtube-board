@@ -79,7 +79,7 @@ class LiveCleanupPreview
         }
 
         return [
-            'mode' => $execute ? 'execute' : 'read-only-preview',
+            'mode' => $execute ? 'execute' : 'ingestion-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'too_soon' => $tooSoon->format('Y-m-d H:i:s'),
             'scheduled_before' => $scheduledBefore->format('Y-m-d H:i:s'),
@@ -130,7 +130,7 @@ class LiveCleanupPreview
         }
 
         return [
-            'mode' => $execute ? 'execute' : 'read-only-preview',
+            'mode' => $execute ? 'execute' : 'ingestion-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'total_rows' => $rows->count(),
             'would_delete' => $wouldDelete->count(),

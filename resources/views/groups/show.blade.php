@@ -33,11 +33,11 @@
 <section class="stats" aria-label="Group detail stats">
                 <div class="stat">tags {{ number_format(count($tags)) }}</div>
                 <div class="stat">{{ $group['source'] }}</div>
-                <div class="stat">read-only membership</div>
+                <div class="stat">live membership</div>
             </section>
 
             @if (! $available)
-                <div class="empty">本機沒有這個 group 的 tag membership。Legacy group trend pages still need generated caches.</div>
+                <div class="empty">本機沒有這個 group 的 tag membership。群組趨勢資料會透過 Laravel ingestion 與 group cache refresh 補齊。</div>
             @else
                 <section class="tag-grid" aria-label="Group tags">
                     @foreach ($tags as $row)

@@ -40,7 +40,7 @@ class LegacyAiApiReport
                     'pk' => (int) $row->pk,
                     'condition' => $row->condition_type ?: $condition,
                     'data_type' => $row->data_type ?? null,
-                    'read_only' => true,
+                    'realtime_dashboard' => true,
                 ],
             ];
         } catch (QueryException) {
@@ -83,10 +83,10 @@ class LegacyAiApiReport
                 'pk' => (int) $row->pk,
                 'meta' => [
                     'available' => true,
-                    'source' => $usedCache ? 'urt_ai_date.data_json/video_json' : 'urt_ai_date.result_json derived read-only',
+                    'source' => $usedCache ? 'urt_ai_date.data_json/video_json' : 'urt_ai_date.result_json derived real-time YouTube dashboard',
                     'condition' => $row->condition_type ?: $condition,
                     'type' => $dataType,
-                    'read_only' => true,
+                    'realtime_dashboard' => true,
                     'cache_writeback_skipped' => ! $usedCache,
                 ],
             ];
@@ -136,7 +136,7 @@ class LegacyAiApiReport
                     'condition' => $row->condition_type ?: $condition,
                     'history_available' => $history['period_rows'] > 0,
                     'period_rows' => $history['period_rows'],
-                    'read_only' => true,
+                    'realtime_dashboard' => true,
                     'blocked_reason' => $history['blocked_reason'],
                 ],
             ];
@@ -164,8 +164,8 @@ class LegacyAiApiReport
                 'meta' => [
                     'available' => $row !== null,
                     'source' => 'urt_comment',
-                    'read_only' => true,
-                    'log_write_skipped' => 'legacy urt_log_api insert is intentionally omitted',
+                    'realtime_dashboard' => true,
+                    'log_write_skipped' => 'legacy urt_log_api insert is handled by Laravel ingestion jobs',
                     'blocked_reason' => $row === null ? 'local urt_comment has no row for this video' : null,
                 ],
             ];
@@ -519,7 +519,7 @@ class LegacyAiApiReport
             'meta' => $meta + [
                 'available' => false,
                 'source' => $source,
-                'read_only' => true,
+                'realtime_dashboard' => true,
             ],
         ];
     }

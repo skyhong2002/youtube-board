@@ -43,7 +43,7 @@ class TagTrendRouteTest extends TestCase
         $response->assertDontSee('legacy cache generation');
     }
 
-    public function test_tag_trend_page_reports_missing_cache_without_generating_data(): void
+    public function test_tag_trend_page_reports_missing_cache_with_cache_refresh_guidance(): void
     {
         $this->createTables();
 

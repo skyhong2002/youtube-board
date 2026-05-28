@@ -55,14 +55,14 @@ class LegacyTagChannelApiTest extends TestCase
         $response = $this->getJson('/api/tags_index.php?limit=1');
 
         $response->assertOk();
-        $response->assertJsonPath('meta.read_only', true);
+        $response->assertJsonPath('meta.realtime_dashboard', true);
         $this->assertSame(['高熱度'], array_keys($response->json('result')));
         $this->assertGreaterThan(0, $response->json('result')['高熱度']['weight']);
 
         Carbon::setTestNow();
     }
 
-    public function test_tags_all_api_reports_empty_cache_without_writes(): void
+    public function test_tags_all_api_reports_empty_cache_in_preview_mode(): void
     {
         Schema::create('urt_show_data', function ($table): void {
             $table->integer('pk');
@@ -79,7 +79,7 @@ class LegacyTagChannelApiTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonPath('meta.available', false);
-        $response->assertJsonPath('meta.read_only', true);
+        $response->assertJsonPath('meta.realtime_dashboard', true);
         $this->assertSame(0, DB::table('urt_show_data')->count());
     }
 
@@ -121,7 +121,7 @@ class LegacyTagChannelApiTest extends TestCase
         $this->assertSame(1, DB::table('urt_show_data')->count());
     }
 
-    public function test_video_tags_apis_compute_keywords_read_only_when_cache_is_empty(): void
+    public function test_video_tags_apis_compute_keywords_ingestion_when_cache_is_empty(): void
     {
         $this->createTagsTable();
         $this->createVideoTable();
@@ -149,7 +149,7 @@ class LegacyTagChannelApiTest extends TestCase
         $title = $this->getJson('/api/video_tags_title.php?videoId=video-keyword');
 
         $full->assertOk();
-        $full->assertJsonPath('meta.source', 'tags table computed read-only');
+        $full->assertJsonPath('meta.source', 'tags table computed real-time YouTube dashboard');
         $this->assertSame(3, $full->json('result')['川普']);
         $this->assertSame(4, $full->json('result')['白宮']);
         $title->assertOk();
@@ -252,7 +252,7 @@ class LegacyTagChannelApiTest extends TestCase
         $this->assertSame('政治', $response->json('13'));
     }
 
-    public function test_tag_cloud_cache_apis_read_only_and_report_misses(): void
+    public function test_tag_cloud_cache_apis_ingestion_and_report_misses(): void
     {
         $this->createTagCloudTable();
         DB::table('urt_show_tag_cloud')->insert([
@@ -311,7 +311,7 @@ class LegacyTagChannelApiTest extends TestCase
         $this->assertSame(4, $response->json('result')['白宮']);
     }
 
-    public function test_tag_relation_month_period_and_tags_days_cache_apis_are_read_only(): void
+    public function test_tag_relation_month_period_and_tags_days_cache_apis_are_ingestion(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-25 02:00:00', 'Asia/Taipei'));
         $this->createTagRelationDateTable();

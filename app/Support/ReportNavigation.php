@@ -29,14 +29,7 @@ class ReportNavigation
      */
     public static function system(Request $request): array
     {
-        $routeName = (string) ($request->route()?->getName() ?? '');
-
-        $items = [
-            self::item('擷取排程', 'ops.ingestion', str_starts_with($routeName, 'ops.ingestion')),
-            self::item('整合檢查', 'ops.integrations', $routeName === 'ops.integrations' || str_starts_with($routeName, 'dev.')),
-        ];
-
-        return $items;
+        return [];
     }
 
     /**

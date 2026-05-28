@@ -193,7 +193,7 @@ class TagDailyRelationReport
         $cache['cache_rows'] = 0;
 
         return $cache + [
-            'source' => 'urt_video + tags derived read-only',
+            'source' => 'urt_video + tags derived real-time YouTube dashboard',
         ];
     }
 

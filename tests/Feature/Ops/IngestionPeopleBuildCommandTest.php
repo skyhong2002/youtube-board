@@ -9,9 +9,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
-class ReadOnlyPeopleBuildCommandTest extends TestCase
+class IngestionPeopleBuildCommandTest extends TestCase
 {
-    public function test_reports_people_build_previews_legacy_tag_period_jobs_without_calls(): void
+    public function test_reports_people_build_previews_legacy_tag_period_jobs_with_cache_job_preview(): void
     {
         $this->createTables();
 
@@ -55,7 +55,7 @@ class ReadOnlyPeopleBuildCommandTest extends TestCase
         $payload = json_decode(trim(Artisan::output()), true);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame('read-only-preview', $payload['mode']);
+        $this->assertSame('ingestion-preview', $payload['mode']);
         $this->assertSame('政治人物', $payload['group_name']);
         $this->assertSame(2, $payload['candidates']);
         $this->assertSame('2026-05-24 10:00:00', $payload['latest_time']);
@@ -94,7 +94,7 @@ class ReadOnlyPeopleBuildCommandTest extends TestCase
         $this->assertSame('藝人A', $payload['rows'][0]['tag']);
     }
 
-    public function test_ingestion_scheduler_can_execute_read_only_people_preview_when_due(): void
+    public function test_ingestion_scheduler_can_execute_ingestion_people_preview_when_due(): void
     {
         $this->createTables();
         config()->set('ingestion.scheduler_enabled', true);

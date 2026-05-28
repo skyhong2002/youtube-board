@@ -333,7 +333,7 @@ class IntegrationCheckController extends Controller
             'state' => $ok ? 'ok' : 'failed',
             'status' => $ok ? 'OK' : 'failed',
             'details' => array_values(array_filter([
-                ['label' => 'Check', 'value' => 'cached public endpoint probe; read-only GET; no local writes'],
+                ['label' => 'Check', 'value' => 'cached public endpoint probe; health-check GET; no local writes'],
                 ['label' => 'Checked at', 'value' => (string) ($payload['checked_at'] ?? 'n/a')],
                 ['label' => 'Keyword endpoint', 'value' => $this->formatTagAnalysisEndpointStatus($keyword)],
                 ['label' => 'Group endpoint', 'value' => $this->formatTagAnalysisEndpointStatus($group)],
@@ -370,7 +370,7 @@ class IntegrationCheckController extends Controller
                 'state' => 'ok',
                 'status' => 'OK',
                 'details' => [
-                    ['label' => 'Check', 'value' => 'read-only: select 1'],
+                    ['label' => 'Check', 'value' => 'database ping: select 1'],
                     ['label' => 'Connection', 'value' => (string) config('database.default')],
                     ['label' => 'Database', 'value' => (string) config('database.connections.'.config('database.default').'.database')],
                 ],
@@ -382,7 +382,7 @@ class IntegrationCheckController extends Controller
                 'state' => 'failed',
                 'status' => 'failed',
                 'details' => [
-                    ['label' => 'Check', 'value' => 'read-only: select 1'],
+                    ['label' => 'Check', 'value' => 'database ping: select 1'],
                     ['label' => 'Connection', 'value' => (string) config('database.default')],
                     ['label' => 'Error', 'value' => $exception->getMessage()],
                 ],

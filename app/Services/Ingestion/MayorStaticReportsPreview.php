@@ -53,7 +53,7 @@ class MayorStaticReportsPreview
             ->all();
 
         return [
-            'mode' => 'read-only-preview',
+            'mode' => 'ingestion-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'source_path' => $sourcePath,
             'source_status' => $sourceStatus,
@@ -196,7 +196,7 @@ class MayorStaticReportsPreview
             'report_type' => 'mayor-city-support',
             'modern_path' => '/mayor/cities/'.$city,
             'query' => $query,
-            'write_skipped' => 'mayor static HTML output is intentionally not written in read-only mode',
+            'write_skipped' => 'mayor static HTML output is intentionally not written in planning mode',
         ];
     }
 

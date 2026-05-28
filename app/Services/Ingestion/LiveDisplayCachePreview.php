@@ -88,7 +88,7 @@ class LiveDisplayCachePreview
         }
 
         return [
-            'mode' => $execute ? 'execute' : 'read-only-preview',
+            'mode' => $execute ? 'execute' : 'ingestion-preview',
             'generated_at' => $generatedAt,
             'expire_time' => $expireTime,
             'hours' => $hours,

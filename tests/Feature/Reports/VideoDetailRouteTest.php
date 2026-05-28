@@ -26,7 +26,7 @@ class VideoDetailRouteTest extends TestCase
         $response->assertDontSee('/maint/get_comment.php');
     }
 
-    public function test_video_analytics_renders_comment_and_history_data_read_only(): void
+    public function test_video_analytics_renders_comment_and_history_data_ingestion(): void
     {
         $this->createTables();
         $this->insertVideoFixture();
@@ -44,7 +44,7 @@ class VideoDetailRouteTest extends TestCase
         $response->assertDontSee('/maint/get_comment.php');
     }
 
-    public function test_video_detail_reports_missing_local_rows_without_fetch_links(): void
+    public function test_video_detail_reports_missing_local_rows_with_ingestion_guidance(): void
     {
         $this->createTables();
 

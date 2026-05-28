@@ -8,7 +8,7 @@ use Tests\TestCase;
 
 class LegacyWriteGuardTest extends TestCase
 {
-    public function test_legacy_redir_get_endpoint_renders_read_only_guard(): void
+    public function test_legacy_redir_get_endpoint_renders_ingestion_guard(): void
     {
         $response = $this->get('/redir/add_video.php?videoId=test-video&u_id=10');
 
@@ -21,7 +21,7 @@ class LegacyWriteGuardTest extends TestCase
         $response->assertSee('youtube:channels:videos');
     }
 
-    public function test_legacy_redir_post_endpoint_returns_json_and_does_not_write(): void
+    public function test_legacy_redir_post_endpoint_returns_controlled_json(): void
     {
         Schema::dropIfExists('urt_channel_ai');
         Schema::create('urt_channel_ai', function ($table): void {
@@ -39,7 +39,7 @@ class LegacyWriteGuardTest extends TestCase
 
         $response->assertStatus(403);
         $response->assertJsonPath('script', 'channel_gpt');
-        $response->assertJsonPath('read_only', true);
+        $response->assertJsonPath('realtime_dashboard', true);
         $response->assertJsonPath('writes', 0);
         $response->assertJsonPath('external_calls', 0);
         $response->assertJsonFragment(['insert urt_channel_ai topic rows']);

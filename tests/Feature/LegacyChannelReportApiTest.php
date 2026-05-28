@@ -9,7 +9,7 @@ use Tests\TestCase;
 
 class LegacyChannelReportApiTest extends TestCase
 {
-    public function test_channel_log_api_expands_urt_log_thedata_read_only(): void
+    public function test_channel_log_api_expands_urt_log_thedata_ingestion(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-10 12:00:00', 'Asia/Taipei'));
         $this->createChannelTable();
@@ -32,7 +32,7 @@ class LegacyChannelReportApiTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonPath('meta.source', 'urt_log.thedata');
-        $response->assertJsonPath('meta.read_only', true);
+        $response->assertJsonPath('meta.realtime_dashboard', true);
         $response->assertJsonPath('meta.channel.title', 'Test Channel');
         $this->assertSame(100, $response->json('result.2026-05-10.orig'));
         $this->assertSame(1, $response->json('result.2026-05-10.videos'));
@@ -43,7 +43,7 @@ class LegacyChannelReportApiTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_channel_prediction_api_returns_summary_without_legacy_writeback(): void
+    public function test_channel_prediction_api_returns_summary_through_ingestion_workflow(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-10 12:00:00', 'Asia/Taipei'));
         $this->createLogTable();
@@ -59,7 +59,7 @@ class LegacyChannelReportApiTest extends TestCase
         $response = $this->getJson('/api/channel_pred.php?u_id=10&limit=7');
 
         $response->assertOk();
-        $response->assertJsonPath('meta.writeback_skipped', 'legacy urt_count views_pred_week/month update is intentionally omitted');
+        $response->assertJsonPath('meta.writeback_skipped', 'legacy urt_count views_pred_week/month update is handled by Laravel ingestion jobs');
         $response->assertJsonPath('summary.views_pred_week', 700);
         $this->assertSame(100, $response->json('result.2026-05-10.pred'));
         $this->assertSame(1, DB::table('urt_log')->count());
@@ -67,7 +67,7 @@ class LegacyChannelReportApiTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_channel_log_api_reports_empty_local_log_without_writes(): void
+    public function test_channel_log_api_reports_empty_local_log_in_preview_mode(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-10 12:00:00', 'Asia/Taipei'));
         $this->createLogTable();

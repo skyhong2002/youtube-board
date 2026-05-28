@@ -8,7 +8,7 @@ use Tests\TestCase;
 
 class LegacyCloudGroupApiTest extends TestCase
 {
-    public function test_channel_cloud_api_reads_local_cache_without_writes(): void
+    public function test_channel_cloud_api_reads_local_cache_in_preview_mode(): void
     {
         $this->createChannelCloudTable();
         DB::table('urt_show_cloud')->insert([
@@ -24,7 +24,7 @@ class LegacyCloudGroupApiTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonPath('meta.source', 'urt_show_cloud.keywords_json');
-        $response->assertJsonPath('meta.read_only', true);
+        $response->assertJsonPath('meta.realtime_dashboard', true);
         $this->assertSame('8.500', $response->json('result')['川普']);
         $this->assertSame(1, DB::table('urt_show_cloud')->count());
     }
@@ -136,7 +136,7 @@ class LegacyCloudGroupApiTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonPath('meta.cache_available', false);
-        $response->assertJsonPath('meta.read_only', true);
+        $response->assertJsonPath('meta.realtime_dashboard', true);
         $this->assertSame(['柯文哲', '賴清德'], $response->json('result.tag_array'));
         $this->assertSame('新聞', $response->json('result.group_array.0.name'));
         $response->assertJsonMissing(['已刪除']);

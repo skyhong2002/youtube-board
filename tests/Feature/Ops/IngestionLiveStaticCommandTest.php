@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
-class ReadOnlyLiveStaticCommandTest extends TestCase
+class IngestionLiveStaticCommandTest extends TestCase
 {
     private string $legacyRoot;
 
@@ -34,7 +34,7 @@ class ReadOnlyLiveStaticCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_reports_live_static_previews_legacy_static_target_without_writing_html(): void
+    public function test_reports_live_static_previews_legacy_static_target_through_dynamic_routes(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
         $this->createLegacyLiveTables();
@@ -82,7 +82,7 @@ class ReadOnlyLiveStaticCommandTest extends TestCase
         $payload = json_decode(trim(Artisan::output()), true);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame('read-only-preview', $payload['mode']);
+        $this->assertSame('ingestion-preview', $payload['mode']);
         $this->assertSame('parsed', $payload['source_status']);
         $this->assertSame(1, $payload['targets']);
         $this->assertSame(1, $payload['would_generate']);
@@ -112,7 +112,7 @@ class ReadOnlyLiveStaticCommandTest extends TestCase
         $this->assertFalse($payload['rows'][0]['dynamic_report_available']);
     }
 
-    public function test_ingestion_scheduler_can_execute_read_only_live_static_preview_when_due(): void
+    public function test_ingestion_scheduler_can_execute_ingestion_live_static_preview_when_due(): void
     {
         $this->writeLegacyShell();
         config()->set('ingestion.scheduler_enabled', true);

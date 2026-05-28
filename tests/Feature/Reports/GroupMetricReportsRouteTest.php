@@ -52,7 +52,7 @@ class GroupMetricReportsRouteTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_group_two_legacy_url_redirects_to_read_only_position_trend(): void
+    public function test_group_two_legacy_url_redirects_to_ingestion_position_trend(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-25 05:00:00', 'Asia/Taipei'));
         $this->createTables();

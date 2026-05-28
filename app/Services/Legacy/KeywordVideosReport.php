@@ -63,7 +63,7 @@ class KeywordVideosReport
 
             if ($derivedRows !== []) {
                 $rows = $derivedRows;
-                $source = 'urt_video title/description derived read-only';
+                $source = 'urt_video title/description derived real-time YouTube dashboard';
                 $queryExceptionReason = null;
             }
         }

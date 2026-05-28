@@ -127,7 +127,7 @@
         @if ($liveProbe)
             Local live probe 已啟用；標示為 live probe 的檢查可能會呼叫外部 API。新文易數 tag.analysis.tw 會使用快取的公開端點 probe。
         @else
-            公開 ops 頁面預設只做 config-only checks，不會主動呼叫 YouTube、AI 或 Dokploy。新文易數 tag.analysis.tw 會使用快取的公開端點 probe，不寫資料庫或檔案。
+            公開 ops 頁面顯示 config checks 與快取的公開端點 probe；YouTube、AI、Dokploy live probe 和資料 refresh 由明確的 ops/ingestion workflow 執行。
         @endif
     </p>
 

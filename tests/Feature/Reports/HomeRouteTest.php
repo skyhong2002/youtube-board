@@ -34,7 +34,7 @@ class HomeRouteTest extends TestCase
         $response->assertSee('總覽');
         $response->assertSeeInOrder(['總覽', '直播', '分類', '關鍵字', '群組', 'AI', '市長']);
         $response->assertSee('YouTube Board 在做什麼');
-        $response->assertSee('把公開 YouTube 頻道、直播、影片、關鍵字和主題群組整理成 read-only 報表');
+        $response->assertSee('把公開 YouTube 頻道、直播、影片、關鍵字和主題群組整理成即時 YouTube 資料儀表板');
         $response->assertSee('看目前直播');
         $response->assertSee('/tags', false);
         $response->assertSee('/keywords', false);

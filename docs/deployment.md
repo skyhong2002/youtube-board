@@ -27,7 +27,7 @@ DB_PASSWORD=<dokploy-secret>
 
 Use the MariaDB service's **General -> Internal Credentials -> Internal Host** value for `DB_HOST`. Dokploy may append a generated suffix to the app name; do not assume the internal host is the human service name.
 
-Production polling is disabled by default. To enable it after an approved backup, rollback, and write-allowlist review, set the scheduler flags, exact job allowlist, and AI fallback provider in the app service environment:
+Production polling is environment-gated by default. To enable it after an approved backup, rollback, and write-allowlist review, set the scheduler flags, exact job allowlist, and AI fallback provider in the app service environment:
 
 ```env
 INGESTION_SCHEDULER_ENABLED=true
@@ -45,7 +45,7 @@ OPENAI_FALLBACK_ENDPOINT_STYLE=chat
 OPENAI_FALLBACK_TIMEOUT=240
 ```
 
-For `/live/current` parity with the legacy site, the minimum live allowlist is:
+For `/live/current` parity with the current PHP site, the minimum live allowlist is:
 
 - `youtube.live.poll`: refreshes active `urt_video_live` rows and upserts `urt_video_live_log`.
 - `youtube.tvbs.live.poll`: refreshes active `urt_video_live_tvbs` rows and upserts `urt_video_live_log_tvbs`.
@@ -63,7 +63,7 @@ The AI client tries the primary `OPENAI_*` provider first. If it fails and `OPEN
 
 For derived report freshness, add:
 
-- `reports.keywords.build`: syncs `tags` from 新文易數 `tag.analysis.tw/api/tag_json.php` while leaving legacy filesystem keyword JSON writes disabled.
+- `reports.keywords.build`: syncs `tags` from 新文易數 `tag.analysis.tw/api/tag_json.php`; the Laravel dashboard reads database-backed cache data instead of relying on legacy filesystem keyword JSON files.
 - `reports.groups.build`: syncs `tag_group` from 新文易數 `tag.analysis.tw/api/group.php`.
 - `reports.people.build`: refreshes selected political-people `urt_show_tag_date` cache rows from local `urt_video`, `urt_count`, and `tags`.
 - `reports.counts.build` and `reports.schedule.build`: refresh local derived count deltas and schedule stime rows from existing local log/cache data.

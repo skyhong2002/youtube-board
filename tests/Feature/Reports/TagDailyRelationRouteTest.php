@@ -8,7 +8,7 @@ use Tests\TestCase;
 
 class TagDailyRelationRouteTest extends TestCase
 {
-    public function test_tag_daily_relation_page_reads_legacy_cache_without_generating_data(): void
+    public function test_tag_daily_relation_page_reads_legacy_cache_with_cache_refresh_guidance(): void
     {
         $this->createTables();
 
@@ -59,7 +59,7 @@ class TagDailyRelationRouteTest extends TestCase
         $response->assertSee('賴清德');
         $response->assertSee('頻道數');
         $response->assertSee('2,000');
-        $response->assertDontSee('Laravel 目前只讀取既有資料');
+        $response->assertDontSee('Laravel 目前以排程與快取資料呈現');
         $response->assertDontSee('search_query=%E6%96%B0%E8%81%9E', false);
     }
 
@@ -137,10 +137,10 @@ class TagDailyRelationRouteTest extends TestCase
         $response->assertOk();
         $response->assertSee('少子化 在 1 天的逐日排行');
         $response->assertSee('cache rows 0');
-        $response->assertSee('urt_video + tags derived read-only');
+        $response->assertSee('urt_video + tags derived real-time YouTube dashboard');
         $response->assertSee('托育');
         $response->assertSee('育兒');
-        $response->assertDontSee('Laravel 目前只讀取既有資料');
+        $response->assertDontSee('Laravel 目前以排程與快取資料呈現');
         $this->assertSame(0, DB::table('urt_show_video_tag_date')->count());
     }
 
@@ -219,10 +219,10 @@ class TagDailyRelationRouteTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('cache rows 0');
-        $response->assertSee('Laravel 目前只讀取既有資料');
+        $response->assertSee('Laravel 會透過排程擷取與快取重建補齊即時儀表板資料');
     }
 
-    public function test_legacy_daily_relation_urls_redirect_to_read_only_pages(): void
+    public function test_legacy_daily_relation_urls_redirect_to_ingestion_pages(): void
     {
         $this->get('/days.php?tagid=1&days=3&type=tags_video&not=9')
             ->assertStatus(308)

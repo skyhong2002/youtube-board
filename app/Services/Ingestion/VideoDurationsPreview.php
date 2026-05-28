@@ -58,7 +58,7 @@ class VideoDurationsPreview
         $wouldCallApi = $videoId !== null || $readyRows->count() > $threshold;
 
         return [
-            'mode' => 'read-only-preview',
+            'mode' => 'ingestion-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'target_video_id' => $videoId,
             'batch_size' => $batchSize,
@@ -73,7 +73,7 @@ class VideoDurationsPreview
             'unqueued_missing_videos' => $unqueuedMissingVideos,
             'would_call_api' => $wouldCallApi,
             'would_reserve_until' => $wouldCallApi ? $nextTime : null,
-            'api_call_skipped' => 'YouTube Data API videos.list(contentDetails) is intentionally not called in read-only mode',
+            'api_call_skipped' => 'YouTube Data API videos.list(contentDetails) is intentionally not called in planning mode',
             'queue_update_skipped' => '`urt_video_duration.stime`, `mtime`, `duration`, and `caption` are intentionally not updated',
             'rows' => $readyRows
                 ->map(function (object $row) use ($videoMetadata, $nextTime): array {

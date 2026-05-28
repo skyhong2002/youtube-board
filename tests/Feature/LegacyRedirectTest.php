@@ -217,7 +217,7 @@ class LegacyRedirectTest extends TestCase
         ]));
     }
 
-    public function test_legacy_ai_day_prompt_url_redirects_to_read_only_prompt_preview(): void
+    public function test_legacy_ai_day_prompt_url_redirects_to_ingestion_prompt_preview(): void
     {
         $response = $this->get('/ai_day_prompt.php?date=2026-05-23&condition=green&type=oneday&limit=20');
 
@@ -487,7 +487,7 @@ class LegacyRedirectTest extends TestCase
         ]));
     }
 
-    public function test_legacy_channel_prompt_path_redirects_to_read_only_prompt_preview(): void
+    public function test_legacy_channel_prompt_path_redirects_to_ingestion_prompt_preview(): void
     {
         $response = $this->get('/ch/10/prompt?date=2026-05-23&limit=20');
 
@@ -499,7 +499,7 @@ class LegacyRedirectTest extends TestCase
         ]));
     }
 
-    public function test_legacy_channel_ai_paths_redirect_to_read_only_gpt_overview(): void
+    public function test_legacy_channel_ai_paths_redirect_to_ingestion_gpt_overview(): void
     {
         $this->get('/ch/10/ai?date=2026-05-23')
             ->assertStatus(308)

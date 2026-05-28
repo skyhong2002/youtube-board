@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
-class ReadOnlyCountsBuildCommandTest extends TestCase
+class IngestionCountsBuildCommandTest extends TestCase
 {
     protected function tearDown(): void
     {
@@ -18,7 +18,7 @@ class ReadOnlyCountsBuildCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_reports_counts_build_previews_legacy_count_deltas_without_writes(): void
+    public function test_reports_counts_build_previews_legacy_count_deltas_in_preview_mode(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
         $this->createTables();
@@ -71,7 +71,7 @@ class ReadOnlyCountsBuildCommandTest extends TestCase
         $payload = json_decode(trim(Artisan::output()), true);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame('read-only-preview', $payload['mode']);
+        $this->assertSame('ingestion-preview', $payload['mode']);
         $this->assertSame(2, $payload['candidates']);
         $this->assertSame(1, $payload['with_logs']);
         $this->assertSame(1, $payload['missing_logs']);
@@ -165,7 +165,7 @@ class ReadOnlyCountsBuildCommandTest extends TestCase
         $this->assertSame('2026-05-25 12:00:00', DB::table('urt_count')->where('u_id', 10)->value('mtime'));
     }
 
-    public function test_ingestion_scheduler_can_execute_read_only_counts_preview_when_due(): void
+    public function test_ingestion_scheduler_can_execute_ingestion_counts_preview_when_due(): void
     {
         $this->createTables();
         config()->set('ingestion.scheduler_enabled', true);

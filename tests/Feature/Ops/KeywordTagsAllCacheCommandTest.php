@@ -17,7 +17,7 @@ class KeywordTagsAllCacheCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_keywords_cache_command_dry_run_does_not_write_tags_all(): void
+    public function test_keywords_cache_command_preview_plans_tags_all(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-26 12:00:00', 'Asia/Taipei'));
         $this->createTables();

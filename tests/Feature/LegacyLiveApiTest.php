@@ -35,14 +35,14 @@ class LegacyLiveApiTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonPath('meta.available', true);
-        $response->assertJsonPath('meta.read_only', true);
+        $response->assertJsonPath('meta.realtime_dashboard', true);
         $this->assertSame(300, $response->json('result')['2026-05-23']['10:30']);
         $this->assertSame(700, $response->json('result')['2026-05-24']['11:30']);
 
         Carbon::setTestNow();
     }
 
-    public function test_legacy_live_date_api_uses_cache_or_derives_without_writes(): void
+    public function test_legacy_live_date_api_uses_cache_or_derives_in_preview_mode(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-25 02:00:00', 'Asia/Taipei'));
         $this->createLiveDateTables();
@@ -89,7 +89,7 @@ class LegacyLiveApiTest extends TestCase
         $derived = $this->getJson('/api/api_live_date.php?date=2026-05-23');
 
         $derived->assertOk();
-        $derived->assertJsonPath('meta.source', 'urt_video_live_log derived read-only');
+        $derived->assertJsonPath('meta.source', 'urt_video_live_log derived real-time YouTube dashboard');
         $derived->assertJsonPath('result.video.0.videoId', 'derived-live');
         $derived->assertJsonPath('result.hour.10.derived-live', 500);
         $this->assertSame(500, $derived->json('result')['tag']['max'][1]);
@@ -131,7 +131,7 @@ class LegacyLiveApiTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_legacy_live_tag_date_api_reads_cache_and_does_not_generate_missing_rows(): void
+    public function test_legacy_live_tag_date_api_reads_cache_and_reports_missing_rows_for_ingestion(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-25 02:00:00', 'Asia/Taipei'));
         $this->createLiveTagCacheTable();
@@ -208,7 +208,7 @@ class LegacyLiveApiTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_legacy_live_date_list_api_filters_logs_without_generating_cache(): void
+    public function test_legacy_live_date_list_api_filters_logs_with_cache_refresh_guidance(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-25 02:00:00', 'Asia/Taipei'));
         $this->createLiveDateTables();
@@ -243,7 +243,7 @@ class LegacyLiveApiTest extends TestCase
         $response = $this->getJson('/api/live_date.php?tagid=1&not=9&date=2026-05-24&sorting=1');
 
         $response->assertOk();
-        $response->assertJsonPath('meta.read_only', true);
+        $response->assertJsonPath('meta.realtime_dashboard', true);
         $response->assertJsonPath('count_videos', 1);
         $response->assertJsonPath('result.0.videoId', 'included-live');
         $response->assertJsonPath('result.0.max_current', 900);
@@ -269,14 +269,14 @@ class LegacyLiveApiTest extends TestCase
         $response = $this->getJson('/api/live_tvbs.php?date=2026-05-24');
 
         $response->assertOk();
-        $response->assertJsonPath('meta.read_only', true);
+        $response->assertJsonPath('meta.realtime_dashboard', true);
         $response->assertJsonPath('count_videos', 1);
         $response->assertJsonPath('result.tvbs-live.videoId', 'tvbs-live');
 
         Carbon::setTestNow();
     }
 
-    public function test_legacy_video_live_html_and_csv_live_line_are_read_only(): void
+    public function test_legacy_video_live_html_and_csv_live_line_are_ingestion(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-25 02:00:00', 'Asia/Taipei'));
         $this->createLiveLogTable();

@@ -225,7 +225,7 @@ class LiveHoursReport
             return [
                 'rows' => $this->emptyRows($period['dates']),
                 'totals' => $this->emptyTotals($period['dates']),
-                'source' => 'urt_video_live_log derived read-only',
+                'source' => 'urt_video_live_log derived real-time YouTube dashboard',
             ];
         }
 
@@ -274,7 +274,7 @@ class LiveHoursReport
         return [
             'rows' => $this->rowsFromMatrix($matrix),
             'totals' => $totals,
-            'source' => 'urt_video_live_log derived read-only',
+            'source' => 'urt_video_live_log derived real-time YouTube dashboard',
         ];
     }
 

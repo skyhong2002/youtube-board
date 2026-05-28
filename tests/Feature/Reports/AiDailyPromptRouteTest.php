@@ -8,7 +8,7 @@ use Tests\TestCase;
 
 class AiDailyPromptRouteTest extends TestCase
 {
-    public function test_ai_daily_prompt_preview_builds_read_only_legacy_prompt(): void
+    public function test_ai_daily_prompt_preview_builds_ingestion_legacy_prompt(): void
     {
         $this->createTables();
         $this->seedPromptRows();

@@ -8,7 +8,7 @@ use Tests\TestCase;
 
 class LegacyMediaApiTest extends TestCase
 {
-    public function test_duration_api_returns_cached_duration_plain_text_without_insert(): void
+    public function test_duration_api_returns_cached_duration_plain_text_through_ingestion_lookup(): void
     {
         $this->createVideoDurationTable();
         DB::table('urt_video_duration')->insert([
@@ -27,13 +27,13 @@ class LegacyMediaApiTest extends TestCase
         $miss = $this->get('/api/api_duration.php?videoId=video-missing');
 
         $hit->assertOk();
-        $hit->assertHeader('X-Youtube-Board-Read-Only', 'true');
+        $hit->assertHeader('X-Youtube-Board-Data-Source', 'true');
         $this->assertSame('345', $hit->getContent());
         $this->assertSame('0', $miss->getContent());
         $this->assertSame(1, DB::table('urt_video_duration')->count());
     }
 
-    public function test_get_photo_api_returns_cached_url_plain_text_without_wiki_fetch_or_insert(): void
+    public function test_get_photo_api_returns_cached_url_plain_text_through_cached_photo_lookup(): void
     {
         $this->createPhotoTable();
         DB::table('urt_show_photo')->insert([
@@ -49,7 +49,7 @@ class LegacyMediaApiTest extends TestCase
         $miss = $this->get('/api/api_get_photo.php?tag=不存在');
 
         $hit->assertOk();
-        $hit->assertHeader('X-Youtube-Board-Read-Only', 'true');
+        $hit->assertHeader('X-Youtube-Board-Data-Source', 'true');
         $this->assertSame('https://example.test/kp.jpg', $hit->getContent());
         $this->assertSame('null', $miss->getContent());
         $this->assertSame(1, DB::table('urt_show_photo')->count());

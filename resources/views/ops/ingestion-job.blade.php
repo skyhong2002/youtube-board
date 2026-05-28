@@ -51,7 +51,7 @@
                     <span class="badge {{ $summary['local_polling_enabled'] ? 'active' : 'disabled' }}">{{ $summary['local_polling_enabled'] ? 'local polling enabled' : 'local polling disabled' }}</span>
                     <span class="badge {{ $job['status'] }}">{{ $job['status'] }}</span>
                     <span class="badge {{ $job['command_exists'] ? 'ready' : 'missing' }}">{{ $job['command_exists'] ? 'command ready' : 'command missing' }}</span>
-                    <span class="badge {{ $execution['read_only'] ? 'safe' : 'risky' }}">{{ $execution['risk_label'] }}</span>
+                    <span class="badge {{ $execution['realtime_dashboard'] ? 'safe' : 'risky' }}">{{ $execution['risk_label'] }}</span>
                     <span class="badge {{ $detail['is_due_now'] ? 'active' : 'disabled' }}">{{ $detail['is_due_now'] ? 'due now' : 'not due now' }}</span>
                 </div>
 
@@ -85,7 +85,7 @@
             <h2>Execution Guardrail</h2>
             <div class="panel">
                 @if ($execution['can_execute_when_due'])
-                    <p>此 job 是 read-only、active、command-ready，且 cron expression 到期時允許執行。Scheduler execution 仍需要 <code>INGESTION_SCHEDULER_ENABLED=true</code>。</p>
+                    <p>此 job 可作為即時 YouTube 儀表板的安全排程工作；active、command-ready，且 cron expression 到期時允許執行。Scheduler execution 仍需要 <code>INGESTION_SCHEDULER_ENABLED=true</code>。</p>
                 @else
                     <p>此 job 目前不會執行；下面保留 guardrail 原始原因，方便對照 CLI/output。</p>
                     <ul>

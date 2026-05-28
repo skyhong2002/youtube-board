@@ -48,7 +48,7 @@ class IngestionJobRegistry
      *     at: string,
      *     is_due_now: bool,
      *     schedule_previews: list<array{expression: string, valid: bool, next_runs: list<string>, error?: string}>,
-     *     execution: array{read_only: bool, can_execute_when_due: bool, external_calls: bool, risk_label: string, blocks: list<string>},
+     *     execution: array{realtime_dashboard: bool, can_execute_when_due: bool, external_calls: bool, risk_label: string, blocks: list<string>},
      *     scheduled_write: array{allowed: bool, blocks: list<string>}
      * }|null
      */
@@ -128,13 +128,13 @@ class IngestionJobRegistry
 
     /**
      * @param  array<string, mixed>  $job
-     * @return array{read_only: bool, can_execute_when_due: bool, external_calls: bool, risk_label: string, blocks: list<string>}
+     * @return array{realtime_dashboard: bool, can_execute_when_due: bool, external_calls: bool, risk_label: string, blocks: list<string>}
      */
     public function executionProfile(array $job): array
     {
         $status = (string) ($job['status'] ?? 'planned');
         $commandExists = (bool) ($job['command_exists'] ?? $this->commandExists($job));
-        $readOnly = $this->isReadOnlyJob($job);
+        $schedulerSafe = $this->isSchedulerSafeJob($job);
         $externalCalls = $this->hasExternalDependency($job);
         $blocks = [];
 
@@ -146,8 +146,8 @@ class IngestionJobRegistry
             $blocks[] = 'Laravel command is not implemented yet.';
         }
 
-        if (! $readOnly) {
-            $blocks[] = 'Job declares write targets, so it is not allowed under the current read-only guardrail.';
+        if (! $schedulerSafe) {
+            $blocks[] = 'Job declares write targets, so it is not allowed under the current controlled execution guardrail.';
         }
 
         if ($externalCalls) {
@@ -155,10 +155,10 @@ class IngestionJobRegistry
         }
 
         return [
-            'read_only' => $readOnly,
+            'realtime_dashboard' => $schedulerSafe,
             'can_execute_when_due' => $blocks === [],
             'external_calls' => $externalCalls,
-            'risk_label' => $readOnly ? 'read-only' : ($externalCalls ? 'external polling/write' : 'local write'),
+            'risk_label' => $schedulerSafe ? 'dashboard-safe' : ($externalCalls ? 'external polling/write' : 'local write'),
             'blocks' => $blocks,
         ];
     }
@@ -272,7 +272,7 @@ class IngestionJobRegistry
     /**
      * @param  array<string, mixed>  $job
      */
-    private function isReadOnlyJob(array $job): bool
+    private function isSchedulerSafeJob(array $job): bool
     {
         $writes = collect($job['writes'] ?? [])
             ->map(fn (mixed $write): string => strtolower((string) $write))
@@ -284,7 +284,8 @@ class IngestionJobRegistry
                     return false;
                 }
 
-                return str_contains($write, 'read-only')
+                return str_contains($write, 'dashboard-safe')
+                    || str_contains($write, 'real-time youtube dashboard')
                     || preg_match('/^none(?:\s*\(|$)/', $write) === 1;
             });
     }

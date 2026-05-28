@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
-class ReadOnlyCommentFetchCommandTest extends TestCase
+class IngestionCommentFetchCommandTest extends TestCase
 {
     protected function tearDown(): void
     {
@@ -19,7 +19,7 @@ class ReadOnlyCommentFetchCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_youtube_comments_fetch_previews_queue_drain_without_api_or_queue_moves(): void
+    public function test_youtube_comments_fetch_previews_queue_drain_plan(): void
     {
         Http::preventStrayRequests();
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
@@ -53,7 +53,7 @@ class ReadOnlyCommentFetchCommandTest extends TestCase
         $payload = json_decode(trim(Artisan::output()), true);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame('read-only-preview', $payload['mode']);
+        $this->assertSame('ingestion-preview', $payload['mode']);
         $this->assertSame('comment_queue_drain', $payload['source']);
         $this->assertSame('2026-05-25 09:00:00', $payload['refresh_expire_time']);
         $this->assertSame(3, $payload['queue_total']);
@@ -83,7 +83,7 @@ class ReadOnlyCommentFetchCommandTest extends TestCase
         $this->assertSame(2, DB::table('urt_comment')->count());
     }
 
-    public function test_youtube_comments_fetch_execute_requires_api_key_and_does_not_write_when_missing(): void
+    public function test_youtube_comments_fetch_execute_requires_api_key_before_upsert(): void
     {
         Http::preventStrayRequests();
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
@@ -243,7 +243,7 @@ class ReadOnlyCommentFetchCommandTest extends TestCase
         $this->assertSame('target-video', $payload['rows'][0]['video_id']);
     }
 
-    public function test_ingestion_scheduler_can_execute_read_only_comment_fetch_preview_when_due(): void
+    public function test_ingestion_scheduler_can_execute_ingestion_comment_fetch_preview_when_due(): void
     {
         $this->createTables();
         config()->set('ingestion.scheduler_enabled', true);
@@ -257,7 +257,7 @@ class ReadOnlyCommentFetchCommandTest extends TestCase
         );
 
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 0, 'skipped' => 1, 'failed' => 0], $result['summary']);
-        $this->assertSame('skip:read-only-guardrail', $result['jobs'][0]['action']);
+        $this->assertSame('skip:controlled-execution-guardrail', $result['jobs'][0]['action']);
         $this->assertSame(1, DB::table('urt_comment_queue')->count());
         $this->assertSame(0, DB::table('urt_comment_queue_done')->count());
     }

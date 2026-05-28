@@ -58,7 +58,7 @@
             @if (! $data_available)
                 <section class="panel">
                     <p class="notice">Data unavailable locally. {{ $blocked_reason }}</p>
-                    <p class="muted">Legacy source: {{ $legacy_file }}. Laravel 不會提供 `/maint/get_comment.php` 抓取連結，也不會觸發 comment ingestion。</p>
+                    <p class="muted">Legacy source: {{ $legacy_file }}. 留言資料會透過 Laravel comment queue 與 comment ingestion 補齊。</p>
                     <table>
                         <thead>
                             <tr>

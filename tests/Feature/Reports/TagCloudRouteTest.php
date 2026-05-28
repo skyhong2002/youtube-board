@@ -10,7 +10,7 @@ use Tests\TestCase;
 
 class TagCloudRouteTest extends TestCase
 {
-    public function test_tag_cloud_reads_short_and_long_cache_without_writing(): void
+    public function test_tag_cloud_reads_short_and_long_cache_through_dynamic_routes(): void
     {
         $this->createTagTable();
         $this->createTagCloudTable();
@@ -155,7 +155,7 @@ class TagCloudRouteTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('少子化 用 全部標籤 在 7 天的文字雲');
-        $response->assertSee('urt_video + tags derived read-only');
+        $response->assertSee('urt_video + tags derived real-time YouTube dashboard');
         $response->assertSee('托育');
         $response->assertSee('育兒');
         $response->assertDontSee('Data unavailable locally');

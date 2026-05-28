@@ -39,7 +39,7 @@ class TvbsLivePollingPreview
         $wouldCallApi = $selectedRows->isNotEmpty();
 
         return [
-            'mode' => 'read-only-preview',
+            'mode' => 'ingestion-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'source' => $source,
             'target_video_id' => $videoId,
@@ -60,8 +60,8 @@ class TvbsLivePollingPreview
             'skip_reason' => $wouldCallApi ? null : 'no TVBS live rows matched the legacy polling query',
             'single_video_table_note' => $videoId === null
                 ? null
-                : 'legacy get_live_tvbs.php uses urt_video_live in the videoId branch; this read-only preview keeps the TVBS scope on urt_video_live_tvbs',
-            'api_call_skipped' => 'YouTube Data API videos.list(liveStreamingDetails) is intentionally not called in read-only mode',
+                : 'legacy get_live_tvbs.php uses urt_video_live in the videoId branch; this ingestion preview keeps the TVBS scope on urt_video_live_tvbs',
+            'api_call_skipped' => 'YouTube Data API videos.list(liveStreamingDetails) is intentionally not called in planning mode',
             'writes_skipped' => [
                 'urt_video_live_tvbs mtime/liveStreamingDetails update',
                 'urt_video_live_tvbs.max_current update when concurrentViewers exceeds previous max',

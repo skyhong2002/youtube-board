@@ -36,7 +36,7 @@ class CommentFetchPreview
             ->count();
 
         return [
-            'mode' => 'read-only-preview',
+            'mode' => 'ingestion-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'source' => 'comment_queue_drain',
             'target_video_id' => $videoId,
@@ -57,7 +57,7 @@ class CommentFetchPreview
             'would_move_to_done_rows' => $queueRows->count(),
             'refresh_expire_time' => $refreshExpireTime->format('Y-m-d H:i:s'),
             'force' => 1,
-            'api_call_skipped' => 'YouTube Data API commentThreads.list is intentionally not called in read-only mode',
+            'api_call_skipped' => 'YouTube Data API commentThreads.list is intentionally not called in planning mode',
             'writes_skipped' => [
                 'urt_comment_queue.stime update',
                 'maint/get_comment.php execution',

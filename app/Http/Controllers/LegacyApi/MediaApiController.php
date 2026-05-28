@@ -52,6 +52,6 @@ class MediaApiController extends Controller
             ->header('Access-Control-Allow-Origin', '*')
             ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
             ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
-            ->header('X-Youtube-Board-Read-Only', 'true');
+            ->header('X-Youtube-Board-Data-Source', 'true');
     }
 }

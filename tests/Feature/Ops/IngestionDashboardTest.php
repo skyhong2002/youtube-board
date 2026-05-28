@@ -9,7 +9,7 @@ use Tests\TestCase;
 
 class IngestionDashboardTest extends TestCase
 {
-    public function test_ingestion_dashboard_renders_legacy_cron_registry_without_enabling_polling(): void
+    public function test_ingestion_dashboard_renders_legacy_cron_registry_with_controlled_polling_state(): void
     {
         Storage::fake('local');
 
@@ -91,7 +91,7 @@ class IngestionDashboardTest extends TestCase
         }
     }
 
-    public function test_ingestion_dashboard_does_not_treat_old_or_web_runs_as_active_external_scheduler_activity(): void
+    public function test_ingestion_dashboard_keeps_old_or_web_runs_out_of_active_external_scheduler_activity(): void
     {
         Storage::fake('local');
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-26 02:52:30', 'Asia/Taipei'));
@@ -148,7 +148,7 @@ class IngestionDashboardTest extends TestCase
         }
     }
 
-    public function test_ingestion_dashboard_can_run_one_read_only_job_once_and_store_history(): void
+    public function test_ingestion_dashboard_can_run_one_ingestion_job_once_and_store_history(): void
     {
         Storage::fake('local');
         config()->set('legacy.ground_truth_path', storage_path('framework/testing-missing-legacy'));
@@ -211,7 +211,7 @@ class IngestionDashboardTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_ingestion_job_detail_shows_read_only_next_runs_and_safe_execute_command(): void
+    public function test_ingestion_job_detail_shows_ingestion_next_runs_and_safe_execute_command(): void
     {
         $response = $this->get('/ops/ingestion/reports.live.show?at=2026-05-25%2000:07:00');
 
@@ -220,7 +220,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('reports:live:show');
         $response->assertSee('<code>urt_show_video_live</code>', false);
         $response->assertSee('/usr/bin/php /home/urtube/maint/show_live.php');
-        $response->assertSee('read-only');
+        $response->assertSee('即時 YouTube 儀表板');
         $response->assertSee('due now');
         $response->assertSee('2026-05-25 00:14:00 CST');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=reports.live.show');
@@ -241,7 +241,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('INGESTION_LOCAL_POLLING_ENABLED is false.');
     }
 
-    public function test_ingestion_job_detail_allows_ai_daily_read_only_preview(): void
+    public function test_ingestion_job_detail_allows_ai_daily_ingestion_preview(): void
     {
         $response = $this->get('/ops/ingestion/ai.daily?at=2026-05-25%2016:15:00');
 
@@ -256,21 +256,21 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('INGESTION_LOCAL_POLLING_ENABLED is false.');
     }
 
-    public function test_ingestion_job_detail_allows_live_poll_read_only_preview(): void
+    public function test_ingestion_job_detail_allows_live_poll_ingestion_preview(): void
     {
         $response = $this->get('/ops/ingestion/youtube.live.poll?at=2026-05-25%2000:00:00');
 
         $response->assertOk();
         $response->assertSee('youtube.live.poll');
         $response->assertSee('youtube:live:poll');
-        $response->assertSee('read-only live polling queue preview');
+        $response->assertSee('updates live rows and live logs');
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.live.poll');
         $response->assertSee('explicit/scheduled <code>--execute --videoId/--limit</code>', false);
-        $response->assertSee('Scheduler 在 write allowlist 開啟時使用 scheduled execute command；未開啟仍是 dry-run');
+        $response->assertSee('Scheduler 在 write allowlist 開啟時使用 scheduled execute command；未開啟時維持 preview mode');
     }
 
-    public function test_ingestion_job_detail_allows_tvbs_live_poll_read_only_preview(): void
+    public function test_ingestion_job_detail_allows_tvbs_live_poll_ingestion_preview(): void
     {
         $response = $this->get('/ops/ingestion/youtube.tvbs.live.poll?at=2026-05-25%2000:00:00');
 
@@ -283,10 +283,10 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('Scheduled Local Polling');
         $response->assertSee('youtube:tvbs:live:poll --execute --limit=20');
         $response->assertSee('manual/scheduled <code>--execute --videoId/--limit</code>', false);
-        $response->assertSee('Scheduler 在 write allowlist 開啟時使用 capped scheduled execute command；未開啟仍是 dry-run');
+        $response->assertSee('Scheduler 在 write allowlist 開啟時使用 capped scheduled execute command；未開啟時維持 preview mode');
     }
 
-    public function test_ingestion_job_detail_allows_channel_stats_read_only_preview(): void
+    public function test_ingestion_job_detail_allows_channel_stats_ingestion_preview(): void
     {
         $response = $this->get('/ops/ingestion/youtube.channels.stats?at=2026-05-25%2000:09:00');
 
@@ -300,10 +300,10 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('youtube:channels:stats --execute --limit=25');
         $response->assertSee('INGESTION_LOCAL_POLLING_ENABLED is false.');
         $response->assertSee('INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.channels.stats');
-        $response->assertSee('Scheduler 在 write allowlist 開啟時使用 capped scheduled execute command；未開啟仍是 dry-run');
+        $response->assertSee('Scheduler 在 write allowlist 開啟時使用 capped scheduled execute command；未開啟時維持 preview mode');
     }
 
-    public function test_ingestion_job_detail_allows_channel_video_discovery_read_only_previews(): void
+    public function test_ingestion_job_detail_allows_channel_video_discovery_ingestion_previews(): void
     {
         $general = $this->get('/ops/ingestion/youtube.channels.videos.general?at=2026-05-25%2000:05:00');
         $live = $this->get('/ops/ingestion/youtube.channels.videos.live?at=2026-05-25%2002:05:00');
@@ -322,13 +322,13 @@ class IngestionDashboardTest extends TestCase
         $general->assertSee('單一 playlist API 失敗會跳過該 channel 並延後重試，避免整個 job 卡死');
         $live->assertSee('youtube.channels.videos.live');
         $live->assertSee('youtube:channels:videos --live=1 --force=3');
-        $live->assertSee('Scheduler 在 write allowlist 開啟時使用 scheduled execute command；未開啟仍是 dry-run');
+        $live->assertSee('Scheduler 在 write allowlist 開啟時使用 scheduled execute command；未開啟時維持 preview mode');
         $liveGroup->assertSee('youtube.channels.videos.live_group');
         $liveGroup->assertSee('youtube:channels:videos --live=2 --force=3');
-        $liveGroup->assertSee('Scheduler 在 write allowlist 開啟時使用 scheduled execute command；未開啟仍是 dry-run');
+        $liveGroup->assertSee('Scheduler 在 write allowlist 開啟時使用 scheduled execute command；未開啟時維持 preview mode');
     }
 
-    public function test_ingestion_job_detail_allows_tvbs_video_discovery_read_only_preview(): void
+    public function test_ingestion_job_detail_allows_tvbs_video_discovery_ingestion_preview(): void
     {
         $response = $this->get('/ops/ingestion/youtube.tvbs.videos?at=2026-05-25%2000:05:00');
 
@@ -341,23 +341,23 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('Scheduled Local Polling');
         $response->assertSee('youtube:tvbs:videos --execute --limit=1 --max-results=1');
         $response->assertSee('manual/scheduled <code>--execute --id/--channel --limit --max-results</code>', false);
-        $response->assertSee('Scheduler 在 write allowlist 開啟時使用 capped scheduled execute command；未開啟仍是 dry-run');
+        $response->assertSee('Scheduler 在 write allowlist 開啟時使用 capped scheduled execute command；未開啟時維持 preview mode');
     }
 
-    public function test_ingestion_job_detail_allows_live_build_read_only_preview(): void
+    public function test_ingestion_job_detail_allows_live_build_ingestion_preview(): void
     {
         $response = $this->get('/ops/ingestion/reports.live.build?at=2026-05-25%2000:09:00');
 
         $response->assertOk();
         $response->assertSee('reports.live.build');
         $response->assertSee('reports:live:build');
-        $response->assertSee('read-only display-cache preview');
+        $response->assertSee('display-cache ingestion preview');
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=reports.live.build');
-        $response->assertSee('不呼叫 YouTube、不寫 cache');
+        $response->assertSee('display-cache ingestion preview');
     }
 
-    public function test_ingestion_job_detail_allows_stale_live_cleanup_read_only_preview(): void
+    public function test_ingestion_job_detail_allows_stale_live_cleanup_ingestion_preview(): void
     {
         $response = $this->get('/ops/ingestion/youtube.live.cleanup?at=2026-05-25%2004:27:00');
 
@@ -367,10 +367,10 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('scheduled/local <code>--execute</code> marks stale <code>urt_video_live.del_flag=1</code>', false);
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.live.cleanup');
-        $response->assertSee('不呼叫 YouTube');
+        $response->assertSee('marks stale');
     }
 
-    public function test_ingestion_job_detail_allows_live_tag_date_cleanup_read_only_preview(): void
+    public function test_ingestion_job_detail_allows_live_tag_date_cleanup_ingestion_preview(): void
     {
         $response = $this->get('/ops/ingestion/reports.live.clean?at=2026-05-25%2003:33:00');
 
@@ -383,48 +383,48 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('限量刪除本機 cache rows');
     }
 
-    public function test_ingestion_job_detail_allows_live_static_read_only_preview(): void
+    public function test_ingestion_job_detail_allows_live_static_ingestion_preview(): void
     {
         $response = $this->get('/ops/ingestion/reports.live.static?at=2026-05-25%2000:19:00');
 
         $response->assertOk();
         $response->assertSee('reports.live.static');
         $response->assertSee('reports:live:static');
-        $response->assertSee('read-only live static HTML preview');
+        $response->assertSee('live static HTML ingestion preview');
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=reports.live.static');
-        $response->assertSee('不覆寫 HTML 檔');
+        $response->assertSee('靜態 HTML 輸出改由動態 Laravel route 承接');
     }
 
-    public function test_ingestion_job_detail_allows_group_static_read_only_preview(): void
+    public function test_ingestion_job_detail_allows_group_static_ingestion_preview(): void
     {
         $response = $this->get('/ops/ingestion/reports.static.html?at=2026-05-25%2008:13:00');
 
         $response->assertOk();
         $response->assertSee('reports.static.html');
         $response->assertSee('reports:static:build');
-        $response->assertSee('read-only group static HTML preview');
+        $response->assertSee('group static HTML ingestion preview');
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=reports.static.html');
         $response->assertSee('/groups/{group}/ranking');
-        $response->assertSee('不覆寫 HTML 檔');
+        $response->assertSee('靜態 HTML 輸出改由動態 Laravel route 承接');
     }
 
-    public function test_ingestion_job_detail_allows_mayor_static_read_only_preview(): void
+    public function test_ingestion_job_detail_allows_mayor_static_ingestion_preview(): void
     {
         $response = $this->get('/ops/ingestion/reports.mayor.static?at=2026-05-25%2005:13:00');
 
         $response->assertOk();
         $response->assertSee('reports.mayor.static');
         $response->assertSee('reports:mayor:static');
-        $response->assertSee('read-only mayor static HTML preview');
+        $response->assertSee('mayor static HTML ingestion preview');
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=reports.mayor.static');
         $response->assertSee('/mayor/cities/{city}');
-        $response->assertSee('不覆寫 HTML 檔');
+        $response->assertSee('靜態 HTML 輸出改由動態 Laravel route 承接');
     }
 
-    public function test_ingestion_job_detail_allows_video_duration_read_only_preview(): void
+    public function test_ingestion_job_detail_allows_video_duration_ingestion_preview(): void
     {
         $response = $this->get('/ops/ingestion/youtube.videos.duration?at=2026-05-25%2000:23:00');
 
@@ -435,10 +435,10 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.videos.duration');
         $response->assertSee('youtube:videos:duration --execute --limit=25 --enqueue-missing');
-        $response->assertSee('Scheduler 在 write allowlist 開啟時使用 capped scheduled execute command；未開啟仍是 dry-run');
+        $response->assertSee('Scheduler 在 write allowlist 開啟時使用 capped scheduled execute command；未開啟時維持 preview mode');
     }
 
-    public function test_ingestion_job_detail_allows_video_stats_read_only_preview(): void
+    public function test_ingestion_job_detail_allows_video_stats_ingestion_preview(): void
     {
         $response = $this->get('/ops/ingestion/youtube.videos.stats?at=2026-05-25%2000:07:00');
 
@@ -448,12 +448,12 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('scheduled/local <code>--execute</code> updates video stats/log rows', false);
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.videos.stats');
-        $response->assertSee('Scheduler 在 write allowlist 開啟時使用 capped scheduled execute command；未開啟仍是 dry-run');
+        $response->assertSee('Scheduler 在 write allowlist 開啟時使用 capped scheduled execute command；未開啟時維持 preview mode');
     }
 
 
 
-    public function test_ingestion_job_detail_allows_counts_build_read_only_preview(): void
+    public function test_ingestion_job_detail_allows_counts_build_ingestion_preview(): void
     {
         $response = $this->get('/ops/ingestion/reports.counts.build?at=2026-05-25%2003:27:00');
 
@@ -466,7 +466,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('更新本機 <code>urt_count</code> delta columns', false);
     }
 
-    public function test_ingestion_job_detail_allows_keywords_build_read_only_preview(): void
+    public function test_ingestion_job_detail_allows_keywords_build_ingestion_preview(): void
     {
         $response = $this->get('/ops/ingestion/reports.keywords.build?at=2026-05-25%2003:27:00');
 
@@ -480,7 +480,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('tag.analysis.tw/api/tag_json.php');
     }
 
-    public function test_ingestion_job_detail_allows_groups_build_read_only_preview(): void
+    public function test_ingestion_job_detail_allows_groups_build_ingestion_preview(): void
     {
         $response = $this->get('/ops/ingestion/reports.groups.build?at=2026-05-25%2003:27:00');
 
@@ -494,7 +494,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('external group API');
     }
 
-    public function test_ingestion_job_detail_allows_people_build_read_only_preview(): void
+    public function test_ingestion_job_detail_allows_people_build_ingestion_preview(): void
     {
         $response = $this->get('/ops/ingestion/reports.people.build?at=2026-05-25%2003:27:00');
 
@@ -507,7 +507,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('TagDateCacheBuilder');
     }
 
-    public function test_ingestion_job_detail_allows_schedule_build_read_only_preview(): void
+    public function test_ingestion_job_detail_allows_schedule_build_ingestion_preview(): void
     {
         $response = $this->get('/ops/ingestion/reports.schedule.build?at=2026-05-25%2003:29:00');
 
@@ -520,7 +520,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('限量更新本機 schedule rows');
     }
 
-    public function test_ingestion_job_detail_allows_comment_queue_read_only_preview(): void
+    public function test_ingestion_job_detail_allows_comment_queue_ingestion_preview(): void
     {
         $response = $this->get('/ops/ingestion/youtube.comments.queue?at=2026-05-25%2004:23:00');
 
@@ -533,7 +533,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('Production crontab 使用 <code>hours=72 min=500</code> 且只在 04/10/16 點第 23 分排程', false);
     }
 
-    public function test_ingestion_job_detail_allows_comment_fetch_read_only_preview(): void
+    public function test_ingestion_job_detail_allows_comment_fetch_ingestion_preview(): void
     {
         $response = $this->get('/ops/ingestion/youtube.comments.fetch?at=2026-05-25%2005:05:00');
 
@@ -589,7 +589,7 @@ class IngestionDashboardTest extends TestCase
         $this->assertStringContainsString('youtube:live:poll', $output);
     }
 
-    public function test_ingestion_run_dry_run_evaluates_due_jobs_without_polling(): void
+    public function test_ingestion_run_dry_run_evaluates_due_jobs_in_preview_mode(): void
     {
         $this->artisan('ingestion:run', [
             '--at' => '2026-05-25 00:00:00',
@@ -637,7 +637,7 @@ class IngestionDashboardTest extends TestCase
         $this->assertSame('executed', $record['result']['jobs'][0]['action']);
     }
 
-    public function test_active_read_only_job_would_run_when_scheduler_is_enabled(): void
+    public function test_active_ingestion_job_would_run_when_scheduler_is_enabled(): void
     {
         config()->set('ingestion.scheduler_enabled', true);
 
@@ -669,7 +669,7 @@ class IngestionDashboardTest extends TestCase
             '--at' => '2026-05-25 00:07:00',
         ])
             ->expectsOutputToContain('mode=execute scheduler=enabled')
-            ->expectsOutputToContain('[due] reports.live.show skip:read-only-guardrail -> reports:live:show')
+            ->expectsOutputToContain('[due] reports.live.show skip:controlled-execution-guardrail -> reports:live:show')
             ->assertExitCode(0);
     }
 }

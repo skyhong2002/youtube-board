@@ -74,7 +74,7 @@ aipk={{ $aipk }} · {{ $generated_at }}
                     @endforeach
                 </ul>
             @else
-                <p class="notice">Legacy event history relies on `urt_ai_period`; {{ $history['blocked_reason'] ?? 'local dump does not currently include populated history rows' }}.</p>
+                <p class="notice">Legacy event history relies on `urt_ai_period`; {{ $history['blocked_reason'] ?? 'Laravel AI period workflow can refresh the history rows' }}.</p>
             @endif
 
             <h2>事件分析</h2>

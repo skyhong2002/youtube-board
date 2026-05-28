@@ -38,7 +38,7 @@ class LivePollingPreview
         $wouldCallApi = $videoId !== null || $selectedRows->count() >= 10;
 
         return [
-            'mode' => 'read-only-preview',
+            'mode' => 'ingestion-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'source' => $source,
             'target_video_id' => $videoId,
@@ -56,7 +56,7 @@ class LivePollingPreview
             'missing_today_log_rows' => max(0, $selectedRows->count() - $logRows->count()),
             'would_call_api' => $wouldCallApi,
             'skip_reason' => $wouldCallApi ? null : 'legacy exits before API call when fewer than 10 rows are selected and no videoId is provided',
-            'api_call_skipped' => 'YouTube Data API videos.list(liveStreamingDetails) is intentionally not called in read-only mode',
+            'api_call_skipped' => 'YouTube Data API videos.list(liveStreamingDetails) is intentionally not called in planning mode',
             'writes_skipped' => [
                 'urt_video_live mtime/liveStreamingDetails update',
                 'urt_video_live.max_current update when concurrentViewers exceeds previous max',

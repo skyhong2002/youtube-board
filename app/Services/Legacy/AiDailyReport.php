@@ -107,7 +107,7 @@ class AiDailyReport
     }
 
     /**
-     * Build a read-only daily page from existing per-channel AI rows when
+     * Build a real-time YouTube dashboard daily page from existing per-channel AI rows when
      * legacy `urt_ai_date` has not been generated for that date/condition.
      *
      * @return array{available: bool, row: array<string, mixed>|null, date: string|null, condition: string, title: string, topics: list<array<string, mixed>>, channels_count: int, generated_at: string}|null

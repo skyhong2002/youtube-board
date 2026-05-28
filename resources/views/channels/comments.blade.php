@@ -72,7 +72,7 @@
             @if (! $data_available)
                 <section class="panel">
                     <p class="notice">Data unavailable locally. {{ $blocked_reason }}</p>
-                    <p class="muted">Legacy source: {{ $legacy_file }}. Laravel 不會觸發 comment ingestion，也不會寫 legacy cache。</p>
+                    <p class="muted">Legacy source: {{ $legacy_file }}. 留言排行資料會透過 Laravel comment ingestion 與本地 cache refresh 補齊。</p>
                     <table>
                         <thead>
                             <tr>

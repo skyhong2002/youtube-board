@@ -117,7 +117,7 @@
                     </svg>
                 </section>
             @else
-                <div class="empty">目前沒有符合條件的標籤趨勢 cache；Laravel 不會觸發 legacy cache generation。</div>
+                <div class="empty">目前沒有符合條件的標籤趨勢 cache；Laravel 會透過 ingestion 與 tag-date cache refresh 補齊這張即時儀表板。</div>
             @endif
 
             <h2>每日資料</h2>

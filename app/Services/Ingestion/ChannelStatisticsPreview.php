@@ -44,7 +44,7 @@ class ChannelStatisticsPreview
                 ->keyBy('u_id');
 
         return [
-            'mode' => 'read-only-preview',
+            'mode' => 'ingestion-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'source' => $source,
             'target_u_id' => $uId,
@@ -64,7 +64,7 @@ class ChannelStatisticsPreview
             'would_set_stime' => $channelRows->isNotEmpty() ? $reserveTime : null,
             'would_update_month' => $now->format('Y-m-01'),
             'would_update_date' => $now->toDateString(),
-            'api_call_skipped' => 'YouTube Data API channels.list(statistics) is intentionally not called in read-only mode',
+            'api_call_skipped' => 'YouTube Data API channels.list(statistics) is intentionally not called in planning mode',
             'stats_update_condition' => 'Legacy updates urt_count and urt_channel only when the API viewCount is greater than 0',
             'writes_skipped' => [
                 'urt_channel.stime reserve update',

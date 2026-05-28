@@ -8,7 +8,7 @@ use Tests\TestCase;
 
 class AiEventVariantRouteTest extends TestCase
 {
-    public function test_ai_event_people_page_renders_people_and_media_rows_read_only(): void
+    public function test_ai_event_people_page_renders_people_and_media_rows_ingestion(): void
     {
         $this->createTables();
         $this->insertFixture();

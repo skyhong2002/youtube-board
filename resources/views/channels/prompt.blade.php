@@ -48,7 +48,7 @@
             <section class="stats" aria-label="Prompt stats">
                 <div class="stat">影片 {{ number_format(count($videos)) }} 部</div>
                 <div class="stat">事件數 {{ $prompt_bounds['min'] }} - {{ $prompt_bounds['max'] }}</div>
-                <div class="stat">read-only prompt preview</div>
+                <div class="stat">AI prompt builder</div>
             </section>
 
             @if (! $available)

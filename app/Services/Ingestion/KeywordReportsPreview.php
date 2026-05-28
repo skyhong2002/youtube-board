@@ -96,7 +96,7 @@ class KeywordReportsPreview
             ->all();
 
         return [
-            'mode' => $execute ? 'execute' : 'read-only-preview',
+            'mode' => $execute ? 'execute' : 'ingestion-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'recent_since' => $recentSince,
             'source_tags' => $sourceRows->count(),
@@ -108,7 +108,7 @@ class KeywordReportsPreview
                 'data/keyword.json',
                 'data/keyword_all.json',
             ],
-            'external_fetch_skipped' => '新文易數 tag.analysis.tw keyword fetch is intentionally skipped in read-only mode',
+            'external_fetch_skipped' => '新文易數 tag.analysis.tw keyword fetch is intentionally skipped in planning mode',
             'synced_rows' => $syncedRows,
             'writes' => $execute ? ['tags'] : [],
         ];

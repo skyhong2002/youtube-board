@@ -49,7 +49,7 @@ class AiHourlyPreview
         $displayRows = $rows->take($limit)->map(fn (object $row): array => $this->mapVideoRow($row))->values();
 
         return [
-            'mode' => 'read-only-preview',
+            'mode' => 'ingestion-preview',
             'source' => 'legacy_ai_hour_prompt',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'condition_type' => $conditionType,
@@ -74,7 +74,7 @@ class AiHourlyPreview
             'existing_ai_hour_rows' => $this->existingAiHourRows($conditionType, $periodWindow),
             'would_call_ai_requests' => 1,
             'would_insert_ai_hour_rows' => 1,
-            'api_call_skipped' => 'AI chat completions are intentionally skipped in read-only mode',
+            'api_call_skipped' => 'AI chat completions are intentionally skipped in planning mode',
             'writes_skipped' => [
                 'OpenAI/OpenCode chat completion for hourly AI prompt',
                 'urt_ai_hour insert',

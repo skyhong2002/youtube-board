@@ -31,7 +31,7 @@ class LegacyTagChannelApiReport
                 'meta' => [
                     'available' => $rows !== [],
                     'source' => 'urt_tag',
-                    'read_only' => true,
+                    'realtime_dashboard' => true,
                 ],
             ];
         } catch (QueryException) {
@@ -105,7 +105,7 @@ class LegacyTagChannelApiReport
                     'source' => 'tags',
                     'sort' => $sort,
                     'limit' => $limit,
-                    'read_only' => true,
+                    'realtime_dashboard' => true,
                 ],
             ];
         } catch (QueryException) {
@@ -130,7 +130,7 @@ class LegacyTagChannelApiReport
                     'available' => $result !== [],
                     'source' => 'urt_show_data.tags_all',
                     'mtime' => $row->mtime ?? null,
-                    'read_only' => true,
+                    'realtime_dashboard' => true,
                     'blocked_reason' => $result === [] ? 'local tags_all cache is empty; legacy force mode is intentionally not run' : null,
                 ],
             ];
@@ -163,7 +163,7 @@ class LegacyTagChannelApiReport
                         'source' => $cacheTable.'.tags_json',
                         'pk' => (int) ($video->pk ?? $pk),
                         'videoId' => (string) ($video->videoId ?? $videoId),
-                        'read_only' => true,
+                        'realtime_dashboard' => true,
                     ],
                 ];
             }
@@ -174,12 +174,12 @@ class LegacyTagChannelApiReport
                 'result' => $computed === [] ? new stdClass() : $computed,
                 'meta' => [
                     'available' => $computed !== [],
-                    'source' => 'tags table computed read-only',
+                    'source' => 'tags table computed real-time YouTube dashboard',
                     'cache_table' => $cacheTable,
                     'pk' => (int) ($video->pk ?? $pk),
                     'videoId' => (string) ($video->videoId ?? $videoId),
                     'title_only' => $titleOnly,
-                    'read_only' => true,
+                    'realtime_dashboard' => true,
                 ],
             ];
         } catch (QueryException) {
@@ -215,7 +215,7 @@ class LegacyTagChannelApiReport
                     'available' => $rows !== [],
                     'source' => 'urt_channel + urt_count',
                     'filters' => $filters,
-                    'read_only' => true,
+                    'realtime_dashboard' => true,
                 ],
             ];
         } catch (QueryException) {
@@ -304,7 +304,7 @@ class LegacyTagChannelApiReport
                     'available' => $result !== [],
                     'source' => 'urt_log_tag',
                     'tag' => $tag,
-                    'read_only' => true,
+                    'realtime_dashboard' => true,
                 ],
             ];
         } catch (QueryException) {
@@ -371,7 +371,7 @@ class LegacyTagChannelApiReport
                     'tag' => $tag,
                     'date' => $date,
                     'mtime' => $row->mtime ?? null,
-                    'read_only' => true,
+                    'realtime_dashboard' => true,
                 ],
             ];
         } catch (QueryException) {
@@ -476,7 +476,7 @@ class LegacyTagChannelApiReport
                     'filters' => $filters,
                     'tag' => $tag,
                     'days' => $days,
-                    'read_only' => true,
+                    'realtime_dashboard' => true,
                 ],
             ];
         } catch (QueryException) {
@@ -748,7 +748,7 @@ class LegacyTagChannelApiReport
             'meta' => $meta + [
                 'available' => $result !== [],
                 'source' => $source,
-                'read_only' => true,
+                'realtime_dashboard' => true,
                 'blocked_reason' => $result === [] ? 'local cache row is missing or empty; legacy generation is intentionally not run' : null,
             ],
         ];
@@ -887,7 +887,7 @@ class LegacyTagChannelApiReport
             'meta' => $extraMeta + [
                 'available' => $available && $rows !== [],
                 'source' => $source,
-                'read_only' => true,
+                'realtime_dashboard' => true,
             ],
         ];
     }
@@ -904,7 +904,7 @@ class LegacyTagChannelApiReport
             'meta' => [
                 'available' => $rows !== [],
                 'source' => $source,
-                'read_only' => true,
+                'realtime_dashboard' => true,
             ],
         ] + $extra;
     }
@@ -920,7 +920,7 @@ class LegacyTagChannelApiReport
             'meta' => $meta + [
                 'available' => false,
                 'source' => $source,
-                'read_only' => true,
+                'realtime_dashboard' => true,
             ],
         ];
     }

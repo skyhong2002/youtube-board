@@ -66,7 +66,7 @@
                 <div class="stat">{{ $metric['label'] }}</div>
                 <div class="stat">tag set {{ $tag_set['source_status'] }}</div>
                 <div class="stat">view {{ $comparison['source_status'] }}</div>
-                <div class="stat">read-only cache</div>
+                <div class="stat">live cache</div>
             </section>
 
             <nav class="tabs" aria-label="View options">
@@ -78,7 +78,7 @@
             </nav>
 
             @if (! $available)
-                <div class="empty">本機沒有足夠的 <code>urt_show_live_tag_date</code> cache 可以重建這個 legacy group live report。沒有呼叫 <code>api_live_tag_date.php</code>，也沒有產生 cache。</div>
+                <div class="empty">本機沒有足夠的 <code>urt_show_live_tag_date</code> cache 可以重建這個 legacy group live report。直播群組資料會透過 Laravel live tag ingestion 與 cache refresh 補齊。</div>
             @else
                 @foreach ($groups as $group)
                     <h2>{{ $group['name'] }} <span class="muted">cache rows {{ $group['cache_rows'] }}, latest total {{ number_format($group['latest_total']) }}</span></h2>

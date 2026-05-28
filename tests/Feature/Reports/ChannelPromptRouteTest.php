@@ -8,7 +8,7 @@ use Tests\TestCase;
 
 class ChannelPromptRouteTest extends TestCase
 {
-    public function test_channel_prompt_page_builds_read_only_legacy_prompt_from_videos(): void
+    public function test_channel_prompt_page_builds_ingestion_legacy_prompt_from_videos(): void
     {
         $this->createTables();
 

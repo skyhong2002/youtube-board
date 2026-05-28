@@ -26,10 +26,10 @@ class LegacyWriteGuardController extends Controller
             'safe_alternative' => $endpoint['safe_alternative'],
             'method' => $request->method(),
             'query' => $request->query(),
-            'read_only' => true,
+            'realtime_dashboard' => true,
             'writes' => 0,
             'external_calls' => 0,
-            'blocked_reason' => 'Legacy writeback endpoints are disabled in the Laravel rebuild. Use read-only reports and ingestion preview commands until writes are explicitly approved.',
+            'blocked_reason' => 'Legacy writeback endpoints are guarded in the Laravel rebuild. Use real-time dashboard reports and Laravel ingestion commands for approved writes.',
         ];
 
         if ($request->expectsJson()) {
@@ -63,27 +63,27 @@ class LegacyWriteGuardController extends Controller
             'ai_day' => [
                 'label' => 'Persist AI daily summary output',
                 'side_effects' => ['insert urt_ai_date'],
-                'safe_alternative' => 'Use ai:daily preview or read-only /ai/days prompt pages.',
+                'safe_alternative' => 'Use ai:daily preview or real-time YouTube dashboard /ai/days prompt pages.',
             ],
             'ai_hour' => [
                 'label' => 'Persist AI hourly summary output',
                 'side_effects' => ['insert urt_ai_hour'],
-                'safe_alternative' => 'Use ai:hourly preview or read-only /ai/hours pages.',
+                'safe_alternative' => 'Use ai:hourly preview or real-time YouTube dashboard /ai/hours pages.',
             ],
             'channel_ai' => [
                 'label' => 'Persist channel AI prompt output',
                 'side_effects' => ['insert urt_channel_ai'],
-                'safe_alternative' => 'Use read-only /channels/{u_id}/prompt and /channels/{u_id}/ai pages.',
+                'safe_alternative' => 'Use real-time YouTube dashboard /channels/{u_id}/prompt and /channels/{u_id}/ai pages.',
             ],
             'channel_gpt' => [
                 'label' => 'Persist channel GPT topic, people, and aspect output',
                 'side_effects' => ['insert urt_channel_ai topic rows', 'insert urt_channel_ai people rows', 'insert urt_channel_ai aspect rows'],
-                'safe_alternative' => 'Use read-only /channels/{u_id}/ai pages.',
+                'safe_alternative' => 'Use real-time YouTube dashboard /channels/{u_id}/ai pages.',
             ],
             'make_live' => [
                 'label' => 'Restore a deleted live row',
                 'side_effects' => ['update urt_video_live.del_flag'],
-                'safe_alternative' => 'Use youtube:live:cleanup preview to inspect stale live rows without writes.',
+                'safe_alternative' => 'Use youtube:live:cleanup preview, then execute the Laravel ingestion job when the stale-row cleanup is approved.',
             ],
             'renew' => [
                 'label' => 'Refresh channel metadata from YouTube',
@@ -93,7 +93,7 @@ class LegacyWriteGuardController extends Controller
             'tag' => [
                 'label' => 'Add or remove a channel tag',
                 'side_effects' => ['insert urt_tag_log', 'update urt_count.tags'],
-                'safe_alternative' => 'Use read-only tag/channel reports until local write workflows are approved.',
+                'safe_alternative' => 'Use real-time YouTube dashboard tag/channel reports and Laravel ingestion commands for local write workflows.',
             ],
         ];
     }

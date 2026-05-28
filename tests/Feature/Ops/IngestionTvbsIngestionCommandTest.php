@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
-class ReadOnlyTvbsIngestionCommandTest extends TestCase
+class IngestionTvbsIngestionCommandTest extends TestCase
 {
     protected function tearDown(): void
     {
@@ -19,7 +19,7 @@ class ReadOnlyTvbsIngestionCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_youtube_tvbs_videos_previews_legacy_tag_29_discovery_without_api_or_writes(): void
+    public function test_youtube_tvbs_videos_previews_legacy_tag_29_discovery_in_preview_mode(): void
     {
         Http::preventStrayRequests();
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
@@ -54,7 +54,7 @@ class ReadOnlyTvbsIngestionCommandTest extends TestCase
         $payload = json_decode(trim(Artisan::output()), true);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame('read-only-preview', $payload['mode']);
+        $this->assertSame('ingestion-preview', $payload['mode']);
         $this->assertSame('tvbs_tag_29_all_channels', $payload['source']);
         $this->assertSame(29, $payload['tvbs_tag_id']);
         $this->assertSame(3, $payload['active_channels']);
@@ -78,7 +78,7 @@ class ReadOnlyTvbsIngestionCommandTest extends TestCase
         $this->assertSame(2, DB::table('urt_video_live_tvbs')->count());
     }
 
-    public function test_youtube_tvbs_videos_execute_requires_api_key_and_does_not_write_when_missing(): void
+    public function test_youtube_tvbs_videos_execute_requires_api_key_before_upsert(): void
     {
         Http::preventStrayRequests();
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
@@ -189,7 +189,7 @@ class ReadOnlyTvbsIngestionCommandTest extends TestCase
         Http::assertSentCount(2);
     }
 
-    public function test_youtube_tvbs_live_poll_previews_stale_rows_without_api_or_writes(): void
+    public function test_youtube_tvbs_live_poll_previews_stale_rows_in_preview_mode(): void
     {
         Http::preventStrayRequests();
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
@@ -225,7 +225,7 @@ class ReadOnlyTvbsIngestionCommandTest extends TestCase
         $payload = json_decode(trim(Artisan::output()), true);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame('read-only-preview', $payload['mode']);
+        $this->assertSame('ingestion-preview', $payload['mode']);
         $this->assertSame('stale_tvbs_live_rows', $payload['source']);
         $this->assertSame(40, $payload['effective_stale_seconds']);
         $this->assertSame('2026-05-25 11:59:20', $payload['too_soon']);
@@ -248,7 +248,7 @@ class ReadOnlyTvbsIngestionCommandTest extends TestCase
         $this->assertSame(1, DB::table('urt_video_live_log_tvbs')->count());
     }
 
-    public function test_youtube_tvbs_live_poll_execute_requires_api_key_and_does_not_write_when_missing(): void
+    public function test_youtube_tvbs_live_poll_execute_requires_api_key_before_upsert(): void
     {
         Http::preventStrayRequests();
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
@@ -364,7 +364,7 @@ class ReadOnlyTvbsIngestionCommandTest extends TestCase
         $this->assertStringContainsString('legacy get_live_tvbs.php uses urt_video_live', $payload['single_video_table_note']);
     }
 
-    public function test_ingestion_scheduler_can_execute_read_only_tvbs_previews_when_due(): void
+    public function test_ingestion_scheduler_can_execute_ingestion_tvbs_previews_when_due(): void
     {
         $this->createVideoDiscoveryTables();
         $this->createLivePollingTables(dropVideoTable: false);

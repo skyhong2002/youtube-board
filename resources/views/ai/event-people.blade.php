@@ -45,7 +45,7 @@ aipk={{ $aipk }} · {{ $generated_at }}
             </nav>
 
             @if (! $history_available)
-                <p class="notice">逐日人物演變需要 `urt_ai_period`；{{ $history['blocked_reason'] ?? '此頁只顯示 `urt_ai_event` cached people/media JSON' }}。</p>
+                <p class="notice">逐日人物演變需要 `urt_ai_period`；{{ $history['blocked_reason'] ?? 'Laravel AI period workflow 會補齊 cached people/media JSON' }}。</p>
             @endif
 
             @if ($people)

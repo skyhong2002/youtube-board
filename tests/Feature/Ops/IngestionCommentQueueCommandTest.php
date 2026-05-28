@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
-class ReadOnlyCommentQueueCommandTest extends TestCase
+class IngestionCommentQueueCommandTest extends TestCase
 {
     protected function tearDown(): void
     {
@@ -19,7 +19,7 @@ class ReadOnlyCommentQueueCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_youtube_comments_queue_previews_legacy_candidates_without_inserting_queue_rows(): void
+    public function test_youtube_comments_queue_previews_legacy_candidates_through_ingestion_lookuping_queue_rows(): void
     {
         Http::preventStrayRequests();
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
@@ -62,7 +62,7 @@ class ReadOnlyCommentQueueCommandTest extends TestCase
         $payload = json_decode(trim(Artisan::output()), true);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame('read-only-preview', $payload['mode']);
+        $this->assertSame('ingestion-preview', $payload['mode']);
         $this->assertSame([1, 2, 9], $payload['filters']['or']);
         $this->assertSame([9], $payload['filters']['not']);
         $this->assertSame('2026-05-24 12:00:00', $payload['published_after']);
@@ -154,7 +154,7 @@ class ReadOnlyCommentQueueCommandTest extends TestCase
         $this->assertSame('both-tags', $payload['rows'][0]['video_id']);
     }
 
-    public function test_ingestion_scheduler_can_execute_read_only_comment_queue_preview_when_due(): void
+    public function test_ingestion_scheduler_can_execute_ingestion_comment_queue_preview_when_due(): void
     {
         $this->createTables();
         config()->set('ingestion.scheduler_enabled', true);
@@ -173,7 +173,7 @@ class ReadOnlyCommentQueueCommandTest extends TestCase
         );
 
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 0, 'skipped' => 1, 'failed' => 0], $result['summary']);
-        $this->assertSame('skip:read-only-guardrail', $result['jobs'][0]['action']);
+        $this->assertSame('skip:controlled-execution-guardrail', $result['jobs'][0]['action']);
         $this->assertSame(0, DB::table('urt_comment_queue')->count());
     }
 

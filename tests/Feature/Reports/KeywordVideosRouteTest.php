@@ -171,7 +171,7 @@ class KeywordVideosRouteTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('少子化 在 24小時內觀看最多的影片');
-        $response->assertSee('urt_video title/description derived read-only');
+        $response->assertSee('urt_video title/description derived real-time YouTube dashboard');
         $response->assertSee('Policy Channel');
         $response->assertSee('少子化政策說明');
         $response->assertSee('4,500');
