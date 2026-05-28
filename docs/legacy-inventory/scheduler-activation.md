@@ -197,10 +197,10 @@ To promote a pipeline to production polling, repeat the checklist against produc
 
 | Pipeline | Manual local execute | Scheduled write polling | Notes |
 | --- | --- | --- | --- |
-| channel stats | implemented and smoked | production-enabled | Scheduler-enabled production polling smoke succeeded with capped `--execute --limit=1`; still gated by the production allowlist. |
+| channel stats | implemented and smoked | production-enabled | Scheduler-enabled production polling uses capped `--execute --limit=25`; still gated by the production allowlist. |
 | channel video discovery | implemented and smoked | production-enabled | Live/group live discovery and regular upload discovery all have capped scheduler commands and are production-allowlisted. |
-| video stats | implemented and smoked | production-enabled | Capped scheduler command exists with `--execute --limit=1` and is production-allowlisted. |
-| video duration | implemented and smoked | production-enabled | Capped scheduler command exists with `--execute --limit=1` and is production-allowlisted. |
+| video stats | implemented and smoked | production-enabled | Capped scheduler command exists with `--execute --limit=25` and is production-allowlisted. |
+| video duration | implemented and smoked | production-enabled | Capped scheduler command exists with `--execute --limit=25 --enqueue-missing`, so empty duration queues are refilled from local `urt_video` before contentDetails polling. |
 | live polling | implemented and smoked | production-enabled | Capped scheduler commands are production-allowlisted for normal and TVBS live polling. |
 | comment queue | implemented and smoked | production-enabled | Capped scheduler command exists with `--execute --limit=5`; no external API, but still writes queue rows and is production-allowlisted. |
 | comment fetch | implemented and smoked | production-enabled | Capped scheduler command exists with `--execute --limit=5 --max-pages=1` and is production-allowlisted. |

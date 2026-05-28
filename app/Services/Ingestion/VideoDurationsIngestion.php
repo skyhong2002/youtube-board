@@ -43,8 +43,15 @@ class VideoDurationsIngestion
             ->values();
         $queued = [];
 
-        if ($rows->isEmpty() && $enqueueMissing && is_string($videoId) && trim($videoId) !== '') {
-            $queued = $this->enqueueMissingVideo(trim($videoId), $now);
+        if ($enqueueMissing) {
+            $capacity = max(0, ($batchSize * $loops) - $rows->count());
+            $queued = [];
+
+            if ($rows->isEmpty() && is_string($videoId) && trim($videoId) !== '') {
+                $queued = $this->enqueueMissingVideo(trim($videoId), $now);
+            } elseif ($videoId === null && $capacity > 0) {
+                $queued = $this->enqueueMissingVideos($capacity, $now);
+            }
 
             if ($queued !== []) {
                 $preview = $this->preview->preview(
@@ -139,6 +146,81 @@ class VideoDurationsIngestion
             'videoId' => $videoId,
             'source' => 'urt_video',
         ]];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function enqueueMissingVideos(int $limit, CarbonImmutable $now): array
+    {
+        if (! Schema::hasTable('urt_video_duration')) {
+            throw new RuntimeException('Missing local table: urt_video_duration');
+        }
+
+        if (! Schema::hasTable('urt_video')) {
+            return [];
+        }
+
+        $limit = max(1, min(50, $limit));
+        $columns = Schema::getColumnListing('urt_video');
+        $select = collect(['videoId', 'publishedAt', 'u_id'])
+            ->filter(fn (string $column): bool => in_array($column, $columns, true))
+            ->map(fn (string $column): string => 'v.'.$column)
+            ->values()
+            ->all();
+
+        if (! in_array('v.videoId', $select, true)) {
+            return [];
+        }
+
+        $query = DB::table('urt_video as v')
+            ->leftJoin('urt_video_duration as d', 'd.videoId', '=', 'v.videoId')
+            ->whereNull('d.videoId')
+            ->whereNotNull('v.videoId')
+            ->where('v.videoId', '!=', '')
+            ->limit($limit);
+
+        if (in_array('publishedAt', $columns, true)) {
+            $query->orderByDesc('v.publishedAt');
+        }
+
+        $videos = $query->get($select);
+        $queued = [];
+        $nextPk = Schema::hasColumn('urt_video_duration', 'pk_video')
+            ? ((int) DB::table('urt_video_duration')->max('pk_video')) + 1
+            : null;
+
+        foreach ($videos as $video) {
+            $rowVideoId = trim((string) ($video->videoId ?? ''));
+
+            if ($rowVideoId === '' || DB::table('urt_video_duration')->where('videoId', $rowVideoId)->exists()) {
+                continue;
+            }
+
+            $insert = $this->onlyExistingColumns('urt_video_duration', [
+                'ctime' => $now->format('Y-m-d H:i:s'),
+                'mtime' => null,
+                'stime' => null,
+                'publishedAt' => $video->publishedAt ?? null,
+                'u_id' => $video->u_id ?? null,
+                'videoId' => $rowVideoId,
+                'duration' => null,
+                'caption' => null,
+            ]);
+
+            if ($nextPk !== null && ! array_key_exists('pk_video', $insert)) {
+                $insert['pk_video'] = $nextPk++;
+            }
+
+            DB::table('urt_video_duration')->insert($insert);
+
+            $queued[] = [
+                'videoId' => $rowVideoId,
+                'source' => 'urt_video_missing_duration',
+            ];
+        }
+
+        return $queued;
     }
 
     /**

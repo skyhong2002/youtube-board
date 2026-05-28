@@ -297,7 +297,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.channels.stats');
         $response->assertSee('Scheduled Local Polling');
-        $response->assertSee('youtube:channels:stats --execute --limit=1');
+        $response->assertSee('youtube:channels:stats --execute --limit=25');
         $response->assertSee('INGESTION_LOCAL_POLLING_ENABLED is false.');
         $response->assertSee('INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.channels.stats');
         $response->assertSee('Scheduler 在 write allowlist 開啟時使用 capped scheduled execute command；未開啟仍是 dry-run');
@@ -434,6 +434,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('scheduled/local <code>--execute</code> updates duration queue rows', false);
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.videos.duration');
+        $response->assertSee('youtube:videos:duration --execute --limit=25 --enqueue-missing');
         $response->assertSee('Scheduler 在 write allowlist 開啟時使用 capped scheduled execute command；未開啟仍是 dry-run');
     }
 

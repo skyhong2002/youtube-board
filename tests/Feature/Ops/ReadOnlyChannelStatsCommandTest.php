@@ -352,7 +352,7 @@ class ReadOnlyChannelStatsCommandTest extends TestCase
         $this->assertSame('execute', $result['mode']);
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $result['summary']);
         $this->assertSame('executed:local-polling', $result['jobs'][0]['action']);
-        $this->assertSame('youtube:channels:stats --execute --limit=1', $result['jobs'][0]['effective_command']);
+        $this->assertSame('youtube:channels:stats --execute --limit=25', $result['jobs'][0]['effective_command']);
         $this->assertSame(777, DB::table('urt_channel')->where('u_id', 10)->value('viewCount'));
         $this->assertSame(88, DB::table('urt_count')->where('u_id', 10)->value('subscriberCount'));
         $this->assertSame(1, DB::table('urt_log')->where('u_id', 10)->where('themonth', '2026-05-01')->count());

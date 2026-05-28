@@ -25,7 +25,7 @@ class ChannelStatisticsIngestion
         $now = $now === null
             ? CarbonImmutable::now($timezone)
             : CarbonImmutable::instance($now->toDateTimeImmutable())->setTimezone($timezone);
-        $limit = max(1, min(5, $limit));
+        $limit = max(1, min(50, $limit));
 
         $preview = $this->preview->preview(uId: $uId, hours: $hours, limit: $limit, now: $now);
         $rows = collect($preview['rows'] ?? [])

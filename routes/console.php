@@ -1187,7 +1187,7 @@ Artisan::command('reports:tag-date:build {--tagid= : Comma-separated required ch
     return 0;
 })->purpose('Build legacy urt_show_tag_date rows from local videos and tags; dry-run by default');
 
-Artisan::command('youtube:videos:duration {--videoId= : Optional queued video id to preview} {--batch-size=50 : Legacy batch size, capped at 50} {--limit= : Alias for --batch-size when running limited smoke checks} {--loops=1 : Number of batches to preview} {--enqueue-missing : With --execute and --videoId, create a local duration queue row from existing urt_video if missing} {--execute : Call YouTube and write selected video durations to local DB} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (VideoDurationsPreview $preview, VideoDurationsIngestion $ingestion) {
+Artisan::command('youtube:videos:duration {--videoId= : Optional queued video id to preview} {--batch-size=50 : Legacy batch size, capped at 50} {--limit= : Alias for --batch-size when running limited smoke checks} {--loops=1 : Number of batches to preview} {--enqueue-missing : With --execute, create duration queue rows from existing urt_video when missing} {--execute : Call YouTube and write selected video durations to local DB} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (VideoDurationsPreview $preview, VideoDurationsIngestion $ingestion) {
     $batchSizeOption = $this->option('limit') !== null ? $this->option('limit') : $this->option('batch-size');
     $batchSize = max(1, min(50, (int) $batchSizeOption));
     $loops = max(1, min(20, (int) $this->option('loops')));

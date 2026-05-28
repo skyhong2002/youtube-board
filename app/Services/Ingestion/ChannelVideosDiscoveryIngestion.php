@@ -33,7 +33,7 @@ class ChannelVideosDiscoveryIngestion
         $now = $now === null
             ? CarbonImmutable::now($timezone)
             : CarbonImmutable::instance($now->toDateTimeImmutable())->setTimezone($timezone);
-        $limit = max(1, min(3, $limit));
+        $limit = max(1, min(10, $limit));
         $maxResults = max(1, min(50, $maxResults));
         $preview = $this->preview->preview(
             uId: $uId,

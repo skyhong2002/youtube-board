@@ -326,6 +326,71 @@ class ReadOnlyVideoDurationCommandTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_youtube_videos_duration_execute_can_enqueue_recent_missing_local_videos(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+
+        DB::table('urt_video')->insert([
+            $this->videoRow(1, 'older-missing-duration', '2026-05-23 12:00:00'),
+            $this->videoRow(2, 'newer-missing-duration', '2026-05-24 12:00:00'),
+            $this->videoRow(3, 'already-queued-duration', '2026-05-24 13:00:00'),
+        ]);
+        DB::table('urt_video_duration')->insert([
+            'pk_video' => 1,
+            'ctime' => '2026-05-24 00:00:00',
+            'mtime' => null,
+            'stime' => null,
+            'publishedAt' => '2026-05-24 13:00:00',
+            'u_id' => 3,
+            'videoId' => 'already-queued-duration',
+            'duration' => null,
+            'caption' => null,
+        ]);
+
+        Http::fake([
+            'www.googleapis.com/youtube/v3/videos*' => Http::response([
+                'items' => [
+                    [
+                        'id' => 'already-queued-duration',
+                        'contentDetails' => [
+                            'duration' => 'PT1M1S',
+                            'caption' => 'false',
+                        ],
+                    ],
+                    [
+                        'id' => 'newer-missing-duration',
+                        'contentDetails' => [
+                            'duration' => 'PT2M2S',
+                            'caption' => 'true',
+                        ],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $exitCode = Artisan::call('youtube:videos:duration', [
+            '--execute' => true,
+            '--limit' => 2,
+            '--enqueue-missing' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, $payload['queued_videos']);
+        $this->assertSame(2, $payload['selected_rows']);
+        $this->assertSame(2, $payload['updated_videos']);
+        $this->assertSame('newer-missing-duration', $payload['queued'][0]['videoId']);
+        $this->assertSame(61, DB::table('urt_video_duration')->where('videoId', 'already-queued-duration')->value('duration'));
+        $this->assertSame(0, DB::table('urt_video_duration')->where('videoId', 'older-missing-duration')->count());
+        $this->assertSame(1, DB::table('urt_video_duration')->where('videoId', 'newer-missing-duration')->count());
+        $this->assertSame(122, DB::table('urt_video_duration')->where('videoId', 'newer-missing-duration')->value('duration'));
+        Http::assertSentCount(1);
+    }
+
     public function test_youtube_videos_duration_supports_single_queued_video_preview(): void
     {
         $this->createTables();
@@ -424,5 +489,36 @@ class ReadOnlyVideoDurationCommandTest extends TestCase
             $table->integer('duration')->nullable();
             $table->string('caption')->nullable();
         });
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function videoRow(int $uId, string $videoId, string $publishedAt): array
+    {
+        static $pk = 1;
+
+        return [
+            'pk' => $pk++,
+            'ctime' => '2026-05-24 00:00:00',
+            'mtime' => null,
+            'stime' => null,
+            'u_id' => $uId,
+            'id' => 'upload-'.$videoId,
+            'publishedAt' => $publishedAt,
+            'channelId' => 'channel-'.$uId,
+            'title' => 'Video '.$videoId,
+            'thumbnails' => 'https://example.test/'.$videoId.'.jpg',
+            'channelTitle' => 'Channel '.$uId,
+            'playlistId' => 'playlist-'.$uId,
+            'position' => 1,
+            'videoId' => $videoId,
+            'viewCount' => 100,
+            'likeCount' => 1,
+            'dislikeCount' => 0,
+            'favoriteCount' => 0,
+            'commentCount' => 0,
+            'description' => '',
+        ];
     }
 }
