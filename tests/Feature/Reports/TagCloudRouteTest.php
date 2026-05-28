@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Reports;
 
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
@@ -117,6 +118,50 @@ class TagCloudRouteTest extends TestCase
         $response->assertSee('11.000');
         $response->assertSee('tag_cloud.php + api/tag_tags_days.php');
         $this->assertSame(2, DB::table('urt_show_tag_cloud_tag')->count());
+    }
+
+    public function test_keyword_cloud_derives_from_raw_video_keywords_when_cache_is_empty(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTagTable();
+        $this->createTagCloudTagTable();
+        $this->createRawKeywordTables();
+
+        DB::table('tags')->insert([
+            ['tag' => '少子化', 'no_tag' => null, 'hours_count' => 50],
+            ['tag' => '托育', 'no_tag' => null, 'hours_count' => 40],
+            ['tag' => '育兒', 'no_tag' => null, 'hours_count' => 30],
+        ]);
+        DB::table('urt_video')->insert([
+            [
+                'videoId' => 'birthrate-a',
+                'u_id' => 10,
+                'publishedAt' => '2026-05-20 10:00:00',
+                'title' => '少子化 托育政策',
+                'description' => '育兒補助',
+                'viewCount' => 2000,
+            ],
+            [
+                'videoId' => 'other-a',
+                'u_id' => 11,
+                'publishedAt' => '2026-05-24 11:00:00',
+                'title' => '其他政策',
+                'description' => '托育補助',
+                'viewCount' => 4000,
+            ],
+        ]);
+
+        $response = $this->get('/keywords/%E5%B0%91%E5%AD%90%E5%8C%96/cloud?limit=10');
+
+        $response->assertOk();
+        $response->assertSee('少子化 用 全部標籤 在 7 天的文字雲');
+        $response->assertSee('urt_video + tags derived read-only');
+        $response->assertSee('托育');
+        $response->assertSee('育兒');
+        $response->assertDontSee('Data unavailable locally');
+        $this->assertSame(0, DB::table('urt_show_tag_cloud_tag')->count());
+
+        Carbon::setTestNow();
     }
 
     public function test_tag_cloud_filters_stopwords_from_legacy_source(): void
@@ -266,6 +311,24 @@ class TagCloudRouteTest extends TestCase
             $table->integer('tags_count')->nullable();
             $table->longText('tags_result')->nullable();
             $table->longText('videos_json')->nullable();
+        });
+    }
+
+    private function createRawKeywordTables(): void
+    {
+        Schema::create('tags', function ($table): void {
+            $table->string('tag');
+            $table->integer('no_tag')->nullable();
+            $table->integer('hours_count')->nullable();
+        });
+
+        Schema::create('urt_video', function ($table): void {
+            $table->string('videoId');
+            $table->integer('u_id')->nullable();
+            $table->dateTime('publishedAt')->nullable();
+            $table->string('title')->nullable();
+            $table->text('description')->nullable();
+            $table->integer('viewCount')->nullable();
         });
     }
 

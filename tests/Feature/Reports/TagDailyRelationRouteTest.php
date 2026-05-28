@@ -103,6 +103,47 @@ class TagDailyRelationRouteTest extends TestCase
         $response->assertDontSee('search_query=%E6%96%B0%E8%81%9E', false);
     }
 
+    public function test_keyword_daily_relation_page_derives_from_raw_video_keywords_when_cache_is_empty(): void
+    {
+        $this->createTables();
+        $this->createRawKeywordTables();
+
+        DB::table('tags')->insert([
+            ['tag' => '少子化', 'no_tag' => null, 'hours_count' => 50],
+            ['tag' => '托育', 'no_tag' => null, 'hours_count' => 40],
+            ['tag' => '育兒', 'no_tag' => null, 'hours_count' => 30],
+        ]);
+        DB::table('urt_video')->insert([
+            [
+                'videoId' => 'birthrate-a',
+                'u_id' => 10,
+                'publishedAt' => '2026-05-21 10:00:00',
+                'title' => '少子化 托育政策',
+                'description' => '育兒補助',
+                'viewCount' => 1200,
+            ],
+            [
+                'videoId' => 'birthrate-b',
+                'u_id' => 11,
+                'publishedAt' => '2026-05-22 10:00:00',
+                'title' => '少子化與育兒支持',
+                'description' => '托育名額',
+                'viewCount' => 800,
+            ],
+        ]);
+
+        $response = $this->get('/keywords/%E5%B0%91%E5%AD%90%E5%8C%96/days?from=2026-05-21&to=2026-05-22&diff=0');
+
+        $response->assertOk();
+        $response->assertSee('少子化 在 1 天的逐日排行');
+        $response->assertSee('cache rows 0');
+        $response->assertSee('urt_video + tags derived read-only');
+        $response->assertSee('托育');
+        $response->assertSee('育兒');
+        $response->assertDontSee('Laravel 目前只讀取既有資料');
+        $this->assertSame(0, DB::table('urt_show_video_tag_date')->count());
+    }
+
     public function test_daily_relation_pages_read_wrapped_and_list_shaped_cache_payloads(): void
     {
         $this->createTables();
@@ -241,6 +282,24 @@ class TagDailyRelationRouteTest extends TestCase
             $table->integer('count_channels')->nullable();
             $table->text('videos_json')->nullable();
             $table->text('tags_json')->nullable();
+        });
+    }
+
+    private function createRawKeywordTables(): void
+    {
+        Schema::create('tags', function ($table): void {
+            $table->string('tag');
+            $table->integer('no_tag')->nullable();
+            $table->integer('hours_count')->nullable();
+        });
+
+        Schema::create('urt_video', function ($table): void {
+            $table->string('videoId');
+            $table->integer('u_id')->nullable();
+            $table->dateTime('publishedAt')->nullable();
+            $table->string('title')->nullable();
+            $table->text('description')->nullable();
+            $table->integer('viewCount')->nullable();
         });
     }
 }

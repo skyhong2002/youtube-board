@@ -13,6 +13,7 @@ class TagDailyRelationReport
     public function __construct(
         private readonly LegacyTagFilter $tagFilter,
         private readonly LegacyStopwords $stopwords,
+        private readonly KeywordRelationFallback $keywordRelationFallback,
     )
     {
     }
@@ -57,18 +58,35 @@ class TagDailyRelationReport
         $type = $this->type($request->query('type'), 'tags_video');
         $range = $this->range($request);
         $title = $keyword.' 在 '.$range['display_days'].' 天的逐日排行';
+        $base = [
+            'mode' => 'keyword',
+            'title' => $title,
+            'subject' => $keyword,
+            'type' => $type,
+            'range' => $range,
+            'filters' => $this->displayKeywordFilters($keyword, $type, $range, $request),
+        ];
 
         try {
-            return $this->result([
-                'mode' => 'keyword',
-                'title' => $title,
-                'subject' => $keyword,
-                'type' => $type,
-                'range' => $range,
-                'filters' => $this->displayKeywordFilters($keyword, $type, $range, $request),
-            ], $this->keywordCache($keyword, $range, (bool) $request->boolean('diff', true)));
+            $cache = $this->keywordCache($keyword, $range, (bool) $request->boolean('diff', true));
+
+            if ($cache['rows'] === []) {
+                $fallback = $this->keywordDerivedCache($keyword, $range, (bool) $request->boolean('diff', true));
+
+                if ($fallback['rows'] !== []) {
+                    $cache = $fallback;
+                }
+            }
+
+            return $this->result($base, $cache);
         } catch (QueryException) {
-            return $this->empty($title, 'keyword', $type, $range, '本機尚未匯入 `urt_show_video_tag_date` cache table。', $keyword);
+            $fallback = $this->keywordDerivedCache($keyword, $range, (bool) $request->boolean('diff', true));
+
+            if ($fallback['rows'] !== []) {
+                return $this->result($base, $fallback);
+            }
+
+            return $this->empty($title, 'keyword', $type, $range, '本機尚未匯入 `urt_show_video_tag_date` cache table，且無法從本機 `urt_video` / `tags` 推導資料。', $keyword);
         }
     }
 
@@ -142,7 +160,9 @@ class TagDailyRelationReport
 
         $records = $query->orderByDesc('pk')->get();
 
-        return $this->buildCache($range['dates'], $records, $type, $diff, 'tags');
+        return $this->buildCache($range['dates'], $records, $type, $diff, 'tags') + [
+            'source' => 'urt_show_tag_date cache',
+        ];
     }
 
     /**
@@ -157,7 +177,24 @@ class TagDailyRelationReport
             ->orderByDesc('pk')
             ->get();
 
-        return $this->buildCache($range['dates'], $records, 'tags_json', $diff, 'keyword');
+        return $this->buildCache($range['dates'], $records, 'tags_json', $diff, 'keyword') + [
+            'source' => 'urt_show_video_tag_date cache',
+        ];
+    }
+
+    /**
+     * @param array{from: string, to: string, dates: list<string>} $range
+     * @return array<string, mixed>
+     */
+    private function keywordDerivedCache(string $keyword, array $range, bool $diff): array
+    {
+        $records = $this->keywordRelationFallback->relationRecords($keyword, $range['dates']);
+        $cache = $this->buildCache($range['dates'], $records, 'tags_json', $diff, 'keyword');
+        $cache['cache_rows'] = 0;
+
+        return $cache + [
+            'source' => 'urt_video + tags derived read-only',
+        ];
     }
 
     /**
@@ -427,6 +464,7 @@ class TagDailyRelationReport
             'rows' => [],
             'metrics' => [],
             'diff' => true,
+            'source' => 'unavailable',
             'generated_at' => now('Asia/Taipei')->format('Y-m-d H:i:s'),
         ];
     }

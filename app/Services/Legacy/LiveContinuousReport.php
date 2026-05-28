@@ -5,6 +5,7 @@ namespace App\Services\Legacy;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class LiveContinuousReport
@@ -19,7 +20,7 @@ class LiveContinuousReport
     public function forRequest(Request $request): array
     {
         try {
-            $filters = $this->tagFilter->filters($request);
+            $filters = $this->filters($request);
             $period = $this->period($request);
             $tagNames = $this->tagFilter->tagNames();
             $channelTags = $this->tagFilter->matchingChannelTags($filters);
@@ -108,7 +109,18 @@ class LiveContinuousReport
     }
 
     /**
-     * @param array{or: array<int>, tagid: array<int>, not: array<int>, limit: int} $filters
+     * @return array{or: array<int>, tagid: array<int>, not: array<int>, limit: int, hours: int}
+     */
+    private function filters(Request $request): array
+    {
+        $filters = $this->tagFilter->filters($request);
+        $filters['hours'] = max(1, min(168, (int) $request->query('hours', 24)));
+
+        return $filters;
+    }
+
+    /**
+     * @param array{or: array<int>, tagid: array<int>, not: array<int>, limit: int, hours: int} $filters
      * @param array{from: string, to: string, days: int, is_range: bool} $period
      * @param array<int, string> $tagNames
      * @param \Illuminate\Support\Collection<int, object> $channelTagsById
@@ -120,84 +132,80 @@ class LiveContinuousReport
             return [];
         }
 
-        $logs = DB::table('urt_video_live_log')
+        $now = now('Asia/Taipei');
+        $freshSince = $now->copy()->subHour()->format('Y-m-d H:i:s');
+        $continuousCutoff = $now->copy()->subHours($filters['hours'])->format('Y-m-d H:i:s');
+
+        $activeRows = DB::table('urt_video_live')
             ->whereIn('u_id', $channelTagsById->keys()->all())
+            ->whereNull('actualEndTime')
+            ->where('concurrentViewers', '>', 0)
+            ->where('mtime', '>=', $freshSince)
+            ->where(function ($query) use ($continuousCutoff): void {
+                $query->whereNull('actualStartTime')
+                    ->orWhere('actualStartTime', '<', $continuousCutoff);
+            })
+            ->orderByDesc('concurrentViewers')
+            ->limit($filters['limit'])
+            ->get();
+
+        if ($activeRows->isEmpty()) {
+            return [];
+        }
+
+        $videoIds = $activeRows->pluck('videoId')->filter()->unique()->values()->all();
+        $uIds = $activeRows->pluck('u_id')->unique()->values()->all();
+        $logs = DB::table('urt_video_live_log')
+            ->whereIn('videoId', $videoIds)
             ->whereBetween('the_date', [$period['from'], $period['to']])
             ->orderBy('videoId')
             ->orderBy('the_date')
             ->get();
 
-        $videos = [];
-        $today = now('Asia/Taipei')->toDateString();
+        $statsByVideo = $this->statsByVideo($logs, $period['to']);
 
-        foreach ($logs as $log) {
-            $videoId = (string) $log->videoId;
-
-            if (! isset($videos[$videoId])) {
-                $videos[$videoId] = [
-                    'video_id' => $videoId,
-                    'u_id' => (int) $log->u_id,
-                    'sum' => 0,
-                    'days' => 0,
-                    'weekly_peak' => 0,
-                    'today_peak' => null,
-                ];
-            }
-
-            $maxCurrent = (int) ($log->max_current ?? 0);
-            $videos[$videoId]['sum'] += $maxCurrent;
-            $videos[$videoId]['days']++;
-            $videos[$videoId]['weekly_peak'] = max($videos[$videoId]['weekly_peak'], $maxCurrent);
-
-            if ((string) $log->the_date === $today) {
-                $videos[$videoId]['today_peak'] = $maxCurrent;
-            }
-        }
-
-        $videos = collect($videos)
-            ->filter(fn (array $row): bool => $row['days'] >= 7)
-            ->values();
-
-        if ($videos->isEmpty()) {
-            return [];
-        }
-
-        $videoIds = $videos->pluck('video_id')->all();
-        $uIds = $videos->pluck('u_id')->unique()->all();
         $channels = DB::table('urt_channel')
             ->whereIn('u_id', $uIds)
             ->get()
             ->keyBy('u_id');
-        $liveRows = DB::table('urt_video_live')
-            ->whereIn('videoId', $videoIds)
-            ->get()
-            ->keyBy('videoId');
         $displayRows = DB::table('urt_show_video_live')
             ->whereIn('videoId', $videoIds)
             ->get()
             ->keyBy('videoId');
 
-        return $videos
-            ->map(function (array $row) use ($channels, $liveRows, $displayRows, $channelTagsById, $tagNames): array {
-                $liveRow = $liveRows->get($row['video_id']);
-                $displayRow = $displayRows->get($row['video_id']);
-                $channel = $channels->get($row['u_id']);
-                $countRow = $channelTagsById->get($row['u_id']);
+        return $activeRows
+            ->map(function (object $liveRow) use ($channels, $displayRows, $channelTagsById, $tagNames, $statsByVideo): array {
+                $videoId = (string) $liveRow->videoId;
+                $displayRow = $displayRows->get($videoId);
+                $channel = $channels->get($liveRow->u_id);
+                $countRow = $channelTagsById->get($liveRow->u_id);
                 $current = (int) ($liveRow->concurrentViewers ?? 0);
+                $stats = $statsByVideo[$videoId] ?? [
+                    'sum' => 0,
+                    'days' => 0,
+                    'weekly_peak' => 0,
+                    'today_peak' => null,
+                ];
+                $allTimePeak = $liveRow->max_current !== null ? (int) $liveRow->max_current : null;
+                $todayPeak = $stats['today_peak'] ?? $current;
+                $weeklyPeak = $stats['weekly_peak'] > 0 ? $stats['weekly_peak'] : $current;
+                $weeklyAverage = $stats['days'] > 0
+                    ? (int) round($stats['sum'] / $stats['days'])
+                    : $current;
 
                 return [
-                    'video_id' => $row['video_id'],
-                    'u_id' => $row['u_id'],
-                    'thumbnail' => 'https://i.ytimg.com/vi/'.$row['video_id'].'/default_live.jpg',
+                    'video_id' => $videoId,
+                    'u_id' => (int) $liveRow->u_id,
+                    'thumbnail' => $displayRow->thumbnails ?? 'https://i.ytimg.com/vi/'.$videoId.'/default_live.jpg',
                     'channel_title' => $channel->title ?? $displayRow->channelTitle ?? 'Unknown channel',
-                    'title' => $displayRow->title ?? $row['video_id'],
+                    'title' => $displayRow->title ?? $videoId,
                     'current_viewers' => $current,
-                    'today_peak' => $row['today_peak'],
-                    'weekly_average' => (int) round($row['sum'] / max(1, $row['days'])),
-                    'weekly_peak' => $row['weekly_peak'],
-                    'all_time_peak' => $liveRow?->max_current !== null ? (int) $liveRow->max_current : null,
+                    'today_peak' => $todayPeak,
+                    'weekly_average' => $weeklyAverage,
+                    'weekly_peak' => $weeklyPeak,
+                    'all_time_peak' => $allTimePeak,
                     'tags' => $this->tagFilter->visibleTags($countRow->tags ?? '', $tagNames),
-                    'youtube_url' => 'https://www.youtube.com/watch?v='.$row['video_id'],
+                    'youtube_url' => 'https://www.youtube.com/watch?v='.$videoId,
                 ];
             })
             ->sortByDesc('current_viewers')
@@ -209,5 +217,37 @@ class LiveContinuousReport
                 return $row;
             })
             ->all();
+    }
+
+    /**
+     * @return array<string, array{sum: int, days: int, weekly_peak: int, today_peak: int|null}>
+     */
+    private function statsByVideo(Collection $logs, string $today): array
+    {
+        $stats = [];
+
+        foreach ($logs as $log) {
+            $videoId = (string) $log->videoId;
+
+            if (! isset($stats[$videoId])) {
+                $stats[$videoId] = [
+                    'sum' => 0,
+                    'days' => 0,
+                    'weekly_peak' => 0,
+                    'today_peak' => null,
+                ];
+            }
+
+            $maxCurrent = (int) ($log->max_current ?? 0);
+            $stats[$videoId]['sum'] += $maxCurrent;
+            $stats[$videoId]['days']++;
+            $stats[$videoId]['weekly_peak'] = max($stats[$videoId]['weekly_peak'], $maxCurrent);
+
+            if ((string) $log->the_date === $today) {
+                $stats[$videoId]['today_peak'] = $maxCurrent;
+            }
+        }
+
+        return $stats;
     }
 }

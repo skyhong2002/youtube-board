@@ -76,7 +76,7 @@
             <section class="stats" aria-label="Daily relation stats">
                 <div class="stat">cache rows {{ number_format($cache_rows) }}</div>
                 <div class="stat">{{ $diff ? 'diff ranking' : 'raw ranking' }}</div>
-                <div class="stat">read-only cache viewer</div>
+                <div class="stat">{{ $source ?? 'read-only cache viewer' }}</div>
             </section>
 
             @if (! $available)

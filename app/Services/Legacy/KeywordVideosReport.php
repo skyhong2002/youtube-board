@@ -8,6 +8,10 @@ use Illuminate\Support\Facades\DB;
 
 class KeywordVideosReport
 {
+    public function __construct(private readonly KeywordRelationFallback $keywordRelationFallback)
+    {
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -20,6 +24,8 @@ class KeywordVideosReport
         $dates = $this->dates($days);
         $cacheRows = 0;
         $videoIds = [];
+        $source = 'urt_show_video_tag_date cache';
+        $queryExceptionReason = null;
 
         try {
             $records = DB::table('urt_show_video_tag_date')
@@ -45,22 +51,24 @@ class KeywordVideosReport
                     $videoIds[$videoId] = $videoId;
                 }
             }
-
-            $rows = $this->videoRows(array_values($videoIds), $limit);
-
-            return $this->payload($keyword, $days, $hours, $limit, $dates, $cacheRows, $rows, null);
         } catch (QueryException) {
-            return $this->payload(
-                $keyword,
-                $days,
-                $hours,
-                $limit,
-                $dates,
-                0,
-                [],
-                'local keyword-video relation cache is missing or empty; legacy `api/tags_relation_date.php` generation is intentionally not run',
-            );
+            $queryExceptionReason = 'local keyword-video relation cache is missing or empty; legacy `api/tags_relation_date.php` generation is intentionally not run';
         }
+
+        $rows = $this->videoRows(array_values($videoIds), $limit);
+
+        if ($rows === []) {
+            $derivedVideoIds = $this->keywordRelationFallback->videoIds($keyword, $dates);
+            $derivedRows = $this->videoRows($derivedVideoIds, $limit);
+
+            if ($derivedRows !== []) {
+                $rows = $derivedRows;
+                $source = 'urt_video title/description derived read-only';
+                $queryExceptionReason = null;
+            }
+        }
+
+        return $this->payload($keyword, $days, $hours, $limit, $dates, $cacheRows, $rows, $queryExceptionReason, $source);
     }
 
     /**
@@ -77,13 +85,14 @@ class KeywordVideosReport
         int $cacheRows,
         array $rows,
         ?string $queryExceptionReason,
+        string $source,
     ): array {
         $blockedReason = $queryExceptionReason;
 
         if ($blockedReason === null && $rows === []) {
             $blockedReason = $cacheRows > 0
                 ? 'local keyword relation cache exists, but matching `urt_video` rows are missing'
-                : 'local keyword-video relation cache is empty; legacy `api/tags_relation_date.php` generation is intentionally not run';
+                : 'local keyword-video relation cache and raw video/title fallback are empty; legacy `api/tags_relation_date.php` generation is intentionally not run';
         }
 
         return [
@@ -95,6 +104,7 @@ class KeywordVideosReport
             'data_available' => $rows !== [],
             'blocked_reason' => $blockedReason,
             'cache_rows' => $cacheRows,
+            'source' => $source,
             'filters' => [
                 'tag' => $keyword,
                 'days' => $days,

@@ -122,8 +122,8 @@
                 </section>
             @else
                 <div class="summary" aria-label="Cache summary">
-                    <span>{{ $days }} 天 cache: {{ number_format($short_cache['counts']['tags_count']) }} keywords</span>
-                    <span>{{ $long_days }} 天 cache: {{ number_format($long_cache['counts']['tags_count']) }} keywords</span>
+                    <span>{{ $days }} 天 {{ $short_cache['source'] ?? 'cache' }}: {{ number_format($short_cache['counts']['tags_count']) }} keywords</span>
+                    <span>{{ $long_days }} 天 {{ $long_cache['source'] ?? 'cache' }}: {{ number_format($long_cache['counts']['tags_count']) }} keywords</span>
                     <span>videos {{ number_format($short_cache['counts']['videos']) }}</span>
                     <span>channels {{ number_format($short_cache['counts']['channels']) }}</span>
                     @if ($short_cache['mtime'])

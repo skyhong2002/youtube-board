@@ -102,6 +102,7 @@
                     <span>{{ $days }} 天 cache range</span>
                     <span>{{ count($dates) }} dates</span>
                     <span>{{ $cache_rows }} cache rows</span>
+                    <span>{{ $source ?? 'urt_show_video_tag_date cache' }}</span>
                 </div>
 
                 <div class="table-wrap">

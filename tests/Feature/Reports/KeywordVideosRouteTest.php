@@ -137,6 +137,51 @@ class KeywordVideosRouteTest extends TestCase
         $response->assertSee('列表影片 A');
     }
 
+    public function test_keyword_videos_page_derives_from_raw_video_titles_when_relation_cache_is_empty(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        DB::table('urt_video')->insert([
+            [
+                'videoId' => 'birthrate-video',
+                'u_id' => 10,
+                'thumbnails' => 'https://example.test/birthrate.jpg',
+                'channelTitle' => 'Policy Channel',
+                'publishedAt' => '2026-05-25 09:00:00',
+                'title' => '少子化政策說明',
+                'viewCount' => 4500,
+                'likeCount' => 30,
+                'commentCount' => 9,
+            ],
+            [
+                'videoId' => 'other-video',
+                'u_id' => 11,
+                'thumbnails' => 'https://example.test/other.jpg',
+                'channelTitle' => 'Other Channel',
+                'publishedAt' => '2026-05-25 09:30:00',
+                'title' => '其他政策說明',
+                'viewCount' => 9000,
+                'likeCount' => 40,
+                'commentCount' => 10,
+            ],
+        ]);
+
+        $response = $this->get('/keywords/%E5%B0%91%E5%AD%90%E5%8C%96/videos?days=1&hours=24&limit=10');
+
+        $response->assertOk();
+        $response->assertSee('少子化 在 24小時內觀看最多的影片');
+        $response->assertSee('urt_video title/description derived read-only');
+        $response->assertSee('Policy Channel');
+        $response->assertSee('少子化政策說明');
+        $response->assertSee('4,500');
+        $response->assertDontSee('Data unavailable locally');
+        $response->assertDontSee('Other Channel');
+        $this->assertSame(0, DB::table('urt_show_video_tag_date')->count());
+
+        Carbon::setTestNow();
+    }
+
     private function createTables(): void
     {
         Schema::create('urt_show_video_tag_date', function ($table): void {

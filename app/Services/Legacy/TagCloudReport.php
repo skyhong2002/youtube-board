@@ -11,6 +11,7 @@ class TagCloudReport
     public function __construct(
         private readonly LegacyTagFilter $tagFilter,
         private readonly LegacyStopwords $stopwords,
+        private readonly KeywordRelationFallback $keywordRelationFallback,
     )
     {
     }
@@ -56,7 +57,7 @@ class TagCloudReport
     {
         $keyword = trim(urldecode($keyword)) ?: '蔡英文';
         $filters = $this->cacheFilters($request);
-        $days = $this->days($request, 3);
+        $days = $this->days($request, 7);
         $longDays = $this->longDays($days);
         $limit = $this->limit($request);
         $short = $this->keywordCache($keyword, $filters, $days);
@@ -78,7 +79,7 @@ class TagCloudReport
             rows: $rows,
             short: $short,
             long: $long,
-            blockedReason: 'local keyword cloud cache is missing or empty; legacy `api/tag_tags_days.php` generation is intentionally not run',
+            blockedReason: 'local keyword cloud cache and raw video/title fallback are empty; legacy `api/tag_tags_days.php` generation is intentionally not run',
             keyword: $keyword,
             tagId: null,
         );
@@ -173,10 +174,15 @@ class TagCloudReport
                 ->orderByDesc('pk');
             $this->applyCacheFilters($query, $filters);
             $row = $query->first();
+            $words = $this->normalizeWords($this->decodeMap($row->tags_result ?? null));
 
-            return $this->cachePayload('urt_show_tag_cloud_tag', $row, $this->normalizeWords($this->decodeMap($row->tags_result ?? null)));
+            if ($row !== null && $words !== []) {
+                return $this->cachePayload('urt_show_tag_cloud_tag', $row, $words);
+            }
+
+            return $this->keywordRelationFallback->cloud($keyword, $filters, $days);
         } catch (QueryException) {
-            return $this->cachePayload('urt_show_tag_cloud_tag', null, []);
+            return $this->keywordRelationFallback->cloud($keyword, $filters, $days);
         }
     }
 

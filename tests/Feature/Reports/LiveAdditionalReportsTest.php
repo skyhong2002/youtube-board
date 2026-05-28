@@ -38,6 +38,90 @@ class LiveAdditionalReportsTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_continuous_live_page_renders_active_long_running_rows_with_partial_logs(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        $this->createLegacyLiveTables();
+
+        DB::table('urt_tag')->insert([
+            ['tag_id' => 1, 'tag_name' => '社論'],
+            ['tag_id' => 2, 'tag_name' => '新聞'],
+        ]);
+        DB::table('urt_count')->insert([
+            'u_id' => 10,
+            'tags' => '[1][2]',
+        ]);
+        DB::table('urt_channel')->insert([
+            'u_id' => 10,
+            'youtube_id' => 'UC-example',
+            'title' => 'Example Channel',
+            'thumbnails' => 'https://example.test/channel.jpg',
+            'flag_del' => null,
+        ]);
+        DB::table('urt_video_live')->insert([
+            [
+                'videoId' => 'long-running',
+                'u_id' => 10,
+                'publishedAt' => '2026-05-22 11:00:00',
+                'actualStartTime' => '2026-05-22 11:00:00',
+                'scheduledStartTime' => null,
+                'actualEndTime' => null,
+                'concurrentViewers' => 321,
+                'mtime' => '2026-05-24 17:50:00',
+                'max_current' => 456,
+            ],
+            [
+                'videoId' => 'fresh-live',
+                'u_id' => 10,
+                'publishedAt' => '2026-05-24 12:00:00',
+                'actualStartTime' => '2026-05-24 12:00:00',
+                'scheduledStartTime' => null,
+                'actualEndTime' => null,
+                'concurrentViewers' => 9999,
+                'mtime' => '2026-05-24 17:50:00',
+                'max_current' => 9999,
+            ],
+        ]);
+        DB::table('urt_show_video_live')->insert([
+            [
+                'pk_live' => 1,
+                'videoId' => 'long-running',
+                'u_id' => 10,
+                'publishedAt' => '2026-05-22 11:00:00',
+                'channelTitle' => 'Example Channel',
+                'title' => 'Long Running Live',
+                'thumbnails' => 'https://example.test/long-running.jpg',
+            ],
+            [
+                'pk_live' => 2,
+                'videoId' => 'fresh-live',
+                'u_id' => 10,
+                'publishedAt' => '2026-05-24 12:00:00',
+                'channelTitle' => 'Example Channel',
+                'title' => 'Fresh Live',
+                'thumbnails' => 'https://example.test/fresh-live.jpg',
+            ],
+        ]);
+        DB::table('urt_video_live_log')->insert([
+            'videoId' => 'long-running',
+            'u_id' => 10,
+            'the_date' => '2026-05-24',
+            'max_current' => 456,
+            'log_json' => json_encode(['17:50' => 321]),
+        ]);
+
+        $response = $this->get('/live/continuous?or=1');
+
+        $response->assertOk();
+        $response->assertSee('Long Running Live');
+        $response->assertSee('321');
+        $response->assertSee('456');
+        $response->assertDontSee('Fresh Live');
+        $response->assertDontSee('9,999');
+
+        Carbon::setTestNow();
+    }
+
     public function test_live_day_page_renders_legacy_rows(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
