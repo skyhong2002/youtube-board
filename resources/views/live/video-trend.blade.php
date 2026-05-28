@@ -64,9 +64,9 @@
                     </div>
                 </section>
             @elseif ($dataAvailable)
-                <div class="empty">找不到這支直播影片的 legacy 資料。</div>
+                <div class="empty">找不到這支直播影片的 legacy 資料。<br><x-ingestion-portal job="reports.live.build" /></div>
             @else
-                <div class="empty">本機尚未匯入 legacy live tables。</div>
+                <div class="empty">本機尚未匯入 legacy live tables。<br><x-ingestion-portal job="reports.live.build" /></div>
             @endif
 
             @php

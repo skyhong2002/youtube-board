@@ -55,7 +55,7 @@
             @endif
 
             @if (! $available)
-                <p class="notice">本機尚未匯入 `urt_channel_ai`。</p>
+                <p class="notice">本機尚未匯入 `urt_channel_ai`。<br><x-ingestion-portal job="ai.daily" /></p>
             @endif
 
             <div class="summary">
@@ -88,7 +88,7 @@
                         @empty
                             <tr>
                                 <td class="empty" colspan="{{ max(1, count($people) + 1) }}">
-                                    {{ $available ? '目前沒有符合條件的頻道人物資料。' : '本機尚未匯入 `urt_channel_ai`。' }}
+                                    {{ $available ? '目前沒有符合條件的頻道人物資料。' : '本機尚未匯入 `urt_channel_ai`。' }}<br><x-ingestion-portal job="ai.daily" />
                                 </td>
                             </tr>
                         @endforelse

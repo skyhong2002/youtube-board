@@ -76,10 +76,10 @@
 
             @if (! $available)
                 <h2>Unavailable</h2>
-                <div class="empty">本機尚未匯入 `urt_ai_date` 或必要 AI tables。</div>
+                <div class="empty">本機尚未匯入 `urt_ai_date` 或必要 AI tables。<br><x-ingestion-portal job="ai.daily" /></div>
             @elseif ($topics === [])
                 <h2>Unavailable</h2>
-                <div class="empty">這個期間目前沒有可用的每日 AI topic cache。Laravel AI workflow 會透過排程與 cache refresh 補齊即時儀表板資料。</div>
+                <div class="empty">這個期間目前沒有可用的每日 AI topic cache。Laravel AI workflow 會透過排程與 cache refresh 補齊即時儀表板資料。<br><x-ingestion-portal job="ai.daily" /></div>
             @else
                 <h2>期間事件</h2>
                 <div class="table-wrap">

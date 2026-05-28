@@ -57,7 +57,7 @@
 
             @if (! $data_available)
                 <section class="panel">
-                    <p class="notice">Data unavailable locally. {{ $blocked_reason }}</p>
+                    <p class="notice">Data unavailable locally. {{ $blocked_reason }}<br><x-ingestion-portal job="youtube.comments.fetch" /></p>
                     <p class="muted">Legacy source: {{ $legacy_file }}. 留言資料會透過 Laravel comment queue 與 comment ingestion 補齊。</p>
                     <table>
                         <thead>
@@ -123,7 +123,7 @@
                     </table>
                 </div>
             @else
-                <div class="empty">沒有符合條件的留言影片。</div>
+                <div class="empty">沒有符合條件的留言影片。<br><x-ingestion-portal job="youtube.comments.fetch" /></div>
             @endif
 
             <h2>留言者排行</h2>

@@ -45,6 +45,16 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('Run Once');
     }
 
+    public function test_ingestion_dashboard_prefills_job_from_query_parameter(): void
+    {
+        Storage::fake('local');
+
+        $response = $this->get('/ops/ingestion?job=ai.daily');
+
+        $response->assertOk();
+        $response->assertSee('value="ai.daily"  selected', false);
+    }
+
     public function test_ingestion_dashboard_shows_recent_external_scheduler_activity_while_web_gates_are_disabled(): void
     {
         Storage::fake('local');
@@ -560,7 +570,7 @@ class IngestionDashboardTest extends TestCase
         $this->assertSame(0, $exitCode);
         $this->assertStringContainsString('scheduler=disabled', $output);
         $this->assertStringContainsString('command_missing=0', $output);
-        $this->assertStringContainsString('command_ready=26', $output);
+        $this->assertStringContainsString('command_ready=28', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_statics.php -> youtube:channels:stats', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_live.php -> youtube:live:poll', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_live_tvbs.php -> youtube:tvbs:live:poll', $output);
@@ -587,6 +597,8 @@ class IngestionDashboardTest extends TestCase
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/prompt/ai_hour_prompt.php do=1 -> ai:hourly', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/make_comments.php or=1,2,3,4,5,6,13,14,81 hours=72 min=500 -> youtube:comments:queue --or=1,2,3,4,5,6,13,14,81 --hours=72 --min=500', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/do_comments.php -> youtube:comments:fetch', $output);
+        $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/make_tag_date.php -> reports:tag-date:build', $output);
+        $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/tags_all.php -> reports:keywords:cache', $output);
         $this->assertStringContainsString('youtube:live:poll', $output);
     }
 

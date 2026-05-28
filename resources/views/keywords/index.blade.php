@@ -39,8 +39,8 @@
 @endpush
 
 @section('content')
-@unless ($cachedMetricsAvailable)
-                <p class="notice">本機 `urt_show_data.tags_all` 尚無快取，因此影片數、觀看數、成長欄位先以空值呈現。</p>
+            @unless ($cachedMetricsAvailable)
+                <p class="notice">本機 `urt_show_data.tags_all` 尚無快取，因此影片數、觀看數、成長欄位先以空值呈現。<br><x-ingestion-portal job="reports.keywords.cache" /></p>
             @endunless
 
             @if ($filters !== [])
@@ -114,7 +114,7 @@
                         @empty
                             <tr>
                                 <td class="empty" colspan="10">
-                                    {{ $dataAvailable ? '目前沒有符合條件的關鍵字資料。' : '本機尚未匯入 legacy tags table。' }}
+                                    {{ $dataAvailable ? '目前沒有符合條件的關鍵字資料。' : '本機尚未匯入 legacy tags table。' }}<br><x-ingestion-portal job="reports.keywords.cache" />
                                 </td>
                             </tr>
                         @endforelse

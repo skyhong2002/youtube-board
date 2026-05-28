@@ -52,9 +52,9 @@
             </section>
 
             @if (! $available)
-                <div class="empty">本機尚未匯入 `urt_video` 或 `urt_channel`。</div>
+                <div class="empty">本機尚未匯入 `urt_video` 或 `urt_channel`。<br><x-ingestion-portal job="youtube.channels.videos.general" /></div>
             @elseif ($videos === [])
-                <div class="empty">這個日期範圍沒有可用影片。</div>
+                <div class="empty">這個日期範圍沒有可用影片。<br><x-ingestion-portal job="youtube.channels.videos.general" /></div>
             @else
                 <h2>Prompt</h2>
                 <textarea class="prompt" readonly>{{ $prompt }}</textarea>

@@ -45,7 +45,7 @@ aipk={{ $aipk }} · {{ $generated_at }}
             </nav>
 
             @if (! $history_available)
-                <p class="notice">逐日人物演變需要 `urt_ai_period`；{{ $history['blocked_reason'] ?? 'Laravel AI period workflow 會補齊 cached people/media JSON' }}。</p>
+                <p class="notice">逐日人物演變需要 `urt_ai_period`；{{ $history['blocked_reason'] ?? 'Laravel AI period workflow 會補齊 cached people/media JSON' }}。<br><x-ingestion-portal job="ai.daily" /></p>
             @endif
 
             @if ($people)
@@ -76,7 +76,7 @@ aipk={{ $aipk }} · {{ $generated_at }}
                     @endif
                 @endforeach
             @else
-                <p class="empty">目前沒有 people prompt JSON。</p>
+                <p class="empty">目前沒有 people prompt JSON。<br><x-ingestion-portal job="ai.daily" /></p>
             @endif
 
             @if ($media)

@@ -41,7 +41,7 @@
 
 @section('content')
 @if (! $available)
-                <p class="notice">本機尚未匯入影片分析相關 legacy tables。</p>
+                <p class="notice">本機尚未匯入影片分析相關 legacy tables。<br><x-ingestion-portal job="youtube.videos.stats" /></p>
             @endif
 
             <div class="stats">

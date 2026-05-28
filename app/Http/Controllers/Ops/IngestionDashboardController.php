@@ -14,13 +14,14 @@ use Throwable;
 
 class IngestionDashboardController extends Controller
 {
-    public function __invoke(IngestionJobRegistry $registry, IngestionRunHistory $history): View
+    public function __invoke(Request $request, IngestionJobRegistry $registry, IngestionRunHistory $history): View
     {
         return view('ops.ingestion', [
             'groups' => $registry->grouped(),
             'summary' => $registry->summary(),
             'recentRuns' => $history->latest(30),
             'externalSchedulerActivity' => $history->externalSchedulerActivity(),
+            'prefillJob' => trim((string) $request->query('job', '')),
         ]);
     }
 

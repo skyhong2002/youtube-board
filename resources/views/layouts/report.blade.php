@@ -324,6 +324,26 @@
                 gap: 6px;
             }
 
+            .yb-ingestion-portal {
+                display: inline-flex;
+                align-items: center;
+                min-height: 24px;
+                margin-top: 6px;
+                padding: 3px 9px;
+                border: 1px solid #b7ded6;
+                border-radius: 6px;
+                background: var(--accent-bg);
+                color: var(--accent);
+                font-size: 12px;
+                font-weight: 650;
+                text-decoration: none;
+            }
+
+            .yb-ingestion-portal:hover {
+                background: #d1ebe6;
+                text-decoration: none;
+            }
+
             @media (max-width: 760px) {
                 .yb-shell {
                     padding: 12px 16px 22px;

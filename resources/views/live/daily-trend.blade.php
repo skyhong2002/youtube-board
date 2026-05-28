@@ -126,7 +126,7 @@
                     </div>
                 </section>
             @else
-                <div class="empty">{{ $dataAvailable ? '目前沒有符合條件的直播趨勢資料。' : '本機尚未匯入 legacy live log tables。' }}</div>
+                <div class="empty">{{ $dataAvailable ? '目前沒有符合條件的直播趨勢資料。' : '本機尚未匯入 legacy live log tables。' }}<br><x-ingestion-portal job="reports.live.build" /></div>
             @endif
 
             <h2>期間合計</h2>

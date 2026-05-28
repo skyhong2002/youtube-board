@@ -124,6 +124,7 @@
                                     @else
                                         目前沒有符合條件的頻道影片資料。
                                     @endif
+                                    <br><x-ingestion-portal job="youtube.channels.videos.general" />
                                 </td>
                             </tr>
                         @endforelse

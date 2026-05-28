@@ -57,7 +57,7 @@
             @endif
 
             <section class="panel">
-                <p class="notice">Data unavailable locally. {{ $section['reason'] }}</p>
+                <p class="notice">Data unavailable locally. {{ $section['reason'] }}<br><x-ingestion-portal /></p>
                 <p>{{ $section['next_step'] }}</p>
                 <table>
                     <thead>

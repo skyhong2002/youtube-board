@@ -76,9 +76,9 @@
             </section>
 
             @if (! $available)
-                <div class="empty">本機尚未匯入 `urt_channel_ai` 或相關 channel tables。</div>
+                <div class="empty">本機尚未匯入 `urt_channel_ai` 或相關 channel tables。<br><x-ingestion-portal job="ai.daily" /></div>
             @elseif ($rows === [])
-                <div class="empty">這個日期與條件目前沒有可用的每日 AI prompt 來源資料。</div>
+                <div class="empty">這個日期與條件目前沒有可用的每日 AI prompt 來源資料。<br><x-ingestion-portal job="ai.daily" /></div>
             @else
                 <h2>Prompt</h2>
                 <textarea class="prompt" readonly>{{ $prompt }}</textarea>

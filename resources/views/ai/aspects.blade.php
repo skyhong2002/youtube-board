@@ -66,9 +66,9 @@
             @endif
 
             @if (! $available)
-                <div class="empty">本機尚未匯入 `urt_channel_ai` aspect 資料。</div>
+                <div class="empty">本機尚未匯入 `urt_channel_ai` aspect 資料。<br><x-ingestion-portal job="ai.daily" /></div>
             @elseif ($rows === [])
-                <div class="empty">目前沒有符合條件的立場資料。</div>
+                <div class="empty">目前沒有符合條件的立場資料。<br><x-ingestion-portal job="ai.daily" /></div>
             @else
                 <div class="table-wrap">
                     <table>

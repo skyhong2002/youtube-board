@@ -37,7 +37,7 @@
             </section>
 
             @if (! $available)
-                <div class="empty">本機沒有這個 group 的 tag membership。群組趨勢資料會透過 Laravel ingestion 與 group cache refresh 補齊。</div>
+                <div class="empty">本機沒有這個 group 的 tag membership。群組趨勢資料會透過 Laravel ingestion 與 group cache refresh 補齊。<br><x-ingestion-portal job="reports.groups.build" /></div>
             @else
                 <section class="tag-grid" aria-label="Group tags">
                     @foreach ($tags as $row)

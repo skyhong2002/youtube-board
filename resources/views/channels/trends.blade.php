@@ -63,7 +63,7 @@
 
             @if (! $data_available)
                 <section class="panel">
-                    <p class="notice">Data unavailable locally. {{ $blocked_reason ?? 'local urt_log has no rows for this channel' }}</p>
+                    <p class="notice">Data unavailable locally. {{ $blocked_reason ?? 'local urt_log has no rows for this channel' }}<br><x-ingestion-portal job="youtube.channels.stats" /></p>
                     <p class="muted">Legacy source: {{ $legacy_file }}. Channel trend 資料會透過 Laravel channel stats polling 與 `urt_log` refresh 補齊。</p>
                     <table>
                         <thead>

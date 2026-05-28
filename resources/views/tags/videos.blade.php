@@ -113,6 +113,7 @@
                             <tr>
                                 <td class="empty" colspan="9">
                                     {{ $dataAvailable ? '目前沒有符合條件的影片資料。' : '本機尚未匯入 legacy video tables。' }}
+                                    <br><x-ingestion-portal job="youtube.channels.videos.general" />
                                 </td>
                             </tr>
                         @endforelse

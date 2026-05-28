@@ -80,7 +80,7 @@
             </div>
 
             @if (! $available)
-                <p class="notice">本機尚未匯入 legacy AI hourly table。</p>
+                <p class="notice">本機尚未匯入 legacy AI hourly table。<br><x-ingestion-portal job="ai.hourly" /></p>
             @endif
 
             @forelse ($hours as $hour)
@@ -148,7 +148,7 @@
                 </div>
             @empty
                 <div class="table-wrap">
-                    <div class="empty">{{ $available ? '目前沒有符合條件的每小時 AI 摘要。' : '本機尚未匯入 legacy AI hourly table。' }}</div>
+                    <div class="empty">{{ $available ? '目前沒有符合條件的每小時 AI 摘要。' : '本機尚未匯入 legacy AI hourly table。' }}<br><x-ingestion-portal job="ai.hourly" /></div>
                 </div>
             @endforelse
 @endsection

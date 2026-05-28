@@ -87,9 +87,9 @@
             @endif
 
             @if (! $available)
-                <div class="empty">本機尚未匯入 `urt_show_live_tag_date`。</div>
+                <div class="empty">本機尚未匯入 `urt_show_live_tag_date`。<br><x-ingestion-portal job="reports.live.build" /></div>
             @elseif ($rows === [])
-                <div class="empty">目前沒有符合這組 tag/filter/date 的直播標籤 cache。新系統會透過排程擷取、快取重建與本地資料補齊這張即時儀表板資料。</div>
+                <div class="empty">目前沒有符合這組 tag/filter/date 的直播標籤 cache。新系統會透過排程擷取、快取重建與本地資料補齊這張即時儀表板資料。<br><x-ingestion-portal job="reports.live.build" /></div>
             @else
                 <div class="table-wrap">
                     <table>

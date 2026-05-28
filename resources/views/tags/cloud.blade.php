@@ -99,7 +99,7 @@
 
             @if (! $data_available)
                 <section class="panel">
-                    <p class="notice">Data unavailable locally. {{ $blocked_reason }}</p>
+                    <p class="notice">Data unavailable locally. {{ $blocked_reason }}<br><x-ingestion-portal job="reports.tag_cloud.build" /></p>
                     <p>Legacy source: {{ $legacy_file }}. Laravel uses {{ $cache_table }} as the dashboard cache source and rebuilds it through ingestion jobs.</p>
                     <table>
                         <thead>

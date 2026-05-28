@@ -78,7 +78,7 @@
             </nav>
 
             @if (! $available)
-                <div class="empty">本機沒有足夠的 <code>urt_show_live_tag_date</code> cache 可以重建這個 legacy group live report。直播群組資料會透過 Laravel live tag ingestion 與 cache refresh 補齊。</div>
+                <div class="empty">本機沒有足夠的 <code>urt_show_live_tag_date</code> cache 可以重建這個 legacy group live report。直播群組資料會透過 Laravel live tag ingestion 與 cache refresh 補齊。<br><x-ingestion-portal job="reports.live.build" /></div>
             @else
                 @foreach ($groups as $group)
                     <h2>{{ $group['name'] }} <span class="muted">cache rows {{ $group['cache_rows'] }}, latest total {{ number_format($group['latest_total']) }}</span></h2>

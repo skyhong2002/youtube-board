@@ -102,6 +102,7 @@
                             <tr>
                                 <td class="empty" colspan="10">
                                     {{ $dataAvailable ? '目前沒有符合條件的頻道。' : '本機尚未匯入 legacy channel/tag tables。' }}
+                                    <br><x-ingestion-portal job="youtube.channels.videos.general" />
                                 </td>
                             </tr>
                         @endforelse

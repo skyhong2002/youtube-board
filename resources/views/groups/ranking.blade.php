@@ -67,9 +67,9 @@
             </ul>
 
             @if (! $available)
-                <p class="notice">本機尚未匯入 `urt_show_tag_date` cache table。</p>
+                <p class="notice">本機尚未匯入 `urt_show_tag_date` cache table。<br><x-ingestion-portal job="reports.tag_date.build" /></p>
             @elseif (! $data_available)
-                <p class="notice">目前沒有符合這組 group/date 的 tag-date cache；Laravel 會透過 group cache refresh 補齊這張即時儀表板。</p>
+                <p class="notice">目前沒有符合這組 group/date 的 tag-date cache；Laravel 會透過 group cache refresh 補齊這張即時儀表板。<br><x-ingestion-portal job="reports.tag_date.build" /></p>
             @endif
 
             @if ($rows === [])

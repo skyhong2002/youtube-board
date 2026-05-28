@@ -81,10 +81,10 @@
 
             @if (! $available)
                 <h2>Unavailable</h2>
-                <div class="empty">{{ $unavailable_reason }}</div>
+                <div class="empty">{{ $unavailable_reason }}<br><x-ingestion-portal job="reports.tag_date.build" /></div>
             @elseif ($rows === [])
                 <h2>Unavailable</h2>
-                <div class="empty">本機 cache 目前沒有這個日期範圍與條件的逐日標籤資料。Laravel 會透過排程擷取與快取重建補齊即時儀表板資料。</div>
+                <div class="empty">本機 cache 目前沒有這個日期範圍與條件的逐日標籤資料。Laravel 會透過排程擷取與快取重建補齊即時儀表板資料。<br><x-ingestion-portal job="reports.tag_date.build" /></div>
             @else
                 <h2>逐日標籤</h2>
                 <div class="table-wrap">

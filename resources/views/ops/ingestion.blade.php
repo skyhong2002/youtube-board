@@ -156,7 +156,7 @@ Web request gates
                             <option value="">all due jobs</option>
                             @foreach ($groups as $jobs)
                                 @foreach ($jobs as $job)
-                                    <option value="{{ $job['key'] }}">{{ $job['key'] }}</option>
+                                    <option value="{{ $job['key'] }}" @if ($prefillJob === $job['key']) selected @endif>{{ $job['key'] }}</option>
                                 @endforeach
                             @endforeach
                         </select>

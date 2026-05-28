@@ -114,7 +114,7 @@
                         <a href="{{ route('tags.index') }}">全部分類</a>
                     </div>
                     @if (! $categoriesAvailable)
-                        <p class="notice">本機尚未匯入 legacy tag/count tables。</p>
+                        <p class="notice">本機尚未匯入 legacy tag/count tables。<br><x-ingestion-portal job="youtube.channels.stats" /></p>
                     @else
                         <div class="list">
                             @foreach ($categoryRows as $row)
@@ -140,7 +140,7 @@
                         <a href="{{ route('keywords.index') }}">全部關鍵字</a>
                     </div>
                     @if (! $keywordsAvailable)
-                        <p class="notice">本機尚未匯入 legacy tags table。</p>
+                        <p class="notice">本機尚未匯入 legacy tags table。<br><x-ingestion-portal job="youtube.channels.stats" /></p>
                     @else
                         <div class="list">
                             @foreach ($keywordRows as $row)

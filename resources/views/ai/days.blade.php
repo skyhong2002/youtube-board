@@ -90,7 +90,7 @@
             </div>
 
             @if (! $available)
-                <p class="notice">本機尚未匯入 legacy AI daily tables。</p>
+                <p class="notice">本機尚未匯入 legacy AI daily tables。<br><x-ingestion-portal job="ai.daily" /></p>
             @endif
 
             @forelse ($topics as $index => $topic)
@@ -138,6 +138,6 @@
                     @endif
                 </article>
             @empty
-                <div class="empty">{{ $available ? '目前沒有符合條件的 AI daily summary。' : '本機尚未匯入 legacy AI daily tables。' }}</div>
+                <div class="empty">{{ $available ? '目前沒有符合條件的 AI daily summary。' : '本機尚未匯入 legacy AI daily tables。' }}<br><x-ingestion-portal job="ai.daily" /></div>
             @endforelse
 @endsection

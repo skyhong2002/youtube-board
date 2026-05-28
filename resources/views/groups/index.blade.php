@@ -41,7 +41,7 @@
             </section>
 
             @if (! $available && $groups === [])
-                <div class="empty">本機尚未匯入 `tag_group`。</div>
+                <div class="empty">本機尚未匯入 `tag_group`。<br><x-ingestion-portal job="reports.groups.build" /></div>
             @else
                 <table>
                     <thead>

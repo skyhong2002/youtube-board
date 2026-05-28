@@ -55,7 +55,7 @@
             @endif
 
             @if (! $available)
-                <p class="notice">本機尚未匯入 `urt_channel_ai`。</p>
+                <p class="notice">本機尚未匯入 `urt_channel_ai`。<br><x-ingestion-portal job="ai.daily" /></p>
             @endif
 
             @forelse ($topics as $topic)
@@ -86,6 +86,6 @@
                     @endif
                 </article>
             @empty
-                <div class="empty">{{ $available ? '目前沒有這天的頻道 AI 重點整理。' : '本機尚未匯入 `urt_channel_ai`。' }}</div>
+                <div class="empty">{{ $available ? '目前沒有這天的頻道 AI 重點整理。' : '本機尚未匯入 `urt_channel_ai`。' }}<br><x-ingestion-portal job="ai.daily" /></div>
             @endforelse
 @endsection

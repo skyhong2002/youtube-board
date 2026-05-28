@@ -76,7 +76,7 @@
 
             @if (! $data_available)
                 <section class="panel">
-                    <p class="notice">Data unavailable locally. {{ $blocked_reason }}</p>
+                    <p class="notice">Data unavailable locally. {{ $blocked_reason }}<br><x-ingestion-portal job="reports.keywords.cache" /></p>
                     <p>Legacy source: {{ $legacy_file }}. Laravel uses `urt_show_video_tag_date` and `urt_video` as dashboard sources; relation data is rebuilt through ingestion/cache jobs.</p>
                     <table>
                         <thead>

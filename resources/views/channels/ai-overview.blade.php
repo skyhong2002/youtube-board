@@ -53,7 +53,7 @@
             @endif
 
             @if (! $available)
-                <p class="notice">本機尚未匯入 `urt_channel_ai`。</p>
+                <p class="notice">本機尚未匯入 `urt_channel_ai`。<br><x-ingestion-portal job="ai.daily" /></p>
             @endif
 
             <div class="layout">

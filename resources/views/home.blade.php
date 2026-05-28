@@ -118,7 +118,7 @@
                         @empty
                             <tr>
                                 <td class="empty" colspan="7">
-                                    {{ $dataAvailable ? '目前沒有符合條件的分類資料。' : '本機尚未匯入 legacy tag/count tables。' }}
+                                    {{ $dataAvailable ? '目前沒有符合條件的分類資料。' : '本機尚未匯入 legacy tag/count tables。' }}<br><x-ingestion-portal job="youtube.channels.stats" />
                                 </td>
                             </tr>
                         @endforelse

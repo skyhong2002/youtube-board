@@ -48,7 +48,7 @@
 
 @section('content')
 @if (! $channel)
-                <div class="empty">{{ $dataAvailable ? '找不到此頻道。' : '本機尚未匯入 legacy channel tables。' }}</div>
+                <div class="empty">{{ $dataAvailable ? '找不到此頻道。' : '本機尚未匯入 legacy channel tables。' }}<br><x-ingestion-portal job="youtube.channels.stats" /></div>
             @else
                 <section class="profile">
                     <a href="{{ $channel['youtube_url'] }}" rel="noreferrer">
@@ -88,7 +88,7 @@
                     @if ($trendAvailable)
                         <span class="muted">已偵測到 `urt_log` 資料；頻道趨勢圖會在後續 channel trend slice 補上。</span>
                     @else
-                        <span class="muted">本機 `urt_log` 目前沒有可用資料，先不顯示趨勢圖。</span>
+                        <span class="muted">本機 `urt_log` 目前沒有可用資料，先不顯示趨勢圖。<br><x-ingestion-portal job="youtube.channels.stats" /></span>
                     @endif
                 </section>
 

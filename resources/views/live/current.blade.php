@@ -259,6 +259,7 @@
                             <tr>
                                 <td class="empty" colspan="9">
                                     {{ $dataAvailable ? '目前沒有符合條件的直播資料。' : '本機尚未匯入 legacy live tables。' }}
+                                    <br><x-ingestion-portal job="reports.live.build" />
                                 </td>
                             </tr>
                         @endforelse

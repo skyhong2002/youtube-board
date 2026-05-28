@@ -110,9 +110,9 @@
             </div>
 
             @if (! $available)
-                <p class="notice">本機尚未匯入 `urt_show_tag_date` cache table。</p>
+                <p class="notice">本機尚未匯入 `urt_show_tag_date` cache table。<br><x-ingestion-portal job="reports.mayor.static" /></p>
             @elseif (! $data_available)
-                <p class="notice">目前沒有符合這組 city/date/type 的 tag-date cache；Laravel 會透過 mayor cache refresh 補齊動態儀表板資料。</p>
+                <p class="notice">目前沒有符合這組 city/date/type 的 tag-date cache；Laravel 會透過 mayor cache refresh 補齊動態儀表板資料。<br><x-ingestion-portal job="reports.mayor.static" /></p>
             @endif
 
             <div class="legend" aria-label="候選人">
