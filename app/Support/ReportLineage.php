@@ -324,7 +324,49 @@ class ReportLineage
 
     private function displayTime(mixed $value): string
     {
-        return is_string($value) && $value !== '' ? $value : '尚無記錄';
+        if (! is_string($value) || trim($value) === '') {
+            return '尚無記錄';
+        }
+
+        $timestamp = $this->parseTimestamp($value);
+
+        if ($timestamp === null) {
+            return $value;
+        }
+
+        return $this->relativeTime($timestamp);
+    }
+
+    private function relativeTime(CarbonImmutable $timestamp): string
+    {
+        $now = CarbonImmutable::now($this->timezone());
+        $secondsAgo = $now->getTimestamp() - $timestamp->getTimestamp();
+
+        if ($secondsAgo < 0) {
+            return abs($secondsAgo) < 60 ? '剛剛' : $timestamp->format('Y-m-d');
+        }
+
+        if ($secondsAgo < 60) {
+            return '剛剛';
+        }
+
+        if ($secondsAgo < 3600) {
+            return max(1, intdiv($secondsAgo, 60)).' 分鐘前';
+        }
+
+        if ($secondsAgo < 86400) {
+            return max(1, intdiv($secondsAgo, 3600)).' 小時前';
+        }
+
+        if ($timestamp->isSameDay($now->subDay())) {
+            return '昨天 '.$timestamp->format('H:i');
+        }
+
+        if ($secondsAgo < 2592000) {
+            return max(1, intdiv($secondsAgo, 86400)).' 天前';
+        }
+
+        return $timestamp->format('Y-m-d');
     }
 
     private function latestOf(mixed ...$values): ?string
