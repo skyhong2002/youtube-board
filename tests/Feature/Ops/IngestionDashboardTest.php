@@ -23,6 +23,10 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('External Scheduler Activity');
         $response->assertSee('external scheduler not observed');
         $response->assertSee('No external');
+        $response->assertSee('外部資料擷取');
+        $response->assertSee('內部報表處理');
+        $response->assertSee('/ops/ingestion/data-capture', false);
+        $response->assertSee('/ops/ingestion/report-processing', false);
         $response->assertSee('scheduled write allowlist 0');
         $response->assertSee('command-missing');
         $response->assertSee('command-ready');
@@ -43,6 +47,44 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('One-shot Runner');
         $response->assertSee('Latest One-shot Runs');
         $response->assertSee('Run Once');
+    }
+
+    public function test_ingestion_dashboard_splits_external_capture_status_page(): void
+    {
+        Storage::fake('local');
+
+        $response = $this->get('/ops/ingestion/data-capture');
+
+        $response->assertOk();
+        $response->assertSee('外部資料擷取狀態');
+        $response->assertSee('追蹤會跟 YouTube Data API');
+        $response->assertSee('排程可執行');
+        $response->assertSee('scheduled blocked');
+        $response->assertSee('external scheduler not observed');
+        $response->assertSee('youtube:live:poll');
+        $response->assertSee('youtube:channels:videos');
+        $response->assertSee('youtube:comments:fetch');
+        $response->assertSee('youtube:tag-videos:backfill');
+        $response->assertDontSee('reports:tag-date:build');
+        $response->assertDontSee('ai:daily');
+    }
+
+    public function test_ingestion_dashboard_splits_report_processing_status_page(): void
+    {
+        Storage::fake('local');
+
+        $response = $this->get('/ops/ingestion/report-processing');
+
+        $response->assertOk();
+        $response->assertSee('內部報表處理狀態');
+        $response->assertSee('重建 dashboard cache');
+        $response->assertSee('排程預覽 / request 渲染');
+        $response->assertSee('reports:live:build');
+        $response->assertSee('reports:tag-date:build');
+        $response->assertSee('reports:static:build');
+        $response->assertSee('ai:daily');
+        $response->assertDontSee('youtube.live.poll');
+        $response->assertDontSee('youtube.comments.fetch');
     }
 
     public function test_ingestion_dashboard_prefills_job_from_query_parameter(): void

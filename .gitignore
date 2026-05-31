@@ -3,6 +3,7 @@
 .env
 .env.backup
 .env.production
+docker-compose.prod-db.yml
 .phpactor.json
 .phpunit.result.cache
 /.codex

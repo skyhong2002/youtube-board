@@ -28,6 +28,25 @@ class TagCloudReport
         $short = $this->tagCache($filters, $days);
         $long = $this->tagCache($filters, $longDays);
         $rows = $this->adjustedRows($short['words'], $long['words'], $days, $longDays, $limit);
+
+        if (! $request->query->has('days') && $rows === []) {
+            foreach ([7, 30] as $fallbackDays) {
+                $fallbackLongDays = $this->longDays($fallbackDays);
+                $fallbackShort = $this->tagCache($filters, $fallbackDays);
+                $fallbackLong = $this->tagCache($filters, $fallbackLongDays);
+                $fallbackRows = $this->adjustedRows($fallbackShort['words'], $fallbackLong['words'], $fallbackDays, $fallbackLongDays, $limit);
+
+                if (count($fallbackRows) >= 2) {
+                    $days = $fallbackDays;
+                    $longDays = $fallbackLongDays;
+                    $short = $fallbackShort;
+                    $long = $fallbackLong;
+                    $rows = $fallbackRows;
+                    break;
+                }
+            }
+        }
+
         $subject = $this->tagTitle($filters);
 
         return $this->payload(

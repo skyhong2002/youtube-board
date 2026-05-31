@@ -63,6 +63,50 @@ class TagCloudRouteTest extends TestCase
         $this->assertSame(2, DB::table('urt_show_tag_cloud')->count());
     }
 
+    public function test_tag_cloud_without_days_falls_back_to_available_period(): void
+    {
+        $this->createTagTable();
+        $this->createTagCloudTable();
+
+        DB::table('urt_show_tag_cloud')->insert([
+            [
+                'pk' => 1,
+                'ctime' => '2026-05-24 00:00:00',
+                'mtime' => '2026-05-24 01:00:00',
+                'tagid' => '1',
+                'tag_or' => '',
+                'tag_not' => '',
+                'count_channels' => 2,
+                'count_videos' => 3,
+                'count_tags' => 4,
+                'days' => 7,
+                'tags_count' => 2,
+                'tags_result' => json_encode(['選舉' => '30.000', '政策' => '20.000'], JSON_UNESCAPED_UNICODE),
+            ],
+            [
+                'pk' => 2,
+                'ctime' => '2026-05-24 00:00:00',
+                'mtime' => '2026-05-24 01:00:00',
+                'tagid' => '1',
+                'tag_or' => '',
+                'tag_not' => '',
+                'count_channels' => 4,
+                'count_videos' => 5,
+                'count_tags' => 6,
+                'days' => 30,
+                'tags_count' => 2,
+                'tags_result' => json_encode(['選舉' => '10.000', '政策' => '4.000'], JSON_UNESCAPED_UNICODE),
+            ],
+        ]);
+
+        $response = $this->get('/tags/1/cloud');
+
+        $response->assertOk();
+        $response->assertSee('社論 在 7 天的文字雲');
+        $response->assertSee('data-d3-word-cloud', false);
+        $response->assertDontSee('Data unavailable locally');
+    }
+
     public function test_keyword_cloud_reads_relation_cache_and_preserves_legacy_filters(): void
     {
         $this->createTagTable();

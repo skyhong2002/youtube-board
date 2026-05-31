@@ -63,6 +63,12 @@ Web request gates
 @endpush
 
 @section('content')
+<div class="nav" aria-label="Ingestion workload navigation">
+                <a href="{{ route('ops.ingestion') }}">全部排程</a>
+                <a href="{{ route('ops.ingestion.data-capture') }}">外部資料擷取</a>
+                <a href="{{ route('ops.ingestion.report-processing') }}">內部報表處理</a>
+            </div>
+
 <section class="status-grid" aria-label="Scheduler status">
                 <div class="panel">
                     <h2>Web Request Gates</h2>
@@ -112,6 +118,8 @@ Web request gates
 
             <div class="summary" aria-label="Job summary">
                 <span>{{ number_format($summary['total']) }} jobs</span>
+                <span><a href="{{ route('ops.ingestion.data-capture') }}">外部資料擷取 {{ number_format($workloadSummaries['data_capture']['total'] ?? 0) }}</a></span>
+                <span><a href="{{ route('ops.ingestion.report-processing') }}">內部報表處理 {{ number_format($workloadSummaries['report_processing']['total'] ?? 0) }}</a></span>
                 <span>{{ number_format($summary['planned']) }} planned</span>
                 <span>{{ number_format($summary['active']) }} active</span>
                 <span>{{ number_format($summary['blocked']) }} blocked</span>

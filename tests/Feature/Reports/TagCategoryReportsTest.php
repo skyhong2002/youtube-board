@@ -6,6 +6,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class TagCategoryReportsTest extends TestCase
@@ -98,6 +99,54 @@ class TagCategoryReportsTest extends TestCase
         $response->assertSee('賴清德');
         $response->assertSee('3,000');
         $response->assertSee('4');
+
+        Carbon::setTestNow();
+    }
+
+    public function test_keyword_list_renders_data_lineage_with_fixed_sources_and_update_times(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        Storage::fake('local');
+        Storage::disk('local')->put('ingestion-runs/20260524-142010-test.json', json_encode([
+            'id' => '20260524-142010-test',
+            'created_at' => '2026-05-24 14:20:10 Asia/Taipei',
+            'request' => ['mode' => 'execute', 'source' => 'artisan'],
+            'result' => [
+                'mode' => 'execute',
+                'jobs' => [
+                    ['key' => 'reports.keywords.build', 'executed' => true, 'failed' => false, 'exit_code' => 0],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->createKeywordTables();
+        Schema::table('urt_show_data', function ($table): void {
+            $table->dateTime('mtime')->nullable();
+        });
+
+        DB::table('tags')->insert([
+            ['tag' => '柯文哲', 'ctime' => '2026-05-20 00:00:00', 'mtime' => '2026-05-24 12:00:00', 'max_count' => 1200, 'hours_count' => 80, 'max_hours' => '2026-05-24 12:00:00', 'no_tag' => null],
+        ]);
+        DB::table('urt_show_data')->insert([
+            'data_name' => 'tags_all',
+            'mtime' => '2026-05-24 12:30:00',
+            'the_result' => json_encode([
+                '柯文哲' => ['video' => 8, 'views' => 7000, 'views_all' => 21000],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->get('/keywords?limit=20');
+
+        $response->assertOk();
+        $response->assertSee('資料來源與更新狀態');
+        $response->assertSee('tag.analysis.tw/api/tag_json.php?hours={hours}');
+        $response->assertSee('不呼叫外部 API');
+        $response->assertSee('urt_show_data.tags_all');
+        $response->assertSee('2026-05-24 12:30:00');
+        $response->assertSee('2026-05-24 14:20:10');
+        $response->assertSee('固定資料，不會由排程更新');
+        $response->assertSee('LegacyStopwords::FALLBACK');
+        $response->assertSee('/keywords table');
 
         Carbon::setTestNow();
     }

@@ -127,6 +127,8 @@ Route::get('/ai/hours', AiHourlyController::class)->name('ai.hours');
 Route::get('/ai/periods', AiPeriodController::class)->name('ai.periods');
 Route::get('/ops/integrations', [IntegrationCheckController::class, 'index'])->name('ops.integrations');
 Route::get('/ops/ingestion', IngestionDashboardController::class)->name('ops.ingestion');
+Route::get('/ops/ingestion/data-capture', [IngestionDashboardController::class, 'dataCapture'])->name('ops.ingestion.data-capture');
+Route::get('/ops/ingestion/report-processing', [IngestionDashboardController::class, 'reportProcessing'])->name('ops.ingestion.report-processing');
 Route::post('/ops/ingestion/run', [IngestionDashboardController::class, 'run'])->name('ops.ingestion.run');
 Route::get('/ops/ingestion/runs/{runId}', [IngestionDashboardController::class, 'runShow'])
     ->where('runId', '\d{8}-\d{6}-[0-9a-f-]{36}')

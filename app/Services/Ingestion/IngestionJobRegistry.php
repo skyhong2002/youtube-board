@@ -35,6 +35,16 @@ class IngestionJobRegistry
     }
 
     /**
+     * @return Collection<string, Collection<int, array<string, mixed>>>
+     */
+    public function groupedForWorkload(string $workload): Collection
+    {
+        return $this->jobs()
+            ->where('workload', $workload)
+            ->groupBy('group');
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     public function find(string $key): ?array
@@ -220,7 +230,60 @@ class IngestionJobRegistry
         return $job + [
             'command_name' => $commandName,
             'command_exists' => $commandName !== '' && array_key_exists($commandName, Artisan::all()),
+            'workload' => $this->workloadForJob($job),
+            'workload_label' => $this->workloadLabel($this->workloadForJob($job)),
+            'trigger_mode' => $this->triggerModeForJob($job),
+            'trigger_label' => $this->triggerLabel($this->triggerModeForJob($job)),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $job
+     */
+    private function workloadForJob(array $job): string
+    {
+        $configured = trim((string) ($job['workload'] ?? ''));
+
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        $key = (string) ($job['key'] ?? '');
+
+        if (str_starts_with($key, 'reports.') || str_starts_with($key, 'ai.')) {
+            return 'report_processing';
+        }
+
+        return 'data_capture';
+    }
+
+    private function workloadLabel(string $workload): string
+    {
+        return match ($workload) {
+            'report_processing' => '內部報表處理',
+            default => '外部資料擷取',
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $job
+     */
+    private function triggerModeForJob(array $job): string
+    {
+        if (! empty($job['scheduled_execute_command'])) {
+            return 'scheduled_execute';
+        }
+
+        return $this->isSchedulerSafeJob($job) ? 'scheduled_preview' : 'request_only';
+    }
+
+    private function triggerLabel(string $triggerMode): string
+    {
+        return match ($triggerMode) {
+            'scheduled_execute' => '排程可執行',
+            'scheduled_preview' => '排程預覽 / request 渲染',
+            default => '使用者請求才執行',
+        };
     }
 
     /**
@@ -324,6 +387,34 @@ class IngestionJobRegistry
                 ->filter()
                 ->values()
                 ->all(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function workloadSummary(string $workload): array
+    {
+        $jobs = $this->jobs()->where('workload', $workload)->values();
+        $scheduledAllowed = $jobs
+            ->filter(fn (array $job): bool => ! empty($job['scheduled_execute_command']))
+            ->filter(fn (array $job): bool => $this->scheduledWriteProfile($job)['allowed'])
+            ->count();
+
+        return [
+            'workload' => $workload,
+            'label' => $this->workloadLabel($workload),
+            'total' => $jobs->count(),
+            'active' => $jobs->where('status', 'active')->count(),
+            'planned' => $jobs->where('status', 'planned')->count(),
+            'blocked' => $jobs->where('status', 'blocked')->count(),
+            'command_ready' => $jobs->where('command_exists', true)->count(),
+            'command_missing' => $jobs->where('command_exists', false)->count(),
+            'scheduled_execute' => $jobs->where('trigger_mode', 'scheduled_execute')->count(),
+            'scheduled_preview' => $jobs->where('trigger_mode', 'scheduled_preview')->count(),
+            'request_only' => $jobs->where('trigger_mode', 'request_only')->count(),
+            'scheduled_allowed' => $scheduledAllowed,
+            'scheduled_blocked' => $jobs->where('trigger_mode', 'scheduled_execute')->count() - $scheduledAllowed,
         ];
     }
 }

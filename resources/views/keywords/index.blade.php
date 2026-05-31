@@ -34,11 +34,51 @@
             .row-actions { min-width: 420px; }
             .row-actions a { display: inline-flex; align-items: center; min-height: 26px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: #344054; font-size: 12px; font-weight: 650; white-space: nowrap; }
             .empty { padding: 28px; color: var(--muted); text-align: center; }
-            @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; white-space: normal; } }
+            .lineage { margin: 0 0 18px; padding: 16px; border: 1px solid var(--line); background: var(--surface); }
+            .lineage h2, .lineage h3, .lineage p { margin: 0; }
+            .lineage h2 { font-size: 18px; line-height: 1.25; }
+            .lineage h3 { margin-bottom: 10px; color: #344054; font-size: 14px; }
+            .lineage p { color: var(--muted); line-height: 1.55; }
+            .lineage code { display: inline-block; max-width: 100%; overflow-wrap: anywhere; color: #344054; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+            .lineage-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+            .lineage-ops { display: inline-flex; flex: 0 0 auto; align-items: center; min-height: 30px; padding: 5px 10px; border: 1px solid #b7ded6; border-radius: 6px; background: var(--accent-bg); color: var(--accent); font-size: 12px; font-weight: 700; }
+            .lineage-graph { display: flex; align-items: stretch; gap: 8px; margin-bottom: 14px; overflow-x: auto; padding-bottom: 2px; }
+            .lineage-node, .lineage-edge { min-height: 74px; border: 1px solid var(--line); border-radius: 6px; background: #f9fbfd; }
+            .lineage-node { display: flex; flex: 0 0 132px; flex-direction: column; justify-content: center; gap: 5px; padding: 10px; }
+            .lineage-node span { color: var(--text); font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
+            .lineage-node small { color: var(--muted); font-size: 11px; text-transform: uppercase; }
+            .lineage-node-api { border-color: #a7c7e7; background: #edf6ff; }
+            .lineage-node-table { border-color: #c7d7a7; background: #f5faec; }
+            .lineage-node-cache { border-color: #e6c58f; background: #fff7e8; }
+            .lineage-node-service { border-color: #b7ded6; background: var(--accent-bg); }
+            .lineage-node-page { border-color: #c7b7df; background: #f5f0ff; }
+            .lineage-edge { display: flex; flex: 0 0 48px; align-items: center; justify-content: center; color: var(--muted); font-size: 11px; font-weight: 700; text-align: center; position: relative; }
+            .lineage-edge::before { content: ""; position: absolute; left: 8px; right: 8px; top: 50%; border-top: 1px solid #98a2b3; }
+            .lineage-edge::after { content: ""; position: absolute; right: 8px; top: calc(50% - 4px); width: 8px; height: 8px; border-top: 1px solid #98a2b3; border-right: 1px solid #98a2b3; transform: rotate(45deg); background: transparent; }
+            .lineage-edge span { position: relative; z-index: 1; padding: 2px 5px; background: #f9fbfd; }
+            .lineage-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 12px; }
+            .lineage-panel, .lineage-fixed { padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: #fbfcfe; }
+            .lineage-job + .lineage-job { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+            .lineage-job strong { display: block; margin-bottom: 4px; color: var(--text); }
+            .lineage-job p { margin-top: 5px; }
+            .lineage dl { display: grid; gap: 8px; margin: 10px 0 0; }
+            .lineage dl div { display: grid; grid-template-columns: 152px minmax(0, 1fr); gap: 8px; }
+            .lineage dt { color: var(--muted); font-size: 12px; font-weight: 700; }
+            .lineage dd { margin: 0; min-width: 0; color: #344054; line-height: 1.45; }
+            .lineage-steps { margin: 10px 0 14px; padding-left: 20px; color: #344054; line-height: 1.55; }
+            .lineage-fixed { margin-top: 12px; }
+            .lineage-fixed-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+            .lineage-fixed-list div { display: grid; gap: 5px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+            .lineage-fixed-list strong { color: var(--text); }
+            .lineage-fixed-list span { color: var(--muted); line-height: 1.45; }
+            @media (max-width: 1080px) { .lineage-grid, .lineage-fixed-list { grid-template-columns: 1fr; } }
+            @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; white-space: normal; } .lineage-head { display: block; } .lineage-ops { margin-top: 10px; } .lineage dl div { grid-template-columns: 1fr; gap: 2px; } }
 </style>
 @endpush
 
 @section('content')
+            @include('reports.partials.lineage', ['lineage' => $lineage ?? null])
+
             @unless ($cachedMetricsAvailable)
                 <p class="notice">本機 `urt_show_data.tags_all` 尚無快取，因此影片數、觀看數、成長欄位先以空值呈現。<br><x-ingestion-portal job="reports.keywords.cache" /></p>
             @endunless

@@ -14,15 +14,42 @@ use Throwable;
 
 class IngestionDashboardController extends Controller
 {
+    private const WORKLOADS = [
+        'data-capture' => [
+            'key' => 'data_capture',
+            'title' => '外部資料擷取狀態',
+            'description' => '追蹤會跟 YouTube Data API、comment API、tag.analysis.tw 等外部來源要資料，或支援資料擷取管線的排程工作。',
+        ],
+        'report-processing' => [
+            'key' => 'report_processing',
+            'title' => '內部報表處理狀態',
+            'description' => '追蹤用本機資料重建 dashboard cache、靜態報表替代頁、AI 摘要與其他 report builder 的排程或 request-driven 工作。',
+        ],
+    ];
+
     public function __invoke(Request $request, IngestionJobRegistry $registry, IngestionRunHistory $history): View
     {
         return view('ops.ingestion', [
             'groups' => $registry->grouped(),
             'summary' => $registry->summary(),
+            'workloadSummaries' => [
+                'data_capture' => $registry->workloadSummary('data_capture'),
+                'report_processing' => $registry->workloadSummary('report_processing'),
+            ],
             'recentRuns' => $history->latest(30),
             'externalSchedulerActivity' => $history->externalSchedulerActivity(),
             'prefillJob' => trim((string) $request->query('job', '')),
         ]);
+    }
+
+    public function dataCapture(IngestionJobRegistry $registry, IngestionRunHistory $history): View
+    {
+        return $this->workloadView('data-capture', $registry, $history);
+    }
+
+    public function reportProcessing(IngestionJobRegistry $registry, IngestionRunHistory $history): View
+    {
+        return $this->workloadView('report-processing', $registry, $history);
     }
 
     public function show(Request $request, IngestionJobRegistry $registry, string $jobKey): View
@@ -113,5 +140,26 @@ class IngestionDashboardController extends Controller
             ->with('ingestion_run_id', $record['id'])
             ->with('ingestion_run_summary', $result['summary'])
             ->with('ingestion_run_invalid_at', $invalidAt);
+    }
+
+    private function workloadView(string $slug, IngestionJobRegistry $registry, IngestionRunHistory $history): View
+    {
+        $workload = self::WORKLOADS[$slug];
+        $groups = $registry->groupedForWorkload($workload['key'])
+            ->map(fn ($jobs) => $jobs->map(fn (array $job): array => $job + [
+                'execution' => $registry->executionProfile($job),
+                'scheduled_write' => $registry->scheduledWriteProfile($job),
+            ]));
+
+        return view('ops.ingestion-workload', [
+            'slug' => $slug,
+            'workload' => $workload['key'],
+            'title' => $workload['title'],
+            'description' => $workload['description'],
+            'groups' => $groups,
+            'summary' => $registry->summary(),
+            'workloadSummary' => $registry->workloadSummary($workload['key']),
+            'externalSchedulerActivity' => $history->externalSchedulerActivity(),
+        ]);
     }
 }

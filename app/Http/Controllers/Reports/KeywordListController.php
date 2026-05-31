@@ -4,12 +4,13 @@ namespace App\Http\Controllers\Reports;
 
 use App\Http\Controllers\Controller;
 use App\Services\Legacy\KeywordListReport;
+use App\Support\ReportLineage;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 
 class KeywordListController extends Controller
 {
-    public function __invoke(Request $request, KeywordListReport $report): View
+    public function __invoke(Request $request, KeywordListReport $report, ReportLineage $lineage): View
     {
         $keywordReport = $report->forRequest($request);
 
@@ -20,6 +21,7 @@ class KeywordListController extends Controller
             'generatedAt' => $keywordReport['generated_at'],
             'sort' => $keywordReport['sort'],
             'cachedMetricsAvailable' => $keywordReport['cached_metrics_available'],
+            'lineage' => $lineage->forRequest($request),
         ]);
     }
 }
