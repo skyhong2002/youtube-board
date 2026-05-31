@@ -139,14 +139,12 @@ class TagCategoryReportsTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('資料來源與更新狀態');
-        $response->assertSee('tag.analysis.tw/api/tag_json.php?hours={hours}');
-        $response->assertSee('不呼叫外部 API');
+        $response->assertSee('data-lineage-graph', false);
+        $response->assertSee('tag.analysis.tw\/api\/tag_json.php?hours={hours}', false);
         $response->assertSee('urt_show_data.tags_all');
         $response->assertSee('2026-05-24 12:30:00');
         $response->assertSee('2026-05-24 14:20:10');
-        $response->assertSee('固定資料，不會由排程更新');
-        $response->assertSee('LegacyStopwords::FALLBACK');
-        $response->assertSee('/keywords table');
+        $response->assertSee('關鍵字列表頁');
 
         Carbon::setTestNow();
     }
