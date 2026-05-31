@@ -31,7 +31,6 @@ class ReportLineageProfiles
     private static function profiles(): array
     {
         return self::$profiles ??= [
-            'home' => self::homeDashboard(),
             'tags.index' => self::tagIndex(),
             'keywords.index' => self::keywordList(),
             'tags.videos*' => self::tagVideos(),

@@ -431,6 +431,9 @@
                 .d3-word-cloud-fallback { padding: 14px; }
             }
         </style>
+        @if (! empty($lineage))
+            @include('reports.partials.lineage-styles')
+        @endif
         @stack('styles')
     </head>
     <body>

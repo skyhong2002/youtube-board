@@ -19,7 +19,8 @@ class ReportLineageCoverageTest extends TestCase
             ->filter(fn ($route): bool => in_array('GET', $route->methods(), true))
             ->map(fn ($route): ?string => $route->getName())
             ->filter()
-            ->reject(fn (string $routeName): bool => Str::startsWith($routeName, ['legacy.', 'ops.', 'dev.', 'storage.']))
+            ->reject(fn (string $routeName): bool => $routeName === 'home'
+                || Str::startsWith($routeName, ['legacy.', 'ops.', 'dev.', 'storage.']))
             ->values();
 
         foreach ($routeNames as $routeName) {
@@ -32,7 +33,6 @@ class ReportLineageCoverageTest extends TestCase
         Storage::fake('local');
 
         $cases = [
-            '/' => ['HomeController dashboard merge', 'urt_show_data.tags_all', 'reports:keywords:cache'],
             '/tags' => ['HomeTagIndexReport', 'youtube:channels:stats --execute --limit=25', 'Tag index sort whitelist'],
             '/tags/compare' => ['TagComparisonReport', 'TagComparisonReport::DEFAULT_TAGS', 'urt_show_tag_date'],
             '/tags/1/live/videos' => ['TagLiveVideosReport', 'urt_video_live_log', 'YouTube Data API videos.list(part=liveStreamingDetails)'],
@@ -88,6 +88,7 @@ class ReportLineageCoverageTest extends TestCase
     {
         $this->assertTrue($response->isOk(), $uri.' returned HTTP '.$response->getStatusCode());
         $response->assertSee('資料來源與更新狀態');
+        $response->assertSee('.lineage-toggle { display: flex;', false);
         $response->assertSee('data-lineage-toggle aria-expanded="false"', false);
         $response->assertSee('class="lineage-panel" hidden', false);
         $response->assertSee('data-lineage-graph', false);

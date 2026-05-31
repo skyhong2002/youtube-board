@@ -46,6 +46,7 @@ class HomeRouteTest extends TestCase
         $response->assertSeeInOrder(['社論', '新聞', '直播']);
         $response->assertSee('400');
         $response->assertSee('580');
+        $response->assertDontSee('資料來源與更新狀態');
         $response->assertDontSee('本機尚未匯入');
     }
 
