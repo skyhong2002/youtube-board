@@ -63,8 +63,6 @@
             @endphp
 
 
-            @include('reports.partials.lineage', ['lineage' => $lineage ?? null])
-
             <nav class="switcher" aria-label="日期">
                 <a href="{{ $dayRoute($prevDate, $condition) }}">{{ $prevDate }}</a>
                 @if ($date)

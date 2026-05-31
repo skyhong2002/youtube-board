@@ -92,8 +92,6 @@
                 </ul>
             @endif
 
-            @include('reports.partials.lineage', ['lineage' => $lineage ?? null])
-
             @if ($series !== [] && $dates !== [])
                 <section class="chart" aria-label="每日直播線上人數圖表">
                     <svg viewBox="0 0 {{ $chartWidth }} {{ $chartHeight }}" role="img" aria-label="{{ $title }}">

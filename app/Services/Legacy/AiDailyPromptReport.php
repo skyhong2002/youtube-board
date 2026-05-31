@@ -414,13 +414,24 @@ class AiDailyPromptReport
      */
     private function empty(bool $available, ?string $date, string $condition, string $dataType): array
     {
+        $period = ['from' => '', 'to' => '', 'previous' => '', 'next' => ''];
+
+        if ($date !== null) {
+            $period = [
+                'from' => $date.' 00:00:00',
+                'to' => $date.' 23:59:59',
+                'previous' => Carbon::parse($date, 'Asia/Taipei')->subDay()->toDateString(),
+                'next' => Carbon::parse($date, 'Asia/Taipei')->addDay()->toDateString(),
+            ];
+        }
+
         return [
             'available' => $available,
             'title' => ($date ?? 'AI daily').' prompt preview',
             'date' => $date,
             'condition' => $condition,
             'data_type' => $dataType,
-            'period' => ['from' => '', 'to' => '', 'previous' => '', 'next' => ''],
+            'period' => $period,
             'rows' => [],
             'media_without_events' => [],
             'prompt' => '',

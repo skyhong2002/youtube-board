@@ -1,5 +1,6 @@
 @php
     use App\Support\ReportFreshness;
+    use App\Support\ReportLineage;
     use App\Support\ReportNavigation;
 
     $sectionTitle = trim($__env->yieldContent('title'));
@@ -12,6 +13,7 @@
     $systemNav = $systemNav ?? ReportNavigation::system(request());
     $breadcrumbs = $breadcrumbs ?? ReportNavigation::breadcrumbs(request());
     $sectionNav = $sectionNav ?? ReportNavigation::section(request());
+    $lineage = $lineage ?? app(ReportLineage::class)->forRequest(request());
     $legacyPublicSiteUrl = rtrim((string) config('legacy.public_site_url', 'https://youtube.board.tw'), '/');
     $routeName = (string) (request()->route()?->getName() ?? '');
     $footerLinks = [
@@ -481,6 +483,8 @@
                     @endforeach
                 </nav>
             @endif
+
+            @include('reports.partials.lineage', ['lineage' => $lineage])
 
             <div class="yb-content">
                 @yield('content')

@@ -66,8 +66,6 @@
                 </ul>
             @endif
 
-            @include('reports.partials.lineage', ['lineage' => $lineage ?? null])
-
             <div class="table-wrap">
                 <table>
                     <thead>

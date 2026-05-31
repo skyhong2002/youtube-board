@@ -46,8 +46,6 @@
                 </ul>
             @endif
 
-            @include('reports.partials.lineage', ['lineage' => $lineage ?? null])
-
             <div class="table-wrap">
                 <table class="report-table" style="--report-table-min-width: 1040px; --report-col-thumb: 72px; --report-col-label: 220px; --report-col-number: 96px;">
                     <colgroup>

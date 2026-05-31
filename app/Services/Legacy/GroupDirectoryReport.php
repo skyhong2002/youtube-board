@@ -49,7 +49,10 @@ class GroupDirectoryReport
             return [
                 'available' => false,
                 'title' => 'Group directory',
-                'groups' => $this->configuredGroups(),
+                'groups' => collect($this->configuredGroups())
+                    ->map(fn (array $group): array => $group + ['source' => 'legacy group file'])
+                    ->values()
+                    ->all(),
                 'dependencies' => [$this->dependency('tag_group')],
                 'generated_at' => now('Asia/Taipei')->format('Y-m-d H:i:s'),
             ];
