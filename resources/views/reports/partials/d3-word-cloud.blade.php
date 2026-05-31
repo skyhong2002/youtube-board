@@ -40,7 +40,10 @@
                     }
 
                     var width = Math.max(320, container.clientWidth || 800);
-                    var height = Math.max(window.matchMedia('(max-width: 760px)').matches ? 360 : 640, Math.min(800, width));
+                    var isMobile = window.matchMedia('(max-width: 760px)').matches;
+                    var height = isMobile
+                        ? Math.max(300, Math.min(360, width * 0.82))
+                        : Math.max(380, Math.min(480, width * 0.42));
                     var fill = d3.scale.category20();
 
                     container.innerHTML = '';
@@ -55,14 +58,14 @@
                         .font('"Microsoft JhengHei","微軟正黑體",Impact')
                         .fontSize(function (d) { return d.size; })
                         .on('end', function (laidOutWords) {
-                            d3.select(container)
+                            var svg = d3.select(container)
                                 .append('svg')
                                 .attr('viewBox', '0 0 ' + width + ' ' + height)
                                 .attr('role', 'img')
-                                .attr('aria-label', container.getAttribute('aria-label') || 'Word cloud')
-                                .append('g')
+                                .attr('aria-label', container.getAttribute('aria-label') || 'Word cloud');
+                            var group = svg.append('g')
                                 .attr('transform', 'translate(' + (width / 2) + ',' + (height / 2) + ')')
-                                .selectAll('text')
+                            group.selectAll('text')
                                 .data(laidOutWords)
                                 .enter()
                                 .append('text')
@@ -78,6 +81,20 @@
                                 .on('click', function (d) {
                                     window.open(d.url, '_blank', 'noopener');
                                 });
+
+                            var box = group.node().getBBox();
+                            var padding = isMobile ? 18 : 28;
+                            var viewWidth = Math.max(1, box.width + padding * 2);
+                            var viewHeight = Math.max(1, box.height + padding * 2);
+                            var fittedHeight = Math.round(Math.max(isMobile ? 260 : 300, Math.min(isMobile ? 360 : 460, width * (viewHeight / viewWidth))));
+
+                            svg.attr('viewBox', [
+                                box.x + (width / 2) - padding,
+                                box.y + (height / 2) - padding,
+                                viewWidth,
+                                viewHeight,
+                            ].join(' '));
+                            container.style.height = fittedHeight + 'px';
                         })
                         .start();
                 }

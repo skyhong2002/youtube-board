@@ -346,7 +346,7 @@
 
             .d3-word-cloud {
                 position: relative;
-                min-height: 640px;
+                min-height: 420px;
                 padding: 0;
                 overflow: hidden;
                 border: 1px solid var(--line);
@@ -358,7 +358,7 @@
                 display: block;
                 width: 100%;
                 height: 100%;
-                min-height: 640px;
+                min-height: 420px;
             }
 
             .d3-word-cloud text {
@@ -424,8 +424,8 @@
                     margin-top: 10px;
                 }
 
-                .d3-word-cloud { min-height: 360px; }
-                .d3-word-cloud svg { min-height: 360px; }
+                .d3-word-cloud { min-height: 320px; }
+                .d3-word-cloud svg { min-height: 320px; }
                 .d3-word-cloud-fallback { padding: 14px; }
             }
         </style>
