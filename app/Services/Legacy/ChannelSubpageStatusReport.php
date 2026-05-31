@@ -53,7 +53,7 @@ class ChannelSubpageStatusReport
                 'modern_path' => 'cloud',
                 'tables' => ['urt_show_cloud', 'urt_show_tag_cloud'],
                 'reason' => 'Legacy 透過 `api/cloud.php` 計算文字雲 cache；本地 cloud cache tables 目前沒有資料。',
-                'next_step' => '等 cloud cache dump 或重建 real-time YouTube dashboard cloud builder 後，再用 inline SVG/HTML 呈現文字雲。',
+                'next_step' => '等 cloud cache dump 或重建 real-time YouTube dashboard cloud builder 後，再用 D3 呈現文字雲。',
             ],
             default => [
                 'key' => 'trends',

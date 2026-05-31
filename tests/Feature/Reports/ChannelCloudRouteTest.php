@@ -44,6 +44,8 @@ class ChannelCloudRouteTest extends TestCase
         $response->assertSee('3 天原始資料');
         $response->assertSee('7 天原始資料');
         $response->assertSee('channel_cloud.php + api/cloud.php');
+        $response->assertSee('data-d3-word-cloud', false);
+        $response->assertSee('d3.layout.cloud.min.js', false);
         $this->assertSame(2, DB::table('urt_show_cloud')->count());
     }
 

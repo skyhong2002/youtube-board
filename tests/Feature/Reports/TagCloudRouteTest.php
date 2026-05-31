@@ -57,6 +57,8 @@ class TagCloudRouteTest extends TestCase
         $response->assertSee('3 天原始資料');
         $response->assertSee('7 天原始資料');
         $response->assertSee('cloud.php + api/tags_video.php');
+        $response->assertSee('data-d3-word-cloud', false);
+        $response->assertSee('d3.layout.cloud.min.js', false);
         $this->assertSame(2, DB::table('urt_show_tag_cloud')->count());
     }
 
@@ -117,6 +119,7 @@ class TagCloudRouteTest extends TestCase
         $response->assertSee('政策');
         $response->assertSee('11.000');
         $response->assertSee('tag_cloud.php + api/tag_tags_days.php');
+        $response->assertSee('data-d3-word-cloud', false);
         $this->assertSame(2, DB::table('urt_show_tag_cloud_tag')->count());
     }
 

@@ -344,6 +344,52 @@
                 text-decoration: none;
             }
 
+            .d3-word-cloud {
+                position: relative;
+                min-height: 640px;
+                padding: 0;
+                overflow: hidden;
+                border: 1px solid var(--line);
+                border-radius: 8px;
+                background: var(--surface);
+            }
+
+            .d3-word-cloud svg {
+                display: block;
+                width: 100%;
+                height: 100%;
+                min-height: 640px;
+            }
+
+            .d3-word-cloud text {
+                font-family: "Microsoft JhengHei", "微軟正黑體", Impact, ui-sans-serif, system-ui, sans-serif;
+                font-weight: 700;
+                cursor: pointer;
+            }
+
+            .d3-word-cloud-fallback {
+                position: absolute;
+                inset: 0;
+                display: flex;
+                flex-wrap: wrap;
+                align-content: center;
+                justify-content: center;
+                gap: 9px 14px;
+                padding: 20px;
+            }
+
+            .d3-word-cloud.is-rendered .d3-word-cloud-fallback {
+                display: none;
+            }
+
+            .d3-word-cloud-fallback a {
+                display: inline-flex;
+                align-items: center;
+                color: hsl(var(--hue), 62%, 34%);
+                font-weight: 700;
+                line-height: 1.05;
+            }
+
             @media (max-width: 760px) {
                 .yb-shell {
                     padding: 12px 16px 22px;
@@ -377,6 +423,10 @@
                     justify-content: flex-start;
                     margin-top: 10px;
                 }
+
+                .d3-word-cloud { min-height: 360px; }
+                .d3-word-cloud svg { min-height: 360px; }
+                .d3-word-cloud-fallback { padding: 14px; }
             }
         </style>
         @stack('styles')
@@ -448,5 +498,6 @@
                 </nav>
             </footer>
         </div>
+        @stack('scripts')
     </body>
 </html>

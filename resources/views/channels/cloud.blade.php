@@ -28,8 +28,6 @@
             .channel img { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; border: 1px solid var(--line); }
             .notice { margin: 0 0 14px; padding: 10px 12px; border: 1px solid #f7d58b; border-radius: 6px; background: var(--warn-bg); color: var(--warn); }
             .panel { padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
-            .cloud { display: flex; min-height: 320px; align-content: center; align-items: center; justify-content: center; flex-wrap: wrap; gap: 9px 14px; padding: 20px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
-            .cloud a { display: inline-flex; align-items: center; line-height: 1.05; color: hsl(var(--hue), 62%, 34%); font-weight: 700; }
             .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
             table { width: 100%; border-collapse: collapse; margin-top: 12px; background: var(--surface); }
             th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
@@ -43,7 +41,6 @@
                 header { display: block; }
                 .meta { margin-top: 8px; text-align: left; }
                 .grid { grid-template-columns: 1fr; }
-                .cloud { min-height: 220px; padding: 14px; }
             }
 </style>
 @endpush
@@ -107,16 +104,7 @@
                     @endif
                 </div>
 
-                <section class="cloud" aria-label="Channel cloud">
-                    @foreach ($rows as $index => $row)
-                        @php
-                            $scale = $max_score > 0 ? $row['score'] / $max_score : 0;
-                            $size = 14 + min(42, pow($scale, 0.72) * 42);
-                            $hue = (int) (($index * 47) % 360);
-                        @endphp
-                        <a href="https://www.youtube.com/results?search_query={{ urlencode($row['word']) }}&amp;sp=CAI%253D" style="font-size: {{ number_format($size, 1) }}px; --hue: {{ $hue }};">{{ $row['word'] }}</a>
-                    @endforeach
-                </section>
+                @include('reports.partials.d3-word-cloud', ['rows' => $rows, 'maxScore' => $max_score, 'label' => 'Channel cloud'])
 
                 <h2>差分排行</h2>
                 <table>
