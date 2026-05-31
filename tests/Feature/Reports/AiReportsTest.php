@@ -8,6 +8,22 @@ use Tests\TestCase;
 
 class AiReportsTest extends TestCase
 {
+    public function test_ai_daily_page_renders_collapsed_lineage_profile(): void
+    {
+        $response = $this->get('/ai/days/2026-05-24/all');
+
+        $response->assertOk();
+        $response->assertSee('資料來源與更新狀態');
+        $response->assertSee('class="lineage-panel" hidden', false);
+        $response->assertSee('data-lineage-graph', false);
+        $response->assertSee('urt_ai_date');
+        $response->assertSee('urt_channel_ai');
+        $response->assertSee('ai:daily --execute --channel-limit=3 --limit=1000');
+        $response->assertSee('OpenCode-compatible chat completions');
+        $response->assertSee('AI condition rules');
+        $response->assertSee('AiDailyReport');
+    }
+
     public function test_ai_daily_page_combines_daily_topics_with_channel_ai_events(): void
     {
         $this->createAiDailyTables();

@@ -9,6 +9,21 @@ use Tests\TestCase;
 
 class LiveCurrentRouteTest extends TestCase
 {
+    public function test_live_current_page_renders_collapsed_lineage_profile(): void
+    {
+        $response = $this->get('/live/current?or=1,2,12&not=9');
+
+        $response->assertOk();
+        $response->assertSee('資料來源與更新狀態');
+        $response->assertSee('class="lineage-panel" hidden', false);
+        $response->assertSee('data-lineage-graph', false);
+        $response->assertSee('urt_video_live');
+        $response->assertSee('youtube:live:poll --execute --limit=50');
+        $response->assertSee('YouTube Data API videos.list(part=liveStreamingDetails)');
+        $response->assertSee('reports:live:build --execute --hours=24 --limit=100');
+        $response->assertSee('固定規則：隨部署更新');
+    }
+
     public function test_live_current_page_loads_with_legacy_filters(): void
     {
         $response = $this->get('/live/current?or=1,2,12&not=9');

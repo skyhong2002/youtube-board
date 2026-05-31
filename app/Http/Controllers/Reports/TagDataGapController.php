@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\Legacy\KeywordVideosReport;
 use App\Services\Legacy\TagCloudReport;
 use App\Services\Legacy\TagCommentsReport;
+use App\Support\ReportLineage;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 
@@ -16,14 +17,18 @@ class TagDataGapController extends Controller
         return view('tags.comments', $report->forTagFilters($request, $tagId));
     }
 
-    public function cloud(Request $request, TagCloudReport $report, ?int $tagId = null): View
+    public function cloud(Request $request, TagCloudReport $report, ReportLineage $lineage, ?int $tagId = null): View
     {
-        return view('tags.cloud', $report->forTagFilters($request, $tagId));
+        return view('tags.cloud', $report->forTagFilters($request, $tagId) + [
+            'lineage' => $lineage->forRequest($request),
+        ]);
     }
 
-    public function keywordCloud(Request $request, TagCloudReport $report, string $keyword): View
+    public function keywordCloud(Request $request, TagCloudReport $report, ReportLineage $lineage, string $keyword): View
     {
-        return view('tags.cloud', $report->forKeyword($request, $keyword));
+        return view('tags.cloud', $report->forKeyword($request, $keyword) + [
+            'lineage' => $lineage->forRequest($request),
+        ]);
     }
 
     public function keywordVideos(Request $request, KeywordVideosReport $report, string $keyword): View

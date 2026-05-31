@@ -10,6 +10,28 @@ use Tests\TestCase;
 
 class TagCloudRouteTest extends TestCase
 {
+    public function test_tag_cloud_pages_render_collapsed_lineage_profiles(): void
+    {
+        $cases = [
+            '/tags/cloud' => ['urt_show_tag_cloud', 'reports:tag-cloud:build', 'TagCloudReport'],
+            '/tags/1/cloud' => ['urt_show_tag_cloud', 'reports:tag-cloud:build', 'YouTube Data API playlistItems.list(part=snippet)', '固定規則：隨部署更新'],
+            '/keywords/%E8%94%A1%E8%8B%B1%E6%96%87/cloud' => ['urt_show_tag_cloud_tag', 'legacy.keyword_cloud.cache', 'KeywordRelationFallback', '固定規則：隨部署更新'],
+        ];
+
+        foreach ($cases as $uri => $expected) {
+            $response = $this->get($uri);
+
+            $response->assertOk();
+            $response->assertSee('資料來源與更新狀態');
+            $response->assertSee('class="lineage-panel" hidden', false);
+            $response->assertSee('data-lineage-graph', false);
+
+            foreach ($expected as $text) {
+                $response->assertSee($text, false);
+            }
+        }
+    }
+
     public function test_tag_cloud_reads_short_and_long_cache_through_dynamic_routes(): void
     {
         $this->createTagTable();

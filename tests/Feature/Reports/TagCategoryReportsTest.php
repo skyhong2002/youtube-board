@@ -139,6 +139,7 @@ class TagCategoryReportsTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('資料來源與更新狀態');
+        $response->assertSee('class="lineage-panel" hidden', false);
         $response->assertSee('data-lineage-graph', false);
         $response->assertSee('tag.analysis.tw\/api\/tag_json.php?hours={hours}', false);
         $response->assertSee('urt_show_data.tags_all');

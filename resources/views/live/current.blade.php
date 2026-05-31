@@ -193,6 +193,8 @@
 @endpush
 
 @section('content')
+@include('reports.partials.lineage', ['lineage' => $lineage ?? null])
+
 @if ($filters !== [])
                 <ul class="filters" aria-label="Legacy filters">
                     @foreach ($filters as $name => $value)

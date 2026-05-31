@@ -48,6 +48,8 @@
 @section('content')
 <div class="meta">{{ $generated_at }}</div>
 
+@include('reports.partials.lineage', ['lineage' => $lineage ?? null])
+
 @php
                 $query = request()->query();
                 unset($query['days']);

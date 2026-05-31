@@ -54,6 +54,7 @@ class TagDailyRelationRouteTest extends TestCase
         $response->assertOk();
         $response->assertSee('新聞 在 1 天的逐日排行');
         $response->assertSee('資料來源與更新狀態');
+        $response->assertSee('class="lineage-panel" hidden', false);
         $response->assertSee('data-lineage-graph', false);
         $response->assertSee('YouTube Data API playlistItems.list', false);
         $response->assertSee('urt_show_tag_date cache');
