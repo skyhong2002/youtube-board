@@ -12,9 +12,11 @@ use Illuminate\Http\Request;
 
 class TagDataGapController extends Controller
 {
-    public function comments(Request $request, TagCommentsReport $report, ?int $tagId = null): View
+    public function comments(Request $request, TagCommentsReport $report, ReportLineage $lineage, ?int $tagId = null): View
     {
-        return view('tags.comments', $report->forTagFilters($request, $tagId));
+        return view('tags.comments', $report->forTagFilters($request, $tagId) + [
+            'lineage' => $lineage->forRequest($request),
+        ]);
     }
 
     public function cloud(Request $request, TagCloudReport $report, ReportLineage $lineage, ?int $tagId = null): View
@@ -31,8 +33,10 @@ class TagDataGapController extends Controller
         ]);
     }
 
-    public function keywordVideos(Request $request, KeywordVideosReport $report, string $keyword): View
+    public function keywordVideos(Request $request, KeywordVideosReport $report, ReportLineage $lineage, string $keyword): View
     {
-        return view('tags.keyword-videos', $report->forKeyword($request, $keyword));
+        return view('tags.keyword-videos', $report->forKeyword($request, $keyword) + [
+            'lineage' => $lineage->forRequest($request),
+        ]);
     }
 }

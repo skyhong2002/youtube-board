@@ -74,6 +74,8 @@
                 </ul>
             @endif
 
+            @include('reports.partials.lineage', ['lineage' => $lineage ?? null])
+
             @if (! $data_available)
                 <section class="panel">
                     <p class="notice">Data unavailable locally. {{ $blocked_reason }}<br><x-ingestion-portal job="reports.keywords.cache" /></p>

@@ -38,13 +38,15 @@
 @endpush
 
 @section('content')
-@if ($filters !== [])
+            @if ($filters !== [])
                 <ul class="filters" aria-label="Legacy filters">
                     @foreach ($filters as $name => $value)
                         <li>{{ $name }}={{ is_array($value) ? implode(',', $value) : $value }}</li>
                     @endforeach
                 </ul>
             @endif
+
+            @include('reports.partials.lineage', ['lineage' => $lineage ?? null])
 
             <div class="table-wrap">
                 <table class="report-table" style="--report-table-min-width: 1040px; --report-col-thumb: 72px; --report-col-label: 220px; --report-col-number: 96px;">

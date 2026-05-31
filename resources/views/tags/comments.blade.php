@@ -55,6 +55,8 @@
                 @endforeach
             </ul>
 
+            @include('reports.partials.lineage', ['lineage' => $lineage ?? null])
+
             @if (! $data_available)
                 <section class="panel">
                     <p class="notice">Data unavailable locally. {{ $blocked_reason }}<br><x-ingestion-portal job="youtube.comments.fetch" /></p>

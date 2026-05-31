@@ -4,12 +4,13 @@ namespace App\Http\Controllers\Reports;
 
 use App\Http\Controllers\Controller;
 use App\Services\Legacy\TagVideosReport;
+use App\Support\ReportLineage;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 
 class TagVideosController extends Controller
 {
-    public function __invoke(Request $request, TagVideosReport $report, int $tagId = 0): View
+    public function __invoke(Request $request, TagVideosReport $report, ReportLineage $lineage, int $tagId = 0): View
     {
         $videoReport = $report->forTag($request, $tagId);
 
@@ -21,6 +22,7 @@ class TagVideosController extends Controller
             'generatedAt' => $videoReport['generated_at'],
             'title' => $videoReport['title'],
             'sortColumn' => $videoReport['sort_column'],
+            'lineage' => $lineage->forRequest($request),
         ]);
     }
 }

@@ -4,12 +4,13 @@ namespace App\Http\Controllers\Reports;
 
 use App\Http\Controllers\Controller;
 use App\Services\Legacy\LiveHoursReport;
+use App\Support\ReportLineage;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 
 class LiveHoursController extends Controller
 {
-    public function __invoke(Request $request, LiveHoursReport $report): View
+    public function __invoke(Request $request, LiveHoursReport $report, ReportLineage $lineage): View
     {
         $hoursReport = $report->forRequest($request);
 
@@ -22,6 +23,7 @@ class LiveHoursController extends Controller
             'filters' => $hoursReport['filters'],
             'period' => $hoursReport['period'],
             'dataAvailable' => $hoursReport['available'],
+            'lineage' => $lineage->forRequest($request),
         ]);
     }
 }
