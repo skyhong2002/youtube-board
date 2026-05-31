@@ -113,10 +113,11 @@ class IngestionAiDailyCommandTest extends TestCase
         $this->assertSame(0, DB::table('urt_ai_date')->count());
     }
 
-    public function test_ingestion_scheduler_requires_allowlist_for_ai_daily_execute_when_due(): void
+    public function test_ingestion_scheduler_respects_scheduled_write_off_gate_for_ai_daily(): void
     {
         $this->createTables();
         config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['off']);
 
         $result = app(IngestionSchedulerRunner::class)->run(
             at: CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'),

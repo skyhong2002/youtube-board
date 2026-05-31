@@ -433,10 +433,11 @@ class IngestionVideoDurationCommandTest extends TestCase
         $this->assertSame('target-video', $payload['rows'][0]['video_id']);
     }
 
-    public function test_ingestion_scheduler_requires_allowlist_for_duration_execute_when_due(): void
+    public function test_ingestion_scheduler_respects_scheduled_write_off_gate_for_duration(): void
     {
         $this->createTables();
         config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['off']);
 
         $result = app(IngestionSchedulerRunner::class)->run(
             at: CarbonImmutable::parse('2026-05-25 00:23:00', 'Asia/Taipei'),

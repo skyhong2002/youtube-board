@@ -48,6 +48,7 @@
 @endpush
 
 @section('content')
+@php($scheduledWriteScope = $summary['scheduled_write_scope'] ?? 'allowlist')
 <div class="nav" aria-label="Ingestion workload navigation">
                 <a href="{{ route('ops.ingestion') }}">全部排程</a>
                 <a href="{{ route('ops.ingestion.data-capture') }}">外部資料擷取</a>
@@ -107,7 +108,13 @@
 
             <div class="summary" aria-label="Global ingestion summary">
                 <span>global {{ number_format($summary['total']) }} jobs</span>
-                <span>allowlist {{ count($summary['scheduled_write_allowlist']) }}</span>
+                @if ($scheduledWriteScope === 'all')
+                    <span>scheduled writes default on</span>
+                @elseif ($scheduledWriteScope === 'off')
+                    <span>scheduled writes off</span>
+                @else
+                    <span>allowlist {{ count($summary['scheduled_write_allowlist']) }}</span>
+                @endif
                 <span>timezone {{ config('ingestion.timezone') }}</span>
                 <span>dry-run <code>php artisan ingestion:run</code></span>
             </div>

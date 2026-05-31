@@ -193,6 +193,8 @@ class IngestionChannelStatsCommandTest extends TestCase
         $this->assertTrue($payload['would_call_api']);
         $this->assertSame('target-channel', $payload['rows'][0]['youtube_id']);
 
+        config()->set('ingestion.scheduled_write_allowlist', ['off']);
+
         $result = app(IngestionSchedulerRunner::class)->run(
             at: CarbonImmutable::parse('2026-05-25 00:09:00', 'Asia/Taipei'),
             execute: true,

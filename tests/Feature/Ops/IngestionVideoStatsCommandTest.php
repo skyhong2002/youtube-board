@@ -311,6 +311,8 @@ class IngestionVideoStatsCommandTest extends TestCase
         $this->assertTrue($payload['would_call_api']);
         $this->assertSame('target-video', $payload['rows'][0]['video_id']);
 
+        config()->set('ingestion.scheduled_write_allowlist', ['off']);
+
         $result = app(IngestionSchedulerRunner::class)->run(
             at: CarbonImmutable::parse('2026-05-25 00:07:00', 'Asia/Taipei'),
             execute: true,

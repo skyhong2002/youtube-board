@@ -27,13 +27,15 @@ DB_PASSWORD=<dokploy-secret>
 
 Use the MariaDB service's **General -> Internal Credentials -> Internal Host** value for `DB_HOST`. Dokploy may append a generated suffix to the app name; do not assume the internal host is the human service name.
 
-Production polling is environment-gated by default. To enable it after an approved backup, rollback, and write-allowlist review, set the scheduler flags, exact job allowlist, and AI fallback provider in the app service environment:
+Production polling is enabled by default through capped Laravel scheduled commands. To pause it from Dokploy, set the relevant gate to `false`: `INGESTION_SCHEDULER_ENABLED` stops scheduler registration, `INGESTION_LOCAL_POLLING_ENABLED` blocks scheduled writes, and `INGESTION_PRODUCTION_POLLING_ENABLED` blocks scheduled writes only in production. `INGESTION_SCHEDULED_WRITE_ALLOWLIST=*` means every job with a reviewed `scheduled_execute_command` is eligible; replace `*` with a comma-separated job list only when intentionally narrowing scheduled writes.
+
+Recommended production shape:
 
 ```env
 INGESTION_SCHEDULER_ENABLED=true
 INGESTION_LOCAL_POLLING_ENABLED=true
 INGESTION_PRODUCTION_POLLING_ENABLED=true
-INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.channels.stats,youtube.videos.stats,ai.daily,ai.hourly,youtube.live.poll,youtube.channels.videos.live,youtube.channels.videos.live_group,youtube.channels.videos.general,youtube.tag_videos.backfill,youtube.tvbs.videos,youtube.tvbs.live.poll,youtube.live.cleanup,youtube.videos.duration,youtube.comments.queue,youtube.comments.fetch,reports.live.build,reports.live.clean,reports.counts.build,reports.schedule.build,reports.keywords.build,reports.groups.build,reports.people.build,reports.mayor.static
+INGESTION_SCHEDULED_WRITE_ALLOWLIST=*
 YOUTUBE_API_KEY=<youtube-data-api-key>
 # Optional comma-separated fallback keys, configured only in Dokploy secrets/env:
 YOUTUBE_API_KEYS=<youtube-data-api-key-2>,<youtube-data-api-key-3>
@@ -45,7 +47,7 @@ OPENAI_FALLBACK_ENDPOINT_STYLE=chat
 OPENAI_FALLBACK_TIMEOUT=240
 ```
 
-For `/live/current` parity with the current PHP site, the minimum live allowlist is:
+For `/live/current` parity with the current PHP site, the minimum live jobs are already covered by `*`. If using a narrowed allowlist, include:
 
 - `youtube.live.poll`: refreshes active `urt_video_live` rows and upserts `urt_video_live_log`.
 - `youtube.tvbs.live.poll`: refreshes active `urt_video_live_tvbs` rows and upserts `urt_video_live_log_tvbs`.
@@ -68,7 +70,7 @@ For derived report freshness, add:
 - `reports.people.build`: refreshes selected political-people `urt_show_tag_date` cache rows from local `urt_video`, `urt_count`, and `tags`.
 - `reports.counts.build` and `reports.schedule.build`: refresh local derived count deltas and schedule stime rows from existing local log/cache data.
 
-For broader long-running parity after the first production polling window is stable, explicitly approve and add these capped jobs:
+When using a narrowed allowlist instead of `*`, include these capped jobs for broader long-running parity after the first production polling window is stable:
 
 - `youtube.channels.videos.general`: discovers regular channel uploads into `urt_video`, `urt_video_schedule`, and live rows.
 - `youtube.videos.duration`: drains the duration queue with `videos.list(contentDetails)`.
@@ -76,7 +78,7 @@ For broader long-running parity after the first production polling window is sta
 - `youtube.comments.fetch`: drains queued comment jobs with one page per scheduled run.
 - `reports.mayor.static`: refreshes mayor/city `urt_show_tag_date` cache rows for the dynamic Laravel mayor pages.
 
-The scheduler service must run `php artisan schedule:run` every minute, or the equivalent Dokploy cron service must be enabled. Keep the allowlist narrow at first; each allowlisted job uses its capped `scheduled_execute_command`.
+The scheduler service must run `php artisan schedule:run` every minute, or the equivalent Dokploy cron service must be enabled. Each scheduled write job uses its capped `scheduled_execute_command`; narrow `INGESTION_SCHEDULED_WRITE_ALLOWLIST` only when you intentionally want some jobs to show blocked.
 
 ## MariaDB Environment
 

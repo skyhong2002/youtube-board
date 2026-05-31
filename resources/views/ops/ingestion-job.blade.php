@@ -85,7 +85,7 @@
             <h2>Execution Guardrail</h2>
             <div class="panel">
                 @if ($execution['can_execute_when_due'])
-                    <p>此 job 可作為即時 YouTube 儀表板的安全排程工作；active、command-ready，且 cron expression 到期時允許執行。Scheduler execution 仍需要 <code>INGESTION_SCHEDULER_ENABLED=true</code>。</p>
+                    <p>此 job 可作為即時 YouTube 儀表板的安全排程工作；active、command-ready，且 cron expression 到期時允許執行。Scheduler execution 預設開啟，除非 env 明確設為 <code>false</code>。</p>
                 @else
                     <p>此 job 目前不會執行；下面保留 guardrail 原始原因，方便對照 CLI/output。</p>
                     <ul>
@@ -100,7 +100,11 @@
                 <h2>Scheduled Local Polling</h2>
                 <div class="panel">
                     @if ($scheduledWrite['allowed'])
-                        <p>此 job 已 allowlisted，可以由 scheduler-enabled local polling 執行。當 <code>ingestion:run --execute</code> 評估為 due 時，scheduler 會使用下方 capped command。</p>
+                        @if (($scheduledWrite['scope'] ?? 'allowlist') === 'all')
+                            <p>此 job 使用預設開啟的 scheduled polling。當 <code>ingestion:run --execute</code> 評估為 due 時，scheduler 會使用下方 capped command。</p>
+                        @else
+                            <p>此 job 已 allowlisted，可以由 scheduler-enabled polling 執行。當 <code>ingestion:run --execute</code> 評估為 due 時，scheduler 會使用下方 capped command。</p>
+                        @endif
                     @else
                         <p>Scheduler-enabled local polling is blocked for this job until every explicit gate is satisfied.</p>
                         <ul>
@@ -118,7 +122,7 @@
                 <code>php artisan ingestion:run --job={{ $job['key'] }} --at="{{ $atForCommand }}"</code>
                 <code>INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job={{ $job['key'] }}</code>
                 @if (! empty($job['scheduled_execute_command']))
-                    <code>INGESTION_SCHEDULER_ENABLED=true INGESTION_LOCAL_POLLING_ENABLED=true INGESTION_SCHEDULED_WRITE_ALLOWLIST={{ $job['key'] }} php artisan ingestion:run --execute --job={{ $job['key'] }}</code>
+                    <code>INGESTION_SCHEDULER_ENABLED=true INGESTION_LOCAL_POLLING_ENABLED=true php artisan ingestion:run --execute --job={{ $job['key'] }}</code>
                 @endif
             </div>
 

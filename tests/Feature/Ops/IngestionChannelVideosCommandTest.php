@@ -228,6 +228,8 @@ class IngestionChannelVideosCommandTest extends TestCase
         $this->assertSame('rescan_large_channels', $payload['source']);
         $this->assertSame(1, $payload['selected_rows']);
 
+        config()->set('ingestion.scheduled_write_allowlist', ['off']);
+
         $general = app(IngestionSchedulerRunner::class)->run(
             at: CarbonImmutable::parse('2026-05-25 00:05:00', 'Asia/Taipei'),
             execute: true,

@@ -247,6 +247,7 @@ class IngestionCommentFetchCommandTest extends TestCase
     {
         $this->createTables();
         config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['off']);
 
         DB::table('urt_comment_queue')->insert($this->queueRow(1, 'queued-video', '2026-05-25 04:00:00'));
 

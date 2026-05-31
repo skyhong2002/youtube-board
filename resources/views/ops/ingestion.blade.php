@@ -63,6 +63,7 @@ Web request gates
 @endpush
 
 @section('content')
+@php($scheduledWriteScope = $summary['scheduled_write_scope'] ?? 'allowlist')
 <div class="nav" aria-label="Ingestion workload navigation">
                 <a href="{{ route('ops.ingestion') }}">全部排程</a>
                 <a href="{{ route('ops.ingestion.data-capture') }}">外部資料擷取</a>
@@ -79,9 +80,15 @@ Web request gates
                         <span class="badge {{ $summary['local_polling_enabled'] ? 'active' : 'disabled' }}">
                             {{ $summary['local_polling_enabled'] ? 'local polling enabled' : 'local polling disabled' }}
                         </span>
-                        <span>scheduled write allowlist {{ count($summary['scheduled_write_allowlist']) }}</span>
+                        @if ($scheduledWriteScope === 'all')
+                            <span>scheduled writes default on</span>
+                        @elseif ($scheduledWriteScope === 'off')
+                            <span>scheduled writes off</span>
+                        @else
+                            <span>scheduled write allowlist {{ count($summary['scheduled_write_allowlist']) }}</span>
+                        @endif
                     </div>
-                    <p class="muted">這些 gates 只描述目前 web request。Dokploy scheduled task 可以在單次 CLI process 注入獨立 env flag，不必讓一般 web traffic 啟用 polling。</p>
+                    <p class="muted">Scheduler/polling 預設開啟；Dokploy 或 env 明確設為 <code>false</code> / <code>off</code> 時才會停用。</p>
                 </div>
 
                 <div class="panel">
@@ -175,7 +182,7 @@ Web request gates
                     </label>
                     <button type="submit">Run Once</button>
                 </form>
-                <p class="muted">Execute mode 只會在這次 request 暫時啟用 local runner。Local write polling 仍需要 <code>INGESTION_LOCAL_POLLING_ENABLED=true</code>、allowlisted job key，以及各 job 的 capped scheduled execute command。</p>
+                <p class="muted">Execute mode 只會在這次 request 暫時啟用 runner。Scheduled writes 預設使用各 job 的 capped command；若 Dokploy/env 明確關閉 polling 或 scheduled writes，這次執行也會被 gate 擋下。</p>
             </section>
 
             <section class="runs">

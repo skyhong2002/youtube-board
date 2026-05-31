@@ -158,6 +158,7 @@ class IngestionCommentQueueCommandTest extends TestCase
     {
         $this->createTables();
         config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['off']);
 
         DB::table('urt_count')->insert([
             ['u_id' => 1, 'tags' => '[1]'],

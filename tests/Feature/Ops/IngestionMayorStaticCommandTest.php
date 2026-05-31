@@ -90,6 +90,7 @@ class IngestionMayorStaticCommandTest extends TestCase
     {
         $this->writeLegacyShell();
         config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['off']);
 
         $result = app(IngestionSchedulerRunner::class)->run(
             at: CarbonImmutable::parse('2026-05-25 05:13:00', 'Asia/Taipei'),

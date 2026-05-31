@@ -59,7 +59,7 @@ class IngestionJobRegistry
      *     is_due_now: bool,
      *     schedule_previews: list<array{expression: string, valid: bool, next_runs: list<string>, error?: string}>,
      *     execution: array{realtime_dashboard: bool, can_execute_when_due: bool, external_calls: bool, risk_label: string, blocks: list<string>},
-     *     scheduled_write: array{allowed: bool, blocks: list<string>}
+     *     scheduled_write: array{allowed: bool, blocks: list<string>, scope: string}
      * }|null
      */
     public function describe(string $key, ?CarbonInterface $at = null, int $nextRunLimit = 5): ?array
@@ -185,27 +185,29 @@ class IngestionJobRegistry
 
     /**
      * @param  array<string, mixed>  $job
-     * @return array{allowed: bool, blocks: list<string>}
+     * @return array{allowed: bool, blocks: list<string>, scope: string}
      */
     public function scheduledWriteProfile(array $job): array
     {
         $blocks = [];
         $key = (string) ($job['key'] ?? '');
         $scheduledCommand = trim((string) ($job['scheduled_execute_command'] ?? ''));
-        $allowlist = collect(config('ingestion.scheduled_write_allowlist', []))
-            ->map(fn (mixed $value): string => trim((string) $value))
-            ->filter()
-            ->values();
+        $allowlist = $this->scheduledWriteAllowlist();
+        $scope = $this->scheduledWriteScope($allowlist);
 
         if (! (bool) config('ingestion.local_polling_enabled', false)) {
             $blocks[] = 'INGESTION_LOCAL_POLLING_ENABLED is false.';
+        }
+
+        if ($scope === 'off') {
+            $blocks[] = 'Scheduled writes are disabled by INGESTION_SCHEDULED_WRITE_ALLOWLIST.';
         }
 
         if ($scheduledCommand === '') {
             $blocks[] = 'Job has no scheduled_execute_command.';
         }
 
-        if ($key === '' || ! $allowlist->contains($key)) {
+        if ($scope === 'allowlist' && ($key === '' || ! $allowlist->contains($key))) {
             $blocks[] = 'Job key is not in INGESTION_SCHEDULED_WRITE_ALLOWLIST.';
         }
 
@@ -216,6 +218,7 @@ class IngestionJobRegistry
         return [
             'allowed' => $blocks === [],
             'blocks' => $blocks,
+            'scope' => $scope,
         ];
     }
 
@@ -367,11 +370,12 @@ class IngestionJobRegistry
     }
 
     /**
-     * @return array{total: int, planned: int, active: int, blocked: int, command_ready: int, command_missing: int, scheduler_enabled: bool, local_polling_enabled: bool, scheduled_write_allowlist: list<string>}
+     * @return array{total: int, planned: int, active: int, blocked: int, command_ready: int, command_missing: int, scheduler_enabled: bool, local_polling_enabled: bool, production_polling_enabled: bool, scheduled_write_scope: string, scheduled_write_allowlist: list<string>}
      */
     public function summary(): array
     {
         $jobs = $this->jobs();
+        $allowlist = $this->scheduledWriteAllowlist();
 
         return [
             'total' => $jobs->count(),
@@ -382,11 +386,9 @@ class IngestionJobRegistry
             'command_missing' => $jobs->where('command_exists', false)->count(),
             'scheduler_enabled' => (bool) config('ingestion.scheduler_enabled', false),
             'local_polling_enabled' => (bool) config('ingestion.local_polling_enabled', false),
-            'scheduled_write_allowlist' => collect(config('ingestion.scheduled_write_allowlist', []))
-                ->map(fn (mixed $value): string => trim((string) $value))
-                ->filter()
-                ->values()
-                ->all(),
+            'production_polling_enabled' => (bool) config('ingestion.production_polling_enabled', false),
+            'scheduled_write_scope' => $this->scheduledWriteScope($allowlist),
+            'scheduled_write_allowlist' => $allowlist->all(),
         ];
     }
 
@@ -416,5 +418,34 @@ class IngestionJobRegistry
             'scheduled_allowed' => $scheduledAllowed,
             'scheduled_blocked' => $jobs->where('trigger_mode', 'scheduled_execute')->count() - $scheduledAllowed,
         ];
+    }
+
+    /**
+     * @return Collection<int, string>
+     */
+    private function scheduledWriteAllowlist(): Collection
+    {
+        return collect(config('ingestion.scheduled_write_allowlist', []))
+            ->map(fn (mixed $value): string => trim((string) $value))
+            ->filter()
+            ->values();
+    }
+
+    /**
+     * @param  Collection<int, string>  $allowlist
+     */
+    private function scheduledWriteScope(Collection $allowlist): string
+    {
+        $tokens = $allowlist->map(fn (string $value): string => strtolower($value));
+
+        if ($tokens->contains(fn (string $value): bool => in_array($value, ['off', 'none', 'false', '0'], true))) {
+            return 'off';
+        }
+
+        if ($tokens->isEmpty() || $tokens->contains('*') || $tokens->contains('all')) {
+            return 'all';
+        }
+
+        return 'allowlist';
     }
 }

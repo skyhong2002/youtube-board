@@ -237,6 +237,7 @@ class IngestionLivePollingCommandTest extends TestCase
     {
         $this->createTables();
         config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['off']);
 
         DB::table('urt_video_live')->insert($this->liveRow('one-live', 1, '2026-05-25 11:00:00'));
 

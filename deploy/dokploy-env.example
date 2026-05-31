@@ -24,18 +24,15 @@ DB_PASSWORD=
 LEGACY_GROUND_TRUTH_PATH=
 LEGACY_PUBLIC_SITE_URL=https://youtube.board.tw
 
-INGESTION_SCHEDULER_ENABLED=false
-INGESTION_LOCAL_POLLING_ENABLED=false
-INGESTION_PRODUCTION_POLLING_ENABLED=false
-INGESTION_SCHEDULED_WRITE_ALLOWLIST=
+INGESTION_SCHEDULER_ENABLED=true
+INGESTION_LOCAL_POLLING_ENABLED=true
+INGESTION_PRODUCTION_POLLING_ENABLED=true
+INGESTION_SCHEDULED_WRITE_ALLOWLIST=*
 INGESTION_TIMEZONE=Asia/Taipei
 
-# Production parity activation, after backup/rollback verification:
-# INGESTION_SCHEDULER_ENABLED=true
-# INGESTION_LOCAL_POLLING_ENABLED=true
-# INGESTION_PRODUCTION_POLLING_ENABLED=true
-# Keep reports.keywords.build allowlisted while keyword maintenance still comes from 新文易數 tag.analysis.tw.
-# INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.live.poll,youtube.channels.videos.live,youtube.channels.videos.live_group,youtube.channels.videos.general,youtube.tag_videos.backfill,reports.live.build,reports.keywords.build,ai.hourly,ai.daily
+# Scheduled polling is on by default. Set the booleans above to false in Dokploy
+# to pause scheduler registration, local writes, or production writes. Replace `*`
+# with a comma-separated job list only when intentionally narrowing scheduled writes.
 
 YOUTUBE_API_KEY=
 # Optional comma-separated fallback keys. Keep these in Dokploy secrets/env only.

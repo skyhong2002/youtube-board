@@ -269,6 +269,7 @@ class IngestionLiveShowCommandTest extends TestCase
     {
         $this->createTables();
         config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['off']);
 
         $result = app(IngestionSchedulerRunner::class)->run(
             at: CarbonImmutable::parse('2026-05-25 00:09:00', 'Asia/Taipei'),
