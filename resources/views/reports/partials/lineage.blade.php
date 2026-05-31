@@ -26,18 +26,26 @@
 
                         var detail = container.closest('[data-lineage-flow]').querySelector('[data-lineage-detail]');
                         var fallback = container.querySelector('[data-lineage-fallback]');
-                        var nodeWidth = 142;
+                        var minNodeWidth = 142;
+                        var maxNodeWidth = 300;
                         var nodeHeight = 72;
                         var margin = { top: 28, right: 24, bottom: 42, left: 24 };
+                        var nodeWidths = nodes.map(function (node) {
+                            var label = String(node.label || '');
+                            var status = String(node.status || '');
+
+                            return clamp(Math.max(estimateTextWidth(label, 14), estimateTextWidth(status, 11)) + 32, minNodeWidth, maxNodeWidth);
+                        });
                         var edgeGaps = edges.map(function (edge) {
                             var label = String(edge.label || '');
 
                             return Math.max(118, (label.length * 8) + 76);
                         });
-                        var chartWidth = margin.left + margin.right + (nodes.length * nodeWidth)
+                        var chartWidth = margin.left + margin.right
+                            + nodeWidths.reduce(function (sum, nodeWidth) { return sum + nodeWidth; }, 0)
                             + edgeGaps.reduce(function (sum, gap) { return sum + gap; }, 0);
                         var width = Math.max(container.clientWidth || 760, chartWidth);
-                        var height = 220;
+                        var height = 250;
                         var color = {
                             api: ['#edf6ff', '#7fb4df'],
                             table: ['#f5faec', '#b7cf87'],
@@ -54,7 +62,9 @@
 
                         nodes.forEach(function (node, index) {
                             var previousGaps = edgeGaps.slice(0, index).reduce(function (sum, gap) { return sum + gap; }, 0);
-                            node.x = margin.left + (index * nodeWidth) + previousGaps;
+                            var previousWidths = nodeWidths.slice(0, index).reduce(function (sum, nodeWidth) { return sum + nodeWidth; }, 0);
+                            node.width = nodeWidths[index];
+                            node.x = margin.left + previousWidths + previousGaps;
                             node.y = margin.top + 34;
                         });
 
@@ -108,7 +118,7 @@
                                     return '';
                                 }
 
-                                var x1 = source.x + nodeWidth;
+                                var x1 = source.x + source.width;
                                 var y1 = source.y + nodeHeight / 2;
                                 var x2 = target.x;
                                 var y2 = target.y + nodeHeight / 2;
@@ -128,7 +138,7 @@
                                     return 0;
                                 }
 
-                                return (source.x + nodeWidth + target.x) / 2;
+                                return (source.x + source.width + target.x) / 2;
                             })
                             .attr('y', function (edge) {
                                 var source = byId.get(edge.from);
@@ -137,9 +147,10 @@
                                     return 0;
                                 }
 
-                                return source.y + 23;
+                                return source.y - 10;
                             })
                             .attr('text-anchor', 'middle')
+                            .attr('dominant-baseline', 'middle')
                             .attr('fill', '#667085')
                             .attr('font-size', 12)
                             .attr('font-weight', 700)
@@ -169,7 +180,7 @@
                             });
 
                         item.append('rect')
-                            .attr('width', nodeWidth)
+                            .attr('width', function (node) { return node.width; })
                             .attr('height', nodeHeight)
                             .attr('rx', 6)
                             .attr('fill', function (node) { return (color[node.kind] || color.table)[0]; })
@@ -184,7 +195,7 @@
                             .attr('font-weight', 800)
                             .selectAll('tspan')
                             .data(function (node) {
-                                return wrapWords(node.label, 15).slice(0, 3);
+                                return wrapWords(node.label, Math.max(10, Math.floor((node.width - 24) / 8))).slice(0, 3);
                             })
                             .enter()
                             .append('tspan')
@@ -199,6 +210,24 @@
                             .attr('font-size', 10)
                             .attr('font-weight', 700)
                             .text(function (node) { return String(node.kind || '').toUpperCase(); });
+
+                        item.append('text')
+                            .attr('class', 'lineage-node-status')
+                            .attr('x', function (node) { return node.width / 2; })
+                            .attr('y', nodeHeight + 18)
+                            .attr('text-anchor', 'middle')
+                            .attr('fill', '#475467')
+                            .attr('font-size', 11)
+                            .attr('font-weight', 700)
+                            .selectAll('tspan')
+                            .data(function (node) {
+                                return wrapWords(node.status || '上次執行：尚無記錄', Math.max(12, Math.floor((node.width - 18) / 7))).slice(0, 2);
+                            })
+                            .enter()
+                            .append('tspan')
+                            .attr('x', function () { return this.parentNode.getAttribute('x'); })
+                            .attr('dy', function (_word, index) { return index === 0 ? 0 : 13; })
+                            .text(function (word) { return word; });
 
                         function selectNode(node) {
                             item.classed('is-active', function (candidate) { return candidate.id === node.id; });
@@ -218,13 +247,17 @@
                         }
 
                         function wrapWords(text, maxLength) {
-                            var words = String(text || '').split(/\\s+/);
+                            var value = String(text || '');
+                            var words = value.indexOf(' ') === -1
+                                ? Array.from(value)
+                                : value.split(/\\s+/);
                             var lines = [];
                             var current = '';
 
                             words.forEach(function (word) {
-                                var next = current ? current + ' ' + word : word;
-                                if (next.length > maxLength && current) {
+                                var separator = value.indexOf(' ') === -1 ? '' : ' ';
+                                var next = current ? current + separator + word : word;
+                                if (visualLength(next) > maxLength && current) {
                                     lines.push(current);
                                     current = word;
                                 } else {
@@ -237,6 +270,34 @@
                             }
 
                             return lines.length ? lines : [''];
+                        }
+
+                        function estimateTextWidth(text, fontSize) {
+                            return Array.from(String(text || '')).reduce(function (sum, char) {
+                                if (/[\u3000-\u9fff\uff00-\uffef]/.test(char)) {
+                                    return sum + fontSize;
+                                }
+
+                                if (/[A-Z0-9_]/.test(char)) {
+                                    return sum + (fontSize * 0.68);
+                                }
+
+                                if (char === ' ') {
+                                    return sum + (fontSize * 0.35);
+                                }
+
+                                return sum + (fontSize * 0.58);
+                            }, 0);
+                        }
+
+                        function visualLength(text) {
+                            return Array.from(String(text || '')).reduce(function (sum, char) {
+                                return sum + (/[\u3000-\u9fff\uff00-\uffef]/.test(char) ? 2 : 1);
+                            }, 0);
+                        }
+
+                        function clamp(value, min, max) {
+                            return Math.max(min, Math.min(max, value));
                         }
 
                         function escapeHtml(value) {
@@ -289,6 +350,7 @@
                         @foreach ($lineage['graph'] as $node)
                             <div class="lineage-node lineage-node-{{ $node['kind'] }}">
                                 <span>{{ $node['label'] }}</span>
+                                <em>{{ $node['status'] ?? '上次執行：尚無記錄' }}</em>
                                 <small>{{ $node['kind'] }}</small>
                             </div>
                             @if (! $loop->last)

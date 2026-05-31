@@ -53,6 +53,11 @@ class TagDailyRelationRouteTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('新聞 在 1 天的逐日排行');
+        $response->assertSee('資料來源與更新狀態');
+        $response->assertSee('data-lineage-graph', false);
+        $response->assertSee('YouTube Data API playlistItems.list', false);
+        $response->assertSee('urt_show_tag_date cache');
+        $response->assertSee('逐日標籤頁');
         $response->assertSee('cache rows 2');
         $response->assertSee('raw ranking');
         $response->assertSee('柯文哲');

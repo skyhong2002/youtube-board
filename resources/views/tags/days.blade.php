@@ -34,11 +34,50 @@
             .empty { padding: 28px; color: var(--muted); text-align: center; border: 1px solid var(--line); background: var(--surface); }
             .value { color: var(--muted); font-size: 12px; margin-top: 2px; }
             .table-wrap { overflow-x: auto; border-radius: 8px; }
+            .lineage { margin: 0 0 18px; padding: 0; }
+            .lineage h2, .lineage h3, .lineage p { margin: 0; }
+            .lineage h2 { font-size: 18px; line-height: 1.25; }
+            .lineage h3 { margin-bottom: 10px; color: #344054; font-size: 14px; }
+            .lineage p { color: var(--muted); line-height: 1.55; }
+            .lineage code { display: inline-block; max-width: 100%; overflow-wrap: anywhere; color: #344054; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+            .lineage-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+            .lineage-ops { display: inline-flex; flex: 0 0 auto; align-items: center; min-height: 30px; padding: 5px 10px; border: 1px solid #b7ded6; border-radius: 6px; background: var(--accent-bg); color: var(--accent); font-size: 12px; font-weight: 700; }
+            .lineage-flow { display: grid; gap: 12px; margin-bottom: 0; }
+            .lineage-graph { min-height: 250px; overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: #fbfcfe; }
+            .lineage-graph svg { display: block; min-width: 760px; width: auto; height: auto; }
+            .lineage-fallback { display: flex; align-items: stretch; gap: 8px; min-width: 760px; padding: 10px; }
+            .lineage-node, .lineage-edge { min-height: 74px; border: 1px solid var(--line); border-radius: 6px; background: #f9fbfd; }
+            .lineage-node { display: flex; flex: 0 0 132px; flex-direction: column; justify-content: center; gap: 5px; padding: 10px; }
+            .lineage-node span { color: var(--text); font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
+            .lineage-node em { color: #475467; font-size: 11px; font-style: normal; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+            .lineage-node small { color: var(--muted); font-size: 11px; text-transform: uppercase; }
+            .lineage-node-api { border-color: #a7c7e7; background: #edf6ff; }
+            .lineage-node-table { border-color: #c7d7a7; background: #f5faec; }
+            .lineage-node-cache { border-color: #e6c58f; background: #fff7e8; }
+            .lineage-node-service { border-color: #b7ded6; background: var(--accent-bg); }
+            .lineage-node-page { border-color: #c7b7df; background: #f5f0ff; }
+            .lineage-edge { display: flex; flex: 0 0 48px; align-items: center; justify-content: center; color: var(--muted); font-size: 11px; font-weight: 700; text-align: center; position: relative; }
+            .lineage-edge::before { content: ""; position: absolute; left: 8px; right: 8px; top: 50%; border-top: 1px solid #98a2b3; }
+            .lineage-edge::after { content: ""; position: absolute; right: 8px; top: calc(50% - 4px); width: 8px; height: 8px; border-top: 1px solid #98a2b3; border-right: 1px solid #98a2b3; transform: rotate(45deg); background: transparent; }
+            .lineage-edge span { position: relative; z-index: 1; padding: 2px 5px; background: #f9fbfd; }
+            .lineage-svg-node { cursor: pointer; outline: none; }
+            .lineage-svg-node rect { transition: stroke-width .12s ease, filter .12s ease; }
+            .lineage-svg-node:hover rect, .lineage-svg-node:focus rect, .lineage-svg-node.is-active rect { filter: drop-shadow(0 2px 3px rgb(16 24 40 / 18%)); stroke-width: 2.4; }
+            .lineage-detail { min-height: 220px; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: #fbfcfe; }
+            .lineage-detail[hidden] { display: none; }
+            .lineage-detail h3 { margin-bottom: 8px; font-size: 16px; }
+            .lineage-detail p { margin-bottom: 10px; color: #344054; }
+            .lineage dl { display: grid; gap: 8px; margin: 10px 0 0; }
+            .lineage dl div { display: grid; grid-template-columns: 152px minmax(0, 1fr); gap: 8px; }
+            .lineage dt { color: var(--muted); font-size: 12px; font-weight: 700; }
+            .lineage dd { margin: 0; min-width: 0; color: #344054; line-height: 1.45; white-space: pre-line; }
             @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; white-space: normal; } th, td { padding: 7px; } }
 </style>
 @endpush
 
 @section('content')
+            @include('reports.partials.lineage', ['lineage' => $lineage ?? null])
+
 @php
                 $query = request()->query();
                 $typeQuery = $query;

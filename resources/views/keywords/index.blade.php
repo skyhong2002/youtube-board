@@ -44,12 +44,13 @@
             .lineage-ops { display: inline-flex; flex: 0 0 auto; align-items: center; min-height: 30px; padding: 5px 10px; border: 1px solid #b7ded6; border-radius: 6px; background: var(--accent-bg); color: var(--accent); font-size: 12px; font-weight: 700; }
             .lineage-disclosure { display: block; }
             .lineage-flow { display: grid; gap: 12px; margin-bottom: 0; }
-            .lineage-graph { min-height: 220px; overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: #fbfcfe; }
+            .lineage-graph { min-height: 250px; overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: #fbfcfe; }
             .lineage-graph svg { display: block; min-width: 760px; width: auto; height: auto; }
             .lineage-fallback { display: flex; align-items: stretch; gap: 8px; min-width: 760px; padding: 10px; }
             .lineage-node, .lineage-edge { min-height: 74px; border: 1px solid var(--line); border-radius: 6px; background: #f9fbfd; }
             .lineage-node { display: flex; flex: 0 0 132px; flex-direction: column; justify-content: center; gap: 5px; padding: 10px; }
             .lineage-node span { color: var(--text); font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
+            .lineage-node em { color: #475467; font-size: 11px; font-style: normal; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
             .lineage-node small { color: var(--muted); font-size: 11px; text-transform: uppercase; }
             .lineage-node-api { border-color: #a7c7e7; background: #edf6ff; }
             .lineage-node-table { border-color: #c7d7a7; background: #f5faec; }
@@ -83,7 +84,7 @@
             .lineage-fixed-list strong { color: var(--text); }
             .lineage-fixed-list span { color: var(--muted); line-height: 1.45; }
             @media (max-width: 1080px) { .lineage-grid, .lineage-fixed-list { grid-template-columns: 1fr; } .lineage-detail { min-height: 0; } }
-            @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; white-space: normal; } .lineage-head { display: block; } .lineage-ops { margin-top: 10px; } .lineage-graph { min-height: 220px; } .lineage dl div { grid-template-columns: 1fr; gap: 2px; } }
+            @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; white-space: normal; } .lineage-head { display: block; } .lineage-ops { margin-top: 10px; } .lineage-graph { min-height: 250px; } .lineage dl div { grid-template-columns: 1fr; gap: 2px; } }
 </style>
 @endpush
 
