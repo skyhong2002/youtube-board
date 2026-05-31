@@ -4,6 +4,7 @@
             'nodes' => $lineage['graph'] ?? [],
             'edges' => $lineage['edges'] ?? [],
         ];
+        $lineagePanelId = 'lineage-panel-'.substr(md5((string) ($lineage['title'] ?? 'report-lineage')), 0, 10);
     @endphp
 
     @once
@@ -315,13 +316,46 @@
 
                     function renderAll() {
                         document.querySelectorAll('[data-d3-lineage]').forEach(function (container) {
+                            if (container.closest('[hidden]')) {
+                                return;
+                            }
+
                             renderLineage(container);
                         });
                     }
 
+                    function initDisclosures() {
+                        document.querySelectorAll('[data-lineage-toggle]').forEach(function (button) {
+                            if (button.dataset.bound === '1') {
+                                return;
+                            }
+
+                            button.dataset.bound = '1';
+                            button.addEventListener('click', function () {
+                                var panel = document.getElementById(button.getAttribute('aria-controls'));
+                                if (!panel) {
+                                    return;
+                                }
+
+                                var isOpening = panel.hidden;
+                                panel.hidden = !isOpening;
+                                button.setAttribute('aria-expanded', isOpening ? 'true' : 'false');
+                                button.querySelector('[data-lineage-toggle-label]').textContent = isOpening ? '收合' : '查看';
+
+                                if (isOpening) {
+                                    renderAll();
+                                }
+                            });
+                        });
+                    }
+
                     if (document.readyState === 'loading') {
-                        document.addEventListener('DOMContentLoaded', renderAll);
+                        document.addEventListener('DOMContentLoaded', function () {
+                            initDisclosures();
+                            renderAll();
+                        });
                     } else {
+                        initDisclosures();
                         renderAll();
                     }
 
@@ -334,37 +368,46 @@
         @endpush
     @endonce
 
-    <section class="lineage" aria-labelledby="lineage-title">
-        <div class="lineage-head">
+    <section class="lineage" aria-labelledby="lineage-title-{{ $lineagePanelId }}">
+        <button class="lineage-toggle" type="button" data-lineage-toggle aria-expanded="false" aria-controls="{{ $lineagePanelId }}">
             <div>
-                <h2 id="lineage-title">資料來源與更新狀態</h2>
-                <p>{{ $lineage['summary'] }}</p>
+                <span id="lineage-title-{{ $lineagePanelId }}">資料來源與更新狀態</span>
+                <small>查看這個頁面的 API、資料表、更新時間與產生流程</small>
             </div>
-            <a class="lineage-ops" href="{{ route('ops.ingestion') }}">擷取排程</a>
-        </div>
+            <strong data-lineage-toggle-label>查看</strong>
+        </button>
 
-        <div class="lineage-disclosure" data-lineage-disclosure>
-            <div class="lineage-flow" data-lineage-flow>
-                <div class="lineage-graph" data-d3-lineage data-lineage-graph='@json($graphPayload)' aria-label="資料流程圖">
-                    <div class="lineage-fallback" data-lineage-fallback>
-                        @foreach ($lineage['graph'] as $node)
-                            <div class="lineage-node lineage-node-{{ $node['kind'] }}">
-                                <span>{{ $node['label'] }}</span>
-                                <em>{{ $node['status'] ?? '上次執行：尚無記錄' }}</em>
-                                <small>{{ $node['kind'] }}</small>
-                            </div>
-                            @if (! $loop->last)
-                                @php
-                                    $edge = $lineage['edges'][$loop->index] ?? null;
-                                @endphp
-                                <div class="lineage-edge" aria-hidden="true">
-                                    <span>{{ $edge['label'] ?? 'flow' }}</span>
-                                </div>
-                            @endif
-                        @endforeach
-                    </div>
+        <div id="{{ $lineagePanelId }}" class="lineage-panel" hidden>
+            <div class="lineage-head">
+                <div>
+                    <p>{{ $lineage['summary'] }}</p>
                 </div>
-                <aside class="lineage-detail" data-lineage-detail aria-live="polite" hidden></aside>
+                <a class="lineage-ops" href="{{ route('ops.ingestion') }}">擷取排程</a>
+            </div>
+
+            <div class="lineage-disclosure" data-lineage-disclosure>
+                <div class="lineage-flow" data-lineage-flow>
+                    <div class="lineage-graph" data-d3-lineage data-lineage-graph='@json($graphPayload)' aria-label="資料流程圖">
+                        <div class="lineage-fallback" data-lineage-fallback>
+                            @foreach ($lineage['graph'] as $node)
+                                <div class="lineage-node lineage-node-{{ $node['kind'] }}">
+                                    <span>{{ $node['label'] }}</span>
+                                    <em>{{ $node['status'] ?? '上次執行：尚無記錄' }}</em>
+                                    <small>{{ $node['kind'] }}</small>
+                                </div>
+                                @if (! $loop->last)
+                                    @php
+                                        $edge = $lineage['edges'][$loop->index] ?? null;
+                                    @endphp
+                                    <div class="lineage-edge" aria-hidden="true">
+                                        <span>{{ $edge['label'] ?? 'flow' }}</span>
+                                    </div>
+                                @endif
+                            @endforeach
+                        </div>
+                    </div>
+                    <aside class="lineage-detail" data-lineage-detail aria-live="polite" hidden></aside>
+                </div>
             </div>
         </div>
     </section>

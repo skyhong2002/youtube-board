@@ -40,6 +40,13 @@
             .lineage h3 { margin-bottom: 10px; color: #344054; font-size: 14px; }
             .lineage p { color: var(--muted); line-height: 1.55; }
             .lineage code { display: inline-block; max-width: 100%; overflow-wrap: anywhere; color: #344054; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+            .lineage-toggle { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); text-align: left; cursor: pointer; }
+            .lineage-toggle span { display: block; font-size: 15px; font-weight: 800; line-height: 1.25; }
+            .lineage-toggle small { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; font-weight: 600; line-height: 1.35; }
+            .lineage-toggle strong { flex: 0 0 auto; color: var(--accent); font-size: 12px; font-weight: 800; }
+            .lineage-toggle:hover { border-color: #b7ded6; background: #fbfffe; }
+            .lineage-panel { margin-top: 12px; }
+            .lineage-panel[hidden] { display: none; }
             .lineage-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
             .lineage-ops { display: inline-flex; flex: 0 0 auto; align-items: center; min-height: 30px; padding: 5px 10px; border: 1px solid #b7ded6; border-radius: 6px; background: var(--accent-bg); color: var(--accent); font-size: 12px; font-weight: 700; }
             .lineage-disclosure { display: block; }
@@ -69,7 +76,7 @@
             .lineage-detail h3 { margin-bottom: 8px; font-size: 16px; }
             .lineage-detail p { margin-bottom: 10px; color: #344054; }
             .lineage-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 12px; }
-            .lineage-panel, .lineage-fixed { padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: #fbfcfe; }
+            .lineage-fixed { padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: #fbfcfe; }
             .lineage-job + .lineage-job { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
             .lineage-job strong { display: block; margin-bottom: 4px; color: var(--text); }
             .lineage-job p { margin-top: 5px; }
@@ -84,7 +91,7 @@
             .lineage-fixed-list strong { color: var(--text); }
             .lineage-fixed-list span { color: var(--muted); line-height: 1.45; }
             @media (max-width: 1080px) { .lineage-grid, .lineage-fixed-list { grid-template-columns: 1fr; } .lineage-detail { min-height: 0; } }
-            @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; white-space: normal; } .lineage-head { display: block; } .lineage-ops { margin-top: 10px; } .lineage-graph { min-height: 250px; } .lineage dl div { grid-template-columns: 1fr; gap: 2px; } }
+            @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; white-space: normal; } .lineage-toggle { align-items: flex-start; } .lineage-head { display: block; } .lineage-ops { margin-top: 10px; } .lineage-graph { min-height: 250px; } .lineage dl div { grid-template-columns: 1fr; gap: 2px; } }
 </style>
 @endpush
 
