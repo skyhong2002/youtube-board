@@ -41,8 +41,9 @@
 
                     var width = Math.max(320, container.clientWidth || 800);
                     var isMobile = window.matchMedia('(max-width: 760px)').matches;
-                    var height = isMobile
-                        ? Math.max(300, Math.min(360, width * 0.82))
+                    var isNarrow = isMobile || width < 620;
+                    var height = isNarrow
+                        ? Math.max(420, Math.min(560, width * 1.18))
                         : Math.max(380, Math.min(480, width * 0.42));
                     var fill = d3.scale.category20();
 
@@ -83,10 +84,10 @@
                                 });
 
                             var box = group.node().getBBox();
-                            var padding = isMobile ? 18 : 28;
+                            var padding = isNarrow ? 20 : 28;
                             var viewWidth = Math.max(1, box.width + padding * 2);
                             var viewHeight = Math.max(1, box.height + padding * 2);
-                            var fittedHeight = Math.round(Math.max(isMobile ? 260 : 300, Math.min(isMobile ? 360 : 460, width * (viewHeight / viewWidth))));
+                            var fittedHeight = Math.round(Math.max(isNarrow ? 340 : 300, Math.min(isNarrow ? 560 : 460, width * (viewHeight / viewWidth))));
 
                             svg.attr('viewBox', [
                                 box.x + (width / 2) - padding,

@@ -424,8 +424,8 @@
                     margin-top: 10px;
                 }
 
-                .d3-word-cloud { min-height: 320px; }
-                .d3-word-cloud svg { min-height: 320px; }
+                .d3-word-cloud { min-height: 360px; }
+                .d3-word-cloud svg { min-height: 360px; }
                 .d3-word-cloud-fallback { padding: 14px; }
             }
         </style>
