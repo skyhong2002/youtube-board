@@ -59,6 +59,7 @@ class TagCloudRouteTest extends TestCase
         $response->assertSee('cloud.php + api/tags_video.php');
         $response->assertSee('data-d3-word-cloud', false);
         $response->assertSee('d3.layout.cloud.min.js', false);
+        $response->assertSee(route('keywords.days', ['keyword' => '選舉']), false);
         $this->assertSame(2, DB::table('urt_show_tag_cloud')->count());
     }
 
@@ -120,6 +121,7 @@ class TagCloudRouteTest extends TestCase
         $response->assertSee('11.000');
         $response->assertSee('tag_cloud.php + api/tag_tags_days.php');
         $response->assertSee('data-d3-word-cloud', false);
+        $response->assertSee(route('keywords.days', ['keyword' => '國會']), false);
         $this->assertSame(2, DB::table('urt_show_tag_cloud_tag')->count());
     }
 

@@ -46,6 +46,7 @@ class ChannelCloudRouteTest extends TestCase
         $response->assertSee('channel_cloud.php + api/cloud.php');
         $response->assertSee('data-d3-word-cloud', false);
         $response->assertSee('d3.layout.cloud.min.js', false);
+        $response->assertSee(route('keywords.days', ['keyword' => '選舉']), false);
         $this->assertSame(2, DB::table('urt_show_cloud')->count());
     }
 

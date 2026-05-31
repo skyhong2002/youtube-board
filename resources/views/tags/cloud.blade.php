@@ -145,7 +145,7 @@
                         @foreach ($rows as $index => $row)
                             <tr>
                                 <td class="number">{{ $index + 1 }}</td>
-                                <td><a href="https://www.youtube.com/results?search_query={{ urlencode($row['word']) }}&amp;sp=CAI%253D">{{ $row['word'] }}</a></td>
+                                <td><a href="{{ route('keywords.days', ['keyword' => $row['word']]) }}">{{ $row['word'] }}</a></td>
                                 <td class="number">{{ number_format($row['score'], 3) }}</td>
                                 <td class="number">{{ number_format($row['short_score'], 3) }}</td>
                                 <td class="number">{{ number_format($row['long_score'], 3) }}</td>

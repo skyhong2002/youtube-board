@@ -14,7 +14,7 @@
                 'text' => $word,
                 'size' => max(6, $size),
                 'score' => $score,
-                'url' => 'https://www.youtube.com/results?search_query='.rawurlencode($word).'&sp=CAI%253D',
+                'url' => route('keywords.days', ['keyword' => $word]),
                 'rank' => $index + 1,
             ];
         })
@@ -79,7 +79,7 @@
                                 })
                                 .text(function (d) { return d.text; })
                                 .on('click', function (d) {
-                                    window.open(d.url, '_blank', 'noopener');
+                                    window.location.href = d.url;
                                 });
 
                             var box = group.node().getBBox();
