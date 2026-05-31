@@ -66,45 +66,76 @@ class YoutubeDataApiClient
      */
     public function playlistItems(string $playlistId, int $maxResults = 50): array
     {
+        return $this->playlistItemsPage($playlistId, null, $maxResults)['items'];
+    }
+
+    /**
+     * @return array{items: list<array{
+     *     id: string,
+     *     publishedAt: string|null,
+     *     channelId: string,
+     *     title: string,
+     *     description: string,
+     *     thumbnails: string,
+     *     channelTitle: string,
+     *     playlistId: string,
+     *     position: int,
+     *     videoId: string,
+     *     liveBroadcastContent: string
+     * }>, nextPageToken: string|null}
+     */
+    public function playlistItemsPage(string $playlistId, ?string $pageToken = null, int $maxResults = 50): array
+    {
         $playlistId = trim($playlistId);
 
         if ($playlistId === '') {
-            return [];
+            return ['items' => [], 'nextPageToken' => null];
         }
 
-        $response = $this->get('https://www.googleapis.com/youtube/v3/playlistItems', [
+        $query = [
             'part' => 'snippet',
             'maxResults' => max(1, min(50, $maxResults)),
             'playlistId' => $playlistId,
+        ];
+
+        if (is_string($pageToken) && trim($pageToken) !== '') {
+            $query['pageToken'] = trim($pageToken);
+        }
+
+        $response = $this->get('https://www.googleapis.com/youtube/v3/playlistItems', [
+            ...$query,
         ], 15, 'YouTube playlistItems.list request failed.');
 
         $this->throwIfFailed($response, 'YouTube playlistItems.list request failed.');
 
-        return collect($response->json('items', []))
-            ->map(function (array $item): array {
-                $snippet = $item['snippet'] ?? [];
-                $thumbnail = $snippet['thumbnails']['default']['url']
-                    ?? $snippet['thumbnails']['medium']['url']
-                    ?? $snippet['thumbnails']['high']['url']
-                    ?? '';
+        return [
+            'items' => collect($response->json('items', []))
+                ->map(function (array $item): array {
+                    $snippet = $item['snippet'] ?? [];
+                    $thumbnail = $snippet['thumbnails']['default']['url']
+                        ?? $snippet['thumbnails']['medium']['url']
+                        ?? $snippet['thumbnails']['high']['url']
+                        ?? '';
 
-                return [
-                    'id' => (string) ($item['id'] ?? ''),
-                    'publishedAt' => isset($snippet['publishedAt']) ? (string) $snippet['publishedAt'] : null,
-                    'channelId' => (string) ($snippet['channelId'] ?? ''),
-                    'title' => (string) ($snippet['title'] ?? ''),
-                    'description' => (string) ($snippet['description'] ?? ''),
-                    'thumbnails' => (string) $thumbnail,
-                    'channelTitle' => (string) ($snippet['channelTitle'] ?? ''),
-                    'playlistId' => (string) ($snippet['playlistId'] ?? ''),
-                    'position' => (int) ($snippet['position'] ?? 0),
-                    'videoId' => (string) ($snippet['resourceId']['videoId'] ?? ''),
-                    'liveBroadcastContent' => (string) ($snippet['liveBroadcastContent'] ?? ''),
-                ];
-            })
-            ->filter(fn (array $item): bool => $item['videoId'] !== '' && $item['publishedAt'] !== null)
-            ->values()
-            ->all();
+                    return [
+                        'id' => (string) ($item['id'] ?? ''),
+                        'publishedAt' => isset($snippet['publishedAt']) ? (string) $snippet['publishedAt'] : null,
+                        'channelId' => (string) ($snippet['channelId'] ?? ''),
+                        'title' => (string) ($snippet['title'] ?? ''),
+                        'description' => (string) ($snippet['description'] ?? ''),
+                        'thumbnails' => (string) $thumbnail,
+                        'channelTitle' => (string) ($snippet['channelTitle'] ?? ''),
+                        'playlistId' => (string) ($snippet['playlistId'] ?? ''),
+                        'position' => (int) ($snippet['position'] ?? 0),
+                        'videoId' => (string) ($snippet['resourceId']['videoId'] ?? ''),
+                        'liveBroadcastContent' => (string) ($snippet['liveBroadcastContent'] ?? ''),
+                    ];
+                })
+                ->filter(fn (array $item): bool => $item['videoId'] !== '' && $item['publishedAt'] !== null)
+                ->values()
+                ->all(),
+            'nextPageToken' => is_string($response->json('nextPageToken')) ? $response->json('nextPageToken') : null,
+        ];
     }
 
     /**

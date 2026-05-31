@@ -33,7 +33,7 @@ Production polling is environment-gated by default. To enable it after an approv
 INGESTION_SCHEDULER_ENABLED=true
 INGESTION_LOCAL_POLLING_ENABLED=true
 INGESTION_PRODUCTION_POLLING_ENABLED=true
-INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.channels.stats,youtube.videos.stats,ai.daily,ai.hourly,youtube.live.poll,youtube.channels.videos.live,youtube.channels.videos.live_group,youtube.channels.videos.general,youtube.tvbs.videos,youtube.tvbs.live.poll,youtube.live.cleanup,youtube.videos.duration,youtube.comments.queue,youtube.comments.fetch,reports.live.build,reports.live.clean,reports.counts.build,reports.schedule.build,reports.keywords.build,reports.groups.build,reports.people.build,reports.mayor.static
+INGESTION_SCHEDULED_WRITE_ALLOWLIST=youtube.channels.stats,youtube.videos.stats,ai.daily,ai.hourly,youtube.live.poll,youtube.channels.videos.live,youtube.channels.videos.live_group,youtube.channels.videos.general,youtube.tag_videos.backfill,youtube.tvbs.videos,youtube.tvbs.live.poll,youtube.live.cleanup,youtube.videos.duration,youtube.comments.queue,youtube.comments.fetch,reports.live.build,reports.live.clean,reports.counts.build,reports.schedule.build,reports.keywords.build,reports.groups.build,reports.people.build,reports.mayor.static
 YOUTUBE_API_KEY=<youtube-data-api-key>
 # Optional comma-separated fallback keys, configured only in Dokploy secrets/env:
 YOUTUBE_API_KEYS=<youtube-data-api-key-2>,<youtube-data-api-key-3>

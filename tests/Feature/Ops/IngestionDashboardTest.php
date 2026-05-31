@@ -570,12 +570,13 @@ class IngestionDashboardTest extends TestCase
         $this->assertSame(0, $exitCode);
         $this->assertStringContainsString('scheduler=disabled', $output);
         $this->assertStringContainsString('command_missing=0', $output);
-        $this->assertStringContainsString('command_ready=28', $output);
+        $this->assertStringContainsString('command_ready=29', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_statics.php -> youtube:channels:stats', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_live.php -> youtube:live:poll', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_live_tvbs.php -> youtube:tvbs:live:poll', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_video.php -> youtube:channels:videos', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_video_tvbs.php -> youtube:tvbs:videos', $output);
+        $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_video.php tagid=102 plus make_tag_date.php -> youtube:tag-videos:backfill', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_video.php live=1 force=3 -> youtube:channels:videos --live=1 --force=3', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_video.php live=2 force=3 -> youtube:channels:videos --live=2 --force=3', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/unlist_live.php -> youtube:live:cleanup', $output);

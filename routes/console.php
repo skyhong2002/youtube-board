@@ -29,6 +29,7 @@ use App\Services\Ingestion\ScheduleReportsPreview;
 use App\Services\Ingestion\StaticHtmlReportsPreview;
 use App\Services\Ingestion\TagCloudCacheBuilder;
 use App\Services\Ingestion\TagDateCacheBuilder;
+use App\Services\Ingestion\TagVideoBackfillIngestion;
 use App\Services\Ingestion\TagsAllCacheBuilder;
 use App\Services\Ingestion\TvbsChannelVideosDiscoveryIngestion;
 use App\Services\Ingestion\TvbsChannelVideosDiscoveryPreview;
@@ -239,6 +240,74 @@ Artisan::command('youtube:channels:stats {--u_id= : Optional channel u_id to pre
         return 1;
     }
 })->purpose('Dry-run preview of legacy channel statistics polling, with explicit local-only --execute support');
+
+Artisan::command('youtube:tag-videos:backfill {--tagid=102 : Comma-separated required channel tag ids} {--or= : Comma-separated OR channel tag ids} {--not= : Comma-separated excluded channel tag ids} {--from= : Start date YYYY-MM-DD} {--to= : End date YYYY-MM-DD} {--days=2 : Relative day count when --from is omitted} {--limit=100 : Channel cap} {--max-pages=20 : Playlist pages per channel, max 200} {--max-results=50 : Playlist items per page, max 50} {--keyword-limit=5000 : Keywords scanned when rebuilding tag-date cache} {--no-rebuild : Skip urt_show_tag_date rebuild after video crawl} {--execute : Call YouTube and write local video/cache rows} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (TagVideoBackfillIngestion $backfill) {
+    $ids = fn (string $option): array => collect(explode(',', (string) $this->option($option)))
+        ->map(fn (string $id): int => (int) trim($id))
+        ->filter(fn (int $id): bool => $id > 0)
+        ->values()
+        ->all();
+    $tagIds = $ids('tagid');
+
+    if ($tagIds === []) {
+        $this->error('youtube:tag-videos:backfill requires --tagid');
+
+        return 1;
+    }
+
+    $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
+
+    if ($execute) {
+        $youtubeApiKey = config('services.youtube.api_key');
+
+        if (! is_string($youtubeApiKey) || trim($youtubeApiKey) === '') {
+            $this->line('youtube:tag-videos:backfill execute unavailable: YOUTUBE_API_KEY is not configured. secrets=not_printed');
+
+            return 1;
+        }
+    }
+
+    try {
+        $payload = $backfill->run(
+            tagIds: $tagIds,
+            orTagIds: $ids('or'),
+            notTagIds: $ids('not'),
+            from: $this->option('from') ? (string) $this->option('from') : null,
+            to: $this->option('to') ? (string) $this->option('to') : null,
+            days: (int) $this->option('days'),
+            limit: (int) $this->option('limit'),
+            maxPages: (int) $this->option('max-pages'),
+            maxResults: (int) $this->option('max-results'),
+            keywordLimit: (int) $this->option('keyword-limit'),
+            rebuildTagDate: ! (bool) $this->option('no-rebuild'),
+            execute: $execute,
+        );
+    } catch (Throwable $exception) {
+        $this->line('youtube:tag-videos:backfill unavailable: '.$exception->getMessage().' secrets=not_printed');
+
+        return 1;
+    }
+
+    if ((bool) $this->option('json')) {
+        $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        return 0;
+    }
+
+    $this->line(sprintf(
+        'youtube:tag-videos:backfill mode=%s tagid=%s from=%s to=%s channels=%d api_pages=%d videos=%d tag_date_writes=%d',
+        $payload['mode'],
+        $payload['tagid'],
+        $payload['from'],
+        $payload['to'],
+        $payload['selected_channels'],
+        (int) ($payload['api_pages'] ?? 0),
+        (int) ($payload['videos_in_range'] ?? 0),
+        (int) ($payload['tag_date_writes'] ?? 0),
+    ));
+
+    return 0;
+})->purpose('Paginated uploads crawl for all channels in a tag, then rebuild local tag-date cache');
 
 Artisan::command('youtube:channels:videos {--id= : Optional legacy channel u_id to preview} {--channel= : Alias for --id when running a local execute smoke} {--live= : Legacy live filter, 1 uses tag 52 and 2 uses tag 89} {--rescan : Preview legacy large-channel rescan branch} {--hours=700 : Legacy hours option, retained for compatibility} {--force=1 : Legacy duplicate-process threshold, shown only} {--limit=20 : Number of channels to print, capped at legacy loop count} {--max-results=5 : Execute-mode playlist item cap, max 50} {--execute : Call YouTube and write selected playlist items to local DB} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (ChannelVideosDiscoveryPreview $preview, ChannelVideosDiscoveryIngestion $ingestion) {
     $channelOption = $this->option('channel') ?? $this->option('id');

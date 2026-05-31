@@ -514,6 +514,91 @@ class IngestionChannelVideosCommandTest extends TestCase
         Http::assertSentCount(5);
     }
 
+    public function test_youtube_tag_videos_backfill_paginates_uploads_and_rebuilds_tag_date_cache(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-26 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-26 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+        $this->createTagDateTables();
+
+        DB::table('urt_channel')->insert([
+            [
+                'u_id' => 10,
+                'ctime' => '2026-05-20 00:00:00',
+                'mtime' => null,
+                'vtime' => null,
+                'flag_del' => null,
+                'youtube_id' => 'UC-news',
+                'title' => 'Daily News Channel',
+                'uploads' => 'UU-news',
+                'videoCount' => 1000,
+            ],
+            [
+                'u_id' => 11,
+                'ctime' => '2026-05-20 00:00:00',
+                'mtime' => null,
+                'vtime' => null,
+                'flag_del' => null,
+                'youtube_id' => 'UC-other',
+                'title' => 'Other Channel',
+                'uploads' => 'UU-other',
+                'videoCount' => 1000,
+            ],
+        ]);
+        DB::table('urt_count')->insert([
+            ['u_id' => 10, 'tags' => '[102]'],
+            ['u_id' => 11, 'tags' => '[1]'],
+        ]);
+        DB::table('tags')->insert([
+            'tag' => '每日',
+            'max_count' => 10,
+            'hours_count' => 20,
+            'max_hours' => '2026-05-26 12:00:00',
+            'no_tag' => null,
+        ]);
+
+        Http::fakeSequence()
+            ->push([
+                'nextPageToken' => 'PAGE2',
+                'items' => [
+                    $this->playlistItem('item-future', 'video-future', '2026-05-27T01:00:00Z', 'Future upload'),
+                    $this->playlistItem('item-a', 'video-a', '2026-05-26T09:00:00Z', '每日 upload A'),
+                ],
+            ])
+            ->push([
+                'items' => [
+                    $this->playlistItem('item-live', 'video-live', '2026-05-26T01:00:00Z', '每日 live', 'upcoming', 'https://img.youtube.test/default_live.jpg'),
+                    $this->playlistItem('item-old', 'video-old', '2026-05-25T15:59:00Z', 'Old upload'),
+                ],
+            ]);
+
+        $exitCode = Artisan::call('youtube:tag-videos:backfill', [
+            '--tagid' => 102,
+            '--from' => '2026-05-26',
+            '--to' => '2026-05-26',
+            '--execute' => true,
+            '--limit' => 10,
+            '--max-pages' => 5,
+            '--max-results' => 2,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('execute', $payload['mode']);
+        $this->assertSame(1, $payload['selected_channels']);
+        $this->assertSame(2, $payload['api_pages']);
+        $this->assertSame(4, $payload['api_items']);
+        $this->assertSame(2, $payload['videos_in_range']);
+        $this->assertSame(2, DB::table('urt_video')->count());
+        $this->assertSame(2, DB::table('urt_video_schedule')->count());
+        $this->assertSame(1, DB::table('urt_video_live')->count());
+        $this->assertSame(1, DB::table('urt_show_tag_date')->where('tagid', '102')->count());
+        $this->assertSame(2, (int) DB::table('urt_show_tag_date')->where('tagid', '102')->value('count_videos'));
+        Http::assertSentCount(2);
+    }
+
     private function createTables(): void
     {
         foreach (['urt_video_schedule', 'urt_video_live', 'urt_video', 'urt_count', 'urt_channel'] as $table) {
@@ -551,6 +636,7 @@ class IngestionChannelVideosCommandTest extends TestCase
             $table->string('playlistId')->nullable();
             $table->integer('position')->nullable();
             $table->text('description')->nullable();
+            $table->integer('viewCount')->nullable();
         });
 
         Schema::create('urt_video_live', function ($table): void {
@@ -582,6 +668,68 @@ class IngestionChannelVideosCommandTest extends TestCase
             'u_id' => $uId,
             'videoId' => $videoId,
             'publishedAt' => $publishedAt,
+        ];
+    }
+
+    private function createTagDateTables(): void
+    {
+        foreach (['urt_show_tag_date', 'tags'] as $table) {
+            Schema::dropIfExists($table);
+        }
+
+        Schema::create('tags', function ($table): void {
+            $table->string('tag');
+            $table->integer('max_count')->nullable();
+            $table->integer('hours_count')->nullable();
+            $table->dateTime('max_hours')->nullable();
+            $table->integer('no_tag')->nullable();
+        });
+
+        Schema::create('urt_show_tag_date', function ($table): void {
+            $table->increments('pk');
+            $table->dateTime('ctime')->nullable();
+            $table->dateTime('mtime')->nullable();
+            $table->dateTime('stime')->nullable();
+            $table->string('tagid')->nullable();
+            $table->string('tag_or')->nullable();
+            $table->string('tag_not')->nullable();
+            $table->integer('count_channels')->nullable();
+            $table->integer('count_videos')->nullable();
+            $table->integer('count_tags')->nullable();
+            $table->date('the_date')->nullable();
+            $table->integer('tags_count')->nullable();
+            $table->integer('total_views')->nullable();
+            $table->longText('tags_result')->nullable();
+            $table->longText('tags_video')->nullable();
+            $table->longText('tags_views')->nullable();
+        });
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function playlistItem(
+        string $itemId,
+        string $videoId,
+        string $publishedAt,
+        string $title,
+        string $broadcast = 'none',
+        string $thumbnail = 'https://img.youtube.test/default.jpg',
+    ): array {
+        return [
+            'id' => $itemId,
+            'snippet' => [
+                'publishedAt' => $publishedAt,
+                'channelId' => 'UC-news',
+                'title' => $title,
+                'description' => $title.' description',
+                'thumbnails' => ['default' => ['url' => $thumbnail]],
+                'channelTitle' => 'Daily News Channel',
+                'playlistId' => 'UU-news',
+                'position' => 0,
+                'resourceId' => ['videoId' => $videoId],
+                'liveBroadcastContent' => $broadcast,
+            ],
         ];
     }
 }

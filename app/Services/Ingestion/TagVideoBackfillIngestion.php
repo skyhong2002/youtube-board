@@ -1,0 +1,391 @@
+<?php
+
+namespace App\Services\Ingestion;
+
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
+use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use RuntimeException;
+
+class TagVideoBackfillIngestion
+{
+    public function __construct(
+        private readonly YoutubeDataApiClient $youtube,
+        private readonly TagDateCacheBuilder $tagDateCacheBuilder,
+    ) {
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function run(
+        array $tagIds,
+        array $orTagIds = [],
+        array $notTagIds = [],
+        ?string $from = null,
+        ?string $to = null,
+        int $days = 2,
+        int $limit = 100,
+        int $maxPages = 20,
+        int $maxResults = 50,
+        int $keywordLimit = 5000,
+        bool $rebuildTagDate = true,
+        bool $execute = false,
+        ?CarbonInterface $now = null,
+    ): array {
+        $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
+        $now = $now === null
+            ? CarbonImmutable::now($timezone)
+            : CarbonImmutable::instance($now->toDateTimeImmutable())->setTimezone($timezone);
+        $tagIds = $this->normalizedIds($tagIds);
+        $orTagIds = $this->normalizedIds($orTagIds);
+        $notTagIds = $this->normalizedIds($notTagIds);
+        $days = max(1, min(31, $days));
+        $limit = max(1, min(500, $limit));
+        $maxPages = max(1, min(200, $maxPages));
+        $maxResults = max(1, min(50, $maxResults));
+
+        $toDate = $this->dateString($to, $now->toDateString());
+        $fromDate = $this->dateString($from, CarbonImmutable::parse($toDate, $timezone)->subDays($days - 1)->toDateString());
+
+        if ($fromDate > $toDate) {
+            [$fromDate, $toDate] = [$toDate, $fromDate];
+        }
+
+        $channels = $this->channels($tagIds, $orTagIds, $notTagIds, $limit);
+
+        if (! $execute) {
+            return [
+                'mode' => 'dry-run',
+                'generated_at' => $now->format('Y-m-d H:i:s'),
+                'from' => $fromDate,
+                'to' => $toDate,
+                'tagid' => implode(',', $tagIds),
+                'or' => implode(',', $orTagIds),
+                'not' => implode(',', $notTagIds),
+                'selected_channels' => count($channels),
+                'would_call_api' => count($channels) > 0,
+                'api_max_pages_per_channel' => $maxPages,
+                'api_max_results_per_page' => $maxResults,
+                'rebuild_tag_date' => $rebuildTagDate,
+                'rows' => $this->previewRows($channels, $fromDate, $toDate),
+                'writes' => [],
+            ];
+        }
+
+        $applied = [];
+        $skipped = [];
+        $totals = [
+            'api_pages' => 0,
+            'api_items' => 0,
+            'videos_in_range' => 0,
+            'video_upserts' => 0,
+            'schedule_upserts' => 0,
+            'live_upserts' => 0,
+        ];
+
+        foreach ($channels as $channel) {
+            $uploads = trim((string) ($channel->uploads ?? ''));
+            $uId = (int) $channel->u_id;
+
+            if ($uploads === '') {
+                $skipped[] = ['u_id' => $uId, 'reason' => 'missing_uploads_playlist'];
+                continue;
+            }
+
+            try {
+                $result = $this->fetchChannel($uId, $uploads, $fromDate, $toDate, $maxPages, $maxResults, $now);
+            } catch (RuntimeException $exception) {
+                $skipped[] = ['u_id' => $uId, 'reason' => 'playlist_api_error: '.$exception->getMessage()];
+                continue;
+            }
+
+            foreach ($totals as $key => $value) {
+                $totals[$key] += (int) ($result[$key] ?? 0);
+            }
+
+            $applied[] = [
+                'u_id' => $uId,
+                'uploads' => $uploads,
+                ...$result,
+            ];
+        }
+
+        $tagDateRows = [];
+        $tagDateWrites = 0;
+
+        if ($rebuildTagDate) {
+            $cursor = CarbonImmutable::parse($fromDate, $timezone);
+            $end = CarbonImmutable::parse($toDate, $timezone);
+
+            while ($cursor <= $end) {
+                $row = $this->tagDateCacheBuilder->build(
+                    tagIds: $tagIds,
+                    date: $cursor->toDateString(),
+                    orTagIds: $orTagIds,
+                    notTagIds: $notTagIds,
+                    keywordLimit: $keywordLimit,
+                    execute: true,
+                    now: $now,
+                );
+                $tagDateWrites += (int) $row['writes'];
+                $tagDateRows[] = [
+                    'date' => $row['date'],
+                    'channels_matched' => $row['channels_matched'],
+                    'videos_scanned' => $row['videos_scanned'],
+                    'tags_count' => $row['tags_count'],
+                    'writes' => $row['writes'],
+                ];
+                $cursor = $cursor->addDay();
+            }
+        }
+
+        return [
+            'mode' => 'execute',
+            'generated_at' => $now->format('Y-m-d H:i:s'),
+            'from' => $fromDate,
+            'to' => $toDate,
+            'tagid' => implode(',', $tagIds),
+            'or' => implode(',', $orTagIds),
+            'not' => implode(',', $notTagIds),
+            'selected_channels' => count($channels),
+            'updated_channels' => count($applied),
+            'skipped_channels' => count($skipped),
+            ...$totals,
+            'tag_date_writes' => $tagDateWrites,
+            'tag_date_rows' => $tagDateRows,
+            'applied' => $applied,
+            'skipped' => $skipped,
+            'write_targets' => ['urt_video', 'urt_video_schedule', 'urt_video_live', 'urt_show_tag_date'],
+            'external_calls' => ['YouTube Data API playlistItems.list(part=snippet) paginated uploads crawl'],
+            'secrets' => 'not printed',
+        ];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function normalizedIds(array $ids): array
+    {
+        return collect($ids)
+            ->map(fn (mixed $id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0)
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    private function dateString(?string $value, string $fallback): string
+    {
+        return is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) ? $value : $fallback;
+    }
+
+    /**
+     * @return list<object>
+     */
+    private function channels(array $tagIds, array $orTagIds, array $notTagIds, int $limit): array
+    {
+        $query = DB::table('urt_channel')
+            ->join('urt_count', 'urt_count.u_id', '=', 'urt_channel.u_id')
+            ->whereNull('urt_channel.flag_del')
+            ->orderBy('urt_channel.u_id');
+
+        if ($orTagIds !== []) {
+            $query->where(function (Builder $query) use ($orTagIds): void {
+                foreach ($orTagIds as $tagId) {
+                    $query->orWhere('urt_count.tags', 'like', '%['.$tagId.']%');
+                }
+            });
+        }
+
+        foreach ($tagIds as $tagId) {
+            $query->where('urt_count.tags', 'like', '%['.$tagId.']%');
+        }
+
+        if ($notTagIds !== []) {
+            $query->where(function (Builder $query) use ($notTagIds): void {
+                foreach ($notTagIds as $tagId) {
+                    $query->where('urt_count.tags', 'not like', '%['.$tagId.']%');
+                }
+            });
+        }
+
+        return $query
+            ->limit($limit)
+            ->get(['urt_channel.u_id', 'urt_channel.title', 'urt_channel.uploads'])
+            ->all();
+    }
+
+    /**
+     * @param list<object> $channels
+     * @return list<array<string, mixed>>
+     */
+    private function previewRows(array $channels, string $fromDate, string $toDate): array
+    {
+        $uIds = collect($channels)->pluck('u_id')->map(fn (mixed $id): int => (int) $id)->all();
+        $counts = $uIds === []
+            ? collect()
+            : DB::table('urt_video')
+                ->selectRaw('u_id, count(*) as videos')
+                ->whereIn('u_id', $uIds)
+                ->whereBetween('publishedAt', [$fromDate.' 00:00:00', $toDate.' 23:59:59'])
+                ->groupBy('u_id')
+                ->pluck('videos', 'u_id');
+
+        return collect($channels)
+            ->map(fn (object $channel): array => [
+                'u_id' => (int) $channel->u_id,
+                'title' => (string) ($channel->title ?? ''),
+                'uploads' => (string) ($channel->uploads ?? ''),
+                'local_videos_in_range' => (int) ($counts[(int) $channel->u_id] ?? 0),
+            ])
+            ->all();
+    }
+
+    /**
+     * @return array<string, int|bool>
+     */
+    private function fetchChannel(int $uId, string $uploads, string $fromDate, string $toDate, int $maxPages, int $maxResults, CarbonImmutable $now): array
+    {
+        $pageToken = null;
+        $pages = 0;
+        $apiItems = 0;
+        $videosInRange = 0;
+        $videoUpserts = 0;
+        $scheduleUpserts = 0;
+        $liveUpserts = 0;
+        $stoppedBeforeFrom = false;
+        $fromStart = CarbonImmutable::parse($fromDate.' 00:00:00', $now->getTimezone());
+        $toEnd = CarbonImmutable::parse($toDate.' 23:59:59', $now->getTimezone());
+        $nowString = $now->format('Y-m-d H:i:s');
+
+        do {
+            $page = $this->youtube->playlistItemsPage($uploads, $pageToken, $maxResults);
+            $pages++;
+            $apiItems += count($page['items']);
+
+            foreach ($page['items'] as $item) {
+                $publishedAt = CarbonImmutable::parse((string) $item['publishedAt'])->setTimezone($now->getTimezone());
+
+                if ($publishedAt->lessThan($fromStart)) {
+                    $stoppedBeforeFrom = true;
+                    break 2;
+                }
+
+                if ($publishedAt->greaterThan($toEnd)) {
+                    continue;
+                }
+
+                $videosInRange++;
+                $videoId = (string) $item['videoId'];
+
+                $this->upsertByKeys('urt_video', ['videoId' => $videoId], [
+                    'ctime' => $nowString,
+                    'id' => (string) $item['id'],
+                    'publishedAt' => $publishedAt->format('Y-m-d H:i:s'),
+                    'channelId' => (string) $item['channelId'],
+                    'title' => (string) $item['title'],
+                    'thumbnails' => (string) $item['thumbnails'],
+                    'channelTitle' => (string) $item['channelTitle'],
+                    'playlistId' => (string) $item['playlistId'],
+                    'position' => (int) $item['position'],
+                    'u_id' => $uId,
+                    'description' => (string) $item['description'],
+                ]);
+                $videoUpserts++;
+
+                $this->upsertByKeys('urt_video_schedule', ['videoId' => $videoId], [
+                    'ctime' => $nowString,
+                    'publishedAt' => $publishedAt->format('Y-m-d H:i:s'),
+                ]);
+                $scheduleUpserts++;
+
+                if ($this->isLiveCandidate($item)) {
+                    $this->upsertByKeys('urt_video_live', ['videoId' => $videoId], [
+                        'ctime' => $nowString,
+                        'publishedAt' => $publishedAt->format('Y-m-d H:i:s'),
+                        'u_id' => $uId,
+                    ]);
+                    $liveUpserts++;
+                }
+            }
+
+            $pageToken = $page['nextPageToken'];
+        } while ($pageToken !== null && $pages < $maxPages);
+
+        return [
+            'api_pages' => $pages,
+            'api_items' => $apiItems,
+            'videos_in_range' => $videosInRange,
+            'video_upserts' => $videoUpserts,
+            'schedule_upserts' => $scheduleUpserts,
+            'live_upserts' => $liveUpserts,
+            'stopped_before_from' => $stoppedBeforeFrom,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function isLiveCandidate(array $item): bool
+    {
+        return in_array((string) ($item['liveBroadcastContent'] ?? ''), ['live', 'upcoming'], true)
+            || str_contains((string) ($item['thumbnails'] ?? ''), 'default_live.jpg');
+    }
+
+    /**
+     * @param array<string, mixed> $keys
+     * @param array<string, mixed> $values
+     */
+    private function upsertByKeys(string $table, array $keys, array $values): void
+    {
+        if (! Schema::hasTable($table)) {
+            throw new RuntimeException("Missing local table: {$table}");
+        }
+
+        $keys = $this->onlyExistingColumns($table, $keys);
+        $values = $this->onlyExistingColumns($table, $values);
+
+        if ($keys === []) {
+            throw new RuntimeException("No usable key columns for {$table}");
+        }
+
+        $query = DB::table($table);
+
+        foreach ($keys as $column => $value) {
+            $query->where($column, $value);
+        }
+
+        if ((clone $query)->exists()) {
+            if ($values !== []) {
+                $query->update($values);
+            }
+
+            return;
+        }
+
+        $insert = $keys + $values;
+
+        if (Schema::hasColumn($table, 'pk') && ! array_key_exists('pk', $insert)) {
+            $insert['pk'] = ((int) DB::table($table)->max('pk')) + 1;
+        }
+
+        DB::table($table)->insert($insert);
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     * @return array<string, mixed>
+     */
+    private function onlyExistingColumns(string $table, array $values): array
+    {
+        $columns = Schema::getColumnListing($table);
+
+        return collect($values)
+            ->filter(fn (mixed $value, string $column): bool => in_array($column, $columns, true))
+            ->all();
+    }
+}
