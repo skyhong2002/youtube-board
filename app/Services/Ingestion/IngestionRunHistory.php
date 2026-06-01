@@ -104,6 +104,96 @@ class IngestionRunHistory
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function youtubeQuotaDailyEstimate(?CarbonImmutable $now = null): array
+    {
+        $quotaTimezone = 'America/Los_Angeles';
+        $appTimezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
+        $now = $now !== null ? $now->setTimezone($quotaTimezone) : CarbonImmutable::now($quotaTimezone);
+        $start = $now->startOfDay();
+        $dailyLimit = max(1, (int) config('services.youtube.quota.daily_limit', 10000));
+        $estimator = app(YoutubeQuotaEstimator::class);
+        $total = 0;
+        $recordCount = 0;
+        $jobBreakdown = [];
+        $latestRecordAt = null;
+
+        foreach (Storage::disk('local')->files(self::DIRECTORY) as $path) {
+            if (! str_ends_with($path, '.json')) {
+                continue;
+            }
+
+            $record = json_decode((string) Storage::disk('local')->get($path), true);
+
+            if (! is_array($record) || ($record['result']['mode'] ?? $record['request']['mode'] ?? null) !== 'execute') {
+                continue;
+            }
+
+            $createdAt = $this->createdAt($record, $appTimezone)?->setTimezone($quotaTimezone);
+
+            if ($createdAt === null || $createdAt->lessThan($start) || $createdAt->greaterThan($now)) {
+                continue;
+            }
+
+            $recordCount++;
+            $latestRecordAt = $latestRecordAt === null || $createdAt->greaterThan($latestRecordAt)
+                ? $createdAt
+                : $latestRecordAt;
+
+            $runUnits = 0;
+            $jobs = is_array($record['result']['jobs'] ?? null) ? $record['result']['jobs'] : [];
+
+            foreach ($jobs as $job) {
+                if (! is_array($job)) {
+                    continue;
+                }
+
+                $estimate = $this->jobQuotaEstimate($job, $estimator);
+                $units = (int) ($estimate['estimated_units'] ?? 0);
+                $runUnits += $units;
+
+                if ($units <= 0) {
+                    continue;
+                }
+
+                $jobKey = (string) ($job['key'] ?? 'unknown');
+                $jobBreakdown[$jobKey] ??= [
+                    'job' => $jobKey,
+                    'units' => 0,
+                    'runs' => 0,
+                ];
+                $jobBreakdown[$jobKey]['units'] += $units;
+                $jobBreakdown[$jobKey]['runs']++;
+            }
+
+            if ($runUnits === 0 && is_array($record['result']['youtube_quota_estimate'] ?? null)) {
+                $runUnits = (int) ($record['result']['youtube_quota_estimate']['estimated_units'] ?? 0);
+            }
+
+            $total += $runUnits;
+        }
+
+        $breakdown = array_values($jobBreakdown);
+        usort($breakdown, fn (array $a, array $b): int => $b['units'] <=> $a['units']);
+
+        return [
+            'estimated_units' => $total,
+            'daily_limit' => $dailyLimit,
+            'remaining_units' => max(0, $dailyLimit - $total),
+            'percent_used' => round(($total / $dailyLimit) * 100, 1),
+            'window_start' => $start->format('Y-m-d H:i:s T'),
+            'window_end' => $now->format('Y-m-d H:i:s T'),
+            'window_timezone' => $quotaTimezone,
+            'record_count' => $recordCount,
+            'latest_record_at' => $latestRecordAt?->format('Y-m-d H:i:s T'),
+            'job_breakdown' => $breakdown,
+            'source' => 'local ingestion run history',
+            'basis' => 'sum of per-job estimated_youtube_quota_units for execute-mode run records in the current YouTube quota day',
+        ];
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     public function find(string $id): ?array
@@ -125,6 +215,19 @@ class IngestionRunHistory
         }
 
         return $payload + ['path' => $path];
+    }
+
+    /**
+     * @param  array<string, mixed>  $job
+     * @return array<string, mixed>
+     */
+    private function jobQuotaEstimate(array $job, YoutubeQuotaEstimator $estimator): array
+    {
+        if (is_array($job['youtube_quota_estimate'] ?? null)) {
+            return $job['youtube_quota_estimate'];
+        }
+
+        return $estimator->estimateJob($job);
     }
 
     /**

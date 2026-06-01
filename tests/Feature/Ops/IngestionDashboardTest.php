@@ -23,6 +23,8 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('External Scheduler Activity');
         $response->assertSee('external scheduler not observed');
         $response->assertSee('No external');
+        $response->assertSee('YouTube Data API Quota Estimate');
+        $response->assertSee('estimated 0 / 10,000 units');
         $response->assertSee('外部資料擷取');
         $response->assertSee('內部報表處理');
         $response->assertSee('/ops/ingestion/data-capture', false);
@@ -236,6 +238,7 @@ class IngestionDashboardTest extends TestCase
         $dashboard->assertSee('Latest One-shot Runs');
         $dashboard->assertSee('reports.live.static');
         $dashboard->assertSee('execute');
+        $dashboard->assertSee('YT Units');
         $dashboard->assertSee('ingestion-runs/');
         $dashboard->assertSee('/ops/ingestion/runs/'.$record['id'], false);
 
@@ -246,10 +249,72 @@ class IngestionDashboardTest extends TestCase
         $detail->assertSee('due=1');
         $detail->assertSee('executed=1');
         $detail->assertSee('failed=0');
+        $detail->assertSee('yt quota≈0 units');
         $detail->assertSee('reports.live.static');
         $detail->assertSee('reports:live:static');
         $detail->assertSee('executed');
         $detail->assertSee('ingestion-runs/'.$record['id'].'.json');
+    }
+
+    public function test_ingestion_dashboard_sums_daily_youtube_quota_estimate_from_run_history(): void
+    {
+        Storage::fake('local');
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-06-01 12:00:00', 'America/Los_Angeles'));
+
+        try {
+            Storage::disk('local')->put('ingestion-runs/20260601-110000-00000000-0000-4000-8000-000000000000.json', json_encode([
+                'id' => '20260601-110000-00000000-0000-4000-8000-000000000000',
+                'created_at' => '2026-06-01 11:00:00 America/Los_Angeles',
+                'request' => [
+                    'source' => 'artisan',
+                    'mode' => 'execute',
+                ],
+                'result' => [
+                    'mode' => 'execute',
+                    'jobs' => [
+                        [
+                            'key' => 'youtube.tag_videos.backfill',
+                            'executed' => true,
+                            'failed' => false,
+                            'estimated_youtube_quota_units' => 3,
+                            'youtube_quota_estimate' => [
+                                'estimated_units' => 3,
+                                'basis' => 'test',
+                            ],
+                        ],
+                        [
+                            'key' => 'youtube.live.poll',
+                            'executed' => true,
+                            'failed' => false,
+                            'output' => 'youtube:live:poll mode=local-execute selected_rows=4 api_requested_videos=4 updated_videos=4 skipped_videos=0',
+                        ],
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            Storage::disk('local')->put('ingestion-runs/20260531-230000-11111111-1111-4111-8111-111111111111.json', json_encode([
+                'id' => '20260531-230000-11111111-1111-4111-8111-111111111111',
+                'created_at' => '2026-05-31 23:00:00 America/Los_Angeles',
+                'request' => [
+                    'source' => 'artisan',
+                    'mode' => 'execute',
+                ],
+                'result' => [
+                    'mode' => 'execute',
+                    'youtube_quota_estimate' => ['estimated_units' => 99],
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $response = $this->get('/ops/ingestion');
+
+            $response->assertOk();
+            $response->assertSee('estimated 4 / 10,000 units');
+            $response->assertSee('youtube.tag_videos.backfill=3');
+            $response->assertSee('youtube.live.poll=1');
+            $response->assertDontSee('99 / 10,000 units');
+        } finally {
+            CarbonImmutable::setTestNow();
+        }
     }
 
     public function test_ingestion_run_detail_returns_404_for_unknown_or_invalid_run(): void
@@ -501,8 +566,6 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.videos.stats');
         $response->assertSee('Scheduler 在 scheduled-write gates 允許時使用 capped scheduled execute command；關閉時不執行 capped command');
     }
-
-
 
     public function test_ingestion_job_detail_allows_counts_build_ingestion_preview(): void
     {

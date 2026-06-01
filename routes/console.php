@@ -29,8 +29,8 @@ use App\Services\Ingestion\ScheduleReportsPreview;
 use App\Services\Ingestion\StaticHtmlReportsPreview;
 use App\Services\Ingestion\TagCloudCacheBuilder;
 use App\Services\Ingestion\TagDateCacheBuilder;
-use App\Services\Ingestion\TagVideoBackfillIngestion;
 use App\Services\Ingestion\TagsAllCacheBuilder;
+use App\Services\Ingestion\TagVideoBackfillIngestion;
 use App\Services\Ingestion\TvbsChannelVideosDiscoveryIngestion;
 use App\Services\Ingestion\TvbsChannelVideosDiscoveryPreview;
 use App\Services\Ingestion\TvbsLivePollingIngestion;
@@ -91,7 +91,7 @@ Artisan::command('ingestion:run {--execute : Execute active due jobs instead of 
     );
 
     $this->line(sprintf(
-        'mode=%s scheduler=%s at=%s evaluated=%d due=%d executed=%d skipped=%d failed=%d',
+        'mode=%s scheduler=%s at=%s evaluated=%d due=%d executed=%d skipped=%d failed=%d yt_quota_estimate=%d',
         $result['mode'],
         $result['scheduler_enabled'] ? 'enabled' : 'disabled',
         $result['at'],
@@ -100,16 +100,18 @@ Artisan::command('ingestion:run {--execute : Execute active due jobs instead of 
         $result['summary']['executed'],
         $result['summary']['skipped'],
         $result['summary']['failed'],
+        (int) ($result['youtube_quota_estimate']['estimated_units'] ?? 0),
     ));
 
     foreach ($result['jobs'] as $job) {
         $this->line(sprintf(
-            '[%s] %s %s -> %s (%s)',
+            '[%s] %s %s -> %s (%s) yt_quota=%d',
             $job['due'] ? 'due' : 'not-due',
             $job['key'],
             $job['action'],
             $job['effective_command'] ?? $job['command'],
             $job['schedule'],
+            (int) ($job['estimated_youtube_quota_units'] ?? 0),
         ));
     }
 

@@ -37,6 +37,12 @@ INGESTION_TIMEZONE=Asia/Taipei
 YOUTUBE_API_KEY=
 # Optional comma-separated fallback keys. Keep these in Dokploy secrets/env only.
 YOUTUBE_API_KEYS=
+YOUTUBE_DATA_API_DAILY_QUOTA_UNITS=10000
+YOUTUBE_DATA_API_QUOTA_WARNING_PERCENT=80
+# Optional YouTube quota monitor for /ops/integrations.
+# Requires a Google Cloud service account with read-only Cloud Monitoring access.
+GOOGLE_CLOUD_PROJECT_ID=
+GOOGLE_CLOUD_MONITORING_SERVICE_ACCOUNT_JSON_BASE64=
 OPENAI_BASE_URL=https://opencode.ai/zen/go/v1
 OPENAI_MODEL=qwen3.6-plus
 OPENAI_ENDPOINT_STYLE=auto

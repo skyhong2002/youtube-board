@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Ops;
 
 use App\Http\Controllers\Controller;
+use App\Services\Ingestion\IngestionRunHistory;
+use App\Services\Integrations\YoutubeDataApiQuotaUsage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Response;
@@ -12,22 +14,28 @@ use Illuminate\Support\Facades\Http;
 
 class IntegrationCheckController extends Controller
 {
-    public function index(): Response
+    public function index(IngestionRunHistory $history): Response
     {
+        $youtubePayload = $this->youtubeConfigPayload();
+        $youtubePayload['quota'] = $this->cachedYoutubeQuotaPayload();
+        $youtubePayload['local_quota_estimate'] = $history->youtubeQuotaDailyEstimate();
+
         return $this->renderPage(
-            $this->youtubeConfigPayload(),
+            $youtubePayload,
             $this->cachedTagAnalysisLivePayload(),
             'config-only + public endpoint health checks',
         );
     }
 
-    public function devCheck(): Response|RedirectResponse
+    public function devCheck(IngestionRunHistory $history): Response|RedirectResponse
     {
         if (! app()->environment(['local', 'testing'])) {
             return redirect()->to(secure_url('/ops/integrations'), 308);
         }
 
         [$payload] = $this->youtubeLivePayload();
+        $payload['quota'] = $this->cachedYoutubeQuotaPayload();
+        $payload['local_quota_estimate'] = $history->youtubeQuotaDailyEstimate();
 
         return $this->renderPage(
             $payload,
@@ -36,9 +44,11 @@ class IntegrationCheckController extends Controller
         );
     }
 
-    public function youtube(): JsonResponse
+    public function youtube(IngestionRunHistory $history): JsonResponse
     {
         [$payload, $status] = $this->youtubeLivePayload();
+        $payload['quota'] = $this->cachedYoutubeQuotaPayload();
+        $payload['local_quota_estimate'] = $history->youtubeQuotaDailyEstimate();
 
         return response()->json($payload, $status);
     }
@@ -137,31 +147,40 @@ class IntegrationCheckController extends Controller
      */
     private function youtubeCheck(array $payload): array
     {
+        $quotaDetails = $this->youtubeQuotaDetails(is_array($payload['quota'] ?? null) ? $payload['quota'] : null);
+        $quotaState = $this->youtubeQuotaState(is_array($payload['quota'] ?? null) ? $payload['quota'] : null);
+        $localQuotaDetails = $this->youtubeLocalQuotaDetails(is_array($payload['local_quota_estimate'] ?? null) ? $payload['local_quota_estimate'] : null);
+
         if (($payload['probe_mode'] ?? null) === 'config') {
             $configured = (bool) ($payload['configured'] ?? false);
 
             return [
                 'name' => 'YouTube Data API v3',
                 'description' => '影片、直播、頻道統計與留言擷取使用的 Google API。',
-                'state' => $configured ? 'configured' : 'missing',
-                'status' => $configured ? 'configured' : 'missing',
-                'details' => [
+                'state' => $quotaState ?: ($configured ? 'configured' : 'missing'),
+                'status' => $quotaState === 'failed' ? 'quota failed' : ($quotaState === 'not_checked' ? 'quota warning' : ($configured ? 'configured' : 'missing')),
+                'details' => array_merge([
                     ['label' => 'Check', 'value' => 'config only; no external request'],
                     ['label' => 'API key', 'value' => $configured ? 'configured' : 'missing'],
                     ['label' => 'Live probe', 'value' => 'local/testing only'],
-                ],
+                ], $localQuotaDetails, $quotaDetails),
             ];
         }
 
         $ok = (bool) ($payload['ok'] ?? false);
         $missingKey = ($payload['error'] ?? null) === 'YOUTUBE_API_KEY is not configured.';
+        $state = $ok ? 'ok' : ($missingKey ? 'missing' : 'failed');
+
+        if ($quotaState === 'failed') {
+            $state = 'failed';
+        }
 
         return [
             'name' => 'YouTube Data API v3',
             'description' => '影片、直播、頻道統計與留言擷取使用的 Google API。',
-            'state' => $ok ? 'ok' : ($missingKey ? 'missing' : 'failed'),
-            'status' => $ok ? 'OK' : ($missingKey ? 'missing' : 'failed'),
-            'details' => array_values(array_filter([
+            'state' => $state,
+            'status' => $quotaState === 'failed' ? 'quota failed' : ($quotaState === 'not_checked' ? 'quota warning' : ($ok ? 'OK' : ($missingKey ? 'missing' : 'failed'))),
+            'details' => array_merge(array_values(array_filter([
                 ['label' => 'Check', 'value' => 'live probe: videos.list(snippet,statistics)'],
                 ['label' => 'HTTP status', 'value' => (string) ($payload['http_status'] ?? 'n/a')],
                 ['label' => 'Test video ID', 'value' => (string) data_get($payload, 'video.id', 'n/a')],
@@ -169,8 +188,135 @@ class IntegrationCheckController extends Controller
                 ['label' => 'Channel', 'value' => (string) data_get($payload, 'video.channel_title', 'n/a')],
                 ['label' => 'viewCount field', 'value' => data_get($payload, 'video.view_count_available') ? 'available' : 'missing'],
                 ! $ok ? ['label' => 'Error', 'value' => (string) ($payload['error'] ?? 'Unknown error')] : null,
-            ])),
+            ])), $localQuotaDetails, $quotaDetails),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function cachedYoutubeQuotaPayload(): array
+    {
+        $quota = app(YoutubeDataApiQuotaUsage::class);
+
+        if (! $quota->isConfigured()) {
+            return $quota->snapshot();
+        }
+
+        $cacheKey = 'ops.integrations.youtube_quota_payload';
+        $cached = Cache::get($cacheKey);
+
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        $snapshot = $quota->snapshot();
+
+        Cache::put(
+            $cacheKey,
+            $snapshot,
+            now()->addMinutes(($snapshot['ok'] ?? false) === true ? 5 : 1),
+        );
+
+        return $snapshot;
+    }
+
+    /**
+     * @return list<array{label: string, value: string}>
+     */
+    private function youtubeQuotaDetails(?array $quota): array
+    {
+        if ($quota === null) {
+            return [
+                ['label' => 'Quota usage', 'value' => 'not checked'],
+            ];
+        }
+
+        if (($quota['configured'] ?? false) !== true) {
+            return [
+                ['label' => 'Quota usage', 'value' => 'not configured; requires Google Cloud Monitoring read credentials'],
+                ['label' => 'Quota source', 'value' => (string) ($quota['source'] ?? 'n/a')],
+                ['label' => 'Daily quota limit', 'value' => number_format((int) ($quota['daily_limit'] ?? 10000)).' units'],
+            ];
+        }
+
+        if (($quota['ok'] ?? false) !== true) {
+            return [
+                ['label' => 'Quota usage', 'value' => 'failed to read from Google Cloud Monitoring'],
+                ['label' => 'Quota source', 'value' => (string) ($quota['source'] ?? 'n/a')],
+                ['label' => 'Error', 'value' => (string) ($quota['error'] ?? 'Unknown quota monitor error')],
+            ];
+        }
+
+        $used = (int) ($quota['used_units'] ?? 0);
+        $limit = (int) ($quota['daily_limit'] ?? 10000);
+        $percent = number_format((float) ($quota['percent_used'] ?? 0), 1);
+        $remaining = (int) ($quota['remaining_units'] ?? max(0, $limit - $used));
+        $topMethods = collect(is_array($quota['top_methods'] ?? null) ? $quota['top_methods'] : [])
+            ->map(fn (array $row): string => sprintf(
+                '%s=%s',
+                (string) ($row['method'] ?? 'unknown method'),
+                number_format((int) ($row['units'] ?? 0)),
+            ))
+            ->implode('; ');
+
+        return array_values(array_filter([
+            ['label' => 'Quota usage', 'value' => sprintf('%s / %s units (%s%%)', number_format($used), number_format($limit), $percent)],
+            ['label' => 'Quota remaining', 'value' => number_format($remaining).' units'],
+            ['label' => 'Quota window', 'value' => sprintf('%s -> %s', (string) ($quota['window_start'] ?? 'n/a'), (string) ($quota['window_end'] ?? 'n/a'))],
+            ['label' => 'Last quota sample', 'value' => (string) ($quota['last_sample_at'] ?? 'n/a')],
+            ['label' => 'Quota source', 'value' => (string) ($quota['source'] ?? 'n/a')],
+            $topMethods !== '' ? ['label' => 'Top quota methods', 'value' => $topMethods] : null,
+        ]));
+    }
+
+    /**
+     * @return list<array{label: string, value: string}>
+     */
+    private function youtubeLocalQuotaDetails(?array $quota): array
+    {
+        if ($quota === null) {
+            return [
+                ['label' => 'Local quota estimate', 'value' => 'not checked'],
+            ];
+        }
+
+        $used = (int) ($quota['estimated_units'] ?? 0);
+        $limit = (int) ($quota['daily_limit'] ?? 10000);
+        $percent = number_format((float) ($quota['percent_used'] ?? 0), 1);
+        $remaining = (int) ($quota['remaining_units'] ?? max(0, $limit - $used));
+        $topJobs = collect(is_array($quota['job_breakdown'] ?? null) ? $quota['job_breakdown'] : [])
+            ->take(5)
+            ->map(fn (array $row): string => sprintf(
+                '%s=%s',
+                (string) ($row['job'] ?? 'unknown'),
+                number_format((int) ($row['units'] ?? 0)),
+            ))
+            ->implode('; ');
+
+        return array_values(array_filter([
+            ['label' => 'Local quota estimate', 'value' => sprintf('%s / %s units (%s%%)', number_format($used), number_format($limit), $percent)],
+            ['label' => 'Local quota remaining', 'value' => number_format($remaining).' units'],
+            ['label' => 'Local quota window', 'value' => sprintf('%s -> %s', (string) ($quota['window_start'] ?? 'n/a'), (string) ($quota['window_end'] ?? 'n/a'))],
+            ['label' => 'Local quota records', 'value' => number_format((int) ($quota['record_count'] ?? 0)).' execute run records'],
+            $topJobs !== '' ? ['label' => 'Local top quota jobs', 'value' => $topJobs] : null,
+        ]));
+    }
+
+    private function youtubeQuotaState(?array $quota): ?string
+    {
+        if ($quota === null || ($quota['configured'] ?? false) !== true) {
+            return null;
+        }
+
+        if (($quota['ok'] ?? false) !== true) {
+            return 'failed';
+        }
+
+        $percentUsed = (float) ($quota['percent_used'] ?? 0);
+        $warningPercent = (float) ($quota['warning_percent'] ?? 80);
+
+        return $percentUsed >= $warningPercent ? 'not_checked' : null;
     }
 
     /**

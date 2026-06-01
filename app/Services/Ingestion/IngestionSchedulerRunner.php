@@ -8,9 +8,10 @@ use Throwable;
 
 class IngestionSchedulerRunner
 {
-    public function __construct(private readonly IngestionJobRegistry $registry)
-    {
-    }
+    public function __construct(
+        private readonly IngestionJobRegistry $registry,
+        private readonly YoutubeQuotaEstimator $quotaEstimator,
+    ) {}
 
     /**
      * @return array{
@@ -18,7 +19,8 @@ class IngestionSchedulerRunner
      *     mode: string,
      *     scheduler_enabled: bool,
      *     jobs: list<array<string, mixed>>,
-     *     summary: array{evaluated: int, due: int, executed: int, skipped: int, failed: int}
+     *     summary: array{evaluated: int, due: int, executed: int, skipped: int, failed: int},
+     *     youtube_quota_estimate: array<string, mixed>
      * }
      */
     public function run(CarbonInterface $at, bool $execute = false, ?string $jobKey = null, bool $showAll = false): array
@@ -64,7 +66,7 @@ class IngestionSchedulerRunner
 
         if ($jobKey !== null && $results === []) {
             $summary['skipped']++;
-            $results[] = [
+            $results[] = $this->withQuotaEstimate([
                 'key' => $jobKey,
                 'status' => 'missing',
                 'command' => '',
@@ -74,7 +76,7 @@ class IngestionSchedulerRunner
                 'executed' => false,
                 'failed' => false,
                 'exit_code' => null,
-            ];
+            ]);
         }
 
         return [
@@ -83,6 +85,7 @@ class IngestionSchedulerRunner
             'scheduler_enabled' => $schedulerEnabled,
             'jobs' => $results,
             'summary' => $summary,
+            'youtube_quota_estimate' => $this->quotaEstimator->summarizeRun($results),
         ];
     }
 
@@ -107,34 +110,34 @@ class IngestionSchedulerRunner
         ];
 
         if (! $due) {
-            return array_merge($base, ['action' => 'skip:not-due']);
+            return $this->withQuotaEstimate(array_merge($base, ['action' => 'skip:not-due']));
         }
 
         if (! $schedulerEnabled) {
-            return array_merge($base, ['action' => 'skip:scheduler-disabled']);
+            return $this->withQuotaEstimate(array_merge($base, ['action' => 'skip:scheduler-disabled']));
         }
 
         if ($status !== 'active') {
-            return array_merge($base, ['action' => 'skip:status-'.$status]);
+            return $this->withQuotaEstimate(array_merge($base, ['action' => 'skip:status-'.$status]));
         }
 
         if (! $this->registry->commandExists($job)) {
-            return array_merge($base, ['action' => 'skip:command-missing']);
+            return $this->withQuotaEstimate(array_merge($base, ['action' => 'skip:command-missing']));
         }
 
         $scheduledWrite = $this->registry->scheduledWriteProfile($job);
         $executionProfile = $this->registry->executionProfile($job);
 
         if (! $executionProfile['can_execute_when_due'] && ! ($execute && $scheduledWrite['allowed'])) {
-            return array_merge($base, [
+            return $this->withQuotaEstimate(array_merge($base, [
                 'action' => 'skip:controlled-execution-guardrail',
                 'scheduled_write' => $scheduledWrite,
                 'execution' => $executionProfile,
-            ]);
+            ]));
         }
 
         if (! $execute) {
-            return array_merge($base, ['action' => 'would-run']);
+            return $this->withQuotaEstimate(array_merge($base, ['action' => 'would-run']));
         }
 
         try {
@@ -144,7 +147,7 @@ class IngestionSchedulerRunner
             $exitCode = Artisan::call($effectiveCommand);
             $output = trim(Artisan::output());
 
-            return array_merge($base, [
+            return $this->withQuotaEstimate(array_merge($base, [
                 'action' => $exitCode === 0
                     ? ($effectiveCommand !== $command ? 'executed:local-polling' : 'executed')
                     : 'failed',
@@ -154,14 +157,27 @@ class IngestionSchedulerRunner
                 'effective_command' => $effectiveCommand,
                 'output' => mb_strimwidth($output, 0, 2000, '...', 'UTF-8'),
                 'scheduled_write' => $scheduledWrite,
-            ]);
+            ]));
         } catch (Throwable $exception) {
-            return array_merge($base, [
+            return $this->withQuotaEstimate(array_merge($base, [
                 'action' => 'failed:exception',
                 'failed' => true,
                 'error' => mb_strimwidth($exception->getMessage(), 0, 1000, '...', 'UTF-8'),
-            ]);
+            ]));
         }
     }
 
+    /**
+     * @param  array<string, mixed>  $result
+     * @return array<string, mixed>
+     */
+    private function withQuotaEstimate(array $result): array
+    {
+        $estimate = $this->quotaEstimator->estimateJob($result);
+
+        return $result + [
+            'estimated_youtube_quota_units' => (int) ($estimate['estimated_units'] ?? 0),
+            'youtube_quota_estimate' => $estimate,
+        ];
+    }
 }

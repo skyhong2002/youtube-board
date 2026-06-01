@@ -64,6 +64,7 @@ Web request gates
 
 @section('content')
 @php($scheduledWriteScope = $summary['scheduled_write_scope'] ?? 'allowlist')
+@php($quotaEstimate = $youtubeQuotaDailyEstimate ?? [])
 <div class="nav" aria-label="Ingestion workload navigation">
                 <a href="{{ route('ops.ingestion') }}">全部排程</a>
                 <a href="{{ route('ops.ingestion.data-capture') }}">外部資料擷取</a>
@@ -121,6 +122,31 @@ Web request gates
                         </ul>
                     @endunless
                 </div>
+            </section>
+
+            <section class="panel" aria-label="YouTube quota estimate">
+                <h2>YouTube Data API Quota Estimate</h2>
+                <div class="status-line">
+                    <span class="badge {{ ((float) ($quotaEstimate['percent_used'] ?? 0)) >= 80 ? 'planned' : 'active' }}">
+                        estimated {{ number_format((int) ($quotaEstimate['estimated_units'] ?? 0)) }} / {{ number_format((int) ($quotaEstimate['daily_limit'] ?? 10000)) }} units
+                    </span>
+                    <span>{{ number_format((int) ($quotaEstimate['remaining_units'] ?? 0)) }} remaining</span>
+                    <span>{{ number_format((float) ($quotaEstimate['percent_used'] ?? 0), 1) }}%</span>
+                    <span>{{ number_format((int) ($quotaEstimate['record_count'] ?? 0)) }} execute run records</span>
+                </div>
+                <p class="muted">
+                    Local estimator sums run-history job estimates for the current YouTube quota day
+                    (<code>{{ $quotaEstimate['window_start'] ?? '-' }}</code> -> <code>{{ $quotaEstimate['window_end'] ?? '-' }}</code>).
+                    Google may report slightly different numbers because invalid/retried requests and hidden service-side accounting can differ.
+                </p>
+                @if (! empty($quotaEstimate['job_breakdown'] ?? []))
+                    <p class="muted">
+                        top jobs:
+                        @foreach (array_slice($quotaEstimate['job_breakdown'], 0, 5) as $jobQuota)
+                            <code>{{ $jobQuota['job'] ?? 'unknown' }}={{ number_format((int) ($jobQuota['units'] ?? 0)) }}</code>@if (! $loop->last); @endif
+                        @endforeach
+                    </p>
+                @endif
             </section>
 
             <div class="summary" aria-label="Job summary">
@@ -199,6 +225,7 @@ Web request gates
                                 <th>Executed</th>
                                 <th>Skipped</th>
                                 <th>Failed</th>
+                                <th>YT Units</th>
                                 <th>File</th>
                             </tr>
                         </thead>
@@ -220,6 +247,7 @@ Web request gates
                                     <td>{{ $runSummary['executed'] ?? 0 }}</td>
                                     <td>{{ $runSummary['skipped'] ?? 0 }}</td>
                                     <td>{{ $runSummary['failed'] ?? 0 }}</td>
+                                    <td>{{ number_format((int) ($run['result']['youtube_quota_estimate']['estimated_units'] ?? 0)) }}</td>
                                     <td>
                                         @if (isset($run['id']))
                                             <a href="{{ route('ops.ingestion.runs.show', ['runId' => $run['id']]) }}"><code>{{ $run['path'] ?? $run['id'] }}</code></a>
@@ -230,7 +258,7 @@ Web request gates
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="muted">No local one-shot runs yet.</td>
+                                    <td colspan="10" class="muted">No local one-shot runs yet.</td>
                                 </tr>
                             @endforelse
                         </tbody>

@@ -31,6 +31,17 @@ return [
     'youtube' => [
         'api_key' => env('YOUTUBE_API_KEY'),
         'api_keys' => env('YOUTUBE_API_KEYS'),
+        'quota' => [
+            'daily_limit' => (int) env('YOUTUBE_DATA_API_DAILY_QUOTA_UNITS', 10000),
+            'warning_percent' => (float) env('YOUTUBE_DATA_API_QUOTA_WARNING_PERCENT', 80),
+        ],
+    ],
+
+    'google_cloud' => [
+        'project_id' => env('GOOGLE_CLOUD_PROJECT_ID'),
+        'monitoring_service_account_json' => env('GOOGLE_CLOUD_MONITORING_SERVICE_ACCOUNT_JSON'),
+        'monitoring_service_account_json_base64' => env('GOOGLE_CLOUD_MONITORING_SERVICE_ACCOUNT_JSON_BASE64'),
+        'monitoring_service_account_path' => env('GOOGLE_CLOUD_MONITORING_SERVICE_ACCOUNT_PATH'),
     ],
 
     'opencode_go' => [

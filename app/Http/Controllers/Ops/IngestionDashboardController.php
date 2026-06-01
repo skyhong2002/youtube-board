@@ -38,6 +38,7 @@ class IngestionDashboardController extends Controller
             ],
             'recentRuns' => $history->latest(30),
             'externalSchedulerActivity' => $history->externalSchedulerActivity(),
+            'youtubeQuotaDailyEstimate' => $history->youtubeQuotaDailyEstimate(),
             'prefillJob' => trim((string) $request->query('job', '')),
         ]);
     }

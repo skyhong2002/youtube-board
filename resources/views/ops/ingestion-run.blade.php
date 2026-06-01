@@ -3,6 +3,7 @@
     $result = $record['result'] ?? [];
     $summary = $result['summary'] ?? [];
     $jobs = $result['jobs'] ?? [];
+    $quotaEstimate = $result['youtube_quota_estimate'] ?? [];
 @endphp
 @extends('layouts.report')
 
@@ -70,6 +71,7 @@
                 <span class="badge executed">executed={{ number_format((int) ($summary['executed'] ?? 0)) }}</span>
                 <span class="badge skipped">skipped={{ number_format((int) ($summary['skipped'] ?? 0)) }}</span>
                 <span class="badge {{ ($summary['failed'] ?? 0) > 0 ? 'failed' : '' }}">failed={{ number_format((int) ($summary['failed'] ?? 0)) }}</span>
+                <span class="badge">yt quota≈{{ number_format((int) ($quotaEstimate['estimated_units'] ?? 0)) }} units</span>
             </div>
 
             <h2>Jobs</h2>
@@ -84,6 +86,7 @@
                             <th>Command</th>
                             <th>Schedule</th>
                             <th>Effective</th>
+                            <th class="right">YT Units</th>
                             <th>Output / Error</th>
                             <th class="right">Exit</th>
                         </tr>
@@ -104,6 +107,7 @@
                                 <td><code>{{ $job['command'] ?? '-' }}</code></td>
                                 <td><code>{{ $job['schedule'] ?? '-' }}</code></td>
                                 <td><code>{{ $job['effective_command'] ?? ($job['command'] ?? '-') }}</code></td>
+                                <td class="right" title="{{ $job['youtube_quota_estimate']['basis'] ?? '' }}">{{ number_format((int) ($job['estimated_youtube_quota_units'] ?? 0)) }}</td>
                                 <td>
                                     @if (! empty($job['error']))
                                         <code>{{ $job['error'] }}</code>
@@ -119,7 +123,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9" class="muted">No job rows were recorded for this run.</td>
+                                <td colspan="10" class="muted">No job rows were recorded for this run.</td>
                             </tr>
                         @endforelse
                     </tbody>
