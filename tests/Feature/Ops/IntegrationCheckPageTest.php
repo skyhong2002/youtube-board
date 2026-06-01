@@ -49,7 +49,7 @@ class IntegrationCheckPageTest extends TestCase
         $response->assertSee('rows=1');
         $response->assertSee('rows=0');
         $response->assertSee('config only; no external request');
-        $response->assertSee('Local quota estimate');
+        $response->assertSee('Local estimate');
         $response->assertSee('0 / 10,000 units');
         $response->assertSee('Quota usage');
         $response->assertSee('not configured; requires Google Cloud Monitoring read credentials');
@@ -109,10 +109,11 @@ class IntegrationCheckPageTest extends TestCase
         $response = $this->get(route('ops.integrations'));
 
         $response->assertOk();
-        $response->assertSee('Local quota estimate');
+        $response->assertSee('Local estimate');
         $response->assertSee('6 / 10,000 units');
-        $response->assertSee('Local top quota jobs');
-        $response->assertSee('youtube.tag_videos.backfill=6');
+        $response->assertSee('1 run');
+        $response->assertDontSee('Local top quota jobs');
+        $response->assertDontSee('youtube.tag_videos.backfill=6');
     }
 
     public function test_public_integration_check_page_can_show_youtube_quota_usage_from_cloud_monitoring(): void
@@ -188,12 +189,12 @@ class IntegrationCheckPageTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('Quota usage');
-        $response->assertSee('6 / 10,000 units');
-        $response->assertSee('Quota remaining');
-        $response->assertSee('9,994 units');
-        $response->assertSee('Top quota methods');
-        $response->assertSee('youtube.videos.list=5');
-        $response->assertSee('youtube.playlistItems.list=1');
+        $response->assertSee('6 / 10,000 units (0.1%; sampled 2026-06-01T01:05:00Z)');
+        $response->assertDontSee('Quota remaining');
+        $response->assertDontSee('9,994 units');
+        $response->assertDontSee('Top quota methods');
+        $response->assertDontSee('youtube.videos.list=5');
+        $response->assertDontSee('youtube.playlistItems.list=1');
         $response->assertDontSee('test-monitoring-token');
         $response->assertDontSee('PRIVATE KEY');
     }

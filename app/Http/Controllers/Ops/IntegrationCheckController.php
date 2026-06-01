@@ -235,15 +235,12 @@ class IntegrationCheckController extends Controller
         if (($quota['configured'] ?? false) !== true) {
             return [
                 ['label' => 'Quota usage', 'value' => 'not configured; requires Google Cloud Monitoring read credentials'],
-                ['label' => 'Quota source', 'value' => (string) ($quota['source'] ?? 'n/a')],
-                ['label' => 'Daily quota limit', 'value' => number_format((int) ($quota['daily_limit'] ?? 10000)).' units'],
             ];
         }
 
         if (($quota['ok'] ?? false) !== true) {
             return [
                 ['label' => 'Quota usage', 'value' => 'failed to read from Google Cloud Monitoring'],
-                ['label' => 'Quota source', 'value' => (string) ($quota['source'] ?? 'n/a')],
                 ['label' => 'Error', 'value' => (string) ($quota['error'] ?? 'Unknown quota monitor error')],
             ];
         }
@@ -251,23 +248,14 @@ class IntegrationCheckController extends Controller
         $used = (int) ($quota['used_units'] ?? 0);
         $limit = (int) ($quota['daily_limit'] ?? 10000);
         $percent = number_format((float) ($quota['percent_used'] ?? 0), 1);
-        $remaining = (int) ($quota['remaining_units'] ?? max(0, $limit - $used));
-        $topMethods = collect(is_array($quota['top_methods'] ?? null) ? $quota['top_methods'] : [])
-            ->map(fn (array $row): string => sprintf(
-                '%s=%s',
-                (string) ($row['method'] ?? 'unknown method'),
-                number_format((int) ($row['units'] ?? 0)),
-            ))
-            ->implode('; ');
+        $sample = (string) ($quota['last_sample_at'] ?? '');
+        $sampleText = $sample !== '' && $sample !== 'no samples in current quota day'
+            ? '; sampled '.$sample
+            : '';
 
-        return array_values(array_filter([
-            ['label' => 'Quota usage', 'value' => sprintf('%s / %s units (%s%%)', number_format($used), number_format($limit), $percent)],
-            ['label' => 'Quota remaining', 'value' => number_format($remaining).' units'],
-            ['label' => 'Quota window', 'value' => sprintf('%s -> %s', (string) ($quota['window_start'] ?? 'n/a'), (string) ($quota['window_end'] ?? 'n/a'))],
-            ['label' => 'Last quota sample', 'value' => (string) ($quota['last_sample_at'] ?? 'n/a')],
-            ['label' => 'Quota source', 'value' => (string) ($quota['source'] ?? 'n/a')],
-            $topMethods !== '' ? ['label' => 'Top quota methods', 'value' => $topMethods] : null,
-        ]));
+        return [
+            ['label' => 'Quota usage', 'value' => sprintf('%s / %s units (%s%%%s)', number_format($used), number_format($limit), $percent, $sampleText)],
+        ];
     }
 
     /**
@@ -284,23 +272,14 @@ class IntegrationCheckController extends Controller
         $used = (int) ($quota['estimated_units'] ?? 0);
         $limit = (int) ($quota['daily_limit'] ?? 10000);
         $percent = number_format((float) ($quota['percent_used'] ?? 0), 1);
-        $remaining = (int) ($quota['remaining_units'] ?? max(0, $limit - $used));
-        $topJobs = collect(is_array($quota['job_breakdown'] ?? null) ? $quota['job_breakdown'] : [])
-            ->take(5)
-            ->map(fn (array $row): string => sprintf(
-                '%s=%s',
-                (string) ($row['job'] ?? 'unknown'),
-                number_format((int) ($row['units'] ?? 0)),
-            ))
-            ->implode('; ');
+        $recordCount = (int) ($quota['record_count'] ?? 0);
+        $recordText = $recordCount > 0
+            ? '; '.$recordCount.' run'.($recordCount === 1 ? '' : 's')
+            : '';
 
-        return array_values(array_filter([
-            ['label' => 'Local quota estimate', 'value' => sprintf('%s / %s units (%s%%)', number_format($used), number_format($limit), $percent)],
-            ['label' => 'Local quota remaining', 'value' => number_format($remaining).' units'],
-            ['label' => 'Local quota window', 'value' => sprintf('%s -> %s', (string) ($quota['window_start'] ?? 'n/a'), (string) ($quota['window_end'] ?? 'n/a'))],
-            ['label' => 'Local quota records', 'value' => number_format((int) ($quota['record_count'] ?? 0)).' execute run records'],
-            $topJobs !== '' ? ['label' => 'Local top quota jobs', 'value' => $topJobs] : null,
-        ]));
+        return [
+            ['label' => 'Local estimate', 'value' => sprintf('%s / %s units (%s%%%s)', number_format($used), number_format($limit), $percent, $recordText)],
+        ];
     }
 
     private function youtubeQuotaState(?array $quota): ?string
