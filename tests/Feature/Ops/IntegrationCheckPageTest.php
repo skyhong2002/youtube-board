@@ -48,11 +48,12 @@ class IntegrationCheckPageTest extends TestCase
         $response->assertSee('cached public endpoint probe');
         $response->assertSee('rows=1');
         $response->assertSee('rows=0');
-        $response->assertSee('config only; no external request');
+        $response->assertSee('API key');
         $response->assertSee('Local estimate');
         $response->assertSee('0 / 10,000 units');
         $response->assertSee('Quota usage');
         $response->assertSee('not configured; requires Google Cloud Monitoring read credentials');
+        $response->assertDontSee('Live probe');
         $response->assertDontSee('live probe: videos.list');
         $response->assertDontSee('legacy 外部端點');
         $response->assertDontSee('test-youtube-key');

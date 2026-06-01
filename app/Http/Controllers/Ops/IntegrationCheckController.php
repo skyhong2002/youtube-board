@@ -160,10 +160,8 @@ class IntegrationCheckController extends Controller
                 'state' => $quotaState ?: ($configured ? 'configured' : 'missing'),
                 'status' => $quotaState === 'failed' ? 'quota failed' : ($quotaState === 'not_checked' ? 'quota warning' : ($configured ? 'configured' : 'missing')),
                 'details' => array_merge([
-                    ['label' => 'Check', 'value' => 'config only; no external request'],
                     ['label' => 'API key', 'value' => $configured ? 'configured' : 'missing'],
-                    ['label' => 'Live probe', 'value' => 'local/testing only'],
-                ], $localQuotaDetails, $quotaDetails),
+                ], $quotaDetails, $localQuotaDetails),
             ];
         }
 
