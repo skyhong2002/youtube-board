@@ -305,13 +305,13 @@ class AiDailyPreview
         return collect($this->decodeList($json))
             ->map(function (mixed $item) use ($condition): ?array {
                 $item = is_array($item) ? $item : [];
-                $videoIds = $this->stringList($item, ['videoId', 'video_ids', 'videos']);
+                $videoIds = $this->stringList($item, ['videoId', 'video_id', 'video_ids', 'videos']);
 
                 if ($condition === 'all' && count($videoIds) <= 1) {
                     return null;
                 }
 
-                $event = $this->text($item, ['事件', '議題', 'topic', 'title']);
+                $event = $this->text($item, ['事件', '議題', '標題', 'event', 'topic', 'title']);
 
                 if ($event === '') {
                     return null;
@@ -319,7 +319,7 @@ class AiDailyPreview
 
                 return [
                     'event' => $event,
-                    'description' => $this->text($item, ['描述', 'description']),
+                    'description' => $this->text($item, ['描述', '說明', 'description', 'content']),
                     'video_count' => count($videoIds),
                     'keywords' => $this->stringList($item, ['關鍵字', 'keywords']),
                 ];
@@ -342,6 +342,13 @@ class AiDailyPreview
 
         if (json_last_error() !== JSON_ERROR_NONE || ! is_array($decoded)) {
             return [];
+        }
+
+        foreach (['events', '事件', 'topics', '議題', 'result', 'data'] as $key) {
+            if (! array_is_list($decoded) && isset($decoded[$key]) && is_array($decoded[$key])) {
+                $decoded = $decoded[$key];
+                break;
+            }
         }
 
         return array_is_list($decoded) ? $decoded : array_values($decoded);

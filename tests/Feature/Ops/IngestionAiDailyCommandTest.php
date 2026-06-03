@@ -113,6 +113,43 @@ class IngestionAiDailyCommandTest extends TestCase
         $this->assertSame(0, DB::table('urt_ai_date')->count());
     }
 
+    public function test_ai_daily_preview_accepts_wrapped_channel_ai_payloads_with_video_id_key(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDailyAiFixtures();
+
+        DB::table('urt_channel')->insert(['u_id' => 76, 'title' => 'Wrapped Payload Channel']);
+        DB::table('urt_channel_ai')->insert($this->channelAiRow(76, [
+            'events' => [
+                [
+                    '標題' => 'Wrapped Event',
+                    '說明' => 'Wrapped description',
+                    'video_id' => ['wrapped-1', 'wrapped-2'],
+                    'keywords' => ['wrapped', 'payload'],
+                ],
+            ],
+        ]));
+
+        $exitCode = Artisan::call('ai:daily', [
+            '--date' => '2026-05-24',
+            '--condition' => 'all',
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+        $row = $payload['condition_rows'][0];
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('all', $row['condition']);
+        $this->assertSame(4, $row['source_rows']);
+        $this->assertSame(4, $row['media_rows']);
+        $this->assertSame(4, $row['prompt_event_rows']);
+        $this->assertSame(8, $row['prompt_video_refs']);
+        $this->assertSame(76, $row['sample_media'][0]['u_id']);
+        $this->assertSame(1, $row['sample_media'][0]['event_rows']);
+        $this->assertSame(2, $row['sample_media'][0]['video_refs']);
+    }
+
     public function test_ingestion_scheduler_respects_scheduled_write_off_gate_for_ai_daily(): void
     {
         $this->createTables();
