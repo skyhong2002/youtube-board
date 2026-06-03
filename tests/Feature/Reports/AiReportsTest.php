@@ -198,6 +198,50 @@ class AiReportsTest extends TestCase
         $response->assertDontSee('目前沒有符合條件的 AI daily summary');
     }
 
+    public function test_ai_daily_page_uses_channel_ai_fallback_when_daily_summary_row_is_empty(): void
+    {
+        $this->createAiDailyTables();
+
+        DB::table('urt_ai_date')->insert([
+            'pk' => 121,
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
+            'condition_type' => 'all',
+            'data_type' => 'oneday',
+            'del_flag' => null,
+            'channel_id' => json_encode([15 => 'Fallback Channel'], JSON_UNESCAPED_UNICODE),
+            'result_json' => '[]',
+        ]);
+
+        DB::table('urt_channel_ai')->insert([
+            'pk' => 1210,
+            'u_id' => 15,
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
+            'del_flag' => null,
+            'result_json' => json_encode([
+                [
+                    '事件' => '空 daily row fallback',
+                    '角度' => '台灣',
+                    '陣營' => '民進黨',
+                    '關鍵字' => ['fallback', 'daily'],
+                    '人物' => ['行政院'],
+                    'videoId' => ['empty-row-fallback'],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        DB::table('urt_count')->insert(['u_id' => 15, 'tags' => '[4]']);
+
+        $response = $this->get('/ai/days/2026-05-24/all');
+
+        $response->assertOk();
+        $response->assertSee('空 daily row fallback');
+        $response->assertSee('empty-row-fallback');
+        $response->assertDontSee('目前沒有符合條件的 AI daily summary');
+        $response->assertDontSee('pk=121');
+    }
+
     public function test_ai_event_page_renders_summary_and_people_prompts(): void
     {
         $this->createAiEventTables();

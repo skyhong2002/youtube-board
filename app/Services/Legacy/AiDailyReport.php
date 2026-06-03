@@ -46,6 +46,15 @@ class AiDailyReport
             $channelAi = $this->channelAi($channelMap, $dateFrom, $dateTo);
             $channelTags = $this->channelTags(array_keys($channelMap));
             $topics = $this->topics($row, $channelMap, $channelAi, $channelTags);
+            $resolvedCondition = (string) ($row->condition_type ?: $condition);
+
+            if ($topics === []) {
+                $fallback = $this->channelAiFallback($request, $resolvedCondition);
+
+                if ($fallback !== null && $fallback['topics'] !== []) {
+                    return $fallback;
+                }
+            }
 
             return [
                 'available' => true,
@@ -57,8 +66,8 @@ class AiDailyReport
                     'condition_type' => $row->condition_type ?? null,
                 ],
                 'date' => $date,
-                'condition' => (string) ($row->condition_type ?: $condition),
-                'title' => $this->title($date, (string) ($row->condition_type ?: $condition)),
+                'condition' => $resolvedCondition,
+                'title' => $this->title($date, $resolvedCondition),
                 'topics' => $topics,
                 'channels_count' => count($channelMap),
                 'generated_at' => now('Asia/Taipei')->format('Y-m-d H:i:s'),
