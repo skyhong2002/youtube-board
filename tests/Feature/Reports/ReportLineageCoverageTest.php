@@ -45,7 +45,7 @@ class ReportLineageCoverageTest extends TestCase
             '/live/groups/media/hours' => ['LiveGroupHoursReport', 'hour_result', 'LegacyLiveGroupDefinitions'],
             '/live/videos/demo-video/trend' => ['LiveVideoTrendReport', 'urt_show_video_live', 'log_json'],
             '/live/walls/news' => ['LiveWallReport', 'fixed videoId lists', '不讀本機 DB'],
-            '/channels/1' => ['ChannelProfileReport', 'urt_channel_ai', 'ai:daily --execute --channel-limit=3 --limit=1000'],
+            '/channels/1' => ['ChannelProfileReport', 'urt_channel_ai', 'ai:daily --execute --channel-limit=12 --limit=1000'],
             '/channels/1/videos' => ['ChannelVideosReport', 'urt_video', 'youtube:videos:stats --execute --limit=25'],
             '/channels/1/comments' => ['ChannelCommentsReport', 'urt_comment_author', 'YouTube Data API commentThreads.list'],
             '/channels/1/cloud' => ['ChannelCloudReport', 'urt_show_cloud', 'legacy.channel_cloud.cache'],

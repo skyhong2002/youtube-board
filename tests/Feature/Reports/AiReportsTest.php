@@ -18,7 +18,7 @@ class AiReportsTest extends TestCase
         $response->assertSee('data-lineage-graph', false);
         $response->assertSee('urt_ai_date');
         $response->assertSee('urt_channel_ai');
-        $response->assertSee('ai:daily --execute --channel-limit=3 --limit=1000');
+        $response->assertSee('ai:daily --execute --channel-limit=12 --limit=1000');
         $response->assertSee('OpenCode-compatible chat completions');
         $response->assertSee('AI condition rules');
         $response->assertSee('AiDailyReport');
@@ -99,13 +99,14 @@ class AiReportsTest extends TestCase
         $response->assertOk();
         $response->assertSee('2026-05-23 主要事件與各媒體報導');
         $response->assertSee('毒駕與交通安全');
-        $response->assertSee('2');
-        $response->assertSee('3');
+        $response->assertSee('媒體數：2 個 / 影片數：3 則');
         $response->assertSee('毒駕(1)');
         $response->assertSee('卓榮泰(1)');
         $response->assertSee('頭條開講');
+        $response->assertSee('毒駕事故頻傳');
+        $response->assertSee('(2 則)');
         $response->assertSee('政論頻道');
-        $response->assertSee('https://i.ytimg.com/vi/abc123/mqdefault.jpg', false);
+        $response->assertSee('https://www.youtube.com/embed/abc123', false);
     }
 
     public function test_ai_daily_page_expands_wrapped_legacy_topic_payloads(): void

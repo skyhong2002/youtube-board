@@ -2033,7 +2033,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: '頻道 AI 摘要',
-                    command: 'ai:daily --execute --channel-limit=3 --limit=1000',
+                    command: 'ai:daily --execute --channel-limit=12 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -2374,7 +2374,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: '頻道 AI 摘要',
-                    command: 'ai:daily --execute --channel-limit=3 --limit=1000',
+                    command: 'ai:daily --execute --channel-limit=12 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -2431,7 +2431,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: '頻道 AI 摘要',
-                    command: 'ai:daily --execute --channel-limit=3 --limit=1000',
+                    command: 'ai:daily --execute --channel-limit=12 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -2487,7 +2487,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: '頻道 AI 摘要',
-                    command: 'ai:daily --execute --channel-limit=3 --limit=1000',
+                    command: 'ai:daily --execute --channel-limit=12 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -3059,7 +3059,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: 'AI daily summary',
-                    command: 'ai:daily --execute --channel-limit=3 --limit=1000',
+                    command: 'ai:daily --execute --channel-limit=12 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -3113,7 +3113,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: 'AI daily/event inputs',
-                    command: 'ai:daily --execute --channel-limit=3 --limit=1000',
+                    command: 'ai:daily --execute --channel-limit=12 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -3184,7 +3184,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: '頻道 aspect AI',
-                    command: 'ai:daily --execute --channel-limit=3 --limit=1000',
+                    command: 'ai:daily --execute --channel-limit=12 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -3255,7 +3255,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: 'AI daily source rows',
-                    command: 'ai:daily --execute --channel-limit=3 --limit=1000',
+                    command: 'ai:daily --execute --channel-limit=12 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -3326,7 +3326,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: 'AI daily summary',
-                    command: 'ai:daily --execute --channel-limit=3 --limit=1000',
+                    command: 'ai:daily --execute --channel-limit=12 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -3344,7 +3344,7 @@ class ReportLineageProfiles
                     '優先依 date_from/date_to/condition_type/data_type 讀 urt_ai_date。',
                     'daily cache miss 且指定日期時，讀 urt_channel_ai 組成 fallback daily topics。',
                     '合併 channel_id、urt_channel_ai result_json 與 urt_count tags，計算媒體數、影片數、關鍵字、人物、陣營與角度統計。',
-                    'Blade 呈現日期/condition 切換、議題卡、媒體事件與代表影片。',
+                    'Blade 呈現日期/condition 切換、legacy-style 媒體事件清單、統計框與代表影片。',
                 ],
             ],
             'fixed_sources' => [
@@ -3363,7 +3363,7 @@ class ReportLineageProfiles
                 self::jobNode('ai_daily_job', 'ai:daily generation', 'api', 'ai.daily', '只有 ai:daily job 會呼叫 OpenCode-compatible chat completions；頁面 request 不呼叫 AI API。'),
                 self::combinedSourceNode('ai_daily_tables', 'urt_ai_date + urt_channel_ai', ['urt_ai_date', 'urt_channel_ai', 'urt_count'], '每日 summary cache、per-channel AI rows 與頻道 tag 是頁面主要資料來源。'),
                 self::serviceNode('ai_daily_report', 'AiDailyReport 合併統計', '在 request 時解析 AI JSON，合併媒體事件與 channel rows，計算關鍵字、人物、陣營與代表影片。'),
-                self::pageNode('ai_days_page', 'AI 每日摘要頁', '/ai/days/{date}/{condition}', 'Blade 呈現日期/condition 切換、議題卡、媒體事件、統計 chips 與代表影片。'),
+                self::pageNode('ai_days_page', 'AI 每日摘要頁', '/ai/days/{date}/{condition}', 'Blade 呈現日期/condition 切換、媒體事件清單、統計框與代表影片。'),
             ],
             'edges' => [
                 self::edge('ai_condition_rules', 'ai_daily_job', 'condition prompts', '固定 condition 與 channel allowlist 決定 ai:daily 產生哪些 summary。'),

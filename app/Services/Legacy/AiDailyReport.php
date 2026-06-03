@@ -372,6 +372,7 @@ class AiDailyReport
                 return [
                     'title' => $this->text($topic, ['標題', '議題', 'title', 'topic']),
                     'media_events' => $mediaEvents,
+                    'media_event_rows' => $this->mediaEventRows($mediaEvents, $titleToUId, $stats['event_video_counts']),
                     'media_count' => count($mediaEvents),
                     'video_count' => $stats['video_count'],
                     'keywords' => $this->topCounts($stats['keywords']),
@@ -414,9 +415,33 @@ class AiDailyReport
     /**
      * @param  array<string, list<string>>  $mediaEvents
      * @param  array<string, int>  $titleToUId
+     * @param  array<string, array<string, int>>  $eventVideoCounts
+     * @return list<array{channel: string, u_id: int|null, event: string, video_count: int|null}>
+     */
+    private function mediaEventRows(array $mediaEvents, array $titleToUId, array $eventVideoCounts): array
+    {
+        $rows = [];
+
+        foreach ($mediaEvents as $channelTitle => $events) {
+            foreach ($events as $eventName) {
+                $rows[] = [
+                    'channel' => $channelTitle,
+                    'u_id' => $titleToUId[$channelTitle] ?? null,
+                    'event' => $eventName,
+                    'video_count' => $eventVideoCounts[$channelTitle][$eventName] ?? null,
+                ];
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<string, list<string>>  $mediaEvents
+     * @param  array<string, int>  $titleToUId
      * @param  array<int, list<array<string, mixed>>>  $channelAi
      * @param  array<int, list<int>>  $channelTags
-     * @return array{video_count: int, keywords: array<string, int>, people: array<string, int>, angle: array<string, int>, camp: array<string, int>, party: array<string, int>, videos: list<array<string, mixed>>}
+     * @return array{video_count: int, keywords: array<string, int>, people: array<string, int>, angle: array<string, int>, camp: array<string, int>, party: array<string, int>, videos: list<array<string, mixed>>, event_video_counts: array<string, array<string, int>>}
      */
     private function topicStats(array $mediaEvents, array $titleToUId, array $channelAi, array $channelTags): array
     {
@@ -428,6 +453,7 @@ class AiDailyReport
             'camp' => ['民進黨' => 0, '國民黨' => 0],
             'party' => ['green' => 0, 'blue' => 0],
             'videos' => [],
+            'event_video_counts' => [],
         ];
 
         foreach ($mediaEvents as $channelTitle => $events) {
@@ -447,6 +473,7 @@ class AiDailyReport
                 $videoIds = $this->stringList($match, ['videoId', 'video_id', 'video_ids', 'videos']);
                 $videoCount = count($videoIds);
                 $stats['video_count'] += $videoCount;
+                $stats['event_video_counts'][$channelTitle][$eventName] = $videoCount;
 
                 foreach ($this->stringList($match, ['關鍵字', 'keywords']) as $keyword) {
                     $stats['keywords'][$keyword] = ($stats['keywords'][$keyword] ?? 0) + 1;

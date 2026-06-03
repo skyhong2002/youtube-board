@@ -10,46 +10,41 @@
 
 @push('styles')
 <style>
-:root { color-scheme: light; --bg: #f7f8fa; --surface: #fff; --text: #18202a; --muted: #667085; --line: #d7dde6; --accent: #0f766e; --accent-bg: #e6f4f1; --chip: #f2f4f7; --warn: #b54708; --warn-bg: #fff8e6; }
-            * { box-sizing: border-box; }
-            body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
-            a { color: #0b5cad; text-decoration: none; }
-            a:hover { text-decoration: underline; }
-            main { max-width: 1280px; margin: 0 auto; padding: 24px; }
-            header { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
-            h1 { margin: 0; font-size: 28px; line-height: 1.2; }
-            h2 { margin: 0 0 10px; font-size: 20px; line-height: 1.25; }
-            .nav, .switcher, .filters, .chips, .media-events, .thumbs { display: flex; flex-wrap: wrap; gap: 8px; }
-            .nav { gap: 12px; margin-bottom: 10px; }
-            .switcher { margin-bottom: 14px; }
-            .switcher a, .filters span, .chip { display: inline-flex; align-items: center; min-height: 26px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: #344054; font-size: 12px; }
+            :root { color-scheme: light; --daily-muted: #5f6b7a; --daily-line: #a8afb8; --daily-soft: #f8fafc; --warn: #b54708; --warn-bg: #fff8e6; }
+            .ai-day-shell { max-width: 980px; margin: 0 auto; }
+            .switcher { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+            .switcher a, .filters span { display: inline-flex; align-items: center; min-height: 26px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: #344054; font-size: 12px; }
             .switcher a.active { border-color: #8ccfbe; background: var(--accent-bg); color: var(--accent); font-weight: 700; }
-            .meta { color: var(--muted); max-width: 260px; text-align: right; }
-            .filters { margin: 0 0 16px; }
+            .filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; }
             .filters span { color: var(--muted); }
-            .topic { margin: 0 0 16px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
-            .topic-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: start; }
-            .stats { display: grid; grid-template-columns: repeat(4, minmax(86px, auto)); gap: 8px; }
-            .stat { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: #f9fbfd; text-align: right; }
-            .stat strong { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
-            .stat span { color: var(--muted); font-size: 12px; }
-            .section-title { margin: 14px 0 7px; color: #344054; font-size: 12px; font-weight: 700; }
-            .media-events { display: block; columns: 2 320px; }
-            .media-events li { break-inside: avoid; margin-bottom: 6px; color: var(--muted); }
+            .topic { margin: 0 0 26px; padding: 0 0 6px; }
+            .topic h2 { margin: 0 0 12px; font-size: 23px; line-height: 1.3; }
+            .media-events { margin: 0 0 10px 24px; padding: 0; line-height: 1.6; }
+            .media-events li { margin: 1px 0; color: #273442; break-inside: avoid; }
             .media-events a { font-weight: 700; }
-            .chip { background: var(--chip); border-color: transparent; margin: 0 4px 4px 0; }
-            .chip.hot { background: var(--accent-bg); color: var(--accent); }
-            .thumbs { margin-top: 10px; }
-            .thumb { display: block; width: 168px; aspect-ratio: 16 / 9; object-fit: cover; border: 1px solid var(--line); background: #eef2f6; }
-            .video-link { display: inline-flex; flex-direction: column; gap: 5px; width: 168px; color: #344054; }
-            .video-link span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+            .media-count { color: var(--daily-muted); white-space: nowrap; }
+            .summary-box { margin: 10px 0 0 24px; padding: 8px 12px 12px; border: 1px solid var(--daily-line); background: #fff; }
+            .summary-list { margin: 0 0 10px 18px; padding: 0; line-height: 1.65; }
+            .summary-list li { color: #202a36; }
+            .empty-value { color: var(--daily-muted); }
+            .video-embeds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+            .video-card { min-width: 0; }
+            .video-frame { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: #0f172a; }
+            .video-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+            .video-title { display: block; margin-top: 4px; overflow: hidden; color: #344054; font-size: 12px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
             .empty { padding: 28px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); text-align: center; }
             .notice { margin: 0 0 16px; padding: 10px 12px; border: 1px solid #f7d58b; border-radius: 6px; background: var(--warn-bg); color: var(--warn); }
-            @media (max-width: 980px) { main { padding: 16px; } header, .topic-head { display: block; } .meta, .stats { margin-top: 10px; text-align: left; } .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+            @media (max-width: 780px) {
+                .ai-day-shell { max-width: none; }
+                .topic h2 { font-size: 20px; }
+                .summary-box, .media-events { margin-left: 0; }
+                .video-embeds { grid-template-columns: 1fr; }
+            }
 </style>
 @endpush
 
 @section('content')
+<div class="ai-day-shell">
 @php
                 $query = request()->query();
                 $dateForNav = $date ?: now('Asia/Taipei')->format('Y-m-d');
@@ -60,6 +55,9 @@
                 $dayRoute = fn (string $targetDate, string $targetCondition = null) => $targetCondition
                     ? route('ai.days.condition', ['date' => $targetDate, 'condition' => $targetCondition] + $conditionQuery)
                     : route('ai.days.date', ['date' => $targetDate] + $conditionQuery);
+                $formatCounts = fn (array $counts): string => collect($counts)
+                    ->map(fn (int $count, string $label): string => $label.'('.number_format($count).')')
+                    ->implode(', ');
             @endphp
 
 
@@ -94,49 +92,57 @@
 
             @forelse ($topics as $index => $topic)
                 <article class="topic">
-                    <div class="topic-head">
-                        <div>
-                            <h2>{{ $index + 1 }}. <a href="{{ route('ai.events.show', ['id' => $row['pk'] ?? 0, 'event' => $topic['title']]) }}">{{ $topic['title'] }}</a></h2>
-                            <div class="chips">
-                                @foreach ($topic['keywords'] as $keyword => $count)
-                                    <span class="chip hot">{{ $keyword }}({{ $count }})</span>
-                                @endforeach
-                                @foreach ($topic['people'] as $person => $count)
-                                    <span class="chip">{{ $person }}({{ $count }})</span>
-                                @endforeach
-                            </div>
-                        </div>
-                        <div class="stats">
-                            <div class="stat"><strong>{{ number_format($topic['media_count']) }}</strong><span>媒體數</span></div>
-                            <div class="stat"><strong>{{ number_format($topic['video_count']) }}</strong><span>影片數</span></div>
-                            <div class="stat"><strong>{{ number_format($topic['party']['green']) }} / {{ number_format($topic['party']['blue']) }}</strong><span>泛綠 / 泛藍</span></div>
-                            <div class="stat"><strong>{{ number_format($topic['angle']['台灣']) }} / {{ number_format($topic['angle']['中國']) }}</strong><span>台灣 / 中國角度</span></div>
-                        </div>
-                    </div>
+                    <h2>
+                        {{ $index + 1 }}.
+                        @if (($row['pk'] ?? 0) > 0)
+                            <a href="{{ route('ai.events.show', ['id' => $row['pk'], 'event' => $topic['title']]) }}">{{ $topic['title'] }}</a>
+                        @else
+                            {{ $topic['title'] }}
+                        @endif
+                    </h2>
 
-                    <div class="section-title">媒體事件</div>
                     <ul class="media-events">
-                        @foreach ($topic['media_events'] as $channel => $events)
+                        @foreach (($topic['media_event_rows'] ?? []) as $mediaEvent)
                             <li>
-                                <strong>{{ $channel }}</strong>:
-                                {{ implode('、', $events) }}
+                                @if ($mediaEvent['u_id'])
+                                    <a href="{{ route('channels.show', ['u_id' => $mediaEvent['u_id']]) }}">{{ $mediaEvent['channel'] }}</a>
+                                @else
+                                    <strong>{{ $mediaEvent['channel'] }}</strong>
+                                @endif
+                                =&gt; {{ $mediaEvent['event'] }}
+                                @if (($mediaEvent['video_count'] ?? 0) > 1)
+                                    <span class="media-count">({{ number_format($mediaEvent['video_count']) }} 則)</span>
+                                @endif
                             </li>
                         @endforeach
                     </ul>
 
-                    @if ($topic['videos'] !== [])
-                        <div class="section-title">代表影片</div>
-                        <div class="thumbs">
+                    <div class="summary-box">
+                        <ul class="summary-list">
+                            <li>媒體數：{{ number_format($topic['media_count']) }} 個 / 影片數：{{ number_format($topic['video_count']) }} 則</li>
+                            <li>關鍵字：{!! $topic['keywords'] === [] ? '<span class="empty-value">無</span>' : e($formatCounts($topic['keywords'])) !!}</li>
+                            <li>人物：{!! $topic['people'] === [] ? '<span class="empty-value">無</span>' : e($formatCounts($topic['people'])) !!}</li>
+                            <li>泛綠媒體：{{ number_format($topic['party']['green']) }} 則 / 泛藍媒體：{{ number_format($topic['party']['blue']) }} 則</li>
+                            <li>台灣角度：{{ number_format($topic['angle']['台灣']) }} 則 / 中國角度：{{ number_format($topic['angle']['中國']) }} 則</li>
+                            <li>民進黨觀點：{{ number_format($topic['camp']['民進黨']) }} 則 / 國民黨觀點：{{ number_format($topic['camp']['國民黨']) }} 則</li>
+                        </ul>
+
+                        @if ($topic['videos'] !== [])
+                        <div class="video-embeds" aria-label="代表影片">
                             @foreach ($topic['videos'] as $video)
-                                <a class="video-link" href="https://www.youtube.com/watch?v={{ $video['video_id'] }}" target="_blank" rel="noreferrer">
-                                    <img class="thumb" src="https://i.ytimg.com/vi/{{ $video['video_id'] }}/mqdefault.jpg" alt="{{ $video['event'] }}">
-                                    <span>{{ $video['channel'] }} · {{ $video['event'] }}</span>
-                                </a>
+                                <div class="video-card">
+                                    <div class="video-frame">
+                                        <iframe src="https://www.youtube.com/embed/{{ $video['video_id'] }}" title="{{ $video['channel'] }} - {{ $video['event'] }}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                                    </div>
+                                    <a class="video-title" href="https://www.youtube.com/watch?v={{ $video['video_id'] }}" target="_blank" rel="noreferrer">{{ $video['channel'] }} · {{ $video['event'] }}</a>
+                                </div>
                             @endforeach
                         </div>
-                    @endif
+                        @endif
+                    </div>
                 </article>
             @empty
                 <div class="empty">{{ $available ? '目前沒有符合條件的 AI daily summary。' : '本機尚未匯入 legacy AI daily tables。' }}<br><x-ingestion-portal job="ai.daily" /></div>
             @endforelse
+</div>
 @endsection
