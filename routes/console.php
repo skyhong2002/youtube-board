@@ -1911,7 +1911,7 @@ Artisan::command('reports:schedule:build {--videoId= : Preview one scheduled vid
     }
 })->purpose('Preview or execute legacy schedule stime recalculation updates');
 
-Artisan::command('ai:daily {--date= : Legacy date, defaults to yesterday in Asia/Taipei} {--condition= : Optional single legacy condition; default previews make_ai_day.sh conditions} {--type=oneday : Legacy urt_channel_ai data_type} {--limit=1000 : Max channel AI rows per condition} {--channel-limit=39 : Max configured channels to refresh in execute mode} {--execute : Call OpenCode-compatible chat completions and upsert urt_channel_ai/urt_ai_date} {--dry-run : Force dry-run preview} {--user-token=CLI : user_token value for execute-mode upserts} {--json : Emit JSON instead of text}', function (AiDailyPreview $preview, AiDailyIngestion $ingestion) {
+Artisan::command('ai:daily {--date= : Legacy date, defaults to yesterday in Asia/Taipei} {--condition= : Optional single legacy condition; default previews make_ai_day.sh conditions} {--type=oneday : Legacy urt_channel_ai data_type} {--limit=1000 : Max channel AI rows per condition} {--channel-limit=39 : Max configured channels to refresh in execute mode} {--channel-offset=0 : Eligible configured channels to skip before refresh in execute mode} {--execute : Call OpenCode-compatible chat completions and upsert urt_channel_ai/urt_ai_date} {--dry-run : Force dry-run preview} {--user-token=CLI : user_token value for execute-mode upserts} {--json : Emit JSON instead of text}', function (AiDailyPreview $preview, AiDailyIngestion $ingestion) {
     try {
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
 
@@ -1922,6 +1922,7 @@ Artisan::command('ai:daily {--date= : Legacy date, defaults to yesterday in Asia
                 dataType: (string) $this->option('type'),
                 limit: (int) $this->option('limit'),
                 channelLimit: (int) $this->option('channel-limit'),
+                channelOffset: (int) $this->option('channel-offset'),
                 userToken: (string) $this->option('user-token'),
             );
 
@@ -1932,11 +1933,13 @@ Artisan::command('ai:daily {--date= : Legacy date, defaults to yesterday in Asia
             }
 
             $this->line(sprintf(
-                'ai:daily mode=execute source=%s date=%s type=%s conditions=%d channel_attempted=%d channel_inserted=%d channel_updated=%d channel_skipped=%d daily_attempted=%d daily_inserted=%d daily_updated=%d daily_skipped=%d secrets=not_printed generated_at=%s',
+                'ai:daily mode=execute source=%s date=%s type=%s conditions=%d channel_limit=%d channel_offset=%d channel_attempted=%d channel_inserted=%d channel_updated=%d channel_skipped=%d daily_attempted=%d daily_inserted=%d daily_updated=%d daily_skipped=%d secrets=not_printed generated_at=%s',
                 $payload['source'],
                 $payload['date'],
                 $payload['data_type'],
                 count($payload['conditions']),
+                $payload['channel_ai']['limit'],
+                $payload['channel_ai']['offset'],
                 $payload['channel_ai']['attempted'],
                 $payload['channel_ai']['inserted'],
                 $payload['channel_ai']['updated'],

@@ -93,11 +93,25 @@ class AiReportsTest extends TestCase
             ['u_id' => 15, 'tags' => '[4]'],
             ['u_id' => 20, 'tags' => '[3]'],
         ]);
+        foreach ([15 => 'green', 20 => 'blue'] as $uId => $prefix) {
+            for ($index = 1; $index <= 2; $index++) {
+                DB::table('urt_video')->insert([
+                    'u_id' => $uId,
+                    'videoId' => $prefix.'-raw-'.$index,
+                    'publishedAt' => '2026-05-23 0'.$index.':00:00',
+                    'title' => ucfirst($prefix).' Raw '.$index,
+                ]);
+            }
+        }
 
         $response = $this->get('/ai/days/2026-05-23/all');
 
         $response->assertOk();
         $response->assertSee('2026-05-23 主要事件與各媒體報導');
+        $response->assertSee('Raw 收錄');
+        $response->assertSee('urt_video rows');
+        $response->assertSee('1 / 2 channels · 1 events');
+        $response->assertSee('1 topics');
         $response->assertSee('毒駕與交通安全');
         $response->assertSee('媒體數：2 個 / 影片數：3 則');
         $response->assertSee('毒駕(1)');
@@ -558,7 +572,7 @@ class AiReportsTest extends TestCase
 
     private function createAiDailyTables(): void
     {
-        foreach (['urt_ai_date', 'urt_channel_ai', 'urt_count'] as $table) {
+        foreach (['urt_ai_date', 'urt_channel_ai', 'urt_count', 'urt_video'] as $table) {
             Schema::dropIfExists($table);
         }
 
@@ -585,6 +599,13 @@ class AiReportsTest extends TestCase
         Schema::create('urt_count', function ($table): void {
             $table->integer('u_id');
             $table->string('tags')->nullable();
+        });
+
+        Schema::create('urt_video', function ($table): void {
+            $table->integer('u_id');
+            $table->string('videoId');
+            $table->dateTime('publishedAt');
+            $table->string('title')->nullable();
         });
     }
 

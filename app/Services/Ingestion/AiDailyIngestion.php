@@ -24,6 +24,7 @@ class AiDailyIngestion
         string $dataType = 'oneday',
         int $limit = 1000,
         int $channelLimit = 39,
+        int $channelOffset = 0,
         string $userToken = 'CLI',
     ): array {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
@@ -34,7 +35,7 @@ class AiDailyIngestion
             'from' => $date.' 00:00:00',
             'to' => $date.' 23:59:59',
         ];
-        $channelRows = $this->refreshChannelAi($period, $now, $channelLimit, $userToken);
+        $channelRows = $this->refreshChannelAi($period, $now, $channelLimit, $channelOffset, $userToken);
         $dailyPlan = $this->preview->preview(
             date: $date,
             condition: $condition,
@@ -115,6 +116,8 @@ class AiDailyIngestion
             'data_type' => $dataType,
             'conditions' => $dailyPlan['conditions'],
             'channel_ai' => [
+                'limit' => $channelLimit,
+                'offset' => $channelOffset,
                 'attempted' => $channelRows->count(),
                 'inserted' => $channelRows->where('inserted', true)->count(),
                 'updated' => $channelRows->where('updated', true)->count(),
@@ -141,15 +144,15 @@ class AiDailyIngestion
      * @param  array{from: string, to: string}  $period
      * @return \Illuminate\Support\Collection<int, array<string, mixed>>
      */
-    private function refreshChannelAi(array $period, CarbonImmutable $now, int $channelLimit, string $userToken)
+    private function refreshChannelAi(array $period, CarbonImmutable $now, int $channelLimit, int $channelOffset, string $userToken)
     {
         $dataType = substr($period['from'], 0, 10) === $now->toDateString() ? 'todate' : 'oneday';
         $rows = collect();
 
         $configuredUIds = AiDailyPreview::channelAiUids();
-        $uIds = $channelLimit >= count($configuredUIds)
+        $uIds = $channelOffset <= 0 && $channelLimit >= count($configuredUIds)
             ? $configuredUIds
-            : $this->eligibleChannelUIds($period, $channelLimit);
+            : $this->eligibleChannelUIds($period, $channelLimit, $channelOffset);
 
         foreach ($uIds as $uId) {
             $videos = DB::table('urt_video')
@@ -239,9 +242,10 @@ class AiDailyIngestion
      * @param  array{from: string, to: string}  $period
      * @return list<int>
      */
-    private function eligibleChannelUIds(array $period, int $channelLimit): array
+    private function eligibleChannelUIds(array $period, int $channelLimit, int $channelOffset = 0): array
     {
         $limit = max(0, min(count(AiDailyPreview::channelAiUids()), $channelLimit));
+        $offset = max(0, min(count(AiDailyPreview::channelAiUids()), $channelOffset));
 
         if ($limit === 0) {
             return [];
@@ -259,6 +263,7 @@ class AiDailyIngestion
 
         return collect(AiDailyPreview::channelAiUids())
             ->filter(fn (int $uId): bool => ($videoCounts[$uId] ?? 0) >= 10)
+            ->slice($offset)
             ->take($limit)
             ->values()
             ->all();

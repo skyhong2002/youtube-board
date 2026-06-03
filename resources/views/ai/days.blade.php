@@ -17,6 +17,11 @@
             .switcher a.active { border-color: #8ccfbe; background: var(--accent-bg); color: var(--accent); font-weight: 700; }
             .filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; }
             .filters span { color: var(--muted); }
+            .coverage { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0 0 20px; }
+            .coverage-item { min-width: 0; padding: 9px 10px; border: 1px solid var(--line); background: var(--surface); }
+            .coverage-label { color: var(--muted); font-size: 12px; }
+            .coverage-value { margin-top: 2px; color: #202a36; font-size: 18px; font-weight: 700; line-height: 1.2; }
+            .coverage-detail { margin-top: 3px; color: var(--muted); font-size: 12px; line-height: 1.35; }
             .topic { margin: 0 0 26px; padding: 0 0 6px; }
             .topic h2 { margin: 0 0 12px; font-size: 23px; line-height: 1.3; }
             .media-events { margin: 0 0 10px 24px; padding: 0; line-height: 1.6; }
@@ -37,6 +42,7 @@
             @media (max-width: 780px) {
                 .ai-day-shell { max-width: none; }
                 .topic h2 { font-size: 20px; }
+                .coverage { grid-template-columns: 1fr; }
                 .summary-box, .media-events { margin-left: 0; }
                 .video-embeds { grid-template-columns: 1fr; }
             }
@@ -85,6 +91,24 @@
                     <span>type={{ $row['data_type'] }}</span>
                 @endif
             </div>
+
+            <section class="coverage" aria-label="AI coverage">
+                <div class="coverage-item">
+                    <div class="coverage-label">Raw 收錄</div>
+                    <div class="coverage-value">{{ $coverage['raw_video_rows'] === null ? 'n/a' : number_format($coverage['raw_video_rows']) }}</div>
+                    <div class="coverage-detail">urt_video rows</div>
+                </div>
+                <div class="coverage-item">
+                    <div class="coverage-label">AI source</div>
+                    <div class="coverage-value">{{ number_format($coverage['ai_source_video_refs']) }}</div>
+                    <div class="coverage-detail">{{ number_format($coverage['ai_source_channels_with_events']) }} / {{ number_format($coverage['ai_source_channels']) }} channels · {{ number_format($coverage['ai_source_event_rows']) }} events</div>
+                </div>
+                <div class="coverage-item">
+                    <div class="coverage-label">Daily summary</div>
+                    <div class="coverage-value">{{ number_format($coverage['summary_video_refs']) }}</div>
+                    <div class="coverage-detail">{{ number_format($coverage['summary_topics']) }} topics</div>
+                </div>
+            </section>
 
             @if (! $available)
                 <p class="notice">本機尚未匯入 legacy AI daily tables。<br><x-ingestion-portal job="ai.daily" /></p>

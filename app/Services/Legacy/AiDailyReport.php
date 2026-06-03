@@ -19,6 +19,7 @@ class AiDailyReport
      *     title: string,
      *     topics: list<array<string, mixed>>,
      *     channels_count: int,
+     *     coverage: array<string, int|null>,
      *     generated_at: string
      * }
      */
@@ -70,6 +71,7 @@ class AiDailyReport
                 'title' => $this->title($date, $resolvedCondition),
                 'topics' => $topics,
                 'channels_count' => count($channelMap),
+                'coverage' => $this->coverage($dateFrom, $dateTo, $resolvedCondition, $channelAi, $topics),
                 'generated_at' => now('Asia/Taipei')->format('Y-m-d H:i:s'),
             ];
         } catch (QueryException) {
@@ -119,7 +121,7 @@ class AiDailyReport
      * Build a real-time YouTube dashboard daily page from existing per-channel AI rows when
      * legacy `urt_ai_date` has not been generated for that date/condition.
      *
-     * @return array{available: bool, row: array<string, mixed>|null, date: string|null, condition: string, title: string, topics: list<array<string, mixed>>, channels_count: int, generated_at: string}|null
+     * @return array{available: bool, row: array<string, mixed>|null, date: string|null, condition: string, title: string, topics: list<array<string, mixed>>, channels_count: int, coverage: array<string, int|null>, generated_at: string}|null
      */
     private function channelAiFallback(Request $request, string $condition, ?string $date = null): ?array
     {
@@ -147,6 +149,7 @@ class AiDailyReport
         $syntheticRow = (object) [
             'result_json' => json_encode($this->dailyTopicsFromChannelRows($channelMap, $channelAi), JSON_UNESCAPED_UNICODE),
         ];
+        $topics = $this->topics($syntheticRow, $channelMap, $channelAi, $channelTags);
 
         return [
             'available' => true,
@@ -154,8 +157,9 @@ class AiDailyReport
             'date' => $date,
             'condition' => $condition,
             'title' => $this->title($date, $condition),
-            'topics' => $this->topics($syntheticRow, $channelMap, $channelAi, $channelTags),
+            'topics' => $topics,
             'channels_count' => count($channelMap),
+            'coverage' => $this->coverage($dateFrom, $dateTo, $condition, $channelAi, $topics),
             'generated_at' => now('Asia/Taipei')->format('Y-m-d H:i:s'),
         ];
     }
@@ -285,6 +289,116 @@ class AiDailyReport
         return preg_match('#(?:^|/)ai/days/(?P<date>\d{4}-\d{2}-\d{2})(?:/|$|\?)#', $source, $matches)
             ? $matches['date']
             : null;
+    }
+
+    /**
+     * @param  array<int, list<array<string, mixed>>>  $channelAi
+     * @param  list<array<string, mixed>>  $topics
+     * @return array<string, int|null>
+     */
+    private function coverage(string $dateFrom, string $dateTo, string $condition, array $channelAi, array $topics): array
+    {
+        $source = $this->sourceStats($channelAi, $condition);
+
+        return $source + [
+            'raw_video_rows' => $this->rawVideoRows($dateFrom, $dateTo, $condition),
+            'summary_topics' => count($topics),
+            'summary_video_refs' => collect($topics)->sum(fn (array $topic): int => (int) ($topic['video_count'] ?? 0)),
+        ];
+    }
+
+    /**
+     * @param  array<int, list<array<string, mixed>>>  $channelAi
+     * @return array<string, int>
+     */
+    private function sourceStats(array $channelAi, string $condition): array
+    {
+        $stats = [
+            'ai_source_channels' => count($channelAi),
+            'ai_source_channels_with_events' => 0,
+            'ai_source_channels_without_events' => 0,
+            'ai_source_event_rows' => 0,
+            'ai_source_video_refs' => 0,
+        ];
+
+        foreach ($channelAi as $events) {
+            $channelEvents = 0;
+            $channelVideos = 0;
+
+            foreach ($events as $event) {
+                if (! is_array($event)) {
+                    continue;
+                }
+
+                $videoIds = $this->stringList($event, ['videoId', 'video_id', 'video_ids', 'videos']);
+
+                if ($condition === 'all' && count($videoIds) <= 1) {
+                    continue;
+                }
+
+                if ($this->text($event, ['事件', '議題', '標題', 'event', 'topic', 'title']) === '') {
+                    continue;
+                }
+
+                $channelEvents++;
+                $channelVideos += count($videoIds);
+            }
+
+            if ($channelEvents > 0) {
+                $stats['ai_source_channels_with_events']++;
+            } else {
+                $stats['ai_source_channels_without_events']++;
+            }
+
+            $stats['ai_source_event_rows'] += $channelEvents;
+            $stats['ai_source_video_refs'] += $channelVideos;
+        }
+
+        return $stats;
+    }
+
+    private function rawVideoRows(string $dateFrom, string $dateTo, string $condition): ?int
+    {
+        if (! $this->hasTable('urt_video') || ! $this->hasColumn('urt_video', 'publishedAt')) {
+            return null;
+        }
+
+        $query = DB::table('urt_video')
+            ->where('publishedAt', '>=', $dateFrom)
+            ->where('publishedAt', '<=', $dateTo);
+        $uIds = $this->conditionUIds($condition);
+
+        if ($uIds !== null) {
+            if ($uIds === []) {
+                return 0;
+            }
+
+            $query->whereIn('u_id', $uIds);
+        }
+
+        return $query->count();
+    }
+
+    /**
+     * @return list<int>|null Null means no condition filter.
+     */
+    private function conditionUIds(string $condition): ?array
+    {
+        if ($condition === 'all') {
+            return null;
+        }
+
+        if (! $this->hasTable('urt_count')) {
+            return [];
+        }
+
+        return DB::table('urt_count')
+            ->get(['u_id', 'tags'])
+            ->filter(fn (object $row): bool => $this->channelMatchesCondition($this->tagIds((string) ($row->tags ?? '')), $condition))
+            ->pluck('u_id')
+            ->map(fn (mixed $uId): int => (int) $uId)
+            ->values()
+            ->all();
     }
 
     private function condition(mixed $value): string
@@ -656,7 +770,7 @@ class AiDailyReport
     }
 
     /**
-     * @return array{available: bool, row: array<string, mixed>|null, date: string|null, condition: string, title: string, topics: list<array<string, mixed>>, channels_count: int, generated_at: string}
+     * @return array{available: bool, row: array<string, mixed>|null, date: string|null, condition: string, title: string, topics: list<array<string, mixed>>, channels_count: int, coverage: array<string, int|null>, generated_at: string}
      */
     private function empty(bool $available, ?string $date, string $condition): array
     {
@@ -668,6 +782,16 @@ class AiDailyReport
             'title' => $date ? $this->title($date, $condition) : '主要事件與各媒體報導',
             'topics' => [],
             'channels_count' => 0,
+            'coverage' => [
+                'raw_video_rows' => null,
+                'ai_source_channels' => 0,
+                'ai_source_channels_with_events' => 0,
+                'ai_source_channels_without_events' => 0,
+                'ai_source_event_rows' => 0,
+                'ai_source_video_refs' => 0,
+                'summary_topics' => 0,
+                'summary_video_refs' => 0,
+            ],
             'generated_at' => now('Asia/Taipei')->format('Y-m-d H:i:s'),
         ];
     }
