@@ -403,6 +403,8 @@ class AiDailyReport
             '最新',
             '民進黨',
             '國民黨',
+            '川普',
+            '專家',
         ], true);
     }
 
@@ -414,7 +416,6 @@ class AiDailyReport
         return collect([
             ...$this->stringList($event, ['關鍵字', 'keywords']),
             ...$this->stringList($event, ['人物', 'people']),
-            ...$this->stringList($event, ['地名', 'places']),
             ...$this->titleSignals($eventName),
         ])
             ->map(fn (string $signal): string => $this->normalizedSignal($signal))
