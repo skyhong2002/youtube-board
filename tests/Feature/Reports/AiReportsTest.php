@@ -185,6 +185,7 @@ class AiReportsTest extends TestCase
         DB::table('urt_channel')->insert([
             ['u_id' => 15, 'title' => '頭條開講'],
             ['u_id' => 20, 'title' => '政論頻道'],
+            ['u_id' => 30, 'title' => '社會頻道'],
         ]);
 
         DB::table('urt_ai_date')->insert([
@@ -197,6 +198,7 @@ class AiReportsTest extends TestCase
             'channel_id' => json_encode([
                 15 => '頭條開講',
                 20 => '政論頻道',
+                30 => '社會頻道',
             ], JSON_UNESCAPED_UNICODE),
             'result_json' => json_encode(collect(range(1, 11))
                 ->map(fn (int $index): array => [
@@ -243,11 +245,29 @@ class AiReportsTest extends TestCase
                     ],
                 ], JSON_UNESCAPED_UNICODE),
             ],
+            [
+                'pk' => 1192,
+                'u_id' => 30,
+                'date_from' => '2026-05-24 00:00:00',
+                'date_to' => '2026-05-24 23:59:59',
+                'del_flag' => null,
+                'result_json' => json_encode([
+                    [
+                        '事件' => 'T-34墜機',
+                        '角度' => '台灣',
+                        '陣營' => '民進黨',
+                        '關鍵字' => ['T-34', '墜機'],
+                        '人物' => [],
+                        'videoId' => ['regroup-e', 'regroup-f'],
+                    ],
+                ], JSON_UNESCAPED_UNICODE),
+            ],
         ]);
 
         DB::table('urt_count')->insert([
             ['u_id' => 15, 'tags' => '[4]'],
             ['u_id' => 20, 'tags' => '[3]'],
+            ['u_id' => 30, 'tags' => '[4]'],
         ]);
 
         $response = $this->get('/ai/days/2026-05-24/all');
@@ -256,7 +276,10 @@ class AiReportsTest extends TestCase
         $response->assertSee('毒駕事故後續');
         $response->assertSee('交通安全與毒駕檢討');
         $response->assertSee('媒體數：2 個 / 影片數：4 則');
+        $response->assertSee('T-34墜機');
+        $response->assertSee('媒體數：1 個 / 影片數：2 則');
         $response->assertSee('regroup-a');
+        $response->assertSee('regroup-e');
         $response->assertDontSee('碎片議題1');
         $response->assertDontSee('碎片事件1');
     }

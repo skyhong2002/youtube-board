@@ -229,14 +229,10 @@ class AiDailyReport
 
                 $videoIds = $this->stringList($event, ['videoId', 'video_id', 'video_ids', 'videos']);
 
-                if (count($videoIds) <= 1) {
-                    continue;
-                }
-
                 $entries[] = [
                     'title' => $title,
                     'event' => $eventName,
-                    'video_count' => count($videoIds),
+                    'video_count' => max(1, count($videoIds)),
                     'category' => $this->category($event),
                     'signals' => $this->eventSignals($event, $eventName),
                 ];
@@ -254,7 +250,7 @@ class AiDailyReport
         }
 
         return collect($clusters)
-            ->filter(fn (array $cluster): bool => count($cluster['media_events']) >= 2)
+            ->filter(fn (array $cluster): bool => count($cluster['media_events']) >= 2 || $cluster['video_count'] >= 2)
             ->sortByDesc(fn (array $cluster): int => $cluster['video_count'] + count($cluster['media_events']) * 3)
             ->take(10)
             ->map(fn (array $cluster): array => [
@@ -349,7 +345,6 @@ class AiDailyReport
         }
 
         return collect($clusters)
-            ->filter(fn (array $cluster): bool => count($cluster['media_events']) >= 2)
             ->values()
             ->all();
     }

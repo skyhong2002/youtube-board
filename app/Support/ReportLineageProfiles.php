@@ -3342,7 +3342,7 @@ class ReportLineageProfiles
                 'transforms' => [
                     '從 route/query 解析 date、condition、pk 與 type。',
                     '優先依 date_from/date_to/condition_type/data_type 讀 urt_ai_date。',
-                    'daily cache miss 或 summary 過度碎片化時，讀 urt_channel_ai 組成跨媒體 fallback daily topics。',
+                    'daily cache miss 或 summary 過度碎片化時，讀 urt_channel_ai 組成跨媒體或多影片 fallback daily topics。',
                     '合併 channel_id、urt_channel_ai result_json 與 urt_count tags，計算媒體數、影片數、關鍵字、人物、陣營與角度統計。',
                     'Blade 呈現日期/condition 切換、legacy-style 媒體事件清單、統計框與代表影片。',
                 ],
