@@ -18,7 +18,7 @@ class AiDailyPromptRouteTest extends TestCase
         $response->assertOk();
         $response->assertSee('2026-05-23 all AI daily prompt preview');
         $response->assertSee('媒體 3');
-        $response->assertSee('事件數 15 - 20');
+        $response->assertSee('事件數 8 - 10');
         $response->assertSee('Green Channel');
         $response->assertSee('Blue Channel');
         $response->assertSee('Finance Channel');
@@ -54,7 +54,7 @@ class AiDailyPromptRouteTest extends TestCase
         $response->assertOk();
         $response->assertSee('condition=green');
         $response->assertSee('tagid=4');
-        $response->assertSee('事件數 8 - 12');
+        $response->assertSee('事件數 5 - 8');
         $response->assertSee('Green Channel');
         $response->assertSee('毒駕事件');
         $response->assertSee('單一事件');

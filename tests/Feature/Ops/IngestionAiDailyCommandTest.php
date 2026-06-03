@@ -63,7 +63,7 @@ class IngestionAiDailyCommandTest extends TestCase
         $this->assertSame(1, $row['media_rows']);
         $this->assertSame(2, $row['prompt_event_rows']);
         $this->assertSame(3, $row['prompt_video_refs']);
-        $this->assertSame(['min' => 8, 'max' => 12], $row['prompt_bounds']);
+        $this->assertSame(['min' => 5, 'max' => 8], $row['prompt_bounds']);
         $this->assertSame(1, $row['existing_ai_date_rows']);
         $this->assertSame(1, DB::table('urt_ai_date')->count());
     }
@@ -101,7 +101,7 @@ class IngestionAiDailyCommandTest extends TestCase
         $this->assertSame(3, $all['media_rows']);
         $this->assertSame(3, $all['prompt_event_rows']);
         $this->assertSame(6, $all['prompt_video_refs']);
-        $this->assertSame(['min' => 15, 'max' => 20], $all['prompt_bounds']);
+        $this->assertSame(['min' => 8, 'max' => 10], $all['prompt_bounds']);
 
         $refresh = $payload['channel_ai_refresh'];
         $this->assertSame(39, $refresh['configured_channels']);

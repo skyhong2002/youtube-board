@@ -49,6 +49,14 @@ class AiDailyReport
             $topics = $this->topics($row, $channelMap, $channelAi, $channelTags);
             $resolvedCondition = (string) ($row->condition_type ?: $condition);
 
+            if ($this->shouldRegroupDailyTopics($topics, $resolvedCondition)) {
+                $regroupedTopics = $this->topicsFromChannelRows($channelMap, $channelAi, $channelTags);
+
+                if ($regroupedTopics !== []) {
+                    $topics = $regroupedTopics;
+                }
+            }
+
             if ($topics === []) {
                 $fallback = $this->channelAiFallback($request, $resolvedCondition, $date);
 
@@ -205,7 +213,7 @@ class AiDailyReport
      */
     private function dailyTopicsFromChannelRows(array $channelMap, array $channelAi): array
     {
-        $events = [];
+        $entries = [];
 
         foreach ($channelMap as $uId => $title) {
             foreach ($channelAi[$uId] ?? [] as $event) {
@@ -219,17 +227,240 @@ class AiDailyReport
                     continue;
                 }
 
-                $events[$eventName][$title][] = $eventName;
+                $videoIds = $this->stringList($event, ['videoId', 'video_id', 'video_ids', 'videos']);
+
+                if (count($videoIds) <= 1) {
+                    continue;
+                }
+
+                $entries[] = [
+                    'title' => $title,
+                    'event' => $eventName,
+                    'video_count' => count($videoIds),
+                    'category' => $this->category($event),
+                    'signals' => $this->eventSignals($event, $eventName),
+                ];
             }
         }
 
-        return collect($events)
-            ->map(fn (array $mediaEvents, string $eventName): array => [
-                '標題' => $eventName,
-                '媒體事件' => $mediaEvents,
+        if ($entries === []) {
+            return [];
+        }
+
+        $clusters = $this->eventClusters($entries);
+
+        if ($clusters === []) {
+            $clusters = $this->categoryClusters($entries);
+        }
+
+        return collect($clusters)
+            ->filter(fn (array $cluster): bool => count($cluster['media_events']) >= 2)
+            ->sortByDesc(fn (array $cluster): int => $cluster['video_count'] + count($cluster['media_events']) * 3)
+            ->take(10)
+            ->map(fn (array $cluster): array => [
+                '標題' => $cluster['title'],
+                '媒體事件' => $cluster['media_events'],
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $topics
+     */
+    private function shouldRegroupDailyTopics(array $topics, string $condition): bool
+    {
+        $maxTopics = $condition === 'all' ? 10 : 8;
+
+        if (count($topics) > $maxTopics) {
+            return true;
+        }
+
+        if (count($topics) < 6) {
+            return false;
+        }
+
+        $singleMediaTopics = collect($topics)
+            ->filter(fn (array $topic): bool => (int) ($topic['media_count'] ?? 0) <= 1)
+            ->count();
+
+        return $singleMediaTopics > (int) floor(count($topics) / 2);
+    }
+
+    /**
+     * @param array<int, string> $channelMap
+     * @param array<int, list<array<string, mixed>>> $channelAi
+     * @param array<int, list<int>> $channelTags
+     * @return list<array<string, mixed>>
+     */
+    private function topicsFromChannelRows(array $channelMap, array $channelAi, array $channelTags): array
+    {
+        $summaryTopics = $this->dailyTopicsFromChannelRows($channelMap, $channelAi);
+
+        if ($summaryTopics === []) {
+            return [];
+        }
+
+        $syntheticRow = (object) [
+            'result_json' => json_encode($summaryTopics, JSON_UNESCAPED_UNICODE),
+        ];
+
+        return $this->topics($syntheticRow, $channelMap, $channelAi, $channelTags);
+    }
+
+    /**
+     * @param  list<array{title: string, event: string, video_count: int, category: string, signals: list<string>}>  $entries
+     * @return list<array{title: string, media_events: array<string, list<string>>, video_count: int, signals: list<string>}>
+     */
+    private function eventClusters(array $entries): array
+    {
+        $clusters = [];
+
+        foreach (collect($entries)->sortByDesc('video_count')->values() as $entry) {
+            $bestIndex = null;
+            $bestOverlap = 0;
+
+            foreach ($clusters as $index => $cluster) {
+                $overlap = $this->strongSignalOverlap($entry['signals'], $cluster['signals']);
+
+                if ($overlap > $bestOverlap) {
+                    $bestIndex = $index;
+                    $bestOverlap = $overlap;
+                }
+            }
+
+            if ($bestIndex === null || $bestOverlap <= 0) {
+                $clusters[] = [
+                    'title' => $entry['event'],
+                    'media_events' => [$entry['title'] => [$entry['event']]],
+                    'video_count' => $entry['video_count'],
+                    'signals' => $entry['signals'],
+                ];
+
+                continue;
+            }
+
+            $clusters[$bestIndex]['media_events'][$entry['title']][] = $entry['event'];
+            $clusters[$bestIndex]['video_count'] += $entry['video_count'];
+            $clusters[$bestIndex]['signals'] = array_values(array_unique(array_merge(
+                $clusters[$bestIndex]['signals'],
+                $entry['signals'],
+            )));
+        }
+
+        return collect($clusters)
+            ->filter(fn (array $cluster): bool => count($cluster['media_events']) >= 2)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  list<array{title: string, event: string, video_count: int, category: string, signals: list<string>}>  $entries
+     * @return list<array{title: string, media_events: array<string, list<string>>, video_count: int}>
+     */
+    private function categoryClusters(array $entries): array
+    {
+        $clusters = [];
+
+        foreach ($entries as $entry) {
+            if ($entry['category'] === '') {
+                continue;
+            }
+
+            $category = $entry['category'];
+            $clusters[$category] ??= [
+                'title' => $category.'焦點',
+                'media_events' => [],
+                'video_count' => 0,
+            ];
+            $clusters[$category]['media_events'][$entry['title']][] = $entry['event'];
+            $clusters[$category]['video_count'] += $entry['video_count'];
+        }
+
+        return array_values($clusters);
+    }
+
+    /**
+     * @param  list<string>  $left
+     * @param  list<string>  $right
+     */
+    private function strongSignalOverlap(array $left, array $right): int
+    {
+        return collect(array_intersect($left, $right))
+            ->reject(fn (string $signal): bool => $this->isWeakSignal($signal))
+            ->count();
+    }
+
+    private function isWeakSignal(string $signal): bool
+    {
+        return in_array($signal, [
+            'ai',
+            '台灣',
+            '中國',
+            '美國',
+            '日本',
+            '國際',
+            '政治',
+            '財經',
+            '社會',
+            '新聞',
+            '直播',
+            '最新',
+            '民進黨',
+            '國民黨',
+        ], true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function eventSignals(array $event, string $eventName): array
+    {
+        return collect([
+            ...$this->stringList($event, ['關鍵字', 'keywords']),
+            ...$this->stringList($event, ['人物', 'people']),
+            ...$this->stringList($event, ['地名', 'places']),
+            ...$this->titleSignals($eventName),
+        ])
+            ->map(fn (string $signal): string => $this->normalizedSignal($signal))
+            ->filter(fn (string $signal): bool => mb_strlen($signal, 'UTF-8') >= 2)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function titleSignals(string $eventName): array
+    {
+        preg_match_all('/[A-Za-z0-9][A-Za-z0-9-]{1,}/u', $eventName, $matches);
+
+        return collect([
+            $eventName,
+            ...($matches[0] ?? []),
+        ])
+            ->filter(fn (string $signal): bool => trim($signal) !== '')
+            ->values()
+            ->all();
+    }
+
+    private function normalizedSignal(string $value): string
+    {
+        $value = preg_replace('/[\s　[:punct:]]+/u', '', $value) ?? $value;
+
+        return mb_strtolower(trim(str_replace(['事件', '事故', '新聞', '後續', '焦點', '最新'], '', $value)), 'UTF-8');
+    }
+
+    private function category(array $event): string
+    {
+        $category = $this->text($event, ['分類', '類型', 'category', 'type']);
+
+        if ($category !== '') {
+            return $category;
+        }
+
+        return $this->stringList($event, ['分類', '類型', 'category', 'type'])[0] ?? '';
     }
 
     /**
