@@ -2033,7 +2033,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: '頻道 AI 摘要',
-                    command: 'ai:daily --execute --channel-limit=12 --limit=1000',
+                    command: 'ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -2374,7 +2374,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: '頻道 AI 摘要',
-                    command: 'ai:daily --execute --channel-limit=12 --limit=1000',
+                    command: 'ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -2431,7 +2431,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: '頻道 AI 摘要',
-                    command: 'ai:daily --execute --channel-limit=12 --limit=1000',
+                    command: 'ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -2487,7 +2487,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: '頻道 AI 摘要',
-                    command: 'ai:daily --execute --channel-limit=12 --limit=1000',
+                    command: 'ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -3059,7 +3059,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: 'AI daily summary',
-                    command: 'ai:daily --execute --channel-limit=12 --limit=1000',
+                    command: 'ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -3113,7 +3113,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: 'AI daily/event inputs',
-                    command: 'ai:daily --execute --channel-limit=12 --limit=1000',
+                    command: 'ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -3184,7 +3184,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: '頻道 aspect AI',
-                    command: 'ai:daily --execute --channel-limit=12 --limit=1000',
+                    command: 'ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -3255,7 +3255,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: 'AI daily source rows',
-                    command: 'ai:daily --execute --channel-limit=12 --limit=1000',
+                    command: 'ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -3326,7 +3326,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: 'AI daily summary',
-                    command: 'ai:daily --execute --channel-limit=12 --limit=1000',
+                    command: 'ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -3375,9 +3375,9 @@ class ReportLineageProfiles
     }
 
     /**
-     * @param list<string> $apiCalls
-     * @param list<string> $reads
-     * @param list<string> $writes
+     * @param  list<string>  $apiCalls
+     * @param  list<string>  $reads
+     * @param  list<string>  $writes
      * @return array<string, mixed>
      */
     private static function job(string $key, string $label, string $command, array $apiCalls, array $reads, array $writes, string $summary, string $scheduler): array
@@ -3395,8 +3395,8 @@ class ReportLineageProfiles
     }
 
     /**
-     * @param list<string> $columns
-     * @param array<string, mixed> $where
+     * @param  list<string>  $columns
+     * @param  array<string, mixed>  $where
      * @return array<string, mixed>
      */
     private static function source(string $label, string $table, array $columns, array $where = []): array
@@ -3422,7 +3422,7 @@ class ReportLineageProfiles
     }
 
     /**
-     * @param array<string, mixed> $options
+     * @param  array<string, mixed>  $options
      * @return array<string, mixed>
      */
     private static function node(string $id, string $label, string $kind, array $status, string $description, array $options = []): array
@@ -3437,7 +3437,7 @@ class ReportLineageProfiles
     }
 
     /**
-     * @param array<string, mixed> $options
+     * @param  array<string, mixed>  $options
      * @return array<string, mixed>
      */
     private static function jobNode(string $id, string $label, string $kind, string $jobKey, string $description, array $options = []): array
@@ -3451,7 +3451,7 @@ class ReportLineageProfiles
     }
 
     /**
-     * @param array<string, mixed> $options
+     * @param  array<string, mixed>  $options
      * @return array<string, mixed>
      */
     private static function sourceNode(string $id, string $label, string $kind, string $sourceLabel, string $description, array $options = []): array
@@ -3465,8 +3465,8 @@ class ReportLineageProfiles
     }
 
     /**
-     * @param list<string> $sourceLabels
-     * @param array<string, mixed> $options
+     * @param  list<string>  $sourceLabels
+     * @param  array<string, mixed>  $options
      * @return array<string, mixed>
      */
     private static function combinedSourceNode(string $id, string $label, array $sourceLabels, string $description, array $options = []): array
@@ -3480,7 +3480,7 @@ class ReportLineageProfiles
     }
 
     /**
-     * @param array<string, mixed> $options
+     * @param  array<string, mixed>  $options
      * @return array<string, mixed>
      */
     private static function fixedNode(string $id, string $label, string $description, array $options = []): array
@@ -3491,7 +3491,7 @@ class ReportLineageProfiles
     }
 
     /**
-     * @param array<string, mixed> $options
+     * @param  array<string, mixed>  $options
      * @return array<string, mixed>
      */
     private static function serviceNode(string $id, string $label, string $description, array $options = []): array
@@ -3502,7 +3502,7 @@ class ReportLineageProfiles
     }
 
     /**
-     * @param array<string, mixed> $options
+     * @param  array<string, mixed>  $options
      * @return array<string, mixed>
      */
     private static function pageNode(string $id, string $label, string $route, string $description, array $options = []): array

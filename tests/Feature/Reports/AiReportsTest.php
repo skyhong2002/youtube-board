@@ -18,7 +18,7 @@ class AiReportsTest extends TestCase
         $response->assertSee('data-lineage-graph', false);
         $response->assertSee('urt_ai_date');
         $response->assertSee('urt_channel_ai');
-        $response->assertSee('ai:daily --execute --channel-limit=12 --limit=1000');
+        $response->assertSee('ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000');
         $response->assertSee('OpenCode-compatible chat completions');
         $response->assertSee('AI condition rules');
         $response->assertSee('AiDailyReport');

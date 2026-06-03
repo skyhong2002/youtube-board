@@ -4,6 +4,7 @@ namespace App\Services\Ingestion;
 
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -12,8 +13,7 @@ class AiDailyIngestion
     public function __construct(
         private readonly AiDailyPreview $preview,
         private readonly OpenCodeChatClient $client,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array<string, mixed>
@@ -25,17 +25,36 @@ class AiDailyIngestion
         int $limit = 1000,
         int $channelLimit = 39,
         int $channelOffset = 0,
+        int $channelBatchSize = 0,
+        int $aiCallLimit = 45,
+        int $channelVideoLimit = 120,
         string $userToken = 'CLI',
     ): array {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
         $now = CarbonImmutable::now($timezone);
         $date = $this->date($date, $now);
         $dataType = $this->dataType($dataType);
+        $channelLimit = max(0, $channelLimit);
+        $channelOffset = max(0, $channelOffset);
+        $channelBatchSize = max(0, $channelBatchSize);
+        $aiCallLimit = max(0, $aiCallLimit);
+        $channelVideoLimit = max(0, $channelVideoLimit);
         $period = [
             'from' => $date.' 00:00:00',
             'to' => $date.' 23:59:59',
         ];
-        $channelRows = $this->refreshChannelAi($period, $now, $channelLimit, $channelOffset, $userToken);
+        $aiCallsUsed = 0;
+        $channelRows = $this->refreshChannelAi(
+            period: $period,
+            now: $now,
+            channelLimit: $channelLimit,
+            channelOffset: $channelOffset,
+            channelBatchSize: $channelBatchSize,
+            channelVideoLimit: $channelVideoLimit,
+            userToken: $userToken,
+            aiCallsUsed: $aiCallsUsed,
+            aiCallLimit: $aiCallLimit,
+        );
         $dailyPlan = $this->preview->preview(
             date: $date,
             condition: $condition,
@@ -51,13 +70,22 @@ class AiDailyIngestion
 
             if ((int) $row['prompt_event_rows'] <= 0 || trim($prompt) === '') {
                 $dailyRows[] = $this->skippedDailyRow($row, 'no_source_events');
+
+                continue;
+            }
+
+            if ($aiCallsUsed >= $aiCallLimit) {
+                $dailyRows[] = $this->skippedDailyRow($row, 'ai_call_guard_exhausted', $prompt);
+
                 continue;
             }
 
             try {
+                $aiCallsUsed++;
                 $completion = $this->client->complete($prompt);
             } catch (Throwable $exception) {
-                $dailyRows[] = $this->skippedDailyRow($row, $this->sanitizedFailure($exception));
+                $dailyRows[] = $this->skippedDailyRow($row, $this->sanitizedFailure($exception), $prompt, true);
+
                 continue;
             }
 
@@ -100,6 +128,7 @@ class AiDailyIngestion
                 'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
                 'model' => $completion['model'],
                 'usage' => $completion['usage'],
+                'ai_call_attempted' => true,
                 'inserted' => $existingPk === null,
                 'updated' => $existingPk !== null,
                 'skipped' => false,
@@ -118,6 +147,9 @@ class AiDailyIngestion
             'channel_ai' => [
                 'limit' => $channelLimit,
                 'offset' => $channelOffset,
+                'batch_size' => $channelBatchSize,
+                'batches' => (int) ($channelRows->max('batch') ?? 0),
+                'video_limit' => $channelVideoLimit,
                 'attempted' => $channelRows->count(),
                 'inserted' => $channelRows->where('inserted', true)->count(),
                 'updated' => $channelRows->where('updated', true)->count(),
@@ -135,6 +167,11 @@ class AiDailyIngestion
                 'urt_channel_ai',
                 'urt_ai_date',
             ],
+            'ai_call_guard' => [
+                'limit' => $aiCallLimit,
+                'used' => $aiCallsUsed,
+                'remaining' => max(0, $aiCallLimit - $aiCallsUsed),
+            ],
             'secrets' => 'not_printed',
             'generated_at' => $now->format('Y-m-d H:i:s'),
         ];
@@ -142,10 +179,19 @@ class AiDailyIngestion
 
     /**
      * @param  array{from: string, to: string}  $period
-     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     * @return Collection<int, array<string, mixed>>
      */
-    private function refreshChannelAi(array $period, CarbonImmutable $now, int $channelLimit, int $channelOffset, string $userToken)
-    {
+    private function refreshChannelAi(
+        array $period,
+        CarbonImmutable $now,
+        int $channelLimit,
+        int $channelOffset,
+        int $channelBatchSize,
+        int $channelVideoLimit,
+        string $userToken,
+        int &$aiCallsUsed,
+        int $aiCallLimit,
+    ) {
         $dataType = substr($period['from'], 0, 10) === $now->toDateString() ? 'todate' : 'oneday';
         $rows = collect();
 
@@ -153,83 +199,123 @@ class AiDailyIngestion
         $uIds = $channelOffset <= 0 && $channelLimit >= count($configuredUIds)
             ? $configuredUIds
             : $this->eligibleChannelUIds($period, $channelLimit, $channelOffset);
+        $batchSize = $channelBatchSize > 0 ? $channelBatchSize : max(1, count($uIds));
+        $batches = array_chunk($uIds, $batchSize);
 
-        foreach ($uIds as $uId) {
-            $videos = DB::table('urt_video')
-                ->where('u_id', $uId)
-                ->where('publishedAt', '>=', $period['from'])
-                ->where('publishedAt', '<=', $period['to'])
-                ->orderByDesc('viewCount')
-                ->get();
+        foreach ($batches as $batchIndex => $batchUIds) {
+            foreach ($batchUIds as $uId) {
+                $videoRows = DB::table('urt_video')
+                    ->where('u_id', $uId)
+                    ->where('publishedAt', '>=', $period['from'])
+                    ->where('publishedAt', '<=', $period['to'])
+                    ->count();
 
-            if ($videos->count() < 10) {
+                if ($videoRows < 10) {
+                    $rows->push([
+                        'u_id' => $uId,
+                        'batch' => $batchIndex + 1,
+                        'video_rows' => $videoRows,
+                        'prompt_video_rows' => 0,
+                        'ai_call_attempted' => false,
+                        'inserted' => false,
+                        'updated' => false,
+                        'skipped' => true,
+                        'skip_reason' => 'fewer_than_10_videos',
+                    ]);
+
+                    continue;
+                }
+
+                if ($aiCallsUsed >= $aiCallLimit) {
+                    $rows->push([
+                        'u_id' => $uId,
+                        'batch' => $batchIndex + 1,
+                        'video_rows' => $videoRows,
+                        'prompt_video_rows' => 0,
+                        'ai_call_attempted' => false,
+                        'inserted' => false,
+                        'updated' => false,
+                        'skipped' => true,
+                        'skip_reason' => 'ai_call_guard_exhausted',
+                    ]);
+
+                    continue;
+                }
+
+                $videosQuery = DB::table('urt_video')
+                    ->where('u_id', $uId)
+                    ->where('publishedAt', '>=', $period['from'])
+                    ->where('publishedAt', '<=', $period['to'])
+                    ->orderByDesc('viewCount');
+                $videos = $channelVideoLimit > 0
+                    ? $videosQuery->limit($channelVideoLimit)->get()
+                    : $videosQuery->get();
+
+                $prompt = $this->channelPrompt($videos);
+                try {
+                    $aiCallsUsed++;
+                    $completion = $this->client->complete($prompt);
+                } catch (Throwable $exception) {
+                    $rows->push([
+                        'u_id' => $uId,
+                        'batch' => $batchIndex + 1,
+                        'video_rows' => $videoRows,
+                        'prompt_video_rows' => $videos->count(),
+                        'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
+                        'ai_call_attempted' => true,
+                        'inserted' => false,
+                        'updated' => false,
+                        'skipped' => true,
+                        'skip_reason' => $this->sanitizedFailure($exception),
+                    ]);
+
+                    continue;
+                }
+
+                $resultJson = $this->stripJsonFence($completion['content']);
+                $attributes = [
+                    'u_id' => $uId,
+                    'date_from' => $period['from'],
+                    'date_to' => $period['to'],
+                    'ai_type' => $completion['model'],
+                    'data_type' => $dataType,
+                    'user_token' => $userToken,
+                ];
+                $existingPk = DB::table('urt_channel_ai')
+                    ->where($attributes)
+                    ->whereNull('del_flag')
+                    ->value('pk');
+                $values = [
+                    'mtime' => $now->format('Y-m-d H:i:s'),
+                    'result_json' => $resultJson,
+                ];
+
+                if ($existingPk === null) {
+                    DB::table('urt_channel_ai')->insert($attributes + $values + [
+                        'ctime' => $now->format('Y-m-d H:i:s'),
+                        'del_flag' => null,
+                    ]);
+                } else {
+                    DB::table('urt_channel_ai')
+                        ->where('pk', $existingPk)
+                        ->update($values);
+                }
+
                 $rows->push([
                     'u_id' => $uId,
-                    'video_rows' => $videos->count(),
-                    'inserted' => false,
-                    'updated' => false,
-                    'skipped' => true,
-                    'skip_reason' => 'fewer_than_10_videos',
-                ]);
-                continue;
-            }
-
-            $prompt = $this->channelPrompt($videos);
-            try {
-                $completion = $this->client->complete($prompt);
-            } catch (Throwable $exception) {
-                $rows->push([
-                    'u_id' => $uId,
-                    'video_rows' => $videos->count(),
+                    'batch' => $batchIndex + 1,
+                    'video_rows' => $videoRows,
+                    'prompt_video_rows' => $videos->count(),
                     'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
-                    'inserted' => false,
-                    'updated' => false,
-                    'skipped' => true,
-                    'skip_reason' => $this->sanitizedFailure($exception),
+                    'model' => $completion['model'],
+                    'usage' => $completion['usage'],
+                    'ai_call_attempted' => true,
+                    'inserted' => $existingPk === null,
+                    'updated' => $existingPk !== null,
+                    'skipped' => false,
+                    'skip_reason' => null,
                 ]);
-                continue;
             }
-
-            $resultJson = $this->stripJsonFence($completion['content']);
-            $attributes = [
-                'u_id' => $uId,
-                'date_from' => $period['from'],
-                'date_to' => $period['to'],
-                'ai_type' => $completion['model'],
-                'data_type' => $dataType,
-                'user_token' => $userToken,
-            ];
-            $existingPk = DB::table('urt_channel_ai')
-                ->where($attributes)
-                ->whereNull('del_flag')
-                ->value('pk');
-            $values = [
-                'mtime' => $now->format('Y-m-d H:i:s'),
-                'result_json' => $resultJson,
-            ];
-
-            if ($existingPk === null) {
-                DB::table('urt_channel_ai')->insert($attributes + $values + [
-                    'ctime' => $now->format('Y-m-d H:i:s'),
-                    'del_flag' => null,
-                ]);
-            } else {
-                DB::table('urt_channel_ai')
-                    ->where('pk', $existingPk)
-                    ->update($values);
-            }
-
-            $rows->push([
-                'u_id' => $uId,
-                'video_rows' => $videos->count(),
-                'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
-                'model' => $completion['model'],
-                'usage' => $completion['usage'],
-                'inserted' => $existingPk === null,
-                'updated' => $existingPk !== null,
-                'skipped' => false,
-                'skip_reason' => null,
-            ]);
         }
 
         return $rows;
@@ -269,7 +355,7 @@ class AiDailyIngestion
             ->all();
     }
 
-    private function channelPrompt(\Illuminate\Support\Collection $videos): string
+    private function channelPrompt(Collection $videos): string
     {
         $count = $videos->count();
         $min = 3 + (int) floor($count / 31);
@@ -289,14 +375,15 @@ class AiDailyIngestion
      * @param  array<string, mixed>  $row
      * @return array<string, mixed>
      */
-    private function skippedDailyRow(array $row, string $reason): array
+    private function skippedDailyRow(array $row, string $reason, ?string $prompt = null, bool $aiCallAttempted = false): array
     {
         return [
             'condition' => $row['condition'],
             'prompt_event_rows' => $row['prompt_event_rows'],
-            'prompt_chars' => 0,
+            'prompt_chars' => $prompt === null ? 0 : mb_strlen($prompt, 'UTF-8'),
             'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
             'usage' => null,
+            'ai_call_attempted' => $aiCallAttempted,
             'inserted' => false,
             'updated' => false,
             'skipped' => true,
