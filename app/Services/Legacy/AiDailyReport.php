@@ -49,7 +49,7 @@ class AiDailyReport
             $resolvedCondition = (string) ($row->condition_type ?: $condition);
 
             if ($topics === []) {
-                $fallback = $this->channelAiFallback($request, $resolvedCondition);
+                $fallback = $this->channelAiFallback($request, $resolvedCondition, $date);
 
                 if ($fallback !== null && $fallback['topics'] !== []) {
                     return $fallback;
@@ -121,9 +121,9 @@ class AiDailyReport
      *
      * @return array{available: bool, row: array<string, mixed>|null, date: string|null, condition: string, title: string, topics: list<array<string, mixed>>, channels_count: int, generated_at: string}|null
      */
-    private function channelAiFallback(Request $request, string $condition): ?array
+    private function channelAiFallback(Request $request, string $condition, ?string $date = null): ?array
     {
-        $date = $this->routeDate($request);
+        $date ??= $this->routeDate($request);
 
         if ($date === null || is_string($request->query('pk'))) {
             return null;

@@ -242,6 +242,51 @@ class AiReportsTest extends TestCase
         $response->assertDontSee('pk=121');
     }
 
+    public function test_ai_daily_index_uses_latest_date_channel_ai_fallback_when_latest_daily_summary_row_is_empty(): void
+    {
+        $this->createAiDailyTables();
+
+        DB::table('urt_ai_date')->insert([
+            'pk' => 122,
+            'date_from' => '2026-05-25 00:00:00',
+            'date_to' => '2026-05-25 23:59:59',
+            'condition_type' => 'all',
+            'data_type' => 'oneday',
+            'del_flag' => null,
+            'channel_id' => json_encode([15 => 'Fallback Channel'], JSON_UNESCAPED_UNICODE),
+            'result_json' => '[]',
+        ]);
+
+        DB::table('urt_channel_ai')->insert([
+            'pk' => 1220,
+            'u_id' => 15,
+            'date_from' => '2026-05-25 00:00:00',
+            'date_to' => '2026-05-25 23:59:59',
+            'del_flag' => null,
+            'result_json' => json_encode([
+                [
+                    '事件' => 'latest index fallback',
+                    '角度' => '台灣',
+                    '陣營' => '民進黨',
+                    '關鍵字' => ['latest', 'fallback'],
+                    '人物' => ['行政院'],
+                    'videoId' => ['latest-index-fallback'],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        DB::table('urt_count')->insert(['u_id' => 15, 'tags' => '[4]']);
+
+        $response = $this->get('/ai/days');
+
+        $response->assertOk();
+        $response->assertSee('2026-05-25 主要事件與各媒體報導');
+        $response->assertSee('latest index fallback');
+        $response->assertSee('latest-index-fallback');
+        $response->assertDontSee('目前沒有符合條件的 AI daily summary');
+        $response->assertDontSee('pk=122');
+    }
+
     public function test_ai_event_page_renders_summary_and_people_prompts(): void
     {
         $this->createAiEventTables();
