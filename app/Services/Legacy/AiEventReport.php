@@ -8,6 +8,10 @@ use Illuminate\Support\Facades\DB;
 
 class AiEventReport
 {
+    public function __construct(private readonly AiDailyReport $dailyReport)
+    {
+    }
+
     /**
      * @return array{
      *     available: bool,
@@ -40,6 +44,18 @@ class AiEventReport
                 : $this->eventRow($resolvedAipk, $event, 'summary');
             $peopleRow = $this->eventRow($resolvedAipk, $event, 'people');
             $mediaRow = $this->eventRow($resolvedAipk, $event, 'media');
+
+            if ($event !== '' && ! $summaryRow && ! $peopleRow && ! $mediaRow) {
+                $canonicalEvent = $this->canonicalEventName($daily, $event);
+
+                if ($canonicalEvent !== null && $canonicalEvent !== $event) {
+                    $event = $canonicalEvent;
+                    $summaryRow = $this->eventRow($resolvedAipk, $event, 'summary');
+                    $peopleRow = $this->eventRow($resolvedAipk, $event, 'people');
+                    $mediaRow = $this->eventRow($resolvedAipk, $event, 'media');
+                }
+            }
+
             $summaryEvents = $this->summaryEvents($summaryRow?->result_json);
             $people = $this->people($peopleRow?->result_json);
             $media = $this->media($mediaRow?->result_json);
@@ -84,6 +100,79 @@ class AiEventReport
             ->whereNull('del_flag')
             ->orderByDesc('pk')
             ->first();
+    }
+
+    private function canonicalEventName(?object $daily, string $event): ?string
+    {
+        if (! $daily || $event === '') {
+            return null;
+        }
+
+        $date = substr((string) $daily->date_from, 0, 10);
+        $condition = (string) ($daily->condition_type ?: 'all');
+        $request = Request::create('/ai/days/'.$date.'/'.$condition, 'GET', [
+            'date' => $date,
+            'condition' => $condition,
+            'pk' => (int) $daily->pk,
+        ]);
+
+        try {
+            $payload = $this->dailyReport->forRequest($request);
+        } catch (QueryException) {
+            return null;
+        }
+
+        foreach (($payload['topics'] ?? []) as $topic) {
+            if (! is_array($topic)) {
+                continue;
+            }
+
+            $title = trim((string) ($topic['title'] ?? ''));
+
+            if ($title === '') {
+                continue;
+            }
+
+            if ($title === $event || in_array($event, $this->topicEventAliases($topic), true)) {
+                return $title;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $topic
+     * @return list<string>
+     */
+    private function topicEventAliases(array $topic): array
+    {
+        $aliases = [];
+
+        foreach (($topic['media_event_rows'] ?? []) as $row) {
+            if (is_array($row)) {
+                $aliases[] = $row['event'] ?? null;
+            }
+        }
+
+        foreach (($topic['videos'] ?? []) as $video) {
+            if (is_array($video)) {
+                $aliases[] = $video['event'] ?? null;
+            }
+        }
+
+        foreach (($topic['media_events'] ?? []) as $events) {
+            if (is_array($events)) {
+                array_push($aliases, ...$events);
+            }
+        }
+
+        return collect($aliases)
+            ->filter(fn (mixed $alias): bool => is_scalar($alias) && trim((string) $alias) !== '')
+            ->map(fn (mixed $alias): string => trim((string) $alias))
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function periodTableHasData(): bool

@@ -596,6 +596,98 @@ class AiReportsTest extends TestCase
         $response->assertSee('ghi789');
     }
 
+    public function test_ai_event_page_resolves_media_event_alias_to_canonical_event_row(): void
+    {
+        $this->createAiDailyTables();
+
+        Schema::dropIfExists('urt_ai_event');
+        Schema::create('urt_ai_event', function ($table): void {
+            $table->integer('pk');
+            $table->integer('aipk');
+            $table->string('event_name');
+            $table->dateTime('date_from');
+            $table->dateTime('date_to');
+            $table->string('condition_type')->nullable();
+            $table->string('prompt_type')->nullable();
+            $table->integer('del_flag')->nullable();
+            $table->text('result_json')->nullable();
+        });
+
+        DB::table('urt_ai_date')->insert([
+            'pk' => 10,
+            'date_from' => '2026-05-23 00:00:00',
+            'date_to' => '2026-05-23 23:59:59',
+            'condition_type' => 'all',
+            'data_type' => 'oneday',
+            'del_flag' => null,
+            'channel_id' => json_encode([15 => 'ETtoday新聞雲'], JSON_UNESCAPED_UNICODE),
+            'result_json' => json_encode([
+                [
+                    '標題' => '黃仁勳參加COMPUTEX展會',
+                    '媒體事件' => [
+                        'ETtoday新聞雲' => ['黃仁勳的高人氣與活動'],
+                    ],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        DB::table('urt_channel_ai')->insert([
+            'pk' => 100,
+            'u_id' => 15,
+            'date_from' => '2026-05-23 00:00:00',
+            'date_to' => '2026-05-23 23:59:59',
+            'del_flag' => null,
+            'result_json' => json_encode([
+                [
+                    '事件' => '黃仁勳的高人氣與活動',
+                    '描述' => '黃仁勳參展帶動現場人氣。',
+                    '關鍵字' => ['黃仁勳', 'COMPUTEX'],
+                    '人物' => ['黃仁勳'],
+                    'videoId' => ['nvidia123'],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+        DB::table('urt_count')->insert(['u_id' => 15, 'tags' => '[4]']);
+        DB::table('urt_video')->insert([
+            'u_id' => 15,
+            'videoId' => 'nvidia123',
+            'publishedAt' => '2026-05-23 08:00:00',
+            'title' => 'NVIDIA keynote',
+        ]);
+
+        DB::table('urt_ai_event')->insert([
+            'pk' => 20,
+            'aipk' => 10,
+            'event_name' => '黃仁勳參加COMPUTEX展會',
+            'date_from' => '2026-05-23 00:00:00',
+            'date_to' => '2026-05-23 23:59:59',
+            'condition_type' => 'all',
+            'prompt_type' => 'summary',
+            'del_flag' => null,
+            'result_json' => json_encode([
+                'events' => [
+                    [
+                        'event' => '黃仁勳參加COMPUTEX展會',
+                        'description' => '黃仁勳參加COMPUTEX展會帶動AI熱度。',
+                        'keywords' => ['黃仁勳', 'COMPUTEX'],
+                        'media' => ['ETtoday新聞雲'],
+                        'fact' => [],
+                        'opinion' => [],
+                    ],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->get('/ai/events/10?event='.urlencode('黃仁勳的高人氣與活動'));
+
+        $response->assertOk();
+        $response->assertSee('黃仁勳參加COMPUTEX展會 到 2026-05-23 的相關報導');
+        $response->assertSee('黃仁勳參加COMPUTEX展會帶動AI熱度');
+        $response->assertSee('ETtoday新聞雲');
+        $response->assertDontSee('目前沒有對應的 `urt_ai_event` summary/people 內容');
+        $response->assertDontSee('目前沒有 event summary JSON');
+    }
+
     public function test_ai_event_page_does_not_show_missing_period_notice_when_history_exists_without_event_ai(): void
     {
         $this->createAiEventTables();
