@@ -689,10 +689,6 @@ class AiPeriodIngestion
             $query->where('condition_type', $condition);
         }
 
-        if (Schema::hasColumn('urt_ai_period', 'data_type')) {
-            $query->where('data_type', 'oneday');
-        }
-
         if (Schema::hasColumn('urt_ai_period', 'del_flag')) {
             $query->whereNull('del_flag');
         }

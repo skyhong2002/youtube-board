@@ -53,7 +53,9 @@ aipk={{ $aipk }} · {{ $generated_at }}
             @if (! $available)
                 <p class="notice">本機尚未匯入 legacy AI event tables。<br><x-ingestion-portal job="ai.daily" /></p>
             @elseif (! $has_event_ai)
-                <p class="notice">這個 daily topic 目前沒有對應的 `urt_ai_event` summary/people 內容；先顯示可用的事件入口，歷史追蹤待 `urt_ai_period` dump 後補齊。<br><x-ingestion-portal job="ai.daily" /></p>
+                <p class="notice">
+                    這個 daily topic 目前沒有對應的 `urt_ai_event` summary/people 內容；先顯示可用的事件入口{{ $history_available ? '與逐日事件線' : '，歷史追蹤待 `urt_ai_period` dump 後補齊' }}。<br><x-ingestion-portal job="ai.daily" />
+                </p>
             @endif
 
             @if ($history_available && ($history['match'] ?? []) !== [])

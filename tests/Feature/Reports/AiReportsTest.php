@@ -596,6 +596,57 @@ class AiReportsTest extends TestCase
         $response->assertSee('ghi789');
     }
 
+    public function test_ai_event_page_does_not_show_missing_period_notice_when_history_exists_without_event_ai(): void
+    {
+        $this->createAiEventTables();
+
+        DB::table('urt_ai_date')->insert([
+            [
+                'pk' => 9,
+                'date_from' => '2026-05-22 00:00:00',
+                'date_to' => '2026-05-22 23:59:59',
+                'condition_type' => 'all',
+                'data_type' => 'oneday',
+                'del_flag' => null,
+                'channel_id' => '{}',
+                'result_json' => '[]',
+            ],
+            [
+                'pk' => 10,
+                'date_from' => '2026-05-23 00:00:00',
+                'date_to' => '2026-05-23 23:59:59',
+                'condition_type' => 'all',
+                'data_type' => 'oneday',
+                'del_flag' => null,
+                'channel_id' => '{}',
+                'result_json' => '[]',
+            ],
+        ]);
+        DB::table('urt_ai_period')->insert([
+            'pk' => 30,
+            'date_from' => '2026-05-22 00:00:00',
+            'date_to' => '2026-05-23 23:59:59',
+            'condition_type' => 'all',
+            'del_flag' => null,
+            'result_json' => json_encode([
+                [
+                    '2026-05-23' => ['黃仁勳的高人氣與活動'],
+                    '2026-05-22' => ['黃仁勳參加COMPUTEX'],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+            'data_json' => json_encode(['9', '10'], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->get('/ai/events/10?event='.urlencode('黃仁勳的高人氣與活動'));
+
+        $response->assertOk();
+        $response->assertSee('逐日事件線');
+        $response->assertSee('黃仁勳參加COMPUTEX');
+        $response->assertSee('可用的事件入口與逐日事件線');
+        $response->assertDontSee('歷史追蹤待 `urt_ai_period` dump 後補齊');
+        $response->assertDontSee('Legacy event history relies on `urt_ai_period`');
+    }
+
     public function test_ai_hourly_page_renders_legacy_hour_topics(): void
     {
         $this->createAiHourTable();

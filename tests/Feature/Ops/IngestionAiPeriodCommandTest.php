@@ -113,7 +113,7 @@ class IngestionAiPeriodCommandTest extends TestCase
         DB::table('urt_ai_period')->insert([
             'date_from' => '2026-06-02 00:00:00',
             'date_to' => '2026-06-03 23:59:59',
-            'data_type' => 'oneday',
+            'data_type' => null,
             'condition_type' => 'all',
             'user_token' => null,
             'del_flag' => null,
