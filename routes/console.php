@@ -2479,9 +2479,22 @@ Artisan::command('ai:days:refresh {--from= : First AI daily date to refresh; def
     }
 })->purpose('Orchestrate daily AI, event AI, adjacent period matching, and missing-row verification for one or more dates');
 
-Artisan::command('ai:hourly {--condition= : Optional legacy condition; omitted matches cron default} {--hour=1 : Legacy hours-back offset} {--period=1 : Legacy number of hourly buckets to include} {--limit=20 : Number of candidate videos to print} {--execute : Call OpenCode-compatible chat completions and upsert urt_ai_hour} {--dry-run : Force dry-run preview; this is the default} {--user-token=cli : user_token value for execute-mode upsert} {--json : Emit JSON instead of text}', function (AiHourlyPreview $preview, AiHourlyIngestion $ingestion) {
+Artisan::command('ai:hourly {--condition= : Optional legacy condition; omitted matches cron default} {--hour=1 : Legacy hours-back offset} {--period=1 : Legacy number of hourly buckets to include} {--limit=20 : Number of candidate videos to print} {--at= : Override evaluation timestamp for backfills/previews} {--execute : Call OpenCode-compatible chat completions and upsert urt_ai_hour} {--dry-run : Force dry-run preview; this is the default} {--user-token=cli : user_token value for execute-mode upsert} {--json : Emit JSON instead of text}', function (AiHourlyPreview $preview, AiHourlyIngestion $ingestion) {
     try {
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
+        $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
+        $at = null;
+        $atOption = $this->option('at');
+
+        if (is_string($atOption) && trim($atOption) !== '') {
+            try {
+                $at = CarbonImmutable::parse(trim($atOption), $timezone);
+            } catch (Throwable) {
+                $this->error('ai:hourly invalid --at timestamp: '.$atOption);
+
+                return 1;
+            }
+        }
 
         if ($execute) {
             $payload = $ingestion->execute(
@@ -2490,6 +2503,7 @@ Artisan::command('ai:hourly {--condition= : Optional legacy condition; omitted m
                 period: (int) $this->option('period'),
                 limit: (int) $this->option('limit'),
                 userToken: (string) $this->option('user-token'),
+                now: $at,
             );
 
             if ((bool) $this->option('json')) {
@@ -2533,6 +2547,7 @@ Artisan::command('ai:hourly {--condition= : Optional legacy condition; omitted m
             hour: (int) $this->option('hour'),
             period: (int) $this->option('period'),
             limit: (int) $this->option('limit'),
+            now: $at,
         );
 
         if ((bool) $this->option('json')) {

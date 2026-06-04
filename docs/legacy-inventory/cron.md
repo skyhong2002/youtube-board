@@ -24,7 +24,7 @@ Source: `/Users/sky/Documents/youtube-board-legacy/urtube/cron`
 | `maint/show_live.php` | Every 7 minutes | Live display cache |
 | `maint/clean_show_live.php` | 03:33, 13:33, 23:33 | Live display cache cleanup |
 | `maint/make_ai_day.sh` | Daily 16:15 | Daily AI summaries |
-| `prompt/ai_hour_prompt.php do=1` | Hourly, 00:10-15:10 | Hourly AI summaries |
+| `prompt/ai_hour_prompt.php do=1` | Hourly, minute 10 | Hourly AI summaries |
 | `maint/make_comments.php ...` | 04:23, 10:23, 16:23 | Comment queue generation |
 | `maint/do_comments.php` | Hourly at minute 5 | Comment ingestion |
 
@@ -71,7 +71,7 @@ The registry documents legacy cron parity, Laravel command names, schedules, ext
 | `reports:schedule:build` | `maint/make_schedule.php` | 3 | Dashboard preview by default; explicit/scheduled `--execute` updates selected `urt_video_schedule.stime/mtime` from recent schedule/log-history rows. |
 | `youtube:videos:duration` | `maint/get_duration.php`, `api/api_duration.php` queue rows | 3 | Ingestion preview of queued duration refresh rows, plus manual/scheduled `--execute` for `videos.list(contentDetails)` updates to `urt_video_duration.mtime`, `stime`, `duration`, and `caption`; explicit/scheduled `--enqueue-missing` can create queue rows from existing local `urt_video`, and scheduler runs capped `--execute --limit=25 --enqueue-missing`. |
 | `ai:daily` | `maint/make_ai_day.sh`, `maint/make_channel_ai.php`, `maint/get_ai_day.php` | 4 | Dashboard preview by default; explicit `--execute` refreshes `urt_channel_ai` from raw `urt_video` rows and upserts daily condition rows into `urt_ai_date`; scheduled execution uses `--channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120`, refreshing the full legacy configured-channel list in batches while bounding AI calls and per-channel prompt size. |
-| `ai:hourly` | `prompt/ai_hour_prompt.php do=1` | 4 | Ingestion preview of the previous-hour video prompt and condition filter branches; no OpenAI/OpenCode call and no `urt_ai_hour` insert. |
+| `ai:hourly` | `prompt/ai_hour_prompt.php do=1` | 4 | Ingestion preview of the previous-hour video prompt and condition filter branches; no OpenAI/OpenCode call and no `urt_ai_hour` insert. Supports `--at` for reviewed backfills of a specific evaluation time. |
 | `youtube:comments:queue` | `maint/make_comments.php` | 5 | Ingestion preview of comment queue candidates from `urt_count` and `urt_video`, plus manual local-only `--execute --limit` smoke for idempotent `urt_comment_queue` inserts; scheduler runs remain dry-run. |
 | `youtube:comments:fetch` | `maint/do_comments.php`, `maint/get_comment.php` | 5 | Ingestion preview of queue drain and comment cache freshness, plus manual local-only `--execute --videoId/--limit --max-pages` smoke for `commentThreads.list` parsing, `urt_comment` / `urt_comment_author` / `urt_comment_rev` upserts, queue-done copy, and queue delete; scheduler runs remain dry-run. |
 

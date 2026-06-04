@@ -3,6 +3,7 @@
 namespace App\Services\Ingestion;
 
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 
 class AiHourlyIngestion
@@ -16,13 +17,14 @@ class AiHourlyIngestion
     /**
      * @return array<string, mixed>
      */
-    public function execute(?string $condition = null, int $hour = 1, int $period = 1, int $limit = 20, string $userToken = 'cli'): array
+    public function execute(?string $condition = null, int $hour = 1, int $period = 1, int $limit = 20, string $userToken = 'cli', ?CarbonInterface $now = null): array
     {
         $payload = $this->preview->preview(
             condition: $condition,
             hour: $hour,
             period: $period,
             limit: $limit,
+            now: $now,
         );
 
         if ((int) $payload['prompt_video_rows'] <= 0) {

@@ -3010,7 +3010,7 @@ class ReportLineageProfiles
                     reads: ['urt_video', 'urt_count'],
                     writes: ['urt_ai_hour'],
                     summary: '產生每小時事件摘要；只在 job 執行時呼叫 AI API。',
-                    scheduler: 'config/ingestion.php job ai.hourly；00-15 點每小時第 10 分，scheduled-write gates 通過後執行。',
+                    scheduler: 'config/ingestion.php job ai.hourly；每小時第 10 分，scheduled-write gates 通過後執行。',
                 ),
             ],
             'render' => [

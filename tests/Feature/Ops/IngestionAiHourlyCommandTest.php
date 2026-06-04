@@ -64,6 +64,26 @@ class IngestionAiHourlyCommandTest extends TestCase
         $this->assertSame(1, DB::table('urt_ai_hour')->count());
     }
 
+    public function test_ai_hourly_preview_supports_backfill_evaluation_time(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 23:10:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDefaultFixtures();
+
+        $exitCode = Artisan::call('ai:hourly', [
+            '--at' => '2026-05-25 10:10:00',
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('2026-05-25 10:10:00', $payload['generated_at']);
+        $this->assertSame('2026-05-25 09:00:00', $payload['date_from']);
+        $this->assertSame('2026-05-25 09:59:59', $payload['date_to']);
+        $this->assertSame(3, $payload['video_rows']);
+        $this->assertSame('blue-video', $payload['rows'][0]['video_id']);
+    }
+
     public function test_ai_hourly_preserves_legacy_condition_filter_branches(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
@@ -467,6 +487,48 @@ class IngestionAiHourlyCommandTest extends TestCase
         $this->assertSame('executed:local-polling', $result['jobs'][0]['action']);
         $this->assertSame('ai:hourly --execute --limit=20', $result['jobs'][0]['effective_command']);
         $this->assertSame(1, DB::table('urt_ai_hour')->count());
+        Http::assertSentCount(1);
+    }
+
+    public function test_ingestion_scheduler_runs_ai_hourly_after_daytime_window(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 22:10:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDefaultFixtures();
+        DB::table('urt_video')->insert($this->videoRow(1, 'evening-default', '2026-05-25 21:10:00', 1000, 'Evening Included'));
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.local_polling_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['ai.hourly']);
+
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::response([
+                'choices' => [
+                    [
+                        'message' => [
+                            'content' => '[{"事件":"晚間排程事件","videoId":["evening-default"]}]',
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $result = app(IngestionSchedulerRunner::class)->run(
+            at: CarbonImmutable::parse('2026-05-25 22:10:00', 'Asia/Taipei'),
+            execute: true,
+            jobKey: 'ai.hourly',
+        );
+
+        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $result['summary']);
+        $this->assertSame('ai:hourly --execute --limit=20', $result['jobs'][0]['effective_command']);
+        $this->assertDatabaseHas('urt_ai_hour', [
+            'date_from' => '2026-05-25 21:00:00',
+            'date_to' => '2026-05-25 21:59:59',
+            'condition_type' => 'all',
+            'result_json' => '[{"事件":"晚間排程事件","videoId":["evening-default"]}]',
+        ]);
         Http::assertSentCount(1);
     }
 

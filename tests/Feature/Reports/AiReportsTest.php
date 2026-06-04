@@ -891,6 +891,45 @@ class AiReportsTest extends TestCase
         $response->assertSee('wrapped123');
     }
 
+    public function test_ai_hourly_page_extracts_fenced_ai_json_payloads_and_counts_visible_topics(): void
+    {
+        $this->createAiHourTable();
+
+        DB::table('urt_ai_hour')->insert([
+            [
+                'pk' => 1,
+                'date_from' => '2026-05-24 18:00:00',
+                'date_to' => '2026-05-24 18:59:59',
+                'condition_type' => 'all',
+                'ai_type' => 'qwen',
+                'data_type' => 'each',
+                'user_token' => 'CLI',
+                'del_flag' => null,
+                'result_json' => "```json\n{\"主要事件\":[{\"標題\":\"圍欄 JSON 事件\",\"描述\":\"模型回傳包了 markdown code fence。\",\"videoId\":[\"fenced123\"]}]}\n```",
+            ],
+            [
+                'pk' => 2,
+                'date_from' => '2026-05-24 17:00:00',
+                'date_to' => '2026-05-24 17:59:59',
+                'condition_type' => 'all',
+                'ai_type' => 'qwen',
+                'data_type' => 'each',
+                'user_token' => 'CLI',
+                'del_flag' => null,
+                'result_json' => '[]',
+            ],
+        ]);
+
+        $response = $this->get('/ai/hours?date=2026-05-24');
+
+        $response->assertOk();
+        $response->assertSee('1 rows');
+        $response->assertSee('2026-05-24 18時');
+        $response->assertSee('圍欄 JSON 事件');
+        $response->assertSee('fenced123');
+        $response->assertDontSee('2026-05-24 17時');
+    }
+
     private function createAiHourTable(): void
     {
         Schema::dropIfExists('urt_ai_hour');

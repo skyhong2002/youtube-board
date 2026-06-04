@@ -85,7 +85,7 @@ class AiHourlyReport
                 'condition' => $condition,
                 'limit' => $limit,
                 'hours' => $hours,
-                'rows_count' => $rows->count(),
+                'rows_count' => collect($hours)->sum(fn (array $hour): int => count($hour['topics'])),
                 'generated_at' => now('Asia/Taipei')->format('Y-m-d H:i:s'),
             ];
         } catch (QueryException) {
@@ -132,9 +132,9 @@ class AiHourlyReport
             return [];
         }
 
-        $decoded = json_decode($json, true);
+        $decoded = $this->decodeJsonPayload($json);
 
-        if (json_last_error() !== JSON_ERROR_NONE || ! is_array($decoded)) {
+        if (! is_array($decoded)) {
             return [];
         }
 
@@ -142,13 +142,113 @@ class AiHourlyReport
             return $decoded;
         }
 
-        foreach (['events', '事件', 'topics', '議題', 'result', 'data'] as $key) {
+        foreach (['events', '事件', '事件列表', '主要事件', 'topics', '議題', '議題列表', 'result', 'results', 'data', 'items', 'hourly_events'] as $key) {
             if (isset($decoded[$key]) && is_array($decoded[$key])) {
                 return array_is_list($decoded[$key]) ? $decoded[$key] : array_values($decoded[$key]);
             }
         }
 
         return array_values($decoded);
+    }
+
+    private function decodeJsonPayload(string $json): mixed
+    {
+        foreach ($this->jsonCandidates($json) as $candidate) {
+            $decoded = json_decode($candidate, true);
+
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return $decoded;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function jsonCandidates(string $json): array
+    {
+        $json = trim($json);
+        $candidates = [$json];
+
+        if (preg_match('/```(?:json)?\s*([\s\S]*?)\s*```/i', $json, $match) === 1) {
+            $candidates[] = trim($match[1]);
+        }
+
+        $embedded = $this->firstJsonBlock($json);
+
+        if ($embedded !== null) {
+            $candidates[] = $embedded;
+        }
+
+        return collect($candidates)
+            ->map(fn (string $candidate): string => trim($candidate))
+            ->filter(fn (string $candidate): bool => $candidate !== '')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function firstJsonBlock(string $text): ?string
+    {
+        $length = strlen($text);
+
+        for ($start = 0; $start < $length; $start++) {
+            $opening = $text[$start];
+
+            if ($opening !== '[' && $opening !== '{') {
+                continue;
+            }
+
+            $stack = [];
+            $inString = false;
+            $escape = false;
+
+            for ($index = $start; $index < $length; $index++) {
+                $char = $text[$index];
+
+                if ($inString) {
+                    if ($escape) {
+                        $escape = false;
+                    } elseif ($char === '\\') {
+                        $escape = true;
+                    } elseif ($char === '"') {
+                        $inString = false;
+                    }
+
+                    continue;
+                }
+
+                if ($char === '"') {
+                    $inString = true;
+
+                    continue;
+                }
+
+                if ($char === '[' || $char === '{') {
+                    $stack[] = $char;
+
+                    continue;
+                }
+
+                if ($char !== ']' && $char !== '}') {
+                    continue;
+                }
+
+                $expected = $char === ']' ? '[' : '{';
+
+                if (array_pop($stack) !== $expected) {
+                    break;
+                }
+
+                if ($stack === []) {
+                    return substr($text, $start, $index - $start + 1);
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
