@@ -2255,19 +2255,24 @@ Artisan::command('ai:hourly {--condition= : Optional legacy condition; omitted m
             }
 
             $usage = is_array($payload['usage']) ? json_encode($payload['usage'], JSON_UNESCAPED_SLASHES) : 'null';
+            $providerFailures = $payload['provider_failures'] === []
+                ? 'none'
+                : implode(' | ', $payload['provider_failures']);
             $this->line(sprintf(
-                'ai:hourly mode=execute source=%s condition=%s date_from=%s date_to=%s prompt_video_rows=%d prompt_chars=%d model=%s inserted=%s updated=%s skipped=%s skip_reason=%s secrets=not_printed usage=%s',
+                'ai:hourly mode=execute source=%s condition=%s date_from=%s date_to=%s prompt_video_rows=%d prompt_chars=%d provider=%s model=%s inserted=%s updated=%s skipped=%s skip_reason=%s provider_failures="%s" secrets=not_printed usage=%s',
                 $payload['source'],
                 $payload['condition_type'],
                 $payload['date_from'],
                 $payload['date_to'],
                 $payload['prompt_video_rows'],
                 $payload['prompt_chars'],
+                $payload['provider'] ?? '-',
                 $payload['model'],
                 $payload['inserted'] ? 'yes' : 'no',
                 $payload['updated'] ? 'yes' : 'no',
                 $payload['skipped'] ? 'yes' : 'no',
                 $payload['skip_reason'] ?? '-',
+                $providerFailures,
                 $usage,
             ));
             $this->line('write_targets='.($payload['write_targets'] === [] ? 'none' : implode(',', $payload['write_targets'])));

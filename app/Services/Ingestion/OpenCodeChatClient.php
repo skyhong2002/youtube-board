@@ -12,7 +12,7 @@ class OpenCodeChatClient
     }
 
     /**
-     * @return array{content: string, model: string, usage: array<string, mixed>|null}
+     * @return array{content: string, model: string, provider: string, provider_failures: list<string>, usage: array<string, mixed>|null}
      */
     public function complete(string $prompt): array
     {
@@ -25,7 +25,10 @@ class OpenCodeChatClient
 
         foreach ($providers as $provider) {
             try {
-                return $this->completeWithProvider($prompt, $provider);
+                return $this->completeWithProvider($prompt, $provider) + [
+                    'provider' => $provider['name'],
+                    'provider_failures' => $failures,
+                ];
             } catch (RuntimeException $exception) {
                 $failures[] = $provider['name'].': '.$exception->getMessage();
             }
@@ -86,7 +89,14 @@ class OpenCodeChatClient
             ->post($baseUrl.$path, $body);
 
         if (! $response->successful()) {
-            throw new RuntimeException('status='.$response->status().' endpoint_style='.($messagesStyle ? 'messages' : 'chat'));
+            $message = 'status='.$response->status().' endpoint_style='.($messagesStyle ? 'messages' : 'chat');
+            $error = $this->responseErrorMessage($response->json());
+
+            if ($error !== null) {
+                $message .= ' error='.$error;
+            }
+
+            throw new RuntimeException($message);
         }
 
         $payload = $response->json();
@@ -213,6 +223,27 @@ class OpenCodeChatClient
     private function extractMessagesContent(array $payload): ?string
     {
         return $this->stringifyContent(data_get($payload, 'content'));
+    }
+
+    private function responseErrorMessage(mixed $payload): ?string
+    {
+        if (! is_array($payload)) {
+            return null;
+        }
+
+        $message = data_get($payload, 'error.message') ?? data_get($payload, 'message');
+
+        if (! is_string($message) || trim($message) === '') {
+            return null;
+        }
+
+        return mb_strimwidth(
+            preg_replace('/\s+/', ' ', trim($message)) ?? trim($message),
+            0,
+            160,
+            '...',
+            'UTF-8',
+        );
     }
 
     private function stringifyContent(mixed $content): ?string

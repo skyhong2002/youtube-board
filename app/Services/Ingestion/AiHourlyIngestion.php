@@ -35,6 +35,8 @@ class AiHourlyIngestion
                 'prompt_video_rows' => $payload['prompt_video_rows'],
                 'prompt_chars' => $payload['prompt_chars'],
                 'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
+                'provider' => null,
+                'provider_failures' => [],
                 'usage' => null,
                 'write_targets' => [],
                 'upserted' => false,
@@ -86,6 +88,8 @@ class AiHourlyIngestion
             'prompt_video_rows' => $payload['prompt_video_rows'],
             'prompt_chars' => $payload['prompt_chars'],
             'model' => $completion['model'],
+            'provider' => $completion['provider'],
+            'provider_failures' => $completion['provider_failures'],
             'usage' => $completion['usage'],
             'write_targets' => [
                 'urt_ai_hour.ctime',

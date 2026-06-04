@@ -150,6 +150,8 @@ class IngestionAiHourlyCommandTest extends TestCase
         $this->assertSame('execute', $payload['mode']);
         $this->assertSame('blue', $payload['condition_type']);
         $this->assertSame('qwen-test', $payload['model']);
+        $this->assertSame('primary', $payload['provider']);
+        $this->assertSame([], $payload['provider_failures']);
         $this->assertTrue($payload['inserted']);
         $this->assertFalse($payload['updated']);
         $this->assertSame('not_printed', $payload['secrets']);
@@ -267,6 +269,8 @@ class IngestionAiHourlyCommandTest extends TestCase
 
         $this->assertSame(0, $exitCode);
         $this->assertSame('gpt-4o-mini', $payload['model']);
+        $this->assertSame('fallback', $payload['provider']);
+        $this->assertSame(['primary: status=524 endpoint_style=chat'], $payload['provider_failures']);
         $this->assertTrue($payload['inserted']);
         $this->assertDatabaseHas('urt_ai_hour', [
             'date_from' => '2026-05-25 09:00:00',
