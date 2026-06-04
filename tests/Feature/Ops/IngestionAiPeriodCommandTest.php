@@ -26,6 +26,10 @@ class IngestionAiPeriodCommandTest extends TestCase
                         'message' => [
                             'content' => json_encode([
                                 [
+                                    '2026-06-03' => ['鄭麗文的高人氣與活動'],
+                                    '2026-06-02' => ['鄭麗文訪美'],
+                                ],
+                                [
                                     '2026-06-03' => ['鄭麗文訪美及兩岸關係'],
                                     '2026-06-02' => ['鄭麗文訪美'],
                                 ],

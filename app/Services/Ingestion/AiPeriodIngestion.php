@@ -110,7 +110,13 @@ class AiPeriodIngestion
 
         try {
             $completion = $this->client->complete($prompt);
-            $matches = $this->matches($completion['content'], $range['from_date'], $range['to_date']);
+            $matches = $this->matches(
+                $completion['content'],
+                $range['from_date'],
+                $range['to_date'],
+                $fromDay['topics'],
+                $toDay['topics'],
+            );
             $upsert = $this->upsertPeriod($range, $condition, (string) $fromDay['pk'], (string) $toDay['pk'], $matches, $completion['model'], $userToken, $now);
 
             return $this->executeResult($range, $condition, $fromDay, $toDay, $now, [
@@ -348,7 +354,7 @@ class AiPeriodIngestion
     /**
      * @return list<array<string, list<string>>>
      */
-    private function matches(string $content, string $fromDate, string $toDate): array
+    private function matches(string $content, string $fromDate, string $toDate, array $fromTopics, array $toTopics): array
     {
         $decoded = json_decode($this->stripJsonFence($content), true);
 
@@ -364,15 +370,17 @@ class AiPeriodIngestion
         }
 
         $items = array_is_list($decoded) ? $decoded : array_values($decoded);
+        $fromTitleSet = $this->topicTitleSet($fromTopics);
+        $toTitleSet = $this->topicTitleSet($toTopics);
 
         return collect($items)
-            ->map(function (mixed $item) use ($fromDate, $toDate): ?array {
+            ->map(function (mixed $item) use ($fromDate, $toDate, $fromTitleSet, $toTitleSet): ?array {
                 if (! is_array($item)) {
                     return null;
                 }
 
-                $toEvents = $this->stringList($item[$toDate] ?? $item['to'] ?? $item['current'] ?? []);
-                $fromEvents = $this->stringList($item[$fromDate] ?? $item['from'] ?? $item['previous'] ?? []);
+                $toEvents = $this->filterKnownTitles($this->stringList($item[$toDate] ?? $item['to'] ?? $item['current'] ?? []), $toTitleSet);
+                $fromEvents = $this->filterKnownTitles($this->stringList($item[$fromDate] ?? $item['from'] ?? $item['previous'] ?? []), $fromTitleSet);
 
                 if ($toEvents === [] || $fromEvents === []) {
                     return null;
@@ -385,6 +393,32 @@ class AiPeriodIngestion
             })
             ->filter()
             ->unique(fn (array $item): string => json_encode($item, JSON_UNESCAPED_UNICODE))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $topics
+     * @return array<string, true>
+     */
+    private function topicTitleSet(array $topics): array
+    {
+        return collect($topics)
+            ->map(fn (array $topic): string => trim((string) ($topic['title'] ?? '')))
+            ->filter()
+            ->mapWithKeys(fn (string $title): array => [$title => true])
+            ->all();
+    }
+
+    /**
+     * @param  list<string>  $titles
+     * @param  array<string, true>  $validTitleSet
+     * @return list<string>
+     */
+    private function filterKnownTitles(array $titles, array $validTitleSet): array
+    {
+        return collect($titles)
+            ->filter(fn (string $title): bool => isset($validTitleSet[$title]))
             ->values()
             ->all();
     }
