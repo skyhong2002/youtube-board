@@ -46,7 +46,7 @@ aipk={{ $aipk }} · {{ count($videos) }} videos · {{ $generated_at }}
             </nav>
 
             @if (! $history_available)
-                <p class="notice">Legacy wall 的逐日追蹤需要 `urt_ai_period`；{{ $history['blocked_reason'] ?? '目前先從 `urt_ai_event` summary/people JSON 顯示可驗證影片' }}。<br><x-ingestion-portal job="ai.daily" /></p>
+                <p class="notice">Legacy wall 的逐日追蹤需要 `urt_ai_period`；{{ $history['blocked_reason'] ?? '目前先從 `urt_ai_event` summary/people JSON 顯示可驗證影片' }}。<br><x-ingestion-portal job="ai.period" /></p>
             @endif
 
             @if ($videos !== [])
@@ -65,6 +65,6 @@ aipk={{ $aipk }} · {{ count($videos) }} videos · {{ $generated_at }}
                     @endforeach
                 </section>
             @else
-                <div class="empty">目前沒有可從 event JSON 擷取的影片。<br><x-ingestion-portal job="ai.daily" /></div>
+                <div class="empty">目前沒有可從 event JSON 擷取的影片。<br><x-ingestion-portal job="ai.event" /></div>
             @endif
 @endsection

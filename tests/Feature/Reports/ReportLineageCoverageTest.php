@@ -67,7 +67,7 @@ class ReportLineageCoverageTest extends TestCase
             '/ai/periods' => ['AiPeriodReport', 'urt_ai_date', 'AiPeriodReport::dates max 62 days'],
             '/ai/events/1' => ['AiEventReport', 'urt_ai_event', 'Period history bound'],
             '/ai/events/1/people' => ['AiEventReport', 'show/people/wall', 'urt_ai_period'],
-            '/ai/events/1/wall' => ['AiEventReport', 'wall videos', 'legacy.ai_event.cache'],
+            '/ai/events/1/wall' => ['AiEventReport', 'wall videos', 'ai.event'],
             '/ai/aspects' => ['AiAspectReport', 'AiAspectReport::filters condition map', 'urt_channel_ai'],
             '/ai/days/prompt' => ['AiDailyPromptReport', 'AiDailyPromptReport::prompt', '不呼叫 AI API'],
             '/ai/days/2026-05-30/all/prompt' => ['AiDailyPromptReport', 'AiDailyPromptReport::conditionFilters', 'prompt preview'],

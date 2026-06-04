@@ -2,6 +2,7 @@
 
 use App\Services\Ingestion\AiDailyIngestion;
 use App\Services\Ingestion\AiDailyPreview;
+use App\Services\Ingestion\AiEventIngestion;
 use App\Services\Ingestion\AiHourlyIngestion;
 use App\Services\Ingestion\AiHourlyPreview;
 use App\Services\Ingestion\AiPeriodIngestion;
@@ -2118,6 +2119,121 @@ Artisan::command('ai:period {--from= : Previous daily date, defaults to the day 
         return 1;
     }
 })->purpose('Preview or execute legacy AI period event matching; execute mode calls AI and upserts urt_ai_period rows');
+
+Artisan::command('ai:event {--date= : Legacy daily date; generates visible topics for the date} {--condition=all : Legacy condition_type to match} {--aipk= : Specific urt_ai_date pk for old event links} {--event= : Specific event title to generate} {--prompt-types=summary,people,media : Comma-separated prompt rows to generate} {--limit=20 : Max daily topics to include} {--ai-call-limit=60 : Max AI completion calls in execute mode} {--execute : Call OpenCode-compatible chat completions and upsert urt_ai_event} {--dry-run : Force dry-run preview; this is the default} {--missing-only : Skip prompt rows that already exist} {--user-token=CLI : user_token value for execute-mode upserts when the table supports it} {--show-prompt : Include prompt text in JSON/dry-run output} {--json : Emit JSON instead of text}', function (AiEventIngestion $ingestion) {
+    try {
+        $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
+        $aipk = $this->option('aipk') ? (int) $this->option('aipk') : null;
+        $event = $this->option('event') ? (string) $this->option('event') : null;
+
+        if ($execute) {
+            $payload = $ingestion->execute(
+                date: $this->option('date') ? (string) $this->option('date') : null,
+                condition: (string) $this->option('condition'),
+                aipk: $aipk,
+                event: $event,
+                promptTypes: (string) $this->option('prompt-types'),
+                limit: (int) $this->option('limit'),
+                aiCallLimit: (int) $this->option('ai-call-limit'),
+                missingOnly: (bool) $this->option('missing-only'),
+                userToken: (string) $this->option('user-token'),
+            );
+
+            if ((bool) $this->option('json')) {
+                $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+                return 0;
+            }
+
+            $this->line(sprintf(
+                'ai:event mode=execute source=%s date=%s pk=%s condition=%s topics=%d prompt_types=%s ai_call_limit=%d ai_calls_used=%d attempted=%d inserted=%d updated=%d skipped=%d secrets=not_printed generated_at=%s',
+                $payload['source'],
+                $payload['date'] ?? '-',
+                $payload['aipk'] ?? '-',
+                $payload['condition'],
+                $payload['topics'],
+                implode(',', $payload['prompt_types']),
+                $payload['ai_call_guard']['limit'],
+                $payload['ai_call_guard']['used'],
+                $payload['event_ai']['attempted'],
+                $payload['event_ai']['inserted'],
+                $payload['event_ai']['updated'],
+                $payload['event_ai']['skipped'],
+                $payload['generated_at'],
+            ));
+
+            foreach ($payload['event_ai']['rows'] as $index => $row) {
+                $this->line(sprintf(
+                    '#%d event=%s prompt_type=%s prompt_chars=%d inserted=%d updated=%d skipped=%d skip_reason=%s',
+                    $index + 1,
+                    $row['event'] ?? '-',
+                    $row['prompt_type'] ?? '-',
+                    $row['prompt_chars'] ?? 0,
+                    ($row['inserted'] ?? false) ? 1 : 0,
+                    ($row['updated'] ?? false) ? 1 : 0,
+                    ($row['skipped'] ?? false) ? 1 : 0,
+                    $row['skip_reason'] ?? '-',
+                ));
+            }
+
+            $this->line('write_targets='.implode(',', $payload['write_targets']));
+
+            return 0;
+        }
+
+        $payload = $ingestion->preview(
+            date: $this->option('date') ? (string) $this->option('date') : null,
+            condition: (string) $this->option('condition'),
+            aipk: $aipk,
+            event: $event,
+            promptTypes: (string) $this->option('prompt-types'),
+            limit: (int) $this->option('limit'),
+            missingOnly: (bool) $this->option('missing-only'),
+            includePrompt: (bool) $this->option('show-prompt'),
+        );
+
+        if ((bool) $this->option('json')) {
+            $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+            return 0;
+        }
+
+        $this->line(sprintf(
+            'ai:event mode=ingestion-preview source=%s date=%s pk=%s condition=%s topics=%d prompt_types=%s existing_event_rows=%d prompt_rows=%d would_call_ai_requests=%d would_upsert_ai_event_rows=%d blocked_reason=%s generated_at=%s writes=0 api_call=skipped ai_event_upsert=skipped',
+            $payload['source'],
+            $payload['date'] ?? '-',
+            $payload['aipk'] ?? '-',
+            $payload['condition'],
+            $payload['topics'],
+            implode(',', $payload['prompt_types']),
+            $payload['existing_event_rows'],
+            count($payload['rows']),
+            $payload['would_call_ai_requests'],
+            $payload['would_upsert_ai_event_rows'],
+            $payload['blocked_reason'] ?? '-',
+            $payload['generated_at'],
+        ));
+
+        foreach ($payload['rows'] as $index => $row) {
+            $this->line(sprintf(
+                '#%d event=%s prompt_type=%s existing_rows=%d prompt_chars=%d skipped=%d skip_reason=%s',
+                $index + 1,
+                $row['event'],
+                $row['prompt_type'],
+                $row['existing_rows'],
+                $row['prompt_chars'],
+                $row['skipped'] ? 1 : 0,
+                $row['skip_reason'] ?? '-',
+            ));
+        }
+
+        return 0;
+    } catch (QueryException $exception) {
+        $this->error('ai:event unavailable: '.$exception->getMessage());
+
+        return 1;
+    }
+})->purpose('Preview or execute legacy AI event summary/people/media generation; execute mode calls AI and upserts urt_ai_event rows');
 
 Artisan::command('ai:hourly {--condition= : Optional legacy condition; omitted matches cron default} {--hour=1 : Legacy hours-back offset} {--period=1 : Legacy number of hourly buckets to include} {--limit=20 : Number of candidate videos to print} {--execute : Call OpenCode-compatible chat completions and upsert urt_ai_hour} {--dry-run : Force dry-run preview; this is the default} {--user-token=cli : user_token value for execute-mode upsert} {--json : Emit JSON instead of text}', function (AiHourlyPreview $preview, AiHourlyIngestion $ingestion) {
     try {

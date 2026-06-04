@@ -3131,14 +3131,14 @@ class ReportLineageProfiles
                     scheduler: 'config/ingestion.php job ai.period；目前 planned/manual，未設定 scheduled execute command。',
                 ),
                 self::job(
-                    key: 'legacy.ai_event.cache',
-                    label: 'Legacy AI event cache',
-                    command: 'approved legacy snapshot/export or prompt guarded workflow -> urt_ai_event',
-                    apiCalls: ['AI API only through approved prompt workflow, not page request'],
-                    reads: ['urt_ai_date', 'approved prompt workflow'],
+                    key: 'ai.event',
+                    label: 'AI event summary/people/media',
+                    command: 'ai:event --execute --date=YYYY-MM-DD --condition=all',
+                    apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
+                    reads: ['urt_ai_date', 'urt_channel_ai'],
                     writes: ['urt_ai_event'],
-                    summary: '事件 summary/people/media 目前不由此頁 request 產生；需由受控 prompt/legacy import workflow 或後續 reviewed command 維護。',
-                    scheduler: '不會由目前一般 Laravel scheduler 常態重建；若要常態更新需新增 reviewed command/job。',
+                    summary: '針對 daily topic 產生 summary、people、media 三種 event cache；頁面 request 本身不呼叫 AI。',
+                    scheduler: 'config/ingestion.php job ai.event；目前 planned/manual，未設定 scheduled execute command。',
                 ),
             ],
             'render' => [
@@ -3166,9 +3166,10 @@ class ReportLineageProfiles
             'graph' => [
                 self::jobNode('ai_event_daily_job', 'ai:daily source rows', 'api', 'ai.daily', '產生 daily source rows；頁面 request 不呼叫模型 API。'),
                 self::jobNode('ai_event_period_job', 'ai:period matching', 'api', 'ai.period', '比較相鄰兩天 daily topics，寫入 urt_ai_period 事件鏈。'),
+                self::jobNode('ai_event_job', 'ai:event event rows', 'api', 'ai.event', '產生 summary/people/media event rows；頁面 request 不呼叫模型 API。'),
                 self::sourceNode('ai_event_cache', 'urt_ai_event / period cache', 'cache', 'urt_ai_event', '保存事件 summary/people/media AI JSON 與 period mapping。', [
                     'source_details' => ['urt_ai_period', 'urt_ai_date'],
-                    'job_details' => ['ai.period', 'legacy.ai_event.cache'],
+                    'job_details' => ['ai.period', 'ai.event'],
                 ]),
                 self::fixedNode('ai_event_rules', 'mode / JSON / history rules', 'mode、JSON keys 與最多 60 天 period history 追蹤規則固定在 service。'),
                 self::serviceNode('ai_event_report', 'AiEventReport event resolver', 'request 時解析事件 row、人物/媒體 JSON、wall videos 與歷史鏈。'),
@@ -3177,6 +3178,8 @@ class ReportLineageProfiles
             'edges' => [
                 self::edge('ai_event_daily_job', 'ai_event_period_job', 'daily topics', 'ai:period 以 daily rows 與 fallback topics 作為相鄰日 matching 輸入。'),
                 self::edge('ai_event_period_job', 'ai_event_cache', 'period chain', 'ai:period 將相鄰日事件鏈寫入 urt_ai_period。'),
+                self::edge('ai_event_daily_job', 'ai_event_job', 'daily topics', 'ai:event 以 daily rows 與 fallback topics 作為 event summary/people/media prompt 輸入。'),
+                self::edge('ai_event_job', 'ai_event_cache', 'event rows', 'ai:event 將事件 summary/people/media 寫入 urt_ai_event。'),
                 self::edge('ai_event_cache', 'ai_event_rules', 'decode mode', 'request mode 決定解析哪種事件 payload。'),
                 self::edge('ai_event_rules', 'ai_event_report', 'resolve event', '報表服務解析 event/people/media/history。'),
                 self::edge('ai_event_report', 'ai_event_page', 'render event', 'Blade 輸出 AI 事件頁。'),

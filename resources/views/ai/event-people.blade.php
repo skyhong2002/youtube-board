@@ -76,7 +76,7 @@ aipk={{ $aipk }} · {{ $generated_at }}
                     @endif
                 @endforeach
             @else
-                <p class="empty">目前沒有 people prompt JSON。<br><x-ingestion-portal job="ai.daily" /></p>
+                <p class="empty">目前沒有 people prompt JSON。<br><x-ingestion-portal job="ai.event" /></p>
             @endif
 
             @if ($media)
