@@ -117,6 +117,12 @@ class AiPeriodIngestion
                 $fromDay['topics'],
                 $toDay['topics'],
             );
+            $matches = $this->mergeMatches(
+                $matches,
+                $this->deterministicMatches($fromDay, $toDay, $range['from_date'], $range['to_date']),
+                $range['from_date'],
+                $range['to_date'],
+            );
             $upsert = $this->upsertPeriod($range, $condition, (string) $fromDay['pk'], (string) $toDay['pk'], $matches, $completion['model'], $userToken, $now);
 
             return $this->executeResult($range, $condition, $fromDay, $toDay, $now, [
@@ -424,6 +430,227 @@ class AiPeriodIngestion
     }
 
     /**
+     * @return list<array<string, list<string>>>
+     */
+    private function deterministicMatches(array $fromDay, array $toDay, string $fromDate, string $toDate): array
+    {
+        $matches = [];
+
+        foreach ($toDay['topics'] as $toTopic) {
+            $best = null;
+
+            foreach ($fromDay['topics'] as $fromTopic) {
+                $score = $this->topicSimilarityScore($fromTopic, $toTopic);
+
+                if ($score < 10) {
+                    continue;
+                }
+
+                if ($best === null || $score > $best['score']) {
+                    $best = [
+                        'score' => $score,
+                        'topic' => $fromTopic,
+                    ];
+                }
+            }
+
+            if ($best !== null) {
+                $matches[] = [
+                    $toDate => [(string) $toTopic['title']],
+                    $fromDate => [(string) $best['topic']['title']],
+                ];
+            }
+        }
+
+        return $matches;
+    }
+
+    private function topicSimilarityScore(array $fromTopic, array $toTopic): int
+    {
+        $from = $this->topicSignals($fromTopic);
+        $to = $this->topicSignals($toTopic);
+        $people = $this->intersectSignals($from['people'], $to['people']);
+        $keywords = $this->intersectSignals($from['keywords'], $to['keywords']);
+        $titles = $this->intersectSignals($from['titles'], $to['titles']);
+        $media = $this->intersectSignals($from['media'], $to['media']);
+        $score = count($people) * 6
+            + count($keywords) * 3
+            + count($titles) * 4
+            + count($media) * 4;
+
+        if ($people !== [] && $this->sharedSignalAppearsInTitles($people, $fromTopic, $toTopic)) {
+            $score += 4;
+        }
+
+        if ($this->titleContains($fromTopic, $toTopic)) {
+            $score += 6;
+        }
+
+        return $this->passesSimilarityFloor($score, $people, $keywords, $titles, $media) ? $score : 0;
+    }
+
+    /**
+     * @return array{people: list<string>, keywords: list<string>, titles: list<string>, media: list<string>}
+     */
+    private function topicSignals(array $topic): array
+    {
+        $mediaEvents = collect($topic['media_events'] ?? [])
+            ->map(fn (array $row): string => (string) ($row['event'] ?? ''))
+            ->filter()
+            ->values()
+            ->all();
+
+        return [
+            'people' => $this->normalizedSignals((array) ($topic['people'] ?? [])),
+            'keywords' => $this->normalizedSignals((array) ($topic['keywords'] ?? [])),
+            'titles' => $this->normalizedSignals($this->titleSignals((string) ($topic['title'] ?? ''))),
+            'media' => $this->normalizedSignals($mediaEvents),
+        ];
+    }
+
+    /**
+     * @param  list<string>  $signals
+     * @return list<string>
+     */
+    private function normalizedSignals(array $signals): array
+    {
+        return collect($signals)
+            ->map(fn (mixed $signal): string => $this->normalizedSignal((string) $signal))
+            ->filter(fn (string $signal): bool => mb_strlen($signal, 'UTF-8') >= 2)
+            ->reject(fn (string $signal): bool => $this->isWeakSignal($signal))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  list<string>  $left
+     * @param  list<string>  $right
+     * @return list<string>
+     */
+    private function intersectSignals(array $left, array $right): array
+    {
+        return array_values(array_intersect($left, $right));
+    }
+
+    private function passesSimilarityFloor(int $score, array $people, array $keywords, array $titles, array $media): bool
+    {
+        if ($people !== [] && ($keywords !== [] || $titles !== [] || $media !== [])) {
+            return $score >= 10;
+        }
+
+        if (count($keywords) >= 2 || $media !== [] || count($titles) >= 2) {
+            return $score >= 10;
+        }
+
+        return false;
+    }
+
+    private function sharedSignalAppearsInTitles(array $signals, array $fromTopic, array $toTopic): bool
+    {
+        $fromTitle = $this->normalizedSignal((string) ($fromTopic['title'] ?? ''));
+        $toTitle = $this->normalizedSignal((string) ($toTopic['title'] ?? ''));
+
+        foreach ($signals as $signal) {
+            if (str_contains($fromTitle, $signal) && str_contains($toTitle, $signal)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function titleContains(array $fromTopic, array $toTopic): bool
+    {
+        $fromTitle = $this->normalizedSignal((string) ($fromTopic['title'] ?? ''));
+        $toTitle = $this->normalizedSignal((string) ($toTopic['title'] ?? ''));
+
+        return $fromTitle !== ''
+            && $toTitle !== ''
+            && (str_contains($fromTitle, $toTitle) || str_contains($toTitle, $fromTitle));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function titleSignals(string $title): array
+    {
+        preg_match_all('/[A-Za-z0-9][A-Za-z0-9-]{1,}/u', $title, $latinMatches);
+        $chunks = preg_split('/(?:的|與|及|和|在|參加|出席|訪|到|對|問題|事件|活動|高人氣|主題|演講|型|機)/u', $title) ?: [];
+
+        return collect([
+            $title,
+            ...($latinMatches[0] ?? []),
+            ...$chunks,
+        ])
+            ->map(fn (string $signal): string => trim($signal))
+            ->filter(fn (string $signal): bool => $signal !== '')
+            ->values()
+            ->all();
+    }
+
+    private function normalizedSignal(string $value): string
+    {
+        $value = preg_replace('/[\s　[:punct:]]+/u', '', $value) ?? $value;
+        $value = str_replace(['事件', '事故', '新聞', '後續', '焦點', '最新', '相關'], '', $value);
+
+        return mb_strtolower(trim($value), 'UTF-8');
+    }
+
+    private function isWeakSignal(string $signal): bool
+    {
+        return in_array($signal, [
+            'ai',
+            '台灣',
+            '中國',
+            '美國',
+            '日本',
+            '國際',
+            '政治',
+            '財經',
+            '社會',
+            '新聞',
+            '直播',
+            '最新',
+            '民進黨',
+            '國民黨',
+            '川普',
+            '專家',
+            '活動',
+            '高人氣',
+        ], true);
+    }
+
+    /**
+     * @return list<array<string, list<string>>>
+     */
+    private function mergeMatches(array $matches, array $additionalMatches, string $fromDate, string $toDate): array
+    {
+        $merged = [];
+
+        foreach ([...$matches, ...$additionalMatches] as $match) {
+            foreach ($this->stringList($match[$toDate] ?? []) as $toEvent) {
+                $fromEvents = $this->stringList($match[$fromDate] ?? []);
+
+                if ($toEvent === '' || $fromEvents === []) {
+                    continue;
+                }
+
+                $merged[$toEvent] ??= [
+                    $toDate => [$toEvent],
+                    $fromDate => [],
+                ];
+                $merged[$toEvent][$fromDate] = array_values(array_unique([
+                    ...$merged[$toEvent][$fromDate],
+                    ...$fromEvents,
+                ]));
+            }
+        }
+
+        return array_values($merged);
+    }
+
+    /**
      * @return list<string>
      */
     private function stringList(mixed $items): array
@@ -466,15 +693,11 @@ class AiPeriodIngestion
             $query->where('data_type', 'oneday');
         }
 
-        if (Schema::hasColumn('urt_ai_period', 'user_token')) {
-            $query->where('user_token', $userToken);
-        }
-
         if (Schema::hasColumn('urt_ai_period', 'del_flag')) {
             $query->whereNull('del_flag');
         }
 
-        $existingPk = $query->value('pk');
+        $existingPk = $query->orderByDesc('pk')->value('pk');
         $values = [
             'result_json' => json_encode($matches, JSON_UNESCAPED_UNICODE),
             'data_json' => json_encode([$fromPk, $toPk], JSON_UNESCAPED_UNICODE),

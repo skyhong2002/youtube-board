@@ -105,6 +105,64 @@ class IngestionAiPeriodCommandTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_ai_period_execute_adds_deterministic_matches_and_updates_existing_period_row(): void
+    {
+        $this->createTables();
+        $this->seedDailyFallbackRows();
+
+        DB::table('urt_ai_period')->insert([
+            'date_from' => '2026-06-02 00:00:00',
+            'date_to' => '2026-06-03 23:59:59',
+            'data_type' => 'oneday',
+            'condition_type' => 'all',
+            'user_token' => null,
+            'del_flag' => null,
+            'result_json' => '[]',
+            'data_json' => '[]',
+        ]);
+
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::response([
+                'choices' => [
+                    [
+                        'message' => [
+                            'content' => '[]',
+                        ],
+                    ],
+                ],
+                'usage' => ['prompt_tokens' => 100, 'completion_tokens' => 5],
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('ai:period', [
+            '--execute' => true,
+            '--from' => '2026-06-02',
+            '--to' => '2026-06-03',
+            '--condition' => 'all',
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertFalse($payload['period_ai']['inserted']);
+        $this->assertTrue($payload['period_ai']['updated']);
+        $this->assertSame([
+            [
+                '2026-06-03' => ['鄭麗文訪美及兩岸關係'],
+                '2026-06-02' => ['鄭麗文訪美'],
+            ],
+        ], $payload['period_ai']['rows'][0]['matches']);
+        $this->assertSame(1, DB::table('urt_ai_period')->count());
+
+        $row = DB::table('urt_ai_period')->first();
+        $this->assertSame('CLI', $row->user_token);
+        $this->assertSame('[{"2026-06-03":["鄭麗文訪美及兩岸關係"],"2026-06-02":["鄭麗文訪美"]}]', $row->result_json);
+    }
+
     private function createTables(): void
     {
         foreach (['urt_ai_period', 'urt_ai_date', 'urt_channel_ai', 'urt_channel', 'urt_count'] as $table) {
