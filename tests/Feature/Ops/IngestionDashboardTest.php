@@ -9,6 +9,16 @@ use Tests\TestCase;
 
 class IngestionDashboardTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.local_polling_enabled', true);
+        config()->set('ingestion.production_polling_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['*']);
+    }
+
     public function test_ingestion_dashboard_renders_legacy_cron_registry_with_controlled_polling_state(): void
     {
         Storage::fake('local');
@@ -674,7 +684,7 @@ class IngestionDashboardTest extends TestCase
         $this->assertSame(0, $exitCode);
         $this->assertStringContainsString('scheduler=enabled', $output);
         $this->assertStringContainsString('command_missing=0', $output);
-        $this->assertStringContainsString('command_ready=29', $output);
+        $this->assertStringContainsString('command_ready=30', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_statics.php -> youtube:channels:stats', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_live.php -> youtube:live:poll', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_live_tvbs.php -> youtube:tvbs:live:poll', $output);
@@ -699,6 +709,7 @@ class IngestionDashboardTest extends TestCase
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_duration.php -> youtube:videos:duration', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_video_count.php -> youtube:videos:stats', $output);
         $this->assertStringContainsString('active command:ready /home/urtube/maint/make_ai_day.sh -> ai:daily', $output);
+        $this->assertStringContainsString('planned command:ready /usr/bin/php /home/urtube/prompt/ai_cont_prompt.php do=1 -> ai:period', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/prompt/ai_hour_prompt.php do=1 -> ai:hourly', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/make_comments.php or=1,2,3,4,5,6,13,14,81 hours=72 min=500 -> youtube:comments:queue --or=1,2,3,4,5,6,13,14,81 --hours=72 --min=500', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/do_comments.php -> youtube:comments:fetch', $output);

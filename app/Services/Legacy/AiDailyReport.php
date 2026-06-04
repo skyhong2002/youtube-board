@@ -58,7 +58,7 @@ class AiDailyReport
             }
 
             if ($topics === []) {
-                $fallback = $this->channelAiFallback($request, $resolvedCondition, $date);
+                $fallback = $this->channelAiFallback($request, $resolvedCondition, $date, $row);
 
                 if ($fallback !== null && $fallback['topics'] !== []) {
                     return $fallback;
@@ -131,7 +131,7 @@ class AiDailyReport
      *
      * @return array{available: bool, row: array<string, mixed>|null, date: string|null, condition: string, title: string, topics: list<array<string, mixed>>, channels_count: int, coverage: array<string, int|null>, generated_at: string}|null
      */
-    private function channelAiFallback(Request $request, string $condition, ?string $date = null): ?array
+    private function channelAiFallback(Request $request, string $condition, ?string $date = null, ?object $sourceRow = null): ?array
     {
         $date ??= $this->routeDate($request);
 
@@ -161,7 +161,13 @@ class AiDailyReport
 
         return [
             'available' => true,
-            'row' => null,
+            'row' => $sourceRow ? [
+                'pk' => (int) $sourceRow->pk,
+                'date_from' => (string) $sourceRow->date_from,
+                'date_to' => (string) $sourceRow->date_to,
+                'data_type' => $sourceRow->data_type ?? null,
+                'condition_type' => $sourceRow->condition_type ?? null,
+            ] : null,
             'date' => $date,
             'condition' => $condition,
             'title' => $this->title($date, $condition),

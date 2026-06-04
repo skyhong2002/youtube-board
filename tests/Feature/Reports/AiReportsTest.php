@@ -417,7 +417,8 @@ class AiReportsTest extends TestCase
         $response->assertSee('媒體數：2 個 / 影片數：4 則');
         $response->assertSee('empty-row-fallback-a');
         $response->assertDontSee('目前沒有符合條件的 AI daily summary');
-        $response->assertDontSee('pk=121');
+        $response->assertSee('pk=121');
+        $response->assertSee('/ai/events/121?event=', false);
     }
 
     public function test_ai_daily_index_uses_latest_date_channel_ai_fallback_when_latest_daily_summary_row_is_empty(): void
@@ -491,7 +492,8 @@ class AiReportsTest extends TestCase
         $response->assertSee('媒體數：2 個 / 影片數：4 則');
         $response->assertSee('latest-index-fallback-a');
         $response->assertDontSee('目前沒有符合條件的 AI daily summary');
-        $response->assertDontSee('pk=122');
+        $response->assertSee('pk=122');
+        $response->assertSee('/ai/events/122?event=', false);
     }
 
     public function test_ai_event_page_renders_summary_and_people_prompts(): void
