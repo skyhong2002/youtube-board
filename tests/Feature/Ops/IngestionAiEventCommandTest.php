@@ -133,6 +133,52 @@ class IngestionAiEventCommandTest extends TestCase
         Http::assertSentCount(2);
     }
 
+    public function test_ai_event_execute_falls_back_to_topic_evidence_when_ai_returns_invalid_json(): void
+    {
+        $this->createTables();
+        $this->seedDailyTopicRows();
+
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::response([
+                'choices' => [
+                    [
+                        'message' => [
+                            'content' => '這不是 JSON',
+                        ],
+                    ],
+                ],
+                'usage' => ['prompt_tokens' => 100, 'completion_tokens' => 12],
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('ai:event', [
+            '--execute' => true,
+            '--aipk' => 10,
+            '--event' => '黃仁勳的高人氣與活動',
+            '--condition' => 'all',
+            '--prompt-types' => 'summary',
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, $payload['event_ai']['inserted']);
+        $this->assertTrue($payload['event_ai']['rows'][0]['fallback_used']);
+        $this->assertSame('invalid_json_response', $payload['event_ai']['rows'][0]['fallback_reason']);
+
+        $row = DB::table('urt_ai_event')->first();
+        $decoded = json_decode($row->result_json, true);
+
+        $this->assertSame('黃仁勳的高人氣與活動', $decoded['events'][0]['event']);
+        $this->assertSame('黃仁勳COMPUTEX演講', $decoded['events'][0]['fact'][0]['headline']);
+        $this->assertSame('nvidia-a', $decoded['events'][0]['fact'][0]['video_id']);
+        Http::assertSentCount(1);
+    }
+
     private function createTables(): void
     {
         foreach (['urt_ai_period', 'urt_ai_event', 'urt_ai_date', 'urt_channel_ai', 'urt_channel', 'urt_count', 'urt_video'] as $table) {

@@ -133,7 +133,21 @@ class AiEventIngestion
                 try {
                     $aiCallsUsed++;
                     $completion = $this->client->complete($prompt);
-                    $resultJson = $this->normalizedJson($completion['content']);
+                    $fallbackUsed = false;
+                    $fallbackReason = null;
+
+                    try {
+                        $resultJson = $this->normalizedJson($completion['content']);
+                    } catch (RuntimeException $exception) {
+                        if ($exception->getMessage() !== 'invalid_json_response') {
+                            throw $exception;
+                        }
+
+                        $resultJson = $this->fallbackJson($topic, $promptType);
+                        $fallbackUsed = true;
+                        $fallbackReason = 'invalid_json_response';
+                    }
+
                     $upsert = $this->upsertEvent($day, $topic, $promptType, $resultJson, $completion['model'], $userToken, $now);
                     $rows[] = $baseRow + [
                         'ai_call_attempted' => true,
@@ -141,6 +155,8 @@ class AiEventIngestion
                         'updated' => $upsert['updated'],
                         'skipped' => false,
                         'skip_reason' => null,
+                        'fallback_used' => $fallbackUsed,
+                        'fallback_reason' => $fallbackReason,
                         'model' => $completion['model'],
                         'usage' => $completion['usage'],
                     ];
@@ -151,6 +167,8 @@ class AiEventIngestion
                         'updated' => false,
                         'skipped' => true,
                         'skip_reason' => $this->sanitizedFailure($exception),
+                        'fallback_used' => false,
+                        'fallback_reason' => null,
                         'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
                         'usage' => null,
                     ];
@@ -607,6 +625,175 @@ class AiEventIngestion
         return json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
+    private function fallbackJson(array $topic, string $promptType): string
+    {
+        $payload = match ($promptType) {
+            'people' => $this->fallbackPeoplePayload($topic),
+            'media' => $this->fallbackMediaPayload($topic),
+            default => $this->fallbackSummaryPayload($topic),
+        };
+
+        return json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function fallbackSummaryPayload(array $topic): array
+    {
+        $media = $this->topicMedia($topic);
+        $facts = collect($topic['media_event_rows'])
+            ->take(8)
+            ->map(function (array $row) use ($topic): array {
+                $video = $this->matchingVideo($topic, $row);
+
+                return [
+                    'media' => $row['channel'] ?: 'YouTube',
+                    'headline' => $row['event'] ?: (string) $topic['title'],
+                    'video_id' => $video['video_id'] ?? '',
+                ];
+            })
+            ->filter(fn (array $row): bool => $row['headline'] !== '')
+            ->values()
+            ->all();
+
+        if ($facts === []) {
+            $facts[] = [
+                'media' => $media[0] ?? 'YouTube',
+                'headline' => (string) $topic['title'],
+                'video_id' => (string) (($topic['videos'][0]['video_id'] ?? '') ?: ''),
+            ];
+        }
+
+        $opinions = collect($topic['media_event_rows'])
+            ->take(6)
+            ->map(function (array $row) use ($topic): array {
+                $video = $this->matchingVideo($topic, $row);
+
+                return [
+                    'media' => $row['channel'] ?: 'YouTube',
+                    'stance' => '報導焦點',
+                    'intensity' => '中',
+                    'content' => $row['event'] ?: (string) $topic['title'],
+                    'video_id' => $video['video_id'] ?? '',
+                ];
+            })
+            ->filter(fn (array $row): bool => $row['content'] !== '')
+            ->values()
+            ->all();
+
+        return [
+            'events' => [
+                [
+                    'event' => (string) $topic['title'],
+                    'description' => $this->fallbackDescription($topic, $media),
+                    'keywords' => $topic['keywords'] !== [] ? $topic['keywords'] : [(string) $topic['title']],
+                    'media' => $media,
+                    'fact' => $facts,
+                    'opinion' => $opinions,
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function fallbackPeoplePayload(array $topic): array
+    {
+        $people = $topic['people'] !== [] ? $topic['people'] : [(string) $topic['title']];
+        $videos = collect($topic['videos'])
+            ->take(3)
+            ->map(fn (array $video): array => [
+                'media' => $video['channel'] ?: 'YouTube',
+                'video_id' => $video['video_id'],
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'main_subject' => $people[0] ?? (string) $topic['title'],
+            'supporting_persons' => collect($people)
+                ->take(6)
+                ->map(fn (string $person): array => [
+                    'person' => $person,
+                    'role' => '事件相關人物',
+                    'support_or_opposition' => '其他',
+                    'strength' => '中',
+                    'description' => $person.' 出現在這個 daily topic 的人物訊號中。',
+                    'videos' => $videos,
+                ])
+                ->values()
+                ->all(),
+            'opposing_persons' => [],
+            'other_opinions_persons' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function fallbackMediaPayload(array $topic): array
+    {
+        $media = $this->topicMedia($topic);
+
+        return [
+            'main_subject' => (string) $topic['title'],
+            'supporting_medias' => collect($media)
+                ->map(fn (string $name): array => [
+                    'media' => $name,
+                    'support_or_opposition' => '其他',
+                    'strength' => '中',
+                    'description' => $name.' 以此 daily topic 相關事件作為報導焦點。',
+                ])
+                ->values()
+                ->all(),
+            'opposing_medias' => [],
+            'other_opinions_medias' => [],
+            'all_medias' => $media,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function topicMedia(array $topic): array
+    {
+        $media = collect($topic['media_event_rows'])
+            ->map(fn (array $row): string => $row['channel'] ?: '')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        return $media === [] ? ['YouTube'] : $media;
+    }
+
+    private function fallbackDescription(array $topic, array $media): string
+    {
+        $mediaText = $media === [] ? '多個 YouTube 頻道' : implode('、', array_slice($media, 0, 4));
+
+        return $mediaText.'在這一天共同報導「'.$topic['title'].'」，系統以 daily topic 的媒體事件、關鍵字、人物與影片訊號建立可顯示摘要。';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function matchingVideo(array $topic, array $mediaEvent): array
+    {
+        foreach ($topic['videos'] as $video) {
+            if (($mediaEvent['channel'] ?? '') !== '' && ($video['channel'] ?? '') === $mediaEvent['channel']) {
+                return $video;
+            }
+
+            if (($mediaEvent['event'] ?? '') !== '' && ($video['event'] ?? '') === $mediaEvent['event']) {
+                return $video;
+            }
+        }
+
+        return $topic['videos'][0] ?? [];
+    }
+
     private function stripJsonFence(string $content): string
     {
         $content = trim($content);
@@ -630,6 +817,8 @@ class AiEventIngestion
             'updated' => false,
             'skipped' => true,
             'skip_reason' => $reason,
+            'fallback_used' => false,
+            'fallback_reason' => null,
             'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
             'usage' => null,
         ];
