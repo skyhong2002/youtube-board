@@ -22,6 +22,7 @@ class IntegrationCheckController extends Controller
 
         return $this->renderPage(
             $youtubePayload,
+            $history->aiProviderUsageDailyEstimate(),
             $this->cachedTagAnalysisLivePayload(),
             'config-only + public endpoint health checks',
         );
@@ -39,6 +40,7 @@ class IntegrationCheckController extends Controller
 
         return $this->renderPage(
             $payload,
+            $history->aiProviderUsageDailyEstimate(),
             $this->cachedTagAnalysisLivePayload(),
             'live probe · external services and dependencies',
         );
@@ -53,10 +55,10 @@ class IntegrationCheckController extends Controller
         return response()->json($payload, $status);
     }
 
-    private function renderPage(array $youtubePayload, array $tagAnalysisPayload, string $meta): Response
+    private function renderPage(array $youtubePayload, array $aiProviderUsage, array $tagAnalysisPayload, string $meta): Response
     {
         return response()->view('ops.integrations', [
-            'checks' => $this->integrationChecks($youtubePayload, $tagAnalysisPayload),
+            'checks' => $this->integrationChecks($youtubePayload, $aiProviderUsage, $tagAnalysisPayload),
             'meta' => $meta,
             'liveProbe' => ($youtubePayload['probe_mode'] ?? null) === 'live',
         ]);
@@ -131,11 +133,11 @@ class IntegrationCheckController extends Controller
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function integrationChecks(array $youtubePayload, array $tagAnalysisPayload): array
+    private function integrationChecks(array $youtubePayload, array $aiProviderUsage, array $tagAnalysisPayload): array
     {
         return [
             $this->youtubeCheck($youtubePayload),
-            $this->aiProviderCheck(),
+            $this->aiProviderCheck($aiProviderUsage),
             $this->dokployDeployCheck(),
             $this->tagAnalysisCheck($tagAnalysisPayload),
             $this->databaseCheck(),
@@ -299,12 +301,14 @@ class IntegrationCheckController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function aiProviderCheck(): array
+    private function aiProviderCheck(array $usage): array
     {
         $apiKey = config('services.opencode_go.api_key');
         $baseUrl = config('services.opencode_go.base_url');
         $model = config('services.opencode_go.model');
         $fallbackApiKey = config('services.opencode_go.fallback_api_key');
+        $fallbackBaseUrl = config('services.opencode_go.fallback_base_url');
+        $fallbackModel = config('services.opencode_go.fallback_model');
 
         $configured = is_string($apiKey) && trim($apiKey) !== '';
         $fallbackConfigured = is_string($fallbackApiKey) && trim($fallbackApiKey) !== '';
@@ -314,14 +318,79 @@ class IntegrationCheckController extends Controller
             'description' => 'AI 每日、每小時與頻道摘要產生使用的 chat/messages 相容端點。',
             'state' => $configured || $fallbackConfigured ? 'configured' : 'missing',
             'status' => $configured || $fallbackConfigured ? 'configured' : 'missing',
-            'details' => [
+            'details' => array_merge([
                 ['label' => 'Check', 'value' => 'config only; no model request'],
                 ['label' => 'Base URL', 'value' => is_string($baseUrl) && $baseUrl !== '' ? $baseUrl : 'n/a'],
                 ['label' => 'Model', 'value' => is_string($model) && $model !== '' ? $model : 'n/a'],
                 ['label' => 'Primary key', 'value' => $configured ? 'configured' : 'missing'],
+                ['label' => 'Fallback base URL', 'value' => is_string($fallbackBaseUrl) && $fallbackBaseUrl !== '' ? $fallbackBaseUrl : 'n/a'],
+                ['label' => 'Fallback model', 'value' => is_string($fallbackModel) && $fallbackModel !== '' ? $fallbackModel : 'n/a'],
                 ['label' => 'Fallback key', 'value' => $fallbackConfigured ? 'configured' : 'not configured'],
-            ],
+            ], $this->aiProviderUsageDetails($usage)),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $usage
+     * @return list<array{label: string, value: string}>
+     */
+    private function aiProviderUsageDetails(array $usage): array
+    {
+        $details = [
+            ['label' => 'Primary key usage', 'value' => $this->aiProviderUsageValue((array) data_get($usage, 'providers.primary', []))],
+            ['label' => 'OpenAI fallback usage', 'value' => $this->aiProviderUsageValue((array) data_get($usage, 'providers.fallback', []))],
+        ];
+
+        $unknown = (array) data_get($usage, 'providers.unknown', []);
+        $unknownCalls = (int) ($unknown['successful_calls'] ?? 0);
+        $unknownFailures = (int) ($unknown['failed_attempts'] ?? 0);
+
+        if ($unknownCalls > 0 || $unknownFailures > 0) {
+            $details[] = ['label' => 'Unknown AI usage', 'value' => $this->aiProviderUsageValue($unknown)];
+        }
+
+        $details[] = [
+            'label' => 'AI tokens today',
+            'value' => sprintf(
+                'prompt %s; completion %s; total %s',
+                number_format((int) ($usage['prompt_tokens'] ?? 0)),
+                number_format((int) ($usage['completion_tokens'] ?? 0)),
+                number_format((int) ($usage['total_tokens'] ?? 0)),
+            ),
+        ];
+        $details[] = [
+            'label' => 'AI usage window',
+            'value' => sprintf(
+                '%s -> %s; %s run%s',
+                (string) ($usage['window_start'] ?? '-'),
+                (string) ($usage['window_end'] ?? '-'),
+                number_format((int) ($usage['record_count'] ?? 0)),
+                (int) ($usage['record_count'] ?? 0) === 1 ? '' : 's',
+            ),
+        ];
+        $details[] = [
+            'label' => 'AI usage source',
+            'value' => (string) ($usage['source'] ?? 'local ingestion run history'),
+        ];
+
+        return $details;
+    }
+
+    /**
+     * @param  array<string, mixed>  $provider
+     */
+    private function aiProviderUsageValue(array $provider): string
+    {
+        return sprintf(
+            '%s successful %s; %s failed %s; prompt %s / completion %s / total %s tokens',
+            number_format((int) ($provider['successful_calls'] ?? 0)),
+            (int) ($provider['successful_calls'] ?? 0) === 1 ? 'call' : 'calls',
+            number_format((int) ($provider['failed_attempts'] ?? 0)),
+            (int) ($provider['failed_attempts'] ?? 0) === 1 ? 'attempt' : 'attempts',
+            number_format((int) ($provider['prompt_tokens'] ?? 0)),
+            number_format((int) ($provider['completion_tokens'] ?? 0)),
+            number_format((int) ($provider['total_tokens'] ?? 0)),
+        );
     }
 
     /**

@@ -44,17 +44,42 @@ class OpenCodeChatClient
     }
 
     /**
+     * @return array{content: string, model: string, provider: string, provider_failures: list<string>, usage: array<string, mixed>|null, latency_ms: int}
+     */
+    public function probe(string $providerName, string $prompt = 'Reply with OK.', int $maxTokens = 16): array
+    {
+        $providerName = strtolower(trim($providerName));
+        $provider = collect($this->providers())
+            ->first(fn (array $provider): bool => $provider['name'] === $providerName);
+
+        if (! is_array($provider)) {
+            throw new RuntimeException('AI provider '.$providerName.' is not configured; secrets=not_printed');
+        }
+
+        $started = hrtime(true);
+        $completion = $this->completeWithProvider($prompt, $provider, max(1, min(128, $maxTokens)));
+
+        return $completion + [
+            'provider' => $provider['name'],
+            'provider_failures' => [],
+            'latency_ms' => (int) round((hrtime(true) - $started) / 1_000_000),
+        ];
+    }
+
+    /**
      * @param  array{name: string, api_key: string, base_url: string, model: string, endpoint_style: string, timeout: int, max_tokens: int}  $provider
      * @return array{content: string, model: string, usage: array<string, mixed>|null}
      */
-    private function completeWithProvider(string $prompt, array $provider): array
+    private function completeWithProvider(string $prompt, array $provider, ?int $maxTokensOverride = null): array
     {
         $apiKey = $provider['api_key'];
         $baseUrl = $provider['base_url'];
         $model = $provider['model'];
         $endpointStyle = $provider['endpoint_style'];
         $timeout = $provider['timeout'];
-        $maxTokens = $provider['max_tokens'];
+        $maxTokens = $maxTokensOverride === null
+            ? $provider['max_tokens']
+            : max(1, min($provider['max_tokens'], $maxTokensOverride));
         $messagesStyle = $this->usesMessagesEndpoint($model, $endpointStyle);
         $path = $messagesStyle ? '/messages' : '/chat/completions';
         $body = $messagesStyle

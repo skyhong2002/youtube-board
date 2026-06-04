@@ -117,6 +117,68 @@ class IntegrationCheckPageTest extends TestCase
         $response->assertDontSee('youtube.tag_videos.backfill=6');
     }
 
+    public function test_public_integration_check_page_shows_ai_provider_usage_from_run_history(): void
+    {
+        Cache::flush();
+        Storage::fake('local');
+        config()->set('services.youtube.api_key', 'test-youtube-key');
+        config()->set('services.opencode_go.api_key', 'primary-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        config()->set('services.opencode_go.fallback_api_key', 'fallback-key');
+        config()->set('services.opencode_go.fallback_base_url', 'https://api.openai.test/v1');
+        config()->set('services.opencode_go.fallback_model', 'gpt-4o-mini');
+
+        Storage::disk('local')->put('ingestion-runs/20260604-110000-00000000-0000-4000-8000-000000000000.json', json_encode([
+            'id' => '20260604-110000-00000000-0000-4000-8000-000000000000',
+            'created_at' => now('Asia/Taipei')->toDateTimeString().' Asia/Taipei',
+            'request' => [
+                'source' => 'artisan',
+                'mode' => 'execute',
+            ],
+            'result' => [
+                'mode' => 'execute',
+                'source' => 'test_ai_usage',
+                'channel_ai' => [
+                    'rows' => [
+                        [
+                            'provider' => 'primary',
+                            'provider_failures' => [],
+                            'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 2],
+                            'ai_call_attempted' => true,
+                            'skipped' => false,
+                        ],
+                        [
+                            'provider' => 'fallback',
+                            'provider_failures' => ['primary: status=524 endpoint_style=chat'],
+                            'usage' => ['prompt_tokens' => 20, 'completion_tokens' => 5],
+                            'ai_call_attempted' => true,
+                            'skipped' => false,
+                        ],
+                    ],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        Http::fake([
+            'https://tag.analysis.tw/api/tag_json.php*' => Http::response([]),
+            'https://tag.analysis.tw/api/group.php*' => Http::response(['result' => null]),
+        ]);
+        Http::preventStrayRequests();
+
+        $response = $this->get(route('ops.integrations'));
+
+        $response->assertOk();
+        $response->assertSee('Primary key usage');
+        $response->assertSee('1 successful call; 1 failed attempt; prompt 10 / completion 2 / total 12 tokens');
+        $response->assertSee('OpenAI fallback usage');
+        $response->assertSee('1 successful call; 0 failed attempts; prompt 20 / completion 5 / total 25 tokens');
+        $response->assertSee('AI tokens today');
+        $response->assertSee('prompt 30; completion 7; total 37');
+        $response->assertDontSee('primary-key');
+        $response->assertDontSee('fallback-key');
+    }
+
     public function test_public_integration_check_page_can_show_youtube_quota_usage_from_cloud_monitoring(): void
     {
         Cache::flush();

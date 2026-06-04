@@ -2,10 +2,12 @@
 
 use App\Services\Ingestion\AiDailyIngestion;
 use App\Services\Ingestion\AiDailyPreview;
+use App\Services\Ingestion\AiDaysRefreshIngestion;
 use App\Services\Ingestion\AiEventIngestion;
 use App\Services\Ingestion\AiHourlyIngestion;
 use App\Services\Ingestion\AiHourlyPreview;
 use App\Services\Ingestion\AiPeriodIngestion;
+use App\Services\Ingestion\AiProviderUsageSummary;
 use App\Services\Ingestion\ChannelCountsPreview;
 use App\Services\Ingestion\ChannelStatisticsIngestion;
 use App\Services\Ingestion\ChannelStatisticsPreview;
@@ -41,6 +43,7 @@ use App\Services\Ingestion\VideoDurationsIngestion;
 use App\Services\Ingestion\VideoDurationsPreview;
 use App\Services\Ingestion\VideoStatisticsIngestion;
 use App\Services\Ingestion\VideoStatisticsPreview;
+use App\Services\Ingestion\OpenCodeChatClient;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Inspiring;
@@ -78,6 +81,91 @@ Artisan::command('ingestion:list', function (IngestionJobRegistry $registry) {
         ));
     }
 })->purpose('List the planned legacy-to-Laravel ingestion command registry');
+
+Artisan::command('ai:provider:probe {--provider=both : primary, fallback, or both} {--json : Emit JSON instead of text}', function (OpenCodeChatClient $client) {
+    $providerOption = strtolower(trim((string) $this->option('provider')));
+    $providers = match ($providerOption) {
+        'primary' => ['primary'],
+        'fallback', 'openai' => ['fallback'],
+        'both' => ['primary', 'fallback'],
+        default => [],
+    };
+
+    if ($providers === []) {
+        $this->error('ai:provider:probe unavailable: --provider must be primary, fallback, openai, or both');
+
+        return 1;
+    }
+
+    $results = [];
+
+    foreach ($providers as $provider) {
+        try {
+            $probe = $client->probe($provider);
+            $results[] = [
+                'provider' => $provider,
+                'ok' => true,
+                'model' => $probe['model'],
+                'usage' => $probe['usage'],
+                'latency_ms' => $probe['latency_ms'],
+                'content_chars' => mb_strlen($probe['content'], 'UTF-8'),
+                'error' => null,
+            ];
+        } catch (\Throwable $exception) {
+            $results[] = [
+                'provider' => $provider,
+                'ok' => false,
+                'model' => $provider === 'fallback'
+                    ? (string) config('services.opencode_go.fallback_model', '')
+                    : (string) config('services.opencode_go.model', ''),
+                'usage' => null,
+                'latency_ms' => null,
+                'content_chars' => 0,
+                'error' => mb_strimwidth(
+                    preg_replace('/(api[_-]?key|password|secret|token|authorization)[^,\s]*/i', '$1=<redacted>', $exception->getMessage()) ?? 'provider_probe_failed',
+                    0,
+                    240,
+                    '...',
+                    'UTF-8',
+                ),
+            ];
+        }
+    }
+
+    $failed = collect($results)->where('ok', false)->count();
+    $payload = [
+        'mode' => 'probe',
+        'source' => 'ai_provider_probe',
+        'providers' => $results,
+        'summary' => [
+            'ok' => count($results) - $failed,
+            'failed' => $failed,
+        ],
+        'secrets' => 'not_printed',
+    ];
+
+    if ((bool) $this->option('json')) {
+        $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        return $failed === 0 ? 0 : 1;
+    }
+
+    foreach ($results as $result) {
+        $usage = is_array($result['usage']) ? json_encode($result['usage'], JSON_UNESCAPED_SLASHES) : 'null';
+        $this->line(sprintf(
+            'ai:provider:probe provider=%s status=%s model=%s latency_ms=%s content_chars=%d secrets=not_printed usage=%s error=%s',
+            $result['provider'],
+            $result['ok'] ? 'ok' : 'failed',
+            $result['model'] !== '' ? $result['model'] : '-',
+            $result['latency_ms'] === null ? '-' : (string) $result['latency_ms'],
+            $result['content_chars'],
+            $usage,
+            $result['error'] ?? '-',
+        ));
+    }
+
+    return $failed === 0 ? 0 : 1;
+})->purpose('Probe configured primary or fallback AI provider with a minimal no-write completion request');
 
 Artisan::command('ingestion:run {--execute : Execute active due jobs instead of dry-running} {--record : Store the run result in local ingestion run history} {--at= : Timestamp to evaluate, for deterministic checks} {--job= : Evaluate one registry job key} {--all : Include jobs that are not currently due}', function (IngestionSchedulerRunner $runner, IngestionRunHistory $history) {
     $timezone = config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
@@ -1960,6 +2048,10 @@ Artisan::command('ai:daily {--date= : Legacy date, defaults to yesterday in Asia
                 $payload['daily_ai']['skipped'],
                 $payload['generated_at'],
             ));
+            $providerUsage = app(AiProviderUsageSummary::class)->compactLine(
+                app(AiProviderUsageSummary::class)->summarizePayload($payload),
+            );
+            $this->line('provider_usage="'.$providerUsage.'"');
             $this->line('write_targets='.implode(',', $payload['write_targets']));
 
             return 0;
@@ -2071,6 +2163,10 @@ Artisan::command('ai:period {--from= : Previous daily date, defaults to the day 
                 $row['skip_reason'] ?? '-',
                 $payload['generated_at'],
             ));
+            $providerUsage = app(AiProviderUsageSummary::class)->compactLine(
+                app(AiProviderUsageSummary::class)->summarizePayload($payload),
+            );
+            $this->line('provider_usage="'.$providerUsage.'"');
             $this->line('write_targets='.implode(',', $payload['write_targets']));
 
             return 0;
@@ -2161,6 +2257,10 @@ Artisan::command('ai:event {--date= : Legacy daily date; generates visible topic
                 $payload['event_ai']['skipped'],
                 $payload['generated_at'],
             ));
+            $providerUsage = app(AiProviderUsageSummary::class)->compactLine(
+                app(AiProviderUsageSummary::class)->summarizePayload($payload),
+            );
+            $this->line('provider_usage="'.$providerUsage.'"');
 
             foreach ($payload['event_ai']['rows'] as $index => $row) {
                 $this->line(sprintf(
@@ -2235,6 +2335,150 @@ Artisan::command('ai:event {--date= : Legacy daily date; generates visible topic
     }
 })->purpose('Preview or execute legacy AI event summary/people/media generation; execute mode calls AI and upserts urt_ai_event rows');
 
+Artisan::command('ai:days:refresh {--from= : First AI daily date to refresh; defaults to yesterday in Asia/Taipei} {--to= : Last AI daily date to refresh; defaults to --from} {--condition=all : Legacy condition_type to refresh} {--daily-limit=1000 : Max source rows for each ai:daily aggregate prompt} {--daily-channel-limit=0 : Max configured channels to refresh before each daily aggregate; 0 skips channel refresh} {--daily-channel-offset=0 : Eligible configured channels to skip before refresh} {--daily-channel-batch-size=0 : Refresh selected channels in chunks; 0 uses one batch} {--daily-ai-call-limit=2 : Max AI completion calls per day for daily aggregate/channel refresh} {--daily-channel-video-limit=120 : Max videos included in each channel AI prompt; 0 includes all} {--event-limit=100 : Max daily topics to include in event generation} {--event-ai-call-limit=60 : Total event summary/people/media AI completion calls across the refresh} {--event-passes=2 : Re-preview and retry missing event rows up to this many passes} {--period-limit=20 : Max topics per day included in period matching} {--period-ai-call-limit=1 : Max period matching AI calls per adjacent date pair} {--prompt-types=summary,people,media : Event prompt rows to generate} {--skip-daily : Do not run ai:daily; use existing daily rows} {--skip-events : Do not run ai:event; only daily/period work} {--skip-period : Do not run ai:period; only daily/event work} {--execute : Call AI completions and upsert daily/event/period rows} {--dry-run : Force dry-run preview; this is the default} {--user-token=CLI : user_token value for execute-mode upserts} {--json : Emit JSON instead of text}', function (AiDaysRefreshIngestion $ingestion) {
+    try {
+        $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
+        $arguments = [
+            'from' => $this->option('from') ? (string) $this->option('from') : null,
+            'to' => $this->option('to') ? (string) $this->option('to') : null,
+            'condition' => (string) $this->option('condition'),
+            'dailyLimit' => (int) $this->option('daily-limit'),
+            'eventLimit' => (int) $this->option('event-limit'),
+            'periodLimit' => (int) $this->option('period-limit'),
+            'promptTypes' => (string) $this->option('prompt-types'),
+            'skipDaily' => (bool) $this->option('skip-daily'),
+            'skipEvents' => (bool) $this->option('skip-events'),
+            'skipPeriod' => (bool) $this->option('skip-period'),
+        ];
+
+        if ($execute) {
+            $payload = $ingestion->execute(
+                from: $arguments['from'],
+                to: $arguments['to'],
+                condition: $arguments['condition'],
+                dailyLimit: $arguments['dailyLimit'],
+                dailyChannelLimit: (int) $this->option('daily-channel-limit'),
+                dailyChannelOffset: (int) $this->option('daily-channel-offset'),
+                dailyChannelBatchSize: (int) $this->option('daily-channel-batch-size'),
+                dailyAiCallLimit: (int) $this->option('daily-ai-call-limit'),
+                dailyChannelVideoLimit: (int) $this->option('daily-channel-video-limit'),
+                eventLimit: $arguments['eventLimit'],
+                eventAiCallLimit: (int) $this->option('event-ai-call-limit'),
+                periodLimit: $arguments['periodLimit'],
+                periodAiCallLimit: (int) $this->option('period-ai-call-limit'),
+                promptTypes: $arguments['promptTypes'],
+                userToken: (string) $this->option('user-token'),
+                maxEventPasses: (int) $this->option('event-passes'),
+                skipDaily: $arguments['skipDaily'],
+                skipEvents: $arguments['skipEvents'],
+                skipPeriod: $arguments['skipPeriod'],
+            );
+
+            if ((bool) $this->option('json')) {
+                $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+                return 0;
+            }
+
+            $this->line(sprintf(
+                'ai:days:refresh mode=execute source=%s from=%s to=%s dates=%d condition=%s daily_jobs=%d event_rows_inserted=%d event_rows_updated=%d event_missing_after=%d period_inserted=%d period_updated=%d period_skipped=%d event_ai_calls_used=%d generated_at=%s',
+                $payload['source'],
+                $payload['from_date'] ?? '-',
+                $payload['to_date'] ?? '-',
+                $payload['date_count'],
+                $payload['condition'],
+                $payload['summary']['daily_jobs'],
+                $payload['summary']['event_rows_inserted'],
+                $payload['summary']['event_rows_updated'],
+                $payload['summary']['event_missing_after'],
+                $payload['summary']['period_rows_inserted'],
+                $payload['summary']['period_rows_updated'],
+                $payload['summary']['period_rows_skipped'],
+                $payload['ai_call_guard']['event_used'],
+                $payload['generated_at'],
+            ));
+            $providerUsage = app(AiProviderUsageSummary::class)->compactLine(
+                app(AiProviderUsageSummary::class)->summarizePayload($payload),
+            );
+            $this->line('provider_usage="'.$providerUsage.'"');
+
+            foreach ($payload['jobs'] as $index => $job) {
+                if (($job['type'] ?? null) === 'event-verify') {
+                    $this->line(sprintf(
+                        '#%d verify date=%s topics=%d prompt_rows=%d existing_event_rows=%d missing=%d blocked_reason=%s',
+                        $index + 1,
+                        $job['date'],
+                        $job['result']['topics'] ?? 0,
+                        count($job['result']['rows'] ?? []),
+                        $job['result']['existing_event_rows'] ?? 0,
+                        $job['result']['would_call_ai_requests'] ?? 0,
+                        $job['result']['blocked_reason'] ?? '-',
+                    ));
+                }
+
+                if (($job['type'] ?? null) === 'period' && is_array(data_get($job, 'result.period_ai.rows.0.matches'))) {
+                    $this->line(sprintf(
+                        '#%d period from=%s to=%s matches=%d inserted=%d updated=%d skipped=%d',
+                        $index + 1,
+                        $job['meta']['from'] ?? '-',
+                        $job['meta']['to'] ?? $job['date'],
+                        count(data_get($job, 'result.period_ai.rows.0.matches', [])),
+                        data_get($job, 'result.period_ai.inserted') === true ? 1 : 0,
+                        data_get($job, 'result.period_ai.updated') === true ? 1 : 0,
+                        data_get($job, 'result.period_ai.skipped') === true ? 1 : 0,
+                    ));
+                }
+            }
+
+            $this->line('write_targets='.implode(',', $payload['write_targets']));
+
+            return 0;
+        }
+
+        $payload = $ingestion->preview(...$arguments);
+
+        if ((bool) $this->option('json')) {
+            $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+            return 0;
+        }
+
+        $this->line(sprintf(
+            'ai:days:refresh mode=ingestion-preview source=%s from=%s to=%s dates=%d condition=%s jobs=%d event_missing=%d period_jobs=%d generated_at=%s writes=0 api_call=skipped daily_event_period_upsert=skipped',
+            $payload['source'],
+            $payload['from_date'] ?? '-',
+            $payload['to_date'] ?? '-',
+            $payload['date_count'],
+            $payload['condition'],
+            $payload['summary']['jobs'],
+            collect($payload['jobs'])->where('type', 'event-preview')->sum(fn (array $job): int => (int) data_get($job, 'result.would_call_ai_requests', 0)),
+            $payload['summary']['period_jobs'],
+            $payload['generated_at'],
+        ));
+
+        foreach ($payload['jobs'] as $index => $job) {
+            if (($job['type'] ?? null) === 'event-preview') {
+                $this->line(sprintf(
+                    '#%d event-preview date=%s topics=%d prompt_rows=%d existing_event_rows=%d missing=%d blocked_reason=%s',
+                    $index + 1,
+                    $job['date'],
+                    $job['result']['topics'] ?? 0,
+                    count($job['result']['rows'] ?? []),
+                    $job['result']['existing_event_rows'] ?? 0,
+                    $job['result']['would_call_ai_requests'] ?? 0,
+                    $job['result']['blocked_reason'] ?? '-',
+                ));
+            }
+        }
+
+        return 0;
+    } catch (QueryException $exception) {
+        $this->error('ai:days:refresh unavailable: '.$exception->getMessage());
+
+        return 1;
+    }
+})->purpose('Orchestrate daily AI, event AI, adjacent period matching, and missing-row verification for one or more dates');
+
 Artisan::command('ai:hourly {--condition= : Optional legacy condition; omitted matches cron default} {--hour=1 : Legacy hours-back offset} {--period=1 : Legacy number of hourly buckets to include} {--limit=20 : Number of candidate videos to print} {--execute : Call OpenCode-compatible chat completions and upsert urt_ai_hour} {--dry-run : Force dry-run preview; this is the default} {--user-token=cli : user_token value for execute-mode upsert} {--json : Emit JSON instead of text}', function (AiHourlyPreview $preview, AiHourlyIngestion $ingestion) {
     try {
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
@@ -2275,6 +2519,10 @@ Artisan::command('ai:hourly {--condition= : Optional legacy condition; omitted m
                 $providerFailures,
                 $usage,
             ));
+            $providerUsage = app(AiProviderUsageSummary::class)->compactLine(
+                app(AiProviderUsageSummary::class)->summarizePayload($payload),
+            );
+            $this->line('provider_usage="'.$providerUsage.'"');
             $this->line('write_targets='.($payload['write_targets'] === [] ? 'none' : implode(',', $payload['write_targets'])));
 
             return 0;

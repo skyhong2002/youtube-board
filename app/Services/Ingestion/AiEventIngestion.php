@@ -103,6 +103,8 @@ class AiEventIngestion
                 'skipped' => true,
                 'skip_reason' => $blockedReason,
                 'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
+                'provider' => null,
+                'provider_failures' => [],
                 'usage' => null,
             ]], $aiCallLimit, $aiCallsUsed);
         }
@@ -158,6 +160,8 @@ class AiEventIngestion
                         'fallback_used' => $fallbackUsed,
                         'fallback_reason' => $fallbackReason,
                         'model' => $completion['model'],
+                        'provider' => $completion['provider'],
+                        'provider_failures' => $completion['provider_failures'],
                         'usage' => $completion['usage'],
                     ];
                 } catch (Throwable $exception) {
@@ -170,6 +174,8 @@ class AiEventIngestion
                         'fallback_used' => false,
                         'fallback_reason' => null,
                         'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
+                        'provider' => null,
+                        'provider_failures' => [],
                         'usage' => null,
                     ];
                 }
@@ -820,6 +826,8 @@ class AiEventIngestion
             'fallback_used' => false,
             'fallback_reason' => null,
             'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
+            'provider' => null,
+            'provider_failures' => [],
             'usage' => null,
         ];
     }

@@ -194,6 +194,69 @@ class IngestionRunHistory
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function aiProviderUsageDailyEstimate(?CarbonImmutable $now = null): array
+    {
+        $appTimezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
+        $now = $now !== null ? $now->setTimezone($appTimezone) : CarbonImmutable::now($appTimezone);
+        $start = $now->startOfDay();
+        $summarizer = app(AiProviderUsageSummary::class);
+        $summary = $summarizer->emptySummary();
+        $recordCount = 0;
+        $latestRecordAt = null;
+
+        foreach (Storage::disk('local')->files(self::DIRECTORY) as $path) {
+            if (! str_ends_with($path, '.json')) {
+                continue;
+            }
+
+            $record = json_decode((string) Storage::disk('local')->get($path), true);
+
+            if (! is_array($record) || ($record['result']['mode'] ?? $record['request']['mode'] ?? null) !== 'execute') {
+                continue;
+            }
+
+            $createdAt = $this->createdAt($record, $appTimezone);
+
+            if ($createdAt === null || $createdAt->lessThan($start) || $createdAt->greaterThan($now)) {
+                continue;
+            }
+
+            $result = is_array($record['result'] ?? null) ? $record['result'] : [];
+            $recordSummary = $summarizer->summarizePayload($result);
+
+            if (! $summarizer->hasActivity($recordSummary)) {
+                continue;
+            }
+
+            $recordCount++;
+            $latestRecordAt = $latestRecordAt === null || $createdAt->greaterThan($latestRecordAt)
+                ? $createdAt
+                : $latestRecordAt;
+            $summary = $summarizer->merge($summary, $recordSummary);
+        }
+
+        $successfulCalls = $summarizer->total($summary, 'successful_calls');
+        $failedAttempts = $summarizer->total($summary, 'failed_attempts');
+
+        return $summary + [
+            'successful_calls' => $successfulCalls,
+            'failed_attempts' => $failedAttempts,
+            'prompt_tokens' => $summarizer->total($summary, 'prompt_tokens'),
+            'completion_tokens' => $summarizer->total($summary, 'completion_tokens'),
+            'total_tokens' => $summarizer->total($summary, 'total_tokens'),
+            'window_start' => $start->format('Y-m-d H:i:s T'),
+            'window_end' => $now->format('Y-m-d H:i:s T'),
+            'window_timezone' => $appTimezone,
+            'record_count' => $recordCount,
+            'latest_record_at' => $latestRecordAt?->format('Y-m-d H:i:s T'),
+            'source' => 'local ingestion run history',
+            'basis' => 'successful AI completion providers and failed provider attempts recorded in execute-mode ingestion run payloads/output for the current app day',
+        ];
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     public function find(string $id): ?array
