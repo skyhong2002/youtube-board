@@ -49,7 +49,7 @@ class ReportLineageCoverageTest extends TestCase
             '/channels/1/videos' => ['ChannelVideosReport', 'urt_video', 'youtube:videos:stats --execute --limit=25'],
             '/channels/1/comments' => ['ChannelCommentsReport', 'urt_comment_author', 'YouTube Data API commentThreads.list'],
             '/channels/1/cloud' => ['ChannelCloudReport', 'urt_show_cloud', 'reports.channel_cloud.build'],
-            '/channels/1/trends' => ['ChannelTrendsReport', 'LegacyChannelReportApiReport::channelLog', 'urt_log'],
+            '/channels/1/trends' => ['ChannelTrendsReport', 'channel log adapter', 'urt_log'],
             '/channels/1/people' => ['ChannelPeopleReport', 'ChannelPeopleReport::EXCLUDED_PEOPLE', 'urt_channel_ai'],
             '/channels/1/ai' => ['ChannelAiOverviewReport', 'ChannelAiOverviewReport::prompt', 'urt_channel_ai'],
             '/channels/1/ai/days' => ['ChannelAiDailyReport', 'ChannelAiDailyReport::type', 'urt_channel_ai'],

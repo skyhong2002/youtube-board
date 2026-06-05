@@ -2311,7 +2311,7 @@ class ReportLineageProfiles
     {
         return [
             'title' => '頻道趨勢折線圖',
-            'summary' => '本頁透過既有 legacy API report service 讀 urt_log，產生頻道觀看、估計、移動曲線或影片數趨勢。',
+            'summary' => '本頁讀取本機 urt_log 趨勢紀錄，產生頻道觀看、估計、移動曲線或影片數趨勢。',
             'jobs' => [
                 self::job(
                     key: 'youtube.channels.stats',
@@ -2336,12 +2336,12 @@ class ReportLineageProfiles
             ],
             'render' => [
                 'controller' => 'App\Http\Controllers\Reports\ChannelDataGapController::trends',
-                'service' => 'App\Services\Legacy\ChannelTrendsReport + LegacyChannelReportApiReport::channelLog',
+                'service' => 'ChannelTrendsReport + channel log adapter',
                 'reads' => ['urt_log', 'urt_channel'],
                 'request' => '頁面 request 本身不呼叫 YouTube API；建立本機 API-shaped request 讀 urt_log，依 mode 即時計算 rows。',
                 'transforms' => [
                     'limit bound 1..1095，orig/each/videos query 決定 mode。',
-                    'ChannelTrendsReport 呼叫 LegacyChannelReportApiReport::channelLog 取得 legacy API payload。',
+                    'ChannelTrendsReport 透過本機 channel log adapter 取得 urt_log payload。',
                     '把 result 依 mode 映射為 value/orig/pred/moving/videos rows。',
                 ],
             ],
@@ -2358,7 +2358,7 @@ class ReportLineageProfiles
                 self::sourceNode('channel_trend_log', 'urt_log', 'table', 'urt_log', '保存頻道歷史統計 JSON，是折線圖的主要來源。', [
                     'job_details' => ['youtube.channels.stats', 'reports.counts.build'],
                 ]),
-                self::serviceNode('channel_trend_report', 'ChannelTrendsReport + API adapter', 'request 時把 legacy API payload 轉成 chart rows。'),
+                self::serviceNode('channel_trend_report', 'ChannelTrendsReport + log adapter', 'request 時把本機 log payload 轉成 chart rows。'),
                 self::pageNode('channel_trend_page', '頻道趨勢頁', '/channels/{u_id}/trends', 'Blade 呈現 mode 切換、折線圖與 dependency 狀態。'),
             ],
             'edges' => [

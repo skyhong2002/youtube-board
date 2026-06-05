@@ -22,13 +22,12 @@ class ChannelStatisticsPreview
         $limit = max(1, min(61, $limit));
         $expireTime = $now->subHours($hours);
         $reserveTime = $now->format('Y-m-d H:i:s');
-        $isLegacyNullSweepHour = $now->format('H') === '23';
+        $isNullSweepHour = $now->format('H') === '23';
 
         [$source, $candidateQuery] = $this->candidateQuery(
             uId: $uId,
             expireTime: $expireTime,
-            now: $now,
-            isLegacyNullSweepHour: $isLegacyNullSweepHour,
+            isNullSweepHour: $isNullSweepHour,
         );
 
         $eligibleRows = (clone $candidateQuery)->count();
@@ -51,10 +50,11 @@ class ChannelStatisticsPreview
             'hours' => $hours,
             'limit' => $limit,
             'expire_time' => $expireTime->format('Y-m-d H:i:s'),
-            'legacy_null_sweep_hour' => $isLegacyNullSweepHour,
+            'null_sweep_hour' => $isNullSweepHour,
             'active_channels' => $this->activeChannels(),
             'unchecked_channels' => $this->uncheckedChannels(),
             'stale_channels' => $this->staleChannels($expireTime),
+            'missing_log_channels' => $this->missingLogChannels(),
             'eligible_rows' => $eligibleRows,
             'selected_rows' => $channelRows->count(),
             'missing_youtube_id' => $channelRows
@@ -65,7 +65,7 @@ class ChannelStatisticsPreview
             'would_update_month' => $now->format('Y-m-01'),
             'would_update_date' => $now->toDateString(),
             'api_call_skipped' => 'YouTube Data API channels.list(statistics) is intentionally not called in planning mode',
-            'stats_update_condition' => 'Legacy updates urt_count and urt_channel only when the API viewCount is greater than 0',
+            'stats_update_condition' => 'Execute mode updates urt_count and urt_channel only when the API viewCount is greater than 0',
             'writes_skipped' => [
                 'urt_channel.stime reserve update',
                 'urt_log monthly JSON insert/update',
@@ -82,7 +82,7 @@ class ChannelStatisticsPreview
     /**
      * @return array{0: string, 1: \Illuminate\Database\Query\Builder}
      */
-    private function candidateQuery(?int $uId, CarbonImmutable $expireTime, CarbonImmutable $now, bool $isLegacyNullSweepHour): array
+    private function candidateQuery(?int $uId, CarbonImmutable $expireTime, bool $isNullSweepHour): array
     {
         $base = DB::table('urt_channel')
             ->whereNull('flag_del');
@@ -96,23 +96,23 @@ class ChannelStatisticsPreview
             ];
         }
 
-        if ($isLegacyNullSweepHour) {
-            return [
-                'null_stime_at_23',
-                $base
-                    ->whereNull('stime')
-                    ->orderBy('stime')
-                    ->orderBy('u_id'),
-            ];
-        }
-
         return [
-            'stale_or_unchecked',
+            $isNullSweepHour ? 'missing_log_or_stale_or_unchecked_at_23' : 'missing_log_or_stale_or_unchecked',
             $base
                 ->where(function ($query) use ($expireTime): void {
+                    $this->applyMissingLogCondition($query);
                     $query
-                        ->where('stime', '<=', $expireTime->format('Y-m-d H:i:s'))
-                        ->orWhereNull('stime');
+                        ->orWhere(function ($staleQuery) use ($expireTime): void {
+                            $staleQuery
+                                ->where('stime', '<=', $expireTime->format('Y-m-d H:i:s'))
+                                ->orWhereNull('stime');
+                        });
+                })
+                ->when(Schema::hasTable('urt_log'), function ($query): void {
+                    $query->orderByRaw($this->missingLogSortExpression());
+                    if (Schema::hasColumn('urt_channel', 'viewCount')) {
+                        $query->orderByRaw($this->missingLogViewSortExpression());
+                    }
                 })
                 ->orderBy('stime')
                 ->orderBy('u_id'),
@@ -163,6 +163,56 @@ class ChannelStatisticsPreview
                 ->where('stime', '<=', $expireTime->format('Y-m-d H:i:s'))
                 ->count()
             : 0;
+    }
+
+    private function missingLogChannels(): int
+    {
+        if (! Schema::hasTable('urt_channel')) {
+            return 0;
+        }
+
+        if (! Schema::hasTable('urt_log')) {
+            return $this->activeChannels();
+        }
+
+        return DB::table('urt_channel')
+            ->whereNull('flag_del')
+            ->whereNotExists(function ($query): void {
+                $query
+                    ->selectRaw('1')
+                    ->from('urt_log')
+                    ->whereColumn('urt_log.u_id', 'urt_channel.u_id');
+            })
+            ->count();
+    }
+
+    /**
+     * @param \Illuminate\Database\Query\Builder $query
+     */
+    private function applyMissingLogCondition($query): void
+    {
+        if (! Schema::hasTable('urt_log')) {
+            $query->whereRaw('1 = 1');
+
+            return;
+        }
+
+        $query->whereNotExists(function ($subQuery): void {
+            $subQuery
+                ->selectRaw('1')
+                ->from('urt_log')
+                ->whereColumn('urt_log.u_id', 'urt_channel.u_id');
+        });
+    }
+
+    private function missingLogSortExpression(): string
+    {
+        return 'case when not exists (select 1 from urt_log where urt_log.u_id = urt_channel.u_id) then 0 else 1 end';
+    }
+
+    private function missingLogViewSortExpression(): string
+    {
+        return 'case when not exists (select 1 from urt_log where urt_log.u_id = urt_channel.u_id) then coalesce(urt_channel.viewCount, 0) else 0 end desc';
     }
 
     /**

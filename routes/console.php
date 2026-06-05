@@ -289,11 +289,12 @@ Artisan::command('youtube:channels:stats {--u_id= : Optional channel u_id to pre
         }
 
         $this->line(sprintf(
-            'youtube:channels:stats mode=ingestion-preview source=%s active_channels=%d unchecked_channels=%d stale_channels=%d eligible_rows=%d selected_rows=%d missing_youtube_id=%d hours=%d expire_time=%s would_call_api=%s generated_at=%s writes=0 api_call=skipped channel_update=skipped count_update=skipped log_update=skipped',
+            'youtube:channels:stats mode=ingestion-preview source=%s active_channels=%d unchecked_channels=%d stale_channels=%d missing_log_channels=%d eligible_rows=%d selected_rows=%d missing_youtube_id=%d hours=%d expire_time=%s would_call_api=%s generated_at=%s writes=0 api_call=skipped channel_update=skipped count_update=skipped log_update=skipped',
             $payload['source'],
             $payload['active_channels'],
             $payload['unchecked_channels'],
             $payload['stale_channels'],
+            $payload['missing_log_channels'],
             $payload['eligible_rows'],
             $payload['selected_rows'],
             $payload['missing_youtube_id'],
@@ -332,7 +333,7 @@ Artisan::command('youtube:channels:stats {--u_id= : Optional channel u_id to pre
 
         return 1;
     }
-})->purpose('Dry-run preview of legacy channel statistics polling, with explicit local-only --execute support');
+})->purpose('Dry-run preview of channel statistics polling, with explicit local-only --execute support');
 
 Artisan::command('youtube:tag-videos:backfill {--tagid=102 : Comma-separated required channel tag ids} {--or= : Comma-separated OR channel tag ids} {--not= : Comma-separated excluded channel tag ids} {--from= : Start date YYYY-MM-DD} {--to= : End date YYYY-MM-DD} {--days=2 : Relative day count when --from is omitted} {--limit=100 : Channel cap} {--max-pages=20 : Playlist pages per channel, max 200} {--max-results=50 : Playlist items per page, max 50} {--keyword-limit=5000 : Keywords scanned when rebuilding tag-date cache} {--no-rebuild : Skip urt_show_tag_date rebuild after video crawl} {--execute : Call YouTube and write local video/cache rows} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (TagVideoBackfillIngestion $backfill) {
     $ids = fn (string $option): array => collect(explode(',', (string) $this->option($option)))

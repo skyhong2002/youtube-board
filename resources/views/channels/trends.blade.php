@@ -44,7 +44,7 @@
 
 @section('content')
 @if ($channel)
-                <nav class="tabs" aria-label="Legacy channel line modes">
+                <nav class="tabs" aria-label="頻道趨勢模式">
                     <a class="{{ $mode === 'moving' ? 'active' : '' }}" href="{{ route('channels.trends', ['u_id' => $channel['u_id'], 'limit' => $filters['limit']]) }}">移動曲線</a>
                     <a class="{{ $mode === 'orig' ? 'active' : '' }}" href="{{ route('channels.trends', ['u_id' => $channel['u_id'], 'limit' => $filters['limit'], 'orig' => 1]) }}">原始資料</a>
                     <a class="{{ $mode === 'pred' ? 'active' : '' }}" href="{{ route('channels.trends', ['u_id' => $channel['u_id'], 'limit' => $filters['limit'], 'each' => 1]) }}">估計值</a>
@@ -59,18 +59,17 @@
                 @if ($filters['videos'])<span>videos=1</span>@endif
             </div>
 
-            <p class="muted">頻道線圖 · Legacy source: {{ $legacy_file }} · table: <code>urt_log</code></p>
+            <p class="muted">頻道趨勢 · 資料由頻道統計輪詢更新至 <code>urt_log</code></p>
 
             @if (! $data_available)
                 <section class="panel">
-                    <p class="notice">Data unavailable locally. {{ $blocked_reason ?? 'local urt_log has no rows for this channel' }}<br><x-ingestion-portal job="youtube.channels.stats" /></p>
-                    <p class="muted">Legacy source: {{ $legacy_file }}. Channel trend 資料會透過 Laravel channel stats polling 與 `urt_log` refresh 補齊。</p>
+                    <p class="notice">目前還沒有這個頻道的趨勢紀錄。頻道統計輪詢會補寫本機趨勢資料。<br><x-ingestion-portal job="youtube.channels.stats" /></p>
                     <table>
                         <thead>
                             <tr>
-                                <th>Dependency</th>
-                                <th>Rows</th>
-                                <th>Status</th>
+                                <th>資料表</th>
+                                <th>筆數</th>
+                                <th>狀態</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -145,6 +144,6 @@
                     </tbody>
                 </table>
             @else
-                <div class="empty">沒有 `urt_log.thedata` 可顯示。</div>
+                <div class="empty">目前沒有趨勢資料可顯示。</div>
             @endif
 @endsection

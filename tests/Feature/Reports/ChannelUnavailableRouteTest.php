@@ -37,9 +37,10 @@ class ChannelUnavailableRouteTest extends TestCase
 
         $this->get('/channels/10/trends')
             ->assertOk()
-            ->assertSee('頻道線圖')
+            ->assertSee('頻道趨勢')
             ->assertSee('urt_log')
-            ->assertSee('channel_line.php')
+            ->assertSee('目前還沒有這個頻道的趨勢紀錄')
+            ->assertDontSee('channel_line.php')
             ->assertSee('empty');
     }
 

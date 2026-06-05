@@ -21,7 +21,7 @@ class IngestionChannelStatsCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_youtube_channels_stats_previews_legacy_channel_queue_in_preview_mode(): void
+    public function test_youtube_channels_stats_previews_channel_queue_in_preview_mode(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
@@ -97,18 +97,19 @@ class IngestionChannelStatsCommandTest extends TestCase
 
         $this->assertSame(0, $exitCode);
         $this->assertSame('ingestion-preview', $payload['mode']);
-        $this->assertSame('stale_or_unchecked', $payload['source']);
+        $this->assertSame('missing_log_or_stale_or_unchecked', $payload['source']);
         $this->assertSame(3, $payload['active_channels']);
         $this->assertSame(1, $payload['unchecked_channels']);
         $this->assertSame(1, $payload['stale_channels']);
-        $this->assertSame(2, $payload['eligible_rows']);
-        $this->assertSame(2, $payload['selected_rows']);
+        $this->assertSame(3, $payload['missing_log_channels']);
+        $this->assertSame(3, $payload['eligible_rows']);
+        $this->assertSame(3, $payload['selected_rows']);
         $this->assertTrue($payload['would_call_api']);
         $this->assertSame('2026-05-24 18:00:00', $payload['would_set_stime']);
         $this->assertSame([], $payload['writes']);
-        $this->assertSame(1, $payload['rows'][0]['u_id']);
-        $this->assertSame('Unchecked Channel', $payload['rows'][0]['title']);
-        $this->assertSame(900, $payload['rows'][0]['count_table']['viewCount']);
+        $this->assertSame([3, 2, 1], collect($payload['rows'])->pluck('u_id')->all());
+        $this->assertSame('Fresh Channel', $payload['rows'][0]['title']);
+        $this->assertSame(900, $payload['rows'][2]['count_table']['viewCount']);
         $this->assertContains('urt_channel.stime reserve update', $payload['writes_skipped']);
 
         $this->assertNull(DB::table('urt_channel')->where('u_id', 1)->value('stime'));
@@ -116,7 +117,7 @@ class IngestionChannelStatsCommandTest extends TestCase
         $this->assertSame(0, DB::table('urt_log')->count());
     }
 
-    public function test_youtube_channels_stats_preserves_legacy_23_hour_null_stime_sweep(): void
+    public function test_youtube_channels_stats_keeps_no_log_and_stale_rows_eligible_at_23_hour(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-24 23:05:00', 'Asia/Taipei'));
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 23:05:00', 'Asia/Taipei'));
@@ -155,11 +156,13 @@ class IngestionChannelStatsCommandTest extends TestCase
         $payload = json_decode(trim(Artisan::output()), true);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame('null_stime_at_23', $payload['source']);
-        $this->assertTrue($payload['legacy_null_sweep_hour']);
-        $this->assertSame(1, $payload['eligible_rows']);
-        $this->assertSame(1, $payload['selected_rows']);
-        $this->assertSame(1, $payload['rows'][0]['u_id']);
+        $this->assertSame('missing_log_or_stale_or_unchecked_at_23', $payload['source']);
+        $this->assertTrue($payload['null_sweep_hour']);
+        $this->assertSame(2, $payload['missing_log_channels']);
+        $this->assertSame(2, $payload['eligible_rows']);
+        $this->assertSame(2, $payload['selected_rows']);
+        $this->assertSame(2, $payload['rows'][0]['u_id']);
+        $this->assertSame(1, $payload['rows'][1]['u_id']);
     }
 
     public function test_youtube_channels_stats_supports_single_channel_preview_and_scheduler_execution(): void

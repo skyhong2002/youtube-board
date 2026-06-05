@@ -9,7 +9,7 @@ use Tests\TestCase;
 
 class ChannelTrendsRouteTest extends TestCase
 {
-    public function test_channel_trends_page_renders_legacy_urt_log_series(): void
+    public function test_channel_trends_page_renders_urt_log_series(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-10 12:00:00', 'Asia/Taipei'));
         $this->createTables();
@@ -48,9 +48,10 @@ class ChannelTrendsRouteTest extends TestCase
 
         $this->get('/channels/10/trends?limit=2')
             ->assertOk()
-            ->assertSee('Data unavailable locally')
-            ->assertSee('local urt_log has no rows for this channel')
-            ->assertSee('channel_line.php + api/api_channel_log.php')
+            ->assertSee('目前還沒有這個頻道的趨勢紀錄')
+            ->assertSee('頻道統計輪詢會補寫本機趨勢資料')
+            ->assertDontSee('Legacy source')
+            ->assertDontSee('channel_line.php')
             ->assertSee('empty');
 
         Carbon::setTestNow();
