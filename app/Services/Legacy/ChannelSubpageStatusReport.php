@@ -49,11 +49,11 @@ class ChannelSubpageStatusReport
             'cloud' => [
                 'key' => 'cloud',
                 'title' => '頻道文字雲',
-                'legacy_file' => 'channel_cloud.php + api/cloud.php',
+                'legacy_file' => 'reports:channel-cloud:build',
                 'modern_path' => 'cloud',
                 'tables' => ['urt_show_cloud', 'urt_show_tag_cloud'],
-                'reason' => 'Legacy 透過 `api/cloud.php` 計算文字雲 cache；本地 cloud cache tables 目前沒有資料。',
-                'next_step' => '等 cloud cache dump 或重建 real-time YouTube dashboard cloud builder 後，再用 D3 呈現文字雲。',
+                'reason' => 'Laravel 透過 `reports:channel-cloud:build` 從本機頻道影片重建文字雲 cache；本地 cloud cache tables 目前沒有資料。',
+                'next_step' => '執行 channel cloud cache builder 後，再用 D3 呈現文字雲。',
             ],
             default => [
                 'key' => 'trends',

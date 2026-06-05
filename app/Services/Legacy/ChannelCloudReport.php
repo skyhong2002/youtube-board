@@ -31,7 +31,7 @@ class ChannelCloudReport
             'u_id' => $uId,
             'title' => $title,
             'section_title' => '頻道文字雲',
-            'legacy_file' => 'channel_cloud.php + api/cloud.php',
+            'source_workflow' => 'reports:channel-cloud:build',
             'cache_table' => 'urt_show_cloud',
             'days' => $days,
             'long_days' => $longDays,
@@ -43,7 +43,7 @@ class ChannelCloudReport
             'short_cache' => $short,
             'long_cache' => $long,
             'data_available' => $rows !== [],
-            'blocked_reason' => $rows === [] ? 'local channel cloud cache is missing or empty; legacy `api/cloud.php` generation is intentionally not run' : null,
+            'blocked_reason' => $rows === [] ? 'local channel cloud cache is missing or empty; run reports:channel-cloud:build to rebuild urt_show_cloud from local videos' : null,
             'dependencies' => collect(['urt_show_cloud', 'urt_video'])
                 ->map(fn (string $table): array => $this->dependency($table, $uId))
                 ->values()

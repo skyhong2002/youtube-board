@@ -684,7 +684,7 @@ class IngestionDashboardTest extends TestCase
         $this->assertSame(0, $exitCode);
         $this->assertStringContainsString('scheduler=enabled', $output);
         $this->assertStringContainsString('command_missing=0', $output);
-        $this->assertStringContainsString('command_ready=32', $output);
+        $this->assertStringContainsString('command_ready=33', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_statics.php -> youtube:channels:stats', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_live.php -> youtube:live:poll', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_live_tvbs.php -> youtube:tvbs:live:poll', $output);
@@ -705,6 +705,7 @@ class IngestionDashboardTest extends TestCase
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/make_keyword.php -> reports:keywords:build', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/make_people.php -> reports:people:build', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/make_tag_cloud.php -> reports:tag-cloud:build', $output);
+        $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/api/cloud.php uid=... -> reports:channel-cloud:build', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/make_schedule.php -> reports:schedule:build', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_duration.php -> youtube:videos:duration', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_video_count.php -> youtube:videos:stats', $output);

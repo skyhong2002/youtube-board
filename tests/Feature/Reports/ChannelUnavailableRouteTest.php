@@ -32,7 +32,7 @@ class ChannelUnavailableRouteTest extends TestCase
             ->assertOk()
             ->assertSee('頻道文字雲')
             ->assertSee('urt_show_cloud')
-            ->assertSee('channel_cloud.php + api/cloud.php')
+            ->assertSee('reports:channel-cloud:build')
             ->assertSee('empty');
 
         $this->get('/channels/10/trends')

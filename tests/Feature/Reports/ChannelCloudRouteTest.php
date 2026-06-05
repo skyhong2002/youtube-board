@@ -43,7 +43,7 @@ class ChannelCloudRouteTest extends TestCase
         $response->assertSee('16.500');
         $response->assertSee('3 天原始資料');
         $response->assertSee('7 天原始資料');
-        $response->assertSee('channel_cloud.php + api/cloud.php');
+        $response->assertSee('reports:channel-cloud:build');
         $response->assertSee('data-d3-word-cloud', false);
         $response->assertSee('d3.layout.cloud.min.js', false);
         $response->assertSee(route('keywords.days', ['keyword' => '選舉']), false);

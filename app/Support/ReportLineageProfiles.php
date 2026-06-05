@@ -2236,17 +2236,17 @@ class ReportLineageProfiles
     {
         return [
             'title' => '頻道文字雲',
-            'summary' => '本頁讀單一頻道的 legacy 文字雲 cache，使用短天期與長天期差分產生文字雲；缺 cache 時不在 request 重建。',
+            'summary' => '本頁讀單一頻道的 Laravel 文字雲 cache，使用短天期與長天期差分產生文字雲；缺 cache 時由 ingestion job 重建。',
             'jobs' => [
                 self::job(
-                    key: 'legacy.channel_cloud.cache',
-                    label: 'Legacy channel cloud cache',
-                    command: 'approved legacy snapshot/export -> urt_show_cloud',
+                    key: 'reports.channel_cloud.build',
+                    label: '頻道文字雲 cache 重建',
+                    command: 'reports:channel-cloud:build --execute --u_id={u_id} --days=1,3,7,30,90 --keyword-limit=5000',
                     apiCalls: [],
-                    reads: ['approved legacy snapshot/export', 'urt_video'],
+                    reads: ['urt_video', 'tags'],
                     writes: ['urt_show_cloud'],
-                    summary: '目前 Laravel scheduler 不常態產生 urt_show_cloud；頁面只讀既有 cache。',
-                    scheduler: '不會由目前 Laravel 排程更新；若要常態更新，需新增 reviewed Laravel command/job。',
+                    summary: '不呼叫外部 API；從本機頻道影片與關鍵字表重建 urt_show_cloud。',
+                    scheduler: 'config/ingestion.php job reports.channel_cloud.build；每日 6 次，scheduled-write gates 通過後執行。',
                 ),
                 self::job(
                     key: 'youtube.channels.videos.general',
@@ -2255,41 +2255,48 @@ class ReportLineageProfiles
                     apiCalls: ['YouTube Data API playlistItems.list(part=snippet)'],
                     reads: ['urt_channel', 'urt_count', 'urt_video_schedule'],
                     writes: ['urt_video', 'urt_video_schedule', 'urt_video_live', 'urt_channel.vtime'],
-                    summary: '補齊 urt_video 上游；但本頁使用的 urt_show_cloud 目前不是 scheduler 常態重建目標。',
+                    summary: '補齊 urt_video 上游；channel cloud builder 再用本機影片重建 urt_show_cloud。',
                     scheduler: 'config/ingestion.php job youtube.channels.videos.general；每 5 分鐘。',
                 ),
             ],
             'render' => [
                 'controller' => 'App\Http\Controllers\Reports\ChannelDataGapController::cloud',
-                'service' => 'App\Services\Legacy\ChannelCloudReport',
-                'reads' => ['urt_show_cloud', 'urt_channel', 'urt_video'],
+                'service' => 'ChannelCloudReport',
+                'reads' => ['urt_show_cloud', 'urt_channel', 'urt_video', 'tags'],
                 'request' => '頁面 request 本身不呼叫外部 API；讀 urt_show_cloud.keywords_json，套用 stopwords 與短長天期差分後呈現。',
                 'transforms' => [
                     'days/limit bounds 在 request 時套用，longDays 由固定 mapping 決定。',
                     '分別讀短天期與長天期 urt_show_cloud cache rows。',
                     '解析 keywords_json，套用 stopwords，計算 short - long/ratio 的差分分數。',
-                    '沒有 cache 時回傳 blocked_reason；不重建 cache、不寫 DB。',
+                    '沒有 cache 時回傳 blocked_reason；頁面 request 不重建 cache、不寫 DB。',
                 ],
             ],
             'fixed_sources' => [
                 self::fixedSource('Channel cloud longDays mapping', 'ChannelCloudReport::longDays 1=>3,3=>7,7=>30,30=>90,90=>365', '長天期 mapping 寫死在 service。'),
-                self::fixedSource('Channel cloud cache status', 'urt_show_cloud', '目前不由 Laravel scheduler 常態重建。'),
-                self::fixedSource('內建 stopwords fallback', 'App\Services\Legacy\LegacyStopwords::FALLBACK', '文字雲會排除固定停用詞；隨部署更新。'),
+                self::fixedSource('ChannelCloud keyword scan default', 'reports:channel-cloud:build --keyword-limit=5000', '預設掃描本機前 5000 個關鍵字；不是頁面瀏覽時動態決定。'),
+                self::fixedSource('內建 stopwords fallback', 'shared stopword list', '文字雲會排除固定停用詞；隨部署更新。'),
             ],
             'sources' => [
                 self::source('urt_show_cloud', 'urt_show_cloud', ['mtime', 'ctime']),
                 self::source('urt_channel', 'urt_channel', ['mtime', 'ctime']),
                 self::source('urt_video', 'urt_video', ['mtime', 'publishedAt']),
+                self::source('tags', 'tags', ['mtime', 'ctime']),
             ],
             'graph' => [
-                self::sourceNode('channel_cloud_cache', 'urt_show_cloud cache', 'cache', 'urt_show_cloud', '保存頻道文字雲 keywords_json；目前主要來自 legacy cache/export。', [
-                    'job_details' => ['legacy.channel_cloud.cache'],
+                self::combinedSourceNode('channel_cloud_inputs', '本機頻道影片 / tags', ['urt_video', 'tags'], 'ChannelCloudCacheBuilder 從單一頻道影片文字與關鍵字表建立文字雲來源。', [
+                    'job_details' => ['youtube.channels.videos.general'],
+                ]),
+                self::jobNode('channel_cloud_job', 'reports:channel-cloud:build', 'service', 'reports.channel_cloud.build', '排程或手動 execute 會重建 urt_show_cloud；不會在頁面 request 內寫 cache。'),
+                self::sourceNode('channel_cloud_cache', 'urt_show_cloud cache', 'cache', 'urt_show_cloud', '保存頻道文字雲 keywords_json 與更新時間。', [
+                    'job_details' => ['reports.channel_cloud.build'],
                 ]),
                 self::fixedNode('channel_cloud_rules', 'days / longDays / stopwords', 'days bounds、longDays mapping、stopwords 與 cache-only fallback 都在程式碼中。'),
                 self::serviceNode('channel_cloud_report', 'ChannelCloudReport diff scoring', 'request 時讀短長天期 cache，計算差分 rows 與 D3 payload。'),
                 self::pageNode('channel_cloud_page', '頻道文字雲頁', '/channels/{u_id}/cloud', 'Blade 呈現 D3 word cloud、排行與 dependency 狀態。'),
             ],
             'edges' => [
+                self::edge('channel_cloud_inputs', 'channel_cloud_job', 'aggregate input', 'reports:channel-cloud:build 讀本機資料，不呼叫外部 API。'),
+                self::edge('channel_cloud_job', 'channel_cloud_cache', 'write cache', 'execute mode upsert urt_show_cloud rows。'),
                 self::edge('channel_cloud_cache', 'channel_cloud_rules', 'read periods', 'request 決定短長天期 cache lookup。'),
                 self::edge('channel_cloud_rules', 'channel_cloud_report', 'diff score', '報表服務套用 stopwords 並計算差分。'),
                 self::edge('channel_cloud_report', 'channel_cloud_page', 'render cloud', 'Blade 輸出文字雲。'),

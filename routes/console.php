@@ -9,6 +9,7 @@ use App\Services\Ingestion\AiHourlyPreview;
 use App\Services\Ingestion\AiPeriodIngestion;
 use App\Services\Ingestion\AiProviderUsageSummary;
 use App\Services\Ingestion\ChannelCountsPreview;
+use App\Services\Ingestion\ChannelCloudCacheBuilder;
 use App\Services\Ingestion\ChannelStatisticsIngestion;
 use App\Services\Ingestion\ChannelStatisticsPreview;
 use App\Services\Ingestion\ChannelVideosDiscoveryIngestion;
@@ -1435,6 +1436,69 @@ Artisan::command('reports:tag-cloud:build {--tagid= : Comma-separated required c
 
     return 0;
 })->purpose('Build urt_show_tag_cloud rows from local videos and tags; dry-run by default');
+
+Artisan::command('reports:channel-cloud:build {--u_id= : Comma-separated channel u_id values} {--channel= : Alias for --u_id} {--days=1,3,7,30,90 : Comma-separated list of period lengths to build} {--limit=50 : Channel cap when --u_id is omitted} {--recent-days=14 : Recent video window when --u_id is omitted} {--keyword-limit=5000 : Number of local keywords to scan} {--keywords= : Optional comma-separated keyword subset} {--execute : Write urt_show_cloud rows} {--json : Emit JSON instead of text}', function (ChannelCloudCacheBuilder $builder) {
+    $idsOption = collect([$this->option('u_id'), $this->option('channel')])
+        ->map(fn (mixed $value): string => trim((string) $value))
+        ->first(fn (string $value): bool => $value !== '', '');
+    $uIds = collect(explode(',', $idsOption))
+        ->map(fn (string $id): int => (int) trim($id))
+        ->filter(fn (int $id): bool => $id > 0)
+        ->values()
+        ->all();
+    $daysList = collect(explode(',', (string) $this->option('days')))
+        ->map(fn (string $days): int => max(1, min(365, (int) trim($days))))
+        ->filter(fn (int $days): bool => $days > 0)
+        ->unique()
+        ->values()
+        ->all();
+    $keywords = collect(explode(',', (string) $this->option('keywords')))
+        ->map(fn (string $keyword): string => trim($keyword))
+        ->filter(fn (string $keyword): bool => $keyword !== '')
+        ->values()
+        ->all();
+
+    $payload = $builder->buildMany(
+        uIds: $uIds,
+        daysList: $daysList,
+        limit: (int) $this->option('limit'),
+        recentDays: (int) $this->option('recent-days'),
+        keywordLimit: (int) $this->option('keyword-limit'),
+        onlyKeywords: $keywords,
+        execute: (bool) $this->option('execute'),
+        now: CarbonImmutable::now((string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'))),
+    );
+
+    if ((bool) $this->option('json')) {
+        $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        return 0;
+    }
+
+    $this->line(sprintf(
+        'reports:channel-cloud:build mode=%s channels=%d days=%s rows=%d writes=%d',
+        $payload['mode'],
+        $payload['channels_selected'],
+        implode(',', $payload['days_list']),
+        count($payload['rows']),
+        $payload['writes'],
+    ));
+
+    foreach ($payload['rows'] as $row) {
+        $this->line(sprintf(
+            'u_id=%d days=%d videos=%d keywords=%d tags=%d views=%d writes=%d',
+            $row['u_id'],
+            $row['days'],
+            $row['count_videos'],
+            $row['keywords_count'],
+            $row['count_tags'],
+            $row['total_views'],
+            $row['writes'],
+        ));
+    }
+
+    return 0;
+})->purpose('Build urt_show_cloud channel word-cloud rows from local videos and tags; dry-run by default');
 
 Artisan::command('youtube:videos:duration {--videoId= : Optional queued video id to preview} {--batch-size=50 : Legacy batch size, capped at 50} {--limit= : Alias for --batch-size when running limited smoke checks} {--loops=1 : Number of batches to preview} {--enqueue-missing : With --execute, create duration queue rows from existing urt_video when missing} {--execute : Call YouTube and write selected video durations to local DB} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (VideoDurationsPreview $preview, VideoDurationsIngestion $ingestion) {
     $batchSizeOption = $this->option('limit') !== null ? $this->option('limit') : $this->option('batch-size');

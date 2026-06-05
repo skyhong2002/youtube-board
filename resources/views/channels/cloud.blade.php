@@ -74,8 +74,8 @@
 
             @if (! $data_available)
                 <section class="panel">
-                    <p class="notice">Data unavailable locally. {{ $blocked_reason }}<br><x-ingestion-portal job="reports.tag_cloud.build" /></p>
-                    <p>Legacy source: {{ $legacy_file }}. Laravel uses {{ $cache_table }} as the dashboard cache source and rebuilds it through ingestion jobs.</p>
+                    <p class="notice">Data unavailable locally. {{ $blocked_reason }}<br><x-ingestion-portal job="reports.channel_cloud.build" /></p>
+                    <p>Laravel uses <code>{{ $cache_table }}</code> as the dashboard cache source and rebuilds it from local channel videos through <code>{{ $source_workflow }}</code>.</p>
                     <table>
                         <thead>
                             <tr>
@@ -171,6 +171,6 @@
                     </section>
                 </div>
 
-                <p class="meta">資料來源：{{ $legacy_file }}；即時 YouTube 儀表板快取</p>
+                <p class="meta">資料來源：{{ $source_workflow }}；即時 YouTube 儀表板快取</p>
             @endif
 @endsection

@@ -29,7 +29,7 @@ class LegacyCloudGroupApiReport
                 'u_id' => $uId,
                 'days' => $days,
                 'mtime' => $row->mtime ?? null,
-                'blocked_reason' => $result === [] ? 'local channel cloud cache is empty; legacy generation is intentionally not run' : null,
+                'blocked_reason' => $result === [] ? 'local channel cloud cache is empty; run reports:channel-cloud:build to rebuild urt_show_cloud' : null,
             ]);
         } catch (QueryException) {
             return $this->payload([], 'urt_show_cloud.keywords_json', [
