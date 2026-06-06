@@ -159,16 +159,26 @@
                 margin-bottom: 16px;
             }
 
+            .yb-page-header > div:first-child {
+                flex: 1 1 auto;
+                min-width: 0;
+            }
+
             .yb-page-header h1 {
                 margin: 0;
                 font-size: 28px;
                 line-height: 1.2;
+                overflow-wrap: anywhere;
+                word-break: keep-all;
             }
 
             .yb-page-meta {
+                flex: 0 1 auto;
+                max-width: 70%;
                 color: var(--muted);
                 text-align: right;
-                white-space: nowrap;
+                overflow-wrap: anywhere;
+                white-space: normal;
             }
 
             .yb-section-nav {
@@ -413,6 +423,7 @@
 
                 .yb-page-meta {
                     margin-top: 8px;
+                    max-width: none;
                     text-align: left;
                     white-space: normal;
                 }

@@ -40,9 +40,9 @@
             .trend-meta { margin-top: 2px; color: var(--muted); font-size: 12px; line-height: 1.35; }
             .trend-value { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
             .chart { border: 1px solid var(--line); background: var(--surface); padding: 12px; overflow-x: auto; }
-            svg { display: block; min-width: 860px; width: 100%; height: auto; }
+            .tag-compare-chart svg { display: block; min-width: 860px; width: 100%; height: auto; }
             .table-wrap { overflow-x: auto; border: 1px solid var(--line); background: var(--surface); }
-            table { width: 100%; min-width: 860px; border-collapse: collapse; }
+            .comparison-table { width: 100%; min-width: max(560px, calc(420px + (var(--keyword-count, 1) * 110px))); border-collapse: collapse; }
             th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; text-align: left; }
             th { position: sticky; top: 0; z-index: 1; background: #eef2f6; color: #344054; font-size: 12px; font-weight: 700; white-space: nowrap; }
             tbody tr:hover { background: #f9fbfd; }
@@ -50,7 +50,13 @@
             .empty, .notice { padding: 24px; color: var(--muted); text-align: center; border: 1px solid var(--line); background: var(--surface); }
             .notice { margin: 0 0 14px; padding: 12px; border-color: #f7d58b; border-radius: 6px; background: var(--warn-bg); color: var(--warn); text-align: left; }
             @media (max-width: 820px) { .insight-grid { grid-template-columns: 1fr; } }
-            @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; white-space: normal; } }
+            @media (max-width: 720px) {
+                main { padding: 16px; }
+                header { display: block; }
+                .meta { margin-top: 8px; white-space: normal; }
+                .tag-compare-chart svg { min-width: 0; }
+                .comparison-table { min-width: max(520px, calc(340px + (var(--keyword-count, 1) * 90px))); }
+            }
 </style>
 @endpush
 
@@ -176,7 +182,7 @@
             </div>
 
             @if ($data_available)
-                <section class="chart" aria-label="多關鍵字折線圖">
+                <section class="chart tag-compare-chart" aria-label="多關鍵字折線圖">
                     <svg viewBox="0 0 {{ $chartWidth }} {{ $chartHeight }}" role="img" aria-label="{{ $title }}">
                         <line x1="{{ $padLeft }}" y1="{{ $padTop }}" x2="{{ $padLeft }}" y2="{{ $padTop + $plotHeight }}" stroke="#d7dde6" />
                         <line x1="{{ $padLeft }}" y1="{{ $padTop + $plotHeight }}" x2="{{ $padLeft + $plotWidth }}" y2="{{ $padTop + $plotHeight }}" stroke="#d7dde6" />
@@ -209,7 +215,7 @@
 
             <h2>每日資料</h2>
             <div class="table-wrap">
-                <table>
+                <table class="comparison-table" style="--keyword-count: {{ max(1, count($keywords)) }};">
                     <thead>
                         <tr>
                             <th>日期</th>
