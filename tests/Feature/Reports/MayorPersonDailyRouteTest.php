@@ -37,6 +37,8 @@ class MayorPersonDailyRouteTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('每日 Dashboard');
+        $response->assertSee('/mayor/cities/taipei/people/%E8%94%A3%E8%90%AC%E5%AE%89?type=tags_views', false);
+        $response->assertSee('/mayor/cities/taipei/people/%E6%B2%88%E4%BC%AF%E6%B4%8B?type=tags_views', false);
         $response->assertSee('/mayor/cities/taipei/people/%E8%94%A3%E8%90%AC%E5%AE%89/days/2026-05-24?type=tags_views', false);
         $response->assertSee('/mayor/cities/taipei/people/%E6%B2%88%E4%BC%AF%E6%B4%8B/days/2026-05-24?type=tags_views', false);
     }

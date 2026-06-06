@@ -33,6 +33,17 @@
             .facts span { min-height: 24px; color: var(--muted); font-size: 12px; }
             .meta { color: var(--muted); white-space: nowrap; }
             .notice { margin: 0 0 14px; padding: 12px; border: 1px solid #f7d58b; border-radius: 6px; background: var(--warn-bg); color: var(--warn); }
+            .dashboard-portal { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin: 0 0 18px; }
+            .portal-card { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+            .portal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+            .portal-name { min-width: 0; color: #202a36; font-size: 17px; font-weight: 800; overflow-wrap: anywhere; }
+            .portal-dot { flex: 0 0 10px; width: 10px; height: 10px; border-radius: 999px; }
+            .portal-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+            .portal-stat { min-width: 0; color: var(--muted); font-size: 12px; line-height: 1.35; }
+            .portal-stat strong { display: block; color: #202a36; font-size: 16px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+            .portal-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+            .portal-actions a { display: inline-flex; align-items: center; min-height: 30px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 6px; background: #f8fafc; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+            .portal-actions a.primary { border-color: #8ccfbe; background: var(--accent-bg); color: var(--accent); }
             .chart { border: 1px solid var(--line); background: var(--surface); padding: 12px; overflow-x: auto; }
             svg { display: block; min-width: 860px; width: 100%; height: auto; }
             .table-wrap { overflow-x: auto; border: 1px solid var(--line); background: var(--surface); }
@@ -42,7 +53,14 @@
             tbody tr:hover { background: #f9fbfd; }
             .number { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
             .empty { padding: 28px; color: var(--muted); text-align: center; border: 1px solid var(--line); background: var(--surface); }
-            @media (max-width: 720px) { main { padding: 16px; } header { display: block; } .meta { margin-top: 8px; white-space: normal; } }
+            @media (max-width: 720px) {
+                main { padding: 16px; }
+                header { display: block; }
+                .meta { margin-top: 8px; white-space: normal; }
+                .dashboard-portal { grid-template-columns: 1fr; }
+                .portal-head { align-items: flex-start; }
+                .portal-actions a { flex: 1 1 130px; justify-content: center; text-align: center; }
+            }
 </style>
 @endpush
 
@@ -70,6 +88,7 @@
                 unset($periodQuery['city'], $periodQuery['days'], $periodQuery['from'], $periodQuery['to']);
                 $typeQuery = request()->query();
                 unset($typeQuery['city'], $typeQuery['type']);
+                $latestRow = collect($series)->last();
             @endphp
 
 
@@ -120,6 +139,38 @@
                     <span><i style="background: {{ $colors[$candidateIndex % count($colors)] }}"></i>{{ $candidate }}</span>
                 @endforeach
             </div>
+
+            <h2>候選人每日 Dashboard</h2>
+            <section class="dashboard-portal" aria-label="候選人每日 Dashboard">
+                @foreach ($candidates as $candidateIndex => $candidate)
+                    @php
+                        $dailyUrl = route('mayor.people.show', ['city' => $city['key'], 'person' => $candidate, 'type' => $type]);
+                        $trendUrl = route('tags.compare', ['tagid' => implode(',', $tagids), 'tags' => $candidate, 'type' => $type, 'days' => $range['days'], 'from' => $range['from'], 'to' => $range['to']]);
+                        $percentage = is_array($latestRow) ? ($latestRow['percentages'][$candidate] ?? null) : null;
+                        $raw = is_array($latestRow) ? ($latestRow['raw'][$candidate] ?? null) : null;
+                    @endphp
+                    <article class="portal-card">
+                        <div class="portal-head">
+                            <a class="portal-name" href="{{ $dailyUrl }}">{{ $candidate }}</a>
+                            <span class="portal-dot" style="background: {{ $colors[$candidateIndex % count($colors)] }}" aria-hidden="true"></span>
+                        </div>
+                        <div class="portal-stats">
+                            <div class="portal-stat">
+                                <strong>{{ is_numeric($percentage) ? number_format((float) $percentage, 1).'%' : 'n/a' }}</strong>
+                                {{ $range['to'] }} 支持度
+                            </div>
+                            <div class="portal-stat">
+                                <strong>{{ is_numeric($raw) ? number_format((float) $raw, 0) : 'n/a' }}</strong>
+                                {{ $type_name }} raw
+                            </div>
+                        </div>
+                        <div class="portal-actions">
+                            <a class="primary" href="{{ $dailyUrl }}">每日 Dashboard</a>
+                            <a href="{{ $trendUrl }}">關鍵字趨勢</a>
+                        </div>
+                    </article>
+                @endforeach
+            </section>
 
             @if ($data_available)
                 <section class="chart" aria-label="候選人支持度趨勢">
