@@ -160,8 +160,9 @@
             }
 
             .yb-page-header > div:first-child {
-                flex: 1 1 auto;
+                flex: 0 0 auto;
                 min-width: 0;
+                max-width: 100%;
             }
 
             .yb-page-header h1 {
@@ -169,6 +170,7 @@
                 font-size: 28px;
                 line-height: 1.2;
                 overflow-wrap: anywhere;
+                white-space: nowrap;
                 word-break: keep-all;
             }
 
@@ -425,6 +427,10 @@
                     margin-top: 8px;
                     max-width: none;
                     text-align: left;
+                    white-space: normal;
+                }
+
+                .yb-page-header h1 {
                     white-space: normal;
                 }
 
