@@ -4,6 +4,7 @@ namespace Tests\Feature\Reports;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class MayorPersonDailyRouteTest extends TestCase
@@ -63,6 +64,21 @@ class MayorPersonDailyRouteTest extends TestCase
         $response->assertOk();
         $response->assertSee('2026-05-24 · AI generated', false);
         $response->assertSee('AI ready');
+    }
+
+    public function test_mayor_person_lineage_uses_ai_cache_timestamp_when_run_history_is_not_shared(): void
+    {
+        Storage::fake('local');
+        $this->createTables();
+        $this->seedPageData();
+
+        $response = $this->get('/mayor/cities/taipei/people/%E8%94%A3%E8%90%AC%E5%AE%89/days/2026-05-24');
+
+        $response->assertOk();
+        $response->assertDontSee('尚無成功 execute 記錄');
+        $response->assertSee('2026-05-24 16:36:00');
+        $response->assertSee('cache timestamp', false);
+        $response->assertSee('run-history', false);
     }
 
     private function createTables(): void

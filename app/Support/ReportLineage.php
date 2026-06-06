@@ -47,15 +47,47 @@ class ReportLineage
             ])
             ->all();
 
+        $sources = collect($profile['sources'] ?? [])->keyBy('label');
+
         $profile['jobs'] = collect($profile['jobs'] ?? [])
-            ->map(fn (array $job): array => $job + [
-                'latest_run_at' => $this->latestSuccessfulJobRun((string) $job['key'])?->format('Y-m-d H:i:s'),
-            ])
+            ->map(fn (array $job): array => $this->hydrateJob($job, $sources))
             ->all();
 
         $profile['graph'] = $this->hydrateGraph($profile);
 
         return $profile;
+    }
+
+    /**
+     * @param Collection<string, array<string, mixed>> $sources
+     * @return array<string, mixed>
+     */
+    private function hydrateJob(array $job, Collection $sources): array
+    {
+        $latestRun = $this->latestSuccessfulJobRun((string) ($job['key'] ?? ''));
+        $latestRunSource = null;
+
+        if ($latestRun === null) {
+            $latestSource = $job['latest_source'] ?? null;
+
+            if (is_string($latestSource) && $latestSource !== '') {
+                $latestRun = $this->parseTimestamp($sources->get($latestSource)['latest_at'] ?? null);
+
+                if ($latestRun !== null) {
+                    $latestRunSource = $latestSource;
+                }
+            }
+        }
+
+        $hydrated = $job + [
+            'latest_run_at' => $latestRun?->format('Y-m-d H:i:s'),
+        ];
+
+        if ($latestRunSource !== null) {
+            $hydrated['latest_run_source'] = $latestRunSource;
+        }
+
+        return $hydrated;
     }
 
     /**
@@ -212,7 +244,7 @@ class ReportLineage
         $reads = array_values(array_filter($job['reads'] ?? [], 'is_string'));
         $writes = array_values(array_filter($job['writes'] ?? [], 'is_string'));
 
-        return [
+        $meta = [
             'Scheduler job' => trim($key."\n".(string) ($job['scheduler'] ?? '')),
             '更新工作' => trim((string) ($job['label'] ?? $key)."\n".$command),
             '工作說明' => $job['summary'] ?? '',
@@ -221,6 +253,12 @@ class ReportLineage
             '寫入' => $writes === [] ? '' : implode('、', $writes),
             '最近成功執行' => $job['latest_run_at'] ?? '尚無成功 execute 記錄',
         ];
+
+        if (is_string($job['latest_run_source'] ?? null) && $job['latest_run_source'] !== '') {
+            $meta['執行時間來源'] = $job['latest_run_source'].' 最新 cache timestamp（web/scheduler run-history 未共享時使用）';
+        }
+
+        return $meta;
     }
 
     /**

@@ -3019,6 +3019,7 @@ class ReportLineageProfiles
                     writes: ['urt_mayor_person_ai'],
                     summary: '針對 city candidates 產生每日 AI dashboard JSON，idempotently upsert mayor/person AI cache。',
                     scheduler: 'config/ingestion.php job ai.mayor_person；每日 05:45 產生早報，20:45 在資料更完整後覆寫同一日期報告；scheduled-write gates 通過後執行。',
+                    latestSource: 'urt_mayor_person_ai',
                 ),
                 self::job(
                     key: 'reports.mayor.static',
@@ -3476,9 +3477,9 @@ class ReportLineageProfiles
      * @param  list<string>  $writes
      * @return array<string, mixed>
      */
-    private static function job(string $key, string $label, string $command, array $apiCalls, array $reads, array $writes, string $summary, string $scheduler): array
+    private static function job(string $key, string $label, string $command, array $apiCalls, array $reads, array $writes, string $summary, string $scheduler, ?string $latestSource = null): array
     {
-        return [
+        $job = [
             'key' => $key,
             'label' => $label,
             'command' => $command,
@@ -3488,6 +3489,12 @@ class ReportLineageProfiles
             'summary' => $summary,
             'scheduler' => $scheduler,
         ];
+
+        if ($latestSource !== null) {
+            $job['latest_source'] = $latestSource;
+        }
+
+        return $job;
     }
 
     /**
