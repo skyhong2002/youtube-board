@@ -77,10 +77,9 @@
                 $plotHeight = $chartHeight - $padTop - $padBottom;
                 $fallbackColors = ['#2563eb', '#16a34a', '#64748b', '#0891b2', '#7c3aed', '#be123c'];
                 $candidateColors = $candidate_colors ?? [];
-                $candidateBlocs = $city['candidate_blocs'] ?? [];
-                $blocLabels = $bloc_labels ?? [];
+                $candidateParties = $candidate_party_labels ?? [];
                 $colorFor = fn (string $candidate, int $index): string => $candidateColors[$candidate] ?? $fallbackColors[$index % count($fallbackColors)];
-                $blocLabelFor = fn (string $candidate): ?string => isset($candidateBlocs[$candidate]) ? ($blocLabels[$candidateBlocs[$candidate]] ?? $candidateBlocs[$candidate]) : null;
+                $partyLabelFor = fn (string $candidate): ?string => $candidateParties[$candidate] ?? null;
                 $candidates = $city['candidates'];
                 $allValues = collect($series)->flatMap(fn ($row) => array_values($row['percentages']))->filter(fn ($value) => is_numeric($value))->map(fn ($value) => (float) $value)->values();
                 $minValue = min(0, (float) ($allValues->min() ?? 0));
@@ -142,8 +141,8 @@
 
             <div class="legend" aria-label="候選人">
                 @foreach ($candidates as $candidateIndex => $candidate)
-                    @php $candidateColor = $colorFor($candidate, $candidateIndex); $blocLabel = $blocLabelFor($candidate); @endphp
-                    <span><i style="background: {{ $candidateColor }}"></i>{{ $candidate }}@if ($blocLabel)<small>（{{ $blocLabel }}）</small>@endif</span>
+                    @php $candidateColor = $colorFor($candidate, $candidateIndex); $partyLabel = $partyLabelFor($candidate); @endphp
+                    <span><i style="background: {{ $candidateColor }}"></i>{{ $candidate }}@if ($partyLabel)<small>（{{ $partyLabel }}）</small>@endif</span>
                 @endforeach
             </div>
 
@@ -152,7 +151,7 @@
                 @foreach ($candidates as $candidateIndex => $candidate)
                     @php
                         $candidateColor = $colorFor($candidate, $candidateIndex);
-                        $blocLabel = $blocLabelFor($candidate);
+                        $partyLabel = $partyLabelFor($candidate);
                         $dailyUrl = route('mayor.people.show', ['city' => $city['key'], 'person' => $candidate, 'type' => $type]);
                         $trendUrl = route('tags.compare', ['tagid' => implode(',', $tagids), 'tags' => $candidate, 'type' => $type, 'days' => $range['days'], 'from' => $range['from'], 'to' => $range['to']]);
                         $percentage = is_array($latestRow) ? ($latestRow['percentages'][$candidate] ?? null) : null;
@@ -161,7 +160,7 @@
                     <article class="portal-card">
                         <div class="portal-head">
                             <a class="portal-name" href="{{ $dailyUrl }}">{{ $candidate }}</a>
-                            <span class="portal-dot" style="background: {{ $candidateColor }}" title="{{ $blocLabel ?? '候選人' }}" aria-hidden="true"></span>
+                            <span class="portal-dot" style="background: {{ $candidateColor }}" title="{{ $partyLabel ?? '候選人' }}" aria-hidden="true"></span>
                         </div>
                         <div class="portal-stats">
                             <div class="portal-stat">

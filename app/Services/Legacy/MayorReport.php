@@ -85,8 +85,7 @@ class MayorReport
                 'cache_rows' => collect($records)->flatten(1)->count(),
                 'tagids' => $this->tagIds(),
                 'tag_labels' => $this->tagLabels(),
-                'bloc_labels' => $this->blocLabels(),
-                'bloc_colors' => $this->blocColors(),
+                'candidate_party_labels' => $this->candidatePartyLabels($city),
                 'candidate_colors' => $this->candidateColors($city),
                 'legacy_source' => $city['source'],
                 'generated_at' => CarbonImmutable::now('Asia/Taipei')->format('Y-m-d H:i:s'),
@@ -164,27 +163,48 @@ class MayorReport
     /**
      * @return array<string, string>
      */
-    private function blocLabels(): array
+    private function blocPartyLabels(): array
     {
         return [
-            'blue' => '泛藍',
-            'green' => '泛綠',
-            'white' => '泛白',
-            'other' => '其他',
+            'blue' => '中國國民黨',
+            'green' => '民主進步黨',
+            'white' => '台灣民眾黨',
+            'other' => '無黨籍',
         ];
     }
 
     /**
      * @return array<string, string>
      */
-    private function blocColors(): array
+    private function partyColors(): array
     {
         return [
-            'blue' => '#2563eb',
-            'green' => '#16a34a',
-            'white' => '#0891b2',
-            'other' => '#64748b',
+            '中國國民黨' => '#2563eb',
+            '民主進步黨' => '#16a34a',
+            '台灣民眾黨' => '#0891b2',
+            '無黨籍' => '#64748b',
+            '麻將黨' => '#7c3aed',
+            '司改黨' => '#b45309',
+            '台聯黨' => '#ca8a04',
         ];
+    }
+
+    /**
+     * @param array{candidates: list<string>, candidate_blocs?: array<string, string>} $city
+     * @return array<string, string>
+     */
+    private function candidatePartyLabels(array $city): array
+    {
+        $knownParties = $this->knownCandidateParties();
+        $blocParties = $this->blocPartyLabels();
+
+        return collect($city['candidates'])
+            ->mapWithKeys(function (string $candidate) use ($city, $knownParties, $blocParties): array {
+                $bloc = (string) ($city['candidate_blocs'][$candidate] ?? 'other');
+
+                return [$candidate => $knownParties[$candidate] ?? $blocParties[$bloc] ?? '無黨籍'];
+            })
+            ->all();
     }
 
     /**
@@ -193,15 +213,76 @@ class MayorReport
      */
     private function candidateColors(array $city): array
     {
-        $blocColors = $this->blocColors();
+        $partyColors = $this->partyColors();
+        $partyLabels = $this->candidatePartyLabels($city);
 
         return collect($city['candidates'])
-            ->mapWithKeys(function (string $candidate) use ($city, $blocColors): array {
-                $bloc = (string) ($city['candidate_blocs'][$candidate] ?? 'other');
+            ->mapWithKeys(function (string $candidate) use ($partyColors, $partyLabels): array {
+                $party = (string) ($partyLabels[$candidate] ?? '無黨籍');
 
-                return [$candidate => $blocColors[$bloc] ?? $blocColors['other']];
+                return [$candidate => $partyColors[$party] ?? $partyColors['無黨籍']];
             })
             ->all();
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function knownCandidateParties(): array
+    {
+        return [
+            '蔣萬安' => '中國國民黨',
+            '沈伯洋' => '民主進步黨',
+            '郭璽' => '麻將黨',
+            '李四川' => '中國國民黨',
+            '蘇巧慧' => '民主進步黨',
+            '張善政' => '中國國民黨',
+            '黃世杰' => '民主進步黨',
+            '江啟臣' => '中國國民黨',
+            '何欣純' => '民主進步黨',
+            '謝龍介' => '中國國民黨',
+            '陳亭妃' => '民主進步黨',
+            '柯志恩' => '中國國民黨',
+            '賴瑞隆' => '民主進步黨',
+            '張靜' => '司改黨',
+            '謝國樑' => '中國國民黨',
+            '童子瑋' => '民主進步黨',
+            '高虹安' => '台灣民眾黨',
+            '莊競程' => '民主進步黨',
+            '徐欣瑩' => '中國國民黨',
+            '鍾東錦' => '中國國民黨',
+            '陳品安' => '民主進步黨',
+            '魏平政' => '中國國民黨',
+            '陳素月' => '民主進步黨',
+            '蔡壁如' => '台灣民眾黨',
+            '許淑華' => '中國國民黨',
+            '溫世政' => '民主進步黨',
+            '張嘉郡' => '中國國民黨',
+            '劉建國' => '民主進步黨',
+            '蔡易餘' => '民主進步黨',
+            '張啓楷' => '台灣民眾黨',
+            '王美惠' => '民主進步黨',
+            '黃宏成台灣阿成世界偉人財神總統' => '無黨籍',
+            '周春米' => '民主進步黨',
+            '蘇清泉' => '中國國民黨',
+            '吳宗憲' => '中國國民黨',
+            '林國漳' => '民主進步黨',
+            '陳琬惠' => '台灣民眾黨',
+            '游淑貞' => '中國國民黨',
+            '張峻' => '無黨籍',
+            '魏嘉賢' => '無黨籍',
+            '吳秀華' => '中國國民黨',
+            '陳瑩' => '民主進步黨',
+            '陳光復' => '民主進步黨',
+            '陳振中' => '中國國民黨',
+            '葉竹林' => '無黨籍',
+            '陳盡川' => '無黨籍',
+            '許智富' => '無黨籍',
+            '陳玉珍' => '中國國民黨',
+            '楊鎮浯' => '中國國民黨',
+            '李文良' => '無黨籍',
+            '王忠銘' => '中國國民黨',
+        ];
     }
 
     /**
@@ -654,8 +735,7 @@ class MayorReport
             'cache_rows' => 0,
             'tagids' => $this->tagIds(),
             'tag_labels' => $this->tagLabels(),
-            'bloc_labels' => $this->blocLabels(),
-            'bloc_colors' => $this->blocColors(),
+            'candidate_party_labels' => $this->candidatePartyLabels($city),
             'candidate_colors' => $this->candidateColors($city),
             'legacy_source' => $city['source'],
             'generated_at' => CarbonImmutable::now('Asia/Taipei')->format('Y-m-d H:i:s'),
