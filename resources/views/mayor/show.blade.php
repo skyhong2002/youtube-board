@@ -162,7 +162,7 @@
                             @foreach ($tagids as $tagId)
                                 <th class="number">factor tag {{ $tagId }}</th>
                             @endforeach
-                            <th>Legacy link</th>
+                            <th>Links</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -172,7 +172,11 @@
                                 @foreach ($tagids as $tagId)
                                     <td class="number">{{ number_format((float) ($city['factors'][$candidate][$tagId] ?? 0), 2) }}</td>
                                 @endforeach
-                                <td><a href="{{ route('tags.compare', ['tagid' => implode(',', $tagids), 'tags' => $candidate, 'type' => $type, 'days' => $range['days'], 'from' => $range['from'], 'to' => $range['to']]) }}">關鍵字趨勢</a></td>
+                                <td>
+                                    <a href="{{ route('mayor.people.date', ['city' => $city['key'], 'person' => $candidate, 'date' => $range['to'], 'type' => $type]) }}">每日 Dashboard</a>
+                                    ·
+                                    <a href="{{ route('tags.compare', ['tagid' => implode(',', $tagids), 'tags' => $candidate, 'type' => $type, 'days' => $range['days'], 'from' => $range['from'], 'to' => $range['to']]) }}">關鍵字趨勢</a>
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>

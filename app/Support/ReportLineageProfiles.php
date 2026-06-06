@@ -76,6 +76,7 @@ class ReportLineageProfiles
             'groups.live' => self::groupLive(),
             'mayor.index' => self::mayorReport(),
             'mayor.show' => self::mayorReport(),
+            'mayor.people.*' => self::mayorPersonAi(),
             'ai.days.index' => self::aiDays(),
             'ai.days.date' => self::aiDays(),
             'ai.days.condition' => self::aiDays(),
@@ -2996,6 +2997,79 @@ class ReportLineageProfiles
                 self::edge('mayor_cache_job', 'mayor_tag_cache', 'write cache', 'mayor/static 或 tag-date build 維護 cache。'),
                 self::edge('mayor_tag_cache', 'mayor_report', 'weighted rolling', '報表服務讀 cache 並套用 factors。'),
                 self::edge('mayor_report', 'mayor_page', 'render support', 'Blade 輸出候選人支持度圖。'),
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function mayorPersonAi(): array
+    {
+        return [
+            'title' => '市長候選人每日 AI Dashboard',
+            'summary' => '本頁讀 mayor/person AI cache 與既有 mayor tag/video cache，顯示單一候選人的每日事件、風險與可調整行動；頁面 request 不呼叫 AI API。',
+            'jobs' => [
+                self::job(
+                    key: 'ai.mayor_person',
+                    label: 'Mayor/person daily AI',
+                    command: 'ai:mayor-person --execute --city=taipei --limit=10 --ai-call-limit=10',
+                    apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
+                    reads: ['urt_show_tag_date', 'urt_show_video_tag_date', 'urt_video', 'urt_tag'],
+                    writes: ['urt_mayor_person_ai'],
+                    summary: '針對 city candidates 產生每日 AI dashboard JSON，idempotently upsert mayor/person AI cache。',
+                    scheduler: 'config/ingestion.php job ai.mayor_person；每日 16:35，scheduled-write gates 通過後執行。',
+                ),
+                self::job(
+                    key: 'reports.mayor.static',
+                    label: 'Mayor tag cache rebuild',
+                    command: 'reports:mayor:static --execute --limit=5 --keyword-limit=5000',
+                    apiCalls: [],
+                    reads: ['urt_video', 'urt_count', 'tags'],
+                    writes: ['urt_show_tag_date'],
+                    summary: '補齊候選人姓名在 mayor tag ids 3/4/5/6 的每日權重來源。',
+                    scheduler: 'config/ingestion.php job reports.mayor.static；每 5 小時第 13 分。',
+                ),
+            ],
+            'render' => [
+                'controller' => 'App\Http\Controllers\Reports\MayorReportController::person',
+                'service' => 'App\Services\Legacy\MayorPersonDailyReport',
+                'reads' => ['urt_mayor_person_ai', 'urt_show_tag_date', 'urt_show_video_tag_date', 'urt_video', 'urt_tag'],
+                'request' => '頁面 request 本身不呼叫 AI API；優先讀 urt_mayor_person_ai，缺 AI row 時顯示來源資料與待產生狀態。',
+                'transforms' => [
+                    'route city/person/date 決定單一候選人與單日。',
+                    '讀 mayor tag ids 3/4/5/6 的 urt_show_tag_date，組成候選人日訊號與支持度 snapshot。',
+                    '讀 urt_show_video_tag_date 與 urt_video 找當日代表影片與關聯關鍵字。',
+                    '解析 urt_mayor_person_ai.result_json 顯示摘要、發生事項、風險、調整與今日行動。',
+                ],
+            ],
+            'fixed_sources' => [
+                self::fixedSource('Mayor city/candidate fallback', 'MayorReport::fallbackCities', '候選人清單隨部署更新；頁面只接受系統候選人名稱作為正式候選人。'),
+                self::fixedSource('Mayor/person AI JSON schema', 'MayorPersonAiIngestion::prompt', 'AI 輸出欄位與格式寫死在 command prompt；隨部署更新。'),
+            ],
+            'sources' => [
+                self::source('urt_mayor_person_ai', 'urt_mayor_person_ai', ['mtime', 'ctime', 'the_date']),
+                self::source('urt_show_tag_date', 'urt_show_tag_date', ['the_date', 'mtime', 'ctime']),
+                self::source('urt_show_video_tag_date', 'urt_show_video_tag_date', ['the_date', 'mtime', 'ctime']),
+                self::source('urt_video', 'urt_video', ['publishedAt', 'mtime', 'ctime']),
+                self::source('urt_tag', 'urt_tag', ['mtime', 'ctime']),
+            ],
+            'graph' => [
+                self::fixedNode('mayor_person_rules', 'city candidates / prompt schema', '候選人清單與 AI JSON schema 為程式碼固定規則，隨部署更新。'),
+                self::combinedSourceNode('mayor_person_sources', 'mayor cache + videos', ['urt_show_tag_date', 'urt_show_video_tag_date', 'urt_video', 'urt_tag'], 'AI prompt 與頁面 fallback 來源都來自本機 cache/影片資料。', [
+                    'job_details' => ['reports.mayor.static'],
+                ]),
+                self::jobNode('mayor_person_ai_job', 'ai:mayor-person', 'api', 'ai.mayor_person', '只有 command execute mode 會呼叫 AI 並寫入 mayor/person AI cache。'),
+                self::sourceNode('mayor_person_ai_cache', 'urt_mayor_person_ai', 'cache', 'urt_mayor_person_ai', '保存每位候選人每日 AI dashboard JSON。'),
+                self::serviceNode('mayor_person_report', 'MayorPersonDailyReport', 'request 時讀 AI cache 與來源資料，組合成每日 Dashboard。'),
+                self::pageNode('mayor_person_page', '候選人每日 Dashboard', '/mayor/cities/{city}/people/{person}/days/{date}', 'Blade 呈現 AI 摘要、今日事項、行動、風險、代表影片與 tag 訊號。'),
+            ],
+            'edges' => [
+                self::edge('mayor_person_rules', 'mayor_person_sources', 'select person/date', '固定候選人清單與 route 參數決定來源資料範圍。'),
+                self::edge('mayor_person_sources', 'mayor_person_ai_job', 'build prompt', 'ai:mayor-person 將 tag/video/source JSON 組成 prompt。'),
+                self::edge('mayor_person_ai_job', 'mayor_person_ai_cache', 'upsert AI row', 'execute mode 寫入 urt_mayor_person_ai。'),
+                self::edge('mayor_person_ai_cache', 'mayor_person_report', 'decode JSON', '頁面服務解析 AI row；缺 row 時保留來源資料狀態。'),
+                self::edge('mayor_person_report', 'mayor_person_page', 'render dashboard', 'Blade 輸出每日 AI Dashboard。'),
             ],
         ];
     }

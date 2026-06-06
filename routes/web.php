@@ -65,6 +65,15 @@ Route::get('/groups/{groupName}/ranking', [GroupMetricController::class, 'rankin
 Route::get('/groups/{groupName}/trends', [GroupMetricController::class, 'trends'])->where('groupName', '[A-Za-z0-9_]+')->name('groups.trends');
 Route::get('/groups/{groupName}', [GroupDirectoryController::class, 'show'])->where('groupName', '[^/]+')->name('groups.show');
 Route::get('/mayor', [MayorReportController::class, 'index'])->name('mayor.index');
+Route::get('/mayor/cities/{city}/people/{person}/days/{date}', [MayorReportController::class, 'person'])
+    ->where('city', '[A-Za-z0-9_]+')
+    ->where('person', '[^/]+')
+    ->where('date', '\d{4}-\d{2}-\d{2}')
+    ->name('mayor.people.date');
+Route::get('/mayor/cities/{city}/people/{person}', [MayorReportController::class, 'person'])
+    ->where('city', '[A-Za-z0-9_]+')
+    ->where('person', '[^/]+')
+    ->name('mayor.people.show');
 Route::get('/mayor/cities/{city}', [MayorReportController::class, 'show'])->where('city', '[A-Za-z0-9_]+')->name('mayor.show');
 
 Route::get('/live/current', LiveCurrentController::class)->name('live.current');

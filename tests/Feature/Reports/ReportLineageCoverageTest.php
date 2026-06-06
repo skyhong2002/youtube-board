@@ -63,6 +63,7 @@ class ReportLineageCoverageTest extends TestCase
             '/groups/tags_president2024/live' => ['GroupLiveReport', 'GroupLiveReport::tagSetFromLegacyFile', 'urt_show_live_tag_date'],
             '/mayor' => ['MayorReport', 'MayorReport::fallbackCities', 'reports:mayor:static'],
             '/mayor/cities/taipei' => ['MayorReport', 'MayorReport::tagIds = 3,4,5,6', 'MayorReport::factorTemplate'],
+            '/mayor/cities/taipei/people/%E8%94%A3%E8%90%AC%E5%AE%89/days/2026-05-24' => ['MayorPersonDailyReport', 'urt_mayor_person_ai', 'ai:mayor-person'],
             '/ai/hours' => ['AiHourlyReport', 'urt_ai_hour', 'ai:hourly --execute --limit=20'],
             '/ai/periods' => ['AiPeriodReport', 'urt_ai_date', 'AiPeriodReport::dates max 62 days'],
             '/ai/events/1' => ['AiEventReport', 'urt_ai_event', 'Period history bound'],

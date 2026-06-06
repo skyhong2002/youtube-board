@@ -47,6 +47,7 @@ Compatibility coverage is guarded by `tests/Feature/LegacySurfaceInventoryTest.p
 | `/mayor/city.php?city=...` | `/mayor/cities/{city}?...` | 308 redirect to real-time YouTube dashboard mayor candidate support report; no `api/cloud_tag_date.php` generation |
 | `/mayor/{city}.php?...` | `/mayor/cities/{city}?...` | 308 redirect for legacy city config entrypoints such as `/mayor/taipei.php`; cache generation runs through Laravel ingestion jobs |
 | `/mayor/html_{city}.html?...` | `/mayor/cities/{city}?...` | 308 redirect to dynamic real-time YouTube dashboard mayor report; static HTML output is previewed by `reports:mayor:static` and not written |
+| n/a | `/mayor/cities/{city}/people/{person}`, `/mayor/cities/{city}/people/{person}/days/{date}` | New real-time YouTube dashboard mayor/person daily AI page. HTTP reads `urt_mayor_person_ai` and local source caches only; generation runs through `ai:mayor-person --execute`. |
 | `/html/group_chart.html` | `/groups/media/ranking?days=7` | 308 redirect to dynamic real-time YouTube dashboard group ranking used by the legacy 7-day static output |
 | `/html/group_chart_30.html` | `/groups/media/ranking?days=30` | 308 redirect to dynamic real-time YouTube dashboard group ranking used by `html/make_html.sh` |
 | `/html/group_chart_all.html` | `/groups/media_all/ranking?days=30` | 308 redirect to dynamic real-time YouTube dashboard all-media group ranking used by `html/make_html.sh` |
@@ -152,7 +153,7 @@ Compatibility coverage is guarded by `tests/Feature/LegacySurfaceInventoryTest.p
 | `/ops/ingestion` | Scheduler registry dashboard | Real-time YouTube dashboard view of legacy cron to Laravel command mapping, including modern command availability, local one-shot form, and latest run history |
 | `POST /ops/ingestion/run` | Scheduler one-shot runner | Executes or dry-runs due ingestion preview jobs locally, temporarily enabling the runner only for that request; stores JSON history under Laravel local storage `ingestion-runs/*.json`. Scheduled CLI runs can write the same local history with `php artisan ingestion:run --record`; when enabled, Laravel scheduler calls `ingestion:run --execute --record`. |
 | `/ops/ingestion/runs/{runId}` | Scheduler run detail | Real-time YouTube dashboard local run history viewer with request metadata, summary counts, and per-job action/exit status from `storage/app/private/ingestion-runs/*.json` |
-| `/ops/ingestion/{jobKey}` | Scheduler job detail | Real-time YouTube dashboard due/next-run preview, write target inventory, and execution guardrail for one registry job; `youtube.channels.stats`, `youtube.channels.videos.general`, `youtube.channels.videos.live`, `youtube.channels.videos.live_group`, `youtube.tvbs.videos`, `youtube.live.poll`, `youtube.tvbs.live.poll`, `youtube.live.cleanup`, `youtube.videos.duration`, `youtube.videos.stats`, `youtube.comments.queue`, `youtube.comments.fetch`, `ai.daily`, `ai.hourly`, `reports.live.build`, `reports.live.clean`, `reports.live.static`, `reports.static.html`, `reports.mayor.static`, `reports.counts.build`, `reports.groups.build`, `reports.keywords.build`, `reports.people.build`, and `reports.schedule.build` show local preview commands |
+| `/ops/ingestion/{jobKey}` | Scheduler job detail | Real-time YouTube dashboard due/next-run preview, write target inventory, and execution guardrail for one registry job; `youtube.channels.stats`, `youtube.channels.videos.general`, `youtube.channels.videos.live`, `youtube.channels.videos.live_group`, `youtube.tvbs.videos`, `youtube.live.poll`, `youtube.tvbs.live.poll`, `youtube.live.cleanup`, `youtube.videos.duration`, `youtube.videos.stats`, `youtube.comments.queue`, `youtube.comments.fetch`, `ai.daily`, `ai.mayor_person`, `ai.hourly`, `reports.live.build`, `reports.live.clean`, `reports.live.static`, `reports.static.html`, `reports.mayor.static`, `reports.counts.build`, `reports.groups.build`, `reports.keywords.build`, `reports.people.build`, and `reports.schedule.build` show local preview commands |
 | `/prompt/{script}.php` | Same legacy URL | 403 real-time YouTube dashboard guard for legacy AI prompt scripts; AI calls, prompt writeback, and `urt_ai_*` inserts are routed through Laravel AI ingestion commands |
 
 Planned clean URLs:
@@ -185,6 +186,8 @@ Planned clean URLs:
 - `/groups/{groupName}/trends`
 - `/mayor`
 - `/mayor/cities/{city}`
+- `/mayor/cities/{city}/people/{person}`
+- `/mayor/cities/{city}/people/{person}/days/{date}`
 - `/live/current`
 - `/live/continuous`
 - `/live/days/{date}`

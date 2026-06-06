@@ -204,6 +204,14 @@ class AiProviderUsageSummary
             }
         }
 
+        if (is_array($payload['rows'] ?? null)) {
+            foreach ($payload['rows'] as $row) {
+                if (is_array($row)) {
+                    $rows[] = $row;
+                }
+            }
+        }
+
         if ($rows === [] && (
             is_string($payload['provider'] ?? null)
             || is_array($payload['usage'] ?? null)

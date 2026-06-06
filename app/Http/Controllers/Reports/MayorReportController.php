@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Reports;
 
 use App\Http\Controllers\Controller;
+use App\Services\Legacy\MayorPersonDailyReport;
 use App\Services\Legacy\MayorReport;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -17,5 +18,10 @@ class MayorReportController extends Controller
     public function show(Request $request, MayorReport $report, string $city): View
     {
         return view('mayor.show', $report->report($request, $city));
+    }
+
+    public function person(Request $request, MayorPersonDailyReport $report, string $city, string $person, ?string $date = null): View
+    {
+        return view('mayor.person-day', $report->forPerson($request, $city, $person, $date));
     }
 }
