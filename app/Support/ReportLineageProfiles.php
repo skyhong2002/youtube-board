@@ -3018,7 +3018,7 @@ class ReportLineageProfiles
                     reads: ['urt_show_tag_date', 'urt_show_video_tag_date', 'urt_video', 'urt_tag'],
                     writes: ['urt_mayor_person_ai'],
                     summary: '針對 city candidates 產生每日 AI dashboard JSON，idempotently upsert mayor/person AI cache。',
-                    scheduler: 'config/ingestion.php job ai.mayor_person；每日 05:45，接在 05:13 mayor cache refresh 後產生前一天報告，scheduled-write gates 通過後執行。',
+                    scheduler: 'config/ingestion.php job ai.mayor_person；每日 05:45 產生早報，20:45 在資料更完整後覆寫同一日期報告；scheduled-write gates 通過後執行。',
                 ),
                 self::job(
                     key: 'reports.mayor.static',
