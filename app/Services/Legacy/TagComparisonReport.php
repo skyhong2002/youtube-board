@@ -2,17 +2,22 @@
 
 namespace App\Services\Legacy;
 
+use App\Services\Ingestion\TagDateCacheBuilder;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class TagComparisonReport
 {
     private const DEFAULT_TAGS = ['蔡英文', '柯文哲', '侯友宜', '陳時中'];
 
-    public function __construct(private readonly LegacyTagFilter $tagFilter)
+    public function __construct(
+        private readonly LegacyTagFilter $tagFilter,
+        private readonly TagDateCacheBuilder $tagDateCacheBuilder,
+    )
     {
     }
 
@@ -51,6 +56,7 @@ class TagComparisonReport
                 'keywords' => $keywords,
                 'filters' => $this->displayFilters($filters, $type, $range, $keywords),
                 'cache_rows' => $cache['cache_rows'],
+                'source' => $cache['source'],
                 'series' => $cache['series'],
                 'generated_at' => now('Asia/Taipei')->format('Y-m-d H:i:s'),
             ];
@@ -67,6 +73,7 @@ class TagComparisonReport
                 'keywords' => $keywords,
                 'filters' => $this->displayFilters($filters, $type, $range, $keywords),
                 'cache_rows' => 0,
+                'source' => 'unavailable',
                 'series' => [],
                 'generated_at' => now('Asia/Taipei')->format('Y-m-d H:i:s'),
             ];
@@ -176,7 +183,7 @@ class TagComparisonReport
      * @param array{tagid: list<int>, or: list<int>, not: list<int>} $filters
      * @param array{from: string, to: string, dates: list<string>, cache_from: string} $range
      * @param list<string> $keywords
-     * @return array{cache_rows: int, series: list<array<string, mixed>>}
+     * @return array{cache_rows: int, source: string, series: list<array<string, mixed>>}
      */
     private function cache(array $filters, array $range, string $type, array $keywords): array
     {
@@ -189,9 +196,24 @@ class TagComparisonReport
 
         $records = $query->orderByDesc('pk')->get();
         $byDate = $this->rowsByDate($records, $type);
+        $source = 'urt_show_tag_date cache';
 
-        if ($byDate === [] && $this->canAggregateSingletonTagRows($filters)) {
-            $byDate = $this->aggregatedSingletonRowsByDate($filters['tagid'], $range, $type);
+        if (! $this->hasKeywordData($byDate, $keywords) && $this->canAggregateSingletonTagRows($filters)) {
+            $fallback = $this->aggregatedSingletonRowsByDate($filters['tagid'], $range, $type);
+
+            if ($fallback !== [] && ($byDate === [] || $this->hasKeywordData($fallback, $keywords))) {
+                $byDate = $fallback;
+                $source = 'aggregated singleton urt_show_tag_date cache';
+            }
+        }
+
+        if (! $this->hasKeywordData($byDate, $keywords)) {
+            $fallback = $this->derivedRowsByDate($filters, $range, $type, $keywords);
+
+            if ($fallback !== [] && ($byDate === [] || $this->hasKeywordData($fallback, $keywords))) {
+                $byDate = $fallback;
+                $source = 'derived local video fallback';
+            }
         }
 
         $series = [];
@@ -230,8 +252,26 @@ class TagComparisonReport
 
         return [
             'cache_rows' => (int) collect($byDate)->sum('cache_rows'),
+            'source' => $source,
             'series' => $series,
         ];
+    }
+
+    /**
+     * @param array<string, array{pairs: array<string, float>}> $byDate
+     * @param list<string> $keywords
+     */
+    private function hasKeywordData(array $byDate, array $keywords): bool
+    {
+        foreach ($byDate as $row) {
+            foreach ($keywords as $keyword) {
+                if ((float) ($row['pairs'][$keyword] ?? 0) > 0) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -333,6 +373,150 @@ class TagComparisonReport
         }
 
         return $byDate;
+    }
+
+    /**
+     * @param array{tagid: list<int>, or: list<int>, not: list<int>} $filters
+     * @param array{cache_from: string, to: string} $range
+     * @param list<string> $keywords
+     * @return array<string, array{pairs: array<string, float>, count_channels: int, count_videos: int, total_views: int, cache_rows: int}>
+     */
+    private function derivedRowsByDate(array $filters, array $range, string $type, array $keywords): array
+    {
+        if (! $this->canDeriveRows()) {
+            return [];
+        }
+
+        if ($this->canAggregateSingletonTagRows($filters)) {
+            return $this->derivedSingletonRowsByDate($filters['tagid'], $range, $type, $keywords);
+        }
+
+        return $this->derivedFilterRowsByDate($filters['tagid'], $filters['or'], $filters['not'], $range, $type, $keywords);
+    }
+
+    private function canDeriveRows(): bool
+    {
+        return Schema::hasTable('urt_video')
+            && Schema::hasTable('urt_count')
+            && Schema::hasTable('tags');
+    }
+
+    /**
+     * @param list<int> $tagIds
+     * @param array{cache_from: string, to: string} $range
+     * @param list<string> $keywords
+     * @return array<string, array{pairs: array<string, float>, count_channels: int, count_videos: int, total_views: int, cache_rows: int}>
+     */
+    private function derivedSingletonRowsByDate(array $tagIds, array $range, string $type, array $keywords): array
+    {
+        $byDate = [];
+
+        foreach ($this->datesForCacheRange($range) as $date) {
+            foreach ($tagIds as $tagId) {
+                $row = $this->derivedBuildRow([$tagId], [], [], $date, $type, $keywords);
+
+                if ($row === null) {
+                    continue;
+                }
+
+                if (! isset($byDate[$date])) {
+                    $byDate[$date] = [
+                        'pairs' => [],
+                        'count_channels' => 0,
+                        'count_videos' => 0,
+                        'total_views' => 0,
+                        'cache_rows' => 0,
+                    ];
+                }
+
+                foreach ($row['pairs'] as $keyword => $value) {
+                    $byDate[$date]['pairs'][$keyword] = (float) ($byDate[$date]['pairs'][$keyword] ?? 0) + $value;
+                }
+
+                $byDate[$date]['count_channels'] += $row['count_channels'];
+                $byDate[$date]['count_videos'] += $row['count_videos'];
+                $byDate[$date]['total_views'] += $row['total_views'];
+                $byDate[$date]['cache_rows'] += $row['cache_rows'];
+            }
+        }
+
+        return $byDate;
+    }
+
+    /**
+     * @param list<int> $tagIds
+     * @param list<int> $orTagIds
+     * @param list<int> $notTagIds
+     * @param array{cache_from: string, to: string} $range
+     * @param list<string> $keywords
+     * @return array<string, array{pairs: array<string, float>, count_channels: int, count_videos: int, total_views: int, cache_rows: int}>
+     */
+    private function derivedFilterRowsByDate(array $tagIds, array $orTagIds, array $notTagIds, array $range, string $type, array $keywords): array
+    {
+        $byDate = [];
+
+        foreach ($this->datesForCacheRange($range) as $date) {
+            $row = $this->derivedBuildRow($tagIds, $orTagIds, $notTagIds, $date, $type, $keywords);
+
+            if ($row !== null) {
+                $byDate[$date] = $row;
+            }
+        }
+
+        return $byDate;
+    }
+
+    /**
+     * @param list<int> $tagIds
+     * @param list<int> $orTagIds
+     * @param list<int> $notTagIds
+     * @param list<string> $keywords
+     * @return array{pairs: array<string, float>, count_channels: int, count_videos: int, total_views: int, cache_rows: int}|null
+     */
+    private function derivedBuildRow(array $tagIds, array $orTagIds, array $notTagIds, string $date, string $type, array $keywords): ?array
+    {
+        $result = $this->tagDateCacheBuilder->build(
+            tagIds: $tagIds,
+            date: $date,
+            orTagIds: $orTagIds,
+            notTagIds: $notTagIds,
+            onlyKeywords: $keywords,
+            execute: false,
+        );
+        $pairs = collect($result[$type] ?? [])
+            ->filter(fn (mixed $value, mixed $keyword): bool => is_string($keyword) && is_numeric($value))
+            ->map(fn (mixed $value): float => (float) $value)
+            ->all();
+
+        if ($pairs === [] && (int) ($result['videos_scanned'] ?? 0) <= 0) {
+            return null;
+        }
+
+        return [
+            'pairs' => $pairs,
+            'count_channels' => (int) ($result['channels_matched'] ?? 0),
+            'count_videos' => (int) ($result['count_videos'] ?? 0),
+            'total_views' => (int) ($result['total_views'] ?? 0),
+            'cache_rows' => 1,
+        ];
+    }
+
+    /**
+     * @param array{cache_from: string, to: string} $range
+     * @return list<string>
+     */
+    private function datesForCacheRange(array $range): array
+    {
+        $dates = [];
+        $cursor = CarbonImmutable::parse($range['cache_from'], 'Asia/Taipei');
+        $end = CarbonImmutable::parse($range['to'], 'Asia/Taipei');
+
+        while ($cursor <= $end && count($dates) < 98) {
+            $dates[] = $cursor->toDateString();
+            $cursor = $cursor->addDay();
+        }
+
+        return $dates;
     }
 
     /**

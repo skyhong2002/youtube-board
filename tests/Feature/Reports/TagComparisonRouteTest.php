@@ -48,6 +48,8 @@ class TagComparisonRouteTest extends TestCase
         $response->assertSee('tags=柯文哲,侯友宜');
         $response->assertSee('2026-05-20');
         $response->assertSee('2026-05-21');
+        $response->assertSee('關鍵字文字雲');
+        $response->assertSee('趨勢摘要');
         $response->assertSee('600');
         $response->assertSee('1,000');
         $response->assertSee('60');
@@ -132,6 +134,67 @@ class TagComparisonRouteTest extends TestCase
         $response->assertDontSee('目前沒有符合條件的多關鍵字趨勢 cache');
     }
 
+    public function test_tag_comparison_derives_requested_keywords_from_local_videos_when_cache_has_no_keyword_data(): void
+    {
+        $this->createTables();
+        $this->createLocalVideoTables();
+
+        DB::table('urt_tag')->insert([
+            ['tag_id' => 3, 'tag_name' => '泛藍'],
+            ['tag_id' => 4, 'tag_name' => '泛綠'],
+        ]);
+
+        DB::table('tags')->insert([
+            ['tag' => '蔣萬安', 'max_count' => 10, 'hours_count' => 10, 'max_hours' => '2026-05-21 00:00:00', 'no_tag' => null],
+            ['tag' => '交通', 'max_count' => 10, 'hours_count' => 10, 'max_hours' => '2026-05-21 00:00:00', 'no_tag' => null],
+        ]);
+
+        DB::table('urt_count')->insert([
+            ['u_id' => 10, 'tags' => '[3]'],
+            ['u_id' => 20, 'tags' => '[4]'],
+        ]);
+
+        DB::table('urt_video')->insert([
+            [
+                'pk' => 1,
+                'u_id' => 10,
+                'videoId' => 'blue-1',
+                'publishedAt' => '2026-05-20 10:00:00',
+                'title' => '蔣萬安市政',
+                'description' => '',
+                'viewCount' => 100,
+            ],
+            [
+                'pk' => 2,
+                'u_id' => 20,
+                'videoId' => 'green-1',
+                'publishedAt' => '2026-05-20 11:00:00',
+                'title' => '蔣萬安交通',
+                'description' => '',
+                'viewCount' => 50,
+            ],
+            [
+                'pk' => 3,
+                'u_id' => 10,
+                'videoId' => 'blue-2',
+                'publishedAt' => '2026-05-21 10:00:00',
+                'title' => '蔣萬安交通',
+                'description' => '',
+                'viewCount' => 200,
+            ],
+        ]);
+
+        $response = $this->get('/tags/compare?tagid=3,4&tags=蔣萬安,交通&type=tags_views&from=2026-05-21&to=2026-05-21');
+
+        $response->assertOk();
+        $response->assertSee('derived local video fallback');
+        $response->assertSee('關鍵字文字雲');
+        $response->assertSee('趨勢摘要');
+        $response->assertSee('350');
+        $response->assertSee('250');
+        $response->assertDontSee('目前沒有符合條件的多關鍵字趨勢 cache');
+    }
+
     public function test_tag_comparison_reports_empty_local_cache_with_cache_refresh_guidance(): void
     {
         $this->createTables();
@@ -187,6 +250,36 @@ class TagComparisonRouteTest extends TestCase
             $table->text('tags_result')->nullable();
             $table->text('tags_video')->nullable();
             $table->text('tags_views')->nullable();
+        });
+    }
+
+    private function createLocalVideoTables(): void
+    {
+        foreach (['tags', 'urt_count', 'urt_video'] as $table) {
+            Schema::dropIfExists($table);
+        }
+
+        Schema::create('tags', function ($table): void {
+            $table->string('tag');
+            $table->integer('max_count')->nullable();
+            $table->integer('hours_count')->nullable();
+            $table->dateTime('max_hours')->nullable();
+            $table->integer('no_tag')->nullable();
+        });
+
+        Schema::create('urt_count', function ($table): void {
+            $table->integer('u_id');
+            $table->string('tags')->nullable();
+        });
+
+        Schema::create('urt_video', function ($table): void {
+            $table->integer('pk');
+            $table->integer('u_id')->nullable();
+            $table->string('videoId')->nullable();
+            $table->dateTime('publishedAt')->nullable();
+            $table->string('title')->nullable();
+            $table->text('description')->nullable();
+            $table->integer('viewCount')->nullable();
         });
     }
 }

@@ -867,7 +867,7 @@ class ReportLineageProfiles
     {
         return [
             'title' => '多關鍵字趨勢比較',
-            'summary' => '本頁讀 urt_show_tag_date cache，對同一 tag 篩選下的多個關鍵字做七日 rolling 趨勢比較。',
+            'summary' => '本頁讀 urt_show_tag_date cache，對同一 tag 篩選下的多個關鍵字做七日 rolling 趨勢比較；cache 沒有目標 keyword 時可從本機影片資料 read-only 推導。',
             'jobs' => [
                 self::job(
                     key: 'reports.tag_date.build',
@@ -883,13 +883,14 @@ class ReportLineageProfiles
             'render' => [
                 'controller' => 'App\Http\Controllers\Reports\TagComparisonController',
                 'service' => 'App\Services\Legacy\TagComparisonReport',
-                'reads' => ['urt_show_tag_date', 'urt_tag'],
-                'request' => '頁面 request 本身不呼叫外部 API；只讀 urt_show_tag_date，依 tags/type/date filters 即時計算 comparison series。',
+                'reads' => ['urt_show_tag_date', 'urt_tag', 'urt_video', 'urt_count', 'tags'],
+                'request' => '頁面 request 本身不呼叫外部 API；優先讀 urt_show_tag_date，必要時用 TagDateCacheBuilder 從本機 urt_video / urt_count / tags read-only 推導 comparison series。',
                 'transforms' => [
                     '沒有 tag filters 時預設 tagid=1；keywords 預設為固定 DEFAULT_TAGS。',
                     'type 只允許 tags_video/tags_views/tags_result，日期最多 90 天。',
                     '先找 exact filter cache；多 tagid 且無 or/not 時可 fallback 聚合 singleton tag rows。',
-                    '每個 keyword 取當日與前 6 日值加總，產生多線圖 series。',
+                    'cache row 缺少目標 keyword 值時，針對 request 的 tags 以 execute=false 即時計算同 shape 的 fallback rows。',
+                    '每個 keyword 取當日與前 6 日值加總，產生多線圖、文字雲與趨勢摘要。',
                 ],
             ],
             'fixed_sources' => [
@@ -900,19 +901,22 @@ class ReportLineageProfiles
             'sources' => [
                 self::source('urt_show_tag_date', 'urt_show_tag_date', ['mtime', 'ctime', 'the_date']),
                 self::source('urt_tag', 'urt_tag', ['mtime', 'ctime']),
+                self::source('urt_video', 'urt_video', ['publishedAt', 'mtime', 'ctime']),
+                self::source('urt_count', 'urt_count', ['mtime', 'ctime']),
+                self::source('tags', 'tags', ['mtime', 'ctime']),
             ],
             'graph' => [
                 self::jobNode('tag_compare_cache_job', 'reports:tag-date:build', 'service', 'reports.tag_date.build', '維護多關鍵字比較需要的逐日 JSON cache。'),
-                self::sourceNode('tag_compare_cache', 'urt_show_tag_date cache', 'cache', 'urt_show_tag_date', '保存 tags_video/tags_views/tags_result JSON，讓頁面只需讀本機 cache。'),
+                self::sourceNode('tag_compare_cache', 'urt_show_tag_date cache', 'cache', 'urt_show_tag_date', '保存 tags_video/tags_views/tags_result JSON，讓頁面優先讀本機 cache。'),
                 self::fixedNode('tag_compare_rules', 'keywords / metric rules', 'DEFAULT_TAGS、type aliases、最多 12 個 keyword 與七日 rolling 規則隨部署更新。'),
-                self::serviceNode('tag_compare_report', 'TagComparisonReport comparison series', 'request 時解析 JSON、必要時聚合 singleton rows，計算每個 keyword 的 rolling values。'),
-                self::pageNode('tag_compare_page', '多關鍵字趨勢比較頁', '/tags/compare', 'Blade 呈現多線圖、legend 與 filter controls。'),
+                self::serviceNode('tag_compare_report', 'TagComparisonReport comparison series', 'request 時解析 JSON、必要時聚合 singleton rows 或 read-only 推導本機影片資料，計算每個 keyword 的 rolling values。'),
+                self::pageNode('tag_compare_page', '多關鍵字趨勢比較頁', '/tags/compare', 'Blade 呈現多線圖、文字雲、趨勢摘要、legend 與 filter controls。'),
             ],
             'edges' => [
                 self::edge('tag_compare_cache_job', 'tag_compare_cache', 'write cache', 'reports:tag-date:build 更新逐日 cache。'),
                 self::edge('tag_compare_cache', 'tag_compare_rules', 'decode JSON', 'request filters 決定讀哪個 JSON 欄位與哪些 keywords。'),
                 self::edge('tag_compare_rules', 'tag_compare_report', 'rolling compare', 'TagComparisonReport 即時計算 comparison series。'),
-                self::edge('tag_compare_report', 'tag_compare_page', 'render lines', 'Blade 輸出趨勢比較圖。'),
+                self::edge('tag_compare_report', 'tag_compare_page', 'render trend', 'Blade 輸出趨勢比較圖、文字雲與摘要。'),
             ],
         ];
     }
