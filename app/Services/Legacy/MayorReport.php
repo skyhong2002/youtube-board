@@ -84,6 +84,7 @@ class MayorReport
                 'series' => $series,
                 'cache_rows' => collect($records)->flatten(1)->count(),
                 'tagids' => $this->tagIds(),
+                'tag_labels' => $this->tagLabels(),
                 'legacy_source' => $city['source'],
                 'generated_at' => CarbonImmutable::now('Asia/Taipei')->format('Y-m-d H:i:s'),
             ];
@@ -142,6 +143,19 @@ class MayorReport
     private function tagIds(): array
     {
         return [3, 4, 5, 6];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function tagLabels(): array
+    {
+        return [
+            3 => '泛藍',
+            4 => '泛綠',
+            5 => '泛紅',
+            6 => '泛白',
+        ];
     }
 
     /**
@@ -591,6 +605,7 @@ class MayorReport
             'series' => [],
             'cache_rows' => 0,
             'tagids' => $this->tagIds(),
+            'tag_labels' => $this->tagLabels(),
             'legacy_source' => $city['source'],
             'generated_at' => CarbonImmutable::now('Asia/Taipei')->format('Y-m-d H:i:s'),
         ];

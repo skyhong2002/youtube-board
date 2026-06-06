@@ -31,6 +31,11 @@ class MayorReportRouteTest extends TestCase
         $response->assertSee('蔣萬安');
         $response->assertSee('沈伯洋');
         $response->assertSee('郭璽');
+        $response->assertSee('泛藍係數');
+        $response->assertSee('泛綠係數');
+        $response->assertSee('泛紅係數');
+        $response->assertSee('泛白係數');
+        $response->assertDontSee('factor tag 3');
         $response->assertSee('cache rows 52');
         $response->assertSee('候選人支持度趨勢');
         $response->assertSee('關鍵字趨勢');

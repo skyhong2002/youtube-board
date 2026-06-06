@@ -211,7 +211,7 @@
                         <tr>
                             <th>候選人</th>
                             @foreach ($tagids as $tagId)
-                                <th class="number">factor tag {{ $tagId }}</th>
+                                <th class="number" title="tag {{ $tagId }}">{{ $tag_labels[$tagId] ?? ('tag '.$tagId) }}係數</th>
                             @endforeach
                             <th>Links</th>
                         </tr>
