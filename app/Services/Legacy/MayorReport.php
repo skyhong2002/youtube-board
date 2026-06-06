@@ -85,6 +85,9 @@ class MayorReport
                 'cache_rows' => collect($records)->flatten(1)->count(),
                 'tagids' => $this->tagIds(),
                 'tag_labels' => $this->tagLabels(),
+                'bloc_labels' => $this->blocLabels(),
+                'bloc_colors' => $this->blocColors(),
+                'candidate_colors' => $this->candidateColors($city),
                 'legacy_source' => $city['source'],
                 'generated_at' => CarbonImmutable::now('Asia/Taipei')->format('Y-m-d H:i:s'),
             ];
@@ -113,7 +116,7 @@ class MayorReport
     }
 
     /**
-     * @return array<string, array{key: string, label: string, candidates: list<string>, factors: array<string, array<int, float>>, source: string}>
+     * @return array<string, array{key: string, label: string, candidates: list<string>, candidate_blocs: array<string, string>, factors: array<string, array<int, float>>, source: string}>
      */
     public function cities(): array
     {
@@ -121,7 +124,7 @@ class MayorReport
     }
 
     /**
-     * @return array{key: string, label: string, candidates: list<string>, factors: array<string, array<int, float>>, source: string}
+     * @return array{key: string, label: string, candidates: list<string>, candidate_blocs: array<string, string>, factors: array<string, array<int, float>>, source: string}
      */
     private function city(string $key): array
     {
@@ -156,6 +159,49 @@ class MayorReport
             5 => '泛紅',
             6 => '泛白',
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function blocLabels(): array
+    {
+        return [
+            'blue' => '泛藍',
+            'green' => '泛綠',
+            'white' => '泛白',
+            'other' => '其他',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function blocColors(): array
+    {
+        return [
+            'blue' => '#2563eb',
+            'green' => '#16a34a',
+            'white' => '#0891b2',
+            'other' => '#64748b',
+        ];
+    }
+
+    /**
+     * @param array{candidates: list<string>, candidate_blocs?: array<string, string>} $city
+     * @return array<string, string>
+     */
+    private function candidateColors(array $city): array
+    {
+        $blocColors = $this->blocColors();
+
+        return collect($city['candidates'])
+            ->mapWithKeys(function (string $candidate) use ($city, $blocColors): array {
+                $bloc = (string) ($city['candidate_blocs'][$candidate] ?? 'other');
+
+                return [$candidate => $blocColors[$bloc] ?? $blocColors['other']];
+            })
+            ->all();
     }
 
     /**
@@ -302,7 +348,7 @@ class MayorReport
     }
 
     /**
-     * @param array{key: string, label: string, candidates: list<string>, factors: array<string, array<int, float>>, source: string} $city
+     * @param array{key: string, label: string, candidates: list<string>, candidate_blocs?: array<string, string>, factors: array<string, array<int, float>>, source: string} $city
      * @param list<string> $dates
      * @param array<string, array<int, array<string, float>>> $records
      * @return list<array{date: string, percentages: array<string, float>, raw: array<string, float>, total: float, cache_rows: int}>
@@ -382,7 +428,7 @@ class MayorReport
     }
 
     /**
-     * @return array{key: string, label: string, candidates: list<string>, factors: array<string, array<int, float>>, source: string}|null
+     * @return array{key: string, label: string, candidates: list<string>, candidate_blocs: array<string, string>, factors: array<string, array<int, float>>, source: string}|null
      */
     private function parseCityFile(string $key): ?array
     {
@@ -426,6 +472,7 @@ class MayorReport
             'key' => $key,
             'label' => $labelMatch['label'],
             'candidates' => $candidates,
+            'candidate_blocs' => collect($candidates)->mapWithKeys(fn (string $candidate): array => [$candidate => 'other'])->all(),
             'factors' => $factors,
             'source' => $path,
         ];
@@ -449,7 +496,7 @@ class MayorReport
     }
 
     /**
-     * @return array<string, array{key: string, label: string, candidates: list<string>, factors: array<string, array<int, float>>, source: string}>
+     * @return array<string, array{key: string, label: string, candidates: list<string>, candidate_blocs: array<string, string>, factors: array<string, array<int, float>>, source: string}>
      */
     private function fallbackCities(): array
     {
@@ -556,7 +603,7 @@ class MayorReport
 
     /**
      * @param array<string, string> $candidateBlocs
-     * @return array{key: string, label: string, candidates: list<string>, factors: array<string, array<int, float>>, source: string}
+     * @return array{key: string, label: string, candidates: list<string>, candidate_blocs: array<string, string>, factors: array<string, array<int, float>>, source: string}
      */
     private function fallbackCity(string $key, string $label, array $candidateBlocs): array
     {
@@ -564,6 +611,7 @@ class MayorReport
             'key' => $key,
             'label' => $label,
             'candidates' => array_keys($candidateBlocs),
+            'candidate_blocs' => $candidateBlocs,
             'factors' => collect($candidateBlocs)
                 ->map(fn (string $bloc): array => $this->factorTemplate($bloc))
                 ->all(),
@@ -585,7 +633,7 @@ class MayorReport
     }
 
     /**
-     * @param array{key: string, label: string, candidates: list<string>, factors: array<string, array<int, float>>, source: string} $city
+     * @param array{key: string, label: string, candidates: list<string>, candidate_blocs?: array<string, string>, factors: array<string, array<int, float>>, source: string} $city
      * @return array<string, mixed>
      */
     private function unavailable(array $city, array $range, string $type): array
@@ -606,6 +654,9 @@ class MayorReport
             'cache_rows' => 0,
             'tagids' => $this->tagIds(),
             'tag_labels' => $this->tagLabels(),
+            'bloc_labels' => $this->blocLabels(),
+            'bloc_colors' => $this->blocColors(),
+            'candidate_colors' => $this->candidateColors($city),
             'legacy_source' => $city['source'],
             'generated_at' => CarbonImmutable::now('Asia/Taipei')->format('Y-m-d H:i:s'),
         ];

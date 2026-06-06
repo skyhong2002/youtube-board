@@ -29,6 +29,7 @@
             .city-group summary { margin-bottom: 8px; color: #344054; cursor: pointer; font-size: 13px; font-weight: 700; }
             .city-group .switcher { margin-bottom: 0; }
             .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 999px; }
+            .legend small { margin-left: 4px; color: var(--muted); font-weight: 650; }
             .facts { margin: 0 0 16px; }
             .facts span { min-height: 24px; color: var(--muted); font-size: 12px; }
             .meta { color: var(--muted); white-space: nowrap; }
@@ -74,7 +75,12 @@
                 $padBottom = 46;
                 $plotWidth = $chartWidth - $padLeft - $padRight;
                 $plotHeight = $chartHeight - $padTop - $padBottom;
-                $colors = ['#0f766e', '#2563eb', '#b45309', '#be123c', '#7c3aed', '#047857'];
+                $fallbackColors = ['#2563eb', '#16a34a', '#64748b', '#0891b2', '#7c3aed', '#be123c'];
+                $candidateColors = $candidate_colors ?? [];
+                $candidateBlocs = $city['candidate_blocs'] ?? [];
+                $blocLabels = $bloc_labels ?? [];
+                $colorFor = fn (string $candidate, int $index): string => $candidateColors[$candidate] ?? $fallbackColors[$index % count($fallbackColors)];
+                $blocLabelFor = fn (string $candidate): ?string => isset($candidateBlocs[$candidate]) ? ($blocLabels[$candidateBlocs[$candidate]] ?? $candidateBlocs[$candidate]) : null;
                 $candidates = $city['candidates'];
                 $allValues = collect($series)->flatMap(fn ($row) => array_values($row['percentages']))->filter(fn ($value) => is_numeric($value))->map(fn ($value) => (float) $value)->values();
                 $minValue = min(0, (float) ($allValues->min() ?? 0));
@@ -136,7 +142,8 @@
 
             <div class="legend" aria-label="候選人">
                 @foreach ($candidates as $candidateIndex => $candidate)
-                    <span><i style="background: {{ $colors[$candidateIndex % count($colors)] }}"></i>{{ $candidate }}</span>
+                    @php $candidateColor = $colorFor($candidate, $candidateIndex); $blocLabel = $blocLabelFor($candidate); @endphp
+                    <span><i style="background: {{ $candidateColor }}"></i>{{ $candidate }}@if ($blocLabel)<small>（{{ $blocLabel }}）</small>@endif</span>
                 @endforeach
             </div>
 
@@ -144,6 +151,8 @@
             <section class="dashboard-portal" aria-label="候選人每日 Dashboard">
                 @foreach ($candidates as $candidateIndex => $candidate)
                     @php
+                        $candidateColor = $colorFor($candidate, $candidateIndex);
+                        $blocLabel = $blocLabelFor($candidate);
                         $dailyUrl = route('mayor.people.show', ['city' => $city['key'], 'person' => $candidate, 'type' => $type]);
                         $trendUrl = route('tags.compare', ['tagid' => implode(',', $tagids), 'tags' => $candidate, 'type' => $type, 'days' => $range['days'], 'from' => $range['from'], 'to' => $range['to']]);
                         $percentage = is_array($latestRow) ? ($latestRow['percentages'][$candidate] ?? null) : null;
@@ -152,7 +161,7 @@
                     <article class="portal-card">
                         <div class="portal-head">
                             <a class="portal-name" href="{{ $dailyUrl }}">{{ $candidate }}</a>
-                            <span class="portal-dot" style="background: {{ $colors[$candidateIndex % count($colors)] }}" aria-hidden="true"></span>
+                            <span class="portal-dot" style="background: {{ $candidateColor }}" title="{{ $blocLabel ?? '候選人' }}" aria-hidden="true"></span>
                         </div>
                         <div class="portal-stats">
                             <div class="portal-stat">
@@ -192,11 +201,12 @@
                         @endforeach
                         @foreach ($candidates as $candidateIndex => $candidate)
                             @php
+                                $candidateColor = $colorFor($candidate, $candidateIndex);
                                 $points = collect($series)
                                     ->map(fn ($row, $index) => $xFor($index).','.$yFor((float) ($row['percentages'][$candidate] ?? 0)))
                                     ->implode(' ');
                             @endphp
-                            <polyline points="{{ $points }}" fill="none" stroke="{{ $colors[$candidateIndex % count($colors)] }}" stroke-width="2.6" />
+                            <polyline points="{{ $points }}" fill="none" stroke="{{ $candidateColor }}" stroke-width="2.6" />
                         @endforeach
                     </svg>
                 </section>
