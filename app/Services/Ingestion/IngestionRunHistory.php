@@ -43,7 +43,7 @@ class IngestionRunHistory
      */
     public function latest(int $limit = 8): array
     {
-        $limit = max(1, min(30, $limit));
+        $limit = max(1, min(500, $limit));
 
         return collect(Storage::disk('local')->files(self::DIRECTORY))
             ->filter(fn (string $path): bool => str_ends_with($path, '.json'))

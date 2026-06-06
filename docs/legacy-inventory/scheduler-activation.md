@@ -124,6 +124,8 @@ Current behavior:
 - Manual writes are transactional or idempotent, so re-running a failed smoke is the recovery path.
 - `ingestion:run --record` writes local JSON history for scheduler and one-shot runs.
 - `/ops/ingestion` uses the same JSON history to show external scheduler liveness. It only treats records with `request.source=artisan`, `request.mode=execute`, and `result.mode=execute` as external scheduler evidence, so web one-shot runs do not mask a paused Dokploy schedule.
+- Execute-mode run records include per-job `started_at`, `finished_at`, `runtime_ms`, and sanitized telemetry summaries. YouTube Data API telemetry records method, resource count, status, quota/rate-limit retry flag, and latency without printing API keys or resource ids. AI telemetry records each OpenAI-compatible provider attempt, model, endpoint style, prompt/completion size, token usage, status, and latency without printing secrets.
+- `php artisan ingestion:health --date=YYYY-MM-DD` health-checks scheduler liveness, per-job runtimes, YouTube API latency, AI provider latency, daily quota estimate, `urt_ai_date`/`urt_channel_ai` completeness, and the scheduled `ai:mayor-person` city/person cache completeness. `/ops/ingestion` shows the same summary; `--json` returns the full payload for monitoring.
 
 ## Dokploy Autodeploy Relay
 
@@ -138,6 +140,7 @@ The Dokploy deploy webhook URL is a tailnet-only address, so GitHub's hosted web
 Required before scheduled write polling:
 
 - Record per-job run summaries with selected rows, API calls, write targets, skipped rows, and sanitized failure reason.
+- Keep per-job runtime and external-call latency telemetry in run history so slow YouTube/API/AI bottlenecks can be separated from local DB/cache processing time.
 - Distinguish quota/config failures from parse/schema failures.
 - Retry only transient HTTP failures, with low retry count and backoff.
 - Do not retry quota exhaustion in the same run.

@@ -33,6 +33,10 @@ Web request gates
             .badge.disabled { border-color: #d0d5dd; background: #f2f4f7; color: #344054; }
             .badge.ready { border-color: #b7ded6; background: var(--accent-bg); color: var(--accent); }
             .badge.missing { border-color: #fecdca; background: var(--blocked-bg); color: var(--blocked); }
+            .badge.ok { border-color: #b7ded6; background: var(--accent-bg); color: var(--accent); }
+            .badge.warn { border-color: #f7d58b; background: var(--warn-bg); color: var(--warn); }
+            .badge.fail { border-color: #fecdca; background: var(--blocked-bg); color: var(--blocked); }
+            .badge.unknown { border-color: #d0d5dd; background: #f2f4f7; color: #344054; }
             .meta { color: var(--muted); white-space: nowrap; }
             .panel { min-width: 0; border: 1px solid var(--line); background: var(--surface); padding: 14px; margin-bottom: 14px; }
             .status-grid { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(320px, 1.4fr); gap: 14px; margin-bottom: 14px; }
@@ -65,6 +69,8 @@ Web request gates
 @section('content')
 @php($scheduledWriteScope = $summary['scheduled_write_scope'] ?? 'allowlist')
 @php($quotaEstimate = $youtubeQuotaDailyEstimate ?? [])
+@php($health = $health ?? [])
+@php($healthClass = ['ok' => 'ok', 'warn' => 'warn', 'fail' => 'fail', 'unknown' => 'unknown'])
 <div class="nav" aria-label="Ingestion workload navigation">
                 <a href="{{ route('ops.ingestion') }}">全部排程</a>
                 <a href="{{ route('ops.ingestion.data-capture') }}">外部資料擷取</a>
@@ -144,6 +150,58 @@ Web request gates
                         top jobs:
                         @foreach (array_slice($quotaEstimate['job_breakdown'], 0, 5) as $jobQuota)
                             <code>{{ $jobQuota['job'] ?? 'unknown' }}={{ number_format((int) ($jobQuota['units'] ?? 0)) }}</code>@if (! $loop->last); @endif
+                        @endforeach
+                    </p>
+                @endif
+            </section>
+
+            <section class="panel" aria-label="Ingestion health check">
+                <h2>Ingestion Health Check</h2>
+                <div class="status-line">
+                    @php($overallStatus = $health['status'] ?? 'unknown')
+                    <span class="badge {{ $healthClass[$overallStatus] ?? 'unknown' }}">status {{ $overallStatus }}</span>
+                    <span>target date {{ $health['target_date'] ?? '-' }}</span>
+                    <span>generated {{ $health['generated_at'] ?? '-' }}</span>
+                    <span><code>php artisan ingestion:health --date={{ $health['target_date'] ?? now(config('ingestion.timezone'))->subDay()->toDateString() }}</code></span>
+                </div>
+                <div class="status-line">
+                    @php($schedulerHealth = $health['scheduler'] ?? [])
+                    @php($youtubeHealth = $health['youtube'] ?? [])
+                    @php($aiHealth = $health['ai'] ?? [])
+                    @php($aiDaily = $health['targets']['ai_daily'] ?? [])
+                    @php($mayorPerson = $health['targets']['mayor_person'] ?? [])
+                    <span class="badge {{ $healthClass[$schedulerHealth['status'] ?? 'unknown'] ?? 'unknown' }}">scheduler {{ ($schedulerHealth['active'] ?? false) ? 'active' : 'not observed' }}</span>
+                    <span class="badge {{ $healthClass[$youtubeHealth['status'] ?? 'unknown'] ?? 'unknown' }}">YouTube {{ number_format((int) ($youtubeHealth['requests'] ?? 0)) }} req / {{ number_format((int) ($youtubeHealth['failed_requests'] ?? 0)) }} fail / max {{ number_format((int) ($youtubeHealth['max_latency_ms'] ?? 0)) }}ms</span>
+                    <span class="badge {{ $healthClass[$aiHealth['status'] ?? 'unknown'] ?? 'unknown' }}">AI {{ number_format((int) ($aiHealth['requests'] ?? 0)) }} req / {{ number_format((int) ($aiHealth['failed_requests'] ?? 0)) }} fail / max {{ number_format((int) ($aiHealth['max_latency_ms'] ?? 0)) }}ms</span>
+                    <span class="badge {{ $healthClass[$aiDaily['status'] ?? 'unknown'] ?? 'unknown' }}">AI daily {{ count($aiDaily['completed_conditions'] ?? []) }}/{{ count($aiDaily['expected_conditions'] ?? []) }} conditions</span>
+                    <span class="badge {{ $healthClass[$mayorPerson['status'] ?? 'unknown'] ?? 'unknown' }}">mayor {{ count($mayorPerson['completed_people'] ?? []) }}/{{ count($mayorPerson['expected_people'] ?? []) }} people</span>
+                </div>
+                <p class="muted">
+                    job runtime、YouTube API latency、AI provider latency 會由 <code>ingestion:run --execute --record</code> 寫進 run-history；舊紀錄沒有 telemetry 時會顯示為 0 或 unknown。
+                </p>
+                @if (! empty($aiDaily['reason'] ?? null) || ! empty($mayorPerson['reason'] ?? null))
+                    <p class="muted">
+                        target notes:
+                        @if (! empty($aiDaily['reason'] ?? null))
+                            <code>ai_daily={{ $aiDaily['reason'] }}</code>
+                        @endif
+                        @if (! empty($mayorPerson['reason'] ?? null))
+                            <code>mayor={{ $mayorPerson['reason'] }}</code>
+                        @endif
+                    </p>
+                @endif
+                @if (! empty($health['recommendations'] ?? []))
+                    <ul class="reason-list">
+                        @foreach ($health['recommendations'] as $recommendation)
+                            <li>{{ $recommendation }}</li>
+                        @endforeach
+                    </ul>
+                @endif
+                @if (! empty($health['processing']['jobs'] ?? []))
+                    <p class="muted">
+                        recent runtimes:
+                        @foreach (array_slice($health['processing']['jobs'], 0, 8) as $job)
+                            <code>{{ $job['key'] ?? 'unknown' }}={{ ($job['last_runtime_ms'] ?? null) === null ? '-' : number_format((int) $job['last_runtime_ms']).'ms' }}</code>@if (! $loop->last); @endif
                         @endforeach
                     </p>
                 @endif

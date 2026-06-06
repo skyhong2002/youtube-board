@@ -5,9 +5,14 @@ namespace App\Services\Ingestion;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Http\Client\Response;
 use RuntimeException;
+use Throwable;
 
 class YoutubeDataApiClient
 {
+    public function __construct(private readonly IngestionTelemetry $telemetry)
+    {
+    }
+
     /**
      * @param  list<string>  $channelIds
      * @return array<string, array{viewCount: int, subscriberCount: int, hiddenSubscriberCount: bool, videoCount: int}>
@@ -314,12 +319,47 @@ class YoutubeDataApiClient
     private function get(string $url, array $query, int $timeout, string $fallbackMessage): Response
     {
         $responses = [];
+        $method = $this->method($url, $query);
+        $attempt = 0;
 
         foreach ($this->apiKeys() as $apiKey) {
-            $response = Http::timeout($timeout)->get($url, $query + ['key' => $apiKey]);
-            $responses[] = $response;
+            $attempt++;
+            $started = hrtime(true);
 
-            if ($response->ok() || ! $this->isQuotaOrRateLimitFailure($response)) {
+            try {
+                $response = Http::timeout($timeout)->get($url, $query + ['key' => $apiKey]);
+            } catch (Throwable $exception) {
+                $this->telemetry->recordYoutubeRequest($this->requestTelemetry(
+                    url: $url,
+                    query: $query,
+                    method: $method,
+                    attempt: $attempt,
+                    latencyMs: $this->elapsedMs($started),
+                    ok: false,
+                    status: null,
+                    quotaRetry: false,
+                    error: $this->sanitizedError($exception->getMessage()),
+                ));
+
+                throw $exception;
+            }
+
+            $responses[] = $response;
+            $quotaRetry = $this->isQuotaOrRateLimitFailure($response);
+
+            $this->telemetry->recordYoutubeRequest($this->requestTelemetry(
+                url: $url,
+                query: $query,
+                method: $method,
+                attempt: $attempt,
+                latencyMs: $this->elapsedMs($started),
+                ok: $response->ok(),
+                status: $response->status(),
+                quotaRetry: $quotaRetry,
+                error: $response->ok() ? null : $this->responseError($response, $fallbackMessage),
+            ));
+
+            if ($response->ok() || ! $quotaRetry) {
                 return $response;
             }
         }
@@ -373,5 +413,97 @@ class YoutubeDataApiClient
             || str_contains(strtolower($reason), 'rate')
             || str_contains(strtolower($message), 'quota')
             || str_contains(strtolower($message), 'rate');
+    }
+
+    /**
+     * @param  array<string, mixed>  $query
+     * @return array<string, mixed>
+     */
+    private function requestTelemetry(
+        string $url,
+        array $query,
+        string $method,
+        int $attempt,
+        int $latencyMs,
+        bool $ok,
+        ?int $status,
+        bool $quotaRetry,
+        ?string $error,
+    ): array {
+        return [
+            'api' => 'youtube_data_api_v3',
+            'method' => $method,
+            'path' => (string) parse_url($url, PHP_URL_PATH),
+            'part' => is_string($query['part'] ?? null) ? $query['part'] : null,
+            'resource_count' => $this->resourceCount($query),
+            'max_results' => isset($query['maxResults']) ? (int) $query['maxResults'] : null,
+            'page_token_present' => isset($query['pageToken']),
+            'api_key_attempt' => $attempt,
+            'estimated_quota_units' => 1,
+            'latency_ms' => $latencyMs,
+            'status' => $status,
+            'ok' => $ok,
+            'quota_or_rate_limit_retry' => $quotaRetry,
+            'error' => $error,
+            'secrets' => 'not_printed',
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $query
+     */
+    private function method(string $url, array $query): string
+    {
+        $path = (string) parse_url($url, PHP_URL_PATH);
+
+        return match (true) {
+            str_ends_with($path, '/channels') => 'channels.list',
+            str_ends_with($path, '/playlistItems') => 'playlistItems.list',
+            str_ends_with($path, '/commentThreads') => 'commentThreads.list',
+            str_ends_with($path, '/videos') => 'videos.list'.(isset($query['part']) ? '('.$query['part'].')' : ''),
+            default => 'youtube_data_api',
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $query
+     */
+    private function resourceCount(array $query): int
+    {
+        if (is_string($query['id'] ?? null)) {
+            return collect(explode(',', $query['id']))
+                ->map(fn (string $id): string => trim($id))
+                ->filter()
+                ->count();
+        }
+
+        if (is_string($query['videoId'] ?? null) || is_string($query['playlistId'] ?? null)) {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    private function elapsedMs(int $started): int
+    {
+        return (int) round((hrtime(true) - $started) / 1_000_000);
+    }
+
+    private function responseError(Response $response, string $fallbackMessage): string
+    {
+        $message = $response->json('error.message') ?? $fallbackMessage;
+
+        return $this->sanitizedError((string) $message);
+    }
+
+    private function sanitizedError(string $message): string
+    {
+        return mb_strimwidth(
+            preg_replace('/(api[_-]?key|password|secret|token|authorization)[^,\s]*/i', '$1=<redacted>', $message) ?? $message,
+            0,
+            240,
+            '...',
+            'UTF-8',
+        );
     }
 }

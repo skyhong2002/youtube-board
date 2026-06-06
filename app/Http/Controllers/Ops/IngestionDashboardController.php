@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Ops;
 
 use App\Http\Controllers\Controller;
+use App\Services\Ingestion\IngestionHealthCheck;
 use App\Services\Ingestion\IngestionJobRegistry;
 use App\Services\Ingestion\IngestionRunHistory;
 use App\Services\Ingestion\IngestionSchedulerRunner;
@@ -27,7 +28,7 @@ class IngestionDashboardController extends Controller
         ],
     ];
 
-    public function __invoke(Request $request, IngestionJobRegistry $registry, IngestionRunHistory $history): View
+    public function __invoke(Request $request, IngestionJobRegistry $registry, IngestionRunHistory $history, IngestionHealthCheck $health): View
     {
         return view('ops.ingestion', [
             'groups' => $registry->grouped(),
@@ -39,6 +40,7 @@ class IngestionDashboardController extends Controller
             'recentRuns' => $history->latest(30),
             'externalSchedulerActivity' => $history->externalSchedulerActivity(),
             'youtubeQuotaDailyEstimate' => $history->youtubeQuotaDailyEstimate(),
+            'health' => $health->check($request->query('date') ? (string) $request->query('date') : null),
             'prefillJob' => trim((string) $request->query('job', '')),
         ]);
     }

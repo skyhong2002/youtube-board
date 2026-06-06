@@ -36,7 +36,14 @@ class AiProviderUsageSummary
                     $summary = $this->merge($summary, $this->summarizePayload($job['result']));
                 }
 
-                if (is_string($job['output'] ?? null)) {
+                $telemetryRequests = data_get($job, 'telemetry.ai_requests');
+                $hasTelemetry = is_array($telemetryRequests) && count($telemetryRequests) > 0;
+
+                if ($hasTelemetry && is_array($job['telemetry'] ?? null)) {
+                    $summary = $this->merge($summary, $this->summarizePayload($job['telemetry']));
+                }
+
+                if (! $hasTelemetry && is_string($job['output'] ?? null)) {
                     $summary = $this->merge($summary, $this->summarizeOutput($job['output']));
                 }
             }
@@ -212,6 +219,14 @@ class AiProviderUsageSummary
             }
         }
 
+        if (is_array($payload['ai_requests'] ?? null)) {
+            foreach ($payload['ai_requests'] as $row) {
+                if (is_array($row)) {
+                    $rows[] = $row + ['ai_call_attempted' => true];
+                }
+            }
+        }
+
         if ($rows === [] && (
             is_string($payload['provider'] ?? null)
             || is_array($payload['usage'] ?? null)
@@ -233,8 +248,13 @@ class AiProviderUsageSummary
         $usage = is_array($row['usage'] ?? null) ? $row['usage'] : null;
         $skipped = ($row['skipped'] ?? false) === true;
         $attempted = ($row['ai_call_attempted'] ?? false) === true || $provider !== null || $usage !== null;
+        $ok = $row['ok'] ?? null;
 
-        if ($provider !== null && ! $skipped) {
+        if ($ok === false && $provider !== null) {
+            $this->addFailedAttempt($summary, $provider);
+        } elseif ($ok === false) {
+            $this->addFailedAttempt($summary, 'unknown');
+        } elseif ($provider !== null && ! $skipped) {
             $this->addSuccessfulCalls($summary, $provider, 1, $usage);
         } elseif ($attempted && ! $skipped) {
             $this->addSuccessfulCalls($summary, 'unknown', 1, $usage);

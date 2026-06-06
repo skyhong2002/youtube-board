@@ -157,6 +157,7 @@ class MayorPersonAiIngestion
                 'model' => $completion['model'],
                 'provider' => $completion['provider'],
                 'provider_failures' => $completion['provider_failures'],
+                'latency_ms' => $completion['latency_ms'],
                 'usage' => $completion['usage'],
                 'ai_call_attempted' => true,
                 'inserted' => $existingPk === null,

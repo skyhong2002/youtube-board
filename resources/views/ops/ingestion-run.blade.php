@@ -72,6 +72,9 @@
                 <span class="badge skipped">skipped={{ number_format((int) ($summary['skipped'] ?? 0)) }}</span>
                 <span class="badge {{ ($summary['failed'] ?? 0) > 0 ? 'failed' : '' }}">failed={{ number_format((int) ($summary['failed'] ?? 0)) }}</span>
                 <span class="badge">yt quota≈{{ number_format((int) ($quotaEstimate['estimated_units'] ?? 0)) }} units</span>
+                <span class="badge">runtime={{ number_format((int) ($result['runtime_ms'] ?? 0)) }}ms</span>
+                <span class="badge">yt api={{ number_format((int) ($result['telemetry']['youtube_requests'] ?? 0)) }}</span>
+                <span class="badge">ai api={{ number_format((int) ($result['telemetry']['ai_requests'] ?? 0)) }}</span>
             </div>
 
             <h2>Jobs</h2>
@@ -86,6 +89,9 @@
                             <th>Command</th>
                             <th>Schedule</th>
                             <th>Effective</th>
+                            <th class="right">Runtime</th>
+                            <th class="right">YT API</th>
+                            <th class="right">AI API</th>
                             <th class="right">YT Units</th>
                             <th>Output / Error</th>
                             <th class="right">Exit</th>
@@ -107,6 +113,9 @@
                                 <td><code>{{ $job['command'] ?? '-' }}</code></td>
                                 <td><code>{{ $job['schedule'] ?? '-' }}</code></td>
                                 <td><code>{{ $job['effective_command'] ?? ($job['command'] ?? '-') }}</code></td>
+                                <td class="right">{{ isset($job['runtime_ms']) ? number_format((int) $job['runtime_ms']).'ms' : '-' }}</td>
+                                <td class="right">{{ number_format((int) ($job['telemetry']['summary']['youtube_requests'] ?? 0)) }}</td>
+                                <td class="right">{{ number_format((int) ($job['telemetry']['summary']['ai_requests'] ?? 0)) }}</td>
                                 <td class="right" title="{{ $job['youtube_quota_estimate']['basis'] ?? '' }}">{{ number_format((int) ($job['estimated_youtube_quota_units'] ?? 0)) }}</td>
                                 <td>
                                     @if (! empty($job['error']))
@@ -123,7 +132,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="10" class="muted">No job rows were recorded for this run.</td>
+                                <td colspan="13" class="muted">No job rows were recorded for this run.</td>
                             </tr>
                         @endforelse
                     </tbody>

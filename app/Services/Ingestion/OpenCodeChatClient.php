@@ -4,15 +4,18 @@ namespace App\Services\Ingestion;
 
 use Illuminate\Http\Client\Factory as HttpFactory;
 use RuntimeException;
+use Throwable;
 
 class OpenCodeChatClient
 {
-    public function __construct(private readonly HttpFactory $http)
-    {
+    public function __construct(
+        private readonly HttpFactory $http,
+        private readonly IngestionTelemetry $telemetry,
+    ) {
     }
 
     /**
-     * @return array{content: string, model: string, provider: string, provider_failures: list<string>, usage: array<string, mixed>|null}
+     * @return array{content: string, model: string, provider: string, provider_failures: list<string>, usage: array<string, mixed>|null, latency_ms: int}
      */
     public function complete(string $prompt): array
     {
@@ -68,7 +71,7 @@ class OpenCodeChatClient
 
     /**
      * @param  array{name: string, api_key: string, base_url: string, model: string, endpoint_style: string, timeout: int, max_tokens: int}  $provider
-     * @return array{content: string, model: string, usage: array<string, mixed>|null}
+     * @return array{content: string, model: string, usage: array<string, mixed>|null, latency_ms: int}
      */
     private function completeWithProvider(string $prompt, array $provider, ?int $maxTokensOverride = null): array
     {
@@ -105,13 +108,32 @@ class OpenCodeChatClient
                 'temperature' => 0.2,
                 'max_tokens' => $maxTokens,
             ];
+        $started = hrtime(true);
 
-        $response = $this->http
-            ->withToken($apiKey)
-            ->acceptJson()
-            ->asJson()
-            ->timeout($timeout)
-            ->post($baseUrl.$path, $body);
+        try {
+            $response = $this->http
+                ->withToken($apiKey)
+                ->acceptJson()
+                ->asJson()
+                ->timeout($timeout)
+                ->post($baseUrl.$path, $body);
+        } catch (Throwable $exception) {
+            $this->telemetry->recordAiRequest($this->requestTelemetry(
+                provider: $provider,
+                endpointStyle: $messagesStyle ? 'messages' : 'chat',
+                prompt: $prompt,
+                latencyMs: $this->elapsedMs($started),
+                ok: false,
+                status: null,
+                usage: null,
+                content: null,
+                error: $this->sanitizedError($exception->getMessage()),
+            ));
+
+            throw $exception;
+        }
+
+        $latencyMs = $this->elapsedMs($started);
 
         if (! $response->successful()) {
             $message = 'status='.$response->status().' endpoint_style='.($messagesStyle ? 'messages' : 'chat');
@@ -120,6 +142,18 @@ class OpenCodeChatClient
             if ($error !== null) {
                 $message .= ' error='.$error;
             }
+
+            $this->telemetry->recordAiRequest($this->requestTelemetry(
+                provider: $provider,
+                endpointStyle: $messagesStyle ? 'messages' : 'chat',
+                prompt: $prompt,
+                latencyMs: $latencyMs,
+                ok: false,
+                status: $response->status(),
+                usage: is_array(data_get($response->json(), 'usage')) ? data_get($response->json(), 'usage') : null,
+                content: null,
+                error: $this->sanitizedError($message),
+            ));
 
             throw new RuntimeException($message);
         }
@@ -130,13 +164,39 @@ class OpenCodeChatClient
             : $this->extractChatContent($payload);
 
         if (! is_string($content) || trim($content) === '') {
+            $this->telemetry->recordAiRequest($this->requestTelemetry(
+                provider: $provider,
+                endpointStyle: $messagesStyle ? 'messages' : 'chat',
+                prompt: $prompt,
+                latencyMs: $latencyMs,
+                ok: false,
+                status: $response->status(),
+                usage: is_array(data_get($payload, 'usage')) ? data_get($payload, 'usage') : null,
+                content: null,
+                error: 'empty_message endpoint_style='.($messagesStyle ? 'messages' : 'chat'),
+            ));
+
             throw new RuntimeException('empty_message endpoint_style='.($messagesStyle ? 'messages' : 'chat'));
         }
+
+        $usage = is_array(data_get($payload, 'usage')) ? data_get($payload, 'usage') : null;
+        $this->telemetry->recordAiRequest($this->requestTelemetry(
+            provider: $provider,
+            endpointStyle: $messagesStyle ? 'messages' : 'chat',
+            prompt: $prompt,
+            latencyMs: $latencyMs,
+            ok: true,
+            status: $response->status(),
+            usage: $usage,
+            content: $content,
+            error: null,
+        ));
 
         return [
             'content' => $content,
             'model' => $model,
-            'usage' => is_array(data_get($payload, 'usage')) ? data_get($payload, 'usage') : null,
+            'usage' => $usage,
+            'latency_ms' => $latencyMs,
         ];
     }
 
@@ -295,5 +355,53 @@ class OpenCodeChatClient
         }
 
         return $parts === [] ? null : implode("\n", $parts);
+    }
+
+    /**
+     * @param  array{name: string, api_key: string, base_url: string, model: string, endpoint_style: string, timeout: int, max_tokens: int}  $provider
+     * @param  array<string, mixed>|null  $usage
+     * @return array<string, mixed>
+     */
+    private function requestTelemetry(
+        array $provider,
+        string $endpointStyle,
+        string $prompt,
+        int $latencyMs,
+        bool $ok,
+        ?int $status,
+        ?array $usage,
+        ?string $content,
+        ?string $error,
+    ): array {
+        return [
+            'api' => 'openai_compatible_chat',
+            'provider' => $provider['name'],
+            'model' => $provider['model'],
+            'endpoint_style' => $endpointStyle,
+            'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
+            'completion_chars' => is_string($content) ? mb_strlen($content, 'UTF-8') : 0,
+            'usage' => $usage,
+            'latency_ms' => $latencyMs,
+            'status' => $status,
+            'ok' => $ok,
+            'error' => $error,
+            'secrets' => 'not_printed',
+        ];
+    }
+
+    private function elapsedMs(int $started): int
+    {
+        return (int) round((hrtime(true) - $started) / 1_000_000);
+    }
+
+    private function sanitizedError(string $message): string
+    {
+        return mb_strimwidth(
+            preg_replace('/(api[_-]?key|password|secret|token|authorization)[^,\s]*/i', '$1=<redacted>', $message) ?? $message,
+            0,
+            240,
+            '...',
+            'UTF-8',
+        );
     }
 }

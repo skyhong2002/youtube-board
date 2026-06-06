@@ -35,6 +35,8 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('No external');
         $response->assertSee('YouTube Data API Quota Estimate');
         $response->assertSee('estimated 0 / 10,000 units');
+        $response->assertSee('Ingestion Health Check');
+        $response->assertSee('php artisan ingestion:health');
         $response->assertSee('外部資料擷取');
         $response->assertSee('內部報表處理');
         $response->assertSee('/ops/ingestion/data-capture', false);
@@ -684,7 +686,7 @@ class IngestionDashboardTest extends TestCase
         $this->assertSame(0, $exitCode);
         $this->assertStringContainsString('scheduler=enabled', $output);
         $this->assertStringContainsString('command_missing=0', $output);
-        $this->assertStringContainsString('command_ready=33', $output);
+        $this->assertStringContainsString('command_ready=34', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_statics.php -> youtube:channels:stats', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_live.php -> youtube:live:poll', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_live_tvbs.php -> youtube:tvbs:live:poll', $output);
