@@ -210,6 +210,76 @@ class IngestionHealthCheckTest extends TestCase
         }
     }
 
+    public function test_ingestion_health_treats_missing_youtube_resources_as_warning_not_outage(): void
+    {
+        Storage::fake('local');
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:02:00', 'Asia/Taipei'));
+
+        try {
+            $this->createAiTables();
+            $this->seedCompleteDailyRows('2026-05-24');
+
+            Storage::disk('local')->put('ingestion-runs/20260525-100100-00000000-0000-4000-8000-000000000001.json', json_encode([
+                'id' => '20260525-100100-00000000-0000-4000-8000-000000000001',
+                'created_at' => '2026-05-25 10:01:00 Asia/Taipei',
+                'request' => [
+                    'source' => 'artisan',
+                    'mode' => 'execute',
+                ],
+                'result' => [
+                    'mode' => 'execute',
+                    'summary' => [
+                        'evaluated' => 1,
+                        'due' => 1,
+                        'executed' => 1,
+                        'skipped' => 0,
+                        'failed' => 0,
+                    ],
+                    'jobs' => [
+                        [
+                            'key' => 'youtube.channels.videos.general',
+                            'action' => 'executed:local-polling',
+                            'executed' => true,
+                            'failed' => false,
+                            'runtime_ms' => 900,
+                            'started_at' => '2026-05-25 10:01:00 Asia/Taipei',
+                            'finished_at' => '2026-05-25 10:01:01 Asia/Taipei',
+                            'telemetry' => [
+                                'summary' => ['youtube_requests' => 1, 'ai_requests' => 0],
+                                'youtube_requests' => [
+                                    [
+                                        'method' => 'playlistItems.list',
+                                        'latency_ms' => 280,
+                                        'ok' => false,
+                                        'status' => 404,
+                                        'quota_or_rate_limit_retry' => false,
+                                        'error' => 'The playlist identified with the request playlistId parameter cannot be found.',
+                                    ],
+                                ],
+                                'ai_requests' => [],
+                            ],
+                        ],
+                    ],
+                    'youtube_quota_estimate' => ['estimated_units' => 1],
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $exitCode = Artisan::call('ingestion:health', [
+                '--date' => '2026-05-24',
+                '--json' => true,
+            ]);
+
+            $payload = json_decode(Artisan::output(), true, 512, JSON_THROW_ON_ERROR);
+
+            $this->assertSame(0, $exitCode);
+            $this->assertSame('warn', $payload['status']);
+            $this->assertSame('warn', $payload['youtube']['status']);
+            $this->assertSame(1, $payload['youtube']['failed_requests']);
+        } finally {
+            CarbonImmutable::setTestNow();
+        }
+    }
+
     private function createAiTables(): void
     {
         Schema::create('urt_ai_date', function ($table): void {

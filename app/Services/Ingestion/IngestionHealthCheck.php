@@ -142,13 +142,14 @@ class IngestionHealthCheck
     {
         $quota = $this->history->youtubeQuotaDailyEstimate($now);
         $failed = collect($events)->filter(fn (array $event): bool => ($event['ok'] ?? true) !== true);
+        $hardFailed = $failed->filter(fn (array $event): bool => $this->isHardYoutubeFailure($event));
         $slow = collect($events)->filter(fn (array $event): bool => (int) ($event['latency_ms'] ?? 0) >= self::YOUTUBE_SLOW_MS);
         $quotaPercent = (float) ($quota['percent_used'] ?? 0);
         $status = 'ok';
 
-        if ($failed->isNotEmpty() || $quotaPercent >= 95) {
+        if ($hardFailed->isNotEmpty() || $quotaPercent >= 95) {
             $status = 'fail';
-        } elseif ($slow->isNotEmpty() || $quotaPercent >= 80) {
+        } elseif ($failed->isNotEmpty() || $slow->isNotEmpty() || $quotaPercent >= 80) {
             $status = 'warn';
         }
 
@@ -164,6 +165,22 @@ class IngestionHealthCheck
             'by_job' => $this->groupLatency($events, 'job_key'),
             'quota' => $quota,
         ];
+    }
+
+    private function isHardYoutubeFailure(array $event): bool
+    {
+        $status = (int) ($event['status'] ?? 0);
+        $error = strtolower((string) ($event['error'] ?? ''));
+
+        if (($event['quota_or_rate_limit_retry'] ?? false) === true) {
+            return true;
+        }
+
+        if ($status === 0 || $status >= 500 || in_array($status, [401, 403, 429], true)) {
+            return true;
+        }
+
+        return $status === 400 && str_contains($error, 'api key');
     }
 
     /**
