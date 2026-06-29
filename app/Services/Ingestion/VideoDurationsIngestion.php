@@ -174,7 +174,13 @@ class VideoDurationsIngestion
         }
 
         $query = DB::table('urt_video as v')
-            ->leftJoin('urt_video_duration as d', 'd.videoId', '=', 'v.videoId')
+            ->leftJoin('urt_video_duration as d', function ($join): void {
+                $join->on(
+                    DB::raw($this->videoIdJoinExpression('d')),
+                    '=',
+                    DB::raw($this->videoIdJoinExpression('v')),
+                );
+            })
             ->whereNull('d.videoId')
             ->whereNotNull('v.videoId')
             ->where('v.videoId', '!=', '')
@@ -246,6 +252,15 @@ class VideoDurationsIngestion
         DB::table('urt_video_duration')
             ->where('videoId', $videoId)
             ->update($values);
+    }
+
+    private function videoIdJoinExpression(string $alias): string
+    {
+        $column = $alias.'.videoId';
+
+        return DB::connection()->getDriverName() === 'mysql'
+            ? 'BINARY '.$column
+            : $column;
     }
 
     /**
