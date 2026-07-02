@@ -16,7 +16,7 @@ Current product direction:
 Guardrails:
 
 - Protect the legacy public site (`youtube.board.tw`) as a reference system: do not SSH into, edit code on, mutate data in, or operate admin tools against the legacy website unless the user explicitly approves a narrow inspection/export task.
-- Treat the Laravel production app (`youtube-board.skyhong.tw`) as the active system of record for ongoing YouTube data capture, cache rebuilding, polling, AI generation, and report serving.
+- Treat the Laravel production app (`youtube.observe.tw`) as the active system of record for ongoing YouTube data capture, cache rebuilding, polling, AI generation, and report serving.
 - Production writes to the Laravel database are allowed only through reviewed Laravel commands, scheduler jobs, ingestion dashboards, migrations, deploy workflows, or explicit operator-approved maintenance tasks. Prefer idempotent commands with dry-run/preview modes, caps, logs, backups or rollback plans, and clear operator intent.
 - Do not make one-off manual production DB edits as a substitute for ingestion/cache workflow fixes. If data needs to change regularly, implement or repair the Laravel command/job that owns that data.
 - Do not put secrets in code, commits, logs, issues, or chat. Runtime secrets belong in Dokploy/env configuration.
@@ -139,7 +139,7 @@ Observed Dokploy state as of 2026-05-31:
 - Environment: `production`.
 - Server: `Dokploy Server`.
 - Services:
-  - `YouTube Board Web`: Laravel application for `youtube-board.skyhong.tw`; container/service name `youtube-board-web-mwafzd`.
+  - `YouTube Board Web`: Laravel application for `youtube.observe.tw`; container/service name `youtube-board-web-mwafzd`.
   - `YouTube Board DB`: persistent MariaDB database; container/service name `youtube-board-db-qcja1i`.
   - `YouTube Board phpMyAdmin`: protected phpMyAdmin for the MariaDB service; container/service name `youtube-board-pma-dxtxrr`.
 
@@ -151,7 +151,7 @@ Production service notes:
 - Web service build type is `Dockerfile`, with Docker file `Dockerfile` and context `.`.
 - Web service autodeploy is enabled.
 - Web service has clean-cache disabled.
-- Web service domain is `https://youtube-board.skyhong.tw/`, path `/`, container port `8000`, HTTPS via `letsencrypt`.
+- Web service domain is `https://youtube.observe.tw/`, path `/`, container port `8000`, HTTPS via `letsencrypt`.
 - Web Traefik routes redirect HTTP to HTTPS and forward HTTPS to `http://youtube-board-web-mwafzd:8000`.
 - Web service has no Dokploy basic auth, no extra exposed ports, no redirects, and no volumes configured.
 - Web service resource limits are currently 1 GB memory limit, 256 MB memory reservation, 2 CPU limit, and 1 CPU reservation.
@@ -181,7 +181,7 @@ phpMyAdmin service notes:
 Production app environment:
 
 - Runtime env is configured in Dokploy, not in git.
-- Current non-secret values include `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL=https://youtube-board.skyhong.tw`, `APP_LOCALE=zh_TW`, `APP_FALLBACK_LOCALE=en`, `LOG_CHANNEL=stderr`, `LOG_LEVEL=info`, `CACHE_STORE=file`, `QUEUE_CONNECTION=sync`, `SESSION_DRIVER=file`, `SESSION_SECURE_COOKIE=true`, `FILESYSTEM_DISK=local`, `DB_CONNECTION=mysql`, `DB_HOST=youtube-board-db-qcja1i`, `DB_PORT=3306`, `DB_DATABASE=youtube_board`, `DB_USERNAME=youtube_board`, `LEGACY_PUBLIC_SITE_URL=https://youtube.board.tw`, `INGESTION_SCHEDULER_ENABLED=true`, `INGESTION_LOCAL_POLLING_ENABLED=true`, `INGESTION_PRODUCTION_POLLING_ENABLED=true`, `INGESTION_TIMEZONE=Asia/Taipei`, `PORT=8000`, `OPENAI_BASE_URL=https://opencode.ai/zen/go/v1`, and `OPENAI_MODEL=qwen3.6-plus`.
+- Current non-secret values include `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL=https://youtube.observe.tw`, `APP_LOCALE=zh_TW`, `APP_FALLBACK_LOCALE=en`, `LOG_CHANNEL=stderr`, `LOG_LEVEL=info`, `CACHE_STORE=file`, `QUEUE_CONNECTION=sync`, `SESSION_DRIVER=file`, `SESSION_SECURE_COOKIE=true`, `FILESYSTEM_DISK=local`, `DB_CONNECTION=mysql`, `DB_HOST=youtube-board-db-qcja1i`, `DB_PORT=3306`, `DB_DATABASE=youtube_board`, `DB_USERNAME=youtube_board`, `LEGACY_PUBLIC_SITE_URL=https://youtube.board.tw`, `INGESTION_SCHEDULER_ENABLED=true`, `INGESTION_LOCAL_POLLING_ENABLED=true`, `INGESTION_PRODUCTION_POLLING_ENABLED=true`, `INGESTION_TIMEZONE=Asia/Taipei`, `PORT=8000`, `OPENAI_BASE_URL=https://opencode.ai/zen/go/v1`, and `OPENAI_MODEL=qwen3.6-plus`.
 - Current secret-bearing values are configured in Dokploy and must stay redacted in git: `APP_KEY`, `DB_PASSWORD`, `YOUTUBE_API_KEY`, `OPENAI_API_KEY`, `DOKPLOY_DEPLOY_WEBHOOK_URL`, and `DOKPLOY_DEPLOY_RELAY_SECRET`.
 - `DOKPLOY_DEPLOY_WEBHOOK_URL` points at the Dokploy deploy endpoint for `YouTube Board Web`; never commit the full webhook token URL.
 - `DOKPLOY_DEPLOY_RELAY_SECRET` is configured for the app-side deploy relay; never print or commit it.

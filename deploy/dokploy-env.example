@@ -2,7 +2,7 @@ APP_NAME="YouTube Board"
 APP_ENV=production
 APP_KEY=
 APP_DEBUG=false
-APP_URL=https://youtube-board.skyhong.tw
+APP_URL=https://youtube.observe.tw
 
 APP_LOCALE=zh_TW
 APP_FALLBACK_LOCALE=en
