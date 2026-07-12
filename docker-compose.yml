@@ -8,13 +8,13 @@ x-app: &app
   working_dir: /var/www/html
   volumes:
     - .:/var/www/html
-    - /Users/sky/Documents/youtube-board-legacy:/Users/sky/Documents/youtube-board-legacy:ro
+    - "${LEGACY_GROUND_TRUTH_PATH:-/Users/sky/Documents/youtube-board-legacy}:${LEGACY_GROUND_TRUTH_PATH:-/Users/sky/Documents/youtube-board-legacy}:ro"
   env_file:
     - .env
   environment:
     APP_ENV: local
     APP_DEBUG: "true"
-    APP_URL: http://localhost:8080
+    APP_URL: "${APP_URL:-http://localhost:8080}"
     DB_CONNECTION: mysql
     DB_HOST: mysql
     DB_PORT: 3306
@@ -25,7 +25,7 @@ x-app: &app
     QUEUE_CONNECTION: redis
     SESSION_DRIVER: redis
     REDIS_HOST: redis
-    LEGACY_GROUND_TRUTH_PATH: /Users/sky/Documents/youtube-board-legacy
+    LEGACY_GROUND_TRUTH_PATH: "${LEGACY_GROUND_TRUTH_PATH:-/Users/sky/Documents/youtube-board-legacy}"
     LEGACY_PUBLIC_SITE_URL: https://youtube.board.tw
   depends_on:
     mysql:
@@ -38,7 +38,7 @@ services:
     <<: *app
     command: php artisan serve --host=0.0.0.0 --port=8000
     ports:
-      - "8080:8000"
+      - "${APP_PORT:-8080}:8000"
 
   worker:
     <<: *app

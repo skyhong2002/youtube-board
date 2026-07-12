@@ -27,6 +27,7 @@ Guardrails:
 
 - The user expects agents to implement the actual ingestion/cache workflow when a dashboard number is wrong, not just explain that local data is missing.
 - When the user asks to enable a production job and the change is an env allowlist/gate change, use the Dokploy UI through Chrome if explicitly requested; do not print secret values or webhook URLs.
+- On SkyLabMac, use `@chrome` for authenticated Dokploy UI work when the task requires it; the user has confirmed that Chrome is signed in there. Do not copy, export, or inspect Chrome cookies, passwords, or session storage. An authenticated browser session does not by itself authorize a production write; keep the existing operator-approval guardrails.
 - Prefer Chrome for inspecting the legacy public site (`youtube.board.tw`) because direct curl/headless fetches are often blocked by Cloudflare. Use Chrome page text/DOM screenshots for legacy behavior comparisons when available.
 - If code changes are needed for production, commit and push to `main`; Dokploy autodeploy watches the GitHub repository.
 - If a production runtime env change is saved in Dokploy, use Dokploy Reload/Deploy controls as appropriate so the running container picks up the new env. Use Reload when code is already deployed and only runtime env changed.
