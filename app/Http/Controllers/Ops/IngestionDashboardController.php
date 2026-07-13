@@ -136,21 +136,29 @@ class IngestionDashboardController extends Controller
 
         config()->set('ingestion.scheduler_enabled', $originalSchedulerEnabled);
 
-        $record = $history->record($result, [
-            'mode' => $execute ? 'execute' : 'dry-run',
-            'job' => isset($validated['job']) && trim((string) $validated['job']) !== '' ? trim((string) $validated['job']) : null,
-            'at' => $at->toDateTimeString().' '.$at->getTimezone()->getName(),
-            'show_all' => $request->boolean('all'),
-            'scheduler_enabled_temporarily' => $execute,
-            'original_scheduler_enabled' => $originalSchedulerEnabled,
-            'invalid_at' => $invalidAt,
-        ]);
+        $record = $this->webExecuteAllowed()
+            ? $history->record($result, [
+                'source' => 'web',
+                'mode' => $execute ? 'execute' : 'dry-run',
+                'job' => isset($validated['job']) && trim((string) $validated['job']) !== '' ? trim((string) $validated['job']) : null,
+                'at' => $at->toDateTimeString().' '.$at->getTimezone()->getName(),
+                'show_all' => $request->boolean('all'),
+                'scheduler_enabled_temporarily' => $execute,
+                'original_scheduler_enabled' => $originalSchedulerEnabled,
+                'invalid_at' => $invalidAt,
+            ])
+            : null;
 
-        return redirect()
+        $response = redirect()
             ->route('ops.ingestion')
-            ->with('ingestion_run_id', $record['id'])
             ->with('ingestion_run_summary', $result['summary'])
             ->with('ingestion_run_invalid_at', $invalidAt);
+
+        if ($record !== null) {
+            $response->with('ingestion_run_id', $record['id']);
+        }
+
+        return $response;
     }
 
     private function workloadView(string $slug, IngestionJobRegistry $registry, IngestionRunHistory $history): View

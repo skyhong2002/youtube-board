@@ -60,8 +60,11 @@
                 <dd>{{ $requestMeta['mode'] ?? '-' }}</dd>
                 <dt>Requested job</dt>
                 <dd><code>{{ $requestMeta['job'] ?? 'all due jobs' }}</code></dd>
-                <dt>Local file</dt>
-                <dd><code>{{ $record['path'] ?? '-' }}</code></dd>
+                <dt>Storage</dt>
+                <dd>
+                    <code>{{ $record['history_storage'] ?? (str_starts_with((string) ($record['path'] ?? ''), 'database:') ? 'database' : 'file') }}</code>
+                    <div class="muted"><code>{{ $record['path'] ?? '-' }}</code></div>
+                </dd>
             </dl>
 
             <h2>Summary</h2>

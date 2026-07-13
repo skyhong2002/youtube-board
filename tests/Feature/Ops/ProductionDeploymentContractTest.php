@@ -69,6 +69,42 @@ class ProductionDeploymentContractTest extends TestCase
         $this->assertStringContainsString("\$table->engine = 'InnoDB';", $migration);
     }
 
+    public function test_ingestion_run_history_migration_is_adoption_safe_and_explicitly_innodb(): void
+    {
+        $migration = file_get_contents(
+            $this->projectRoot.'/database/migrations/2026_07_13_010000_create_ingestion_run_history_tables.php',
+        );
+
+        $this->assertIsString($migration);
+        $this->assertStringContainsString("Schema::hasTable('ingestion_runs')", $migration);
+        $this->assertStringContainsString("Schema::hasTable('ingestion_run_jobs')", $migration);
+        $this->assertSame(2, substr_count($migration, "\$table->engine = 'InnoDB';"));
+        $this->assertStringContainsString(
+            "\$table->primary(['run_id', 'job_key'], 'ingestion_run_jobs_primary');",
+            $migration,
+        );
+        $this->assertStringNotContainsString('Schema::drop', $migration);
+        $this->assertStringContainsString(
+            'Durable operational history must survive application rollbacks.',
+            $migration,
+        );
+    }
+
+    public function test_deployment_schema_verifier_statically_handles_mariadb_engines(): void
+    {
+        $verifier = file_get_contents($this->projectRoot.'/app/Services/DeploymentSchemaVerifier.php');
+
+        $this->assertIsString($verifier);
+        $this->assertStringContainsString(
+            "private const ENGINE_BEARING_DRIVERS = ['mysql', 'mariadb'];",
+            $verifier,
+        );
+        $this->assertStringContainsString(
+            'in_array($driver, self::ENGINE_BEARING_DRIVERS, true)',
+            $verifier,
+        );
+    }
+
     public function test_ingestion_defaults_fail_closed_without_runtime_environment_values(): void
     {
         $config = file_get_contents($this->projectRoot.'/config/ingestion.php');
@@ -78,5 +114,18 @@ class ProductionDeploymentContractTest extends TestCase
         $this->assertStringContainsString("env('INGESTION_LOCAL_POLLING_ENABLED', false)", $config);
         $this->assertStringContainsString("env('INGESTION_PRODUCTION_POLLING_ENABLED', false)", $config);
         $this->assertStringContainsString("env('INGESTION_SCHEDULED_WRITE_ALLOWLIST', 'off')", $config);
+    }
+
+    public function test_production_template_keeps_secure_sessions_and_documented_fallback_timeout(): void
+    {
+        $template = file_get_contents($this->projectRoot.'/deploy/dokploy-env.example');
+        $deployment = file_get_contents($this->projectRoot.'/docs/deployment.md');
+
+        $this->assertIsString($template);
+        $this->assertIsString($deployment);
+        $this->assertStringContainsString('SESSION_SECURE_COOKIE=true', $template);
+        $this->assertStringContainsString('SESSION_SECURE_COOKIE=true', $deployment);
+        $this->assertStringContainsString('OPENAI_FALLBACK_TIMEOUT=300', $template);
+        $this->assertStringContainsString('OPENAI_FALLBACK_TIMEOUT=300', $deployment);
     }
 }

@@ -43,8 +43,8 @@ class ReportLineageRelativeTimeTest extends TestCase
             $response = $this->get('/keywords?limit=20');
 
             $response->assertOk();
-            $response->assertSee('上次執行：3 小時前');
-            $response->assertSee('上次執行：剛剛');
+            $response->assertSee('上次成功執行：3 小時前');
+            $response->assertSee('上次成功執行：剛剛');
             $response->assertSee('最後更新：5 分鐘前');
             $response->assertSee('最後更新：5 小時前');
             $response->assertSee('2026-05-24 14:20:10');

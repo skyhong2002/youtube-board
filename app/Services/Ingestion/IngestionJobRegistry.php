@@ -161,7 +161,7 @@ class IngestionJobRegistry
             $blocks[] = 'Job declares write targets, so it is not allowed under the current controlled execution guardrail.';
         }
 
-        if ($externalCalls) {
+        if ($externalCalls && ! $schedulerSafe) {
             $blocks[] = 'Job declares an external API dependency.';
         }
 

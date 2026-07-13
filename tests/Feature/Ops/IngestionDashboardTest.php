@@ -2,8 +2,10 @@
 
 namespace Tests\Feature\Ops;
 
+use App\Services\Ingestion\IngestionJobRegistry;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -17,6 +19,43 @@ class IngestionDashboardTest extends TestCase
         config()->set('ingestion.local_polling_enabled', true);
         config()->set('ingestion.production_polling_enabled', true);
         config()->set('ingestion.scheduled_write_allowlist', ['*']);
+    }
+
+    public function test_provider_backed_jobs_are_classified_as_external_calls(): void
+    {
+        $registry = app(IngestionJobRegistry::class);
+        $jobKeys = [
+            'youtube.channels.stats',
+            'youtube.live.poll',
+            'youtube.tvbs.live.poll',
+            'youtube.channels.videos.live_group',
+            'youtube.channels.videos.live',
+            'youtube.channels.videos.general',
+            'youtube.tvbs.videos',
+            'youtube.videos.stats',
+            'youtube.videos.duration',
+            'ai.daily',
+            'ai.mayor_person',
+            'ai.period',
+            'ai.event',
+            'ai.days_refresh',
+            'ai.hourly',
+        ];
+
+        foreach ($jobKeys as $jobKey) {
+            $description = $registry->describe($jobKey);
+
+            $this->assertNotNull($description, $jobKey);
+            $this->assertTrue($description['execution']['external_calls'], $jobKey);
+        }
+
+        $this->assertTrue($registry->describe('youtube.live.poll')['execution']['can_execute_when_due']);
+        $this->assertFalse($registry->describe('youtube.channels.stats')['execution']['can_execute_when_due']);
+        $this->assertContains(
+            'Job declares an external API dependency.',
+            $registry->describe('youtube.channels.stats')['execution']['blocks'],
+        );
+        $this->assertFalse($registry->describe('youtube.live.cleanup')['execution']['external_calls']);
     }
 
     public function test_ingestion_dashboard_renders_legacy_cron_registry_with_controlled_polling_state(): void
@@ -59,7 +98,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('/home/urtube/mayor/make_mayor.sh');
         $response->assertSee('planned');
         $response->assertSee('One-shot Runner');
-        $response->assertSee('Latest One-shot Runs');
+        $response->assertSee('Latest Ingestion Runs');
         $response->assertSee('Run Once');
     }
 
@@ -207,7 +246,7 @@ class IngestionDashboardTest extends TestCase
 
             $response->assertOk();
             $response->assertSee('external scheduler not observed');
-            $response->assertSee('No external scheduler run file was created within the recent activity window.');
+            $response->assertSee('No external scheduler run record was created within the recent activity window.');
             $response->assertDontSee('external scheduler active');
         } finally {
             CarbonImmutable::setTestNow();
@@ -235,23 +274,28 @@ class IngestionDashboardTest extends TestCase
             'failed' => 0,
         ]);
 
-        $files = Storage::disk('local')->files('ingestion-runs');
-        $this->assertCount(1, $files);
+        $this->assertSame([], Storage::disk('local')->files('ingestion-runs'));
+        $this->assertSame(1, DB::table('ingestion_runs')->count());
+        $this->assertSame(1, DB::table('ingestion_run_jobs')->count());
 
-        $record = json_decode((string) Storage::disk('local')->get($files[0]), true);
+        $storedRun = DB::table('ingestion_runs')->first();
+        $record = json_decode((string) $storedRun->payload_json, true, flags: JSON_THROW_ON_ERROR);
         $this->assertSame('execute', $record['request']['mode']);
         $this->assertSame('reports.live.static', $record['request']['job']);
         $this->assertTrue($record['request']['scheduler_enabled_temporarily']);
         $this->assertSame('execute', $record['result']['mode']);
         $this->assertSame('executed', $record['result']['jobs'][0]['action']);
+        $this->assertSame('reports.live.static', DB::table('ingestion_run_jobs')->value('job_key'));
 
         $dashboard = $this->get('/ops/ingestion');
         $dashboard->assertOk();
-        $dashboard->assertSee('Latest One-shot Runs');
+        $dashboard->assertSee('Run saved:');
+        $dashboard->assertSee($record['id']);
+        $dashboard->assertSee('Latest Ingestion Runs');
         $dashboard->assertSee('reports.live.static');
         $dashboard->assertSee('execute');
         $dashboard->assertSee('YT Units');
-        $dashboard->assertSee('ingestion-runs/');
+        $dashboard->assertSee('database:ingestion_runs/');
         $dashboard->assertSee('/ops/ingestion/runs/'.$record['id'], false);
 
         $detail = $this->get('/ops/ingestion/runs/'.$record['id']);
@@ -265,7 +309,7 @@ class IngestionDashboardTest extends TestCase
         $detail->assertSee('reports.live.static');
         $detail->assertSee('reports:live:static');
         $detail->assertSee('executed');
-        $detail->assertSee('ingestion-runs/'.$record['id'].'.json');
+        $detail->assertSee('database:ingestion_runs/'.$record['id']);
     }
 
     public function test_ingestion_dashboard_blocks_web_execute_outside_local_development(): void
@@ -287,6 +331,52 @@ class IngestionDashboardTest extends TestCase
         ])->assertForbidden();
 
         $this->assertSame([], Storage::disk('local')->files('ingestion-runs'));
+        $this->assertSame(0, DB::table('ingestion_runs')->count());
+    }
+
+    public function test_production_web_dry_run_does_not_write_durable_history(): void
+    {
+        Storage::fake('local');
+        config()->set('app.env', 'production');
+
+        $response = $this->followingRedirects()
+            ->withSession(['_token' => 'test-token'])
+            ->post('/ops/ingestion/run', [
+                '_token' => 'test-token',
+                'mode' => 'dry-run',
+                'job' => 'reports.live.static',
+                'at' => '2026-05-25 00:19:00',
+            ]);
+
+        $response->assertOk();
+        $response->assertSee('Preview completed (not persisted):');
+        $response->assertDontSee('Run saved:');
+        $this->assertDatabaseCount('ingestion_runs', 0);
+        $this->assertDatabaseCount('ingestion_run_jobs', 0);
+        $this->assertSame([], Storage::disk('local')->files('ingestion-runs'));
+    }
+
+    public function test_production_web_runner_rate_limits_repeated_previews(): void
+    {
+        Storage::fake('local');
+        config()->set('app.env', 'production');
+        $payload = [
+            '_token' => 'test-token',
+            'mode' => 'dry-run',
+            'job' => 'reports.live.static',
+            'at' => '2026-05-25 00:19:00',
+        ];
+
+        for ($attempt = 0; $attempt < 10; $attempt++) {
+            $this->withSession(['_token' => 'test-token'])
+                ->post('/ops/ingestion/run', $payload)
+                ->assertRedirect('/ops/ingestion');
+        }
+
+        $this->withSession(['_token' => 'test-token'])
+            ->post('/ops/ingestion/run', $payload)
+            ->assertTooManyRequests();
+        $this->assertDatabaseCount('ingestion_runs', 0);
     }
 
     public function test_ingestion_dashboard_sums_daily_youtube_quota_estimate_from_run_history(): void
@@ -790,16 +880,18 @@ class IngestionDashboardTest extends TestCase
             ->expectsOutputToContain('recorded=')
             ->assertExitCode(0);
 
-        $files = Storage::disk('local')->files('ingestion-runs');
-        $this->assertCount(1, $files);
+        $this->assertSame([], Storage::disk('local')->files('ingestion-runs'));
+        $this->assertSame(1, DB::table('ingestion_runs')->count());
 
-        $record = json_decode((string) Storage::disk('local')->get($files[0]), true);
+        $storedRun = DB::table('ingestion_runs')->first();
+        $record = json_decode((string) $storedRun->payload_json, true, flags: JSON_THROW_ON_ERROR);
         $this->assertSame('artisan', $record['request']['source']);
         $this->assertSame('execute', $record['request']['mode']);
         $this->assertSame('reports.live.static', $record['request']['job']);
         $this->assertFalse($record['request']['scheduler_enabled_temporarily']);
         $this->assertTrue($record['request']['original_scheduler_enabled']);
         $this->assertSame('executed', $record['result']['jobs'][0]['action']);
+        $this->assertSame('reports.live.static', DB::table('ingestion_run_jobs')->value('job_key'));
     }
 
     public function test_active_ingestion_job_would_run_when_scheduler_is_enabled(): void

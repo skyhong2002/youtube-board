@@ -85,6 +85,21 @@ class ReportLineageCoverageTest extends TestCase
         }
     }
 
+    public function test_lineage_defers_d3_until_first_expansion_and_keeps_the_html_fallback(): void
+    {
+        Storage::fake('local');
+
+        $response = $this->get('/ai/days');
+
+        $response->assertOk();
+        $response->assertDontSee('<script src="https://d3js.org/d3.v7.min.js"></script>', false);
+        $response->assertSee("script.src = 'https://d3js.org/d3.v7.min.js';", false);
+        $response->assertSee('loadD3().then(renderAll)', false);
+        $response->assertSee('data-lineage-fallback', false);
+        $response->assertSee('<noscript>', false);
+        $response->assertSee('[hidden] { display: block !important; }', false);
+    }
+
     private function assertLineageShell(TestResponse $response, string $uri): void
     {
         $this->assertTrue($response->isOk(), $uri.' returned HTTP '.$response->getStatusCode());

@@ -66,7 +66,7 @@ class MayorPersonDailyRouteTest extends TestCase
         $response->assertSee('AI ready');
     }
 
-    public function test_mayor_person_lineage_uses_ai_cache_timestamp_when_run_history_is_not_shared(): void
+    public function test_mayor_person_lineage_uses_ai_cache_timestamp_without_a_successful_execute_record(): void
     {
         Storage::fake('local');
         $this->createTables();
@@ -78,7 +78,7 @@ class MayorPersonDailyRouteTest extends TestCase
         $response->assertDontSee('尚無成功 execute 記錄');
         $response->assertSee('2026-05-24 16:36:00');
         $response->assertSee('cache timestamp', false);
-        $response->assertSee('run-history', false);
+        $response->assertDontSee('run-history', false);
     }
 
     private function createTables(): void

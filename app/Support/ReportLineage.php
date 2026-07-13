@@ -2,22 +2,19 @@
 
 namespace App\Support;
 
+use App\Services\Ingestion\IngestionRunHistory;
 use Carbon\CarbonImmutable;
-use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 class ReportLineage
 {
-    private const RUN_DIRECTORY = 'ingestion-runs';
-
-    public function __construct(private readonly ReportLineageProfiles $profiles)
-    {
-    }
+    public function __construct(
+        private readonly ReportLineageProfiles $profiles,
+        private readonly IngestionRunHistory $history,
+        private readonly ReportSourceTimestampLookup $sourceTimestamps,
+    ) {}
 
     /**
      * @return array<string, mixed>|null
@@ -36,7 +33,7 @@ class ReportLineage
     }
 
     /**
-     * @param array<string, mixed> $profile
+     * @param  array<string, mixed>  $profile
      * @return array<string, mixed>
      */
     private function hydrate(array $profile): array
@@ -59,39 +56,41 @@ class ReportLineage
     }
 
     /**
-     * @param Collection<string, array<string, mixed>> $sources
+     * @param  Collection<string, array<string, mixed>>  $sources
      * @return array<string, mixed>
      */
     private function hydrateJob(array $job, Collection $sources): array
     {
-        $latestRun = $this->latestSuccessfulJobRun((string) ($job['key'] ?? ''));
-        $latestRunSource = null;
+        $history = $this->history->latestJobHistory((string) ($job['key'] ?? ''));
+        $latestSourceAt = null;
+        $latestSourceLabel = null;
+        $latestSources = collect([
+            $job['latest_source'] ?? null,
+            ...($job['latest_sources'] ?? []),
+        ])->filter(fn (mixed $source): bool => is_string($source) && $source !== '')->unique();
 
-        if ($latestRun === null) {
-            $latestSource = $job['latest_source'] ?? null;
+        foreach ($latestSources as $latestSource) {
+            $timestamp = $this->parseTimestamp($sources->get($latestSource)['latest_at'] ?? null);
 
-            if (is_string($latestSource) && $latestSource !== '') {
-                $latestRun = $this->parseTimestamp($sources->get($latestSource)['latest_at'] ?? null);
-
-                if ($latestRun !== null) {
-                    $latestRunSource = $latestSource;
-                }
+            if ($timestamp !== null && ($latestSourceAt === null || $timestamp->greaterThan($latestSourceAt))) {
+                $latestSourceAt = $timestamp;
+                $latestSourceLabel = $latestSource;
             }
         }
 
-        $hydrated = $job + [
-            'latest_run_at' => $latestRun?->format('Y-m-d H:i:s'),
+        return $job + [
+            'latest_run_at' => $history['latest_success_at']?->format('Y-m-d H:i:s'),
+            'latest_attempt_at' => $history['latest_attempt_at']?->format('Y-m-d H:i:s'),
+            'latest_attempt_status' => $history['latest_attempt_status'],
+            'latest_attempt_action' => $history['latest_attempt_action'],
+            'latest_attempt_exit_code' => $history['latest_attempt_exit_code'],
+            'latest_source_at' => $latestSourceAt?->format('Y-m-d H:i:s'),
+            'latest_source_label' => $latestSourceLabel,
         ];
-
-        if ($latestRunSource !== null) {
-            $hydrated['latest_run_source'] = $latestRunSource;
-        }
-
-        return $hydrated;
     }
 
     /**
-     * @param array<string, mixed> $profile
+     * @param  array<string, mixed>  $profile
      * @return list<array<string, mixed>>
      */
     private function hydrateGraph(array $profile): array
@@ -106,10 +105,10 @@ class ReportLineage
     }
 
     /**
-     * @param array<string, mixed> $node
-     * @param array<string, mixed> $profile
-     * @param Collection<string, array<string, mixed>> $jobs
-     * @param Collection<string, array<string, mixed>> $sources
+     * @param  array<string, mixed>  $node
+     * @param  array<string, mixed>  $profile
+     * @param  Collection<string, array<string, mixed>>  $jobs
+     * @param  Collection<string, array<string, mixed>>  $sources
      * @return array<string, mixed>
      */
     private function hydrateGraphNode(array $node, array $profile, Collection $jobs, Collection $sources): array
@@ -123,9 +122,9 @@ class ReportLineage
     }
 
     /**
-     * @param array<string, mixed> $node
-     * @param Collection<string, array<string, mixed>> $jobs
-     * @param Collection<string, array<string, mixed>> $sources
+     * @param  array<string, mixed>  $node
+     * @param  Collection<string, array<string, mixed>>  $jobs
+     * @param  Collection<string, array<string, mixed>>  $sources
      */
     private function nodeStatus(array $node, Collection $jobs, Collection $sources): string
     {
@@ -143,7 +142,7 @@ class ReportLineage
         $label = (string) ($status['label'] ?? '');
 
         return match ($type) {
-            'job' => ($label !== '' ? $label : '上次執行').'：'.$this->displayTime($jobs->get((string) ($status['job'] ?? ''))['latest_run_at'] ?? null),
+            'job' => $this->jobStatus($jobs->get((string) ($status['job'] ?? '')), $label),
             'source' => ($label !== '' ? $label : '最後更新').'：'.$this->displayTime($sources->get((string) ($status['source'] ?? ''))['latest_at'] ?? null),
             'sources' => ($label !== '' ? $label : '最後更新').'：'.$this->displayTime($this->latestOf(...$this->sourceLatestValues($status, $sources))),
             'fixed' => '固定規則：'.($label !== '' ? $label : '隨部署更新'),
@@ -154,8 +153,39 @@ class ReportLineage
     }
 
     /**
-     * @param array<string, mixed> $status
-     * @param Collection<string, array<string, mixed>> $sources
+     * @param  array<string, mixed>|null  $job
+     */
+    private function jobStatus(?array $job, string $label): string
+    {
+        if ($job === null) {
+            return $label !== '' ? $label.'：尚無記錄' : '尚無執行記錄';
+        }
+
+        $attemptAt = $job['latest_attempt_at'] ?? null;
+
+        if (is_string($attemptAt) && $attemptAt !== '') {
+            $attemptStatus = (string) ($job['latest_attempt_status'] ?? 'failed');
+            $defaultLabel = match ($attemptStatus) {
+                'success' => '上次成功執行',
+                'blocked' => '最近執行前置失敗',
+                default => '最近執行失敗',
+            };
+
+            return ($label !== '' ? $label : $defaultLabel).'：'.$this->displayTime($attemptAt);
+        }
+
+        $sourceAt = $job['latest_source_at'] ?? null;
+
+        if (is_string($sourceAt) && $sourceAt !== '') {
+            return ($label !== '' ? $label : '資料最後更新').'：'.$this->displayTime($sourceAt);
+        }
+
+        return $label !== '' ? $label.'：尚無記錄' : '尚無執行記錄';
+    }
+
+    /**
+     * @param  array<string, mixed>  $status
+     * @param  Collection<string, array<string, mixed>>  $sources
      * @return list<mixed>
      */
     private function sourceLatestValues(array $status, Collection $sources): array
@@ -167,10 +197,10 @@ class ReportLineage
     }
 
     /**
-     * @param array<string, mixed> $node
-     * @param array<string, mixed> $profile
-     * @param Collection<string, array<string, mixed>> $jobs
-     * @param Collection<string, array<string, mixed>> $sources
+     * @param  array<string, mixed>  $node
+     * @param  array<string, mixed>  $profile
+     * @param  Collection<string, array<string, mixed>>  $jobs
+     * @param  Collection<string, array<string, mixed>>  $sources
      * @return array<string, string>
      */
     private function nodeMeta(array $node, array $profile, Collection $jobs, Collection $sources): array
@@ -218,8 +248,8 @@ class ReportLineage
     }
 
     /**
-     * @param array<string, string> $target
-     * @param array<string, mixed> $source
+     * @param  array<string, string>  $target
+     * @param  array<string, mixed>  $source
      */
     private function mergeMeta(array &$target, array $source, ?string $prefix = null): void
     {
@@ -233,7 +263,7 @@ class ReportLineage
     }
 
     /**
-     * @param array<string, mixed> $job
+     * @param  array<string, mixed>  $job
      * @return array<string, mixed>
      */
     private function jobMeta(array $job): array
@@ -251,18 +281,28 @@ class ReportLineage
             '呼叫 API' => $apiCalls === [] ? '不呼叫外部 API' : implode("\n", $apiCalls),
             '讀取' => $reads === [] ? '' : implode('、', $reads),
             '寫入' => $writes === [] ? '' : implode('、', $writes),
+            '最近執行嘗試' => is_string($job['latest_attempt_at'] ?? null)
+                ? $job['latest_attempt_at'].'（'.match ($job['latest_attempt_status'] ?? null) {
+                    'success' => '成功',
+                    'blocked' => '執行前置失敗',
+                    default => '執行失敗',
+                }.'）'
+                : '尚無 execute 嘗試記錄',
             '最近成功執行' => $job['latest_run_at'] ?? '尚無成功 execute 記錄',
+            '最近執行 action' => $job['latest_attempt_action'] ?? '',
+            '最近執行 exit code' => $job['latest_attempt_exit_code'] ?? '',
         ];
 
-        if (is_string($job['latest_run_source'] ?? null) && $job['latest_run_source'] !== '') {
-            $meta['執行時間來源'] = $job['latest_run_source'].' 最新 cache timestamp（web/scheduler run-history 未共享時使用）';
+        if (is_string($job['latest_source_at'] ?? null) && $job['latest_source_at'] !== '') {
+            $meta['資料最後更新'] = $job['latest_source_at'];
+            $meta['資料更新來源'] = $job['latest_source_label'].' 最新 cache timestamp（資料更新時間，不代表 execute 完整成功）';
         }
 
         return $meta;
     }
 
     /**
-     * @param array<string, mixed> $source
+     * @param  array<string, mixed>  $source
      * @return array<string, mixed>
      */
     private function sourceMeta(array $source): array
@@ -274,7 +314,7 @@ class ReportLineage
     }
 
     /**
-     * @param array<string, mixed> $source
+     * @param  array<string, mixed>  $source
      */
     private function sourceDescriptor(array $source): string
     {
@@ -296,7 +336,7 @@ class ReportLineage
     }
 
     /**
-     * @param array<string, mixed> $profile
+     * @param  array<string, mixed>  $profile
      * @return array<string, mixed>
      */
     private function renderMeta(array $profile): array
@@ -314,7 +354,7 @@ class ReportLineage
     }
 
     /**
-     * @param list<mixed> $items
+     * @param  list<mixed>  $items
      */
     private function numberedLines(array $items): string
     {
@@ -326,7 +366,7 @@ class ReportLineage
     }
 
     /**
-     * @param array<string, mixed> $profile
+     * @param  array<string, mixed>  $profile
      */
     private function fixedSourcesText(array $profile): string
     {
@@ -416,7 +456,7 @@ class ReportLineage
     }
 
     /**
-     * @param array<string, mixed> $source
+     * @param  array<string, mixed>  $source
      */
     private function latestSourceTimestamp(array $source): ?CarbonImmutable
     {
@@ -427,128 +467,11 @@ class ReportLineage
             return null;
         }
 
-        $latest = null;
-
-        foreach ($columns as $column) {
-            $value = $this->maxTimestampValue($table, $column, is_array($source['where'] ?? null) ? $source['where'] : []);
-            $timestamp = $this->parseTimestamp($value);
-
-            if ($timestamp !== null && ($latest === null || $timestamp->greaterThan($latest))) {
-                $latest = $timestamp;
-            }
-        }
-
-        return $latest;
-    }
-
-    /**
-     * @param array<string, mixed> $where
-     */
-    private function maxTimestampValue(string $table, string $column, array $where = []): mixed
-    {
-        try {
-            if (! Schema::hasTable($table) || ! Schema::hasColumn($table, $column)) {
-                return null;
-            }
-
-            $query = DB::table($table)->whereNotNull($column);
-
-            foreach ($where as $whereColumn => $value) {
-                if (is_string($whereColumn) && Schema::hasColumn($table, $whereColumn)) {
-                    $query->where($whereColumn, $value);
-                }
-            }
-
-            return $query->max($column);
-        } catch (QueryException) {
-            return null;
-        }
-    }
-
-    private function latestSuccessfulJobRun(string $jobKey): ?CarbonImmutable
-    {
-        try {
-            $files = collect(Storage::disk('local')->files(self::RUN_DIRECTORY))
-                ->filter(fn (string $path): bool => str_ends_with($path, '.json'))
-                ->sortDesc()
-                ->values();
-        } catch (Throwable) {
-            return null;
-        }
-
-        foreach ($files as $path) {
-            $record = $this->readRunRecord($path);
-
-            if ($record === null || ! $this->isExecuteRecord($record)) {
-                continue;
-            }
-
-            foreach ($record['result']['jobs'] ?? [] as $job) {
-                if (! is_array($job) || ($job['key'] ?? null) !== $jobKey || ! $this->jobSucceeded($job)) {
-                    continue;
-                }
-
-                return $this->recordTimestamp($record);
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    private function readRunRecord(string $path): ?array
-    {
-        try {
-            $payload = json_decode((string) Storage::disk('local')->get($path), true);
-
-            return is_array($payload) ? $payload : null;
-        } catch (Throwable) {
-            return null;
-        }
-    }
-
-    /**
-     * @param array<string, mixed> $record
-     */
-    private function isExecuteRecord(array $record): bool
-    {
-        return ($record['request']['source'] ?? null) === 'artisan'
-            && ($record['request']['mode'] ?? null) === 'execute'
-            && ($record['result']['mode'] ?? null) === 'execute';
-    }
-
-    /**
-     * @param array<string, mixed> $job
-     */
-    private function jobSucceeded(array $job): bool
-    {
-        return ($job['executed'] ?? false) === true
-            && ($job['failed'] ?? false) !== true
-            && ((int) ($job['exit_code'] ?? 0)) === 0;
-    }
-
-    /**
-     * @param array<string, mixed> $record
-     */
-    private function recordTimestamp(array $record): ?CarbonImmutable
-    {
-        $timestamp = $this->parseTimestamp($record['created_at'] ?? null);
-
-        if ($timestamp !== null) {
-            return $timestamp;
-        }
-
-        $id = $record['id'] ?? null;
-
-        if (! is_string($id) || ! preg_match('/^(\d{8})-(\d{6})-/', $id, $matches)) {
-            return null;
-        }
-
-        $parsed = CarbonImmutable::createFromFormat('Ymd His', $matches[1].' '.$matches[2], $this->timezone());
-
-        return $parsed instanceof CarbonImmutable ? $parsed : null;
+        return $this->sourceTimestamps->latest(
+            $table,
+            $columns,
+            is_array($source['where'] ?? null) ? $source['where'] : [],
+        );
     }
 
     private function parseTimestamp(mixed $value): ?CarbonImmutable

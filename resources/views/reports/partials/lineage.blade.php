@@ -9,9 +9,38 @@
 
     @once
         @push('scripts')
-            <script src="https://d3js.org/d3.v7.min.js"></script>
             <script>
                 (function () {
+                    var d3LoadPromise = null;
+
+                    function loadD3() {
+                        if (window.youtubeBoardLineageD3Loaded && window.d3) {
+                            return Promise.resolve();
+                        }
+
+                        if (d3LoadPromise) {
+                            return d3LoadPromise;
+                        }
+
+                        d3LoadPromise = new Promise(function (resolve, reject) {
+                            var script = document.createElement('script');
+                            script.src = 'https://d3js.org/d3.v7.min.js';
+                            script.async = true;
+                            script.dataset.lineageD3 = '1';
+                            script.onload = function () {
+                                window.youtubeBoardLineageD3Loaded = true;
+                                resolve();
+                            };
+                            script.onerror = function () {
+                                d3LoadPromise = null;
+                                reject(new Error('lineage_d3_load_failed'));
+                            };
+                            document.head.appendChild(script);
+                        });
+
+                        return d3LoadPromise;
+                    }
+
                     function renderLineage(container) {
                         if (!window.d3) {
                             return;
@@ -226,7 +255,7 @@
                             .attr('font-weight', 700)
                             .selectAll('tspan')
                             .data(function (node) {
-                                return wrapWords(node.status || '上次執行：尚無記錄', Math.max(18, Math.floor((node.statusWidth - 18) / 7))).slice(0, 2);
+                                return wrapWords(node.status || '狀態：尚無記錄', Math.max(18, Math.floor((node.statusWidth - 18) / 7))).slice(0, 2);
                             })
                             .enter()
                             .append('tspan')
@@ -360,7 +389,9 @@
                                 button.querySelector('[data-lineage-toggle-label]').textContent = isOpening ? '收合' : '查看';
 
                                 if (isOpening) {
-                                    renderAll();
+                                    loadD3().then(renderAll).catch(function () {
+                                        // The server-rendered flow remains visible when D3 is unavailable.
+                                    });
                                 }
                             });
                         });
@@ -369,11 +400,9 @@
                     if (document.readyState === 'loading') {
                         document.addEventListener('DOMContentLoaded', function () {
                             initDisclosures();
-                            renderAll();
                         });
                     } else {
                         initDisclosures();
-                        renderAll();
                     }
 
                     window.addEventListener('resize', function () {
@@ -384,6 +413,13 @@
             </script>
         @endpush
     @endonce
+
+    <noscript>
+        <style>
+            .lineage-toggle[aria-controls="{{ $lineagePanelId }}"] { display: none !important; }
+            #{{ $lineagePanelId }}[hidden] { display: block !important; }
+        </style>
+    </noscript>
 
     <section class="lineage" aria-labelledby="lineage-title-{{ $lineagePanelId }}">
         <button class="lineage-toggle" type="button" data-lineage-toggle aria-expanded="false" aria-controls="{{ $lineagePanelId }}">
@@ -409,7 +445,7 @@
                             @foreach ($lineage['graph'] as $node)
                                 <div class="lineage-node lineage-node-{{ $node['kind'] }}">
                                     <span>{{ $node['label'] }}</span>
-                                    <em>{{ $node['status'] ?? '上次執行：尚無記錄' }}</em>
+                                    <em>{{ $node['status'] ?? '狀態：尚無記錄' }}</em>
                                     <small>{{ $node['kind'] }}</small>
                                 </div>
                                 @if (! $loop->last)

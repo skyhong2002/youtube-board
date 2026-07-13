@@ -138,7 +138,9 @@ Route::get('/ops/integrations', [IntegrationCheckController::class, 'index'])->n
 Route::get('/ops/ingestion', IngestionDashboardController::class)->name('ops.ingestion');
 Route::get('/ops/ingestion/data-capture', [IngestionDashboardController::class, 'dataCapture'])->name('ops.ingestion.data-capture');
 Route::get('/ops/ingestion/report-processing', [IngestionDashboardController::class, 'reportProcessing'])->name('ops.ingestion.report-processing');
-Route::post('/ops/ingestion/run', [IngestionDashboardController::class, 'run'])->name('ops.ingestion.run');
+Route::post('/ops/ingestion/run', [IngestionDashboardController::class, 'run'])
+    ->middleware('throttle:10,1')
+    ->name('ops.ingestion.run');
 Route::get('/ops/ingestion/runs/{runId}', [IngestionDashboardController::class, 'runShow'])
     ->where('runId', '\d{8}-\d{6}-[0-9a-f-]{36}')
     ->name('ops.ingestion.runs.show');

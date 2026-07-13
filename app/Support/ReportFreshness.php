@@ -2,19 +2,13 @@
 
 namespace App\Support;
 
+use App\Services\Ingestion\IngestionRunHistory;
 use Carbon\CarbonImmutable;
-use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Throwable;
 
 class ReportFreshness
 {
-    private const RUN_DIRECTORY = 'ingestion-runs';
-
     /**
      * @var array<string, array{jobs: list<string>, sources: list<string>}>
      */
@@ -243,6 +237,11 @@ class ReportFreshness
      */
     private array $jobLatest = [];
 
+    public function __construct(
+        private readonly IngestionRunHistory $history,
+        private readonly ReportSourceTimestampLookup $sourceTimestamps,
+    ) {}
+
     /**
      * @return array{display: string, updated_at: string|null, source: string, job_keys: list<string>}|null
      */
@@ -341,35 +340,25 @@ class ReportFreshness
             return $this->databaseLatest[$cacheKey];
         }
 
-        $latest = null;
+        $sourcesByTable = [];
 
         foreach ($sourceGroups as $group) {
             foreach (self::SOURCE_GROUPS[$group] ?? [] as $source) {
-                $value = $this->maxTimestampValue($source['table'], $source['column']);
-                $timestamp = $this->parseTimestamp($value);
+                $sourcesByTable[$source['table']][] = $source['column'];
+            }
+        }
 
-                if ($timestamp !== null && ($latest === null || $timestamp->greaterThan($latest))) {
-                    $latest = $timestamp;
-                }
+        $latest = null;
+
+        foreach ($sourcesByTable as $table => $columns) {
+            $timestamp = $this->sourceTimestamps->latest($table, array_values(array_unique($columns)));
+
+            if ($timestamp !== null && ($latest === null || $timestamp->greaterThan($latest))) {
+                $latest = $timestamp;
             }
         }
 
         return $this->databaseLatest[$cacheKey] = $latest;
-    }
-
-    private function maxTimestampValue(string $table, string $column): mixed
-    {
-        try {
-            if (! Schema::hasTable($table) || ! Schema::hasColumn($table, $column)) {
-                return null;
-            }
-
-            return DB::table($table)
-                ->whereNotNull($column)
-                ->max($column);
-        } catch (QueryException) {
-            return null;
-        }
     }
 
     /**
@@ -388,128 +377,6 @@ class ReportFreshness
             return $this->jobLatest[$cacheKey] = null;
         }
 
-        $wanted = array_fill_keys($jobKeys, true);
-
-        try {
-            $files = collect(Storage::disk('local')->files(self::RUN_DIRECTORY))
-                ->filter(fn (string $path): bool => str_ends_with($path, '.json'))
-                ->sortDesc()
-                ->values();
-        } catch (Throwable) {
-            return $this->jobLatest[$cacheKey] = null;
-        }
-
-        foreach ($files as $path) {
-            $record = $this->readRunRecord($path);
-
-            if ($record === null || ! $this->isExecuteRecord($record)) {
-                continue;
-            }
-
-            $ranAt = $this->recordTimestamp($record);
-
-            if ($ranAt === null) {
-                continue;
-            }
-
-            foreach ($record['result']['jobs'] ?? [] as $job) {
-                if (! is_array($job)) {
-                    continue;
-                }
-
-                $key = $job['key'] ?? null;
-
-                if (is_string($key) && isset($wanted[$key]) && $this->jobSucceeded($job)) {
-                    return $this->jobLatest[$cacheKey] = $ranAt;
-                }
-            }
-        }
-
-        return $this->jobLatest[$cacheKey] = null;
-    }
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    private function readRunRecord(string $path): ?array
-    {
-        try {
-            $payload = json_decode((string) Storage::disk('local')->get($path), true);
-
-            return is_array($payload) ? $payload : null;
-        } catch (Throwable) {
-            return null;
-        }
-    }
-
-    /**
-     * @param  array<string, mixed>  $record
-     */
-    private function isExecuteRecord(array $record): bool
-    {
-        return ($record['request']['source'] ?? null) === 'artisan'
-            && ($record['request']['mode'] ?? null) === 'execute'
-            && ($record['result']['mode'] ?? null) === 'execute';
-    }
-
-    /**
-     * @param  array<string, mixed>  $job
-     */
-    private function jobSucceeded(array $job): bool
-    {
-        return ($job['executed'] ?? false) === true
-            && ($job['failed'] ?? false) !== true
-            && ((int) ($job['exit_code'] ?? 0)) === 0;
-    }
-
-    /**
-     * @param  array<string, mixed>  $record
-     */
-    private function recordTimestamp(array $record): ?CarbonImmutable
-    {
-        $timestamp = $this->parseTimestamp($record['created_at'] ?? null);
-
-        if ($timestamp !== null) {
-            return $timestamp;
-        }
-
-        $id = $record['id'] ?? null;
-
-        if (! is_string($id) || ! preg_match('/^(\d{8})-(\d{6})-/', $id, $matches)) {
-            return null;
-        }
-
-        $timezone = $this->timezone();
-        $parsed = CarbonImmutable::createFromFormat('Ymd His', $matches[1].' '.$matches[2], $timezone);
-
-        return $parsed instanceof CarbonImmutable ? $parsed : null;
-    }
-
-    private function parseTimestamp(mixed $value): ?CarbonImmutable
-    {
-        if ($value instanceof CarbonImmutable) {
-            return $value->setTimezone($this->timezone());
-        }
-
-        if ($value === null) {
-            return null;
-        }
-
-        $text = trim((string) $value);
-
-        if ($text === '' || $text === '0000-00-00' || $text === '0000-00-00 00:00:00') {
-            return null;
-        }
-
-        try {
-            return CarbonImmutable::parse($text, $this->timezone())->setTimezone($this->timezone());
-        } catch (Throwable) {
-            return null;
-        }
-    }
-
-    private function timezone(): string
-    {
-        return (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
+        return $this->jobLatest[$cacheKey] = $this->history->latestSuccessfulJobRun($jobKeys);
     }
 }

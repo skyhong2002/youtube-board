@@ -59,13 +59,37 @@ class DeploymentSchemaVerifier
             'created_at',
             'updated_at',
         ],
+        'ingestion_runs' => [
+            'id',
+            'recorded_at',
+            'request_source',
+            'request_mode',
+            'result_mode',
+            'payload_json',
+            'created_at',
+            'updated_at',
+        ],
+        'ingestion_run_jobs' => [
+            'run_id',
+            'job_key',
+            'recorded_at',
+            'attempted',
+            'succeeded',
+            'failed',
+            'action',
+            'exit_code',
+            'started_at',
+            'finished_at',
+            'created_at',
+            'updated_at',
+        ],
     ];
 
     /**
-     * Only identity and idempotency constraints are deployment critical. Query
-     * acceleration indexes can be added independently without blocking startup.
+     * Identity, idempotency, and durable run-history lookup indexes are
+     * deployment critical. Other query acceleration indexes remain optional.
      *
-     * @var array<string, list<array{kind: 'primary'|'unique', columns: list<string>}>>
+     * @var array<string, list<array{kind: 'index'|'primary'|'unique', columns: list<string>}>>
      */
     private const REQUIRED_INDEXES = [
         'migrations' => [
@@ -104,6 +128,46 @@ class DeploymentSchemaVerifier
             ['kind' => 'primary', 'columns' => ['id']],
             ['kind' => 'unique', 'columns' => ['provider', 'quota_date']],
         ],
+        'ingestion_runs' => [
+            ['kind' => 'primary', 'columns' => ['id']],
+            ['kind' => 'index', 'columns' => ['recorded_at']],
+            [
+                'kind' => 'index',
+                'columns' => ['request_source', 'request_mode', 'result_mode', 'recorded_at'],
+            ],
+        ],
+        'ingestion_run_jobs' => [
+            ['kind' => 'primary', 'columns' => ['run_id', 'job_key']],
+            ['kind' => 'index', 'columns' => ['job_key', 'attempted', 'recorded_at']],
+            ['kind' => 'index', 'columns' => ['job_key', 'succeeded', 'recorded_at']],
+        ],
+    ];
+
+    /**
+     * @var array<string, list<array{
+     *     columns: list<string>,
+     *     foreign_table: string,
+     *     foreign_columns: list<string>,
+     *     on_delete: string
+     * }>>
+     */
+    private const REQUIRED_FOREIGN_KEYS = [
+        'ingestion_run_jobs' => [[
+            'columns' => ['run_id'],
+            'foreign_table' => 'ingestion_runs',
+            'foreign_columns' => ['id'],
+            'on_delete' => 'cascade',
+        ]],
+    ];
+
+    /** @var list<string> */
+    private const ENGINE_BEARING_DRIVERS = ['mysql', 'mariadb'];
+
+    /** @var list<string> */
+    private const REQUIRED_INNODB_TABLES = [
+        'ingestion_youtube_quota_daily',
+        'ingestion_runs',
+        'ingestion_run_jobs',
     ];
 
     /**
@@ -123,6 +187,7 @@ class DeploymentSchemaVerifier
             $missingTables = array_values(array_diff($requiredTables, $existingTables));
             $missingColumns = [];
             $missingIndexes = [];
+            $missingForeignKeys = [];
 
             foreach ($requirements['columns'] as $table => $columns) {
                 if (! in_array($table, $existingTables, true)) {
@@ -154,6 +219,20 @@ class DeploymentSchemaVerifier
                 }
             }
 
+            foreach (self::REQUIRED_FOREIGN_KEYS as $table => $requiredForeignKeys) {
+                if (! in_array($table, $existingTables, true)) {
+                    continue;
+                }
+
+                $existingForeignKeys = Schema::getForeignKeys($table);
+
+                foreach ($requiredForeignKeys as $requiredForeignKey) {
+                    if (! $this->hasRequiredForeignKey($existingForeignKeys, $requiredForeignKey)) {
+                        $missingForeignKeys[$table][] = $this->foreignKeyLabel($requiredForeignKey);
+                    }
+                }
+            }
+
             $quotaUnique = in_array('ingestion_youtube_quota_daily', $existingTables, true)
                 && ! in_array(
                     'unique(provider,quota_date)',
@@ -161,13 +240,19 @@ class DeploymentSchemaVerifier
                     true,
                 );
             $driver = DB::connection()->getDriverName();
-            $quotaEngine = $this->quotaEngine($driver, $existingTables);
-            $engineValid = $driver !== 'mysql' || $quotaEngine === 'InnoDB';
+            $requiredTableEngines = $this->requiredTableEngines($driver, $existingTables);
+            $requiredTableEnginesValid = ! $this->hasTableEngines($driver)
+                || collect($requiredTableEngines)->every(
+                    fn (?string $engine): bool => $engine === 'InnoDB',
+                );
+            $quotaEngine = $requiredTableEngines['ingestion_youtube_quota_daily'];
+            $quotaEngineValid = ! $this->hasTableEngines($driver) || $quotaEngine === 'InnoDB';
             $ready = $missingTables === []
                 && $missingColumns === []
                 && $missingIndexes === []
+                && $missingForeignKeys === []
                 && $quotaUnique
-                && $engineValid;
+                && $requiredTableEnginesValid;
 
             return [
                 'status' => $ready ? 'ready' : 'failed',
@@ -178,9 +263,12 @@ class DeploymentSchemaVerifier
                 'missing_tables' => $missingTables,
                 'missing_columns' => $missingColumns,
                 'missing_indexes' => $missingIndexes,
+                'missing_foreign_keys' => $missingForeignKeys,
                 'quota_unique_index' => $quotaUnique,
                 'quota_engine' => $quotaEngine,
-                'quota_engine_valid' => $engineValid,
+                'quota_engine_valid' => $quotaEngineValid,
+                'required_table_engines' => $requiredTableEngines,
+                'required_table_engines_valid' => $requiredTableEnginesValid,
                 'secrets' => 'not_printed',
             ];
         } catch (Throwable) {
@@ -203,7 +291,7 @@ class DeploymentSchemaVerifier
     /**
      * @return array{
      *     columns: array<string, list<string>>,
-     *     indexes: array<string, list<array{kind: 'primary'|'unique', columns: list<string>}>>
+     *     indexes: array<string, list<array{kind: 'index'|'primary'|'unique', columns: list<string>}>>
      * }
      */
     private function requirements(): array
@@ -239,7 +327,7 @@ class DeploymentSchemaVerifier
     }
 
     /**
-     * @return list<array{kind: 'primary'|'unique', columns: list<string>}>
+     * @return list<array{kind: 'index'|'primary'|'unique', columns: list<string>}>
      */
     private function baselineIndexes(string $table, string $sql): array
     {
@@ -281,7 +369,7 @@ class DeploymentSchemaVerifier
 
     /**
      * @param  list<array<string, mixed>>  $existingIndexes
-     * @param  array{kind: 'primary'|'unique', columns: list<string>}  $requiredIndex
+     * @param  array{kind: 'index'|'primary'|'unique', columns: list<string>}  $requiredIndex
      */
     private function hasRequiredIndex(array $existingIndexes, array $requiredIndex): bool
     {
@@ -289,9 +377,13 @@ class DeploymentSchemaVerifier
 
         foreach ($existingIndexes as $index) {
             $columns = array_map('strtolower', array_values($index['columns'] ?? []));
-            $kindMatches = $requiredIndex['kind'] === 'primary'
-                ? (bool) ($index['primary'] ?? false)
-                : (bool) ($index['unique'] ?? false) && ! (bool) ($index['primary'] ?? false);
+            $primary = (bool) ($index['primary'] ?? false);
+            $unique = (bool) ($index['unique'] ?? false);
+            $kindMatches = match ($requiredIndex['kind']) {
+                'primary' => $primary,
+                'unique' => $unique && ! $primary,
+                'index' => ! $unique && ! $primary,
+            };
 
             if ($kindMatches && $columns === $requiredColumns) {
                 return true;
@@ -302,7 +394,7 @@ class DeploymentSchemaVerifier
     }
 
     /**
-     * @param  array{kind: 'primary'|'unique', columns: list<string>}  $index
+     * @param  array{kind: 'index'|'primary'|'unique', columns: list<string>}  $index
      */
     private function indexLabel(array $index): string
     {
@@ -310,19 +402,90 @@ class DeploymentSchemaVerifier
     }
 
     /**
-     * @param  list<string>  $existingTables
+     * @param  list<array<string, mixed>>  $existingForeignKeys
+     * @param  array{
+     *     columns: list<string>,
+     *     foreign_table: string,
+     *     foreign_columns: list<string>,
+     *     on_delete: string
+     * }  $requiredForeignKey
      */
-    private function quotaEngine(string $driver, array $existingTables): ?string
+    private function hasRequiredForeignKey(array $existingForeignKeys, array $requiredForeignKey): bool
     {
-        if ($driver !== 'mysql' || ! in_array('ingestion_youtube_quota_daily', $existingTables, true)) {
-            return null;
+        $requiredColumns = array_map('strtolower', $requiredForeignKey['columns']);
+        $requiredForeignColumns = array_map('strtolower', $requiredForeignKey['foreign_columns']);
+
+        foreach ($existingForeignKeys as $foreignKey) {
+            $columns = array_map('strtolower', array_values($foreignKey['columns'] ?? []));
+            $foreignColumns = array_map('strtolower', array_values($foreignKey['foreign_columns'] ?? []));
+            $foreignTable = strtolower((string) ($foreignKey['foreign_table'] ?? ''));
+            $onDelete = strtolower((string) ($foreignKey['on_delete'] ?? ''));
+
+            if (
+                $columns === $requiredColumns
+                && $foreignTable === strtolower($requiredForeignKey['foreign_table'])
+                && $foreignColumns === $requiredForeignColumns
+                && $onDelete === strtolower($requiredForeignKey['on_delete'])
+            ) {
+                return true;
+            }
         }
 
-        $engine = DB::table('information_schema.TABLES')
-            ->where('TABLE_SCHEMA', DB::connection()->getDatabaseName())
-            ->where('TABLE_NAME', 'ingestion_youtube_quota_daily')
-            ->value('ENGINE');
+        return false;
+    }
 
-        return is_string($engine) ? $engine : null;
+    /**
+     * @param  array{
+     *     columns: list<string>,
+     *     foreign_table: string,
+     *     foreign_columns: list<string>,
+     *     on_delete: string
+     * }  $foreignKey
+     */
+    private function foreignKeyLabel(array $foreignKey): string
+    {
+        return sprintf(
+            'foreign(%s)->%s(%s) on delete %s',
+            implode(',', $foreignKey['columns']),
+            $foreignKey['foreign_table'],
+            implode(',', $foreignKey['foreign_columns']),
+            $foreignKey['on_delete'],
+        );
+    }
+
+    private function hasTableEngines(string $driver): bool
+    {
+        return in_array($driver, self::ENGINE_BEARING_DRIVERS, true);
+    }
+
+    /**
+     * @param  list<string>  $existingTables
+     * @return array<string, string|null>
+     */
+    private function requiredTableEngines(string $driver, array $existingTables): array
+    {
+        $engines = array_fill_keys(self::REQUIRED_INNODB_TABLES, null);
+
+        if (! $this->hasTableEngines($driver)) {
+            return $engines;
+        }
+
+        $tables = array_values(array_intersect(self::REQUIRED_INNODB_TABLES, $existingTables));
+
+        if ($tables === []) {
+            return $engines;
+        }
+
+        $storedEngines = DB::table('information_schema.TABLES')
+            ->where('TABLE_SCHEMA', DB::connection()->getDatabaseName())
+            ->whereIn('TABLE_NAME', $tables)
+            ->pluck('ENGINE', 'TABLE_NAME');
+
+        foreach ($tables as $table) {
+            $engine = $storedEngines->get($table);
+            $engines[$table] = is_string($engine) ? $engine : null;
+        }
+
+        return $engines;
     }
 }

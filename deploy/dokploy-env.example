@@ -12,6 +12,7 @@ LOG_LEVEL=info
 CACHE_STORE=file
 QUEUE_CONNECTION=sync
 SESSION_DRIVER=file
+SESSION_SECURE_COOKIE=true
 FILESYSTEM_DISK=local
 
 DB_CONNECTION=mysql
@@ -32,6 +33,8 @@ INGESTION_TIMEZONE=Asia/Taipei
 INGESTION_JOB_LOCK_SECONDS=14400
 INGESTION_YOUTUBE_DAILY_QUOTA_BUDGET=9000
 INGESTION_COMMENT_CLAIM_MINUTES=30
+INGESTION_RUN_HISTORY_RETENTION_DAYS=14
+INGESTION_RUN_HISTORY_MAX_RECORDS=25000
 
 # This committed template is fail-closed for scheduled writes. Replace `off` with
 # an exact reviewed comma-separated job list only after dry-run evidence, backup,

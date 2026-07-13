@@ -7,8 +7,8 @@ Source: `/Users/skyhong/Documents/youtube-board-legacy/vh-board.conf`
 | Legacy URL | Legacy target | Modern target |
 | --- | --- | --- |
 | `/ch/{u_id}/` | `/channel.php?u_id={u_id}` | `/channels/{u_id}` |
-| `/ch/{u_id}/{section}/` | `/channel_{section}.php?u_id={u_id}` | `/channels/{u_id}/{section}` |
-| `/ch/{u_id}/{section}/{query}` | `/channel_{section}.php?u_id={u_id}&{query}` | `/channels/{u_id}/{section}?{query}` |
+| `/ch/{u_id}/{section}/` | `/channel_{section}.php?u_id={u_id}` | Explicit per-section routes listed below, such as `/channels/{u_id}/videos`; Laravel does not expose a generic `{section}` route. |
+| `/ch/{u_id}/{section}/{query}` | `/channel_{section}.php?u_id={u_id}&{query}` | Use the matching explicit per-section route with standard `?key=value` query parameters; the legacy third path segment is not a modern route. |
 | `/rank/{tagId}/` | `/rank.php?tagid={tagId}` | `/tags/{tagId}/channels` |
 | `/day/{date}/{condition}` | `/ai_day.php?date={date}&condition={condition}` | `/ai/days/{date}/{condition}` |
 
@@ -151,8 +151,8 @@ Compatibility coverage is guarded by `tests/Feature/LegacySurfaceInventoryTest.p
 | `/channel_gpt.php?u_id=...` | `/channels/{u_id}/ai?...` | 308 redirect to live cached GPT/AI overview; also accepts legacy `channel=...` |
 | `/dev/check` | Local integration check | YouTube API and AI config probe page |
 | `/ops/ingestion` | Scheduler registry dashboard | Real-time YouTube dashboard view of legacy cron to Laravel command mapping, including modern command availability, local one-shot form, and latest run history |
-| `POST /ops/ingestion/run` | Scheduler one-shot runner | Dry-runs due jobs in every environment; execute requests are accepted only in `local`/`testing` and return 403 in Production. Stores JSON history under Laravel local storage `ingestion-runs/*.json`. Production writes remain owned by reviewed scheduler/CLI commands behind env gates and allowlists. |
-| `/ops/ingestion/runs/{runId}` | Scheduler run detail | Real-time YouTube dashboard local run history viewer with request metadata, summary counts, and per-job action/exit status from `storage/app/private/ingestion-runs/*.json` |
+| `POST /ops/ingestion/run` | Scheduler one-shot runner | Rate-limited dry-runs due jobs in every environment; execute requests are accepted only in `local`/`testing` and return 403 in Production. Local/testing web runs store sanitized MariaDB-backed history; public Production web previews are not persisted. Legacy `ingestion-runs/*.json` records remain readable, while Production writes remain owned by reviewed scheduler/CLI commands behind env gates and allowlists. |
+| `/ops/ingestion/runs/{runId}` | Scheduler run detail | Real-time YouTube dashboard run history viewer with request metadata, summary counts, and per-job action/exit status from MariaDB-backed history or the legacy JSON read fallback |
 | `/ops/ingestion/{jobKey}` | Scheduler job detail | Real-time YouTube dashboard due/next-run preview, write target inventory, command availability, scheduling gates, and the reviewed preview command for every registry job. Manual-only cache/AI maintenance commands have no scheduled execute command and therefore cannot be implicitly allowlisted. |
 | `/prompt/{script}.php` | Same legacy URL | 403 real-time YouTube dashboard guard for legacy AI prompt scripts; AI calls, prompt writeback, and `urt_ai_*` inserts are routed through Laravel AI ingestion commands |
 

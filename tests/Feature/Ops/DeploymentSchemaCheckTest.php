@@ -35,11 +35,20 @@ class DeploymentSchemaCheckTest extends TestCase
 
         $this->assertSame(0, $exitCode, (string) json_encode($payload, JSON_UNESCAPED_SLASHES));
         $this->assertTrue($payload['ready']);
-        $this->assertSame(61, $payload['required_table_count']);
+        $this->assertSame(63, $payload['required_table_count']);
         $this->assertSame([], $payload['missing_tables']);
         $this->assertSame([], $payload['missing_columns']);
         $this->assertSame([], $payload['missing_indexes']);
+        $this->assertSame([], $payload['missing_foreign_keys']);
         $this->assertTrue($payload['quota_unique_index']);
+        $this->assertNull($payload['quota_engine']);
+        $this->assertTrue($payload['quota_engine_valid']);
+        $this->assertSame([
+            'ingestion_youtube_quota_daily' => null,
+            'ingestion_runs' => null,
+            'ingestion_run_jobs' => null,
+        ], $payload['required_table_engines']);
+        $this->assertTrue($payload['required_table_engines_valid']);
     }
 
     public function test_health_route_accepts_a_complete_deployment_schema(): void
@@ -55,6 +64,8 @@ class DeploymentSchemaCheckTest extends TestCase
             'urt_channel' => ['title'],
             'jobs' => ['payload'],
             'urt_mayor_person_ai' => ['city_label'],
+            'ingestion_runs' => ['payload_json'],
+            'ingestion_run_jobs' => ['finished_at'],
         ]);
 
         $exitCode = Artisan::call('deployment:schema-check', ['--json' => true]);
@@ -65,14 +76,26 @@ class DeploymentSchemaCheckTest extends TestCase
         $this->assertSame(['title'], $payload['missing_columns']['urt_channel']);
         $this->assertSame(['payload'], $payload['missing_columns']['jobs']);
         $this->assertSame(['city_label'], $payload['missing_columns']['urt_mayor_person_ai']);
+        $this->assertSame(['payload_json'], $payload['missing_columns']['ingestion_runs']);
+        $this->assertSame(['finished_at'], $payload['missing_columns']['ingestion_run_jobs']);
     }
 
-    public function test_deployment_schema_check_rejects_missing_identity_and_idempotency_indexes(): void
+    public function test_deployment_schema_check_rejects_missing_critical_indexes(): void
     {
         $this->createCompleteSchema([], [
             'urt_channel' => ['unique(youtube_id)'],
             'users' => ['primary(id)'],
             'urt_mayor_person_ai' => ['primary(pk)'],
+            'ingestion_runs' => [
+                'primary(id)',
+                'index(recorded_at)',
+                'index(request_source,request_mode,result_mode,recorded_at)',
+            ],
+            'ingestion_run_jobs' => [
+                'primary(run_id,job_key)',
+                'index(job_key,attempted,recorded_at)',
+                'index(job_key,succeeded,recorded_at)',
+            ],
         ]);
 
         $exitCode = Artisan::call('deployment:schema-check', ['--json' => true]);
@@ -83,14 +106,45 @@ class DeploymentSchemaCheckTest extends TestCase
         $this->assertSame(['unique(youtube_id)'], $payload['missing_indexes']['urt_channel']);
         $this->assertSame(['primary(id)'], $payload['missing_indexes']['users']);
         $this->assertSame(['primary(pk)'], $payload['missing_indexes']['urt_mayor_person_ai']);
+        $this->assertSame([
+            'primary(id)',
+            'index(recorded_at)',
+            'index(request_source,request_mode,result_mode,recorded_at)',
+        ], $payload['missing_indexes']['ingestion_runs']);
+        $this->assertSame([
+            'primary(run_id,job_key)',
+            'index(job_key,attempted,recorded_at)',
+            'index(job_key,succeeded,recorded_at)',
+        ], $payload['missing_indexes']['ingestion_run_jobs']);
+    }
+
+    public function test_deployment_schema_check_rejects_missing_ingestion_run_cascade_foreign_key(): void
+    {
+        $this->createCompleteSchema([], [], [
+            'ingestion_run_jobs' => ['foreign(run_id)->ingestion_runs(id) on delete cascade'],
+        ]);
+
+        $exitCode = Artisan::call('deployment:schema-check', ['--json' => true]);
+        $payload = json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertFalse($payload['ready']);
+        $this->assertSame(
+            ['foreign(run_id)->ingestion_runs(id) on delete cascade'],
+            $payload['missing_foreign_keys']['ingestion_run_jobs'],
+        );
     }
 
     /**
      * @param  array<string, list<string>>  $omittedColumns
      * @param  array<string, list<string>>  $omittedIndexes
+     * @param  array<string, list<string>>  $omittedForeignKeys
      */
-    private function createCompleteSchema(array $omittedColumns = [], array $omittedIndexes = []): void
-    {
+    private function createCompleteSchema(
+        array $omittedColumns = [],
+        array $omittedIndexes = [],
+        array $omittedForeignKeys = [],
+    ): void {
         foreach (LegacyDashboardSchema::statements(database_path('schema/legacy-dashboard-baseline.sql')) as $statement) {
             preg_match_all('/^\s*`([^`]+)`\s+/m', $statement['sql'], $columnMatches);
             preg_match('/^\s*PRIMARY KEY\s*\(([^)]+)\)/mi', $statement['sql'], $primaryMatch);
@@ -134,9 +188,53 @@ class DeploymentSchemaCheckTest extends TestCase
                 'pk', 'ctime', 'mtime', 'city_key', 'city_label', 'person', 'the_date', 'ai_type', 'provider',
                 'user_token', 'prompt_json', 'source_json', 'result_json', 'del_flag',
             ], ['pk'], []],
+            'ingestion_runs' => [[
+                'id', 'recorded_at', 'request_source', 'request_mode', 'result_mode', 'payload_json',
+                'created_at', 'updated_at',
+            ], ['id'], []],
+            'ingestion_run_jobs' => [[
+                'run_id', 'job_key', 'recorded_at', 'attempted', 'succeeded', 'failed', 'action', 'exit_code',
+                'started_at', 'finished_at', 'created_at', 'updated_at',
+            ], ['run_id', 'job_key'], []],
+        ];
+        $secondaryIndexes = [
+            'ingestion_runs' => [
+                ['recorded_at'],
+                ['request_source', 'request_mode', 'result_mode', 'recorded_at'],
+            ],
+            'ingestion_run_jobs' => [
+                ['job_key', 'attempted', 'recorded_at'],
+                ['job_key', 'succeeded', 'recorded_at'],
+            ],
+        ];
+        $foreignKeys = [
+            'ingestion_run_jobs' => [[
+                'columns' => ['run_id'],
+                'foreign_table' => 'ingestion_runs',
+                'foreign_columns' => ['id'],
+                'on_delete' => 'cascade',
+            ]],
         ];
 
+        $historyOverrides = array_intersect(
+            [
+                ...array_keys($omittedColumns),
+                ...array_keys($omittedIndexes),
+                ...array_keys($omittedForeignKeys),
+            ],
+            ['ingestion_runs', 'ingestion_run_jobs'],
+        );
+
+        if ($historyOverrides !== []) {
+            Schema::dropIfExists('ingestion_run_jobs');
+            Schema::dropIfExists('ingestion_runs');
+        }
+
         foreach ($tables as $table => [$columns, $primary, $unique]) {
+            if (Schema::hasTable($table)) {
+                continue;
+            }
+
             $this->createTable(
                 $table,
                 $columns,
@@ -144,6 +242,9 @@ class DeploymentSchemaCheckTest extends TestCase
                 $unique,
                 $omittedColumns[$table] ?? [],
                 $omittedIndexes[$table] ?? [],
+                $secondaryIndexes[$table] ?? [],
+                $foreignKeys[$table] ?? [],
+                $omittedForeignKeys[$table] ?? [],
             );
         }
     }
@@ -154,6 +255,14 @@ class DeploymentSchemaCheckTest extends TestCase
      * @param  list<list<string>>  $unique
      * @param  list<string>  $omittedColumns
      * @param  list<string>  $omittedIndexes
+     * @param  list<list<string>>  $indexes
+     * @param  list<array{
+     *     columns: list<string>,
+     *     foreign_table: string,
+     *     foreign_columns: list<string>,
+     *     on_delete: string
+     * }>  $foreignKeys
+     * @param  list<string>  $omittedForeignKeys
      */
     private function createTable(
         string $name,
@@ -162,9 +271,15 @@ class DeploymentSchemaCheckTest extends TestCase
         array $unique,
         array $omittedColumns,
         array $omittedIndexes,
+        array $indexes = [],
+        array $foreignKeys = [],
+        array $omittedForeignKeys = [],
     ): void {
         Schema::create($name, function (Blueprint $table) use (
             $columns,
+            $foreignKeys,
+            $indexes,
+            $omittedForeignKeys,
             $primary,
             $unique,
             $omittedColumns,
@@ -182,6 +297,23 @@ class DeploymentSchemaCheckTest extends TestCase
                 if (! in_array($this->indexLabel('unique', $columns), $omittedIndexes, true)) {
                     $table->unique($columns);
                 }
+            }
+
+            foreach ($indexes as $columns) {
+                if (! in_array($this->indexLabel('index', $columns), $omittedIndexes, true)) {
+                    $table->index($columns);
+                }
+            }
+
+            foreach ($foreignKeys as $foreignKey) {
+                if (in_array($this->foreignKeyLabel($foreignKey), $omittedForeignKeys, true)) {
+                    continue;
+                }
+
+                $table->foreign($foreignKey['columns'])
+                    ->references($foreignKey['foreign_columns'])
+                    ->on($foreignKey['foreign_table'])
+                    ->onDelete($foreignKey['on_delete']);
             }
         });
     }
@@ -202,5 +334,24 @@ class DeploymentSchemaCheckTest extends TestCase
     private function indexLabel(string $kind, array $columns): string
     {
         return sprintf('%s(%s)', $kind, implode(',', $columns));
+    }
+
+    /**
+     * @param  array{
+     *     columns: list<string>,
+     *     foreign_table: string,
+     *     foreign_columns: list<string>,
+     *     on_delete: string
+     * }  $foreignKey
+     */
+    private function foreignKeyLabel(array $foreignKey): string
+    {
+        return sprintf(
+            'foreign(%s)->%s(%s) on delete %s',
+            implode(',', $foreignKey['columns']),
+            $foreignKey['foreign_table'],
+            implode(',', $foreignKey['foreign_columns']),
+            $foreignKey['on_delete'],
+        );
     }
 }

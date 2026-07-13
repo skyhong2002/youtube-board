@@ -3435,6 +3435,7 @@ class ReportLineageProfiles
                     writes: ['urt_channel_ai', 'urt_ai_date'],
                     summary: '先為設定頻道產生 channel AI，再依 condition 合併媒體事件並寫入 urt_ai_date；只在 job 執行時呼叫 AI API。',
                     scheduler: 'config/ingestion.php job ai.daily；每日 16:15，scheduled-write gates 通過後使用 capped execute command。',
+                    latestSources: ['urt_ai_date', 'urt_channel_ai'],
                 ),
             ],
             'render' => [
@@ -3483,7 +3484,7 @@ class ReportLineageProfiles
      * @param  list<string>  $writes
      * @return array<string, mixed>
      */
-    private static function job(string $key, string $label, string $command, array $apiCalls, array $reads, array $writes, string $summary, string $scheduler, ?string $latestSource = null): array
+    private static function job(string $key, string $label, string $command, array $apiCalls, array $reads, array $writes, string $summary, string $scheduler, ?string $latestSource = null, array $latestSources = []): array
     {
         $job = [
             'key' => $key,
@@ -3498,6 +3499,10 @@ class ReportLineageProfiles
 
         if ($latestSource !== null) {
             $job['latest_source'] = $latestSource;
+        }
+
+        if ($latestSources !== []) {
+            $job['latest_sources'] = $latestSources;
         }
 
         return $job;

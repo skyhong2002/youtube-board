@@ -132,6 +132,8 @@ using that destructive local reset option.
 
 The dashboard is built around scheduled and on-demand data capture from YouTube APIs, legacy public responses, approved snapshots, DB exports, and local MariaDB imports. Production data changes should still flow through reviewed Laravel commands, deployment configuration, backups, and explicit operator approval; do not hand-edit production code, mutate production DB rows manually, run production migrations casually, or use phpMyAdmin for manual data changes.
 
+`ingestion:run --record` stores new sanitized run records and per-job telemetry in the MariaDB-backed `ingestion_runs` and `ingestion_run_jobs` tables. Database age cleanup runs at most hourly and removes expired rows in 1,000-row batches until the backlog is clear; the hard record cap is enforced after every successful write. The defaults are 14 days and 25,000 run records, and the optional `INGESTION_RUN_HISTORY_RETENTION_DAYS` and `INGESTION_RUN_HISTORY_MAX_RECORDS` values tune those limits. Existing `storage/app/private/ingestion-runs/*.json` records remain readable as a legacy fallback; newly managed fallback files use the same age/count bounds when DB history is unavailable, but new scheduler records normally do not depend on a persistent web-container filesystem volume. The rate-limited dashboard runner persists web-run history only in `local` and `testing`; Production web previews are dry-run-only and are not persisted.
+
 ## Deployment
 
 Production deployment notes are in [docs/deployment.md](docs/deployment.md).

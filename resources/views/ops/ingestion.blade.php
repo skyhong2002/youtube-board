@@ -119,7 +119,7 @@ Web request gates
                             failed={{ $externalSummary['failed'] ?? 0 }}
                         </p>
                     @else
-                        <p class="muted">No external <code>ingestion:run --execute --record</code> run file has been observed.</p>
+                        <p class="muted">No external <code>ingestion:run --execute --record</code> run record has been observed.</p>
                     @endif
                     @unless ($externalSchedulerActivity['active'])
                         <ul class="reason-list">
@@ -234,9 +234,14 @@ Web request gates
 
             @if (session('ingestion_run_summary'))
                 @php($runSummary = session('ingestion_run_summary'))
+                @php($runId = session('ingestion_run_id'))
                 <div class="panel">
-                    <strong>Run saved:</strong>
-                    <code>{{ session('ingestion_run_id') }}</code>
+                    @if ($runId)
+                        <strong>Run saved:</strong>
+                        <code>{{ $runId }}</code>
+                    @else
+                        <strong>Preview completed (not persisted):</strong>
+                    @endif
                     <span class="muted">
                         evaluated={{ $runSummary['evaluated'] ?? 0 }}
                         due={{ $runSummary['due'] ?? 0 }}
@@ -283,12 +288,12 @@ Web request gates
                 @if ($webExecuteAllowed)
                     <p class="muted">Execute mode 只限本機開發，並只會在這次 request 暫時啟用 runner。Scheduled writes 使用各 job 的 capped command；若 env 明確關閉 polling 或 scheduled writes，這次執行也會被 gate 擋下。</p>
                 @else
-                    <p class="muted">Web runner 在此環境只提供 dry-run。Write-capable jobs 必須由受控的 scheduler 或 operator CLI 執行。</p>
+                    <p class="muted">Web runner 在此環境只提供 dry-run，且 preview 不會寫入 durable run history。Write-capable jobs 必須由受控的 scheduler 或 operator CLI 執行。</p>
                 @endif
             </section>
 
             <section class="runs">
-                <h2>Latest One-shot Runs</h2>
+                <h2>Latest Ingestion Runs</h2>
                 <div class="table-wrap">
                     <table>
                         <thead>
@@ -302,7 +307,7 @@ Web request gates
                                 <th>Skipped</th>
                                 <th>Failed</th>
                                 <th>YT Units</th>
-                                <th>File</th>
+                                <th>Storage</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -325,16 +330,18 @@ Web request gates
                                     <td>{{ $runSummary['failed'] ?? 0 }}</td>
                                     <td>{{ number_format((int) ($run['result']['youtube_quota_estimate']['estimated_units'] ?? 0)) }}</td>
                                     <td>
+                                        @php($runStorage = $run['history_storage'] ?? (str_starts_with((string) ($run['path'] ?? ''), 'database:') ? 'database' : 'file'))
                                         @if (isset($run['id']))
-                                            <a href="{{ route('ops.ingestion.runs.show', ['runId' => $run['id']]) }}"><code>{{ $run['path'] ?? $run['id'] }}</code></a>
+                                            <a href="{{ route('ops.ingestion.runs.show', ['runId' => $run['id']]) }}"><code>{{ $runStorage }}</code></a>
                                         @else
-                                            <code>{{ $run['path'] ?? '-' }}</code>
+                                            <code>{{ $runStorage }}</code>
                                         @endif
+                                        <div class="muted"><code>{{ $run['path'] ?? '-' }}</code></div>
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="10" class="muted">No local one-shot runs yet.</td>
+                                    <td colspan="10" class="muted">No ingestion runs yet.</td>
                                 </tr>
                             @endforelse
                         </tbody>
