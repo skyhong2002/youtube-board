@@ -20,6 +20,7 @@ class AiEventIngestion
     public function __construct(
         private readonly AiDailyReport $dailyReport,
         private readonly OpenCodeChatClient $client,
+        private readonly AiJsonPayloadValidator $jsonValidator,
     ) {}
 
     /**
@@ -142,7 +143,7 @@ class AiEventIngestion
                     $fallbackReason = null;
 
                     try {
-                        $resultJson = $this->normalizedJson($completion['content']);
+                        $resultJson = $this->normalizedJson($completion['content'], $promptType);
                     } catch (RuntimeException $exception) {
                         if ($exception->getMessage() !== 'invalid_json_response') {
                             throw $exception;
@@ -637,16 +638,17 @@ class AiEventIngestion
         return ['inserted' => false, 'updated' => true];
     }
 
-    private function normalizedJson(string $content): string
+    private function normalizedJson(string $content, string $promptType): string
     {
-        $json = $this->stripJsonFence($content);
-        $decoded = json_decode($json, true);
+        $validated = $this->jsonValidator->validateEventPayload($content, $promptType);
 
-        if (json_last_error() !== JSON_ERROR_NONE || ! is_array($decoded)) {
-            throw new RuntimeException('invalid_json_response');
+        if (! $validated['valid'] || ! is_string($validated['json'])) {
+            $reason = (string) ($validated['failure_reason'] ?? 'invalid_ai_payload');
+
+            throw new RuntimeException($reason === 'invalid_ai_json' ? 'invalid_json_response' : $reason);
         }
 
-        return json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        return $validated['json'];
     }
 
     private function fallbackJson(array $topic, string $promptType): string
@@ -816,18 +818,6 @@ class AiEventIngestion
         }
 
         return $topic['videos'][0] ?? [];
-    }
-
-    private function stripJsonFence(string $content): string
-    {
-        $content = trim($content);
-
-        if (str_starts_with($content, '```')) {
-            $content = preg_replace('/^```(?:json)?\s*/i', '', $content) ?? $content;
-            $content = preg_replace('/\s*```$/', '', $content) ?? $content;
-        }
-
-        return trim($content);
     }
 
     /**

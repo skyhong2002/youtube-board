@@ -78,4 +78,20 @@ class SensitiveTextRedactorTest extends TestCase
         $this->assertStringContainsString('token=<redacted>', $redacted);
         $this->assertStringNotContainsString('super-secret', $redacted);
     }
+
+    public function test_it_redacts_complete_authorization_header_values_for_unknown_schemes(): void
+    {
+        $redacted = SensitiveTextRedactor::redact(implode("\n", [
+            'Authorization: Token first-secret second-secret',
+            'Proxy-Authorization: Custom proxy-secret extra-secret',
+            'X-Diagnostic: retained',
+        ]));
+
+        foreach (['first-secret', 'second-secret', 'proxy-secret', 'extra-secret'] as $secret) {
+            $this->assertStringNotContainsString($secret, $redacted);
+        }
+        $this->assertStringContainsString('Authorization: <redacted>', $redacted);
+        $this->assertStringContainsString('Proxy-Authorization: <redacted>', $redacted);
+        $this->assertStringContainsString('X-Diagnostic: retained', $redacted);
+    }
 }

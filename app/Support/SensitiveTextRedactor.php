@@ -23,7 +23,7 @@ final class SensitiveTextRedactor
         ) ?? $message;
         $message = preg_replace('/\bBearer\s+\S+/i', 'Bearer <redacted>', $message) ?? $message;
         $message = preg_replace(
-            '/\b((?:Proxy-)?Authorization)\s*:\s*(?:Basic|Digest|ApiKey)\s+\S+/i',
+            '/\b((?:Proxy-)?Authorization)\s*:\s*[^\r\n]*/i',
             '$1: <redacted>',
             $message,
         ) ?? $message;

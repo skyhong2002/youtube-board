@@ -20,6 +20,7 @@ class MayorPersonAiIngestion
         private readonly MayorReport $mayorReport,
         private readonly MayorPersonDailyReport $dailyReport,
         private readonly OpenCodeChatClient $client,
+        private readonly AiJsonPayloadValidator $jsonValidator,
     ) {}
 
     /**
@@ -397,49 +398,13 @@ class MayorPersonAiIngestion
 
     private function resultJson(string $content): string
     {
-        $content = trim($content);
-        $content = preg_replace('/^```json\s*/i', '', $content) ?? $content;
-        $content = preg_replace('/^```\s*/', '', $content) ?? $content;
-        $content = preg_replace('/\s*```$/', '', $content) ?? $content;
+        $validated = $this->jsonValidator->validateMayorPersonDashboard($content);
 
-        $content = trim($content);
-
-        if ($this->isJsonObject($content)) {
-            return $content;
+        if (! $validated['valid'] || ! is_string($validated['json'])) {
+            throw new RuntimeException((string) ($validated['failure_reason'] ?? 'invalid_ai_payload'));
         }
 
-        $firstBrace = mb_strpos($content, '{', 0, 'UTF-8');
-        $lastBrace = mb_strrpos($content, '}', 0, 'UTF-8');
-
-        if ($firstBrace !== false && $lastBrace !== false && $lastBrace > $firstBrace) {
-            $candidate = mb_substr($content, $firstBrace, $lastBrace - $firstBrace + 1, 'UTF-8');
-
-            if ($this->isJsonObject($candidate)) {
-                return $candidate;
-            }
-        }
-
-        $fallbackJson = json_encode([
-            'summary' => mb_strimwidth($content, 0, 200, '...', 'UTF-8'),
-            'what_happened' => [],
-            'risks' => [[
-                'level' => 'medium',
-                'item' => 'AI 回應格式不是 JSON',
-                'reason' => '已保留原始文字摘要；建議重新執行 ai:mayor-person 確認 provider 輸出格式。',
-            ]],
-            'adjustments' => ['重新執行這一天的人物 AI 產生，確認輸出符合 mayor/person JSON schema。'],
-            'actions_today' => ['先用來源影片與 tag 訊號人工確認重點，再決定是否採用此 AI row。'],
-            'follow_up_metrics' => ['同日重新產生後的 JSON 是否可解析'],
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-
-        return is_string($fallbackJson) ? $fallbackJson : '{"summary":"AI response could not be encoded"}';
-    }
-
-    private function isJsonObject(string $content): bool
-    {
-        $decoded = json_decode($content, true);
-
-        return is_array($decoded) && ! array_is_list($decoded);
+        return $validated['json'];
     }
 
     private function sanitizedFailure(Throwable $exception): string

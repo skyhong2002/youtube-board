@@ -179,6 +179,51 @@ class IngestionAiEventCommandTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_ai_event_wrong_shape_does_not_overwrite_or_expose_provider_payload(): void
+    {
+        $this->createTables();
+        $this->seedDailyTopicRows();
+        $original = json_encode(['events' => [['event' => 'existing']]], JSON_UNESCAPED_UNICODE);
+        DB::table('urt_ai_event')->insert([
+            'aipk' => 10,
+            'event_name' => '黃仁勳的高人氣與活動',
+            'date_from' => '2026-06-03 00:00:00',
+            'date_to' => '2026-06-03 23:59:59',
+            'prompt_type' => 'summary',
+            'condition_type' => 'all',
+            'result_json' => $original,
+            'del_flag' => null,
+        ]);
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::response([
+                'choices' => [[
+                    'message' => ['content' => '{"unexpected":"token=event-payload-secret"}'],
+                ]],
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('ai:event', [
+            '--execute' => true,
+            '--aipk' => 10,
+            '--event' => '黃仁勳的高人氣與活動',
+            '--condition' => 'all',
+            '--prompt-types' => 'summary',
+            '--json' => true,
+        ]);
+        $output = trim(Artisan::output());
+        $payload = json_decode($output, true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame('invalid_ai_payload_shape', $payload['event_ai']['rows'][0]['skip_reason']);
+        $this->assertSame($original, DB::table('urt_ai_event')->value('result_json'));
+        $this->assertStringNotContainsString('event-payload-secret', $output);
+        Http::assertSentCount(1);
+    }
+
     public function test_ai_event_provider_failure_is_isolated_and_command_returns_nonzero(): void
     {
         $this->createTables();

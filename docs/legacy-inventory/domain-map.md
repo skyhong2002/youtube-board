@@ -12,9 +12,9 @@
 | AI Events | `urt_ai_date`, `urt_ai_event`, `urt_ai_hour`, `urt_channel_ai` | Daily and hourly summaries, event grouping, media-perspective metrics. |
 | Reports | Static HTML, API cache tables, public PHP pages | Real-time YouTube dashboard outputs backed by derived tables or generated files. |
 
-## First Vertical Slice
+## Initial Vertical Slice
 
-Start with Live Streams because it exercises the important migration path through local ingestion and public dashboard behavior:
+Live Streams was the first completed vertical slice because it exercises the important migration path through local ingestion and public dashboard behavior:
 
 - Legacy public page: `/live.php`
 - Modern page: `/live/current`
@@ -24,7 +24,7 @@ Start with Live Streams because it exercises the important migration path throug
 
 ## Schema Policy
 
-Do not create final migrations from guesses alone. Use legacy query inventory first, then confirm with a future real-time YouTube dashboard DB dump before locking schema names and column types.
+The committed sanitized legacy baseline and Laravel-owned migrations are the reproducible schema source for fresh development databases. Schema changes must be based on reviewed legacy queries or approved exports, remain adoption-safe for existing tables, and pass `deployment:schema-check`; do not add columns or indexes from guesses alone.
 
 ## Query-Derived Table Hotspots
 
@@ -50,14 +50,14 @@ The most referenced legacy tables from PHP query inventory are:
 | `tag_group` | Manual/derived grouping of keyword tags. |
 | `fanpage` | Cross-system metadata used by some tag/live pages. |
 
-Treat these as provisional names until a real-time YouTube dashboard DB dump confirms column types, indexes, and constraints.
+These names are covered by the committed baseline and deployment schema verifier. Approved exports may refine non-required legacy details, but the required table, column, and index contract must remain reproducible from migrations.
 
 ## External APIs
 
 | Provider | Legacy usage | Modern adapter |
 | --- | --- | --- |
-| YouTube Data API v3 `channels.list` | Channel metadata/statistics in `app/admin.php`, `redir/renew.php`, `maint/get_statics.php`. | Not implemented in the real-time YouTube dashboard rebuild; ingestion surfaces remain preview-only and skip external YouTube calls. |
-| YouTube Data API v3 `playlistItems.list` | Upload discovery in `maint/get_video.php`, `maint/get_video_tvbs.php`, `maint/make_live.php`. | `DiscoverChannelVideos` job |
-| YouTube Data API v3 `videos.list` | Video statistics, live status, duration, manual add flows. | `RefreshVideoStatistics`, `PollLiveStreams`, `RefreshVideoDurations` jobs |
-| YouTube Data API v3 `commentThreads.list` | Comment ingestion in `maint/get_comment.php`. | `FetchVideoComments` job |
-| OpenAI-compatible chat completions | Daily/hourly/channel/event prompts in `maint/*openai.php` and `prompt/*`. | OpenCode Go client using `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_API_KEY` |
+| YouTube Data API v3 `channels.list` | Channel metadata/statistics in `app/admin.php`, `redir/renew.php`, `maint/get_statics.php`. | Shared `YoutubeDataApiClient` through capped `youtube:channels:stats --execute`; dry-run is the default and quota, credential, lock, and failure guardrails are shared with the scheduler. |
+| YouTube Data API v3 `playlistItems.list` | Upload discovery in `maint/get_video.php`, `maint/get_video_tvbs.php`, `maint/make_live.php`. | `youtube:channels:videos`, `youtube:tag-videos:backfill`, and `youtube:tvbs:videos`; paginated backfill can rebuild tag-date caches after discovery. |
+| YouTube Data API v3 `videos.list` | Video statistics, live status, duration, manual add flows. | `youtube:videos:stats`, `youtube:live:poll`, `youtube:tvbs:live:poll`, and `youtube:videos:duration`. |
+| YouTube Data API v3 `commentThreads.list`, `comments.list` | Comment ingestion in `maint/get_comment.php`. | `youtube:comments:fetch` with queue leases, bounded pagination, reply completion checks, and per-video failure isolation. |
+| OpenAI-compatible chat completions | Daily/hourly/channel/event prompts in `maint/*openai.php` and `prompt/*`. | Shared `OpenCodeChatClient` used by reviewed `ai:*` preview/execute commands, with response-shape validation and sanitized failures. |

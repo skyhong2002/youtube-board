@@ -204,6 +204,41 @@ SQL);
         Http::assertSentCount(2);
     }
 
+    public function test_mayor_person_wrong_shape_does_not_write_or_expose_provider_payload(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:35:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedTaipeiDailySource();
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::response([
+                'choices' => [[
+                    'message' => ['content' => '{"unexpected":"token=mayor-payload-secret"}'],
+                ]],
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('ai:mayor-person', [
+            '--execute' => true,
+            '--city' => 'taipei',
+            '--person' => '蔣萬安',
+            '--date' => '2026-05-24',
+            '--ai-call-limit' => 1,
+            '--json' => true,
+        ]);
+        $output = trim(Artisan::output());
+        $payload = json_decode($output, true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame('invalid_ai_payload_shape', $payload['rows'][0]['skip_reason']);
+        $this->assertSame(0, DB::table('urt_mayor_person_ai')->count());
+        $this->assertStringNotContainsString('mayor-payload-secret', $output);
+        Http::assertSentCount(1);
+    }
+
     /**
      * @return array<string, mixed>
      */
