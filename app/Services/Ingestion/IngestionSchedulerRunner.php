@@ -2,9 +2,11 @@
 
 namespace App\Services\Ingestion;
 
-use Carbon\CarbonInterface;
+use App\Support\SensitiveTextRedactor;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Throwable;
 
 class IngestionSchedulerRunner
@@ -13,7 +15,17 @@ class IngestionSchedulerRunner
         private readonly IngestionJobRegistry $registry,
         private readonly YoutubeQuotaEstimator $quotaEstimator,
         private readonly IngestionTelemetry $telemetry,
+        private readonly YoutubeQuotaBudgetLedger $quotaLedger,
+        private readonly YoutubeQuotaReservationContext $quotaContext,
+        private readonly IngestionCommandLockContext $commandLockContext,
     ) {}
+
+    /**
+     * @var array<string, mixed>
+     */
+    private array $youtubeQuotaBudget = [];
+
+    private ?CarbonImmutable $quotaAt = null;
 
     /**
      * @return array{
@@ -36,6 +48,8 @@ class IngestionSchedulerRunner
             : collect($this->registry->find($jobKey) ? [$this->registry->find($jobKey)] : []);
 
         $schedulerEnabled = (bool) config('ingestion.scheduler_enabled', false);
+        $this->quotaAt = CarbonImmutable::now('America/Los_Angeles');
+        $this->youtubeQuotaBudget = $this->quotaBudgetState($execute);
         $results = [];
         $summary = [
             'evaluated' => 0,
@@ -59,10 +73,10 @@ class IngestionSchedulerRunner
 
             $result = $this->evaluateJob($job, $due, $schedulerEnabled, $execute);
 
-            if ($result['executed']) {
-                $summary['executed']++;
-            } elseif ($result['failed']) {
+            if ($result['failed']) {
                 $summary['failed']++;
+            } elseif ($result['executed']) {
+                $summary['executed']++;
             } else {
                 $summary['skipped']++;
             }
@@ -97,6 +111,7 @@ class IngestionSchedulerRunner
             'jobs' => $results,
             'summary' => $summary,
             'youtube_quota_estimate' => $this->quotaEstimator->summarizeRun($results),
+            'youtube_quota_budget' => $this->youtubeQuotaBudget,
             'telemetry' => $this->telemetry->summary(),
         ];
     }
@@ -152,20 +167,74 @@ class IngestionSchedulerRunner
             return $this->withQuotaEstimate(array_merge($base, ['action' => 'would-run']));
         }
 
+        $effectiveCommand = $scheduledWrite['allowed']
+            ? $this->registry->scheduledExecutionCommand($job)
+            : $command;
+        $lockName = 'ingestion:job:'.sha1((string) $base['key']);
+        $lockSeconds = max(60, min(86400, (int) config('ingestion.job_lock_seconds', 14400)));
+        $lock = null;
+        $lockAcquired = false;
+        $quotaPreflight = null;
+
         try {
-            $effectiveCommand = $scheduledWrite['allowed']
-                ? $this->registry->scheduledExecutionCommand($job)
-                : $command;
+            $lock = Cache::lock($lockName, $lockSeconds);
+            $lockAcquired = $lock->get();
+
+            if (! $lockAcquired) {
+                return $this->withQuotaEstimate(array_merge($base, [
+                    'action' => 'skip:job-locked',
+                    'effective_command' => $effectiveCommand,
+                    'skip_reason' => 'another runner currently holds the per-job execution lock',
+                    'lock' => [
+                        'name' => $lockName,
+                        'ttl_seconds' => $lockSeconds,
+                        'acquired' => false,
+                    ],
+                    'scheduled_write' => $scheduledWrite,
+                ]));
+            }
+
+            $quotaPreflight = $this->quotaPreflight($job, $effectiveCommand);
+
+            if (! $quotaPreflight['allowed']) {
+                $operationalFailure = (bool) ($quotaPreflight['operational_failure'] ?? false);
+
+                return $this->withQuotaEstimate(array_merge($base, [
+                    'action' => $quotaPreflight['action'],
+                    'failed' => $operationalFailure,
+                    'exit_code' => $operationalFailure ? 1 : null,
+                    'effective_command' => $effectiveCommand,
+                    'skip_reason' => $quotaPreflight['skip_reason'],
+                    'lock' => [
+                        'name' => $lockName,
+                        'ttl_seconds' => $lockSeconds,
+                        'acquired' => true,
+                    ],
+                    'youtube_quota_budget' => $quotaPreflight,
+                    'scheduled_write' => $scheduledWrite,
+                ]));
+            }
+
             $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
             $startedAt = CarbonImmutable::now($timezone);
             $startedNs = hrtime(true);
             $this->telemetry->startJob((string) $base['key']);
-            $exitCode = Artisan::call($effectiveCommand);
+            $callCommand = fn (): int => $this->commandLockContext->withOwnership(
+                (string) $base['key'],
+                fn (): int => Artisan::call($effectiveCommand),
+            );
+            $exitCode = (bool) ($quotaPreflight['reservation_active'] ?? false)
+                ? $this->quotaContext->withSchedulerReservation(
+                    (string) $base['key'],
+                    $quotaPreflight,
+                    $callCommand,
+                )
+                : $callCommand();
             $output = trim(Artisan::output());
             $finishedAt = CarbonImmutable::now($timezone);
             $jobTelemetry = $this->telemetry->finishJob((string) $base['key']);
 
-            return $this->withQuotaEstimate(array_merge($base, [
+            $result = $this->withQuotaEstimate(array_merge($base, [
                 'action' => $exitCode === 0
                     ? ($effectiveCommand !== $command ? 'executed:local-polling' : 'executed')
                     : 'failed',
@@ -176,10 +245,18 @@ class IngestionSchedulerRunner
                 'finished_at' => $finishedAt->toDateTimeString().' '.$finishedAt->getTimezone()->getName(),
                 'runtime_ms' => $this->elapsedMs($startedNs),
                 'effective_command' => $effectiveCommand,
-                'output' => mb_strimwidth($output, 0, 2000, '...', 'UTF-8'),
+                'output' => $this->sanitizedMessage($output, 2000),
+                'lock' => [
+                    'name' => $lockName,
+                    'ttl_seconds' => $lockSeconds,
+                    'acquired' => true,
+                ],
+                'youtube_quota_budget' => $quotaPreflight,
                 'scheduled_write' => $scheduledWrite,
                 'telemetry' => $jobTelemetry,
             ]));
+
+            return $this->settleQuota($result, $quotaPreflight);
         } catch (Throwable $exception) {
             $finishedAt = isset($timezone)
                 ? CarbonImmutable::now($timezone)
@@ -188,16 +265,166 @@ class IngestionSchedulerRunner
                 ? $this->telemetry->finishJob((string) $base['key'])
                 : ['youtube_requests' => [], 'ai_requests' => [], 'summary' => []];
 
-            return $this->withQuotaEstimate(array_merge($base, [
+            $result = $this->withQuotaEstimate(array_merge($base, [
                 'action' => 'failed:exception',
                 'failed' => true,
                 'started_at' => isset($startedAt) ? $startedAt->toDateTimeString().' '.$startedAt->getTimezone()->getName() : null,
                 'finished_at' => $finishedAt->toDateTimeString().' '.$finishedAt->getTimezone()->getName(),
                 'runtime_ms' => isset($startedNs) ? $this->elapsedMs($startedNs) : null,
-                'error' => mb_strimwidth($exception->getMessage(), 0, 1000, '...', 'UTF-8'),
+                'error' => $this->sanitizedMessage($exception->getMessage(), 1000),
+                'lock' => [
+                    'name' => $lockName,
+                    'ttl_seconds' => $lockSeconds,
+                    'acquired' => $lockAcquired,
+                ],
+                'youtube_quota_budget' => $quotaPreflight,
                 'telemetry' => $jobTelemetry,
             ]));
+
+            return $this->settleQuota($result, $quotaPreflight);
+        } finally {
+            if ($lockAcquired && $lock !== null) {
+                try {
+                    $lock->release();
+                } catch (Throwable) {
+                    // An expired lock must not hide the completed job result.
+                }
+            }
         }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function quotaBudgetState(bool $execute): array
+    {
+        $budget = max(0, (int) config('ingestion.youtube_daily_quota_budget', 9000));
+        $state = [
+            'enabled' => $execute,
+            'available' => true,
+            'budget_units' => $budget,
+            'history_estimated_units' => 0,
+            'reserved_units' => 0,
+            'projected_units' => 0,
+            'remaining_units' => $budget,
+            'window_timezone' => 'America/Los_Angeles',
+        ];
+
+        if (! $execute) {
+            return $state;
+        }
+
+        return ['enabled' => true] + $this->quotaLedger->state($budget, $this->quotaAt);
+    }
+
+    /**
+     * @param  array<string, mixed>  $job
+     * @return array<string, mixed>
+     */
+    private function quotaPreflight(array $job, string $effectiveCommand): array
+    {
+        $estimate = $this->quotaEstimator->estimateScheduledJob($job, $effectiveCommand);
+        $plannedUnits = max(0, (int) ($estimate['estimated_units'] ?? 0));
+        $enabled = (bool) ($this->youtubeQuotaBudget['enabled'] ?? false);
+        $available = (bool) ($this->youtubeQuotaBudget['available'] ?? true);
+        $budget = max(0, (int) ($this->youtubeQuotaBudget['budget_units'] ?? 0));
+        $current = max(0, (int) ($this->youtubeQuotaBudget['projected_units'] ?? 0));
+        $projected = $current + $plannedUnits;
+
+        if ($plannedUnits === 0 || ! $enabled) {
+            return [
+                'allowed' => true,
+                'action' => 'allow',
+                'skip_reason' => null,
+                'planned_units' => $plannedUnits,
+                'projected_units' => $projected,
+                'budget_units' => $budget,
+                'remaining_units' => max(0, $budget - $projected),
+                'estimate' => $estimate,
+            ];
+        }
+
+        if (! $available) {
+            return [
+                'allowed' => false,
+                'action' => 'failed:youtube-quota-ledger-unavailable',
+                'skip_reason' => 'durable YouTube quota ledger is unavailable; scheduled API job was not started',
+                'operational_failure' => true,
+                'planned_units' => $plannedUnits,
+                'projected_units' => $projected,
+                'budget_units' => $budget,
+                'remaining_units' => max(0, $budget - $current),
+                'reason' => $this->youtubeQuotaBudget['reason'] ?? 'quota_ledger_unavailable',
+                'estimate' => $estimate,
+            ];
+        }
+
+        $reservation = $this->quotaLedger->reserve($plannedUnits, $budget, $this->quotaAt);
+        $reservedState = $reservation['state'];
+        $this->youtubeQuotaBudget = ['enabled' => true] + $reservedState;
+        $allowed = (bool) $reservation['allowed'];
+        $budgetExceeded = $reservation['reason'] === 'quota_budget_exceeded';
+
+        return [
+            'allowed' => $allowed,
+            'action' => $allowed
+                ? 'allow'
+                : ($budgetExceeded ? 'skip:youtube-quota-budget' : 'failed:youtube-quota-ledger-unavailable'),
+            'skip_reason' => $allowed
+                ? null
+                : ($budgetExceeded
+                    ? 'scheduled YouTube request upper bound would exceed the configured daily budget'
+                    : 'durable YouTube quota reservation failed; scheduled API job was not started'),
+            'planned_units' => $plannedUnits,
+            'history_estimated_units' => $current,
+            'consumed_units' => (int) ($reservedState['consumed_units'] ?? 0),
+            'reserved_units' => (int) ($reservedState['reserved_units'] ?? 0),
+            'projected_units' => $allowed ? (int) ($reservedState['projected_units'] ?? $projected) : $projected,
+            'budget_units' => $budget,
+            'remaining_units' => (int) ($reservedState['remaining_units'] ?? max(0, $budget - $current)),
+            'reservation_active' => $allowed,
+            'operational_failure' => ! $allowed && ! $budgetExceeded,
+            'quota_date' => $reservedState['quota_date'] ?? null,
+            'window_timezone' => $reservedState['window_timezone'] ?? 'America/Los_Angeles',
+            'ledger_source' => $reservedState['source'] ?? null,
+            'estimate' => $estimate,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $result
+     * @param  array<string, mixed>|null  $preflight
+     * @return array<string, mixed>
+     */
+    private function settleQuota(array $result, ?array $preflight): array
+    {
+        if (! (bool) ($preflight['reservation_active'] ?? false)) {
+            return $result;
+        }
+
+        $plannedUnits = max(0, (int) ($preflight['planned_units'] ?? 0));
+        $actualUnits = max(0, (int) data_get($result, 'youtube_quota_estimate.estimated_units', 0));
+        $budget = max(0, (int) ($preflight['budget_units'] ?? config('ingestion.youtube_daily_quota_budget', 9000)));
+        $settled = $this->quotaLedger->settle(
+            plannedUnits: $plannedUnits,
+            actualUnits: $actualUnits,
+            budget: $budget,
+            at: $this->quotaAt,
+        );
+        $this->youtubeQuotaBudget = ['enabled' => true] + $settled;
+        $result['youtube_quota_budget'] = array_merge($preflight, $settled, [
+            'reservation_active' => false,
+            'actual_units' => $actualUnits,
+            'settlement' => $settled,
+        ]);
+
+        if (! (bool) ($settled['available'] ?? false)) {
+            $result['action'] = 'executed:quota-accounting-failed';
+            $result['failed'] = true;
+            $result['quota_accounting_failed'] = true;
+        }
+
+        return $result;
     }
 
     /**
@@ -217,5 +444,10 @@ class IngestionSchedulerRunner
     private function elapsedMs(int $started): int
     {
         return (int) round((hrtime(true) - $started) / 1_000_000);
+    }
+
+    private function sanitizedMessage(string $message, int $width): string
+    {
+        return SensitiveTextRedactor::redact($message, $width);
     }
 }

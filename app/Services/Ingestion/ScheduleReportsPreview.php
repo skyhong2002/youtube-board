@@ -5,6 +5,8 @@ namespace App\Services\Ingestion;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class ScheduleReportsPreview
 {
@@ -19,6 +21,10 @@ class ScheduleReportsPreview
      *     with_history: int,
      *     missing_history: int,
      *     would_update: int,
+     *     updated: int,
+     *     skipped_rows: int,
+     *     failed_rows: int,
+     *     skipped: list<array{video_id: string, reason: string}>,
      *     rows: list<array<string, mixed>>,
      *     writes: list<string>
      * }
@@ -44,7 +50,7 @@ class ScheduleReportsPreview
             ->get(['videoId', 'publishedAt', 'mtime', 'stime']);
 
         if ($candidateRows->isEmpty()) {
-            return $this->payload($now, $windowStart, $hours, $videoId, 0, 0, 0, 0, []);
+            return $this->payload($now, $windowStart, $hours, $videoId, 0, 0, 0, 0, [], $execute);
         }
 
         $historyRows = DB::table('urt_video_log_history')
@@ -63,6 +69,7 @@ class ScheduleReportsPreview
 
             if ($current === null || $current->ctime === null) {
                 $missingHistory++;
+
                 continue;
             }
 
@@ -71,6 +78,7 @@ class ScheduleReportsPreview
 
             if ($computed === null) {
                 $missingHistory++;
+
                 continue;
             }
 
@@ -91,15 +99,28 @@ class ScheduleReportsPreview
             ->all();
 
         $updated = 0;
+        $skipped = [];
 
         if ($execute && $limitedRows !== []) {
             foreach ($limitedRows as $updateRow) {
-                $updated += DB::table('urt_video_schedule')
-                    ->where('videoId', $updateRow['video_id'])
-                    ->update([
-                        'stime' => $updateRow['estimated_stime'],
-                        'mtime' => $now->format('Y-m-d H:i:s'),
+                try {
+                    $updated += DB::transaction(fn (): int => DB::table('urt_video_schedule')
+                        ->where('videoId', $updateRow['video_id'])
+                        ->update([
+                            'stime' => $updateRow['estimated_stime'],
+                            'mtime' => $now->format('Y-m-d H:i:s'),
+                        ]));
+                } catch (Throwable $exception) {
+                    $skipped[] = [
+                        'video_id' => (string) $updateRow['video_id'],
+                        'reason' => 'item_processing_failed',
+                    ];
+                    Log::warning('Schedule reports item processing failed.', [
+                        'video_id' => (string) $updateRow['video_id'],
+                        'reason' => 'item_processing_failed',
+                        'exception_class' => $exception::class,
                     ]);
+                }
             }
         }
 
@@ -115,6 +136,7 @@ class ScheduleReportsPreview
             rows: $limitedRows,
             execute: $execute,
             updated: $updated,
+            skipped: $skipped,
         );
     }
 
@@ -191,6 +213,10 @@ class ScheduleReportsPreview
      *     with_history: int,
      *     missing_history: int,
      *     would_update: int,
+     *     updated: int,
+     *     skipped_rows: int,
+     *     failed_rows: int,
+     *     skipped: list<array{video_id: string, reason: string}>,
      *     rows: list<array<string, mixed>>,
      *     writes: list<string>
      * }
@@ -207,6 +233,7 @@ class ScheduleReportsPreview
         array $rows,
         bool $execute = false,
         int $updated = 0,
+        array $skipped = [],
     ): array {
         return [
             'mode' => $execute ? 'execute' : 'ingestion-preview',
@@ -219,6 +246,9 @@ class ScheduleReportsPreview
             'missing_history' => $missingHistory,
             'would_update' => $wouldUpdate,
             'updated' => $updated,
+            'skipped_rows' => count($skipped),
+            'failed_rows' => count($skipped),
+            'skipped' => $skipped,
             'rows' => $rows,
             'writes' => $execute ? ['urt_video_schedule.stime', 'urt_video_schedule.mtime'] : [],
         ];

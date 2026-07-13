@@ -6,6 +6,7 @@ RUN apk add --no-cache \
         icu-dev \
         libzip-dev \
         linux-headers \
+        mariadb-client \
         nodejs \
         npm \
         unzip \
@@ -16,6 +17,6 @@ RUN apk add --no-cache \
     && docker-php-ext-enable redis \
     && apk del $PHPIZE_DEPS
 
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+COPY --from=composer:2.9 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html

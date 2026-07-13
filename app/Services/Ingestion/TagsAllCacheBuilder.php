@@ -4,7 +4,9 @@ namespace App\Services\Ingestion;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Throwable;
 
 class TagsAllCacheBuilder
 {
@@ -26,19 +28,82 @@ class TagsAllCacheBuilder
         $recentDays = max(1, min($days, $recentDays));
         $keywordLimit = max(1, min(10000, $keywordLimit));
         $videoLimit = $videoLimit !== null && $videoLimit > 0 ? min(200000, $videoLimit) : null;
-
-        $keywords = $this->keywordRows($keywordLimit, $now);
-        $videos = $this->videoRows($days, $videoLimit, $now);
         $recentFrom = $now->subDays($recentDays)->startOfDay();
-        $metrics = $this->metrics($keywords, $videos, $recentFrom);
         $generatedAt = $now->format('Y-m-d H:i:s');
+        $keywords = [];
+        $videos = [];
+        $metrics = [];
 
-        if ($execute) {
-            $this->writeCache($metrics, $generatedAt);
+        try {
+            $keywords = $this->keywordRows($keywordLimit, $now);
+            $videos = $this->videoRows($days, $videoLimit, $now);
+            $metrics = $this->metrics($keywords, $videos, $recentFrom);
+
+            if ($execute) {
+                $this->writeCache($metrics, $generatedAt);
+            }
+
+            $payload = $this->payload(
+                now: $now,
+                recentFrom: $recentFrom,
+                days: $days,
+                keywordLimit: $keywordLimit,
+                keywords: $keywords,
+                videos: $videos,
+                metrics: $metrics,
+                execute: $execute,
+                generatedAt: $generatedAt,
+                status: 'success',
+            );
+
+            Log::info('Keyword tags-all cache row completed.', $this->logContext($payload));
+
+            return $payload;
+        } catch (Throwable $exception) {
+            $payload = $this->payload(
+                now: $now,
+                recentFrom: $recentFrom,
+                days: $days,
+                keywordLimit: $keywordLimit,
+                keywords: $keywords,
+                videos: $videos,
+                metrics: $metrics,
+                execute: $execute,
+                generatedAt: $generatedAt,
+                status: 'failed',
+            );
+
+            Log::warning('Keyword tags-all cache row failed.', $this->logContext($payload) + [
+                'exception_class' => $exception::class,
+            ]);
+
+            return $payload;
         }
+    }
+
+    /**
+     * @param  list<array{tag: string, weight: float}>  $keywords
+     * @param  list<object>  $videos
+     * @param  array<string, array{video: int, video_all: int, views: int, views_all: int}>  $metrics
+     * @return array<string, mixed>
+     */
+    private function payload(
+        CarbonImmutable $now,
+        CarbonImmutable $recentFrom,
+        int $days,
+        int $keywordLimit,
+        array $keywords,
+        array $videos,
+        array $metrics,
+        bool $execute,
+        string $generatedAt,
+        string $status,
+    ): array {
+        $failed = $status === 'failed';
 
         return [
             'mode' => $execute ? 'execute' : 'dry-run',
+            'status' => $status,
             'generated_at' => $generatedAt,
             'date_from' => $now->subDays($days - 1)->startOfDay()->toDateString(),
             'date_to' => $now->endOfDay()->toDateString(),
@@ -49,9 +114,32 @@ class TagsAllCacheBuilder
             'videos_scanned' => count($videos),
             'tags_with_metrics' => count($metrics),
             'write_targets' => ['urt_show_data.data_name=tags_all columns=ctime,mtime,api,para,the_result'],
-            'writes' => $execute ? 1 : 0,
+            'writes' => $execute && ! $failed ? 1 : 0,
+            'failed_rows' => $failed ? 1 : 0,
+            'failure_reason' => $failed ? 'cache_row_processing_failed' : null,
+            'exit_code' => $failed ? 1 : 0,
             'sample' => array_slice($metrics, 0, 10, true),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function logContext(array $payload): array
+    {
+        return collect($payload)->only([
+            'mode',
+            'status',
+            'date_from',
+            'date_to',
+            'keywords_selected',
+            'videos_scanned',
+            'tags_with_metrics',
+            'writes',
+            'failed_rows',
+            'failure_reason',
+        ])->all();
     }
 
     /**
@@ -116,8 +204,8 @@ class TagsAllCacheBuilder
     }
 
     /**
-     * @param list<array{tag: string, weight: float}> $keywords
-     * @param list<object> $videos
+     * @param  list<array{tag: string, weight: float}>  $keywords
+     * @param  list<object>  $videos
      * @return array<string, array{video: int, video_all: int, views: int, views_all: int}>
      */
     private function metrics(array $keywords, array $videos, CarbonImmutable $recentFrom): array
@@ -195,7 +283,7 @@ class TagsAllCacheBuilder
     }
 
     /**
-     * @param array<string, array{video: int, video_all: int, views: int, views_all: int}> $metrics
+     * @param  array<string, array{video: int, video_all: int, views: int, views_all: int}>  $metrics
      */
     private function writeCache(array $metrics, string $generatedAt): void
     {

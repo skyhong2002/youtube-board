@@ -163,6 +163,83 @@ class IngestionAiPeriodCommandTest extends TestCase
         $this->assertSame('[{"2026-06-03":["鄭麗文訪美及兩岸關係"],"2026-06-02":["鄭麗文訪美"]}]', $row->result_json);
     }
 
+    public function test_ai_period_parse_failure_is_sanitized_and_returns_nonzero_without_writing(): void
+    {
+        $this->createTables();
+        $this->seedDailyFallbackRows();
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        config()->set('services.opencode_go.fallback_api_key', null);
+
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::response([
+                'choices' => [[
+                    'message' => ['content' => 'not-json password=period-parse-secret'],
+                ]],
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('ai:period', [
+            '--execute' => true,
+            '--from' => '2026-06-02',
+            '--to' => '2026-06-03',
+            '--condition' => 'all',
+            '--json' => true,
+        ]);
+        $output = trim(Artisan::output());
+        $payload = json_decode($output, true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertTrue($payload['period_ai']['failed']);
+        $this->assertTrue($payload['period_ai']['rows'][0]['failed']);
+        $this->assertSame('invalid_json_response', $payload['period_ai']['rows'][0]['skip_reason']);
+        $this->assertSame(0, DB::table('urt_ai_period')->count());
+        $this->assertStringNotContainsString('period-parse-secret', $output);
+        Http::assertSentCount(1);
+    }
+
+    public function test_ai_period_write_failure_returns_sanitized_nonzero_result(): void
+    {
+        $this->createTables();
+        $this->seedDailyFallbackRows();
+        DB::statement("CREATE TRIGGER fail_period_insert BEFORE INSERT ON urt_ai_period BEGIN SELECT RAISE(ABORT, 'token=period-super-secret'); END");
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::response([
+                'choices' => [[
+                    'message' => [
+                        'content' => json_encode([[
+                            '2026-06-03' => ['鄭麗文訪美及兩岸關係'],
+                            '2026-06-02' => ['鄭麗文訪美'],
+                        ]], JSON_UNESCAPED_UNICODE),
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('ai:period', [
+            '--execute' => true,
+            '--from' => '2026-06-02',
+            '--to' => '2026-06-03',
+            '--condition' => 'all',
+            '--json' => true,
+        ]);
+        $output = trim(Artisan::output());
+        $payload = json_decode($output, true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('failed', $payload['status']);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertTrue($payload['period_ai']['failed']);
+        $this->assertSame(0, DB::table('urt_ai_period')->count());
+        $this->assertStringNotContainsString('period-super-secret', $output);
+    }
+
     private function createTables(): void
     {
         foreach (['urt_ai_period', 'urt_ai_date', 'urt_channel_ai', 'urt_channel', 'urt_count'] as $table) {

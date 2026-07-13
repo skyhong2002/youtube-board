@@ -27,14 +27,19 @@ LEGACY_PUBLIC_SITE_URL=https://youtube.board.tw
 INGESTION_SCHEDULER_ENABLED=true
 INGESTION_LOCAL_POLLING_ENABLED=true
 INGESTION_PRODUCTION_POLLING_ENABLED=true
-INGESTION_SCHEDULED_WRITE_ALLOWLIST=*
+INGESTION_SCHEDULED_WRITE_ALLOWLIST=off
 INGESTION_TIMEZONE=Asia/Taipei
+INGESTION_JOB_LOCK_SECONDS=14400
+INGESTION_YOUTUBE_DAILY_QUOTA_BUDGET=9000
+INGESTION_COMMENT_CLAIM_MINUTES=30
 
-# Scheduled polling is on by default. Set the booleans above to false in Dokploy
-# to pause scheduler registration, local writes, or production writes. Replace `*`
-# with a comma-separated job list only when intentionally narrowing scheduled writes.
+# This committed template is fail-closed for scheduled writes. Replace `off` with
+# an exact reviewed comma-separated job list only after dry-run evidence, backup,
+# risk/rollback review, and explicit operator approval in Dokploy.
 
 YOUTUBE_API_KEY=
+YOUTUBE_API_TRANSIENT_RETRIES=1
+YOUTUBE_API_RETRY_DELAY_MS=250
 # Optional comma-separated fallback keys. Keep these in Dokploy secrets/env only.
 YOUTUBE_API_KEYS=
 YOUTUBE_DATA_API_DAILY_QUOTA_UNITS=10000

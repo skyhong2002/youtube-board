@@ -5,16 +5,17 @@ namespace App\Services\Ingestion;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
+use Throwable;
 
 class TvbsLivePollingIngestion
 {
     public function __construct(
         private readonly TvbsLivePollingPreview $preview,
         private readonly YoutubeDataApiClient $youtube,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array<string, mixed>
@@ -48,38 +49,65 @@ class TvbsLivePollingIngestion
             return $this->summary($preview, [], [], $now);
         }
 
-        $detailsByVideo = $this->youtube->videoLiveStreamingDetails(
-            $rows->pluck('video_id')->map(fn (mixed $id): string => (string) $id)->all(),
-        );
+        try {
+            $detailsByVideo = $this->youtube->videoLiveStreamingDetails(
+                $rows->pluck('video_id')->map(fn (mixed $id): string => (string) $id)->all(),
+            );
+        } catch (YoutubeQuotaWindowException $exception) {
+            $skipped = $rows->map(fn (array $row): array => [
+                'videoId' => (string) $row['video_id'],
+                'reason' => 'quota_window_reset',
+            ])->all();
+            Log::warning('TVBS live polling paused at quota window reset.', [
+                'reason' => 'quota_window_reset',
+                'selected_rows' => $rows->count(),
+                'exception_class' => $exception::class,
+            ]);
+
+            return $this->summary($preview, [], $skipped, $now, true, $rows->count());
+        }
         $applied = [];
         $skipped = [];
 
         foreach ($rows as $row) {
             $rowVideoId = (string) $row['video_id'];
-            $details = $detailsByVideo[$rowVideoId] ?? null;
 
-            if ($details === null) {
+            try {
+                $details = $detailsByVideo[$rowVideoId] ?? null;
+
+                if ($details === null) {
+                    $skipped[] = [
+                        'videoId' => $rowVideoId,
+                        'reason' => 'api_item_missing',
+                    ];
+
+                    continue;
+                }
+
+                DB::transaction(function () use ($row, $details, $now): void {
+                    $this->updateLiveRowAndLog($row, $details, $now);
+                });
+
+                $applied[] = [
+                    'videoId' => $rowVideoId,
+                    'concurrentViewers' => isset($details['concurrentViewers']) ? (int) $details['concurrentViewers'] : null,
+                    'actualStartTime' => $this->apiTime($details['actualStartTime'] ?? null, $now),
+                    'actualEndTime' => $this->apiTime($details['actualEndTime'] ?? null, $now),
+                    'scheduledStartTime' => $this->apiTime($details['scheduledStartTime'] ?? null, $now),
+                    'activeLiveChatId' => isset($details['activeLiveChatId']) ? (string) $details['activeLiveChatId'] : null,
+                    'loggedMinute' => isset($details['concurrentViewers']) ? $now->format('H:i') : null,
+                ];
+            } catch (Throwable $exception) {
                 $skipped[] = [
                     'videoId' => $rowVideoId,
-                    'reason' => 'api_item_missing',
+                    'reason' => 'item_processing_failed',
                 ];
-
-                continue;
+                Log::warning('TVBS live polling item processing failed.', [
+                    'video_id' => $rowVideoId,
+                    'reason' => 'item_processing_failed',
+                    'exception_class' => $exception::class,
+                ]);
             }
-
-            DB::transaction(function () use ($row, $details, $now): void {
-                $this->updateLiveRowAndLog($row, $details, $now);
-            });
-
-            $applied[] = [
-                'videoId' => $rowVideoId,
-                'concurrentViewers' => isset($details['concurrentViewers']) ? (int) $details['concurrentViewers'] : null,
-                'actualStartTime' => $this->apiTime($details['actualStartTime'] ?? null, $now),
-                'actualEndTime' => $this->apiTime($details['actualEndTime'] ?? null, $now),
-                'scheduledStartTime' => $this->apiTime($details['scheduledStartTime'] ?? null, $now),
-                'activeLiveChatId' => isset($details['activeLiveChatId']) ? (string) $details['activeLiveChatId'] : null,
-                'loggedMinute' => isset($details['concurrentViewers']) ? $now->format('H:i') : null,
-            ];
         }
 
         return $this->summary($preview, $applied, $skipped, $now);
@@ -197,8 +225,16 @@ class TvbsLivePollingIngestion
      * @param  list<array<string, mixed>>  $skipped
      * @return array<string, mixed>
      */
-    private function summary(array $preview, array $applied, array $skipped, CarbonImmutable $now): array
-    {
+    private function summary(
+        array $preview,
+        array $applied,
+        array $skipped,
+        CarbonImmutable $now,
+        bool $quotaWindowReset = false,
+        int $remainingRetryRows = 0,
+    ): array {
+        $failedVideos = collect($skipped)->whereIn('reason', ['item_processing_failed', 'quota_window_reset'])->count();
+
         return [
             'mode' => 'local-execute',
             'generated_at' => $now->format('Y-m-d H:i:s'),
@@ -207,6 +243,10 @@ class TvbsLivePollingIngestion
             'api_requested_videos' => count($applied) + count($skipped),
             'updated_videos' => count($applied),
             'skipped_videos' => count($skipped),
+            'failed_videos' => $failedVideos,
+            'quota_window_reset' => $quotaWindowReset,
+            'remaining_retry_rows' => $remainingRetryRows,
+            'exit_code' => $failedVideos > 0 || $quotaWindowReset ? 1 : 0,
             'write_targets' => [
                 'urt_video_live_tvbs.mtime',
                 'urt_video_live_tvbs.actualStartTime',

@@ -4,7 +4,9 @@ namespace App\Services\Ingestion;
 
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Throwable;
 
 class LiveDisplayCachePreview
 {
@@ -19,7 +21,12 @@ class LiveDisplayCachePreview
      *     would_insert: int,
      *     missing_video_metadata: int,
      *     rows: list<array<string, mixed>>,
-     *     writes: list<string>
+     *     writes: int|list<string>,
+     *     cache_writes: int,
+     *     skipped_rows: int,
+     *     failed_rows: int,
+     *     skipped: list<array{pk_live: int, reason: string}>,
+     *     write_targets: list<string>
      * }
      */
     public function preview(int $hours = 2, int $limit = 20, ?CarbonInterface $now = null, bool $execute = false): array
@@ -83,9 +90,9 @@ class LiveDisplayCachePreview
             ->values()
             ->all();
 
-        if ($execute && $rows !== []) {
-            $this->writeRows($rows, $generatedAt);
-        }
+        $writeResult = $execute && $rows !== []
+            ? $this->writeRows($rows, $generatedAt)
+            : ['written' => 0, 'skipped' => []];
 
         return [
             'mode' => $execute ? 'execute' : 'ingestion-preview',
@@ -97,51 +104,73 @@ class LiveDisplayCachePreview
             'would_insert' => $wouldInsert,
             'missing_video_metadata' => $missingVideoMetadata,
             'rows' => $rows,
-            'writes' => $execute ? count($rows) : [],
-            'cache_writes' => $execute ? count($rows) : 0,
+            'writes' => $execute ? $writeResult['written'] : [],
+            'cache_writes' => $execute ? $writeResult['written'] : 0,
+            'skipped_rows' => count($writeResult['skipped']),
+            'failed_rows' => count($writeResult['skipped']),
+            'skipped' => $writeResult['skipped'],
             'write_targets' => $execute ? ['urt_show_video_live'] : [],
         ];
     }
 
     /**
-     * @param list<array<string, mixed>> $rows
+     * @param  list<array<string, mixed>>  $rows
+     * @return array{written: int, skipped: list<array{pk_live: int, reason: string}>}
      */
-    private function writeRows(array $rows, string $generatedAt): void
+    private function writeRows(array $rows, string $generatedAt): array
     {
-        DB::transaction(function () use ($rows, $generatedAt): void {
-            foreach ($rows as $row) {
-                $values = $this->onlyExistingColumns('urt_show_video_live', [
-                    'ctime' => $generatedAt,
-                    'mtime' => $generatedAt,
+        $written = 0;
+        $skipped = [];
+
+        foreach ($rows as $row) {
+            try {
+                DB::transaction(function () use ($row, $generatedAt): void {
+                    $values = $this->onlyExistingColumns('urt_show_video_live', [
+                        'ctime' => $generatedAt,
+                        'mtime' => $generatedAt,
+                        'pk_live' => (int) $row['pk_live'],
+                        'v_pk' => (int) $row['v_pk'],
+                        'videoId' => (string) $row['video_id'],
+                        'u_id' => (int) $row['u_id'],
+                        'publishedAt' => (string) $row['published_at'],
+                        'channelId' => (string) $row['channel_id'],
+                        'channelTitle' => (string) $row['channel_title'],
+                        'title' => (string) $row['title'],
+                        'thumbnails' => (string) $row['thumbnail'],
+                        'description' => (string) $row['description'],
+                    ]);
+
+                    $query = DB::table('urt_show_video_live');
+
+                    if (Schema::hasColumn('urt_show_video_live', 'pk_live')) {
+                        $query->where('pk_live', (int) $row['pk_live']);
+                    } else {
+                        $query->where('videoId', (string) $row['video_id']);
+                    }
+
+                    if ((clone $query)->exists()) {
+                        $query->update($values);
+
+                        return;
+                    }
+
+                    DB::table('urt_show_video_live')->insert($values);
+                });
+                $written++;
+            } catch (Throwable $exception) {
+                $skipped[] = [
                     'pk_live' => (int) $row['pk_live'],
-                    'v_pk' => (int) $row['v_pk'],
-                    'videoId' => (string) $row['video_id'],
-                    'u_id' => (int) $row['u_id'],
-                    'publishedAt' => (string) $row['published_at'],
-                    'channelId' => (string) $row['channel_id'],
-                    'channelTitle' => (string) $row['channel_title'],
-                    'title' => (string) $row['title'],
-                    'thumbnails' => (string) $row['thumbnail'],
-                    'description' => (string) $row['description'],
+                    'reason' => 'item_processing_failed',
+                ];
+                Log::warning('Live display cache item processing failed.', [
+                    'pk_live' => (int) $row['pk_live'],
+                    'reason' => 'item_processing_failed',
+                    'exception_class' => $exception::class,
                 ]);
-
-                $query = DB::table('urt_show_video_live');
-
-                if (Schema::hasColumn('urt_show_video_live', 'pk_live')) {
-                    $query->where('pk_live', (int) $row['pk_live']);
-                } else {
-                    $query->where('videoId', (string) $row['video_id']);
-                }
-
-                if ((clone $query)->exists()) {
-                    $query->update($values);
-
-                    continue;
-                }
-
-                DB::table('urt_show_video_live')->insert($values);
             }
-        });
+        }
+
+        return ['written' => $written, 'skipped' => $skipped];
     }
 
     private function joinVideo($query)
@@ -173,7 +202,7 @@ class LiveDisplayCachePreview
     }
 
     /**
-     * @param array<string, mixed> $values
+     * @param  array<string, mixed>  $values
      * @return array<string, mixed>
      */
     private function onlyExistingColumns(string $table, array $values): array

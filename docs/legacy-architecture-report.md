@@ -4,8 +4,8 @@
 
 Legacy snapshot 來源：
 
-- `/Users/sky/Documents/youtube-board-legacy/urtube`
-- `/Users/sky/Documents/youtube-board-legacy/vh-board.conf`
+- `/Users/skyhong/Documents/youtube-board-legacy/urtube`
+- `/Users/skyhong/Documents/youtube-board-legacy/vh-board.conf`
 - 目前 repo 中的 schema dump：`storage/app/db-dumps/urtube-schema-20260524-173342.sql`
 
 這份文件也把它視為一個家人長期投入設計的 civic media observatory 來保存。報告會刻意保留原設計的思路：哪些問題是他想回答的、哪些資料結構是為了讓那些問題能被回答、哪些看似簡單的 PHP/cron 寫法其實是在承載一套很明確的觀測模型。

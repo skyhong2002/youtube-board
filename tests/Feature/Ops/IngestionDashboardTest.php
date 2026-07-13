@@ -41,7 +41,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('內部報表處理');
         $response->assertSee('/ops/ingestion/data-capture', false);
         $response->assertSee('/ops/ingestion/report-processing', false);
-        $response->assertSee('scheduled writes default on');
+        $response->assertSee('all scheduled writes enabled');
         $response->assertSee('command-missing');
         $response->assertSee('command-ready');
         $response->assertSee('reports:live:show');
@@ -268,6 +268,27 @@ class IngestionDashboardTest extends TestCase
         $detail->assertSee('ingestion-runs/'.$record['id'].'.json');
     }
 
+    public function test_ingestion_dashboard_blocks_web_execute_outside_local_development(): void
+    {
+        Storage::fake('local');
+        config()->set('app.env', 'production');
+
+        $dashboard = $this->get('/ops/ingestion');
+
+        $dashboard->assertOk();
+        $dashboard->assertDontSee('execute due jobs once');
+        $dashboard->assertSee('Web runner 在此環境只提供 dry-run');
+
+        $this->withSession(['_token' => 'test-token'])->post('/ops/ingestion/run', [
+            '_token' => 'test-token',
+            'mode' => 'execute',
+            'job' => 'reports.live.static',
+            'at' => '2026-05-25 00:19:00',
+        ])->assertForbidden();
+
+        $this->assertSame([], Storage::disk('local')->files('ingestion-runs'));
+    }
+
     public function test_ingestion_dashboard_sums_daily_youtube_quota_estimate_from_run_history(): void
     {
         Storage::fake('local');
@@ -367,7 +388,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=ai.hourly');
         $response->assertSee('Scheduled Local Polling');
         $response->assertSee('ai:hourly --execute --limit=20');
-        $response->assertSee('此 job 使用預設開啟的 scheduled polling');
+        $response->assertSee('Runtime env 已明確啟用全部 scheduled polling');
     }
 
     public function test_ingestion_job_detail_allows_ai_daily_ingestion_preview(): void
@@ -382,7 +403,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=ai.daily');
         $response->assertSee('Scheduled Local Polling');
         $response->assertSee('ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000');
-        $response->assertSee('此 job 使用預設開啟的 scheduled polling');
+        $response->assertSee('Runtime env 已明確啟用全部 scheduled polling');
     }
 
     public function test_ingestion_job_detail_allows_live_poll_ingestion_preview(): void
@@ -427,7 +448,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.channels.stats');
         $response->assertSee('Scheduled Local Polling');
         $response->assertSee('youtube:channels:stats --execute --limit=25');
-        $response->assertSee('此 job 使用預設開啟的 scheduled polling');
+        $response->assertSee('Runtime env 已明確啟用全部 scheduled polling');
         $response->assertSee('Scheduler 在 scheduled-write gates 允許時使用 capped scheduled execute command；關閉時不執行 capped command');
     }
 
@@ -602,7 +623,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('scheduled/local <code>--execute</code> upserts local <code>tags</code> rows', false);
         $response->assertSee('due now');
         $response->assertSee('reports:keywords:build --execute --hours=2 --limit=100');
-        $response->assertSee('此 job 使用預設開啟的 scheduled polling');
+        $response->assertSee('Runtime env 已明確啟用全部 scheduled polling');
         $response->assertSee('tag.analysis.tw/api/tag_json.php');
     }
 
@@ -616,7 +637,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('scheduled/local <code>--execute</code> upserts local <code>tag_group</code> rows', false);
         $response->assertSee('due now');
         $response->assertSee('reports:groups:build --execute --hours=22 --limit=100');
-        $response->assertSee('此 job 使用預設開啟的 scheduled polling');
+        $response->assertSee('Runtime env 已明確啟用全部 scheduled polling');
         $response->assertSee('external group API');
     }
 
@@ -666,7 +687,10 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('youtube.comments.fetch');
         $response->assertSee('youtube:comments:fetch');
-        $response->assertSee('explicit/scheduled <code>--execute --videoId/--limit --max-pages</code>', false);
+        $response->assertSee('Explicit/scheduled <code>--execute --videoId/--limit --max-pages --max-reply-pages</code>', false);
+        $response->assertSee('comments.list(parentId)');
+        $response->assertSee('idempotent done row 再刪 queue row');
+        $response->assertSee('單筆失敗會保留 queue row、釋放 claim');
         $response->assertSee('due now');
         $response->assertSee('此 job 目前不會執行；下面保留 guardrail 原始原因，方便對照 CLI/output。');
         $response->assertSee('php artisan ingestion:run --job=youtube.comments.fetch', false);
@@ -686,7 +710,7 @@ class IngestionDashboardTest extends TestCase
         $this->assertSame(0, $exitCode);
         $this->assertStringContainsString('scheduler=enabled', $output);
         $this->assertStringContainsString('command_missing=0', $output);
-        $this->assertStringContainsString('command_ready=34', $output);
+        $this->assertStringContainsString('command_ready=41', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_statics.php -> youtube:channels:stats', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_live.php -> youtube:live:poll', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_live_tvbs.php -> youtube:tvbs:live:poll', $output);
@@ -720,6 +744,11 @@ class IngestionDashboardTest extends TestCase
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/do_comments.php -> youtube:comments:fetch', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/make_tag_date.php -> reports:tag-date:build', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/tags_all.php -> reports:keywords:cache', $output);
+        $this->assertStringContainsString('planned command:ready /usr/bin/php /home/urtube/api/api_live_tag_date.php -> reports:live-tag-date:build', $output);
+        $this->assertStringContainsString('planned command:ready approved legacy snapshot/export -> urt_show_tag_month -> reports:tag-month:build', $output);
+        $this->assertStringContainsString('planned command:ready /usr/bin/php /home/urtube/maint/channel_pred.php -> reports:channel-predictions:build', $output);
+        $this->assertStringContainsString('planned command:ready /usr/bin/php /home/urtube/api/tags_relation_date.php -> reports:keyword-relations:build', $output);
+        $this->assertStringContainsString('planned command:ready /usr/bin/php /home/urtube/api/tag_tags_days.php -> reports:keyword-cloud:build', $output);
         $this->assertStringContainsString('youtube:live:poll', $output);
     }
 

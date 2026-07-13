@@ -22,8 +22,10 @@ class CommentFetchPreview
         $videoId = is_string($videoId) && trim($videoId) !== '' ? trim($videoId) : null;
         $limit = max(1, min(1000, $limit));
         $refreshExpireTime = $now->subHours(3);
+        $claimMinutes = max(1, min(1440, (int) config('ingestion.comment_claim_minutes', 30)));
+        $claimExpireTime = $now->subMinutes($claimMinutes);
 
-        $queueRows = $this->queueRows($videoId, $limit);
+        $queueRows = $this->queueRows($videoId, $limit, $claimExpireTime);
         $videoIds = $queueRows->pluck('videoId')->filter()->unique()->values();
         $commentRows = $this->commentRows($videoIds);
         $videoRows = $this->videoRows($videoIds);
@@ -43,6 +45,9 @@ class CommentFetchPreview
             'limit' => $limit,
             'queue_total' => $this->countTable('urt_comment_queue'),
             'queue_done_total' => $this->countTable('urt_comment_queue_done'),
+            'claim_minutes' => $claimMinutes,
+            'claim_expire_time' => $claimExpireTime->format('Y-m-d H:i:s'),
+            'active_claim_rows' => $this->activeClaimRows($videoId, $claimExpireTime),
             'selected_rows' => $queueRows->count(),
             'existing_comment_rows' => $commentRows->count(),
             'already_done_rows' => $mappedRows
@@ -59,7 +64,7 @@ class CommentFetchPreview
             'force' => 1,
             'api_call_skipped' => 'YouTube Data API commentThreads.list is intentionally not called in planning mode',
             'writes_skipped' => [
-                'urt_comment_queue.stime update',
+                'urt_comment_queue.stime atomic claim/release',
                 'maint/get_comment.php execution',
                 'urt_comment insert/update',
                 'urt_comment_author insert',
@@ -73,13 +78,20 @@ class CommentFetchPreview
         ];
     }
 
-    private function queueRows(?string $videoId, int $limit): Collection
+    private function queueRows(?string $videoId, int $limit, CarbonImmutable $claimExpireTime): Collection
     {
         if (! Schema::hasTable('urt_comment_queue')) {
             return collect();
         }
 
-        $query = DB::table('urt_comment_queue')->orderBy('pk');
+        $query = DB::table('urt_comment_queue')
+            ->whereNull('ftime')
+            ->where(function ($query) use ($claimExpireTime): void {
+                $query
+                    ->whereNull('stime')
+                    ->orWhere('stime', '<=', $claimExpireTime->format('Y-m-d H:i:s'));
+            })
+            ->orderBy('pk');
 
         if ($videoId !== null) {
             $query->where('videoId', $videoId);
@@ -89,6 +101,20 @@ class CommentFetchPreview
             ->limit($limit)
             ->get($this->columnsFor('urt_comment_queue', ['pk', 'ctime', 'stime', 'ftime', 'videoId']))
             ->values();
+    }
+
+    private function activeClaimRows(?string $videoId, CarbonImmutable $claimExpireTime): int
+    {
+        if (! Schema::hasTable('urt_comment_queue')) {
+            return 0;
+        }
+
+        return DB::table('urt_comment_queue')
+            ->whereNull('ftime')
+            ->whereNotNull('stime')
+            ->where('stime', '>', $claimExpireTime->format('Y-m-d H:i:s'))
+            ->when($videoId !== null, fn ($query) => $query->where('videoId', $videoId))
+            ->count();
     }
 
     /**
@@ -217,7 +243,12 @@ class CommentFetchPreview
         $commentMtime = $commentRow !== null && $this->value($commentRow, 'mtime') !== null
             ? (string) $this->value($commentRow, 'mtime')
             : null;
-        $wouldSkipRecentCache = $commentMtime !== null && $commentMtime > $refreshExpireTime->format('Y-m-d H:i:s');
+        $resumePageToken = $commentRow !== null && is_string($this->value($commentRow, 'pageToken'))
+            ? trim((string) $this->value($commentRow, 'pageToken'))
+            : '';
+        $wouldSkipRecentCache = $resumePageToken === ''
+            && $commentMtime !== null
+            && $commentMtime > $refreshExpireTime->format('Y-m-d H:i:s');
 
         return [
             'pk' => $this->value($queueRow, 'pk') !== null ? (int) $this->value($queueRow, 'pk') : null,
@@ -233,17 +264,19 @@ class CommentFetchPreview
             'video_comment_count' => $videoRow !== null && $this->value($videoRow, 'commentCount') !== null ? (int) $this->value($videoRow, 'commentCount') : null,
             'existing_comment_row' => $commentRow !== null,
             'comment_mtime' => $commentMtime,
+            'resume_page_token_present' => $resumePageToken !== '',
             'comments_count' => $commentRow !== null && $this->value($commentRow, 'comments_count') !== null ? (int) $this->value($commentRow, 'comments_count') : null,
             'authors_count' => $commentRow !== null && $this->value($commentRow, 'authors_count') !== null ? (int) $this->value($commentRow, 'authors_count') : null,
             'latest_time' => $commentRow !== null && $this->value($commentRow, 'latest_time') !== null ? (string) $this->value($commentRow, 'latest_time') : null,
             'already_in_done' => $doneVideoIds->has($videoId),
             'would_set_stime' => $now->format('Y-m-d H:i:s'),
+            'claim_status' => $this->value($queueRow, 'stime') === null ? 'unclaimed' : 'stale_claim',
             'would_call_get_comment' => true,
             'would_skip_api_recent_cache' => $wouldSkipRecentCache,
             'would_call_comment_threads' => ! $wouldSkipRecentCache,
-            'would_set_ftime' => true,
-            'would_copy_to_done' => true,
-            'would_delete_queue' => true,
+            'would_set_ftime' => $resumePageToken === '',
+            'would_copy_to_done' => $resumePageToken === '',
+            'would_delete_queue' => $resumePageToken === '',
         ];
     }
 

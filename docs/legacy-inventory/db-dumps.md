@@ -8,6 +8,88 @@ Data capture is allowed for reconstruction when it is narrow, approved, and docu
 
 Do not use these workflows to edit production code, write production DB rows, run production migrations, trigger production polling/generation, or make manual phpMyAdmin data changes.
 
+## Fresh Schema And Local Import
+
+Fresh development databases do not depend on ignored dump files. Laravel migration
+`2026_05_24_000000_create_legacy_dashboard_baseline` reads the committed
+`database/schema/legacy-dashboard-baseline.sql` asset and creates the 50 approved
+legacy dashboard tables that are missing. The asset contains no source comments,
+`DROP` statements, production `DATA DIRECTORY` / `INDEX DIRECTORY` clauses, data
+rows, or source auto-increment counters. `urt_mayor_person_ai` remains owned by its
+separate Laravel migration.
+
+Approved data artifacts stay under `storage/app/db-dumps/` and out of git. Preview
+an artifact before importing it:
+
+```bash
+docker compose exec app php artisan db:import-local \
+  urtube-live-slice-20260524-180544.sql.gz \
+  --sha256=b8f161ea66f8058ba402021182f90aef0796971bf22d270410a86438b02b5667 \
+  --dry-run
+```
+
+The command:
+
+- is a preview unless `--execute` is present; explicit `--dry-run` cannot be
+  combined with `--execute` and never invokes the database client;
+- accepts only `.sql` / `.sql.gz` files whose resolved path remains under
+  `storage/app/db-dumps/`;
+- can require an exact SHA-256 and enforces compressed/expanded-size plus runtime
+  caps;
+- permits only the 50 baseline table names, `CREATE TABLE`, single-table
+  `DROP TABLE IF EXISTS`, `INSERT INTO ... VALUES`, and the narrow session-local
+  charset/foreign-key/SQL-mode `SET` forms required by the approved dumps;
+  every other top-level statement is refused, including database switching,
+  account/grant DDL, server file access, global settings, and unsupported data
+  mutations, triggers/routines/events/views, lock-table directives, prepared
+  statements, or server component installation;
+- refuses Production, hosts outside the exact
+  `LOCAL_DUMP_IMPORT_ALLOWED_HOSTS` allowlist, non-MySQL connections, and any
+  database name other than the Compose-local `youtube_board`; the default allows
+  only the Compose service names `mysql,mariadb`, not `localhost` or
+  `127.0.0.1`, because either loopback address could be an SSH tunnel to a remote
+  database;
+- serializes all execute attempts with a global lock and keeps credentials, absolute
+  paths, raw SQL, and MariaDB stderr out of command output and logs.
+
+Inspection reads one source handle while hashing its original bytes, incrementally
+expands gzip when needed, feeds those exact expanded chunks to the SQL lexer, and
+writes the same chunks to a private `0600` reviewed artifact. Execute mode rechecks
+that artifact's independent size/SHA-256 while making the MariaDB client's private
+input copy. Both staging files are removed afterward, so changing the requested
+source path between hashing, lexing, or client startup cannot swap in unreviewed
+bytes.
+
+Host-native MariaDB is opt-in. Add only a dedicated local hostname to
+`LOCAL_DUMP_IMPORT_ALLOWED_HOSTS`; do not allow a loopback/tunnel endpoint. The
+environment and exact `youtube_board` database-name checks still apply.
+A checksum with a prior successful audit is an idempotent no-op: the command
+returns `already_completed`, records the no-op attempt, and does not import the
+same bytes again. SQL comments cannot hide unsupported statements, and both
+`LOAD DATA` and `LOAD XML` are refused.
+
+Every execute attempt writes a sanitized JSON audit record under
+`storage/app/private/dump-imports/`. Records contain only the checksum, size/table
+summary, replacement confirmation, status/error code, and local write-target label;
+they never contain the artifact path, SQL contents, database credentials, or client
+stderr.
+
+The approved live/AI dumps intentionally contain `DROP TABLE IF EXISTS` followed
+by schema and data statements. Executing one is a destructive replacement of the
+listed local dashboard tables and therefore requires both flags:
+
+```bash
+docker compose exec app php artisan db:import-local \
+  urtube-live-slice-20260524-180544.sql.gz \
+  --sha256=b8f161ea66f8058ba402021182f90aef0796971bf22d270410a86438b02b5667 \
+  --execute --replace-existing
+```
+
+Review the preview table list and checksum first. Do not use this command against
+Production. The older schema-only dump still contains production-specific data
+directory clauses and is intentionally refused by the importer; Laravel migrations
+now own fresh schema creation.
+
 ## Schema-Only Dump
 
 Generated on 2026-05-24:

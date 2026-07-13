@@ -7,6 +7,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -123,6 +124,55 @@ class IngestionCommentQueueCommandTest extends TestCase
         $this->assertSame(0, $secondExitCode);
         $this->assertSame(0, $secondPayload['inserted_queue_rows']);
         $this->assertSame(1, DB::table('urt_comment_queue')->where('videoId', 'queue-execute')->count());
+    }
+
+    public function test_comment_queue_execute_isolates_a_failed_video_and_sanitizes_the_warning(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+        Log::spy();
+
+        DB::table('urt_count')->insert(['u_id' => 1, 'tags' => '[1]']);
+        DB::table('urt_video')->insert([
+            $this->videoRow(1, 'a-fail', '2026-05-25 11:30:00', 1200, 700, 'Failing Queue Video'),
+            $this->videoRow(1, 'b-success', '2026-05-25 11:00:00', 1200, 700, 'Successful Queue Video'),
+        ]);
+        DB::statement(<<<'SQL'
+CREATE TRIGGER fail_first_comment_queue
+BEFORE INSERT ON urt_comment_queue
+WHEN NEW.videoId = 'a-fail'
+BEGIN
+    SELECT RAISE(FAIL, 'token=super-secret');
+END
+SQL);
+
+        $exitCode = Artisan::call('youtube:comments:queue', [
+            '--or' => '1',
+            '--min' => 500,
+            '--hours' => 24,
+            '--limit' => 2,
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame(1, $payload['inserted_queue_rows']);
+        $this->assertSame(['videoId' => 'a-fail', 'reason' => 'item_processing_failed'], $payload['skipped'][0]);
+        $this->assertStringNotContainsString('super-secret', json_encode($payload, JSON_THROW_ON_ERROR));
+        $this->assertSame(0, DB::table('urt_comment_queue')->where('videoId', 'a-fail')->count());
+        $this->assertSame(1, DB::table('urt_comment_queue')->where('videoId', 'b-success')->count());
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'Comment queue item processing failed.'
+                    && $context['video_id'] === 'a-fail'
+                    && $context['reason'] === 'item_processing_failed'
+                    && is_string($context['exception_class'])
+                    && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'super-secret');
+            });
     }
 
     public function test_youtube_comments_queue_supports_legacy_and_tagid_filter(): void

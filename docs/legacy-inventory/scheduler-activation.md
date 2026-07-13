@@ -4,15 +4,15 @@ This document defines how legacy ingestion parity can move from manual local smo
 
 ## Current State
 
-- `INGESTION_SCHEDULER_ENABLED=true` by default.
-- Laravel scheduler registration in `routes/console.php` runs `ingestion:run --execute --record` unless `INGESTION_SCHEDULER_ENABLED=false`.
+- Scheduler, local polling, and Production polling default to `false` in code. Runtime env must explicitly enable each required gate.
+- Laravel scheduler registration in `routes/console.php` runs `ingestion:run --execute --record` only when `INGESTION_SCHEDULER_ENABLED=true`.
 - `IngestionSchedulerRunner` still applies the registry execution profile before calling any command.
-- Scheduled polling defaults on for jobs with reviewed capped `scheduled_execute_command` values.
-- Scheduled local polling is blocked only when `INGESTION_LOCAL_POLLING_ENABLED=false`, `INGESTION_SCHEDULED_WRITE_ALLOWLIST=off`, or a strict allowlist excludes the job.
+- Scheduled writes default to `INGESTION_SCHEDULED_WRITE_ALLOWLIST=off`; an exact reviewed allowlist is required before capped execute commands can run.
+- Scheduled local polling additionally requires `INGESTION_LOCAL_POLLING_ENABLED=true`; Production also requires `INGESTION_PRODUCTION_POLLING_ENABLED=true`.
 - Scheduled polling uses each job's capped `scheduled_execute_command`, for example `youtube:live:poll --execute --limit=50`.
 - Manual pipeline smokes use the individual command-level `--execute` flags, not the scheduler runner.
-- Manual execute commands must remain local-only, limited, idempotent, and explicit.
-- `/ops/ingestion` now separates web request gates from external scheduler activity. The web request normally shows scheduler/polling enabled; it shows disabled only when Dokploy/env explicitly sets the gates off. External scheduler activity is detected separately from recent `ingestion:run --execute --record` JSON run files.
+- Manual operator execute commands remain local-only, limited, idempotent, and explicit. Production execution is owned by reviewed scheduler/CLI paths; the web dashboard never executes writes in Production.
+- `/ops/ingestion` separates web request gates from external scheduler activity and shows the effective explicit env state. External scheduler activity is detected separately from recent `ingestion:run --execute --record` JSON run files.
 - External scheduler activity is considered active when the latest artisan execute run-history record is no more than three minutes old. If no recent external record exists, the dashboard reports `external scheduler not observed` and lists likely causes without reading secrets, calling Dokploy, or SSHing production.
 
 ## Activation Levels
@@ -22,39 +22,45 @@ This document defines how legacy ingestion parity can move from manual local smo
 | `0` | Scheduler paused | `INGESTION_SCHEDULER_ENABLED=false` or paused Dokploy scheduler | all preview commands and `/ops/ingestion` dry-runs | no scheduler writes except optional run-history JSON | none from preview commands |
 | `1` | Manual local smoke | per-command `--execute` plus small `--limit` / `--id` / `--videoId` / `--channel` | commands with implemented local-only execute mode | local MariaDB only | only after sanitized key check |
 | `2` | Scheduled ingestion previews | `INGESTION_SCHEDULER_ENABLED=true` | registry jobs whose execution profile has no blocks | local run-history JSON only | none |
-| `3` | Scheduled local polling | default, unless `INGESTION_LOCAL_POLLING_ENABLED=false` or scheduled writes are off | only jobs with capped `scheduled_execute_command` | local MariaDB only | quota-limited |
-| `4` | Production polling | default in production, unless `INGESTION_PRODUCTION_POLLING_ENABLED=false` or scheduled writes are off | capped scheduler jobs | production DB | quota-limited and monitored |
+| `3` | Scheduled local polling | scheduler/local polling explicitly true plus an exact reviewed write allowlist | only allowlisted jobs with capped `scheduled_execute_command` | local MariaDB only | quota-limited |
+| `4` | Production polling | Dokploy scheduler plus production polling gate and the current exact allowlist | only approved capped scheduler jobs | production DB | quota-limited and monitored |
 
-Level `3` is implemented for local one-shot/scheduler execution and is active by default. Level `4` follows the same reviewed capped commands in production; Dokploy/env gates can turn the scheduler or production writes off without changing code.
+Level `3` is implemented for local one-shot/scheduler execution but is fail-closed by default. Level `4` follows the same reviewed capped commands only when the current Dokploy gates and exact allowlist permit each job; changing those runtime values requires separate operator approval.
 
 ## Required Env Flags
 
 | Env | Default | Scope | Meaning |
 | --- | --- | --- | --- |
-| `INGESTION_SCHEDULER_ENABLED` | `true` | scheduler runner | Registers and allows `ingestion:run --execute --record`; set `false` in Dokploy/env to stop scheduler registration. |
+| `INGESTION_SCHEDULER_ENABLED` | `false` | scheduler runner | Must be explicitly true to register and allow `ingestion:run --execute --record`. |
 | `INGESTION_TIMEZONE` | `Asia/Taipei` | all scheduler previews | Cron evaluation timezone. |
-| `YOUTUBE_API_KEY` | unset | manual execute commands | Required for YouTube `channels.list`, `playlistItems.list`, `videos.list`, and `commentThreads.list`; diagnostics must print only configured/missing state, never the key. |
+| `YOUTUBE_API_KEY` | unset | manual execute commands | Required for YouTube `channels.list`, `playlistItems.list`, `videos.list`, `commentThreads.list`, and `comments.list`; diagnostics must print only configured/missing state, never the key. |
 | `OPENAI_API_KEY` / OpenCode-compatible key | unset | AI adapters | Required for explicit AI execute modes; diagnostics print only present/missing state and sanitized failures. |
 | `OPENAI_TIMEOUT` | `180` | AI adapters | Chat completion timeout in seconds. |
 | `OPENAI_MAX_TOKENS` | `1200` | AI adapters | Output cap for OpenCode-compatible chat completions. |
 | `OPENAI_FALLBACK_BASE_URL` / `OPENAI_FALLBACK_MODEL` / `OPENAI_FALLBACK_API_KEY` | unset | AI adapters | Optional secondary provider. Used only after the primary `OPENAI_*` provider fails; keys must stay in Dokploy secrets/env. |
-| `INGESTION_LOCAL_POLLING_ENABLED` | `true` | local scheduler writes | Set `false` to block write-capable scheduled polling locally. |
-| `INGESTION_SCHEDULED_WRITE_ALLOWLIST` | `*` | scheduler writes | `*` or empty allows every reviewed capped scheduled command; comma-separated keys narrow execution; `off`/`false`/`none` blocks all scheduled writes. |
-| `INGESTION_PRODUCTION_POLLING_ENABLED` | `true` | production scheduler writes | Set `false` in Dokploy to block production scheduled writes while keeping preview/dry-run available. |
+| `INGESTION_LOCAL_POLLING_ENABLED` | `false` | local scheduler writes | Must be explicitly true before local scheduled writes are eligible. |
+| `INGESTION_SCHEDULED_WRITE_ALLOWLIST` | `off` | scheduler writes | An exact comma-separated job list is required. `off`/`false`/`none`, empty, and missing values block all scheduled writes; `*` is supported only as an explicit broad operator choice. |
+| `INGESTION_PRODUCTION_POLLING_ENABLED` | `false` | production scheduler writes | Must be explicitly true in Dokploy before Production scheduled writes are eligible. |
+| `INGESTION_JOB_LOCK_SECONDS` | `14400` | runner execute jobs | Expiring per-job cache lock TTL. It must cover the longest reviewed AI job while still recovering after a crashed worker. |
+| `INGESTION_YOUTUBE_DAILY_QUOTA_BUDGET` | `9000` | scheduled and direct YouTube API jobs | Maximum projected YouTube units per Pacific Time quota day. A missing, invalid, or non-positive value fails closed for YouTube API jobs. |
+| `INGESTION_COMMENT_CLAIM_MINUTES` | `30` | comment queue drain | Active `urt_comment_queue.stime` claim lease. Expired claims are eligible for recovery; active claims are excluded. |
 
-Production polling is active by default through explicit reviewed Laravel commands. In `APP_ENV=production`, scheduled write polling is blocked when `INGESTION_PRODUCTION_POLLING_ENABLED=false`.
+The code defaults are fail-closed. Production behavior is determined by Dokploy runtime gates and the exact allowlist. In `APP_ENV=production`, scheduled writes are blocked unless `INGESTION_PRODUCTION_POLLING_ENABLED=true`, and web execute requests return 403 regardless of that scheduler gate.
 
-If production needs a strict allowlist instead of the default `*`, start with only the live, stats, derived-report, and AI jobs that have already been backed up, smoke-tested, and approved:
+Production must use an exact reviewed allowlist rather than the code default `off`. Any change requires the approved keys, dry-run evidence, risk/rollback plan, and operator approval:
 
 ```env
 INGESTION_SCHEDULER_ENABLED=true
 INGESTION_LOCAL_POLLING_ENABLED=true
 INGESTION_PRODUCTION_POLLING_ENABLED=true
-INGESTION_SCHEDULED_WRITE_ALLOWLIST=*
+INGESTION_SCHEDULED_WRITE_ALLOWLIST=<exact-reviewed-comma-separated-job-keys>
+INGESTION_JOB_LOCK_SECONDS=14400
+INGESTION_YOUTUBE_DAILY_QUOTA_BUDGET=9000
+INGESTION_COMMENT_CLAIM_MINUTES=30
 YOUTUBE_API_KEY=<youtube-data-api-key>
 ```
 
-Those jobs map to `urt_video_live` / `urt_video_live_log` polling, live/upcoming video discovery into `urt_video` / `urt_video_schedule` / `urt_video_live`, local display/cache maintenance in `urt_show_video_live` and `urt_show_live_tag_date`, derived count/schedule updates in `urt_count` and `urt_video_schedule`, hourly AI upserts into `urt_ai_hour`, and daily AI upserts into `urt_channel_ai` / `urt_ai_date`. Legacy mutating PHP routes are routed to Laravel guard pages; Laravel artisan commands own these writes.
+Approved jobs map to their documented Laravel-owned tables. Legacy mutating PHP routes are routed to Laravel guard pages; reviewed Artisan commands own writes. Manual-only builders with an empty `scheduled_execute_command` remain outside scheduler execution even if their registry key is accidentally listed.
 
 When using a strict allowlist, include these additional write-capable capped jobs only after explicit approval:
 
@@ -84,20 +90,20 @@ Manual local smoke defaults should stay below these caps:
 
 | Pipeline | Current cap / selector | External call |
 | --- | --- | --- |
-| channel stats | `--limit` capped to 5 during execute | YouTube `channels.list(part=statistics)` |
-| channel video discovery | `--limit` capped to 3 channels; `--max-results` capped to 50 | YouTube `playlistItems.list(part=snippet)` |
+| channel stats | direct `--limit` capped to 50; scheduled command selects at most 25 channels in one batched request | YouTube `channels.list(part=statistics)` |
+| channel video discovery | direct `--limit` capped to 10 channels; scheduled commands select 3-5 channels; `--max-results` capped to 50 | YouTube `playlistItems.list(part=snippet)` |
 | video stats | `--limit` / batch capped to 50 | YouTube `videos.list(part=statistics)` |
 | video duration | `--limit` / batch capped to 50 | YouTube `videos.list(part=contentDetails)` |
 | live polling | `--limit` capped to 50; smoke should use `--videoId --limit=1` | YouTube `videos.list(part=liveStreamingDetails)` |
 | comment queue | `--limit` capped to 20; no external call | none |
-| comment fetch | `--limit` capped to 10; `--max-pages` capped to 3 | YouTube `commentThreads.list(part=id,replies,snippet)` |
+| comment fetch | `--limit` capped to 10; `--max-pages` capped to 3; shared `--max-reply-pages` capped to 100 | YouTube `commentThreads.list(part=id,replies,snippet)` plus `comments.list(parentId)` when embedded replies are incomplete |
 
-Before scheduled local polling, add per-job quota budgets and daily counters. A safe first pass is:
+The scheduler now enforces a Pacific Time daily quota budget before starting YouTube API jobs. Current command-level upper bounds are:
 
-- `channels.list`: at most 1 channel per scheduled run in the current capped scheduler command.
-- `playlistItems.list`: live discovery uses at most 3 channels and `maxResults=5` per scheduled run in the current capped scheduler commands.
+- `channels.list`: at most 25 channels in one batched API request per scheduled run.
+- `playlistItems.list`: live discovery uses at most 3 channels and `maxResults=5`; general discovery uses at most 5 channels and `maxResults=3` per scheduled run.
 - `videos.list`: live polling uses at most 50 videos per scheduled run in the current capped scheduler command.
-- `commentThreads.list`: at most 1 queued video and 1 page per scheduled run.
+- comment ingestion: at most 5 queued videos, 1 thread page and 20 shared full-reply pages per video in the reviewed scheduled command; the quota preflight includes both page caps.
 - AI hourly: capped scheduler command `ai:hourly --execute --limit=20` runs each hour when scheduler, local/production polling, and scheduled-write scope allow it. Command-level `--at` supports reviewed backfills of a specific evaluation time. `OPENAI_ENDPOINT_STYLE=auto` follows the OpenCode Go endpoint table: MiniMax M2.5/M2.7 uses `/messages`, while Qwen, GLM, Kimi, MiMo, and DeepSeek models remain on `/chat/completions`.
 - AI daily: scheduler command `ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000` refreshes the legacy 39 configured channels in 12-channel batches. `--ai-call-limit=45` leaves room for 39 channel summaries plus the six daily condition summaries, while `--channel-video-limit=120` bounds each channel prompt.
 - AI provider fallback: legacy `make_channel_ai.php`, `get_ai_day.php`, and `ai_hour_prompt.php` call OpenAI `chat/completions` with `gpt-4o-mini`. Modern AI execution now supports one configured `OPENAI_FALLBACK_*` provider after the primary OpenCode-compatible provider fails, so production can preserve the current primary provider and add an OpenAI fallback secret without committing credentials.
@@ -107,20 +113,16 @@ Before scheduled local polling, add per-job quota budgets and daily counters. A 
 Current locks:
 
 - Laravel scheduler uses `withoutOverlapping(10)` around `ingestion:run --execute --record`.
-- Legacy per-command locking behavior has only been preserved as selection semantics where implemented.
-- Capped scheduled local polling is limited by per-command row caps and, when configured, a strict allowlist, but it does not yet have per-job distributed locks.
-
-Required before scheduled write polling:
-
-- Add command-level locks per job key, for example `ingestion:{jobKey}`.
-- For per-row fetchers, also use row reservation columns already present in legacy schema where applicable (`stime`, `mtime`, `vtime`) before external calls.
-- Locks must expire and produce a sanitized skipped summary, not crash the scheduler.
+- `IngestionSchedulerRunner` also acquires an expiring cache lock per job key before every execute-mode command. A competing runner returns `skip:job-locked` with a sanitized summary and does not call the command.
+- `INGESTION_JOB_LOCK_SECONDS` defaults to four hours so the lock covers the reviewed daily AI batch; crashed workers recover after the TTL.
+- Row reservation columns (`stime`, `mtime`, `vtime`) remain the next layer for per-row fetchers and must be claimed atomically where concurrent row processing is possible.
 
 ## Retries And Failure Recovery
 
 Current behavior:
 
 - Individual execute commands catch API/config/runtime errors and return non-zero sanitized output.
+- `youtube:comments:fetch` atomically claims each eligible queue row through `stime`. Active claims are excluded, claims older than `INGESTION_COMMENT_CLAIM_MINUTES` recover automatically, and an item failure releases its claim while leaving the queue row available for retry. Later rows continue processing; the completed batch summary is emitted before a non-zero partial-failure exit.
 - Manual writes are transactional or idempotent, so re-running a failed smoke is the recovery path.
 - `ingestion:run --record` writes local JSON history for scheduler and one-shot runs.
 - `/ops/ingestion` uses the same JSON history to show external scheduler liveness. It only treats records with `request.source=artisan`, `request.mode=execute`, and `result.mode=execute` as external scheduler evidence, so web one-shot runs do not mask a paused Dokploy schedule.
@@ -154,8 +156,13 @@ Execute commands must treat API quota as a first-class runtime constraint:
 - Check key presence before any call.
 - Do not print keys, request URLs containing keys, or raw response bodies that may contain sensitive request data.
 - On quota or auth failures, return a sanitized non-zero summary.
+- YouTube 5xx and connection failures use the configured bounded transient retry (`YOUTUBE_API_TRANSIENT_RETRIES`, default 1); quota/auth failures are never retried with the same key. A configured fallback key may be tried after quota exhaustion or a key-specific authentication failure.
 - For scheduled polling, maintain a local quota budget per API method and stop before exceeding it.
 - Prefer small batches and explicit selectors until local evidence proves the parse/upsert/report path.
+- Before a scheduled YouTube command starts, the runner atomically reserves the command's capped worst-case request estimate in the Laravel-owned `ingestion_youtube_quota_daily` row for the current Pacific Time day. It returns `skip:youtube-quota-budget` without calling Artisan when the conditional reservation would exceed `INGESTION_YOUTUBE_DAILY_QUOTA_BUDGET`; a missing/unavailable ledger fails closed.
+- Every direct YouTube `--execute` command uses the same atomic ledger, shared credential check, and expiring per-job direct-command lock, and requires a positive configured budget. It reserves from the real current Pacific Time day, not the requested report date, and settles handled success/partial-failure paths to sanitized `IngestionTelemetry` request attempts. The guard writes fixed blocked/completed/exception audit events containing only job key, status/reason code, quota counters, runtime, exit code, and exception class; effective command options, payload/output, resource ids, exception text, and credentials are excluded. A settlement accounting failure returns nonzero and leaves the reservation fail-safe. When invoked by `IngestionSchedulerRunner`, an explicit process-scoped, job-key-matched reservation context transfers accounting and locking ownership to the scheduler and prevents a second reservation or lock.
+- Before each reserved HTTP attempt, the client verifies that the request timeout cannot cross the Pacific Time quota reset. Near or after reset it stops before sending HTTP and surfaces a sanitized nonzero result; batch polling includes the fixed `quota_window_reset` reason and performs no API-result row writes. Duration rows explicitly enqueued before the guard remain incomplete and retryable. Channel discovery stops before later API attempts while keeping prior per-channel commits and leaving remaining crawl rows due for an idempotent retry. Tag-video backfill discards the incomplete current-channel page set, preserves prior committed channels, and remains idempotent on rerun, while comment fetching releases its active claim and preserves the queue row. Settlement releases only the original quota-day reservation without charging an unreserved next-day request.
+- Scheduled upper bounds include configured fallback-key and transient attempts. Completed jobs settle reservations to sanitized request telemetry, so retries count as separate request attempts. A crash leaves the conservative reservation in place until the quota day changes. Run-history JSON remains diagnostic telemetry and is not the enforcement source.
 
 Known API methods in scope:
 
@@ -164,7 +171,7 @@ Known API methods in scope:
 - `videos.list(part=statistics)`
 - `videos.list(part=contentDetails)`
 - `videos.list(part=liveStreamingDetails)`
-- `commentThreads.list(part=id,replies,snippet)`
+- `commentThreads.list(part=id,replies,snippet)` and capped `comments.list(part=id,snippet,parentId)`
 
 ## Local Vs Production Separation
 
@@ -200,17 +207,18 @@ To promote a pipeline to production polling, repeat the checklist against produc
 
 | Pipeline | Manual local execute | Scheduled write polling | Notes |
 | --- | --- | --- | --- |
-| channel stats | implemented and smoked | production-enabled | Scheduler-enabled production polling uses capped `--execute --limit=25`; covered by default scheduled-write scope. |
-| channel video discovery | implemented and smoked | production-enabled | Live/group live discovery and regular upload discovery all have capped scheduler commands covered by default scheduled-write scope. |
-| video stats | implemented and smoked | production-enabled | Capped scheduler command exists with `--execute --limit=25` and is covered by default scheduled-write scope. |
-| video duration | implemented and smoked | production-enabled | Capped scheduler command exists with `--execute --limit=25 --enqueue-missing`, so empty duration queues are refilled from local `urt_video` before contentDetails polling. |
-| live polling | implemented and smoked | production-enabled | Capped scheduler commands are covered by default scheduled-write scope for normal and TVBS live polling. |
-| comment queue | implemented and smoked | production-enabled | Capped scheduler command exists with `--execute --limit=5`; no external API, but still writes queue rows and is covered by default scheduled-write scope. |
-| comment fetch | implemented and smoked | production-enabled | Capped scheduler command exists with `--execute --limit=5 --max-pages=1` and is covered by default scheduled-write scope. |
-| TVBS video discovery | implemented and smoked | production-enabled | Capped scheduler command exists with `--execute --limit=1 --max-results=1` and is covered by default scheduled-write scope. |
-| TVBS live polling | implemented and smoked | production-enabled | Capped scheduler command exists with `--execute --limit=20` and is covered by default scheduled-write scope. |
-| live cleanup/cache clean | implemented and tested | production-enabled | `youtube:live:cleanup --execute --limit=100` marks stale live rows deleted; `reports:live:clean --execute --limit=500` deletes invalid live tag-date cache rows. Both are covered by default scheduled-write scope. |
-| derived count/schedule/keyword/group/people builds | implemented and tested | production-enabled | `reports:counts:build --execute --limit=500` updates count deltas from `urt_log`; `reports:schedule:build --execute --limit=100` updates `urt_video_schedule.stime/mtime`; `reports:keywords:build --execute --hours=2 --limit=100` syncs `tags` from 新文易數 `tag.analysis.tw`; `reports:groups:build --execute --hours=22 --limit=100` syncs `tag_group`; `reports:people:build --execute --limit=5 --days=37 --tagid=13 --keyword-limit=5000` refreshes selected `urt_show_tag_date` people cache rows. These are covered by default scheduled-write scope. |
+| channel stats | implemented and smoked | scheduler-capable; runtime allowlist-dependent | Capped command is `youtube:channels:stats --execute --limit=25`. |
+| channel video discovery | implemented and smoked | scheduler-capable; runtime allowlist-dependent | Live/group/general discovery each have capped scheduler commands. |
+| video stats | implemented and smoked | scheduler-capable; runtime allowlist-dependent | Capped command uses `--execute --limit=25`. |
+| video duration | implemented and smoked | scheduler-capable; runtime allowlist-dependent | Capped command uses `--execute --limit=25 --enqueue-missing`. |
+| live polling | implemented and smoked | scheduler-capable; runtime allowlist-dependent | Normal and TVBS polling both have capped scheduler commands. |
+| comment queue | implemented and smoked | scheduler-capable; runtime allowlist-dependent | Capped command uses `--execute --limit=5`; no external API. |
+| comment fetch | implemented and tested | scheduler-capable; runtime allowlist-dependent | Capped command uses `--execute --limit=5 --max-pages=1 --max-reply-pages=20`; a command lock, atomic expiring claims, full-reply continuation, cap-incomplete refusal, and MyISAM-safe done-before-delete ordering protect the queue. |
+| TVBS video discovery | implemented and smoked | scheduler-capable; runtime allowlist-dependent | Capped command uses `--execute --limit=1 --max-results=1`. |
+| TVBS live polling | implemented and smoked | scheduler-capable; runtime allowlist-dependent | Capped command uses `--execute --limit=20`. |
+| live cleanup/cache clean | implemented and tested | scheduler-capable; runtime allowlist-dependent | `youtube:live:cleanup` marks stale live rows deleted; `reports:live:clean` deletes invalid cache rows under caps. |
+| derived count/schedule/keyword/group/people builds | implemented and tested | scheduler-capable; runtime allowlist-dependent | Each command has a capped execute profile; external keyword/group sync remains credential/network dependent. |
 | remaining derived static report builds | dynamic routes | intentionally replaced | Dynamic Laravel routes serve the rebuilt public pages instead of legacy filesystem HTML outputs. Mayor/city cache refresh has a capped execute mode covered by default scheduled-write scope. |
-| hourly AI | implemented and smoked | production-enabled but provider-dependent | `ai:hourly --execute --limit=20` is covered by default scheduled-write scope and runs each hour. Empty source windows return a sanitized skipped summary with exit code 0 so the daemon does not treat normal quiet hours as failures; `--at` supports reviewed backfills. |
-| daily AI | implemented and tested | production-enabled with fallback | `ai:daily --execute` refreshes legacy configured channel summaries from raw `urt_video` rows, then upserts `urt_ai_date` condition rows; scheduler command is `ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000`, refreshing configured channels in batches with explicit AI call and prompt-size guards. Production now keeps the OpenCode-compatible primary provider and has an OpenAI `gpt-4o-mini` fallback configured in Dokploy env; a 2026-05-26 smoke inserted `urt_channel_ai` and `urt_ai_date` rows without printing secrets. |
+| manual relation/cloud/live/month/photo cache and prediction builders | implemented and tested | intentionally unscheduled | Manual-only registry entries have empty scheduled commands, explicit execute, caps, locks, idempotency, and focused read-path tests; photo execution additionally depends on the public zh.wikipedia.org pageimages API. Production allowlists are unchanged. |
+| hourly AI | implemented and smoked | scheduler-capable; provider and runtime allowlist-dependent | `ai:hourly --execute --limit=20` is capped. Empty source windows return a sanitized skipped summary with exit code 0; `--at` supports reviewed backfills. |
+| daily AI | implemented and tested | scheduler-capable; provider and runtime allowlist-dependent | `ai:daily --execute` refreshes channel summaries then daily condition rows under explicit AI call and prompt-size caps. Provider fallback configuration remains in runtime secrets, not git. |

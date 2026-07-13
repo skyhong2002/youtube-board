@@ -5,16 +5,17 @@ namespace App\Services\Ingestion;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
+use Throwable;
 
 class TvbsChannelVideosDiscoveryIngestion
 {
     public function __construct(
         private readonly TvbsChannelVideosDiscoveryPreview $preview,
         private readonly YoutubeDataApiClient $youtube,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array<string, mixed>
@@ -47,8 +48,11 @@ class TvbsChannelVideosDiscoveryIngestion
 
         $applied = [];
         $skipped = [];
+        $quotaWindowReset = false;
+        $remainingRetryRows = 0;
+        $rows = collect($preview['rows'] ?? [])->values();
 
-        foreach ($preview['rows'] ?? [] as $row) {
+        foreach ($rows as $index => $row) {
             $uploads = trim((string) ($row['uploads'] ?? ''));
             $rowUId = (int) ($row['u_id'] ?? 0);
 
@@ -62,31 +66,67 @@ class TvbsChannelVideosDiscoveryIngestion
                 continue;
             }
 
-            $items = $this->youtube->playlistItems($uploads, $maxResults);
-            $result = DB::transaction(function () use ($rowUId, $items, $now): array {
-                return $this->upsertChannelItems($rowUId, $items, $now);
-            });
+            try {
+                $items = $this->youtube->playlistItems($uploads, $maxResults);
+                $result = DB::transaction(function () use ($rowUId, $items, $now): array {
+                    return $this->upsertChannelItems($rowUId, $items, $now);
+                });
 
-            $applied[] = [
-                'u_id' => $rowUId,
-                'uploads' => $uploads,
-                'api_items' => count($items),
-                'video_upserts' => $result['video_upserts'],
-                'schedule_upserts' => $result['schedule_upserts'],
-                'tvbs_live_upserts' => $result['tvbs_live_upserts'],
-                'week_count' => $result['week_count'],
-            ];
+                $applied[] = [
+                    'u_id' => $rowUId,
+                    'uploads' => $uploads,
+                    'api_items' => count($items),
+                    'video_upserts' => $result['video_upserts'],
+                    'schedule_upserts' => $result['schedule_upserts'],
+                    'tvbs_live_upserts' => $result['tvbs_live_upserts'],
+                    'week_count' => $result['week_count'],
+                ];
+            } catch (Throwable $exception) {
+                if ($exception instanceof YoutubeQuotaWindowException) {
+                    $quotaWindowReset = true;
+                    $remainingRetryRows = $rows->count() - $index;
+                    $skipped[] = [
+                        'u_id' => $rowUId,
+                        'uploads' => $uploads,
+                        'reason' => 'quota_window_reset',
+                    ];
+                    Log::warning('TVBS video discovery paused at quota window reset.', [
+                        'u_id' => $rowUId,
+                        'reason' => 'quota_window_reset',
+                        'exception_class' => $exception::class,
+                    ]);
+
+                    break;
+                }
+
+                $skipped[] = [
+                    'u_id' => $rowUId,
+                    'uploads' => $uploads,
+                    'reason' => 'item_processing_failed',
+                ];
+                Log::warning('TVBS video discovery item processing failed.', [
+                    'u_id' => $rowUId,
+                    'reason' => 'item_processing_failed',
+                    'exception_class' => $exception::class,
+                ]);
+            }
         }
+
+        $failedChannels = collect($skipped)->whereIn('reason', ['item_processing_failed', 'quota_window_reset'])->count();
 
         return [
             'mode' => 'local-execute',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'source' => $preview['source'] ?? null,
             'selected_rows' => (int) ($preview['selected_rows'] ?? 0),
-            'api_requested_channels' => count($applied),
+            'api_requested_channels' => count($applied) + $failedChannels,
             'api_max_results_per_channel' => $maxResults,
             'updated_channels' => count($applied),
             'skipped_channels' => count($skipped),
+            'failed_channels' => $failedChannels,
+            'quota_window_reset' => $quotaWindowReset,
+            'remaining_retry_rows' => $remainingRetryRows,
+            'exit_code' => $failedChannels > 0 || $quotaWindowReset ? 1 : 0,
             'write_targets' => [
                 'urt_video.ctime',
                 'urt_video.id',

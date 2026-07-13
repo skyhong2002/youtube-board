@@ -85,7 +85,7 @@
             <h2>Execution Guardrail</h2>
             <div class="panel">
                 @if ($execution['can_execute_when_due'])
-                    <p>此 job 可作為即時 YouTube 儀表板的安全排程工作；active、command-ready，且 cron expression 到期時允許執行。Scheduler execution 預設開啟，除非 env 明確設為 <code>false</code>。</p>
+                    <p>此 job 可作為即時 YouTube 儀表板的安全排程工作；active、command-ready，且 runtime env 明確啟用 scheduler gate、cron expression 到期時才允許執行。</p>
                 @else
                     <p>此 job 目前不會執行；下面保留 guardrail 原始原因，方便對照 CLI/output。</p>
                     <ul>
@@ -101,7 +101,7 @@
                 <div class="panel">
                     @if ($scheduledWrite['allowed'])
                         @if (($scheduledWrite['scope'] ?? 'allowlist') === 'all')
-                            <p>此 job 使用預設開啟的 scheduled polling。當 <code>ingestion:run --execute</code> 評估為 due 時，scheduler 會使用下方 capped command。</p>
+                            <p>Runtime env 已明確啟用全部 scheduled polling。當 <code>ingestion:run --execute</code> 評估為 due 時，scheduler 會使用下方 capped command。</p>
                         @else
                             <p>此 job 已 allowlisted，可以由 scheduler-enabled polling 執行。當 <code>ingestion:run --execute</code> 評估為 due 時，scheduler 會使用下方 capped command。</p>
                         @endif

@@ -2,10 +2,12 @@
 
 namespace App\Services\Ingestion;
 
+use App\Support\SensitiveTextRedactor;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class AiDailyIngestion
@@ -13,6 +15,7 @@ class AiDailyIngestion
     public function __construct(
         private readonly AiDailyPreview $preview,
         private readonly OpenCodeChatClient $client,
+        private readonly AiJsonPayloadValidator $jsonValidator,
     ) {}
 
     /**
@@ -85,41 +88,77 @@ class AiDailyIngestion
                 $completion = $this->client->complete($prompt);
             } catch (Throwable $exception) {
                 $dailyRows[] = $this->skippedDailyRow($row, $this->sanitizedFailure($exception), $prompt, true);
+                $this->logFailure('daily_completion', [
+                    'condition' => $row['condition'],
+                    'date' => $date,
+                ], $exception);
 
                 continue;
             }
 
-            $resultJson = $this->stripJsonFence($completion['content']);
-            $existingPk = DB::table('urt_ai_date')
-                ->where('date_from', $period['from'])
-                ->where('date_to', $period['to'])
-                ->where('data_type', $dataType)
-                ->where('condition_type', $row['condition'])
-                ->where('ai_type', $completion['model'])
-                ->where('user_token', $userToken)
-                ->whereNull('del_flag')
-                ->value('pk');
-            $values = [
-                'mtime' => $now->format('Y-m-d H:i:s'),
-                'channel_id' => (string) ($row['channel_id_json'] ?? '{}'),
-                'result_json' => $resultJson,
-            ];
+            $validated = $this->jsonValidator->validateEventList((string) $completion['content'], 'daily');
 
-            if ($existingPk === null) {
-                DB::table('urt_ai_date')->insert([
-                    'ctime' => $now->format('Y-m-d H:i:s'),
-                    'date_from' => $period['from'],
-                    'date_to' => $period['to'],
-                    'ai_type' => $completion['model'],
-                    'data_type' => $dataType,
-                    'condition_type' => $row['condition'],
-                    'user_token' => $userToken,
-                    'del_flag' => null,
-                ] + $values);
-            } else {
-                DB::table('urt_ai_date')
-                    ->where('pk', $existingPk)
-                    ->update($values);
+            if (! $validated['valid']) {
+                $dailyRows[] = $this->skippedDailyRow(
+                    $row,
+                    (string) $validated['failure_reason'],
+                    $prompt,
+                    true,
+                );
+                $this->logFailure('daily_validation', [
+                    'condition' => $row['condition'],
+                    'date' => $date,
+                    'model' => $completion['model'],
+                    'provider' => $completion['provider'],
+                    'failure_reason' => $validated['failure_reason'],
+                    'content_chars' => mb_strlen((string) $completion['content'], 'UTF-8'),
+                ]);
+
+                continue;
+            }
+
+            try {
+                $existingPk = DB::table('urt_ai_date')
+                    ->where('date_from', $period['from'])
+                    ->where('date_to', $period['to'])
+                    ->where('data_type', $dataType)
+                    ->where('condition_type', $row['condition'])
+                    ->where('ai_type', $completion['model'])
+                    ->where('user_token', $userToken)
+                    ->whereNull('del_flag')
+                    ->value('pk');
+                $values = [
+                    'mtime' => $now->format('Y-m-d H:i:s'),
+                    'channel_id' => (string) ($row['channel_id_json'] ?? '{}'),
+                    'result_json' => $validated['json'],
+                ];
+
+                if ($existingPk === null) {
+                    DB::table('urt_ai_date')->insert([
+                        'ctime' => $now->format('Y-m-d H:i:s'),
+                        'date_from' => $period['from'],
+                        'date_to' => $period['to'],
+                        'ai_type' => $completion['model'],
+                        'data_type' => $dataType,
+                        'condition_type' => $row['condition'],
+                        'user_token' => $userToken,
+                        'del_flag' => null,
+                    ] + $values);
+                } else {
+                    DB::table('urt_ai_date')
+                        ->where('pk', $existingPk)
+                        ->update($values);
+                }
+            } catch (Throwable $exception) {
+                $dailyRows[] = $this->skippedDailyRow($row, $this->sanitizedFailure($exception), $prompt, true);
+                $this->logFailure('daily_write', [
+                    'condition' => $row['condition'],
+                    'date' => $date,
+                    'model' => $completion['model'],
+                    'provider' => $completion['provider'],
+                ], $exception);
+
+                continue;
             }
 
             $dailyRows[] = [
@@ -135,12 +174,20 @@ class AiDailyIngestion
                 'inserted' => $existingPk === null,
                 'updated' => $existingPk !== null,
                 'skipped' => false,
+                'failed' => false,
                 'skip_reason' => null,
             ];
         }
 
+        $channelFailed = $channelRows->where('failed', true)->count();
+        $dailyFailed = collect($dailyRows)->where('failed', true)->count();
+        $failedRows = $channelFailed + $dailyFailed;
+
         return [
             'mode' => 'execute',
+            'status' => $failedRows > 0 ? 'partial_failure' : 'success',
+            'exit_code' => $failedRows > 0 ? 1 : 0,
+            'failed_rows' => $failedRows,
             'source' => 'legacy_make_ai_day',
             'date' => $date,
             'date_from' => $period['from'],
@@ -157,6 +204,7 @@ class AiDailyIngestion
                 'inserted' => $channelRows->where('inserted', true)->count(),
                 'updated' => $channelRows->where('updated', true)->count(),
                 'skipped' => $channelRows->where('skipped', true)->count(),
+                'failed' => $channelFailed,
                 'rows' => $channelRows->values()->all(),
             ],
             'daily_ai' => [
@@ -164,6 +212,7 @@ class AiDailyIngestion
                 'inserted' => collect($dailyRows)->where('inserted', true)->count(),
                 'updated' => collect($dailyRows)->where('updated', true)->count(),
                 'skipped' => collect($dailyRows)->where('skipped', true)->count(),
+                'failed' => $dailyFailed,
                 'rows' => $dailyRows,
             ],
             'write_targets' => [
@@ -223,6 +272,7 @@ class AiDailyIngestion
                         'inserted' => false,
                         'updated' => false,
                         'skipped' => true,
+                        'failed' => false,
                         'skip_reason' => 'fewer_than_10_videos',
                     ]);
 
@@ -239,6 +289,7 @@ class AiDailyIngestion
                         'inserted' => false,
                         'updated' => false,
                         'skipped' => true,
+                        'failed' => false,
                         'skip_reason' => 'ai_call_guard_exhausted',
                     ]);
 
@@ -269,39 +320,108 @@ class AiDailyIngestion
                         'inserted' => false,
                         'updated' => false,
                         'skipped' => true,
+                        'failed' => true,
                         'skip_reason' => $this->sanitizedFailure($exception),
+                    ]);
+                    $this->logFailure('channel_completion', [
+                        'u_id' => $uId,
+                        'date_from' => $period['from'],
+                        'date_to' => $period['to'],
+                    ], $exception);
+
+                    continue;
+                }
+
+                $validated = $this->jsonValidator->validateEventList((string) $completion['content'], 'channel');
+
+                if (! $validated['valid']) {
+                    $rows->push([
+                        'u_id' => $uId,
+                        'batch' => $batchIndex + 1,
+                        'video_rows' => $videoRows,
+                        'prompt_video_rows' => $videos->count(),
+                        'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
+                        'model' => $completion['model'],
+                        'provider' => $completion['provider'],
+                        'provider_failures' => $completion['provider_failures'],
+                        'latency_ms' => $completion['latency_ms'],
+                        'usage' => $completion['usage'],
+                        'ai_call_attempted' => true,
+                        'inserted' => false,
+                        'updated' => false,
+                        'skipped' => true,
+                        'failed' => true,
+                        'skip_reason' => $validated['failure_reason'],
+                    ]);
+                    $this->logFailure('channel_validation', [
+                        'u_id' => $uId,
+                        'date_from' => $period['from'],
+                        'date_to' => $period['to'],
+                        'model' => $completion['model'],
+                        'provider' => $completion['provider'],
+                        'failure_reason' => $validated['failure_reason'],
+                        'content_chars' => mb_strlen((string) $completion['content'], 'UTF-8'),
                     ]);
 
                     continue;
                 }
 
-                $resultJson = $this->stripJsonFence($completion['content']);
-                $attributes = [
-                    'u_id' => $uId,
-                    'date_from' => $period['from'],
-                    'date_to' => $period['to'],
-                    'ai_type' => $completion['model'],
-                    'data_type' => $dataType,
-                    'user_token' => $userToken,
-                ];
-                $existingPk = DB::table('urt_channel_ai')
-                    ->where($attributes)
-                    ->whereNull('del_flag')
-                    ->value('pk');
-                $values = [
-                    'mtime' => $now->format('Y-m-d H:i:s'),
-                    'result_json' => $resultJson,
-                ];
+                try {
+                    $attributes = [
+                        'u_id' => $uId,
+                        'date_from' => $period['from'],
+                        'date_to' => $period['to'],
+                        'ai_type' => $completion['model'],
+                        'data_type' => $dataType,
+                        'user_token' => $userToken,
+                    ];
+                    $existingPk = DB::table('urt_channel_ai')
+                        ->where($attributes)
+                        ->whereNull('del_flag')
+                        ->value('pk');
+                    $values = [
+                        'mtime' => $now->format('Y-m-d H:i:s'),
+                        'result_json' => $validated['json'],
+                    ];
 
-                if ($existingPk === null) {
-                    DB::table('urt_channel_ai')->insert($attributes + $values + [
-                        'ctime' => $now->format('Y-m-d H:i:s'),
-                        'del_flag' => null,
+                    if ($existingPk === null) {
+                        DB::table('urt_channel_ai')->insert($attributes + $values + [
+                            'ctime' => $now->format('Y-m-d H:i:s'),
+                            'del_flag' => null,
+                        ]);
+                    } else {
+                        DB::table('urt_channel_ai')
+                            ->where('pk', $existingPk)
+                            ->update($values);
+                    }
+                } catch (Throwable $exception) {
+                    $rows->push([
+                        'u_id' => $uId,
+                        'batch' => $batchIndex + 1,
+                        'video_rows' => $videoRows,
+                        'prompt_video_rows' => $videos->count(),
+                        'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
+                        'model' => $completion['model'],
+                        'provider' => $completion['provider'],
+                        'provider_failures' => $completion['provider_failures'],
+                        'latency_ms' => $completion['latency_ms'],
+                        'usage' => $completion['usage'],
+                        'ai_call_attempted' => true,
+                        'inserted' => false,
+                        'updated' => false,
+                        'skipped' => true,
+                        'failed' => true,
+                        'skip_reason' => $this->sanitizedFailure($exception),
                     ]);
-                } else {
-                    DB::table('urt_channel_ai')
-                        ->where('pk', $existingPk)
-                        ->update($values);
+                    $this->logFailure('channel_write', [
+                        'u_id' => $uId,
+                        'date_from' => $period['from'],
+                        'date_to' => $period['to'],
+                        'model' => $completion['model'],
+                        'provider' => $completion['provider'],
+                    ], $exception);
+
+                    continue;
                 }
 
                 $rows->push([
@@ -319,6 +439,7 @@ class AiDailyIngestion
                     'inserted' => $existingPk === null,
                     'updated' => $existingPk !== null,
                     'skipped' => false,
+                    'failed' => false,
                     'skip_reason' => null,
                 ]);
             }
@@ -395,6 +516,7 @@ class AiDailyIngestion
             'inserted' => false,
             'updated' => false,
             'skipped' => true,
+            'failed' => $aiCallAttempted,
             'skip_reason' => $reason,
         ];
     }
@@ -413,24 +535,20 @@ class AiDailyIngestion
         return in_array($dataType, ['oneday', 'todate', 'week'], true) ? $dataType : 'oneday';
     }
 
-    private function stripJsonFence(string $content): string
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    private function logFailure(string $stage, array $context, ?Throwable $exception = null): void
     {
-        $content = trim($content);
-        $content = preg_replace('/^```json\s*/i', '', $content) ?? $content;
-        $content = preg_replace('/^```\s*/', '', $content) ?? $content;
-        $content = preg_replace('/\s*```$/', '', $content) ?? $content;
+        if ($exception !== null) {
+            $context['exception_class'] = $exception::class;
+        }
 
-        return trim($content);
+        Log::warning('AI daily ingestion item failed.', ['stage' => $stage] + $context);
     }
 
     private function sanitizedFailure(Throwable $exception): string
     {
-        return mb_strimwidth(
-            preg_replace('/(api[_-]?key|password|secret|token|authorization)[^,\s]*/i', '$1=<redacted>', $exception->getMessage()) ?? 'ai_completion_failed',
-            0,
-            240,
-            '...',
-            'UTF-8',
-        );
+        return SensitiveTextRedactor::exception($exception, 240);
     }
 }

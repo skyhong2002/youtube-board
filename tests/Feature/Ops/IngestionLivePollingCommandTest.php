@@ -3,10 +3,12 @@
 namespace Tests\Feature\Ops;
 
 use App\Services\Ingestion\IngestionSchedulerRunner;
+use App\Services\Ingestion\LivePollingIngestion;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -183,6 +185,69 @@ class IngestionLivePollingCommandTest extends TestCase
         $this->assertSame(1, DB::table('urt_video_live_log')->where('videoId', 'execute-live')->count());
         $this->assertSame(['20:00' => 456], json_decode((string) DB::table('urt_video_live_log')->where('videoId', 'execute-live')->value('log_json'), true));
         Http::assertSentCount(2);
+    }
+
+    public function test_live_polling_isolates_a_failed_video_and_sanitizes_the_warning(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+        Log::spy();
+
+        $rows = [
+            $this->liveRow('a-fail', 1, '2026-05-25 11:00:00'),
+            $this->liveRow('b-success', 2, '2026-05-25 11:00:00'),
+        ];
+
+        for ($index = 3; $index <= 10; $index++) {
+            $rows[] = $this->liveRow('candidate-'.$index, $index, '2026-05-25 11:00:00');
+        }
+
+        DB::table('urt_video_live')->insert($rows);
+        DB::statement(<<<'SQL'
+CREATE TRIGGER fail_first_live_poll
+BEFORE UPDATE ON urt_video_live
+WHEN OLD.videoId = 'a-fail'
+BEGIN
+    SELECT RAISE(FAIL, 'token=super-secret');
+END
+SQL);
+
+        Http::fake([
+            'www.googleapis.com/youtube/v3/videos*' => Http::response([
+                'items' => [
+                    [
+                        'id' => 'a-fail',
+                        'liveStreamingDetails' => ['concurrentViewers' => '111'],
+                    ],
+                    [
+                        'id' => 'b-success',
+                        'liveStreamingDetails' => ['concurrentViewers' => '222'],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $payload = app(LivePollingIngestion::class)->execute(limit: 2);
+
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame(1, $payload['failed_videos']);
+        $this->assertSame(1, $payload['updated_videos']);
+        $this->assertSame(['videoId' => 'a-fail', 'reason' => 'item_processing_failed'], $payload['skipped'][0]);
+        $this->assertStringNotContainsString('super-secret', json_encode($payload, JSON_THROW_ON_ERROR));
+        $this->assertSame(100, DB::table('urt_video_live')->where('videoId', 'a-fail')->value('concurrentViewers'));
+        $this->assertSame(222, DB::table('urt_video_live')->where('videoId', 'b-success')->value('concurrentViewers'));
+        $this->assertSame(0, DB::table('urt_video_live_log')->where('videoId', 'a-fail')->count());
+        $this->assertSame(1, DB::table('urt_video_live_log')->where('videoId', 'b-success')->count());
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'Live polling item processing failed.'
+                    && $context['video_id'] === 'a-fail'
+                    && $context['reason'] === 'item_processing_failed'
+                    && is_string($context['exception_class'])
+                    && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'super-secret');
+            });
     }
 
     public function test_youtube_live_poll_preserves_legacy_minimum_batch_skip(): void

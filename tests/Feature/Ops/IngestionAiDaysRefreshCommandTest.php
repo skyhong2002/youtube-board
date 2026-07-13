@@ -2,10 +2,13 @@
 
 namespace Tests\Feature\Ops;
 
+use App\Services\Ingestion\AiDailyIngestion;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
+use Mockery\MockInterface;
+use RuntimeException;
 use Tests\TestCase;
 
 class IngestionAiDaysRefreshCommandTest extends TestCase
@@ -84,6 +87,104 @@ class IngestionAiDaysRefreshCommandTest extends TestCase
         $response->assertJsonPath('meta.history_available', true);
         $this->assertSame(['黃仁勳參加COMPUTEX'], $response->json('result.match.2026-06-02'));
         Http::assertSentCount(9);
+    }
+
+    public function test_ai_days_refresh_isolates_child_job_failure_and_continues_next_date(): void
+    {
+        $calls = 0;
+        $this->mock(AiDailyIngestion::class, function (MockInterface $mock) use (&$calls): void {
+            $mock->shouldReceive('execute')
+                ->twice()
+                ->andReturnUsing(function () use (&$calls): array {
+                    $calls++;
+
+                    if ($calls === 1) {
+                        throw new RuntimeException('token=days-child-secret');
+                    }
+
+                    return [
+                        'mode' => 'execute',
+                        'status' => 'success',
+                        'exit_code' => 0,
+                        'failed_rows' => 0,
+                        'daily_ai' => [
+                            'inserted' => 1,
+                            'updated' => 0,
+                            'skipped' => 0,
+                        ],
+                    ];
+                });
+        });
+
+        $exitCode = Artisan::call('ai:days:refresh', [
+            '--execute' => true,
+            '--from' => '2026-06-02',
+            '--to' => '2026-06-03',
+            '--condition' => 'all',
+            '--skip-events' => true,
+            '--skip-period' => true,
+            '--json' => true,
+        ]);
+        $output = trim(Artisan::output());
+        $payload = json_decode($output, true);
+        $dailyJobs = collect($payload['jobs'])->where('type', 'daily')->values();
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame(1, $payload['summary']['failed_jobs']);
+        $this->assertSame('failed', $dailyJobs[0]['action']);
+        $this->assertSame('run', $dailyJobs[1]['action']);
+        $this->assertSame(1, $dailyJobs[0]['result']['failed_rows']);
+        $this->assertSame(0, $dailyJobs[1]['result']['exit_code']);
+        $this->assertSame(1, $payload['summary']['daily_ai_inserted']);
+        $this->assertStringNotContainsString('days-child-secret', $output);
+        $this->assertStringContainsString('token=<redacted>', $dailyJobs[0]['result']['skip_reason']);
+        $this->assertSame(2, $calls);
+    }
+
+    public function test_ai_days_refresh_propagates_child_failure_and_continues_later_days(): void
+    {
+        $this->createTables();
+        $this->seedChannelAiRows();
+        DB::statement("CREATE TRIGGER fail_first_daily_insert BEFORE INSERT ON urt_ai_date WHEN NEW.date_from = '2026-06-02 00:00:00' BEGIN SELECT RAISE(ABORT, 'token=refresh-super-secret'); END");
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::sequence()
+                ->push($this->chatPayload([[
+                    '標題' => '第一天事件',
+                    '媒體事件' => ['新聞頻道' => ['第一天']],
+                ]]))
+                ->push($this->chatPayload([[
+                    '標題' => '第二天事件',
+                    '媒體事件' => ['新聞頻道' => ['第二天']],
+                ]])),
+        ]);
+
+        $exitCode = Artisan::call('ai:days:refresh', [
+            '--execute' => true,
+            '--from' => '2026-06-02',
+            '--to' => '2026-06-03',
+            '--condition' => 'all',
+            '--daily-channel-limit' => 0,
+            '--daily-ai-call-limit' => 1,
+            '--skip-events' => true,
+            '--skip-period' => true,
+            '--json' => true,
+        ]);
+        $output = trim(Artisan::output());
+        $payload = json_decode($output, true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('partial_failure', $payload['status']);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame(1, $payload['summary']['failed_jobs']);
+        $this->assertSame(1, $payload['summary']['daily_ai_inserted']);
+        $this->assertSame(['2026-06-03 00:00:00'], DB::table('urt_ai_date')->pluck('date_from')->all());
+        $this->assertStringNotContainsString('refresh-super-secret', $output);
+        Http::assertSentCount(2);
     }
 
     private function createTables(): void
@@ -248,7 +349,6 @@ class IngestionAiDaysRefreshCommandTest extends TestCase
     }
 
     /**
-     * @param  mixed  $content
      * @return array<string, mixed>
      */
     private function chatPayload(mixed $content): array

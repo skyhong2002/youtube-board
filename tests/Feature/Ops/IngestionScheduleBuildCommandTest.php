@@ -6,6 +6,7 @@ use App\Services\Ingestion\IngestionSchedulerRunner;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -185,6 +186,88 @@ class IngestionScheduleBuildCommandTest extends TestCase
         $this->assertSame(['urt_video_schedule.stime', 'urt_video_schedule.mtime'], $payload['writes']);
         $this->assertSame('2026-05-25 13:00:00', DB::table('urt_video_schedule')->where('videoId', 'scheduled-a')->value('stime'));
         $this->assertSame('2026-05-25 12:00:00', DB::table('urt_video_schedule')->where('videoId', 'scheduled-a')->value('mtime'));
+    }
+
+    public function test_reports_schedule_build_execute_isolates_failed_rows_and_redacts_database_errors(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        DB::table('urt_video_schedule')->insert([
+            [
+                'ctime' => '2026-05-25 09:00:00',
+                'mtime' => '2026-05-25 11:00:00',
+                'stime' => '2026-05-25 11:30:00',
+                'videoId' => 'scheduled-fail',
+                'publishedAt' => '2026-05-25 10:00:00',
+                'viewCount' => 2000,
+            ],
+            [
+                'ctime' => '2026-05-25 09:10:00',
+                'mtime' => '2026-05-25 11:10:00',
+                'stime' => '2026-05-25 11:40:00',
+                'videoId' => 'scheduled-success',
+                'publishedAt' => '2026-05-25 10:00:00',
+                'viewCount' => 2000,
+            ],
+        ]);
+        DB::table('urt_video_log_history')->insert([
+            [
+                'ctime' => '2026-05-25 12:00:00',
+                'videoId' => 'scheduled-fail',
+                'viewCount' => 2000,
+                'likeCount' => 0,
+                'dislikeCount' => 0,
+                'favoriteCount' => 0,
+                'commentCount' => 0,
+            ],
+            [
+                'ctime' => '2026-05-25 12:00:00',
+                'videoId' => 'scheduled-success',
+                'viewCount' => 2000,
+                'likeCount' => 0,
+                'dislikeCount' => 0,
+                'favoriteCount' => 0,
+                'commentCount' => 0,
+            ],
+        ]);
+        DB::statement(<<<'SQL'
+CREATE TRIGGER fail_first_schedule_report
+BEFORE UPDATE ON urt_video_schedule
+WHEN OLD.videoId = 'scheduled-fail'
+BEGIN
+    SELECT RAISE(FAIL, 'token=super-secret');
+END
+SQL);
+        Log::spy();
+
+        $exitCode = Artisan::call('reports:schedule:build', [
+            '--execute' => true,
+            '--limit' => 2,
+            '--json' => true,
+        ]);
+        $output = trim(Artisan::output());
+        $payload = json_decode($output, true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame(1, $payload['updated']);
+        $this->assertSame([
+            'video_id' => 'scheduled-fail',
+            'reason' => 'item_processing_failed',
+        ], $payload['skipped'][0]);
+        $this->assertStringNotContainsString('super-secret', $output);
+        $this->assertSame('2026-05-25 11:30:00', DB::table('urt_video_schedule')->where('videoId', 'scheduled-fail')->value('stime'));
+        $this->assertSame('2026-05-25 13:10:00', DB::table('urt_video_schedule')->where('videoId', 'scheduled-success')->value('stime'));
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'Schedule reports item processing failed.'
+                    && $context['video_id'] === 'scheduled-fail'
+                    && $context['reason'] === 'item_processing_failed'
+                    && is_string($context['exception_class'])
+                    && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'super-secret');
+            });
     }
 
     public function test_ingestion_scheduler_can_execute_ingestion_schedule_preview_when_due(): void

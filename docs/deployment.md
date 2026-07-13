@@ -27,15 +27,84 @@ DB_PASSWORD=<dokploy-secret>
 
 Use the MariaDB service's **General -> Internal Credentials -> Internal Host** value for `DB_HOST`. Dokploy may append a generated suffix to the app name; do not assume the internal host is the human service name.
 
-Production polling is enabled by default through capped Laravel scheduled commands. To pause it from Dokploy, set the relevant gate to `false`: `INGESTION_SCHEDULER_ENABLED` stops scheduler registration, `INGESTION_LOCAL_POLLING_ENABLED` blocks scheduled writes, and `INGESTION_PRODUCTION_POLLING_ENABLED` blocks scheduled writes only in production. `INGESTION_SCHEDULED_WRITE_ALLOWLIST=*` means every job with a reviewed `scheduled_execute_command` is eligible; replace `*` with a comma-separated job list only when intentionally narrowing scheduled writes.
+## Production Release Migrations
 
-Recommended production shape:
+The production image owns schema upgrades. `docker/production-start.sh` waits for a bounded database readiness window, runs `php artisan migrate --force --no-interaction`, verifies `php artisan migrate:status` plus `php artisan deployment:schema-check`, and only then builds Laravel caches and binds the web port. The same schema verifier backs Laravel `/up`, including the required 61-table set, critical quota/mayor columns, quota unique index, and MariaDB InnoDB engine. A connection, migration, or verification failure exits nonzero, so a new container cannot report a healthy web process with stale schema. `DB_STARTUP_WAIT_ATTEMPTS` and `DB_STARTUP_WAIT_SECONDS` may tune only the readiness window; they do not make migration failures graceful.
+
+All create migrations retain an existing table instead of replacing it. The startup schema verifier must still match every adopted baseline/framework/mayor column plus critical primary/unique indexes before the container becomes healthy; a same-named but incompatible table is not considered ready. The legacy baseline migration never drops adopted tables on rollback.
+
+The normal Compose setup command below is a development-image migration check. It uses `docker/php/Dockerfile` and the current Compose database volume; it is not a Production-image or disposable-database preflight:
+
+```bash
+docker compose run --rm setup
+docker compose run --rm setup php artisan migrate:status
+docker compose run --rm setup php artisan migrate --force --no-interaction
+```
+
+For the actual Production image, create an isolated MariaDB container and network, then start the root image exactly as Dokploy will. These values are disposable local-only credentials:
+
+```bash
+docker build -t youtube-board-production-preflight .
+docker network create youtube-board-production-preflight
+docker run -d --name youtube-board-production-preflight-db \
+  --network youtube-board-production-preflight \
+  -e MARIADB_DATABASE=youtube_board \
+  -e MARIADB_USER=youtube_board \
+  -e MARIADB_PASSWORD=youtube_board_preflight \
+  -e MARIADB_ROOT_PASSWORD=youtube_board_root_preflight \
+  mariadb:11.4
+until docker exec youtube-board-production-preflight-db \
+  healthcheck.sh --connect --innodb_initialized; do sleep 2; done
+docker run -d --name youtube-board-production-preflight-web \
+  --network youtube-board-production-preflight \
+  -p 127.0.0.1:18081:8000 \
+  -e APP_ENV=production \
+  -e APP_DEBUG=false \
+  -e APP_KEY=base64:eW91dHViZS1ib2FyZC1sb2NhbC1jb21wb3NlLWtleSE= \
+  -e APP_URL=http://127.0.0.1:18081 \
+  -e DB_CONNECTION=mysql \
+  -e DB_HOST=youtube-board-production-preflight-db \
+  -e DB_PORT=3306 \
+  -e DB_DATABASE=youtube_board \
+  -e DB_USERNAME=youtube_board \
+  -e DB_PASSWORD=youtube_board_preflight \
+  youtube-board-production-preflight
+curl --fail --retry 30 --retry-delay 2 http://127.0.0.1:18081/up
+docker restart youtube-board-production-preflight-web
+docker logs youtube-board-production-preflight-web
+```
+
+The restart log must report `Nothing to migrate`, and `/up` must return 200 again. Verify the disposable MariaDB reports the quota ledger as `ENGINE=InnoDB`. Clean up the isolated resources afterward:
+
+```bash
+docker rm -f youtube-board-production-preflight-web
+docker rm -f youtube-board-production-preflight-db
+docker network rm youtube-board-production-preflight
+docker image rm youtube-board-production-preflight
+```
+
+An adoption preflight must use a separately disposable database populated from the reviewed schema shape being adopted; do not point these commands at Production. Never copy migration rows or run one-off schema SQL in Production.
+
+Normal rollback is a code rollback followed by redeploy. Do not run `migrate:rollback` for this release: dropping `ingestion_youtube_quota_daily` would erase the fail-safe quota reservations for the current Pacific Time day. Before any future destructive migration, first configure and verify a restorable database backup in Dokploy. The current additive migrations can be left in place when application code is rolled back.
+
+Production polling is controlled by Dokploy runtime values, not by the committed template. `INGESTION_SCHEDULER_ENABLED` stops scheduler registration, `INGESTION_LOCAL_POLLING_ENABLED` blocks scheduled writes, and `INGESTION_PRODUCTION_POLLING_ENABLED` blocks scheduled writes only in production. Production must use an exact reviewed `INGESTION_SCHEDULED_WRITE_ALLOWLIST`; do not change that list without dry-run evidence, backup/rollback planning, and explicit operator approval. The web `/ops/ingestion/run` route is dry-run-only in Production and returns 403 for execute requests.
+
+Runner guardrails use `INGESTION_JOB_LOCK_SECONDS=14400` and `INGESTION_YOUTUBE_DAILY_QUOTA_BUDGET=9000`. Execute-mode jobs take an expiring per-job cache lock. Scheduled YouTube jobs atomically reserve their capped worst-case request estimate in the InnoDB `ingestion_youtube_quota_daily` ledger before execution, then settle the reservation to sanitized request telemetry. Every direct YouTube API `--execute` command uses the same current Pacific Time ledger plus a direct-command lock and fails closed when credentials, a positive budget, or the ledger are unavailable. The scheduler passes its successful reservation through a process-scoped command context so that the nested Artisan command does not reserve, settle, or lock twice. Each reserved HTTP attempt stops before its timeout could cross the Pacific quota reset. A handled success or failure settles to recorded request attempts; a process crash or failed settlement keeps the worst-case reservation fail-safe. Deployments and optional run-history recording cannot erase it. Keep the budget below `YOUTUBE_DATA_API_DAILY_QUOTA_UNITS` to reserve capacity for operator smokes and monitoring lag.
+
+Comment queue draining uses `INGESTION_COMMENT_CLAIM_MINUTES=30`. `youtube:comments:fetch` atomically writes `urt_comment_queue.stime` before an external call, excludes active claims, recovers stale claims, and releases a failed item's claim without moving it to `urt_comment_queue_done`. A failed item does not prevent later selected rows from completing.
+
+Fail-closed production template before an exact allowlist is approved:
 
 ```env
 INGESTION_SCHEDULER_ENABLED=true
 INGESTION_LOCAL_POLLING_ENABLED=true
 INGESTION_PRODUCTION_POLLING_ENABLED=true
-INGESTION_SCHEDULED_WRITE_ALLOWLIST=*
+INGESTION_SCHEDULED_WRITE_ALLOWLIST=off
+INGESTION_JOB_LOCK_SECONDS=14400
+INGESTION_YOUTUBE_DAILY_QUOTA_BUDGET=9000
+YOUTUBE_API_TRANSIENT_RETRIES=1
+YOUTUBE_API_RETRY_DELAY_MS=250
+INGESTION_COMMENT_CLAIM_MINUTES=30
 YOUTUBE_API_KEY=<youtube-data-api-key>
 # Optional comma-separated fallback keys, configured only in Dokploy secrets/env:
 YOUTUBE_API_KEYS=<youtube-data-api-key-2>,<youtube-data-api-key-3>
@@ -47,7 +116,7 @@ OPENAI_FALLBACK_ENDPOINT_STYLE=chat
 OPENAI_FALLBACK_TIMEOUT=240
 ```
 
-For `/live/current` parity with the current PHP site, the minimum live jobs are already covered by `*`. If using a narrowed allowlist, include:
+For `/live/current` parity, these are candidate job keys for a separately reviewed exact allowlist. Listing them here is not authorization to add them:
 
 - `youtube.live.poll`: refreshes active `urt_video_live` rows and upserts `urt_video_live_log`.
 - `youtube.tvbs.live.poll`: refreshes active `urt_video_live_tvbs` rows and upserts `urt_video_live_log_tvbs`.
@@ -56,29 +125,29 @@ For `/live/current` parity with the current PHP site, the minimum live jobs are 
 - `youtube.tvbs.videos`: discovers TVBS tagged `[29]` uploads and live/upcoming rows into `urt_video_live_tvbs`.
 - `reports.live.build`: fills `urt_show_video_live` display cache from local live/video rows.
 
-For AI page freshness, add:
+For AI page freshness, candidate keys are:
 
 - `ai.hourly`: refreshes `urt_ai_hour` from the previous complete hour of `urt_video`.
 - `ai.daily`: refreshes configured channel-level `urt_channel_ai` rows in capped batches first, then writes six daily `urt_ai_date` condition rows from those channel summaries.
 
 The AI client tries the primary `OPENAI_*` provider first. If it fails and `OPENAI_FALLBACK_*` is configured, it retries once against the fallback provider. This matches the observed legacy daily AI path, which used OpenAI `chat/completions` with `gpt-4o-mini`, while keeping secrets out of git.
 
-For derived report freshness, add:
+For derived report freshness, candidate keys are:
 
 - `reports.keywords.build`: syncs `tags` from 新文易數 `tag.analysis.tw/api/tag_json.php`; the Laravel dashboard reads database-backed cache data instead of relying on legacy filesystem keyword JSON files.
 - `reports.groups.build`: syncs `tag_group` from 新文易數 `tag.analysis.tw/api/group.php`.
 - `reports.people.build`: refreshes selected political-people `urt_show_tag_date` cache rows from local `urt_video`, `urt_count`, and `tags`.
 - `reports.counts.build` and `reports.schedule.build`: refresh local derived count deltas and schedule stime rows from existing local log/cache data.
 
-When using a narrowed allowlist instead of `*`, include these capped jobs for broader long-running parity after the first production polling window is stable:
+After a stable first polling window, these broader candidates still require a new explicit approval before allowlist expansion:
 
 - `youtube.channels.videos.general`: discovers regular channel uploads into `urt_video`, `urt_video_schedule`, and live rows.
 - `youtube.videos.duration`: drains the duration queue with `videos.list(contentDetails)`.
 - `youtube.comments.queue`: queues recent high-engagement videos for comment fetch.
-- `youtube.comments.fetch`: drains queued comment jobs with one page per scheduled run.
+- `youtube.comments.fetch`: drains up to five queued videos with one `commentThreads.list` page plus at most 20 shared `comments.list` reply pages per video.
 - `reports.mayor.static`: refreshes mayor/city `urt_show_tag_date` cache rows for the dynamic Laravel mayor pages.
 
-The scheduler service must run `php artisan schedule:run` every minute, or the equivalent Dokploy cron service must be enabled. Each scheduled write job uses its capped `scheduled_execute_command`; narrow `INGESTION_SCHEDULED_WRITE_ALLOWLIST` only when you intentionally want some jobs to show blocked.
+The scheduler service must run `php artisan schedule:run --verbose --no-interaction` every minute from `/var/www/html`, or the equivalent Dokploy scheduled task must be enabled against the current web image. Verify a fresh `ingestion:run --execute --record` history entry after deployment without changing the exact allowlist. Environment gates alone do not start the scheduler. Each approved scheduled write job uses its capped `scheduled_execute_command`; keys outside the exact allowlist remain blocked. Creating or enabling the Production scheduled task can execute already allowlisted writes and therefore requires explicit operator approval.
 
 ## MariaDB Environment
 

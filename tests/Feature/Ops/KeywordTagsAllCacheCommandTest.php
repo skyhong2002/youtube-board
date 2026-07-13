@@ -5,6 +5,7 @@ namespace Tests\Feature\Ops;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -72,6 +73,46 @@ class KeywordTagsAllCacheCommandTest extends TestCase
         $response->assertSee('柯文哲');
         $response->assertSee('100');
         $response->assertSee('1');
+    }
+
+    public function test_tags_all_cache_write_failure_is_sanitized_and_returns_nonzero_summary(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-26 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedRows();
+        Log::spy();
+
+        DB::statement(<<<'SQL'
+CREATE TRIGGER fail_tags_all_cache
+BEFORE INSERT ON urt_show_data
+WHEN NEW.data_name = 'tags_all'
+BEGIN
+    SELECT RAISE(FAIL, 'token=tags-all-secret');
+END
+SQL);
+
+        $exitCode = Artisan::call('reports:keywords:cache', [
+            '--keyword-limit' => 10,
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('failed', $payload['status']);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame(0, $payload['writes']);
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame('cache_row_processing_failed', $payload['failure_reason']);
+        $this->assertStringNotContainsString('tags-all-secret', json_encode($payload, JSON_THROW_ON_ERROR));
+        $this->assertSame(0, DB::table('urt_show_data')->count());
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'Keyword tags-all cache row failed.'
+                    && $context['failure_reason'] === 'cache_row_processing_failed'
+                    && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'tags-all-secret');
+            });
     }
 
     private function createTables(): void

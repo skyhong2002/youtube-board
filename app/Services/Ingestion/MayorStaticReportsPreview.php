@@ -12,9 +12,7 @@ class MayorStaticReportsPreview
     public function __construct(
         private readonly MayorReport $mayorReport,
         private readonly TagDateCacheBuilder $tagDateCacheBuilder,
-    )
-    {
-    }
+    ) {}
 
     /**
      * @return array{
@@ -93,6 +91,7 @@ class MayorStaticReportsPreview
         $cacheJobs = [];
         $seenCacheJobs = [];
         $written = 0;
+        $failedCacheRows = 0;
 
         foreach ($targetReports as [, $report]) {
             $range = $report['range'];
@@ -115,6 +114,7 @@ class MayorStaticReportsPreview
                         now: $now,
                     );
                     $written += (int) $result['writes'];
+                    $failedCacheRows += (int) ($result['failed_rows'] ?? (($result['exit_code'] ?? 0) !== 0 ? 1 : 0));
                     $cacheJobs[] = $result;
                 }
             }
@@ -131,6 +131,9 @@ class MayorStaticReportsPreview
             'target_keywords' => $targetKeywords,
             'cache_jobs' => count($cacheJobs),
             'cache_writes' => $written,
+            'failed_cache_rows' => $failedCacheRows,
+            'failed_rows' => $failedCacheRows,
+            'exit_code' => $failedCacheRows > 0 ? 1 : 0,
             'writes' => ['urt_show_tag_date'],
         ]);
     }
@@ -201,7 +204,7 @@ class MayorStaticReportsPreview
     }
 
     /**
-     * @param array<string, mixed> $target
+     * @param  array<string, mixed>  $target
      * @return array<string, mixed>
      */
     private function withDynamicPreview(array $target): array
@@ -250,7 +253,7 @@ class MayorStaticReportsPreview
     }
 
     /**
-     * @param list<array<string, mixed>> $targets
+     * @param  list<array<string, mixed>>  $targets
      * @return list<array<string, mixed>>
      */
     private function mergeCurrentTargets(array $targets): array
@@ -289,7 +292,7 @@ class MayorStaticReportsPreview
     }
 
     /**
-     * @param array<string, string> $query
+     * @param  array<string, string>  $query
      */
     private function queryString(array $query): string
     {

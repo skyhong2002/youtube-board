@@ -109,7 +109,7 @@
             <div class="summary" aria-label="Global ingestion summary">
                 <span>global {{ number_format($summary['total']) }} jobs</span>
                 @if ($scheduledWriteScope === 'all')
-                    <span>scheduled writes default on</span>
+                    <span>all scheduled writes enabled</span>
                 @elseif ($scheduledWriteScope === 'off')
                     <span>scheduled writes off</span>
                 @else

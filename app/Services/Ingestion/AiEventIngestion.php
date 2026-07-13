@@ -3,10 +3,12 @@
 namespace App\Services\Ingestion;
 
 use App\Services\Legacy\AiDailyReport;
+use App\Support\SensitiveTextRedactor;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 use Throwable;
@@ -101,6 +103,7 @@ class AiEventIngestion
                 'inserted' => false,
                 'updated' => false,
                 'skipped' => true,
+                'failed' => false,
                 'skip_reason' => $blockedReason,
                 'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
                 'provider' => null,
@@ -156,6 +159,7 @@ class AiEventIngestion
                         'inserted' => $upsert['inserted'],
                         'updated' => $upsert['updated'],
                         'skipped' => false,
+                        'failed' => false,
                         'skip_reason' => null,
                         'fallback_used' => $fallbackUsed,
                         'fallback_reason' => $fallbackReason,
@@ -170,6 +174,7 @@ class AiEventIngestion
                         'inserted' => false,
                         'updated' => false,
                         'skipped' => true,
+                        'failed' => true,
                         'skip_reason' => $this->sanitizedFailure($exception),
                         'fallback_used' => false,
                         'fallback_reason' => null,
@@ -178,6 +183,13 @@ class AiEventIngestion
                         'provider_failures' => [],
                         'usage' => null,
                     ];
+                    Log::warning('AI event ingestion row failed.', [
+                        'stage' => 'completion_or_write',
+                        'date' => $day['date'],
+                        'aipk' => $day['pk'],
+                        'prompt_type' => $promptType,
+                        'exception_class' => $exception::class,
+                    ]);
                 }
             }
         }
@@ -193,8 +205,13 @@ class AiEventIngestion
      */
     private function executeResult(array $day, array $topics, array $promptTypes, CarbonImmutable $now, array $rows, int $aiCallLimit, int $aiCallsUsed): array
     {
+        $failedRows = collect($rows)->where('failed', true)->count();
+
         return [
             'mode' => 'execute',
+            'status' => $failedRows > 0 ? 'partial_failure' : 'success',
+            'exit_code' => $failedRows > 0 ? 1 : 0,
+            'failed_rows' => $failedRows,
             'source' => 'legacy_ai_event',
             'date' => $day['date'],
             'date_from' => $day['date_from'],
@@ -208,6 +225,7 @@ class AiEventIngestion
                 'inserted' => collect($rows)->where('inserted', true)->count(),
                 'updated' => collect($rows)->where('updated', true)->count(),
                 'skipped' => collect($rows)->where('skipped', true)->count(),
+                'failed' => $failedRows,
                 'rows' => $rows,
             ],
             'ai_call_guard' => [
@@ -822,6 +840,7 @@ class AiEventIngestion
             'inserted' => false,
             'updated' => false,
             'skipped' => true,
+            'failed' => false,
             'skip_reason' => $reason,
             'fallback_used' => false,
             'fallback_reason' => null,
@@ -834,12 +853,6 @@ class AiEventIngestion
 
     private function sanitizedFailure(Throwable $exception): string
     {
-        return mb_strimwidth(
-            preg_replace('/(api[_-]?key|token|secret|password)=\S+/i', '$1=redacted', $exception->getMessage()) ?? 'ai_call_failed',
-            0,
-            180,
-            '...',
-            'UTF-8',
-        );
+        return SensitiveTextRedactor::exception($exception, 180);
     }
 }

@@ -2,11 +2,13 @@
 
 namespace Tests\Feature\Ops;
 
+use App\Services\Ingestion\AiHourlyIngestion;
 use App\Services\Ingestion\IngestionSchedulerRunner;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -62,6 +64,22 @@ class IngestionAiHourlyCommandTest extends TestCase
         $this->assertSame([], $payload['writes']);
         $this->assertSame('blue-video', $payload['rows'][0]['video_id']);
         $this->assertSame(1, DB::table('urt_ai_hour')->count());
+    }
+
+    public function test_ai_hourly_zero_source_preview_reports_no_ai_call_or_write(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        $exitCode = Artisan::call('ai:hourly', ['--json' => true]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(0, $payload['video_rows']);
+        $this->assertSame(0, $payload['prompt_video_rows']);
+        $this->assertSame(0, $payload['would_call_ai_requests']);
+        $this->assertSame(0, $payload['would_insert_ai_hour_rows']);
+        $this->assertSame([], $payload['writes']);
     }
 
     public function test_ai_hourly_preview_supports_backfill_evaluation_time(): void
@@ -451,6 +469,98 @@ class IngestionAiHourlyCommandTest extends TestCase
         $this->assertSame([], $payload['write_targets']);
         $this->assertSame(0, DB::table('urt_ai_hour')->count());
         Http::assertNothingSent();
+    }
+
+    public function test_ai_hourly_command_rejects_invalid_event_shape_without_writing_or_leaking_content(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDefaultFixtures();
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        Log::spy();
+
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::response([
+                'choices' => [[
+                    'message' => [
+                        'content' => '{"note":"token=hourly-output-secret"}',
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('ai:hourly', [
+            '--condition' => 'blue',
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+        $encoded = json_encode($payload, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('failed', $payload['status']);
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertTrue($payload['failed']);
+        $this->assertSame('invalid_ai_payload_shape', $payload['skip_reason']);
+        $this->assertSame([], $payload['write_targets']);
+        $this->assertStringNotContainsString('hourly-output-secret', $encoded);
+        $this->assertSame(0, DB::table('urt_ai_hour')->count());
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'AI hourly ingestion failed.'
+                    && $context['stage'] === 'validation'
+                    && $context['failure_reason'] === 'invalid_ai_payload_shape'
+                    && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'hourly-output-secret');
+            });
+    }
+
+    public function test_ai_hourly_service_sanitizes_write_failure_and_returns_nonzero_summary(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDefaultFixtures();
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        Log::spy();
+
+        DB::statement(<<<'SQL'
+CREATE TRIGGER fail_hourly_ai_write
+BEFORE INSERT ON urt_ai_hour
+BEGIN
+    SELECT RAISE(FAIL, 'token=hourly-db-secret');
+END
+SQL);
+
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::response([
+                'choices' => [[
+                    'message' => [
+                        'content' => '[{"事件":"測試事件","videoId":["blue-video"]}]',
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $payload = app(AiHourlyIngestion::class)->execute(condition: 'blue');
+        $encoded = json_encode($payload, JSON_THROW_ON_ERROR);
+
+        $this->assertSame('failed', $payload['status']);
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertStringContainsString('token=<redacted>', $payload['skip_reason']);
+        $this->assertStringNotContainsString('hourly-db-secret', $encoded);
+        $this->assertSame(0, DB::table('urt_ai_hour')->count());
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'AI hourly ingestion failed.'
+                    && $context['stage'] === 'write'
+                    && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'hourly-db-secret');
+            });
     }
 
     public function test_ingestion_scheduler_can_run_allowlisted_ai_hourly_execute_when_due(): void

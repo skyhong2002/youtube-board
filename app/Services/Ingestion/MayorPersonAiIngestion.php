@@ -4,10 +4,12 @@ namespace App\Services\Ingestion;
 
 use App\Services\Legacy\MayorPersonDailyReport;
 use App\Services\Legacy\MayorReport;
+use App\Support\SensitiveTextRedactor;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 use Throwable;
@@ -18,8 +20,7 @@ class MayorPersonAiIngestion
         private readonly MayorReport $mayorReport,
         private readonly MayorPersonDailyReport $dailyReport,
         private readonly OpenCodeChatClient $client,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array<string, mixed>
@@ -85,90 +86,111 @@ class MayorPersonAiIngestion
         $rows = [];
 
         foreach ($targets as $target) {
-            $source = $this->source($city, $target['person'], $date);
-            $prompt = $this->prompt($source);
-
-            if (! $target['eligible']) {
-                $rows[] = $this->skippedRow($target, 'not_in_city_candidates', $source, $prompt);
-
-                continue;
-            }
-
-            if (! $this->hasSourceData($source)) {
-                $rows[] = $this->skippedRow($target, 'no_source_data', $source, $prompt);
-
-                continue;
-            }
-
-            if ($aiCallsUsed >= $aiCallLimit) {
-                $rows[] = $this->skippedRow($target, 'ai_call_guard_exhausted', $source, $prompt);
-
-                continue;
-            }
-
+            $source = [];
+            $prompt = '';
+            $aiCallAttempted = false;
             try {
+                $source = $this->source($city, $target['person'], $date);
+                $prompt = $this->prompt($source);
+
+                if (! $target['eligible']) {
+                    $rows[] = $this->skippedRow($target, 'not_in_city_candidates', $source, $prompt);
+
+                    continue;
+                }
+
+                if (! $this->hasSourceData($source)) {
+                    $rows[] = $this->skippedRow($target, 'no_source_data', $source, $prompt);
+
+                    continue;
+                }
+
+                if ($aiCallsUsed >= $aiCallLimit) {
+                    $rows[] = $this->skippedRow($target, 'ai_call_guard_exhausted', $source, $prompt);
+
+                    continue;
+                }
+
                 $aiCallsUsed++;
+                $aiCallAttempted = true;
                 $completion = $this->client->complete($prompt);
-            } catch (Throwable $exception) {
-                $rows[] = $this->skippedRow($target, $this->sanitizedFailure($exception), $source, $prompt, true);
-
-                continue;
-            }
-
-            $resultJson = $this->resultJson($completion['content']);
-            $existingPk = DB::table('urt_mayor_person_ai')
-                ->where('city_key', $city['key'])
-                ->where('person', $target['person'])
-                ->where('the_date', $date)
-                ->where('user_token', $userToken)
-                ->whereNull('del_flag')
-                ->value('pk');
-            $values = [
-                'mtime' => $now->format('Y-m-d H:i:s'),
-                'city_label' => $city['label'],
-                'ai_type' => $completion['model'],
-                'provider' => $completion['provider'],
-                'prompt_json' => json_encode(['version' => 1, 'prompt' => $prompt], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-                'source_json' => json_encode($source, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-                'result_json' => $resultJson,
-            ];
-
-            if ($existingPk === null) {
-                DB::table('urt_mayor_person_ai')->insert([
-                    'ctime' => $now->format('Y-m-d H:i:s'),
-                    'city_key' => $city['key'],
+                $resultJson = $this->resultJson($completion['content']);
+                $existingPk = DB::table('urt_mayor_person_ai')
+                    ->where('city_key', $city['key'])
+                    ->where('person', $target['person'])
+                    ->where('the_date', $date)
+                    ->where('user_token', $userToken)
+                    ->whereNull('del_flag')
+                    ->value('pk');
+                $values = [
+                    'mtime' => $now->format('Y-m-d H:i:s'),
                     'city_label' => $city['label'],
-                    'person' => $target['person'],
-                    'the_date' => $date,
-                    'user_token' => $userToken,
-                    'del_flag' => null,
-                ] + $values);
-            } else {
-                DB::table('urt_mayor_person_ai')
-                    ->where('pk', $existingPk)
-                    ->update($values);
-            }
+                    'ai_type' => $completion['model'],
+                    'provider' => $completion['provider'],
+                    'prompt_json' => json_encode(['version' => 1, 'prompt' => $prompt], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    'source_json' => json_encode($source, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    'result_json' => $resultJson,
+                ];
 
-            $rows[] = [
-                'person' => $target['person'],
-                'eligible' => true,
-                'source_videos' => count($source['videos']),
-                'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
-                'model' => $completion['model'],
-                'provider' => $completion['provider'],
-                'provider_failures' => $completion['provider_failures'],
-                'latency_ms' => $completion['latency_ms'],
-                'usage' => $completion['usage'],
-                'ai_call_attempted' => true,
-                'inserted' => $existingPk === null,
-                'updated' => $existingPk !== null,
-                'skipped' => false,
-                'skip_reason' => null,
-            ];
+                if ($existingPk === null) {
+                    DB::table('urt_mayor_person_ai')->insert([
+                        'ctime' => $now->format('Y-m-d H:i:s'),
+                        'city_key' => $city['key'],
+                        'city_label' => $city['label'],
+                        'person' => $target['person'],
+                        'the_date' => $date,
+                        'user_token' => $userToken,
+                        'del_flag' => null,
+                    ] + $values);
+                } else {
+                    DB::table('urt_mayor_person_ai')
+                        ->where('pk', $existingPk)
+                        ->update($values);
+                }
+
+                $rows[] = [
+                    'person' => $target['person'],
+                    'eligible' => true,
+                    'source_videos' => count($source['videos']),
+                    'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
+                    'model' => $completion['model'],
+                    'provider' => $completion['provider'],
+                    'provider_failures' => $completion['provider_failures'],
+                    'latency_ms' => $completion['latency_ms'],
+                    'usage' => $completion['usage'],
+                    'ai_call_attempted' => true,
+                    'inserted' => $existingPk === null,
+                    'updated' => $existingPk !== null,
+                    'skipped' => false,
+                    'failed' => false,
+                    'skip_reason' => null,
+                ];
+            } catch (Throwable $exception) {
+                $rows[] = $this->skippedRow(
+                    $target,
+                    $this->sanitizedFailure($exception),
+                    $source,
+                    $prompt,
+                    $aiCallAttempted,
+                    true,
+                );
+                Log::warning('Mayor person AI ingestion row failed.', [
+                    'stage' => $aiCallAttempted ? 'completion_validation_or_write' : 'source',
+                    'city' => $city['key'],
+                    'date' => $date,
+                    'person' => $target['person'],
+                    'exception_class' => $exception::class,
+                ]);
+            }
         }
+
+        $failedRows = collect($rows)->where('failed', true)->count();
 
         return [
             'mode' => 'execute',
+            'status' => $failedRows > 0 ? 'partial_failure' : 'success',
+            'exit_code' => $failedRows > 0 ? 1 : 0,
+            'failed_rows' => $failedRows,
             'source' => 'mayor_person_ai',
             'city' => $city['key'],
             'city_label' => $city['label'],
@@ -179,6 +201,7 @@ class MayorPersonAiIngestion
             'inserted' => collect($rows)->where('inserted', true)->count(),
             'updated' => collect($rows)->where('updated', true)->count(),
             'skipped' => collect($rows)->where('skipped', true)->count(),
+            'failed' => $failedRows,
             'ai_call_guard' => [
                 'limit' => $aiCallLimit,
                 'used' => $aiCallsUsed,
@@ -191,8 +214,8 @@ class MayorPersonAiIngestion
     }
 
     /**
-     * @param array{key: string, label: string, candidates: list<string>, factors: array<string, array<int, float>>, source: string} $city
-     * @param array{person: string, eligible: bool} $target
+     * @param  array{key: string, label: string, candidates: list<string>, factors: array<string, array<int, float>>, source: string}  $city
+     * @param  array{person: string, eligible: bool}  $target
      * @return array<string, mixed>
      */
     private function previewRow(array $city, array $target, string $date, bool $includePrompt): array
@@ -222,7 +245,7 @@ class MayorPersonAiIngestion
     }
 
     /**
-     * @param array{key: string, label: string, candidates: list<string>, factors: array<string, array<int, float>>, source: string} $city
+     * @param  array{key: string, label: string, candidates: list<string>, factors: array<string, array<int, float>>, source: string}  $city
      * @return array<string, mixed>
      */
     private function source(array $city, string $person, string $date): array
@@ -261,7 +284,7 @@ class MayorPersonAiIngestion
     }
 
     /**
-     * @param array<string, mixed> $source
+     * @param  array<string, mixed>  $source
      */
     private function prompt(array $source): string
     {
@@ -280,7 +303,7 @@ class MayorPersonAiIngestion
     }
 
     /**
-     * @param array<string, mixed> $source
+     * @param  array<string, mixed>  $source
      */
     private function hasSourceData(array $source): bool
     {
@@ -303,7 +326,7 @@ class MayorPersonAiIngestion
     }
 
     /**
-     * @param array{candidates: list<string>} $city
+     * @param  array{candidates: list<string>}  $city
      * @return list<array{person: string, eligible: bool}>
      */
     private function targets(array $city, ?string $person, int $limit): array
@@ -348,11 +371,11 @@ class MayorPersonAiIngestion
     }
 
     /**
-     * @param array{person: string, eligible: bool} $target
-     * @param array<string, mixed> $source
+     * @param  array{person: string, eligible: bool}  $target
+     * @param  array<string, mixed>  $source
      * @return array<string, mixed>
      */
-    private function skippedRow(array $target, string $reason, array $source, string $prompt, bool $aiCallAttempted = false): array
+    private function skippedRow(array $target, string $reason, array $source, string $prompt, bool $aiCallAttempted = false, bool $failed = false): array
     {
         return [
             'person' => $target['person'],
@@ -367,6 +390,7 @@ class MayorPersonAiIngestion
             'inserted' => false,
             'updated' => false,
             'skipped' => true,
+            'failed' => $failed,
             'skip_reason' => $reason,
         ];
     }
@@ -420,12 +444,6 @@ class MayorPersonAiIngestion
 
     private function sanitizedFailure(Throwable $exception): string
     {
-        return mb_strimwidth(
-            preg_replace('/(api[_-]?key|password|secret|token|authorization)[^,\s]*/i', '$1=<redacted>', $exception->getMessage()) ?? 'ai_completion_failed',
-            0,
-            240,
-            '...',
-            'UTF-8',
-        );
+        return SensitiveTextRedactor::exception($exception, 240);
     }
 }

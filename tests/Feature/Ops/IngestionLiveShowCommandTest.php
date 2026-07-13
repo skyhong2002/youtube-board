@@ -6,6 +6,7 @@ use App\Services\Ingestion\IngestionSchedulerRunner;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -263,6 +264,84 @@ class IngestionLiveShowCommandTest extends TestCase
         $this->assertSame('execute', $secondPayload['mode']);
         $this->assertSame(0, $secondPayload['cache_writes']);
         $this->assertSame(1, DB::table('urt_show_video_live')->count());
+    }
+
+    public function test_reports_live_build_execute_isolates_failed_rows_and_redacts_database_errors(): void
+    {
+        $this->createTables();
+        $now = now('Asia/Taipei');
+
+        $successfulVideoPk = DB::table('urt_video')->insertGetId([
+            'u_id' => 20,
+            'publishedAt' => $now->copy()->subHour()->format('Y-m-d H:i:s'),
+            'channelId' => 'UC-success',
+            'channelTitle' => 'Successful Channel',
+            'title' => 'Successful live row',
+            'thumbnails' => 'https://example.test/success.jpg',
+            'videoId' => 'successful-live-cache',
+            'description' => 'success',
+        ]);
+        $failingVideoPk = DB::table('urt_video')->insertGetId([
+            'u_id' => 10,
+            'publishedAt' => $now->copy()->subHour()->format('Y-m-d H:i:s'),
+            'channelId' => 'UC-fail',
+            'channelTitle' => 'Failing Channel',
+            'title' => 'Failing live row',
+            'thumbnails' => 'https://example.test/fail.jpg',
+            'videoId' => 'failing-live-cache',
+            'description' => 'failure',
+        ]);
+        $successfulLivePk = DB::table('urt_video_live')->insertGetId([
+            'ctime' => $now->copy()->subMinutes(10)->format('Y-m-d H:i:s'),
+            'videoId' => 'successful-live-cache',
+            'u_id' => 20,
+            'publishedAt' => $now->copy()->subHour()->format('Y-m-d H:i:s'),
+        ]);
+        $failingLivePk = DB::table('urt_video_live')->insertGetId([
+            'ctime' => $now->copy()->subMinutes(5)->format('Y-m-d H:i:s'),
+            'videoId' => 'failing-live-cache',
+            'u_id' => 10,
+            'publishedAt' => $now->copy()->subHour()->format('Y-m-d H:i:s'),
+        ]);
+        DB::statement(<<<SQL
+CREATE TRIGGER fail_first_live_cache
+BEFORE INSERT ON urt_show_video_live
+WHEN NEW.pk_live = {$failingLivePk}
+BEGIN
+    SELECT RAISE(FAIL, 'token=super-secret');
+END
+SQL);
+        Log::spy();
+
+        $exitCode = Artisan::call('reports:live:build', [
+            '--execute' => true,
+            '--limit' => 2,
+            '--json' => true,
+        ]);
+        $output = trim(Artisan::output());
+        $payload = json_decode($output, true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame(1, $payload['cache_writes']);
+        $this->assertSame([
+            'pk_live' => $failingLivePk,
+            'reason' => 'item_processing_failed',
+        ], $payload['skipped'][0]);
+        $this->assertStringNotContainsString('super-secret', $output);
+        $this->assertSame(0, DB::table('urt_show_video_live')->where('pk_live', $failingLivePk)->count());
+        $this->assertSame(1, DB::table('urt_show_video_live')->where('pk_live', $successfulLivePk)->count());
+        $this->assertSame($successfulVideoPk, (int) DB::table('urt_show_video_live')->where('pk_live', $successfulLivePk)->value('v_pk'));
+        $this->assertNotSame($failingVideoPk, $successfulVideoPk);
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(function (string $message, array $context) use ($failingLivePk): bool {
+                return $message === 'Live display cache item processing failed.'
+                    && $context['pk_live'] === $failingLivePk
+                    && $context['reason'] === 'item_processing_failed'
+                    && is_string($context['exception_class'])
+                    && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'super-secret');
+            });
     }
 
     public function test_ingestion_scheduler_can_execute_ingestion_live_build_preview_when_due(): void

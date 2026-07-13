@@ -2,17 +2,20 @@
 
 namespace App\Services\Ingestion;
 
+use App\Support\SensitiveTextRedactor;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class AiHourlyIngestion
 {
     public function __construct(
         private readonly AiHourlyPreview $preview,
         private readonly OpenCodeChatClient $client,
-    ) {
-    }
+        private readonly AiJsonPayloadValidator $jsonValidator,
+    ) {}
 
     /**
      * @return array<string, mixed>
@@ -30,6 +33,9 @@ class AiHourlyIngestion
         if ((int) $payload['prompt_video_rows'] <= 0) {
             return [
                 'mode' => 'execute',
+                'status' => 'skipped',
+                'exit_code' => 0,
+                'failed_rows' => 0,
                 'source' => $payload['source'],
                 'date_from' => $payload['date_from'],
                 'date_to' => $payload['date_to'],
@@ -44,13 +50,42 @@ class AiHourlyIngestion
                 'upserted' => false,
                 'inserted' => false,
                 'updated' => false,
+                'ai_call_attempted' => false,
                 'skipped' => true,
+                'failed' => false,
                 'skip_reason' => 'no_source_videos',
                 'secrets' => 'not_printed',
             ];
         }
 
-        $completion = $this->client->complete((string) $payload['prompt']);
+        try {
+            $completion = $this->client->complete((string) $payload['prompt']);
+        } catch (Throwable $exception) {
+            $this->logFailure($payload, 'completion', [], $exception);
+
+            return $this->failedPayload(
+                payload: $payload,
+                reason: SensitiveTextRedactor::exception($exception, 240),
+            );
+        }
+
+        $validated = $this->jsonValidator->validateEventList((string) $completion['content'], 'hourly');
+
+        if (! $validated['valid']) {
+            $this->logFailure($payload, 'validation', [
+                'model' => $completion['model'],
+                'provider' => $completion['provider'],
+                'failure_reason' => $validated['failure_reason'],
+                'content_chars' => mb_strlen((string) $completion['content'], 'UTF-8'),
+            ]);
+
+            return $this->failedPayload(
+                payload: $payload,
+                reason: (string) $validated['failure_reason'],
+                completion: $completion,
+            );
+        }
+
         $now = CarbonImmutable::now((string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei')))
             ->format('Y-m-d H:i:s');
         $attributes = [
@@ -64,25 +99,41 @@ class AiHourlyIngestion
         $values = [
             'mtime' => $now,
             'del_flag' => null,
-            'result_json' => $completion['content'],
+            'result_json' => $validated['json'],
         ];
 
-        $existingPk = DB::table('urt_ai_hour')
-            ->where($attributes)
-            ->value('pk');
+        try {
+            $existingPk = DB::table('urt_ai_hour')
+                ->where($attributes)
+                ->value('pk');
 
-        if ($existingPk === null) {
-            DB::table('urt_ai_hour')->insert($attributes + $values + [
-                'ctime' => $now,
-            ]);
-        } else {
-            DB::table('urt_ai_hour')
-                ->where('pk', $existingPk)
-                ->update($values);
+            if ($existingPk === null) {
+                DB::table('urt_ai_hour')->insert($attributes + $values + [
+                    'ctime' => $now,
+                ]);
+            } else {
+                DB::table('urt_ai_hour')
+                    ->where('pk', $existingPk)
+                    ->update($values);
+            }
+        } catch (Throwable $exception) {
+            $this->logFailure($payload, 'write', [
+                'model' => $completion['model'],
+                'provider' => $completion['provider'],
+            ], $exception);
+
+            return $this->failedPayload(
+                payload: $payload,
+                reason: SensitiveTextRedactor::exception($exception, 240),
+                completion: $completion,
+            );
         }
 
         return [
             'mode' => 'execute',
+            'status' => 'success',
+            'exit_code' => 0,
+            'failed_rows' => 0,
             'source' => $payload['source'],
             'date_from' => $payload['date_from'],
             'date_to' => $payload['date_to'],
@@ -108,9 +159,63 @@ class AiHourlyIngestion
             'upserted' => true,
             'inserted' => $existingPk === null,
             'updated' => $existingPk !== null,
+            'ai_call_attempted' => true,
             'skipped' => false,
+            'failed' => false,
             'skip_reason' => null,
             'secrets' => 'not_printed',
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>|null  $completion
+     * @return array<string, mixed>
+     */
+    private function failedPayload(array $payload, string $reason, ?array $completion = null): array
+    {
+        return [
+            'mode' => 'execute',
+            'status' => 'failed',
+            'exit_code' => 1,
+            'failed_rows' => 1,
+            'source' => $payload['source'],
+            'date_from' => $payload['date_from'],
+            'date_to' => $payload['date_to'],
+            'condition_type' => $payload['condition_type'],
+            'prompt_video_rows' => $payload['prompt_video_rows'],
+            'prompt_chars' => $payload['prompt_chars'],
+            'model' => $completion['model'] ?? (string) config('services.opencode_go.model', 'qwen3.6-plus'),
+            'provider' => $completion['provider'] ?? null,
+            'provider_failures' => $completion['provider_failures'] ?? [],
+            'usage' => $completion['usage'] ?? null,
+            'write_targets' => [],
+            'upserted' => false,
+            'inserted' => false,
+            'updated' => false,
+            'ai_call_attempted' => true,
+            'skipped' => true,
+            'failed' => true,
+            'skip_reason' => $reason,
+            'secrets' => 'not_printed',
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>  $context
+     */
+    private function logFailure(array $payload, string $stage, array $context = [], ?Throwable $exception = null): void
+    {
+        if ($exception !== null) {
+            $context['exception_class'] = $exception::class;
+        }
+
+        Log::warning('AI hourly ingestion failed.', [
+            'stage' => $stage,
+            'condition_type' => $payload['condition_type'],
+            'date_from' => $payload['date_from'],
+            'date_to' => $payload['date_to'],
+        ] + $context);
     }
 }

@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('urt_mayor_person_ai')) {
+            return;
+        }
+
         Schema::create('urt_mayor_person_ai', function (Blueprint $table): void {
             $table->bigIncrements('pk');
             $table->dateTime('ctime');

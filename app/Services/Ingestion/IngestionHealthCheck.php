@@ -21,8 +21,9 @@ class IngestionHealthCheck
         private readonly IngestionJobRegistry $registry,
         private readonly IngestionRunHistory $history,
         private readonly MayorReport $mayorReport,
-    ) {
-    }
+        private readonly YoutubeQuotaBudgetLedger $quotaLedger,
+        private readonly AiJsonPayloadValidator $jsonValidator,
+    ) {}
 
     /**
      * @return array<string, mixed>
@@ -140,14 +141,29 @@ class IngestionHealthCheck
      */
     private function youtubeHealth(array $events, CarbonImmutable $now): array
     {
-        $quota = $this->history->youtubeQuotaDailyEstimate($now);
+        $budget = max(0, (int) config('ingestion.youtube_daily_quota_budget', 9000));
+        $quota = $this->quotaLedger->state($budget, $now);
+        $quotaUnavailable = ! (bool) ($quota['available'] ?? false);
+
+        if ((bool) ($quota['available'] ?? false)) {
+            $quota['estimated_units'] = (int) ($quota['projected_units'] ?? 0);
+            $quota['daily_limit'] = $budget;
+            $quota['percent_used'] = $budget > 0
+                ? round(((int) $quota['estimated_units'] / $budget) * 100, 1)
+                : 0.0;
+        } else {
+            $quota = $this->history->youtubeQuotaDailyEstimate($now) + [
+                'available' => false,
+                'reason' => $quota['reason'] ?? 'quota_ledger_unavailable',
+            ];
+        }
         $failed = collect($events)->filter(fn (array $event): bool => ($event['ok'] ?? true) !== true);
         $hardFailed = $failed->filter(fn (array $event): bool => $this->isHardYoutubeFailure($event));
         $slow = collect($events)->filter(fn (array $event): bool => (int) ($event['latency_ms'] ?? 0) >= self::YOUTUBE_SLOW_MS);
         $quotaPercent = (float) ($quota['percent_used'] ?? 0);
         $status = 'ok';
 
-        if ($hardFailed->isNotEmpty() || $quotaPercent >= 95) {
+        if ($quotaUnavailable || $hardFailed->isNotEmpty() || $quotaPercent >= 95) {
             $status = 'fail';
         } elseif ($failed->isNotEmpty() || $slow->isNotEmpty() || $quotaPercent >= 80) {
             $status = 'warn';
@@ -289,6 +305,12 @@ class IngestionHealthCheck
                 $aiDateColumns[] = 'mtime';
             }
 
+            $hasResultJson = Schema::hasColumn('urt_ai_date', 'result_json');
+
+            if ($hasResultJson) {
+                $aiDateColumns[] = 'result_json';
+            }
+
             $rows = DB::table('urt_ai_date')
                 ->when(Schema::hasColumn('urt_ai_date', 'del_flag'), fn ($query) => $query->whereNull('del_flag'))
                 ->where('date_from', $date.' 00:00:00')
@@ -299,7 +321,11 @@ class IngestionHealthCheck
             return $this->unknownAiDaily($date, 'database unavailable while checking AI daily completeness');
         }
 
-        $completed = $rows
+        $validRows = $hasResultJson
+            ? $rows->filter(fn (object $row): bool => $this->jsonValidator
+                ->validateEventList((string) ($row->result_json ?? ''), 'daily')['valid'])
+            : $rows;
+        $completed = $validRows
             ->map(fn (object $row): string => $this->normalizeCondition($row->condition_type ?? null))
             ->unique()
             ->intersect(self::DAILY_CONDITIONS)
@@ -307,8 +333,9 @@ class IngestionHealthCheck
             ->all();
         $missing = array_values(array_diff(self::DAILY_CONDITIONS, $completed));
         $channelRows = $this->channelAiRows($date);
+        $validChannelRows = $channelRows['valid'] ?? null;
         $status = $missing === []
-            ? ($channelRows !== null && $channelRows < count(AiDailyPreview::channelAiUids()) ? 'warn' : 'ok')
+            ? ($validChannelRows !== null && $validChannelRows < count(AiDailyPreview::channelAiUids()) ? 'warn' : 'ok')
             : 'fail';
 
         return [
@@ -319,9 +346,13 @@ class IngestionHealthCheck
             'completed_conditions' => $completed,
             'missing_conditions' => $missing,
             'condition_rows' => $rows->count(),
-            'channel_rows' => $channelRows,
+            'valid_condition_rows' => $validRows->count(),
+            'invalid_condition_rows' => $rows->count() - $validRows->count(),
+            'channel_rows' => $validChannelRows,
+            'channel_rows_total' => $channelRows['total'] ?? null,
+            'invalid_channel_rows' => $channelRows['invalid'] ?? null,
             'expected_channel_rows' => count(AiDailyPreview::channelAiUids()),
-            'latest_mtime' => $rows->max('mtime'),
+            'latest_mtime' => $validRows->max('mtime'),
         ];
     }
 
@@ -382,22 +413,45 @@ class IngestionHealthCheck
         return in_array($condition, self::DAILY_CONDITIONS, true) ? $condition : 'all';
     }
 
-    private function channelAiRows(string $date): ?int
+    /**
+     * @return array{valid: int, total: int, invalid: int}|null
+     */
+    private function channelAiRows(string $date): ?array
     {
         try {
             if (! Schema::hasTable('urt_channel_ai')) {
                 return null;
             }
 
-            return DB::table('urt_channel_ai')
+            $columns = ['u_id'];
+            $hasResultJson = Schema::hasColumn('urt_channel_ai', 'result_json');
+
+            if ($hasResultJson) {
+                $columns[] = 'result_json';
+            }
+
+            $rows = DB::table('urt_channel_ai')
                 ->when(Schema::hasColumn('urt_channel_ai', 'del_flag'), fn ($query) => $query->whereNull('del_flag'))
                 ->where('date_from', $date.' 00:00:00')
                 ->where('date_to', $date.' 23:59:59')
                 ->when(Schema::hasColumn('urt_channel_ai', 'data_type'), function ($query): void {
                     $query->whereIn('data_type', ['oneday', 'todate']);
                 })
-                ->distinct('u_id')
-                ->count('u_id');
+                ->get($columns);
+            $total = $rows->unique('u_id')->count();
+            $valid = $hasResultJson
+                ? $rows
+                    ->filter(fn (object $row): bool => $this->jsonValidator
+                        ->validateEventList((string) ($row->result_json ?? ''), 'channel')['valid'])
+                    ->unique('u_id')
+                    ->count()
+                : $total;
+
+            return [
+                'valid' => $valid,
+                'total' => $total,
+                'invalid' => $total - $valid,
+            ];
         } catch (Throwable) {
             return null;
         }
@@ -417,7 +471,11 @@ class IngestionHealthCheck
             'completed_conditions' => [],
             'missing_conditions' => self::DAILY_CONDITIONS,
             'condition_rows' => null,
+            'valid_condition_rows' => null,
+            'invalid_condition_rows' => null,
             'channel_rows' => null,
+            'channel_rows_total' => null,
+            'invalid_channel_rows' => null,
             'expected_channel_rows' => count(AiDailyPreview::channelAiUids()),
             'latest_mtime' => null,
         ];
@@ -574,6 +632,10 @@ class IngestionHealthCheck
 
         if (($youtube['quota']['percent_used'] ?? 0) >= 80) {
             $recommendations[] = 'YouTube quota 已超過 80%，優先保留 live/stats 與 tag backfill，延後低優先度補抓。';
+        }
+
+        if (($youtube['quota']['available'] ?? true) !== true) {
+            $recommendations[] = 'YouTube quota ledger 無法使用；先確認 migration 與資料庫連線，scheduler 會 fail closed。';
         }
 
         if (($youtube['failed_requests'] ?? 0) > 0) {

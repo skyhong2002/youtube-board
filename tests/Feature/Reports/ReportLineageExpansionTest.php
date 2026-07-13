@@ -29,7 +29,7 @@ class ReportLineageExpansionTest extends TestCase
             ],
             '/tags/1/comments' => [
                 'urt_comment',
-                'youtube:comments:fetch --execute --limit=5 --max-pages=1',
+                'youtube:comments:fetch --execute --limit=5 --max-pages=1 --max-reply-pages=20',
                 'YouTube Data API commentThreads.list',
                 'TagCommentsReport',
                 '固定規則：隨部署更新',
@@ -54,13 +54,14 @@ class ReportLineageExpansionTest extends TestCase
         $cases = [
             '/keywords/%E8%94%A1%E8%8B%B1%E6%96%87/days' => [
                 'urt_show_video_tag_date',
-                'legacy.keyword_relation.cache',
+                'reports.keyword_relations.build',
                 'KeywordRelationFallback',
                 'Keyword relation cache status',
                 '固定規則：隨部署更新',
             ],
             '/keywords/%E8%94%A1%E8%8B%B1%E6%96%87/videos' => [
                 'urt_show_video_tag_date',
+                'reports:keyword-relations:build',
                 'KeywordVideosReport',
                 'Fallback text match',
                 'Keyword-video cache status',
@@ -100,7 +101,7 @@ class ReportLineageExpansionTest extends TestCase
             ],
             '/live/hours' => [
                 'urt_show_live_tag_date.hour_result',
-                'legacy.live_tag_date.cache',
+                'reports.live_tag_date.build',
                 'reports:live:clean --execute --limit=500',
                 'LiveHoursReport',
                 '固定規則：隨部署更新',

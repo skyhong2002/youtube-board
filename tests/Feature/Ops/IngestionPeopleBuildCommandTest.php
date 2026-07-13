@@ -279,6 +279,48 @@ class IngestionPeopleBuildCommandTest extends TestCase
         $this->assertSame(9999, (int) $row->total_views);
     }
 
+    public function test_reports_people_build_propagates_child_failure_and_continues_remaining_dates(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+        DB::table('tag_group')->insert([
+            'ctime' => '2026-05-20 10:00:00',
+            'latest_time' => '2026-05-24 10:00:00',
+            'tag' => '測試人物',
+            'group_name' => '政治人物',
+            'del_flag' => '0',
+        ]);
+        DB::statement("CREATE TRIGGER fail_people_cache BEFORE INSERT ON urt_show_tag_date WHEN NEW.the_date = '2026-05-24' BEGIN SELECT RAISE(ABORT, 'sensitive database details'); END");
+
+        $exitCode = Artisan::call('reports:people:build', [
+            '--execute' => true,
+            '--days' => 2,
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $output = trim(Artisan::output());
+        $payload = json_decode($output, true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(2, $payload['cache_jobs']);
+        $this->assertSame(1, $payload['cache_writes']);
+        $this->assertSame(1, $payload['failed_cache_rows']);
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame(['2026-05-25'], DB::table('urt_show_tag_date')->pluck('the_date')->all());
+        $this->assertStringNotContainsString('sensitive database details', $output);
+
+        $textExitCode = Artisan::call('reports:people:build', [
+            '--execute' => true,
+            '--days' => 2,
+            '--limit' => 1,
+        ]);
+        $textOutput = Artisan::output();
+
+        $this->assertSame(1, $textExitCode);
+        $this->assertStringContainsString('failed=1', $textOutput);
+        $this->assertStringNotContainsString('sensitive database details', $textOutput);
+    }
+
     private function createTables(): void
     {
         Schema::dropIfExists('tag_group');

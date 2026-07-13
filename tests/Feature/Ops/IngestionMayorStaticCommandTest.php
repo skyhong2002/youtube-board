@@ -3,6 +3,7 @@
 namespace Tests\Feature\Ops;
 
 use App\Services\Ingestion\IngestionSchedulerRunner;
+use App\Services\Ingestion\TagDateCacheBuilder;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
@@ -101,6 +102,42 @@ class IngestionMayorStaticCommandTest extends TestCase
         $this->assertSame('execute', $result['mode']);
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 0, 'skipped' => 1, 'failed' => 0], $result['summary']);
         $this->assertSame('skip:controlled-execution-guardrail', $result['jobs'][0]['action']);
+    }
+
+    public function test_reports_mayor_static_propagates_child_cache_failures(): void
+    {
+        $this->createTagDateCacheTable();
+        $this->writeLegacyShell();
+        $this->mock(TagDateCacheBuilder::class)
+            ->shouldReceive('build')
+            ->atLeast()->once()
+            ->andReturn([
+                'writes' => 0,
+                'failed_rows' => 1,
+                'exit_code' => 1,
+            ]);
+
+        $exitCode = Artisan::call('reports:mayor:static', [
+            '--execute' => true,
+            '--city' => 'taipei',
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertGreaterThan(0, $payload['cache_jobs']);
+        $this->assertSame($payload['cache_jobs'], $payload['failed_cache_rows']);
+        $this->assertSame(1, $payload['exit_code']);
+
+        $textExitCode = Artisan::call('reports:mayor:static', [
+            '--execute' => true,
+            '--city' => 'taipei',
+            '--limit' => 1,
+        ]);
+
+        $this->assertSame(1, $textExitCode);
+        $this->assertStringContainsString('failed='.$payload['cache_jobs'], Artisan::output());
     }
 
     private function writeLegacyShell(): void

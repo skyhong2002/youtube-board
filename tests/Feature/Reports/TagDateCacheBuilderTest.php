@@ -1,0 +1,135 @@
+<?php
+
+namespace Tests\Feature\Reports;
+
+use App\Services\Ingestion\TagDateCacheBuilder;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use Tests\TestCase;
+
+class TagDateCacheBuilderTest extends TestCase
+{
+    public function test_failed_date_is_sanitized_and_does_not_prevent_the_next_date(): void
+    {
+        $this->createTables();
+        $this->seedRawData();
+        Log::spy();
+
+        DB::statement(<<<'SQL'
+CREATE TRIGGER fail_first_tag_date
+BEFORE INSERT ON urt_show_tag_date
+WHEN NEW.the_date = '2026-06-04'
+BEGIN
+    SELECT RAISE(FAIL, 'token=tag-date-secret');
+END
+SQL);
+
+        $builder = app(TagDateCacheBuilder::class);
+        $payload = $builder->buildRange(
+            tagIds: [1],
+            from: '2026-06-04',
+            to: '2026-06-05',
+            keywordLimit: 10,
+            execute: true,
+            now: CarbonImmutable::parse('2026-06-05 12:00:00', 'Asia/Taipei'),
+        );
+        $failed = $payload['rows'][0];
+        $succeeded = $payload['rows'][1];
+
+        $this->assertSame('partial_failure', $payload['status']);
+        $this->assertSame(2, $payload['dates_requested']);
+        $this->assertSame(2, $payload['dates_selected']);
+        $this->assertFalse($payload['range_truncated']);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame(1, $payload['writes']);
+        $this->assertSame('cache_rows_failed', $payload['failure_reason']);
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame('failed', $failed['status']);
+        $this->assertSame(1, $failed['failed_rows']);
+        $this->assertSame(1, $failed['exit_code']);
+        $this->assertSame('cache_row_processing_failed', $failed['failure_reason']);
+        $this->assertStringNotContainsString('tag-date-secret', json_encode($failed, JSON_THROW_ON_ERROR));
+        $this->assertSame('success', $succeeded['status']);
+        $this->assertSame(0, $succeeded['exit_code']);
+        $this->assertSame(1, DB::table('urt_show_tag_date')->where('the_date', '2026-06-05')->count());
+        Log::shouldHaveReceived('warning')
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'Tag date cache row failed.'
+                    && $context['date'] === '2026-06-04'
+                    && $context['failure_reason'] === 'cache_row_processing_failed'
+                    && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'tag-date-secret');
+            })
+            ->once();
+        Log::shouldHaveReceived('warning')
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'Tag date cache batch completed with failures.'
+                    && $context['failed_rows'] === 1
+                    && $context['writes'] === 1
+                    && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'tag-date-secret');
+            })
+            ->once();
+    }
+
+    private function createTables(): void
+    {
+        Schema::create('urt_count', function ($table): void {
+            $table->integer('u_id');
+            $table->string('tags')->nullable();
+        });
+
+        Schema::create('urt_video', function ($table): void {
+            $table->increments('pk');
+            $table->integer('u_id');
+            $table->string('videoId');
+            $table->dateTime('publishedAt');
+            $table->string('title')->nullable();
+            $table->text('description')->nullable();
+            $table->integer('viewCount')->default(0);
+        });
+
+        Schema::create('tags', function ($table): void {
+            $table->string('tag');
+            $table->integer('max_count')->default(0);
+            $table->integer('hours_count')->default(0);
+            $table->string('max_hours')->nullable();
+            $table->integer('no_tag')->nullable();
+        });
+
+        Schema::create('urt_show_tag_date', function ($table): void {
+            $table->increments('pk');
+            $table->dateTime('ctime');
+            $table->dateTime('mtime')->nullable();
+            $table->dateTime('stime')->nullable();
+            $table->string('tagid')->nullable();
+            $table->string('tag_or')->nullable();
+            $table->string('tag_not')->nullable();
+            $table->integer('count_channels')->nullable();
+            $table->integer('count_videos')->nullable();
+            $table->integer('count_tags')->nullable();
+            $table->date('the_date');
+            $table->integer('tags_count')->nullable();
+            $table->integer('total_views')->nullable();
+            $table->longText('tags_result')->nullable();
+            $table->longText('tags_video')->nullable();
+            $table->longText('tags_views')->nullable();
+        });
+    }
+
+    private function seedRawData(): void
+    {
+        DB::table('tags')->insert([
+            'tag' => '選舉',
+            'max_count' => 10,
+            'hours_count' => 5,
+            'max_hours' => '2026-06-05 12:00:00',
+            'no_tag' => null,
+        ]);
+        DB::table('urt_count')->insert(['u_id' => 10, 'tags' => '[1]']);
+        DB::table('urt_video')->insert([
+            ['u_id' => 10, 'videoId' => 'first-date', 'publishedAt' => '2026-06-04 10:00:00', 'title' => '選舉新聞', 'description' => '', 'viewCount' => 100],
+            ['u_id' => 10, 'videoId' => 'second-date', 'publishedAt' => '2026-06-05 10:00:00', 'title' => '選舉分析', 'description' => '', 'viewCount' => 200],
+        ]);
+    }
+}

@@ -68,6 +68,8 @@ class PeopleReportsPreview
             ->values()
             ->all();
         $cacheWrites = 0;
+        $cacheJobs = 0;
+        $failedCacheRows = 0;
 
         if ($execute && $rows !== []) {
             $builder = app(TagDateCacheBuilder::class);
@@ -85,7 +87,9 @@ class PeopleReportsPreview
                         execute: true,
                         now: $now,
                     );
+                    $cacheJobs++;
                     $cacheWrites += (int) $result['writes'];
+                    $failedCacheRows += (int) ($result['failed_rows'] ?? (($result['exit_code'] ?? 0) !== 0 ? 1 : 0));
                     $cursor = $cursor->addDay();
                 }
             }
@@ -101,6 +105,10 @@ class PeopleReportsPreview
             'latest_time' => $latestTime !== null ? (string) $latestTime : null,
             'rows' => $rows,
             'cache_writes' => $cacheWrites,
+            'cache_jobs' => $cacheJobs,
+            'failed_cache_rows' => $failedCacheRows,
+            'failed_rows' => $failedCacheRows,
+            'exit_code' => $failedCacheRows > 0 ? 1 : 0,
             'cache_generation_skipped' => 'legacy api/tag_period.php calls are intentionally not executed in planning mode',
             'writes' => $execute ? ['urt_show_tag_date'] : [],
         ];

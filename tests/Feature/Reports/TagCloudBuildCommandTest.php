@@ -3,7 +3,9 @@
 namespace Tests\Feature\Reports;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -108,6 +110,52 @@ class TagCloudBuildCommandTest extends TestCase
 
         $this->assertSame(1, DB::table('urt_show_tag_cloud')->count());
         $this->assertSame($firstPk, DB::table('urt_show_tag_cloud')->value('pk'));
+    }
+
+    public function test_failed_period_is_sanitized_and_does_not_prevent_the_next_period(): void
+    {
+        $this->createTables();
+        $this->seedRawData();
+        Log::spy();
+
+        DB::statement(<<<'SQL'
+CREATE TRIGGER fail_first_tag_cloud_period
+BEFORE INSERT ON urt_show_tag_cloud
+WHEN NEW.days = 3
+BEGIN
+    SELECT RAISE(FAIL, 'token=tag-cloud-secret');
+END
+SQL);
+
+        $exitCode = Artisan::call('reports:tag-cloud:build', [
+            '--tagid' => '1',
+            '--days' => '3,7',
+            '--keyword-limit' => 100,
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+        [$failed, $succeeded] = $payload['rows'];
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame('failed', $failed['status']);
+        $this->assertSame(1, $failed['failed_rows']);
+        $this->assertSame(1, $failed['exit_code']);
+        $this->assertSame('cache_period_processing_failed', $failed['failure_reason']);
+        $this->assertStringNotContainsString('tag-cloud-secret', json_encode($failed, JSON_THROW_ON_ERROR));
+        $this->assertSame('success', $succeeded['status']);
+        $this->assertSame(0, $succeeded['exit_code']);
+        $this->assertSame(1, DB::table('urt_show_tag_cloud')->where('days', 7)->count());
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'Tag cloud cache period failed.'
+                    && $context['days'] === 3
+                    && $context['failure_reason'] === 'cache_period_processing_failed'
+                    && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'tag-cloud-secret');
+            });
     }
 
     private function createTables(): void

@@ -500,8 +500,8 @@ class ReportLineageProfiles
                 self::job(
                     key: 'youtube.comments.fetch',
                     label: '留言擷取',
-                    command: 'youtube:comments:fetch --execute --limit=5 --max-pages=1',
-                    apiCalls: ['YouTube Data API commentThreads.list'],
+                    command: 'youtube:comments:fetch --execute --limit=5 --max-pages=1 --max-reply-pages=20',
+                    apiCalls: ['YouTube Data API commentThreads.list', 'YouTube Data API comments.list'],
                     reads: ['urt_comment_queue', 'urt_comment'],
                     writes: ['urt_comment', 'urt_comment_author', 'urt_comment_rev', 'urt_comment_queue_done'],
                     summary: '從 queue 抓取留言與回覆，解析 authors_json / comments_json 並更新本機留言表。',
@@ -538,7 +538,7 @@ class ReportLineageProfiles
             'graph' => [
                 self::fixedNode('tag_comment_filters', 'tag/comment filters', 'tagid/or/not/hours/min/limit/show 都在頁面 request 或 queue job 中套用；預設值隨部署更新。'),
                 self::jobNode('comment_queue_job', 'youtube:comments:queue', 'service', 'youtube.comments.queue', '從本機影片與頻道 tag 找候選影片寫入 queue；不呼叫外部 API。'),
-                self::jobNode('comment_fetch_job', 'youtube:comments:fetch', 'api', 'youtube.comments.fetch', '只有 fetch job 會呼叫 YouTube commentThreads.list；頁面 request 不呼叫 API。'),
+                self::jobNode('comment_fetch_job', 'youtube:comments:fetch', 'api', 'youtube.comments.fetch', '只有 fetch job 會呼叫 YouTube commentThreads.list 與必要的 comments.list；頁面 request 不呼叫 API。'),
                 self::combinedSourceNode('comment_tables', 'urt_comment + urt_video', ['urt_comment', 'urt_comment_author', 'urt_comment_rev', 'urt_video', 'urt_count', 'urt_tag'], '留言摘要、作者 JSON、影片顯示資料與 tag filters 都來自本機 DB。', [
                     'job_details' => ['youtube.comments.queue', 'youtube.comments.fetch'],
                 ]),
@@ -548,7 +548,7 @@ class ReportLineageProfiles
             'edges' => [
                 self::edge('tag_comment_filters', 'comment_queue_job', 'queue candidates', 'queue job 使用同類 tag/hours/min 條件挑選候選影片。'),
                 self::edge('comment_queue_job', 'comment_fetch_job', 'drain queue', 'fetch job 從 urt_comment_queue 消化待抓影片。'),
-                self::edge('comment_fetch_job', 'comment_tables', 'write comments', 'commentThreads.list 回應被解析後寫入 comment/author/revision tables。'),
+                self::edge('comment_fetch_job', 'comment_tables', 'write comments', 'commentThreads.list 與 comments.list 回應完整解析後寫入 comment/author/revision tables。'),
                 self::edge('comment_tables', 'tag_comments_report', 'aggregate authors', '頁面服務讀本機留言與影片資料並聚合作者。'),
                 self::edge('tag_comments_report', 'tag_comments_page', 'render comments', 'Blade 輸出留言影片表與作者排行。'),
             ],
@@ -931,14 +931,14 @@ class ReportLineageProfiles
             'summary' => '本頁優先讀取 legacy keyword relation cloud cache；缺 cache 時用本機影片與 tags 在 request 時推導文字雲，不寫 DB。',
             'jobs' => [
                 self::job(
-                    key: 'legacy.keyword_cloud.cache',
-                    label: 'Legacy keyword cloud cache',
-                    command: 'approved legacy snapshot or DB export -> urt_show_tag_cloud_tag',
+                    key: 'reports.keyword_cloud.build',
+                    label: '關鍵字文字雲 cache rebuild',
+                    command: 'reports:keyword-cloud:build --keywords={keyword} --days=3,7,30 --execute',
                     apiCalls: [],
-                    reads: ['approved legacy snapshot/export', 'urt_show_video_tag', 'urt_video_log_history'],
+                    reads: ['urt_video', 'urt_count', 'tags'],
                     writes: ['urt_show_tag_cloud_tag'],
-                    summary: '目前 Laravel scheduler 不會產生 urt_show_tag_cloud_tag；既有資料來自 approved legacy cache/export，缺資料時頁面改用本機 fallback。',
-                    scheduler: '不會由目前 Laravel 排程更新；若要常態更新，需新增 reviewed Laravel command/job。',
+                    summary: '手動 command 從本機影片文字與 tags 字典建立 legacy-compatible tags_result/videos_json；預設 preview，explicit --execute 才會 idempotently 寫入。',
+                    scheduler: '手動維護；沒有 registry scheduled command，也未加入 Production allowlist。',
                 ),
                 self::job(
                     key: 'reports.keywords.build',
@@ -967,7 +967,7 @@ class ReportLineageProfiles
             'fixed_sources' => [
                 self::fixedSource('Keyword fallback scan limits', 'KeywordRelationFallback::KEYWORD_LIMIT=5000, VIDEO_LIMIT=10000', '寫死在程式碼；只有部署新版本才會變更。'),
                 self::fixedSource('內建 stopwords fallback', 'App\Services\Legacy\LegacyStopwords::FALLBACK', '文字雲排行解析後會排除這些固定停用詞。'),
-                self::fixedSource('Legacy keyword cloud cache', 'urt_show_tag_cloud_tag', '目前沒有 Laravel 排程 job 會重建；不是 scheduler 更新來源。'),
+                self::fixedSource('Keyword cloud rebuild caps', 'reports:keyword-cloud:build --subject-limit=20 --keyword-limit=5000 --video-limit=10000', '手動 command 的 subject、字典與每 subject 影片上限；不是 scheduler 更新來源。'),
             ],
             'sources' => [
                 self::source('urt_show_tag_cloud_tag', 'urt_show_tag_cloud_tag', ['mtime', 'ctime']),
@@ -978,17 +978,19 @@ class ReportLineageProfiles
                 self::source('tags', 'tags', ['mtime', 'ctime']),
             ],
             'graph' => [
+                self::jobNode('keyword_cloud_cache_job', 'reports:keyword-cloud:build', 'service', 'reports.keyword_cloud.build', '以 preview-first、capped、locked command 維護 keyword cloud cache。'),
                 self::fixedNode('keyword_cloud_rules', 'keyword filters / fixed limits', 'keyword、tagid/or/not 與 fallback 掃描上限由 route/query 與程式碼規則決定。'),
-                self::sourceNode('keyword_cloud_cache', 'urt_show_tag_cloud_tag cache', 'cache', 'urt_show_tag_cloud_tag', '保存 legacy keyword relation 文字雲 cache；目前不由 Laravel scheduler 常態重建。', [
-                    'job_details' => ['legacy.keyword_cloud.cache'],
+                self::sourceNode('keyword_cloud_cache', 'urt_show_tag_cloud_tag cache', 'cache', 'urt_show_tag_cloud_tag', '保存 legacy keyword relation 文字雲 cache；由手動 Laravel command 重建，不在 scheduler 常態執行。', [
+                    'job_details' => ['reports.keyword_cloud.build'],
                 ]),
                 self::combinedSourceNode('keyword_cloud_fallback', 'urt_video + tags fallback', ['urt_video', 'urt_count', 'tags'], 'cache miss 時即時掃本機影片標題/描述與關鍵字集合推導文字雲。', [
-                    'job_details' => ['reports.keywords.build'],
+                    'job_details' => ['reports.keyword_cloud.build', 'reports.keywords.build'],
                 ]),
                 self::serviceNode('keyword_cloud_report', 'KeywordRelationFallback + TagCloudReport', '優先讀 cache；缺 cache 時在 request 內計算 fallback，套用 stopwords 與差分排序。'),
                 self::pageNode('keyword_cloud_page', '關鍵字文字雲頁', '/keywords/{keyword}/cloud', 'Blade 呈現 D3 word cloud、差分排行、原始短長天期表格與缺資料提示。'),
             ],
             'edges' => [
+                self::edge('keyword_cloud_cache_job', 'keyword_cloud_cache', 'idempotent upsert', 'explicit --execute 逐 keyword/period 寫入 tags_result 與 videos_json。'),
                 self::edge('keyword_cloud_rules', 'keyword_cloud_cache', 'select cache', 'keyword 與 tag filters 決定要讀哪一組 legacy cache row。'),
                 self::edge('keyword_cloud_cache', 'keyword_cloud_fallback', 'cache miss', '若 cache 不存在或沒有 words，改由本機 urt_video + tags 推導。'),
                 self::edge('keyword_cloud_fallback', 'keyword_cloud_report', 'score words', 'TagCloudReport 套用 stopwords 並計算短長天期差分。'),
@@ -1007,14 +1009,14 @@ class ReportLineageProfiles
             'summary' => '本頁優先讀取 keyword relation daily cache；缺 cache 時用本機影片標題/描述與 tags 在 request 時推導逐日關聯關鍵字。',
             'jobs' => [
                 self::job(
-                    key: 'legacy.keyword_relation.cache',
-                    label: 'Legacy keyword relation cache',
-                    command: 'approved legacy snapshot or DB export -> urt_show_video_tag_date',
+                    key: 'reports.keyword_relations.build',
+                    label: 'Laravel keyword relation cache rebuild',
+                    command: 'reports:keyword-relations:build --from=YYYY-MM-DD --to=YYYY-MM-DD --keywords={keyword} --execute',
                     apiCalls: [],
-                    reads: ['approved legacy snapshot/export', 'urt_show_video_tag', 'urt_video_log_history'],
+                    reads: ['urt_video', 'tags'],
                     writes: ['urt_show_video_tag_date'],
-                    summary: '目前 Laravel scheduler 不會常態產生 urt_show_video_tag_date；既有 rows 來自 approved legacy cache/export，缺資料時頁面用本機 fallback。',
-                    scheduler: '不會由目前 Laravel 排程更新；若要常態更新，需新增 reviewed Laravel command/job。',
+                    summary: 'Reviewed manual command 由本機 urt_video title/description 與 tags 重建 legacy-compatible tags_json/videos_json；preview 不寫入，execute 需要明確日期範圍。',
+                    scheduler: '僅限 operator-reviewed manual command；沒有 scheduled execute command，Production allowlist 不變。',
                 ),
                 self::job(
                     key: 'reports.keywords.build',
@@ -1051,7 +1053,7 @@ class ReportLineageProfiles
                 ],
             ],
             'fixed_sources' => [
-                self::fixedSource('Keyword relation cache status', 'urt_show_video_tag_date', '目前沒有 Laravel 排程 job 會常態重建；不是 scheduler 更新來源。'),
+                self::fixedSource('Keyword relation cache status', 'urt_show_video_tag_date', '由 reviewed Laravel command 手動重建；目前不是 scheduler 更新來源。'),
                 self::fixedSource('Keyword fallback scan limits', 'KeywordRelationFallback::KEYWORD_LIMIT=5000, VIDEO_LIMIT=10000', '寫死在程式碼；只有部署新版本才會變更。'),
                 self::fixedSource('內建 stopwords fallback', 'App\Services\Legacy\LegacyStopwords::FALLBACK', '逐日排行解析後會排除這些固定停用詞。'),
             ],
@@ -1062,8 +1064,8 @@ class ReportLineageProfiles
             ],
             'graph' => [
                 self::fixedNode('keyword_day_rules', 'keyword / range rules', 'keyword、日期範圍、type、diff 與 fallback scan limits 都在 request 時套用或隨部署更新。'),
-                self::sourceNode('keyword_relation_cache', 'urt_show_video_tag_date cache', 'cache', 'urt_show_video_tag_date', '保存 legacy keyword relation daily tags_json/videos_json；目前不由 Laravel scheduler 常態重建。', [
-                    'job_details' => ['legacy.keyword_relation.cache'],
+                self::sourceNode('keyword_relation_cache', 'urt_show_video_tag_date cache', 'cache', 'urt_show_video_tag_date', '保存 legacy-compatible keyword relation daily tags_json/videos_json；由 capped manual Laravel command 重建。', [
+                    'job_details' => ['reports.keyword_relations.build'],
                 ]),
                 self::combinedSourceNode('keyword_day_fallback', 'urt_video + tags fallback', ['urt_video', 'tags'], 'cache miss 時即時掃本機影片文字與 tags 關鍵字集合推導 daily relation。', [
                     'job_details' => ['reports.keywords.build', 'youtube.channels.videos.general'],
@@ -1090,14 +1092,14 @@ class ReportLineageProfiles
             'summary' => '本頁從 keyword-video relation cache 取 videoId 清單後 join urt_video；缺 cache 時直接用本機影片標題/描述做即時 fallback。',
             'jobs' => [
                 self::job(
-                    key: 'legacy.keyword_relation.cache',
-                    label: 'Legacy keyword-video relation cache',
-                    command: 'approved legacy snapshot or DB export -> urt_show_video_tag_date',
+                    key: 'reports.keyword_relations.build',
+                    label: 'Laravel keyword-video relation cache rebuild',
+                    command: 'reports:keyword-relations:build --from=YYYY-MM-DD --to=YYYY-MM-DD --keywords={keyword} --execute',
                     apiCalls: [],
-                    reads: ['approved legacy snapshot/export', 'urt_show_video_tag', 'urt_video_log_history'],
+                    reads: ['urt_video', 'tags'],
                     writes: ['urt_show_video_tag_date'],
-                    summary: '目前 Laravel scheduler 不會常態產生 urt_show_video_tag_date videos_json；既有 rows 來自 approved legacy cache/export。',
-                    scheduler: '不會由目前 Laravel 排程更新；若要常態更新，需新增 reviewed Laravel command/job。',
+                    summary: 'Reviewed manual command 由本機影片文字與 tags 重建 videos_json videoId-to-u_id map，供頁面 join urt_video。',
+                    scheduler: '僅限 operator-reviewed manual command；沒有 scheduled execute command，Production allowlist 不變。',
                 ),
                 self::job(
                     key: 'youtube.channels.videos.general',
@@ -1134,7 +1136,7 @@ class ReportLineageProfiles
                 ],
             ],
             'fixed_sources' => [
-                self::fixedSource('Keyword-video cache status', 'urt_show_video_tag_date.videos_json', '目前沒有 Laravel 排程 job 會常態重建；不是 scheduler 更新來源。'),
+                self::fixedSource('Keyword-video cache status', 'urt_show_video_tag_date.videos_json', '由 reviewed Laravel command 手動重建；目前不是 scheduler 更新來源。'),
                 self::fixedSource('Keyword video bounds', 'KeywordVideosReport: days<=90, hours<=8760, limit<=1000', 'query bounds 寫死在程式碼；隨部署更新。'),
                 self::fixedSource('Fallback text match', 'KeywordRelationFallback::videoIds title/description LIKE keyword', 'fallback 是 request 時本機 DB 搜尋，不會由排程更新。'),
             ],
@@ -1144,8 +1146,8 @@ class ReportLineageProfiles
             ],
             'graph' => [
                 self::fixedNode('keyword_video_rules', 'keyword / period rules', 'keyword、days、hours、limit 與 fallback LIKE 規則都在 request 時套用；query bounds 隨部署更新。'),
-                self::sourceNode('keyword_video_cache', 'urt_show_video_tag_date videos_json', 'cache', 'urt_show_video_tag_date', '保存 keyword/date 對應 videoId 清單；目前不由 Laravel scheduler 常態重建。', [
-                    'job_details' => ['legacy.keyword_relation.cache'],
+                self::sourceNode('keyword_video_cache', 'urt_show_video_tag_date videos_json', 'cache', 'urt_show_video_tag_date', '保存 keyword/date 對應 videoId-to-u_id map；由 capped manual Laravel command 重建。', [
+                    'job_details' => ['reports.keyword_relations.build'],
                 ]),
                 self::sourceNode('keyword_video_table', 'urt_video metadata', 'table', 'urt_video', '保存影片標題、頻道、縮圖與統計；cache join 與 fallback 都讀這張表。', [
                     'job_details' => ['youtube.channels.videos.general', 'youtube.videos.stats'],
@@ -1182,14 +1184,14 @@ class ReportLineageProfiles
                     scheduler: 'config/ingestion.php job reports.tag_date.build；每日 6 次，scheduled-write gates 通過後執行。',
                 ),
                 self::job(
-                    key: 'legacy.keyword_group_month.cache',
-                    label: 'Legacy keyword group monthly cache',
-                    command: 'approved legacy snapshot/export -> urt_show_tag_month',
+                    key: 'reports.tag_month.build',
+                    label: 'Reviewed keyword group monthly cache',
+                    command: 'reports:tag-month:build --months=YYYY-MM --subjects=... --tagid=... --execute',
                     apiCalls: [],
-                    reads: ['approved legacy snapshot/export'],
+                    reads: ['urt_show_tag_date'],
                     writes: ['urt_show_tag_month'],
-                    summary: 'Laravel scheduler 目前不常態重建 urt_show_tag_month；若月快取缺資料，頁面 fallback 到 urt_show_tag_date。',
-                    scheduler: '不會由目前 Laravel 排程更新；若要常態更新，需新增 reviewed Laravel command/job。',
+                    summary: 'Manual-only builder 從 matching daily cache 產生 capped subject/month maps；若月快取缺資料，頁面仍 fallback 到 urt_show_tag_date。',
+                    scheduler: 'Registry status 為 planned/manual，scheduled execute command 為空；Production scheduler 與 allowlist 不變。',
                 ),
             ],
             'render' => [
@@ -1207,7 +1209,7 @@ class ReportLineageProfiles
             'fixed_sources' => [
                 self::fixedSource('Keyword group definitions', 'App\Services\Legacy\LegacyKeywordGroupDefinitions', '群組名稱、tag filter 與 labels 寫在程式碼；隨部署更新。'),
                 self::fixedSource('Keyword group metrics', 'KeywordGroupTrendReport::type total_views,count_videos,views_video', '可選指標與 aliases 固定；不會由排程更新。'),
-                self::fixedSource('Monthly cache status', 'urt_show_tag_month', '目前不由 Laravel scheduler 常態重建；缺資料時讀 daily cache。'),
+                self::fixedSource('Monthly cache status', 'urt_show_tag_month', '可由 reports:tag-month:build 明確手動重建；不由 Laravel scheduler 常態執行，缺資料時讀 daily cache。'),
             ],
             'sources' => [
                 self::source('urt_show_tag_month', 'urt_show_tag_month', ['mtime', 'ctime', 'the_month']),
@@ -1216,7 +1218,7 @@ class ReportLineageProfiles
             'graph' => [
                 self::fixedNode('keyword_group_defs', 'fixed group definitions', 'group/view options 與 tag filter strings 寫在 LegacyKeywordGroupDefinitions；只有部署會變更。'),
                 self::combinedSourceNode('keyword_group_caches', 'monthly/daily keyword caches', ['urt_show_tag_month', 'urt_show_tag_date'], '優先讀月快取，缺資料時 fallback 到逐日 cache。', [
-                    'job_details' => ['legacy.keyword_group_month.cache', 'reports.tag_date.build'],
+                    'job_details' => ['reports.tag_month.build', 'reports.tag_date.build'],
                 ]),
                 self::serviceNode('keyword_group_report', 'KeywordGroupTrendReport rolling group series', 'request 時解析 keyword 值，依固定群組計算七日 rolling series。'),
                 self::pageNode('keyword_group_page', '關鍵字群組趨勢頁', '/keywords/{keyword}/groups/trends', 'Blade 呈現群組 selector、metric 切換、SVG 折線圖與 cache row 狀態。'),
@@ -1239,14 +1241,14 @@ class ReportLineageProfiles
             'summary' => '本頁讀 legacy live tag-date cache，對固定直播群組比較指定關鍵字在每日小時資料中的最高直播觀看或影片數。',
             'jobs' => [
                 self::job(
-                    key: 'legacy.live_tag_date.cache',
-                    label: 'Legacy live tag-date cache',
-                    command: 'approved legacy snapshot/export -> urt_show_live_tag_date',
+                    key: 'reports.live_tag_date.build',
+                    label: 'Laravel live tag-date cache rebuild',
+                    command: 'reports:live-tag-date:build --from=YYYY-MM-DD --to=YYYY-MM-DD --tagid=... --execute',
                     apiCalls: [],
-                    reads: ['approved legacy snapshot/export', 'urt_video_live_log', 'urt_count'],
+                    reads: ['urt_video_live_log', 'urt_video', 'urt_count', 'tags'],
                     writes: ['urt_show_live_tag_date'],
-                    summary: '目前 Laravel scheduler 不常態重建 tags_views/tags_video live keyword cache；頁面只讀既有 cache。',
-                    scheduler: '不會由目前 Laravel 排程常態重建；reports:live:clean 只清理 invalid cache rows。',
+                    summary: 'Reviewed manual command 從本機 live logs 與影片文字重建 legacy-compatible tags_views/tags_video/hour_result maps。',
+                    scheduler: 'Registry status 為 planned/manual，scheduled execute command 為空；Production scheduler 與 allowlist 不變。',
                 ),
                 self::job(
                     key: 'youtube.live.poll',
@@ -1255,7 +1257,7 @@ class ReportLineageProfiles
                     apiCalls: ['YouTube Data API videos.list(part=liveStreamingDetails)'],
                     reads: ['urt_video_live'],
                     writes: ['urt_video_live', 'urt_video_live_log'],
-                    summary: '更新 live log 上游；但本頁使用的 keyword live tag-date cache 目前不是 scheduler 常態重建目標。',
+                    summary: '更新 manual live tag-date builder 使用的 live log 上游；頁面 request 不呼叫 YouTube。',
                     scheduler: 'config/ingestion.php job youtube.live.poll；每分鐘，scheduled-write gates 通過後執行。',
                 ),
             ],
@@ -1274,15 +1276,15 @@ class ReportLineageProfiles
             'fixed_sources' => [
                 self::fixedSource('Live group definitions', 'App\Services\Legacy\LegacyLiveGroupDefinitions', '直播群組與 filter strings 寫在程式碼；隨部署更新。'),
                 self::fixedSource('Live keyword metric rule', 'KeywordLiveTrendReport::type views/videos', 'type aliases 與每日 max-hour 取值規則寫死在 service。'),
-                self::fixedSource('Live keyword cache status', 'urt_show_live_tag_date.tags_views/tags_video', '目前不由 Laravel scheduler 常態重建；不是頁面 request 產生。'),
+                self::fixedSource('Live keyword cache status', 'urt_show_live_tag_date.tags_views/tags_video', '由 reviewed Laravel command 手動重建；不是 scheduler 或頁面 request 產生。'),
             ],
             'sources' => [
                 self::source('urt_show_live_tag_date', 'urt_show_live_tag_date', ['mtime', 'ctime', 'the_date']),
             ],
             'graph' => [
                 self::fixedNode('keyword_live_defs', 'fixed live groups / metric rules', 'group filters、views/videos type 與七日 rolling max-hour 規則寫在程式碼。'),
-                self::sourceNode('keyword_live_cache', 'urt_show_live_tag_date cache', 'cache', 'urt_show_live_tag_date', '保存 keyword live tags_views/tags_video hour maps；目前主要來自 legacy cache/export。', [
-                    'job_details' => ['legacy.live_tag_date.cache', 'youtube.live.poll'],
+                self::sourceNode('keyword_live_cache', 'urt_show_live_tag_date cache', 'cache', 'urt_show_live_tag_date', '保存 keyword live tags_views/tags_video hour maps；由 capped manual Laravel command 重建。', [
+                    'job_details' => ['reports.live_tag_date.build', 'youtube.live.poll'],
                 ]),
                 self::serviceNode('keyword_live_report', 'KeywordLiveTrendReport rolling series', 'request 時解析指定 keyword 的 hourly map，取每日最大值並計算 rolling group series。'),
                 self::pageNode('keyword_live_page', '關鍵字直播趨勢頁', '/keywords/{keyword}/live/trends', 'Blade 呈現直播群組 selector、metric 切換與趨勢圖。'),
@@ -1537,14 +1539,14 @@ class ReportLineageProfiles
             'summary' => '本頁優先讀 urt_show_live_tag_date.hour_result cache；缺 cache 時用本機 live log 的 log_json 即時計算每小時熱度矩陣。',
             'jobs' => [
                 self::job(
-                    key: 'legacy.live_tag_date.cache',
-                    label: 'Legacy live tag-date/hour cache',
-                    command: 'approved legacy snapshot/export -> urt_show_live_tag_date',
+                    key: 'reports.live_tag_date.build',
+                    label: 'Laravel live tag-date/hour cache rebuild',
+                    command: 'reports:live-tag-date:build --from=YYYY-MM-DD --to=YYYY-MM-DD --tagid=... --execute',
                     apiCalls: [],
-                    reads: ['approved legacy snapshot/export', 'urt_video_live_log', 'urt_count'],
+                    reads: ['urt_video_live_log', 'urt_video', 'urt_count', 'tags'],
                     writes: ['urt_show_live_tag_date'],
-                    summary: 'hour_result cache 目前主要來自 approved legacy cache/export；頁面可 fallback 到 live log 即時計算。',
-                    scheduler: '不會由目前 Laravel 排程常態重建；reports:live:clean 只清理 invalid cache rows。',
+                    summary: 'Reviewed manual command 從本機 live logs 建立 hour_result；頁面缺 cache 時仍可 fallback 到 live log 即時計算。',
+                    scheduler: 'Registry status 為 planned/manual，scheduled execute command 為空；Production scheduler 與 allowlist 不變。',
                 ),
                 self::job(
                     key: 'youtube.live.poll',
@@ -1581,7 +1583,7 @@ class ReportLineageProfiles
                 ],
             ],
             'fixed_sources' => [
-                self::fixedSource('Live-hour cache status', 'urt_show_live_tag_date.hour_result', '目前不由 Laravel 排程常態重建；reports:live:clean 只會清理 invalid rows。'),
+                self::fixedSource('Live-hour cache status', 'urt_show_live_tag_date.hour_result', '由 reviewed Laravel command 手動重建；reports:live:clean 只會清理 invalid rows。'),
                 self::fixedSource('Live-hour filter key rule', 'LiveHoursReport::sortedTagFilters + nullable empty string match', 'tagid/or/not 會排序成 cache key；規則寫死在程式碼。'),
                 self::fixedSource('Live-hour bucket rule', '24 fixed hour buckets 00..23', '小時矩陣 bucket 固定；隨部署更新，不會由排程更新。'),
             ],
@@ -1593,8 +1595,8 @@ class ReportLineageProfiles
             ],
             'graph' => [
                 self::fixedNode('live_hour_rules', 'hour cache / fallback rules', 'tag filter key、日期下限、24 小時 bucket 與 cache fallback 規則都寫在程式碼。'),
-                self::sourceNode('live_hour_cache', 'urt_show_live_tag_date.hour_result cache', 'cache', 'urt_show_live_tag_date', '保存 date/tag filter 對應的小時 views/count；目前不由 Laravel scheduler 常態重建。', [
-                    'job_details' => ['legacy.live_tag_date.cache', 'reports.live.clean'],
+                self::sourceNode('live_hour_cache', 'urt_show_live_tag_date.hour_result cache', 'cache', 'urt_show_live_tag_date', '保存 date/tag filter 對應的小時 views/count；由 capped manual Laravel command 重建。', [
+                    'job_details' => ['reports.live_tag_date.build', 'reports.live.clean'],
                 ]),
                 self::combinedSourceNode('live_hour_fallback', 'urt_video_live_log fallback', ['urt_video_live_log', 'urt_count', 'urt_tag'], 'cache miss 時從本機 live log_json 與 channel tags 即時計算每小時矩陣。', [
                     'job_details' => ['youtube.live.poll'],
@@ -1789,14 +1791,14 @@ class ReportLineageProfiles
             'summary' => '本頁讀 urt_show_live_tag_date cache，依 tag filters、日期範圍與 type 即時計算每日直播關鍵字矩陣。',
             'jobs' => [
                 self::job(
-                    key: 'legacy.live_tag_date.cache',
-                    label: 'Legacy live tag-date cache',
-                    command: 'approved legacy snapshot/export -> urt_show_live_tag_date',
+                    key: 'reports.live_tag_date.build',
+                    label: 'Laravel live tag-date cache rebuild',
+                    command: 'reports:live-tag-date:build --from=YYYY-MM-DD --to=YYYY-MM-DD --tagid=... --execute',
                     apiCalls: [],
-                    reads: ['approved legacy snapshot/export', 'urt_video_live_log', 'urt_count'],
+                    reads: ['urt_video_live_log', 'urt_video', 'urt_count', 'tags'],
                     writes: ['urt_show_live_tag_date'],
-                    summary: '目前 Laravel scheduler 不常態重建 tags_result/tags_video/tags_views live cache；頁面只讀既有 cache。',
-                    scheduler: '不會由目前 Laravel 排程常態重建；reports:live:clean 只清理 invalid cache rows。',
+                    summary: 'Reviewed manual command 從本機 live logs 與影片文字重建 tags_result/tags_video/tags_views/hour_result maps。',
+                    scheduler: 'Registry status 為 planned/manual，scheduled execute command 為空；Production scheduler 與 allowlist 不變。',
                 ),
                 self::job(
                     key: 'reports.live.clean',
@@ -1823,7 +1825,7 @@ class ReportLineageProfiles
             ],
             'fixed_sources' => [
                 self::fixedSource('Live tag types', 'LiveTagReport::TYPES tags_result,tags_video,tags_views', '可選指標固定在 service；隨部署更新。'),
-                self::fixedSource('Live tag cache status', 'urt_show_live_tag_date', '目前不由 Laravel scheduler 常態重建；reports:live:clean 只清理。'),
+                self::fixedSource('Live tag cache status', 'urt_show_live_tag_date', '由 reviewed Laravel command 手動重建；reports:live:clean 只清理。'),
                 self::fixedSource('內建 stopwords fallback', 'App\Services\Legacy\LegacyStopwords::FALLBACK', '直播標籤排行會排除固定停用詞；隨部署更新。'),
             ],
             'sources' => [
@@ -1831,8 +1833,8 @@ class ReportLineageProfiles
                 self::source('urt_tag', 'urt_tag', ['mtime', 'ctime']),
             ],
             'graph' => [
-                self::sourceNode('live_tag_cache', 'urt_show_live_tag_date cache', 'cache', 'urt_show_live_tag_date', '保存直播 tag/date/hour 的關鍵字 JSON 與 totals；目前主要來自 legacy cache/export。', [
-                    'job_details' => ['legacy.live_tag_date.cache', 'reports.live.clean'],
+                self::sourceNode('live_tag_cache', 'urt_show_live_tag_date cache', 'cache', 'urt_show_live_tag_date', '保存直播 tag/date/hour 的關鍵字 JSON 與 totals；由 capped manual Laravel command 重建。', [
+                    'job_details' => ['reports.live_tag_date.build', 'reports.live.clean'],
                 ]),
                 self::fixedNode('live_tag_rules', 'type / stopwords / cache key rules', 'type whitelist、排序後 filter key、stopwords 與 days limit 寫在程式碼。'),
                 self::serviceNode('live_tag_report', 'LiveTagReport keyword matrix', 'request 時解析 cache JSON，對 keyword 每日取 max hour value 並排序。'),
@@ -1856,14 +1858,14 @@ class ReportLineageProfiles
             'summary' => '本頁依固定直播群組 definitions 讀 urt_show_live_tag_date.hour_result，產生指定日期 00-23 點的群組比較矩陣。',
             'jobs' => [
                 self::job(
-                    key: 'legacy.live_tag_date.cache',
-                    label: 'Legacy live hour cache',
-                    command: 'approved legacy snapshot/export -> urt_show_live_tag_date.hour_result',
+                    key: 'reports.live_tag_date.build',
+                    label: 'Laravel live hour cache rebuild',
+                    command: 'reports:live-tag-date:build --from=YYYY-MM-DD --to=YYYY-MM-DD --tagid=... --execute',
                     apiCalls: [],
-                    reads: ['approved legacy snapshot/export', 'urt_video_live_log', 'urt_count'],
+                    reads: ['urt_video_live_log', 'urt_video', 'urt_count', 'tags'],
                     writes: ['urt_show_live_tag_date'],
-                    summary: 'hour_result 目前不由 Laravel scheduler 常態重建；頁面只讀既有 cache。',
-                    scheduler: '不會由目前 Laravel 排程常態重建；reports:live:clean 只清理 invalid cache rows。',
+                    summary: 'Reviewed manual command 從本機 live logs 重建指定日期與 filter 的 hour_result cache。',
+                    scheduler: 'Registry status 為 planned/manual，scheduled execute command 為空；Production scheduler 與 allowlist 不變。',
                 ),
             ],
             'render' => [
@@ -1881,7 +1883,7 @@ class ReportLineageProfiles
             'fixed_sources' => [
                 self::fixedSource('Live group definitions', 'App\Services\Legacy\LegacyLiveGroupDefinitions', '群組與 tag filter strings 寫在程式碼；隨部署更新。'),
                 self::fixedSource('Hour buckets', 'LiveGroupHoursReport range(0, 23)', '24 小時 bucket 固定；不是排程更新來源。'),
-                self::fixedSource('Hour cache status', 'urt_show_live_tag_date.hour_result', '目前不由 Laravel scheduler 常態重建。'),
+                self::fixedSource('Hour cache status', 'urt_show_live_tag_date.hour_result', '由 reviewed Laravel command 手動重建；目前不由 scheduler 常態執行。'),
             ],
             'sources' => [
                 self::source('urt_show_live_tag_date', 'urt_show_live_tag_date', ['mtime', 'ctime', 'the_date']),
@@ -1889,7 +1891,7 @@ class ReportLineageProfiles
             'graph' => [
                 self::fixedNode('live_group_hour_defs', 'fixed group / hour rules', 'group definitions 與 00-23 小時 bucket 寫在程式碼。'),
                 self::sourceNode('live_group_hour_cache', 'urt_show_live_tag_date.hour_result', 'cache', 'urt_show_live_tag_date', '保存各固定 tag filter 在每日期的 hour_result views/count。', [
-                    'job_details' => ['legacy.live_tag_date.cache'],
+                    'job_details' => ['reports.live_tag_date.build'],
                 ]),
                 self::serviceNode('live_group_hour_report', 'LiveGroupHoursReport hour matrix', 'request 時讀每個 group 最新或指定日期 cache row，解析 hour_result。'),
                 self::pageNode('live_group_hour_page', '直播群組小時熱度頁', '/live/groups/{group}/hours', 'Blade 呈現 group selector、日期與 24 小時矩陣。'),
@@ -2120,8 +2122,8 @@ class ReportLineageProfiles
                 self::job(
                     key: 'youtube.comments.fetch',
                     label: '留言擷取',
-                    command: 'youtube:comments:fetch --execute --limit=5 --max-pages=1',
-                    apiCalls: ['YouTube Data API commentThreads.list'],
+                    command: 'youtube:comments:fetch --execute --limit=5 --max-pages=1 --max-reply-pages=20',
+                    apiCalls: ['YouTube Data API commentThreads.list', 'YouTube Data API comments.list'],
                     reads: ['urt_comment_queue', 'urt_comment'],
                     writes: ['urt_comment', 'urt_comment_author', 'urt_comment_rev', 'urt_comment_queue_done'],
                     summary: '補 urt_comment 摘要；頁面本身不會抓留言 API。',
@@ -2189,8 +2191,8 @@ class ReportLineageProfiles
                 self::job(
                     key: 'youtube.comments.fetch',
                     label: '留言擷取',
-                    command: 'youtube:comments:fetch --execute --limit=5 --max-pages=1',
-                    apiCalls: ['YouTube Data API commentThreads.list'],
+                    command: 'youtube:comments:fetch --execute --limit=5 --max-pages=1 --max-reply-pages=20',
+                    apiCalls: ['YouTube Data API commentThreads.list', 'YouTube Data API comments.list'],
                     reads: ['urt_comment_queue', 'urt_comment'],
                     writes: ['urt_comment', 'urt_comment_author', 'urt_comment_rev', 'urt_comment_queue_done'],
                     summary: '從 queue 抓留言並更新 authors_json/comments_json。',
@@ -2701,8 +2703,8 @@ class ReportLineageProfiles
                 self::job(
                     key: 'youtube.comments.fetch',
                     label: '留言擷取',
-                    command: 'youtube:comments:fetch --execute --limit=5 --max-pages=1',
-                    apiCalls: ['YouTube Data API commentThreads.list'],
+                    command: 'youtube:comments:fetch --execute --limit=5 --max-pages=1 --max-reply-pages=20',
+                    apiCalls: ['YouTube Data API commentThreads.list', 'YouTube Data API comments.list'],
                     reads: ['urt_comment_queue', 'urt_comment'],
                     writes: ['urt_comment', 'urt_comment_author', 'urt_comment_rev', 'urt_comment_queue_done'],
                     summary: '更新作者、revision index 與留言 JSON，是本頁主要來源。',
@@ -2880,14 +2882,14 @@ class ReportLineageProfiles
             'summary' => '本頁把固定 tag set 或 tag_group 清單與直播群組 definitions 結合，讀 urt_show_live_tag_date cache，比較關鍵字在直播中的七日 rolling 表現。',
             'jobs' => [
                 self::job(
-                    key: 'legacy.live_tag_date.cache',
-                    label: 'Legacy live tag-date cache',
-                    command: 'approved legacy snapshot/export -> urt_show_live_tag_date',
+                    key: 'reports.live_tag_date.build',
+                    label: 'Laravel live tag-date cache rebuild',
+                    command: 'reports:live-tag-date:build --from=YYYY-MM-DD --to=YYYY-MM-DD --tagid=... --execute',
                     apiCalls: [],
-                    reads: ['approved legacy snapshot/export', 'urt_video_live_log', 'urt_count'],
+                    reads: ['urt_video_live_log', 'urt_video', 'urt_count', 'tags'],
                     writes: ['urt_show_live_tag_date'],
-                    summary: '目前 Laravel scheduler 不常態重建 live keyword cache；頁面只讀既有 cache。',
-                    scheduler: '不會由目前 Laravel 排程常態重建；reports:live:clean 只清理 invalid cache rows。',
+                    summary: 'Reviewed manual command 從本機 live logs 與影片文字重建 group live 使用的 keyword/hour maps。',
+                    scheduler: 'Registry status 為 planned/manual，scheduled execute command 為空；Production scheduler 與 allowlist 不變。',
                 ),
                 self::job(
                     key: 'reports.groups.build',
@@ -2915,7 +2917,7 @@ class ReportLineageProfiles
             'fixed_sources' => [
                 self::fixedSource('Legacy tag set fallback', 'GroupLiveReport::tagSetFromLegacyFile fallback tags_president2024/tags_straits', 'fallback tag set 寫死；隨部署更新。'),
                 self::fixedSource('Comparison definitions', 'App\Services\Legacy\LegacyKeywordGroupDefinitions', '比較群組 definitions 寫在程式碼。'),
-                self::fixedSource('Live cache status', 'urt_show_live_tag_date.tags_views/tags_video', '目前不由 Laravel scheduler 常態重建。'),
+                self::fixedSource('Live cache status', 'urt_show_live_tag_date.tags_views/tags_video', '由 reviewed Laravel command 手動重建；目前不由 scheduler 常態執行。'),
             ],
             'sources' => [
                 self::source('urt_show_live_tag_date', 'urt_show_live_tag_date', ['mtime', 'ctime', 'the_date']),
@@ -2924,7 +2926,7 @@ class ReportLineageProfiles
             'graph' => [
                 self::fixedNode('group_live_defs', 'tag set / comparison definitions', 'legacy tag sets、fallback tags 與 comparison groups 隨部署更新。'),
                 self::combinedSourceNode('group_live_sources', 'live cache + tag_group', ['urt_show_live_tag_date', 'tag_group'], 'tag 清單與直播 keyword cache 來自本機資料或固定 fallback。', [
-                    'job_details' => ['legacy.live_tag_date.cache', 'reports.groups.build'],
+                    'job_details' => ['reports.live_tag_date.build', 'reports.groups.build'],
                 ]),
                 self::serviceNode('group_live_report', 'GroupLiveReport rolling live series', 'request 時解析 hourly keyword maps，計算七日 rolling group/tag series。'),
                 self::pageNode('group_live_page', '群組直播頁', '/groups/{groupName}/live', 'Blade 呈現群組直播比較圖與 tag series。'),

@@ -3,7 +3,9 @@
 namespace Tests\Feature\Reports;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -103,6 +105,50 @@ class ChannelCloudBuildCommandTest extends TestCase
             '--keyword-limit' => '100',
             '--json' => true,
         ])->assertSuccessful();
+    }
+
+    public function test_build_many_isolates_failed_channel_period_and_returns_nonzero_summary(): void
+    {
+        $this->createTables();
+        $this->seedRawData();
+        Log::spy();
+
+        DB::statement(<<<'SQL'
+CREATE TRIGGER fail_first_channel_cloud
+BEFORE INSERT ON urt_show_cloud
+WHEN NEW.u_id = 10 AND NEW.days = 3
+BEGIN
+    SELECT RAISE(FAIL, 'token=channel-cloud-secret');
+END
+SQL);
+
+        $exitCode = Artisan::call('reports:channel-cloud:build', [
+            '--u_id' => '10,20',
+            '--days' => '3',
+            '--keyword-limit' => 100,
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('partial_failure', $payload['status']);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame(1, $payload['writes']);
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame('failed', $payload['rows'][0]['status']);
+        $this->assertSame('success', $payload['rows'][1]['status']);
+        $this->assertStringNotContainsString('channel-cloud-secret', json_encode($payload, JSON_THROW_ON_ERROR));
+        $this->assertSame(0, DB::table('urt_show_cloud')->where('u_id', 10)->count());
+        $this->assertSame(1, DB::table('urt_show_cloud')->where('u_id', 20)->count());
+        Log::shouldHaveReceived('warning')
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'Channel cloud cache row failed.'
+                    && $context['u_id'] === 10
+                    && $context['failure_reason'] === 'cache_row_processing_failed'
+                    && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'channel-cloud-secret');
+            })
+            ->once();
     }
 
     private function createTables(): void

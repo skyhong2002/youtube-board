@@ -30,12 +30,13 @@ RUN composer install \
     --optimize-autoloader \
     --prefer-dist
 
-COPY package.json ./
-RUN npm install --ignore-scripts
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts
 
 COPY . .
 
-RUN npm run build \
+RUN chmod -R a+rX /var/www/html \
+    && npm run build \
     && composer dump-autoload --optimize \
     && php artisan package:discover --ansi \
     && mkdir -p \
@@ -51,4 +52,4 @@ USER www-data
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "if [ \"${DB_CONNECTION:-}\" = \"sqlite\" ] && [ -n \"${DB_DATABASE:-}\" ]; then mkdir -p \"$(dirname \"$DB_DATABASE\")\" && touch \"$DB_DATABASE\"; fi; php artisan config:cache --no-interaction && php artisan view:cache --no-interaction && php artisan serve --host=0.0.0.0 --port=${PORT:-8000}"]
+CMD ["sh", "docker/production-start.sh"]

@@ -59,7 +59,8 @@ class LegacyChannelReportApiTest extends TestCase
         $response = $this->getJson('/api/channel_pred.php?u_id=10&limit=7');
 
         $response->assertOk();
-        $response->assertJsonPath('meta.writeback_skipped', 'legacy urt_count views_pred_week/month update is handled by Laravel ingestion jobs');
+        $response->assertJsonPath('meta.writeback_skipped', 'run reports:channel-predictions:build --execute for reviewed urt_count prediction writeback');
+        $response->assertJsonPath('meta.months_limit', 4);
         $response->assertJsonPath('summary.views_pred_week', 700);
         $this->assertSame(100, $response->json('result.2026-05-10.pred'));
         $this->assertSame(1, DB::table('urt_log')->count());

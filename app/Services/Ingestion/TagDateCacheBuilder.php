@@ -5,7 +5,9 @@ namespace App\Services\Ingestion;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Throwable;
 
 class TagDateCacheBuilder
 {
@@ -13,6 +15,99 @@ class TagDateCacheBuilder
      * @var array<string, list<array{tag: string, divisor: float}>>
      */
     private array $keywordCache = [];
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function buildRange(
+        array $tagIds,
+        string $from,
+        string $to,
+        array $orTagIds = [],
+        array $notTagIds = [],
+        int $keywordLimit = 5000,
+        array $onlyKeywords = [],
+        bool $execute = false,
+        ?CarbonImmutable $now = null,
+        int $maxDates = 400,
+    ): array {
+        $now ??= CarbonImmutable::now('Asia/Taipei');
+        $from = preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) ? $from : $now->toDateString();
+        $to = preg_match('/^\d{4}-\d{2}-\d{2}$/', $to) ? $to : $from;
+
+        if ($from > $to) {
+            [$from, $to] = [$to, $from];
+        }
+
+        $maxDates = max(1, min(400, $maxDates));
+        $cursor = CarbonImmutable::parse($from, $now->getTimezone());
+        $end = CarbonImmutable::parse($to, $now->getTimezone());
+        $datesRequested = (int) $cursor->diffInDays($end) + 1;
+        $rows = [];
+        $writes = 0;
+        $failedRows = 0;
+
+        while ($cursor <= $end && count($rows) < $maxDates) {
+            $row = $this->build(
+                tagIds: $tagIds,
+                date: $cursor->toDateString(),
+                orTagIds: $orTagIds,
+                notTagIds: $notTagIds,
+                keywordLimit: $keywordLimit,
+                onlyKeywords: $onlyKeywords,
+                execute: $execute,
+                now: $now,
+            );
+            $writes += (int) ($row['writes'] ?? 0);
+            $failedRows += (int) ($row['failed_rows'] ?? 0);
+            $rows[] = $row;
+            $cursor = $cursor->addDay();
+        }
+
+        $payload = [
+            'mode' => $execute ? 'execute' : 'dry-run',
+            'status' => $failedRows > 0 ? 'partial_failure' : 'success',
+            'generated_at' => $now->format('Y-m-d H:i:s'),
+            'tagid' => implode(',', $this->normalizedIds($tagIds)),
+            'or' => implode(',', $this->normalizedIds($orTagIds)),
+            'not' => implode(',', $this->normalizedIds($notTagIds)),
+            'from' => $from,
+            'to' => $to,
+            'dates_requested' => $datesRequested,
+            'dates_selected' => count($rows),
+            'date_limit' => $maxDates,
+            'range_truncated' => count($rows) < $datesRequested,
+            'rows' => $rows,
+            'writes' => $writes,
+            'failed_rows' => $failedRows,
+            'failure_reason' => $failedRows > 0 ? 'cache_rows_failed' : null,
+            'exit_code' => $failedRows > 0 ? 1 : 0,
+            'write_targets' => ['urt_show_tag_date'],
+        ];
+        $logContext = collect($payload)->only([
+            'mode',
+            'status',
+            'tagid',
+            'or',
+            'not',
+            'from',
+            'to',
+            'dates_requested',
+            'dates_selected',
+            'range_truncated',
+            'writes',
+            'failed_rows',
+            'failure_reason',
+        ])->all();
+
+        if ($failedRows > 0) {
+            Log::warning('Tag date cache batch completed with failures.', $logContext);
+        } else {
+            Log::info('Tag date cache batch completed.', $logContext);
+        }
+
+        return $payload;
+    }
 
     /**
      * @return array<string, mixed>
@@ -40,38 +135,114 @@ class TagDateCacheBuilder
             ->unique()
             ->values()
             ->all();
-        $keywords = $this->keywords($keywordLimit, $now, $onlyKeywords);
-        $channelIds = $this->channelIds($tagIds, $orTagIds, $notTagIds);
-        $videos = $this->videos($channelIds, $date);
-        $metrics = $this->metrics($keywords, $videos);
         $generatedAt = $now->format('Y-m-d H:i:s');
-
-        if ($execute) {
-            $this->upsertCache($tagIds, $orTagIds, $notTagIds, $date, $metrics, count($channelIds), $generatedAt, $onlyKeywords !== []);
-        }
-
-        return [
-            'mode' => $execute ? 'execute' : 'dry-run',
-            'generated_at' => $generatedAt,
-            'tagid' => implode(',', $tagIds),
-            'or' => implode(',', $orTagIds),
-            'not' => implode(',', $notTagIds),
-            'date' => $date,
-            'keyword_limit' => $keywordLimit,
-            'only_keywords' => $onlyKeywords,
-            'keywords_selected' => count($keywords),
-            'channels_matched' => count($channelIds),
-            'videos_scanned' => count($videos),
-            'tags_count' => count($metrics['tags_result']),
-            'count_tags' => $metrics['count_tags'],
-            'count_videos' => $metrics['count_videos'],
-            'total_views' => $metrics['total_views'],
-            'tags_result' => $metrics['tags_result'],
-            'tags_video' => $metrics['tags_video'],
-            'tags_views' => $metrics['tags_views'],
-            'writes' => $execute ? 1 : 0,
-            'write_targets' => ['urt_show_tag_date'],
+        $keywords = [];
+        $channelIds = [];
+        $videos = [];
+        $metrics = [
+            'tags_result' => [],
+            'tags_video' => [],
+            'tags_views' => [],
+            'count_tags' => 0,
+            'count_videos' => 0,
+            'total_views' => 0,
         ];
+
+        try {
+            $keywords = $this->keywords($keywordLimit, $now, $onlyKeywords);
+            $channelIds = $this->channelIds($tagIds, $orTagIds, $notTagIds);
+            $videos = $this->videos($channelIds, $date);
+            $metrics = $this->metrics($keywords, $videos);
+
+            if ($execute) {
+                $this->upsertCache($tagIds, $orTagIds, $notTagIds, $date, $metrics, count($channelIds), $generatedAt, $onlyKeywords !== []);
+            }
+
+            $payload = [
+                'mode' => $execute ? 'execute' : 'dry-run',
+                'status' => 'success',
+                'generated_at' => $generatedAt,
+                'tagid' => implode(',', $tagIds),
+                'or' => implode(',', $orTagIds),
+                'not' => implode(',', $notTagIds),
+                'date' => $date,
+                'keyword_limit' => $keywordLimit,
+                'only_keywords' => $onlyKeywords,
+                'keywords_selected' => count($keywords),
+                'channels_matched' => count($channelIds),
+                'videos_scanned' => count($videos),
+                'tags_count' => count($metrics['tags_result']),
+                'count_tags' => $metrics['count_tags'],
+                'count_videos' => $metrics['count_videos'],
+                'total_views' => $metrics['total_views'],
+                'tags_result' => $metrics['tags_result'],
+                'tags_video' => $metrics['tags_video'],
+                'tags_views' => $metrics['tags_views'],
+                'writes' => $execute ? 1 : 0,
+                'failed_rows' => 0,
+                'failure_reason' => null,
+                'exit_code' => 0,
+                'write_targets' => ['urt_show_tag_date'],
+            ];
+
+            Log::info('Tag date cache row completed.', $this->logContext($payload));
+
+            return $payload;
+        } catch (Throwable $exception) {
+            $payload = [
+                'mode' => $execute ? 'execute' : 'dry-run',
+                'status' => 'failed',
+                'generated_at' => $generatedAt,
+                'tagid' => implode(',', $tagIds),
+                'or' => implode(',', $orTagIds),
+                'not' => implode(',', $notTagIds),
+                'date' => $date,
+                'keyword_limit' => $keywordLimit,
+                'only_keywords' => $onlyKeywords,
+                'keywords_selected' => count($keywords),
+                'channels_matched' => count($channelIds),
+                'videos_scanned' => count($videos),
+                'tags_count' => count($metrics['tags_result']),
+                'count_tags' => $metrics['count_tags'],
+                'count_videos' => $metrics['count_videos'],
+                'total_views' => $metrics['total_views'],
+                'tags_result' => $metrics['tags_result'],
+                'tags_video' => $metrics['tags_video'],
+                'tags_views' => $metrics['tags_views'],
+                'writes' => 0,
+                'failed_rows' => 1,
+                'failure_reason' => 'cache_row_processing_failed',
+                'exit_code' => 1,
+                'write_targets' => ['urt_show_tag_date'],
+            ];
+
+            Log::warning('Tag date cache row failed.', $this->logContext($payload) + [
+                'exception_class' => $exception::class,
+            ]);
+
+            return $payload;
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function logContext(array $payload): array
+    {
+        return collect($payload)->only([
+            'mode',
+            'status',
+            'tagid',
+            'or',
+            'not',
+            'date',
+            'channels_matched',
+            'videos_scanned',
+            'writes',
+            'failed_rows',
+            'failure_reason',
+        ])->all();
     }
 
     /**
@@ -211,8 +382,8 @@ class TagDateCacheBuilder
     }
 
     /**
-     * @param list<array{tag: string, divisor: float}> $keywords
-     * @param list<object> $videos
+     * @param  list<array{tag: string, divisor: float}>  $keywords
+     * @param  list<object>  $videos
      * @return array{tags_result: array<string, string>, tags_video: array<string, int>, tags_views: array<string, int>, count_tags: int, count_videos: int, total_views: int}
      */
     private function metrics(array $keywords, array $videos): array
@@ -305,10 +476,10 @@ class TagDateCacheBuilder
     }
 
     /**
-     * @param list<int> $tagIds
-     * @param list<int> $orTagIds
-     * @param list<int> $notTagIds
-     * @param array{tags_result: array<string, string>, tags_video: array<string, int>, tags_views: array<string, int>, count_tags: int, count_videos: int, total_views: int} $metrics
+     * @param  list<int>  $tagIds
+     * @param  list<int>  $orTagIds
+     * @param  list<int>  $notTagIds
+     * @param  array{tags_result: array<string, string>, tags_video: array<string, int>, tags_views: array<string, int>, count_tags: int, count_videos: int, total_views: int}  $metrics
      */
     private function upsertCache(array $tagIds, array $orTagIds, array $notTagIds, string $date, array $metrics, int $countChannels, string $generatedAt, bool $mergeKeywords): void
     {
@@ -382,7 +553,7 @@ class TagDateCacheBuilder
     }
 
     /**
-     * @param array<string, int|string> $updates
+     * @param  array<string, int|string>  $updates
      */
     private function mergedMetricJson(string $existingJson, array $updates): string
     {

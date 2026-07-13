@@ -6,6 +6,7 @@ use App\Services\Ingestion\IngestionSchedulerRunner;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -163,6 +164,86 @@ class IngestionCountsBuildCommandTest extends TestCase
         $this->assertSame(20, DB::table('urt_count')->where('u_id', 10)->value('view_week'));
         $this->assertSame(2, DB::table('urt_count')->where('u_id', 10)->value('sub_week'));
         $this->assertSame('2026-05-25 12:00:00', DB::table('urt_count')->where('u_id', 10)->value('mtime'));
+    }
+
+    public function test_reports_counts_build_execute_isolates_failed_rows_and_redacts_database_errors(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        DB::table('urt_count')->insert([
+            [
+                'u_id' => 1,
+                'view_week' => 0,
+                'sub_week' => 0,
+                'video_week' => 0,
+                'view_month' => 0,
+                'sub_month' => 0,
+                'video_month' => 0,
+            ],
+            [
+                'u_id' => 2,
+                'view_week' => 0,
+                'sub_week' => 0,
+                'video_week' => 0,
+                'view_month' => 0,
+                'sub_month' => 0,
+                'video_month' => 0,
+            ],
+        ]);
+        DB::table('urt_log')->insert([
+            [
+                'u_id' => 1,
+                'thedata' => json_encode([
+                    '2026-05-25' => ['view' => 1000, 'subscriber' => 100, 'video' => 50],
+                    '2026-05-18' => ['view' => 100, 'subscriber' => 10, 'video' => 5],
+                ], JSON_UNESCAPED_UNICODE),
+            ],
+            [
+                'u_id' => 2,
+                'thedata' => json_encode([
+                    '2026-05-25' => ['view' => 200, 'subscriber' => 20, 'video' => 10],
+                    '2026-05-18' => ['view' => 100, 'subscriber' => 10, 'video' => 5],
+                ], JSON_UNESCAPED_UNICODE),
+            ],
+        ]);
+        DB::statement(<<<'SQL'
+CREATE TRIGGER fail_first_channel_count
+BEFORE UPDATE ON urt_count
+WHEN OLD.u_id = 1
+BEGIN
+    SELECT RAISE(FAIL, 'token=super-secret');
+END
+SQL);
+        Log::spy();
+
+        $exitCode = Artisan::call('reports:counts:build', [
+            '--execute' => true,
+            '--limit' => 2,
+            '--json' => true,
+        ]);
+        $output = trim(Artisan::output());
+        $payload = json_decode($output, true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame(1, $payload['updated']);
+        $this->assertSame([
+            'u_id' => 1,
+            'reason' => 'item_processing_failed',
+        ], $payload['skipped'][0]);
+        $this->assertStringNotContainsString('super-secret', $output);
+        $this->assertSame(0, DB::table('urt_count')->where('u_id', 1)->value('view_week'));
+        $this->assertSame(100, DB::table('urt_count')->where('u_id', 2)->value('view_week'));
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'Channel counts item processing failed.'
+                    && $context['u_id'] === 1
+                    && $context['reason'] === 'item_processing_failed'
+                    && is_string($context['exception_class'])
+                    && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'super-secret');
+            });
     }
 
     public function test_ingestion_scheduler_can_execute_ingestion_counts_preview_when_due(): void

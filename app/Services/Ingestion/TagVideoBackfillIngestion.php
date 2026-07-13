@@ -2,20 +2,21 @@
 
 namespace App\Services\Ingestion;
 
+use App\Support\SensitiveTextRedactor;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
+use Throwable;
 
 class TagVideoBackfillIngestion
 {
     public function __construct(
         private readonly YoutubeDataApiClient $youtube,
         private readonly TagDateCacheBuilder $tagDateCacheBuilder,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array<string, mixed>
@@ -54,7 +55,9 @@ class TagVideoBackfillIngestion
             [$fromDate, $toDate] = [$toDate, $fromDate];
         }
 
-        $channels = $this->channels($tagIds, $orTagIds, $notTagIds, $limit);
+        $selection = $this->channels($tagIds, $orTagIds, $notTagIds, $limit);
+        $channels = $selection['rows'];
+        $selectionTruncated = $selection['truncated'];
 
         if (! $execute) {
             return [
@@ -66,6 +69,8 @@ class TagVideoBackfillIngestion
                 'or' => implode(',', $orTagIds),
                 'not' => implode(',', $notTagIds),
                 'selected_channels' => count($channels),
+                'channel_limit' => $limit,
+                'channel_selection_truncated' => $selectionTruncated,
                 'would_call_api' => count($channels) > 0,
                 'api_max_pages_per_channel' => $maxPages,
                 'api_max_results_per_page' => $maxResults,
@@ -92,13 +97,19 @@ class TagVideoBackfillIngestion
 
             if ($uploads === '') {
                 $skipped[] = ['u_id' => $uId, 'reason' => 'missing_uploads_playlist'];
+
                 continue;
             }
 
             try {
                 $result = $this->fetchChannel($uId, $uploads, $fromDate, $toDate, $maxPages, $maxResults, $now);
-            } catch (RuntimeException $exception) {
-                $skipped[] = ['u_id' => $uId, 'reason' => 'playlist_api_error: '.$exception->getMessage()];
+            } catch (Throwable $exception) {
+                if ($exception instanceof YoutubeQuotaWindowException) {
+                    throw $exception;
+                }
+
+                $skipped[] = ['u_id' => $uId, 'reason' => 'channel_crawl_failed: '.$this->sanitizedFailure($exception)];
+
                 continue;
             }
 
@@ -115,8 +126,11 @@ class TagVideoBackfillIngestion
 
         $tagDateRows = [];
         $tagDateWrites = 0;
+        $tagDateFailedRows = 0;
+        $crawlComplete = $channels !== [] && ! $selectionTruncated && $skipped === [];
+        $tagDateRebuildSkippedReason = null;
 
-        if ($rebuildTagDate) {
+        if ($rebuildTagDate && $crawlComplete) {
             $cursor = CarbonImmutable::parse($fromDate, $timezone);
             $end = CarbonImmutable::parse($toDate, $timezone);
 
@@ -131,15 +145,30 @@ class TagVideoBackfillIngestion
                     now: $now,
                 );
                 $tagDateWrites += (int) $row['writes'];
+                $tagDateFailedRows += (int) ($row['failed_rows'] ?? 0);
                 $tagDateRows[] = [
                     'date' => $row['date'],
+                    'status' => $row['status'] ?? ((int) ($row['exit_code'] ?? 0) === 0 ? 'success' : 'failed'),
                     'channels_matched' => $row['channels_matched'],
                     'videos_scanned' => $row['videos_scanned'],
                     'tags_count' => $row['tags_count'],
                     'writes' => $row['writes'],
+                    'failed_rows' => (int) ($row['failed_rows'] ?? 0),
+                    'failure_reason' => $row['failure_reason'] ?? null,
+                    'exit_code' => (int) ($row['exit_code'] ?? 0),
                 ];
                 $cursor = $cursor->addDay();
             }
+
+            if ($tagDateFailedRows > 0) {
+                $tagDateRebuildSkippedReason = 'tag_date_cache_rebuild_failed';
+            }
+        } elseif ($rebuildTagDate) {
+            $tagDateRebuildSkippedReason = match (true) {
+                $channels === [] => 'no_channels_selected',
+                $selectionTruncated => 'channel_selection_cap_reached',
+                default => 'incomplete_channel_crawl',
+            };
         }
 
         return [
@@ -151,14 +180,23 @@ class TagVideoBackfillIngestion
             'or' => implode(',', $orTagIds),
             'not' => implode(',', $notTagIds),
             'selected_channels' => count($channels),
+            'channel_limit' => $limit,
+            'channel_selection_truncated' => $selectionTruncated,
             'updated_channels' => count($applied),
             'skipped_channels' => count($skipped),
+            'failed_channels' => count($skipped),
+            'crawl_complete' => $crawlComplete,
+            'exit_code' => $skipped === [] && ! $selectionTruncated && $tagDateFailedRows === 0 ? 0 : 1,
             ...$totals,
             'tag_date_writes' => $tagDateWrites,
+            'tag_date_failed_rows' => $tagDateFailedRows,
             'tag_date_rows' => $tagDateRows,
+            'tag_date_rebuild_skipped_reason' => $tagDateRebuildSkippedReason,
             'applied' => $applied,
             'skipped' => $skipped,
-            'write_targets' => ['urt_video', 'urt_video_schedule', 'urt_video_live', 'urt_show_tag_date'],
+            'write_targets' => $crawlComplete && $rebuildTagDate
+                ? ['urt_video', 'urt_video_schedule', 'urt_video_live', 'urt_show_tag_date']
+                : ['urt_video', 'urt_video_schedule', 'urt_video_live'],
             'external_calls' => ['YouTube Data API playlistItems.list(part=snippet) paginated uploads crawl'],
             'secrets' => 'not printed',
         ];
@@ -184,7 +222,7 @@ class TagVideoBackfillIngestion
     }
 
     /**
-     * @return list<object>
+     * @return array{rows: list<object>, truncated: bool}
      */
     private function channels(array $tagIds, array $orTagIds, array $notTagIds, int $limit): array
     {
@@ -213,14 +251,19 @@ class TagVideoBackfillIngestion
             });
         }
 
-        return $query
-            ->limit($limit)
+        $rows = $query
+            ->limit($limit + 1)
             ->get(['urt_channel.u_id', 'urt_channel.title', 'urt_channel.uploads'])
             ->all();
+
+        return [
+            'rows' => array_slice($rows, 0, $limit),
+            'truncated' => count($rows) > $limit,
+        ];
     }
 
     /**
-     * @param list<object> $channels
+     * @param  list<object>  $channels
      * @return list<array<string, mixed>>
      */
     private function previewRows(array $channels, string $fromDate, string $toDate): array
@@ -253,10 +296,7 @@ class TagVideoBackfillIngestion
         $pageToken = null;
         $pages = 0;
         $apiItems = 0;
-        $videosInRange = 0;
-        $videoUpserts = 0;
-        $scheduleUpserts = 0;
-        $liveUpserts = 0;
+        $itemsInRange = [];
         $stoppedBeforeFrom = false;
         $fromStart = CarbonImmutable::parse($fromDate.' 00:00:00', $now->getTimezone());
         $toEnd = CarbonImmutable::parse($toDate.' 23:59:59', $now->getTimezone());
@@ -279,7 +319,22 @@ class TagVideoBackfillIngestion
                     continue;
                 }
 
-                $videosInRange++;
+                $itemsInRange[] = [$item, $publishedAt];
+            }
+
+            $pageToken = $page['nextPageToken'];
+        } while ($pageToken !== null && $pages < $maxPages);
+
+        if ($pageToken !== null && ! $stoppedBeforeFrom) {
+            throw new RuntimeException('playlist_page_cap_reached_before_date_cutoff');
+        }
+
+        [$videoUpserts, $scheduleUpserts, $liveUpserts] = DB::transaction(function () use ($itemsInRange, $nowString, $uId): array {
+            $videoUpserts = 0;
+            $scheduleUpserts = 0;
+            $liveUpserts = 0;
+
+            foreach ($itemsInRange as [$item, $publishedAt]) {
                 $videoId = (string) $item['videoId'];
 
                 $this->upsertByKeys('urt_video', ['videoId' => $videoId], [
@@ -313,13 +368,13 @@ class TagVideoBackfillIngestion
                 }
             }
 
-            $pageToken = $page['nextPageToken'];
-        } while ($pageToken !== null && $pages < $maxPages);
+            return [$videoUpserts, $scheduleUpserts, $liveUpserts];
+        });
 
         return [
             'api_pages' => $pages,
             'api_items' => $apiItems,
-            'videos_in_range' => $videosInRange,
+            'videos_in_range' => count($itemsInRange),
             'video_upserts' => $videoUpserts,
             'schedule_upserts' => $scheduleUpserts,
             'live_upserts' => $liveUpserts,
@@ -328,7 +383,7 @@ class TagVideoBackfillIngestion
     }
 
     /**
-     * @param array<string, mixed> $item
+     * @param  array<string, mixed>  $item
      */
     private function isLiveCandidate(array $item): bool
     {
@@ -337,8 +392,8 @@ class TagVideoBackfillIngestion
     }
 
     /**
-     * @param array<string, mixed> $keys
-     * @param array<string, mixed> $values
+     * @param  array<string, mixed>  $keys
+     * @param  array<string, mixed>  $values
      */
     private function upsertByKeys(string $table, array $keys, array $values): void
     {
@@ -377,7 +432,7 @@ class TagVideoBackfillIngestion
     }
 
     /**
-     * @param array<string, mixed> $values
+     * @param  array<string, mixed>  $values
      * @return array<string, mixed>
      */
     private function onlyExistingColumns(string $table, array $values): array
@@ -387,5 +442,10 @@ class TagVideoBackfillIngestion
         return collect($values)
             ->filter(fn (mixed $value, string $column): bool => in_array($column, $columns, true))
             ->all();
+    }
+
+    private function sanitizedFailure(Throwable $exception): string
+    {
+        return SensitiveTextRedactor::exception($exception, 240);
     }
 }

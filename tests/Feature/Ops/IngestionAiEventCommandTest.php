@@ -179,6 +179,77 @@ class IngestionAiEventCommandTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_ai_event_provider_failure_is_isolated_and_command_returns_nonzero(): void
+    {
+        $this->createTables();
+        $this->seedDailyTopicRows();
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        config()->set('services.opencode_go.fallback_api_key', null);
+
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::sequence()
+                ->push(['error' => ['message' => 'token=event-provider-secret']], 500)
+                ->push($this->chatPayload([
+                    'main_subject' => '黃仁勳',
+                    'supporting_persons' => [],
+                    'opposing_persons' => [],
+                    'other_opinions_persons' => [],
+                ])),
+        ]);
+
+        $exitCode = Artisan::call('ai:event', [
+            '--execute' => true,
+            '--aipk' => 10,
+            '--event' => '黃仁勳的高人氣與活動',
+            '--condition' => 'all',
+            '--prompt-types' => 'summary,people',
+            '--json' => true,
+        ]);
+        $output = trim(Artisan::output());
+        $payload = json_decode($output, true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame(1, $payload['event_ai']['failed']);
+        $this->assertTrue($payload['event_ai']['rows'][0]['failed']);
+        $this->assertFalse($payload['event_ai']['rows'][1]['failed']);
+        $this->assertSame(1, $payload['event_ai']['inserted']);
+        $this->assertSame('people', DB::table('urt_ai_event')->value('prompt_type'));
+        $this->assertStringNotContainsString('event-provider-secret', $output);
+        $this->assertStringContainsString('token=<redacted>', $payload['event_ai']['rows'][0]['skip_reason']);
+        Http::assertSentCount(2);
+    }
+
+    public function test_ai_event_isolates_prompt_write_failures_and_returns_nonzero(): void
+    {
+        $this->createTables();
+        $this->seedDailyTopicRows();
+        $this->fakeOpenCodeEventResponses();
+        DB::statement("CREATE TRIGGER fail_event_people BEFORE INSERT ON urt_ai_event WHEN NEW.prompt_type = 'people' BEGIN SELECT RAISE(ABORT, 'token=event-super-secret'); END");
+
+        $exitCode = Artisan::call('ai:event', [
+            '--execute' => true,
+            '--date' => '2026-06-03',
+            '--condition' => 'all',
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $output = trim(Artisan::output());
+        $payload = json_decode($output, true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('partial_failure', $payload['status']);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame(2, $payload['event_ai']['inserted']);
+        $this->assertSame(1, $payload['event_ai']['failed']);
+        $this->assertSame(['summary', 'media'], DB::table('urt_ai_event')->orderBy('pk')->pluck('prompt_type')->all());
+        $this->assertStringNotContainsString('event-super-secret', $output);
+        Http::assertSentCount(3);
+    }
+
     private function createTables(): void
     {
         foreach (['urt_ai_period', 'urt_ai_event', 'urt_ai_date', 'urt_channel_ai', 'urt_channel', 'urt_count', 'urt_video'] as $table) {

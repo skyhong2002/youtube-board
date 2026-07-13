@@ -3,11 +3,13 @@
 namespace Tests\Feature\Ops;
 
 use App\Services\Ingestion\IngestionSchedulerRunner;
+use App\Services\Ingestion\VideoStatisticsIngestion;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -222,6 +224,124 @@ class IngestionVideoStatsCommandTest extends TestCase
         $this->assertSame(1, DB::table('urt_video_log_history')->where('videoId', 'stats-video')->count());
         $this->assertSame(1, DB::table('urt_video_log')->where('videoId', 'stats-video')->count());
         Http::assertSentCount(2);
+    }
+
+    public function test_video_statistics_execute_isolates_a_failed_video_and_sanitizes_the_warning(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+        Log::spy();
+
+        DB::table('urt_video')->insert([
+            [
+                'pk' => 1,
+                'ctime' => '2026-05-24 00:00:00',
+                'mtime' => null,
+                'stime' => null,
+                'u_id' => 1,
+                'videoId' => 'a-fail',
+                'title' => 'Failing video',
+                'channelTitle' => 'Channel 1',
+                'publishedAt' => '2026-05-20 12:00:00',
+                'viewCount' => null,
+                'likeCount' => null,
+                'commentCount' => null,
+            ],
+            [
+                'pk' => 2,
+                'ctime' => '2026-05-24 00:00:00',
+                'mtime' => null,
+                'stime' => null,
+                'u_id' => 2,
+                'videoId' => 'b-success',
+                'title' => 'Successful video',
+                'channelTitle' => 'Channel 2',
+                'publishedAt' => '2026-05-20 12:00:00',
+                'viewCount' => null,
+                'likeCount' => null,
+                'commentCount' => null,
+            ],
+        ]);
+        DB::table('urt_video_schedule')->insert([
+            [
+                'pk' => 1,
+                'ctime' => '2026-05-24 00:00:00',
+                'mtime' => null,
+                'stime' => null,
+                'videoId' => 'a-fail',
+                'publishedAt' => '2026-05-20 12:00:00',
+                'viewCount' => null,
+                'likeCount' => null,
+                'commentCount' => null,
+            ],
+            [
+                'pk' => 2,
+                'ctime' => '2026-05-24 00:00:00',
+                'mtime' => null,
+                'stime' => null,
+                'videoId' => 'b-success',
+                'publishedAt' => '2026-05-20 12:00:00',
+                'viewCount' => null,
+                'likeCount' => null,
+                'commentCount' => null,
+            ],
+        ]);
+        DB::statement(<<<'SQL'
+CREATE TRIGGER fail_first_video_statistics
+BEFORE INSERT ON urt_video_log_history
+WHEN NEW.videoId = 'a-fail'
+BEGIN
+    SELECT RAISE(FAIL, 'token=super-secret');
+END
+SQL);
+
+        Http::fake([
+            'www.googleapis.com/youtube/v3/videos*' => Http::response([
+                'items' => [
+                    [
+                        'id' => 'a-fail',
+                        'statistics' => [
+                            'viewCount' => '111',
+                            'likeCount' => '11',
+                            'favoriteCount' => '0',
+                            'commentCount' => '1',
+                        ],
+                    ],
+                    [
+                        'id' => 'b-success',
+                        'statistics' => [
+                            'viewCount' => '222',
+                            'likeCount' => '22',
+                            'favoriteCount' => '0',
+                            'commentCount' => '2',
+                        ],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $payload = app(VideoStatisticsIngestion::class)->execute(batchSize: 2);
+
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame(1, $payload['failed_videos']);
+        $this->assertSame(1, $payload['updated_videos']);
+        $this->assertSame(['videoId' => 'a-fail', 'reason' => 'item_processing_failed'], $payload['skipped'][0]);
+        $this->assertStringNotContainsString('super-secret', json_encode($payload, JSON_THROW_ON_ERROR));
+        $this->assertNull(DB::table('urt_video_schedule')->where('videoId', 'a-fail')->value('viewCount'));
+        $this->assertSame(222, DB::table('urt_video_schedule')->where('videoId', 'b-success')->value('viewCount'));
+        $this->assertSame(0, DB::table('urt_video_log_history')->where('videoId', 'a-fail')->count());
+        $this->assertSame(1, DB::table('urt_video_log_history')->where('videoId', 'b-success')->count());
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'Video statistics item processing failed.'
+                    && $context['video_id'] === 'a-fail'
+                    && $context['reason'] === 'item_processing_failed'
+                    && is_string($context['exception_class'])
+                    && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'super-secret');
+            });
     }
 
     public function test_youtube_videos_stats_supports_today_missing_view_count_branch(): void

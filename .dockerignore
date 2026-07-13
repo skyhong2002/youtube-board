@@ -1,10 +1,15 @@
 .git
 .DS_Store
 .env
+bootstrap/cache/*.php
+database/*.sqlite*
 node_modules
 public/build
+public/hot
 storage/logs/*
 storage/app/db-dumps/*
+storage/app/private/dump-import-staging/*
+storage/app/private/dump-imports/*
 storage/app/private/ingestion-runs/*
 storage/framework/cache/data/*
 storage/framework/sessions/*

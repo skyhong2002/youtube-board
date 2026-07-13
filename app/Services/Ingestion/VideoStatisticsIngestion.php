@@ -5,16 +5,17 @@ namespace App\Services\Ingestion;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
+use Throwable;
 
 class VideoStatisticsIngestion
 {
     public function __construct(
         private readonly VideoStatisticsPreview $preview,
         private readonly YoutubeDataApiClient $youtube,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array<string, mixed>
@@ -47,35 +48,62 @@ class VideoStatisticsIngestion
             return $this->summary($preview, [], [], $now);
         }
 
-        $statisticsByVideo = $this->youtube->videoStatistics(
-            $rows->pluck('video_id')->map(fn (mixed $id): string => (string) $id)->all(),
-        );
+        try {
+            $statisticsByVideo = $this->youtube->videoStatistics(
+                $rows->pluck('video_id')->map(fn (mixed $id): string => (string) $id)->all(),
+            );
+        } catch (YoutubeQuotaWindowException $exception) {
+            $skipped = $rows->map(fn (array $row): array => [
+                'videoId' => (string) $row['video_id'],
+                'reason' => 'quota_window_reset',
+            ])->all();
+            Log::warning('Video statistics polling paused at quota window reset.', [
+                'reason' => 'quota_window_reset',
+                'selected_rows' => $rows->count(),
+                'exception_class' => $exception::class,
+            ]);
+
+            return $this->summary($preview, [], $skipped, $now, true, $rows->count());
+        }
         $applied = [];
         $skipped = [];
 
         foreach ($rows as $row) {
             $rowVideoId = (string) $row['video_id'];
-            $statistics = $statisticsByVideo[$rowVideoId] ?? null;
 
-            if ($statistics === null) {
+            try {
+                $statistics = $statisticsByVideo[$rowVideoId] ?? null;
+
+                if ($statistics === null) {
+                    $skipped[] = [
+                        'videoId' => $rowVideoId,
+                        'reason' => 'api_item_missing',
+                    ];
+
+                    continue;
+                }
+
+                DB::transaction(function () use ($row, $statistics, $now): void {
+                    $this->upsertStatistics($row, $statistics, $now);
+                });
+
+                $applied[] = [
+                    'videoId' => $rowVideoId,
+                    'viewCount' => $statistics['viewCount'],
+                    'likeCount' => $statistics['likeCount'],
+                    'commentCount' => $statistics['commentCount'],
+                ];
+            } catch (Throwable $exception) {
                 $skipped[] = [
                     'videoId' => $rowVideoId,
-                    'reason' => 'api_item_missing',
+                    'reason' => 'item_processing_failed',
                 ];
-
-                continue;
+                Log::warning('Video statistics item processing failed.', [
+                    'video_id' => $rowVideoId,
+                    'reason' => 'item_processing_failed',
+                    'exception_class' => $exception::class,
+                ]);
             }
-
-            DB::transaction(function () use ($row, $statistics, $now): void {
-                $this->upsertStatistics($row, $statistics, $now);
-            });
-
-            $applied[] = [
-                'videoId' => $rowVideoId,
-                'viewCount' => $statistics['viewCount'],
-                'likeCount' => $statistics['likeCount'],
-                'commentCount' => $statistics['commentCount'],
-            ];
         }
 
         return $this->summary($preview, $applied, $skipped, $now);
@@ -243,8 +271,16 @@ class VideoStatisticsIngestion
      * @param  list<array<string, mixed>>  $skipped
      * @return array<string, mixed>
      */
-    private function summary(array $preview, array $applied, array $skipped, CarbonImmutable $now): array
-    {
+    private function summary(
+        array $preview,
+        array $applied,
+        array $skipped,
+        CarbonImmutable $now,
+        bool $quotaWindowReset = false,
+        int $remainingRetryRows = 0,
+    ): array {
+        $failedVideos = collect($skipped)->whereIn('reason', ['item_processing_failed', 'quota_window_reset'])->count();
+
         return [
             'mode' => 'local-execute',
             'generated_at' => $now->format('Y-m-d H:i:s'),
@@ -253,6 +289,10 @@ class VideoStatisticsIngestion
             'api_requested_videos' => count($applied) + count($skipped),
             'updated_videos' => count($applied),
             'skipped_videos' => count($skipped),
+            'failed_videos' => $failedVideos,
+            'quota_window_reset' => $quotaWindowReset,
+            'remaining_retry_rows' => $remainingRetryRows,
+            'exit_code' => $failedVideos > 0 || $quotaWindowReset ? 1 : 0,
             'write_targets' => [
                 'urt_video_schedule.stime',
                 'urt_video_schedule.mtime',

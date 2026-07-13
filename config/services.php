@@ -31,6 +31,8 @@ return [
     'youtube' => [
         'api_key' => env('YOUTUBE_API_KEY'),
         'api_keys' => env('YOUTUBE_API_KEYS'),
+        'transient_retries' => (int) env('YOUTUBE_API_TRANSIENT_RETRIES', 1),
+        'retry_delay_ms' => (int) env('YOUTUBE_API_RETRY_DELAY_MS', 250),
         'quota' => [
             'daily_limit' => (int) env('YOUTUBE_DATA_API_DAILY_QUOTA_UNITS', 10000),
             'warning_percent' => (float) env('YOUTUBE_DATA_API_QUOTA_WARNING_PERCENT', 80),

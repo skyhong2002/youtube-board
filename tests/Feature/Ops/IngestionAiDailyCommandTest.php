@@ -7,6 +7,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -68,6 +69,29 @@ class IngestionAiDailyCommandTest extends TestCase
         $this->assertSame(1, DB::table('urt_ai_date')->count());
     }
 
+    public function test_ai_daily_zero_source_preview_reports_no_ai_calls_or_writes(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        $exitCode = Artisan::call('ai:daily', [
+            '--date' => '2026-05-24',
+            '--condition' => 'all',
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(0, $payload['total_prompt_event_rows']);
+        $this->assertSame(0, $payload['would_call_channel_ai_requests']);
+        $this->assertSame(0, $payload['would_insert_channel_ai_rows']);
+        $this->assertSame(0, $payload['would_call_ai_requests']);
+        $this->assertSame(0, $payload['would_insert_ai_date_rows']);
+        $this->assertFalse($payload['condition_rows'][0]['would_call_ai']);
+        $this->assertFalse($payload['condition_rows'][0]['would_insert_ai_date']);
+        $this->assertSame([], $payload['writes']);
+    }
+
     public function test_ai_daily_previews_make_ai_day_shell_conditions_and_channel_ai_refresh(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
@@ -93,8 +117,12 @@ class IngestionAiDailyCommandTest extends TestCase
 
         $this->assertSame(0, $exitCode);
         $this->assertSame(['all', 'green', 'blue', 'neutral', 'finance', 'world'], $payload['conditions']);
-        $this->assertSame(6, $payload['would_call_ai_requests']);
-        $this->assertSame(6, $payload['would_insert_ai_date_rows']);
+        $this->assertSame(4, $payload['would_call_ai_requests']);
+        $this->assertSame(4, $payload['would_insert_ai_date_rows']);
+        $this->assertSame(
+            ['all', 'green', 'blue', 'finance'],
+            collect($payload['condition_rows'])->where('would_call_ai', true)->pluck('condition')->all(),
+        );
 
         $all = collect($payload['condition_rows'])->firstWhere('condition', 'all');
         $this->assertSame(3, $all['source_rows']);
@@ -611,18 +639,17 @@ class IngestionAiDailyCommandTest extends TestCase
         config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
         config()->set('services.opencode_go.model', 'qwen-test');
 
-        Http::fake([
-            'https://opencode.test/v1/chat/completions' => Http::response([
-                'choices' => [
-                    [
-                        'message' => [
-                            'content' => '[{"事件":"排程事件","描述":"排程描述","關鍵字":["測試"],"videoId":["refresh-video-10","refresh-video-9"]}]',
-                        ],
-                    ],
-                ],
+        Http::fake(function ($request) {
+            $prompt = (string) data_get($request->data(), 'messages.0.content', '');
+            $content = str_contains($prompt, '多個媒體的事件列表')
+                ? '[{"標題":"排程每日事件","媒體事件":{"Configured News Channel":["排程事件"]}}]'
+                : '[{"事件":"排程事件","描述":"排程描述","關鍵字":["測試"],"videoId":["refresh-video-10","refresh-video-9"]}]';
+
+            return Http::response([
+                'choices' => [['message' => ['content' => $content]]],
                 'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5],
-            ]),
-        ]);
+            ]);
+        });
 
         $result = app(IngestionSchedulerRunner::class)->run(
             at: CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'),
@@ -637,7 +664,7 @@ class IngestionAiDailyCommandTest extends TestCase
         $this->assertGreaterThanOrEqual(1, DB::table('urt_ai_date')->count());
     }
 
-    public function test_ai_daily_execute_records_ai_failures_without_failing_whole_batch(): void
+    public function test_ai_daily_execute_records_ai_failures_and_returns_nonzero_batch_status(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'));
         $this->createTables();
@@ -660,13 +687,124 @@ class IngestionAiDailyCommandTest extends TestCase
         ]);
         $payload = json_decode(trim(Artisan::output()), true);
 
-        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, $exitCode);
         $this->assertSame(1, $payload['channel_ai']['skipped']);
+        $this->assertSame(1, $payload['channel_ai']['failed']);
         $this->assertSame(1, $payload['daily_ai']['skipped']);
+        $this->assertSame(1, $payload['daily_ai']['failed']);
         $this->assertStringContainsString('status=524', $payload['channel_ai']['rows'][0]['skip_reason']);
         $this->assertStringContainsString('status=524', $payload['daily_ai']['rows'][0]['skip_reason']);
         $this->assertSame(0, DB::table('urt_ai_date')->count());
         $this->assertSame(3, DB::table('urt_channel_ai')->count());
+    }
+
+    public function test_ai_daily_rejects_invalid_json_without_leaking_content_and_continues_daily_summary(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDailyAiFixtures();
+        $this->seedRefreshChannelVideos();
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        Log::spy();
+
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::sequence()
+                ->push([
+                    'choices' => [['message' => ['content' => 'not json token=ai-output-secret']]],
+                ])
+                ->push([
+                    'choices' => [['message' => ['content' => '```json\n[{"標題":"每日事件","媒體事件":{"Green Channel":["綠事件"]}}]\n```']]],
+                ]),
+        ]);
+
+        $exitCode = Artisan::call('ai:daily', [
+            '--execute' => true,
+            '--date' => '2026-05-24',
+            '--condition' => 'all',
+            '--channel-limit' => 1,
+            '--ai-call-limit' => 2,
+            '--json' => true,
+        ]);
+        $output = trim(Artisan::output());
+        $payload = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('partial_failure', $payload['status']);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame('invalid_ai_json', $payload['channel_ai']['rows'][0]['skip_reason']);
+        $this->assertSame(1, $payload['daily_ai']['inserted']);
+        $this->assertStringNotContainsString('ai-output-secret', $output);
+        $this->assertSame(3, DB::table('urt_channel_ai')->count());
+        $this->assertDatabaseHas('urt_ai_date', [
+            'condition_type' => 'all',
+            'result_json' => '[{"標題":"每日事件","媒體事件":{"Green Channel":["綠事件"]}}]',
+        ]);
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'AI daily ingestion item failed.'
+                    && $context['stage'] === 'channel_validation'
+                    && $context['failure_reason'] === 'invalid_ai_json'
+                    && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'ai-output-secret');
+            });
+    }
+
+    public function test_ai_daily_isolates_channel_write_failure_and_sanitizes_database_error(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDailyAiFixtures();
+        $this->seedRefreshChannelVideos();
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        Log::spy();
+
+        DB::statement(<<<'SQL'
+CREATE TRIGGER fail_channel_ai_write
+BEFORE INSERT ON urt_channel_ai
+WHEN NEW.u_id = 76
+BEGIN
+    SELECT RAISE(FAIL, 'password=channel-db-secret');
+END
+SQL);
+
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::sequence()
+                ->push([
+                    'choices' => [['message' => ['content' => '[{"事件":"頻道事件","videoId":["refresh-video-10"]}]']]],
+                ])
+                ->push([
+                    'choices' => [['message' => ['content' => '[{"標題":"每日事件","媒體事件":{"Green Channel":["綠事件"]}}]']]],
+                ]),
+        ]);
+
+        $exitCode = Artisan::call('ai:daily', [
+            '--execute' => true,
+            '--date' => '2026-05-24',
+            '--condition' => 'all',
+            '--channel-limit' => 1,
+            '--ai-call-limit' => 2,
+            '--json' => true,
+        ]);
+        $output = trim(Artisan::output());
+        $payload = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['channel_ai']['failed']);
+        $this->assertSame(1, $payload['daily_ai']['inserted']);
+        $this->assertStringContainsString('password=<redacted>', $payload['channel_ai']['rows'][0]['skip_reason']);
+        $this->assertStringNotContainsString('channel-db-secret', $output);
+        $this->assertDatabaseHas('urt_ai_date', ['condition_type' => 'all']);
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'AI daily ingestion item failed.'
+                    && $context['stage'] === 'channel_write'
+                    && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'channel-db-secret');
+            });
     }
 
     private function createTables(): void

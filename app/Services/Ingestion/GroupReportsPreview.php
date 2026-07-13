@@ -6,6 +6,8 @@ use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class GroupReportsPreview
 {
@@ -34,7 +36,9 @@ class GroupReportsPreview
         $hours = max(1, min(168, $hours));
         $limit = max(1, min(200, $limit));
         $groupName = $groupName !== null && trim($groupName) !== '' ? trim($groupName) : null;
-        $syncedRows = $execute ? $this->syncLegacyGroups($now, $hours) : 0;
+        $syncResult = $execute
+            ? $this->syncLegacyGroups($now, $hours, $limit)
+            : ['candidates' => 0, 'attempted' => 0, 'synced' => 0, 'failed' => 0];
 
         $base = DB::table('tag_group')
             ->when($groupName !== null, fn ($query) => $query->where('group_name', $groupName));
@@ -79,14 +83,22 @@ class GroupReportsPreview
             'latest_time' => $latestTime !== null ? (string) $latestTime : null,
             'rows' => $rows,
             'external_fetch_skipped' => '新文易數 tag.analysis.tw group sync is intentionally not called in planning mode',
-            'synced_rows' => $syncedRows,
+            'sync_candidates' => $syncResult['candidates'],
+            'sync_attempted' => $syncResult['attempted'],
+            'synced_rows' => $syncResult['synced'],
+            'failed_rows' => $syncResult['failed'],
+            'exit_code' => $syncResult['failed'] > 0 ? 1 : 0,
             'writes' => $execute ? ['tag_group'] : [],
         ];
     }
 
-    private function syncLegacyGroups(CarbonImmutable $now, int $hours): int
+    /**
+     * @return array{candidates: int, attempted: int, synced: int, failed: int}
+     */
+    private function syncLegacyGroups(CarbonImmutable $now, int $hours, int $limit): array
     {
         $hours = max(1, min(168, $hours));
+        $limit = max(1, min(200, $limit));
         $response = Http::timeout(30)
             ->retry(2, 500)
             ->get('https://tag.analysis.tw/api/group.php', ['hours' => $hours]);
@@ -97,51 +109,68 @@ class GroupReportsPreview
 
         $payload = $response->json();
         $rows = is_array($payload) && is_array($payload['result'] ?? null) ? $payload['result'] : [];
+        $candidates = collect($rows)
+            ->filter(function (mixed $row): bool {
+                return is_array($row)
+                    && trim((string) ($row['tag'] ?? '')) !== ''
+                    && trim((string) ($row['group'] ?? '')) !== '';
+            })
+            ->values();
+        $attemptedRows = $candidates->take($limit);
         $synced = 0;
+        $failed = 0;
         $generatedAt = $now->format('Y-m-d H:i:s');
 
-        foreach ($rows as $row) {
-            if (! is_array($row)) {
-                continue;
-            }
-
+        foreach ($attemptedRows as $row) {
             $tag = trim((string) ($row['tag'] ?? ''));
             $group = trim((string) ($row['group'] ?? ''));
-
-            if ($tag === '' || $group === '') {
-                continue;
-            }
 
             $latestTime = max(
                 $this->dateTime($row['ctime'] ?? null, $generatedAt),
                 $this->dateTime($row['mtime'] ?? null, $generatedAt),
             );
             $delFlag = (string) ($row['del_flag'] ?? '0');
-            $existing = DB::table('tag_group')
-                ->where('tag', $tag)
-                ->where('group_name', $group)
-                ->first(['pk', 'latest_time']);
+            try {
+                DB::transaction(function () use ($tag, $group, $latestTime, $delFlag, $generatedAt): void {
+                    $existing = DB::table('tag_group')
+                        ->where('tag', $tag)
+                        ->where('group_name', $group)
+                        ->first(['pk', 'latest_time']);
 
-            if ($existing === null) {
-                DB::table('tag_group')->insert([
-                    'ctime' => $generatedAt,
-                    'latest_time' => $latestTime,
-                    'tag' => $tag,
-                    'group_name' => $group,
-                    'del_flag' => $delFlag,
-                ]);
-            } elseif ((string) ($existing->latest_time ?? '') < $latestTime) {
-                DB::table('tag_group')->where('pk', $existing->pk)->update([
-                    'mtime' => $generatedAt,
-                    'latest_time' => $latestTime,
-                    'del_flag' => $delFlag,
+                    if ($existing === null) {
+                        DB::table('tag_group')->insert([
+                            'ctime' => $generatedAt,
+                            'latest_time' => $latestTime,
+                            'tag' => $tag,
+                            'group_name' => $group,
+                            'del_flag' => $delFlag,
+                        ]);
+                    } elseif ((string) ($existing->latest_time ?? '') < $latestTime) {
+                        DB::table('tag_group')->where('pk', $existing->pk)->update([
+                            'mtime' => $generatedAt,
+                            'latest_time' => $latestTime,
+                            'del_flag' => $delFlag,
+                        ]);
+                    }
+                });
+
+                $synced++;
+            } catch (Throwable $exception) {
+                $failed++;
+                Log::warning('Group sync row failed.', [
+                    'tag_hash' => hash('sha256', $tag),
+                    'group_hash' => hash('sha256', $group),
+                    'exception_class' => $exception::class,
                 ]);
             }
-
-            $synced++;
         }
 
-        return $synced;
+        return [
+            'candidates' => $candidates->count(),
+            'attempted' => $attemptedRows->count(),
+            'synced' => $synced,
+            'failed' => $failed,
+        ];
     }
 
     private function dateTime(mixed $value, string $fallback): string

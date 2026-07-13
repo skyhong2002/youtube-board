@@ -7,6 +7,7 @@ use App\Services\Ingestion\IngestionHealthCheck;
 use App\Services\Ingestion\IngestionJobRegistry;
 use App\Services\Ingestion\IngestionRunHistory;
 use App\Services\Ingestion\IngestionSchedulerRunner;
+use App\Services\Ingestion\YoutubeQuotaBudgetLedger;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -28,7 +29,7 @@ class IngestionDashboardController extends Controller
         ],
     ];
 
-    public function __invoke(Request $request, IngestionJobRegistry $registry, IngestionRunHistory $history, IngestionHealthCheck $health): View
+    public function __invoke(Request $request, IngestionJobRegistry $registry, IngestionRunHistory $history, IngestionHealthCheck $health, YoutubeQuotaBudgetLedger $quotaLedger): View
     {
         return view('ops.ingestion', [
             'groups' => $registry->grouped(),
@@ -40,8 +41,12 @@ class IngestionDashboardController extends Controller
             'recentRuns' => $history->latest(30),
             'externalSchedulerActivity' => $history->externalSchedulerActivity(),
             'youtubeQuotaDailyEstimate' => $history->youtubeQuotaDailyEstimate(),
+            'youtubeQuotaBudgetLedger' => $quotaLedger->state(
+                max(0, (int) config('ingestion.youtube_daily_quota_budget', 9000)),
+            ),
             'health' => $health->check($request->query('date') ? (string) $request->query('date') : null),
             'prefillJob' => trim((string) $request->query('job', '')),
+            'webExecuteAllowed' => $this->webExecuteAllowed(),
         ]);
     }
 
@@ -113,6 +118,9 @@ class IngestionDashboardController extends Controller
         }
 
         $execute = ($validated['mode'] ?? 'dry-run') === 'execute';
+
+        abort_if($execute && ! $this->webExecuteAllowed(), 403, 'Web execute mode is restricted to local development.');
+
         $originalSchedulerEnabled = (bool) config('ingestion.scheduler_enabled', false);
 
         if ($execute) {
@@ -164,5 +172,10 @@ class IngestionDashboardController extends Controller
             'workloadSummary' => $registry->workloadSummary($workload['key']),
             'externalSchedulerActivity' => $history->externalSchedulerActivity(),
         ]);
+    }
+
+    private function webExecuteAllowed(): bool
+    {
+        return in_array((string) config('app.env'), ['local', 'testing'], true);
     }
 }

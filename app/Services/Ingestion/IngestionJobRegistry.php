@@ -2,6 +2,7 @@
 
 namespace App\Services\Ingestion;
 
+use App\Support\SensitiveTextRedactor;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Cron\CronExpression;
@@ -327,7 +328,7 @@ class IngestionJobRegistry
                         'expression' => $expression,
                         'valid' => false,
                         'next_runs' => [],
-                        'error' => $exception->getMessage(),
+                        'error' => SensitiveTextRedactor::exception($exception, 240),
                     ];
                 }
             })
@@ -438,11 +439,11 @@ class IngestionJobRegistry
     {
         $tokens = $allowlist->map(fn (string $value): string => strtolower($value));
 
-        if ($tokens->contains(fn (string $value): bool => in_array($value, ['off', 'none', 'false', '0'], true))) {
+        if ($tokens->isEmpty() || $tokens->contains(fn (string $value): bool => in_array($value, ['off', 'none', 'false', '0'], true))) {
             return 'off';
         }
 
-        if ($tokens->isEmpty() || $tokens->contains('*') || $tokens->contains('all')) {
+        if ($tokens->contains('*') || $tokens->contains('all')) {
             return 'all';
         }
 

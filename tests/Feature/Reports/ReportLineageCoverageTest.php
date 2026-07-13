@@ -41,7 +41,7 @@ class ReportLineageCoverageTest extends TestCase
             '/keywords/demo/live/trends' => ['KeywordLiveTrendReport', 'LegacyLiveGroupDefinitions', 'urt_show_live_tag_date'],
             '/live/channels' => ['LiveChannelsReport', 'urt_video_live_log', 'reports:live:build --execute --hours=24 --limit=100'],
             '/live/continuous' => ['LiveContinuousReport', 'actualEndTime IS NULL', 'urt_video_live'],
-            '/live/tags' => ['LiveTagReport', 'LiveTagReport::TYPES', 'legacy.live_tag_date.cache'],
+            '/live/tags' => ['LiveTagReport', 'LiveTagReport::TYPES', 'reports.live_tag_date.build'],
             '/live/groups/media/hours' => ['LiveGroupHoursReport', 'hour_result', 'LegacyLiveGroupDefinitions'],
             '/live/videos/demo-video/trend' => ['LiveVideoTrendReport', 'urt_show_video_live', 'log_json'],
             '/live/walls/news' => ['LiveWallReport', 'fixed videoId lists', '不讀本機 DB'],

@@ -4,6 +4,8 @@ namespace App\Services\Ingestion;
 
 class YoutubeQuotaEstimator
 {
+    public function __construct(private readonly YoutubeApiCredentials $credentials) {}
+
     /**
      * @param  array<string, mixed>  $job
      * @return array<string, mixed>
@@ -29,6 +31,19 @@ class YoutubeQuotaEstimator
             return $this->estimate(0, 'no YouTube API request attempted because API key is missing', $this->methodForJob($key));
         }
 
+        $telemetryRequests = data_get($job, 'telemetry.youtube_requests');
+        $telemetryUnits = collect(is_array($telemetryRequests) ? $telemetryRequests : [])
+            ->filter(fn (mixed $request): bool => is_array($request))
+            ->sum(fn (array $request): int => max(0, (int) ($request['estimated_quota_units'] ?? 1)));
+
+        if (is_array($telemetryRequests)) {
+            return $this->estimate(
+                $telemetryUnits,
+                'exact request-attempt estimate from sanitized YouTube telemetry',
+                $this->methodForJob($key),
+            );
+        }
+
         if ((bool) ($job['failed'] ?? false) && $counters === [] && $this->looksLikeQuotaOrApiFailure($text)) {
             return $this->estimate(1, 'failed before counters were emitted; estimated one attempted YouTube API request', $this->methodForJob($key));
         }
@@ -43,6 +58,48 @@ class YoutubeQuotaEstimator
             $key === 'youtube.comments.fetch' => $this->commentFetchEstimate($counters, $command),
             default => $this->fallbackEstimate($job, $text),
         };
+    }
+
+    /**
+     * Estimate the maximum request attempts allowed by a reviewed scheduled command.
+     *
+     * @param  array<string, mixed>  $job
+     * @return array<string, mixed>
+     */
+    public function estimateScheduledJob(array $job, ?string $effectiveCommand = null): array
+    {
+        $key = (string) ($job['key'] ?? '');
+        $command = trim($effectiveCommand ?? (string) ($job['scheduled_execute_command'] ?? $job['modern_command'] ?? ''));
+
+        if (! $this->isYoutubeDataApiJob($key)) {
+            return $this->estimate(0, 'not a YouTube Data API job', null);
+        }
+
+        $baseUnits = match (true) {
+            $key === 'youtube.channels.stats' => (int) ceil($this->intOption($command, 'limit', 20) / 50),
+            in_array($key, ['youtube.live.poll', 'youtube.tvbs.live.poll'], true) => (int) ceil($this->intOption($command, 'limit', 20) / 50),
+            in_array($key, ['youtube.videos.stats', 'youtube.videos.duration'], true) => (int) ceil($this->intOption($command, 'limit', 50) / 50)
+                * $this->intOption($command, 'loops', 1),
+            str_starts_with($key, 'youtube.channels.videos.'), $key === 'youtube.tvbs.videos' => $this->intOption($command, 'limit', 20),
+            $key === 'youtube.tag_videos.backfill' => $this->intOption($command, 'limit', 100) * $this->intOption($command, 'max-pages', 20),
+            $key === 'youtube.comments.fetch' => $this->intOption($command, 'limit', 20)
+                * ($this->intOption($command, 'max-pages', 1) + $this->intOption($command, 'max-reply-pages', 20)),
+            default => 0,
+        };
+        $keyAttempts = $this->configuredKeyAttempts();
+        $transientAttempts = $this->configuredTransientAttempts();
+        $units = $baseUnits * $keyAttempts * $transientAttempts;
+
+        return $this->estimate(
+            $units,
+            sprintf(
+                'scheduled command upper bound: base_requests=%d, configured_key_attempts=%d, transient_attempts=%d',
+                $baseUnits,
+                $keyAttempts,
+                $transientAttempts,
+            ),
+            $this->methodForJob($key),
+        );
     }
 
     /**
@@ -175,6 +232,18 @@ class YoutubeQuotaEstimator
         }
 
         return $default;
+    }
+
+    private function configuredKeyAttempts(): int
+    {
+        return max(1, count($this->credentials->keys()));
+    }
+
+    private function configuredTransientAttempts(): int
+    {
+        $retries = max(0, min(3, (int) config('services.youtube.transient_retries', 1)));
+
+        return $retries + 1;
     }
 
     private function isYoutubeDataApiJob(string $key): bool

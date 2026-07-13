@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Ops;
 use App\Http\Controllers\Controller;
 use App\Services\Ingestion\IngestionRunHistory;
 use App\Services\Integrations\YoutubeDataApiQuotaUsage;
+use App\Support\SensitiveTextRedactor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Response;
@@ -484,7 +485,7 @@ class IntegrationCheckController extends Controller
                 'http_status' => 'n/a',
                 'rows' => 0,
                 'shape' => 'request failed',
-                'error' => $exception->getMessage(),
+                'error' => SensitiveTextRedactor::exception($exception, 240),
             ];
         }
 
@@ -576,7 +577,7 @@ class IntegrationCheckController extends Controller
                 'details' => [
                     ['label' => 'Check', 'value' => 'database ping: select 1'],
                     ['label' => 'Connection', 'value' => (string) config('database.default')],
-                    ['label' => 'Error', 'value' => $exception->getMessage()],
+                    ['label' => 'Error', 'value' => SensitiveTextRedactor::exception($exception, 240)],
                 ],
             ];
         }

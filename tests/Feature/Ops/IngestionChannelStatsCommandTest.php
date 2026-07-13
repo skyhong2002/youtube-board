@@ -8,6 +8,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -374,7 +375,7 @@ class IngestionChannelStatsCommandTest extends TestCase
         $channels = [];
         $items = [];
 
-        for ($i = 1; $i <= 6; $i++) {
+        for ($i = 1; $i <= 61; $i++) {
             $channels[] = [
                 'u_id' => $i,
                 'ctime' => '2026-05-20 00:00:00',
@@ -406,21 +407,122 @@ class IngestionChannelStatsCommandTest extends TestCase
 
         $exitCode = Artisan::call('youtube:channels:stats', [
             '--execute' => true,
-            '--limit' => 6,
+            '--limit' => 61,
             '--json' => true,
         ]);
         $payload = json_decode(trim(Artisan::output()), true);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame(6, $payload['selected_rows']);
-        $this->assertSame(6, $payload['api_requested_rows']);
-        $this->assertSame(6, $payload['updated_rows']);
-        $this->assertSame(1006, DB::table('urt_channel')->where('u_id', 6)->value('viewCount'));
+        $this->assertSame(50, $payload['selected_rows']);
+        $this->assertSame(50, $payload['api_requested_rows']);
+        $this->assertSame(50, $payload['updated_rows']);
+        $this->assertSame(1050, DB::table('urt_channel')->where('u_id', 50)->value('viewCount'));
+        $this->assertSame(100, DB::table('urt_channel')->where('u_id', 51)->value('viewCount'));
         Http::assertSent(function ($request): bool {
             parse_str(parse_url($request->url(), PHP_URL_QUERY) ?: '', $query);
 
-            return count(explode(',', (string) ($query['id'] ?? ''))) === 6;
+            return count(explode(',', (string) ($query['id'] ?? ''))) === 50;
         });
+    }
+
+    public function test_channel_statistics_execute_isolates_a_failed_channel_and_sanitizes_the_warning(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.local_polling_enabled', true);
+        config()->set('ingestion.production_polling_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['youtube.channels.stats']);
+        $this->createTables();
+        Log::spy();
+
+        DB::table('urt_channel')->insert([
+            [
+                'u_id' => 1,
+                'ctime' => '2026-05-20 00:00:00',
+                'mtime' => null,
+                'stime' => null,
+                'flag_del' => null,
+                'youtube_id' => 'UC-fail',
+                'title' => 'Failing Channel',
+                'viewCount' => 200,
+                'subscriberCount' => 20,
+                'videoCount' => 2,
+            ],
+            [
+                'u_id' => 2,
+                'ctime' => '2026-05-20 00:00:00',
+                'mtime' => null,
+                'stime' => null,
+                'flag_del' => null,
+                'youtube_id' => 'UC-success',
+                'title' => 'Successful Channel',
+                'viewCount' => 100,
+                'subscriberCount' => 10,
+                'videoCount' => 1,
+            ],
+        ]);
+        DB::statement(<<<'SQL'
+CREATE TRIGGER fail_first_channel_statistics
+BEFORE UPDATE ON urt_channel
+WHEN OLD.u_id = 1
+BEGIN
+    SELECT RAISE(FAIL, 'token=super-secret');
+END
+SQL);
+
+        Http::fake([
+            'www.googleapis.com/youtube/v3/channels*' => Http::response([
+                'items' => [
+                    [
+                        'id' => 'UC-fail',
+                        'statistics' => [
+                            'viewCount' => '1111',
+                            'subscriberCount' => '111',
+                            'hiddenSubscriberCount' => false,
+                            'videoCount' => '11',
+                        ],
+                    ],
+                    [
+                        'id' => 'UC-success',
+                        'statistics' => [
+                            'viewCount' => '2222',
+                            'subscriberCount' => '222',
+                            'hiddenSubscriberCount' => false,
+                            'videoCount' => '22',
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $result = app(IngestionSchedulerRunner::class)->run(
+            at: CarbonImmutable::now('Asia/Taipei'),
+            execute: true,
+            jobKey: 'youtube.channels.stats',
+        );
+        $job = $result['jobs'][0];
+
+        $this->assertTrue($job['failed']);
+        $this->assertSame('failed', $job['action']);
+        $this->assertSame(1, $job['exit_code']);
+        $this->assertSame(1, $result['summary']['failed']);
+        $this->assertStringContainsString('reason=item_processing_failed', $job['output']);
+        $this->assertStringNotContainsString('super-secret', $job['output']);
+        $this->assertSame(200, DB::table('urt_channel')->where('u_id', 1)->value('viewCount'));
+        $this->assertSame(2222, DB::table('urt_channel')->where('u_id', 2)->value('viewCount'));
+        $this->assertSame(0, DB::table('urt_log')->where('u_id', 1)->count());
+        $this->assertSame(1, DB::table('urt_log')->where('u_id', 2)->count());
+        Log::shouldHaveReceived('warning')
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'Channel statistics item processing failed.'
+                    && $context['u_id'] === 1
+                    && $context['reason'] === 'item_processing_failed'
+                    && is_string($context['exception_class'])
+                    && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'super-secret');
+            })
+            ->once();
     }
 
     private function createTables(): void

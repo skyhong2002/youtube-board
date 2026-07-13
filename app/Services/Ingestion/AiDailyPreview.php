@@ -29,9 +29,7 @@ class AiDailyPreview
         460, 61, 1064, 709, 1063, 47, 499, 429, 15,
     ];
 
-    public function __construct(private readonly LegacyTagFilter $tagFilter)
-    {
-    }
+    public function __construct(private readonly LegacyTagFilter $tagFilter) {}
 
     /**
      * @return list<int>
@@ -69,6 +67,7 @@ class AiDailyPreview
             ->map(fn (string $condition): array => $this->conditionPreview($condition, $period, $dataType, $limit, $includePrompts))
             ->values();
         $channelRefresh = $this->channelAiRefreshPreview($period, $now);
+        $eligibleConditionRows = $conditionRows->where('would_call_ai', true)->count();
 
         return [
             'mode' => 'ingestion-preview',
@@ -85,10 +84,10 @@ class AiDailyPreview
             'total_prompt_media_rows' => $conditionRows->sum('media_rows'),
             'total_prompt_event_rows' => $conditionRows->sum('prompt_event_rows'),
             'total_prompt_video_refs' => $conditionRows->sum('prompt_video_refs'),
-            'would_call_channel_ai_requests' => $channelRefresh['would_attempt_channel_ai_refresh'],
+            'would_call_channel_ai_requests' => $channelRefresh['would_call_channel_ai_requests'],
             'would_insert_channel_ai_rows' => $channelRefresh['would_insert_channel_ai_candidates'],
-            'would_call_ai_requests' => count($conditions),
-            'would_insert_ai_date_rows' => count($conditions),
+            'would_call_ai_requests' => $eligibleConditionRows,
+            'would_insert_ai_date_rows' => $eligibleConditionRows,
             'api_call_skipped' => 'AI chat completions are intentionally skipped in planning mode',
             'writes_skipped' => [
                 'OpenAI/OpenCode chat completion for channel AI',
@@ -142,6 +141,8 @@ class AiDailyPreview
         $rows = $this->dedupeAndMapChannelAiRows($rawRows, $condition);
         $bounds = $this->promptBounds($condition);
         $prompt = $this->prompt($rows, $bounds, $condition);
+        $promptEventRows = collect($rows)->sum(fn (array $row): int => count($row['events']));
+        $hasEligibleSource = $promptEventRows > 0;
 
         $row = [
             'condition' => $condition,
@@ -156,13 +157,13 @@ class AiDailyPreview
             'media_without_events' => collect($rows)
                 ->filter(fn (array $row): bool => $row['events'] === [])
                 ->count(),
-            'prompt_event_rows' => collect($rows)->sum(fn (array $row): int => count($row['events'])),
+            'prompt_event_rows' => $promptEventRows,
             'prompt_video_refs' => collect($rows)->sum('video_count'),
             'prompt_bounds' => $bounds,
             'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
             'existing_ai_date_rows' => $this->existingAiDateRows($condition, $period, $dataType),
-            'would_call_ai' => true,
-            'would_insert_ai_date' => true,
+            'would_call_ai' => $hasEligibleSource,
+            'would_insert_ai_date' => $hasEligibleSource,
             'sample_media' => collect($rows)
                 ->take(5)
                 ->map(fn (array $row): array => [
@@ -490,6 +491,7 @@ class AiDailyPreview
             'configured_channels' => count(self::CHANNEL_AI_UIDS),
             'existing_channels' => $existingChannels,
             'would_attempt_channel_ai_refresh' => count(self::CHANNEL_AI_UIDS),
+            'would_call_channel_ai_requests' => $candidateRows->count(),
             'would_insert_channel_ai_candidates' => $candidateRows->count(),
             'existing_channel_ai_rows' => $this->existingChannelAiRows($period, $legacyDataType),
             'minimum_video_rows_per_channel' => 10,

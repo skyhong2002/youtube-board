@@ -20,7 +20,7 @@ class LegacyChannelReportApiReport
         $series = $this->buildSeries($uId, $limit, monthsLimit: null);
 
         return [
-            'result' => $series['result'] === [] ? new stdClass() : $series['result'],
+            'result' => $series['result'] === [] ? new stdClass : $series['result'],
             'meta' => [
                 'available' => $series['log_rows'] > 0,
                 'source' => 'urt_log.thedata',
@@ -41,28 +41,57 @@ class LegacyChannelReportApiReport
     {
         $uId = max(1, (int) $request->query('u_id', 2));
         $limit = max(1, min(365, (int) $request->query('limit', 60)));
-        $series = $this->buildSeries($uId, $limit, monthsLimit: 2);
+        $prediction = $this->predictionForChannel($uId, $limit);
 
         return [
-            'result' => $series['result'] === [] ? new stdClass() : $series['result'],
-            'summary' => $this->predictionSummary($series['result']),
+            'result' => $prediction['result'] === [] ? new stdClass : $prediction['result'],
+            'summary' => $prediction['summary'],
             'meta' => [
-                'available' => $series['log_rows'] > 0,
+                'available' => $prediction['valid_points'] > 0,
                 'source' => 'urt_log.thedata',
                 'u_id' => $uId,
                 'limit' => $limit,
-                'months_limit' => 2,
-                'log_rows' => $series['log_rows'],
+                'months_limit' => $prediction['months_limit'],
+                'log_rows' => $prediction['log_rows'],
+                'invalid_log_rows' => $prediction['invalid_log_rows'],
                 'channel' => $this->channel($uId),
                 'realtime_dashboard' => true,
-                'writeback_skipped' => 'legacy urt_count views_pred_week/month update is handled by Laravel ingestion jobs',
-                'blocked_reason' => $series['log_rows'] === 0 ? 'local urt_log has no rows for this channel' : null,
+                'writeback_skipped' => 'run reports:channel-predictions:build --execute for reviewed urt_count prediction writeback',
+                'blocked_reason' => $prediction['valid_points'] === 0 ? 'local urt_log has no usable rows for this channel' : null,
             ],
         ];
     }
 
     /**
-     * @return array{result: array<string, array{videos: int, orig: int, pred: int, moving: int}>, log_rows: int}
+     * @return array{
+     *     result: array<string, array{videos: int, orig: int, pred: int, moving: int}>,
+     *     summary: array{views_pred_week: int, views_pred_month: int},
+     *     log_rows: int,
+     *     invalid_log_rows: int,
+     *     valid_points: int,
+     *     months_limit: int
+     * }
+     */
+    public function predictionForChannel(int $uId, int $limit = 60, int $monthsLimit = 4): array
+    {
+        $uId = max(1, $uId);
+        $limit = max(1, min(365, $limit));
+        $monthsLimit = max(1, min(12, $monthsLimit));
+        $series = $this->buildSeries($uId, $limit, $monthsLimit);
+
+        return $series + [
+            'summary' => $this->predictionSummary($series['result']),
+            'months_limit' => $monthsLimit,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     result: array<string, array{videos: int, orig: int, pred: int, moving: int}>,
+     *     log_rows: int,
+     *     invalid_log_rows: int,
+     *     valid_points: int
+     * }
      */
     private function buildSeries(int $uId, int $limit, ?int $monthsLimit): array
     {
@@ -77,13 +106,23 @@ class LegacyChannelReportApiReport
 
             $rows = $query->get();
         } catch (QueryException) {
-            return ['result' => [], 'log_rows' => 0];
+            return ['result' => [], 'log_rows' => 0, 'invalid_log_rows' => 0, 'valid_points' => 0];
         }
 
         $dates = [];
+        $invalidLogRows = 0;
 
         foreach ($rows as $row) {
-            foreach ($this->decodeMap($row->thedata ?? null) as $date => $value) {
+            $raw = $row->thedata ?? null;
+            $decoded = $this->decodeMap($raw);
+
+            if ($decoded === [] && is_string($raw) && trim($raw) !== '' && trim($raw) !== 'null' && json_last_error() !== JSON_ERROR_NONE) {
+                $invalidLogRows++;
+
+                continue;
+            }
+
+            foreach ($decoded as $date => $value) {
                 if (is_array($value) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $date)) {
                     $dates[(string) $date] = [
                         'view' => (int) ($value['view'] ?? $value['total_views'] ?? 0),
@@ -113,11 +152,13 @@ class LegacyChannelReportApiReport
         return [
             'result' => $result,
             'log_rows' => $rows->count(),
+            'invalid_log_rows' => $invalidLogRows,
+            'valid_points' => count($dates),
         ];
     }
 
     /**
-     * @param array<string, array{view: int, video: int}> $dates
+     * @param  array<string, array{view: int, video: int}>  $dates
      * @return array<string, int>
      */
     private function dailyPredictions(array $dates, CarbonImmutable $today, int $limit): array
@@ -184,9 +225,9 @@ class LegacyChannelReportApiReport
     }
 
     /**
-     * @param array<string, int|float> $weekSum
-     * @param array<string, int> $weekCount
-     * @param array<string, array<int, int>> $weekData
+     * @param  array<string, int|float>  $weekSum
+     * @param  array<string, int>  $weekCount
+     * @param  array<string, array<int, int>>  $weekData
      * @return array<int, float>
      */
     private function weekdayMedianRatios(array $weekSum, array $weekCount, array $weekData, CarbonImmutable $today): array
@@ -223,7 +264,7 @@ class LegacyChannelReportApiReport
     }
 
     /**
-     * @param list<int|float> $values
+     * @param  list<int|float>  $values
      */
     private function median(array $values): float
     {
@@ -245,7 +286,7 @@ class LegacyChannelReportApiReport
     }
 
     /**
-     * @param array<string, int> $pred
+     * @param  array<string, int>  $pred
      * @return array<string, int>
      */
     private function movingAverage(array $pred, CarbonImmutable $today, int $limit): array
@@ -267,7 +308,7 @@ class LegacyChannelReportApiReport
     }
 
     /**
-     * @param array<string, array{videos: int, orig: int, pred: int, moving: int}> $result
+     * @param  array<string, array{videos: int, orig: int, pred: int, moving: int}>  $result
      * @return array{views_pred_week: int, views_pred_month: int}
      */
     private function predictionSummary(array $result): array

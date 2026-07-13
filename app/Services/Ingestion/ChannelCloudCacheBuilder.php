@@ -5,7 +5,9 @@ namespace App\Services\Ingestion;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Throwable;
 
 class ChannelCloudCacheBuilder
 {
@@ -35,6 +37,7 @@ class ChannelCloudCacheBuilder
         $channelIds = $uIds !== [] ? $uIds : $this->recentChannelIds($limit, $recentDays, $now);
         $rows = [];
         $writes = 0;
+        $failedRows = 0;
 
         foreach ($channelIds as $uId) {
             foreach ($daysList as $days) {
@@ -47,12 +50,14 @@ class ChannelCloudCacheBuilder
                     now: $now,
                 );
                 $writes += (int) $result['writes'];
+                $failedRows += (int) ($result['failed_rows'] ?? 0);
                 $rows[] = $result;
             }
         }
 
-        return [
+        $payload = [
             'mode' => $execute ? 'execute' : 'dry-run',
+            'status' => $failedRows > 0 ? 'partial_failure' : 'success',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'explicit_channels' => $uIds,
             'channels_selected' => count($channelIds),
@@ -64,8 +69,29 @@ class ChannelCloudCacheBuilder
             'only_keywords' => $this->normalizedKeywords($onlyKeywords),
             'rows' => $rows,
             'writes' => $writes,
+            'failed_rows' => $failedRows,
+            'failure_reason' => $failedRows > 0 ? 'cache_rows_failed' : null,
+            'exit_code' => $failedRows > 0 ? 1 : 0,
             'write_targets' => ['urt_show_cloud'],
         ];
+
+        $logContext = collect($payload)->only([
+            'mode',
+            'status',
+            'channels_selected',
+            'days_list',
+            'writes',
+            'failed_rows',
+            'failure_reason',
+        ])->all();
+
+        if ($failedRows > 0) {
+            Log::warning('Channel cloud cache batch completed with failures.', $logContext);
+        } else {
+            Log::info('Channel cloud cache batch completed.', $logContext);
+        }
+
+        return $payload;
     }
 
     /**
@@ -84,31 +110,80 @@ class ChannelCloudCacheBuilder
         $days = max(1, min(365, $days));
         $keywordLimit = max(1, min(20000, $keywordLimit));
         $onlyKeywords = $this->normalizedKeywords($onlyKeywords);
-        $keywords = $this->keywords($keywordLimit, $now, $onlyKeywords);
-        $videos = $this->videos($uId, $now, $days);
-        $metrics = $this->metrics($keywords, $videos);
         $generatedAt = $now->format('Y-m-d H:i:s');
-
-        if ($execute) {
-            $this->upsertCache($uId, $days, $metrics, $generatedAt);
-        }
-
-        return [
-            'mode' => $execute ? 'execute' : 'dry-run',
-            'generated_at' => $generatedAt,
-            'u_id' => $uId,
-            'days' => $days,
-            'keyword_limit' => $keywordLimit,
-            'only_keywords' => $onlyKeywords,
-            'keywords_selected' => count($keywords),
-            'videos_scanned' => count($videos),
-            'keywords_count' => count($metrics['keywords_json']),
-            'count_tags' => $metrics['count_tags'],
-            'count_videos' => $metrics['count_videos'],
-            'total_views' => $metrics['total_views'],
-            'writes' => $execute ? 1 : 0,
-            'write_targets' => ['urt_show_cloud'],
+        $keywords = [];
+        $videos = [];
+        $metrics = [
+            'keywords_json' => [],
+            'count_tags' => 0,
+            'count_videos' => 0,
+            'total_views' => 0,
         ];
+
+        try {
+            $keywords = $this->keywords($keywordLimit, $now, $onlyKeywords);
+            $videos = $this->videos($uId, $now, $days);
+            $metrics = $this->metrics($keywords, $videos);
+
+            if ($execute) {
+                $this->upsertCache($uId, $days, $metrics, $generatedAt);
+            }
+
+            return [
+                'mode' => $execute ? 'execute' : 'dry-run',
+                'status' => 'success',
+                'generated_at' => $generatedAt,
+                'u_id' => $uId,
+                'days' => $days,
+                'keyword_limit' => $keywordLimit,
+                'only_keywords' => $onlyKeywords,
+                'keywords_selected' => count($keywords),
+                'videos_scanned' => count($videos),
+                'keywords_count' => count($metrics['keywords_json']),
+                'count_tags' => $metrics['count_tags'],
+                'count_videos' => $metrics['count_videos'],
+                'total_views' => $metrics['total_views'],
+                'writes' => $execute ? 1 : 0,
+                'failed_rows' => 0,
+                'failure_reason' => null,
+                'exit_code' => 0,
+                'write_targets' => ['urt_show_cloud'],
+            ];
+        } catch (Throwable $exception) {
+            $payload = [
+                'mode' => $execute ? 'execute' : 'dry-run',
+                'status' => 'failed',
+                'generated_at' => $generatedAt,
+                'u_id' => $uId,
+                'days' => $days,
+                'keyword_limit' => $keywordLimit,
+                'only_keywords' => $onlyKeywords,
+                'keywords_selected' => count($keywords),
+                'videos_scanned' => count($videos),
+                'keywords_count' => count($metrics['keywords_json']),
+                'count_tags' => $metrics['count_tags'],
+                'count_videos' => $metrics['count_videos'],
+                'total_views' => $metrics['total_views'],
+                'writes' => 0,
+                'failed_rows' => 1,
+                'failure_reason' => 'cache_row_processing_failed',
+                'exit_code' => 1,
+                'write_targets' => ['urt_show_cloud'],
+            ];
+
+            Log::warning('Channel cloud cache row failed.', [
+                'mode' => $payload['mode'],
+                'status' => $payload['status'],
+                'u_id' => $uId,
+                'days' => $days,
+                'writes' => 0,
+                'failed_rows' => 1,
+                'failure_reason' => $payload['failure_reason'],
+                'exception_class' => $exception::class,
+            ]);
+
+            return $payload;
+        }
     }
 
     /**
@@ -266,8 +341,8 @@ class ChannelCloudCacheBuilder
     }
 
     /**
-     * @param list<array{tag: string, divisor: float}> $keywords
-     * @param list<object> $videos
+     * @param  list<array{tag: string, divisor: float}>  $keywords
+     * @param  list<object>  $videos
      * @return array{keywords_json: array<string, string>, count_tags: int, count_videos: int, total_views: int}
      */
     private function metrics(array $keywords, array $videos): array
@@ -352,7 +427,7 @@ class ChannelCloudCacheBuilder
     }
 
     /**
-     * @param array{keywords_json: array<string, string>, count_tags: int, count_videos: int, total_views: int} $metrics
+     * @param  array{keywords_json: array<string, string>, count_tags: int, count_videos: int, total_views: int}  $metrics
      */
     private function upsertCache(int $uId, int $days, array $metrics, string $generatedAt): void
     {
@@ -387,7 +462,7 @@ class ChannelCloudCacheBuilder
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */
     private function tablePayload(array $payload): array

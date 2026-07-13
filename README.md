@@ -38,6 +38,20 @@ Start the app:
 docker compose up -d --build
 ```
 
+The one-shot `setup` service installs the locked Composer/npm dependencies,
+builds frontend assets, waits for MariaDB, and runs all migrations before the
+app, worker, and scheduler start. A fresh checkout does not require a `.env`,
+`vendor/`, `node_modules/`, or a legacy source snapshot. The committed Compose
+defaults are local-development values only; create `.env` from `.env.example`
+when you need credentials for optional API-backed ingestion.
+
+Inspect bootstrap status:
+
+```bash
+docker compose ps
+docker compose logs setup
+```
+
 Open:
 
 - App: `http://127.0.0.1:8080`
@@ -50,17 +64,18 @@ Default local database credentials:
 - Password: `youtube_board`
 - Database: `youtube_board`
 
-Install dependencies only if the local checkout is missing `vendor/` or `node_modules/`:
+Re-run the setup service after changing dependency locks or migrations:
 
 ```bash
-docker compose run --rm app composer install
-docker compose run --rm app npm install
+docker compose run --rm setup
 ```
 
-Run migrations for a fresh local database:
+The legacy source snapshot is optional. To mount an approved read-only copy,
+set `LEGACY_GROUND_TRUTH_PATH` and opt into the override:
 
 ```bash
-docker compose run --rm app php artisan migrate
+LEGACY_GROUND_TRUTH_PATH=/absolute/path/to/youtube-board-legacy \
+  docker compose -f docker-compose.yml -f docker-compose.legacy.yml up -d
 ```
 
 ## Common Commands
@@ -95,6 +110,23 @@ Inspect or run ingestion jobs:
 docker compose exec app php artisan ingestion:list
 docker compose exec app php artisan ingestion:run --dry-run
 ```
+
+Preview an approved local DB artifact without writing:
+
+```bash
+docker compose exec app php artisan db:import-local \
+  urtube-live-slice-20260524-180544.sql.gz \
+  --sha256=b8f161ea66f8058ba402021182f90aef0796971bf22d270410a86438b02b5667 \
+  --dry-run
+```
+
+Imports are local-only and remain previews unless `--execute` is supplied;
+`--dry-run` makes that non-writing contract explicit and cannot be combined
+with `--execute`.
+Artifacts containing reviewed `DROP TABLE IF EXISTS` statements additionally
+require `--replace-existing`; see
+[docs/legacy-inventory/db-dumps.md](docs/legacy-inventory/db-dumps.md) before
+using that destructive local reset option.
 
 ## Data Capture
 

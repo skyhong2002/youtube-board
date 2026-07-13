@@ -3,12 +3,18 @@
 namespace Tests\Feature\Ops;
 
 use App\Services\Ingestion\IngestionSchedulerRunner;
+use App\Services\Ingestion\VideoDurationsIngestion;
+use App\Services\Ingestion\VideoDurationsPreview;
+use App\Services\Ingestion\YoutubeDataApiClient;
+use App\Services\Ingestion\YoutubeQuotaWindowException;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Mockery;
 use Tests\TestCase;
 
 class IngestionVideoDurationCommandTest extends TestCase
@@ -262,6 +268,84 @@ class IngestionVideoDurationCommandTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_video_duration_execute_isolates_a_failed_video_and_sanitizes_the_warning(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+        Log::spy();
+
+        DB::table('urt_video_duration')->insert([
+            [
+                'pk_video' => 1,
+                'ctime' => '2026-05-24 00:00:00',
+                'mtime' => null,
+                'stime' => null,
+                'publishedAt' => '2026-05-23 12:00:00',
+                'u_id' => 1,
+                'videoId' => 'a-fail',
+                'duration' => null,
+                'caption' => null,
+            ],
+            [
+                'pk_video' => 2,
+                'ctime' => '2026-05-24 00:00:00',
+                'mtime' => null,
+                'stime' => null,
+                'publishedAt' => '2026-05-23 12:00:00',
+                'u_id' => 2,
+                'videoId' => 'b-success',
+                'duration' => null,
+                'caption' => null,
+            ],
+        ]);
+        DB::statement(<<<'SQL'
+CREATE TRIGGER fail_first_video_duration
+BEFORE UPDATE ON urt_video_duration
+WHEN OLD.videoId = 'a-fail'
+BEGIN
+    SELECT RAISE(FAIL, 'token=super-secret');
+END
+SQL);
+
+        Http::fake([
+            'www.googleapis.com/youtube/v3/videos*' => Http::response([
+                'items' => [
+                    [
+                        'id' => 'a-fail',
+                        'contentDetails' => ['duration' => 'PT1M11S', 'caption' => 'false'],
+                    ],
+                    [
+                        'id' => 'b-success',
+                        'contentDetails' => ['duration' => 'PT2M22S', 'caption' => 'true'],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $payload = app(VideoDurationsIngestion::class)->execute(batchSize: 2);
+
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame(1, $payload['failed_videos']);
+        $this->assertSame(1, $payload['updated_videos']);
+        $this->assertSame(['videoId' => 'a-fail', 'reason' => 'item_processing_failed'], $payload['skipped'][0]);
+        $this->assertStringNotContainsString('super-secret', json_encode($payload, JSON_THROW_ON_ERROR));
+        $this->assertNull(DB::table('urt_video_duration')->where('videoId', 'a-fail')->value('duration'));
+        $this->assertNull(DB::table('urt_video_duration')->where('videoId', 'a-fail')->value('mtime'));
+        $this->assertSame(142, DB::table('urt_video_duration')->where('videoId', 'b-success')->value('duration'));
+        $this->assertSame('2026-05-24 18:00:00', DB::table('urt_video_duration')->where('videoId', 'b-success')->value('mtime'));
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'Video duration item processing failed.'
+                    && $context['video_id'] === 'a-fail'
+                    && $context['reason'] === 'item_processing_failed'
+                    && is_string($context['exception_class'])
+                    && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'super-secret');
+            });
+    }
+
     public function test_youtube_videos_duration_execute_can_explicitly_enqueue_existing_local_video(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
@@ -389,6 +473,49 @@ class IngestionVideoDurationCommandTest extends TestCase
         $this->assertSame(1, DB::table('urt_video_duration')->where('videoId', 'newer-missing-duration')->count());
         $this->assertSame(122, DB::table('urt_video_duration')->where('videoId', 'newer-missing-duration')->value('duration'));
         Http::assertSentCount(1);
+    }
+
+    public function test_video_duration_quota_reset_preserves_new_queue_row_for_retry(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        $this->createTables();
+        Log::spy();
+        DB::table('urt_video')->insert($this->videoRow(10, 'retry-duration', '2026-05-24 12:00:00'));
+
+        $youtube = Mockery::mock(YoutubeDataApiClient::class);
+        $youtube->shouldReceive('videoContentDetails')
+            ->once()
+            ->andThrow(new YoutubeQuotaWindowException('token=super-secret'));
+        $ingestion = new VideoDurationsIngestion(
+            app(VideoDurationsPreview::class),
+            $youtube,
+        );
+
+        $payload = $ingestion->execute(
+            videoId: 'retry-duration',
+            batchSize: 1,
+            enqueueMissing: true,
+        );
+        $queueRow = DB::table('urt_video_duration')->where('videoId', 'retry-duration')->first();
+
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertTrue($payload['quota_window_reset']);
+        $this->assertSame(1, $payload['remaining_retry_rows']);
+        $this->assertSame(1, $payload['queued_videos']);
+        $this->assertSame('quota_window_reset', $payload['skipped'][0]['reason']);
+        $this->assertNotNull($queueRow);
+        $this->assertNull($queueRow->mtime);
+        $this->assertNull($queueRow->stime);
+        $this->assertNull($queueRow->duration);
+        $this->assertStringNotContainsString('super-secret', json_encode($payload, JSON_THROW_ON_ERROR));
+        Log::shouldHaveReceived('warning')->once()->withArgs(
+            fn (string $message, array $context): bool => $message === 'Video duration polling paused at quota window reset.'
+                && $context['reason'] === 'quota_window_reset'
+                && $context['selected_rows'] === 1
+                && $context['exception_class'] === YoutubeQuotaWindowException::class
+                && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'super-secret'),
+        );
     }
 
     public function test_youtube_videos_duration_supports_single_queued_video_preview(): void

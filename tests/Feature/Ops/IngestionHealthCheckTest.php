@@ -199,7 +199,9 @@ class IngestionHealthCheckTest extends TestCase
 
             $payload = json_decode(Artisan::output(), true, 512, JSON_THROW_ON_ERROR);
 
-            $this->assertSame(0, $exitCode);
+            $this->assertSame(1, $exitCode);
+            $this->assertSame('fail', $payload['youtube']['status']);
+            $this->assertFalse($payload['youtube']['quota']['available']);
             $this->assertSame('unknown', $payload['targets']['ai_daily']['status']);
             $this->assertSame('database unavailable while checking AI daily completeness', $payload['targets']['ai_daily']['reason']);
             $this->assertSame('unknown', $payload['targets']['mayor_person']['status']);
@@ -280,6 +282,36 @@ class IngestionHealthCheckTest extends TestCase
         }
     }
 
+    public function test_ingestion_health_excludes_invalid_ai_json_from_daily_completeness(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:00:00', 'Asia/Taipei'));
+        $this->createAiTables();
+        $this->seedCompleteDailyRows('2026-05-24');
+
+        DB::table('urt_ai_date')
+            ->where('condition_type', 'world')
+            ->update(['result_json' => 'not-json']);
+        DB::table('urt_channel_ai')
+            ->where('u_id', AiDailyPreview::channelAiUids()[0])
+            ->update(['result_json' => '{"events":[]}']);
+
+        Artisan::call('ingestion:health', [
+            '--date' => '2026-05-24',
+            '--json' => true,
+        ]);
+        $payload = json_decode(Artisan::output(), true, 512, JSON_THROW_ON_ERROR);
+        $target = $payload['targets']['ai_daily'];
+
+        $this->assertSame('fail', $target['status']);
+        $this->assertContains('world', $target['missing_conditions']);
+        $this->assertSame(6, $target['condition_rows']);
+        $this->assertSame(5, $target['valid_condition_rows']);
+        $this->assertSame(1, $target['invalid_condition_rows']);
+        $this->assertSame(39, $target['channel_rows_total']);
+        $this->assertSame(38, $target['channel_rows']);
+        $this->assertSame(1, $target['invalid_channel_rows']);
+    }
+
     private function createAiTables(): void
     {
         Schema::create('urt_ai_date', function ($table): void {
@@ -290,6 +322,7 @@ class IngestionHealthCheckTest extends TestCase
             $table->string('condition_type')->nullable();
             $table->dateTime('mtime')->nullable();
             $table->integer('del_flag')->nullable();
+            $table->text('result_json');
         });
 
         Schema::create('urt_channel_ai', function ($table): void {
@@ -300,6 +333,7 @@ class IngestionHealthCheckTest extends TestCase
             $table->string('data_type');
             $table->dateTime('mtime')->nullable();
             $table->integer('del_flag')->nullable();
+            $table->text('result_json');
         });
 
         Schema::create('urt_mayor_person_ai', function ($table): void {
@@ -322,6 +356,7 @@ class IngestionHealthCheckTest extends TestCase
                 'condition_type' => $condition,
                 'mtime' => '2026-05-25 09:50:00',
                 'del_flag' => null,
+                'result_json' => '[{"標題":"每日事件","媒體事件":{"News Channel":["頻道事件"]}}]',
             ]);
         }
 
@@ -333,6 +368,7 @@ class IngestionHealthCheckTest extends TestCase
                 'data_type' => 'oneday',
                 'mtime' => '2026-05-25 09:45:00',
                 'del_flag' => null,
+                'result_json' => '[{"事件":"頻道事件","videoId":["video-1"]}]',
             ]);
         }
 

@@ -5,16 +5,17 @@ namespace App\Services\Ingestion;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
+use Throwable;
 
 class ChannelVideosDiscoveryIngestion
 {
     public function __construct(
         private readonly ChannelVideosDiscoveryPreview $preview,
         private readonly YoutubeDataApiClient $youtube,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array<string, mixed>
@@ -47,8 +48,11 @@ class ChannelVideosDiscoveryIngestion
 
         $applied = [];
         $skipped = [];
+        $quotaWindowReset = false;
+        $remainingRetryRows = 0;
+        $rows = collect($preview['rows'] ?? [])->values();
 
-        foreach ($preview['rows'] ?? [] as $row) {
+        foreach ($rows as $index => $row) {
             $uploads = trim((string) ($row['uploads'] ?? ''));
             $rowUId = (int) ($row['u_id'] ?? 0);
 
@@ -64,44 +68,103 @@ class ChannelVideosDiscoveryIngestion
 
             try {
                 $items = $this->youtube->playlistItems($uploads, $maxResults);
-            } catch (RuntimeException $exception) {
-                $this->updateExisting('urt_channel', 'u_id', $rowUId, [
-                    'vtime' => $now->addHour()->format('Y-m-d H:i:s'),
-                ]);
+            } catch (Throwable $exception) {
+                if ($exception instanceof YoutubeQuotaWindowException) {
+                    $quotaWindowReset = true;
+                    $remainingRetryRows = $rows->count() - $index;
+                    $skipped[] = [
+                        'u_id' => $rowUId,
+                        'uploads' => $uploads,
+                        'reason' => 'quota_window_reset',
+                    ];
+                    Log::warning('Channel video discovery paused at quota window reset.', [
+                        'u_id' => $rowUId,
+                        'reason' => 'quota_window_reset',
+                        'exception_class' => $exception::class,
+                    ]);
+
+                    break;
+                }
+
+                try {
+                    $this->updateExisting('urt_channel', 'u_id', $rowUId, [
+                        'vtime' => $now->addHour()->format('Y-m-d H:i:s'),
+                    ]);
+                } catch (Throwable $updateException) {
+                    $skipped[] = [
+                        'u_id' => $rowUId,
+                        'uploads' => $uploads,
+                        'reason' => 'item_processing_failed',
+                    ];
+                    Log::warning('Channel video discovery item processing failed.', [
+                        'u_id' => $rowUId,
+                        'reason' => 'item_processing_failed',
+                        'exception_class' => $updateException::class,
+                    ]);
+
+                    continue;
+                }
 
                 $skipped[] = [
                     'u_id' => $rowUId,
                     'uploads' => $uploads,
-                    'reason' => 'playlist_api_error: '.$exception->getMessage(),
+                    'reason' => 'playlist_api_error',
                 ];
+                Log::warning('Channel video discovery playlist request failed.', [
+                    'u_id' => $rowUId,
+                    'reason' => 'playlist_api_error',
+                    'exception_class' => $exception::class,
+                ]);
 
                 continue;
             }
-            $result = DB::transaction(function () use ($rowUId, $items, $now): array {
-                return $this->upsertChannelItems($rowUId, $items, $now);
-            });
 
-            $applied[] = [
-                'u_id' => $rowUId,
-                'uploads' => $uploads,
-                'api_items' => count($items),
-                'video_upserts' => $result['video_upserts'],
-                'schedule_upserts' => $result['schedule_upserts'],
-                'live_upserts' => $result['live_upserts'],
-                'week_count' => $result['week_count'],
-                'final_vtime' => $result['final_vtime'],
-            ];
+            try {
+                $result = DB::transaction(function () use ($rowUId, $items, $now): array {
+                    return $this->upsertChannelItems($rowUId, $items, $now);
+                });
+
+                $applied[] = [
+                    'u_id' => $rowUId,
+                    'uploads' => $uploads,
+                    'api_items' => count($items),
+                    'video_upserts' => $result['video_upserts'],
+                    'schedule_upserts' => $result['schedule_upserts'],
+                    'live_upserts' => $result['live_upserts'],
+                    'week_count' => $result['week_count'],
+                    'final_vtime' => $result['final_vtime'],
+                ];
+            } catch (Throwable $exception) {
+                $skipped[] = [
+                    'u_id' => $rowUId,
+                    'uploads' => $uploads,
+                    'reason' => 'item_processing_failed',
+                ];
+                Log::warning('Channel video discovery item processing failed.', [
+                    'u_id' => $rowUId,
+                    'reason' => 'item_processing_failed',
+                    'exception_class' => $exception::class,
+                ]);
+            }
         }
+
+        $failedChannels = collect($skipped)->filter(
+            fn (array $row): bool => in_array($row['reason'] ?? null, ['playlist_api_error', 'item_processing_failed', 'quota_window_reset'], true),
+        )->count();
 
         return [
             'mode' => 'local-execute',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'source' => $preview['source'] ?? null,
             'selected_rows' => (int) ($preview['selected_rows'] ?? 0),
-            'api_requested_channels' => count($applied),
+            'api_requested_channels' => count($applied) + $failedChannels,
             'api_max_results_per_channel' => $maxResults,
             'updated_channels' => count($applied),
             'skipped_channels' => count($skipped),
+            'failed_channels' => $failedChannels,
+            'quota_window_reset' => $quotaWindowReset,
+            'remaining_retry_rows' => $remainingRetryRows,
+            'exit_code' => $failedChannels > 0 || $quotaWindowReset ? 1 : 0,
             'write_targets' => [
                 'urt_channel.vtime',
                 'urt_video.ctime',

@@ -5,15 +5,14 @@ namespace App\Services\Ingestion;
 use App\Services\Legacy\LegacyTagFilter;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class AiHourlyPreview
 {
-    public function __construct(private readonly LegacyTagFilter $tagFilter)
-    {
-    }
+    public function __construct(private readonly LegacyTagFilter $tagFilter) {}
 
     /**
      * @return array<string, mixed>
@@ -47,6 +46,7 @@ class AiHourlyPreview
         $bounds = $this->promptBounds($videoRows);
         $prompt = $this->prompt($rows, $bounds);
         $displayRows = $rows->take($limit)->map(fn (object $row): array => $this->mapVideoRow($row))->values();
+        $hasEligibleSource = $rows->isNotEmpty();
 
         return [
             'mode' => 'ingestion-preview',
@@ -72,8 +72,8 @@ class AiHourlyPreview
             'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
             'prompt' => $prompt,
             'existing_ai_hour_rows' => $this->existingAiHourRows($conditionType, $periodWindow),
-            'would_call_ai_requests' => 1,
-            'would_insert_ai_hour_rows' => 1,
+            'would_call_ai_requests' => $hasEligibleSource ? 1 : 0,
+            'would_insert_ai_hour_rows' => $hasEligibleSource ? 1 : 0,
             'api_call_skipped' => 'AI chat completions are intentionally skipped in planning mode',
             'writes_skipped' => [
                 'OpenAI/OpenCode chat completion for hourly AI prompt',
@@ -152,7 +152,7 @@ class AiHourlyPreview
      * @param  list<int>|null  $matchingUIds
      * @param  array{or: list<int>, tagid: list<int>, not: list<int>}  $filters
      */
-    private function videoQuery(array $periodWindow, ?array $matchingUIds, array $filters): \Illuminate\Database\Query\Builder
+    private function videoQuery(array $periodWindow, ?array $matchingUIds, array $filters): Builder
     {
         $query = DB::table('urt_video');
 

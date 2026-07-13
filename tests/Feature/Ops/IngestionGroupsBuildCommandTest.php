@@ -177,6 +177,72 @@ class IngestionGroupsBuildCommandTest extends TestCase
         $this->assertSame('政黨', DB::table('tag_group')->where('tag', '新增')->value('group_name'));
     }
 
+    public function test_reports_groups_build_execute_caps_writes_to_limit(): void
+    {
+        $this->createTable();
+        Http::fake([
+            'https://tag.analysis.tw/api/group.php*' => Http::response(['result' => [
+                ['tag' => '第一筆', 'group' => '群組一'],
+                ['tag' => '第二筆', 'group' => '群組二'],
+                ['tag' => '不得寫入', 'group' => '群組三'],
+            ]]),
+        ]);
+
+        $exitCode = Artisan::call('reports:groups:build', [
+            '--execute' => true,
+            '--limit' => 2,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(3, $payload['sync_candidates']);
+        $this->assertSame(2, $payload['sync_attempted']);
+        $this->assertSame(2, $payload['synced_rows']);
+        $this->assertSame(0, $payload['failed_rows']);
+        $this->assertSame(2, DB::table('tag_group')->count());
+        $this->assertFalse(DB::table('tag_group')->where('tag', '不得寫入')->exists());
+    }
+
+    public function test_reports_groups_build_isolates_row_failures_and_returns_nonzero(): void
+    {
+        $this->createTable();
+        DB::statement("CREATE TRIGGER fail_group_insert BEFORE INSERT ON tag_group WHEN NEW.tag = '失敗資料' BEGIN SELECT RAISE(ABORT, 'sensitive database details'); END");
+        Http::fake([
+            'https://tag.analysis.tw/api/group.php*' => Http::response(['result' => [
+                ['tag' => '成功一', 'group' => '群組'],
+                ['tag' => '失敗資料', 'group' => '群組'],
+                ['tag' => '成功二', 'group' => '群組'],
+            ]]),
+        ]);
+
+        $exitCode = Artisan::call('reports:groups:build', [
+            '--execute' => true,
+            '--limit' => 3,
+            '--json' => true,
+        ]);
+        $output = trim(Artisan::output());
+        $payload = json_decode($output, true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(3, $payload['sync_attempted']);
+        $this->assertSame(2, $payload['synced_rows']);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertTrue(DB::table('tag_group')->where('tag', '成功二')->exists());
+        $this->assertStringNotContainsString('sensitive database details', $output);
+
+        $textExitCode = Artisan::call('reports:groups:build', [
+            '--execute' => true,
+            '--limit' => 3,
+        ]);
+        $textOutput = Artisan::output();
+
+        $this->assertSame(1, $textExitCode);
+        $this->assertStringContainsString('failed=1', $textOutput);
+        $this->assertStringNotContainsString('sensitive database details', $textOutput);
+    }
+
     private function createTable(): void
     {
         Schema::dropIfExists('tag_group');

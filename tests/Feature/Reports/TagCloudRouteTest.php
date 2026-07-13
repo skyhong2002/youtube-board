@@ -15,7 +15,7 @@ class TagCloudRouteTest extends TestCase
         $cases = [
             '/tags/cloud' => ['urt_show_tag_cloud', 'reports:tag-cloud:build', 'TagCloudReport'],
             '/tags/1/cloud' => ['urt_show_tag_cloud', 'reports:tag-cloud:build', 'YouTube Data API playlistItems.list(part=snippet)', '固定規則：隨部署更新'],
-            '/keywords/%E8%94%A1%E8%8B%B1%E6%96%87/cloud' => ['urt_show_tag_cloud_tag', 'legacy.keyword_cloud.cache', 'KeywordRelationFallback', '固定規則：隨部署更新'],
+            '/keywords/%E8%94%A1%E8%8B%B1%E6%96%87/cloud' => ['urt_show_tag_cloud_tag', 'reports.keyword_cloud.build', 'reports:keyword-cloud:build', 'KeywordRelationFallback', '固定規則：隨部署更新'],
         ];
 
         foreach ($cases as $uri => $expected) {
@@ -404,7 +404,7 @@ class TagCloudRouteTest extends TestCase
     }
 
     /**
-     * @param list<string> $words
+     * @param  list<string>  $words
      */
     private function useLegacyStopwords(array $words): void
     {

@@ -107,6 +107,125 @@ class IngestionMayorPersonAiCommandTest extends TestCase
         ]);
     }
 
+    public function test_mayor_person_db_failure_is_isolated_and_later_target_is_written(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:35:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedTaipeiDailySource();
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        config()->set('services.opencode_go.fallback_api_key', null);
+
+        DB::unprepared(<<<'SQL'
+CREATE TRIGGER fail_jiang_mayor_ai
+BEFORE INSERT ON urt_mayor_person_ai
+WHEN NEW.person = '蔣萬安'
+BEGIN
+    SELECT RAISE(FAIL, 'password=mayor-db-secret');
+END
+SQL);
+
+        $success = [
+            'choices' => [[
+                'message' => ['content' => json_encode([
+                    'summary' => '候選人今日聲量摘要。',
+                    'what_happened' => [],
+                    'risks' => [],
+                    'adjustments' => [],
+                    'actions_today' => [],
+                    'follow_up_metrics' => [],
+                ], JSON_UNESCAPED_UNICODE)],
+            ]],
+        ];
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::sequence()
+                ->push($success)
+                ->push($success),
+        ]);
+
+        $exitCode = Artisan::call('ai:mayor-person', [
+            '--execute' => true,
+            '--city' => 'taipei',
+            '--person' => '蔣萬安,沈伯洋',
+            '--date' => '2026-05-24',
+            '--ai-call-limit' => 2,
+            '--json' => true,
+        ]);
+        $output = trim(Artisan::output());
+        $payload = json_decode($output, true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame(1, $payload['failed']);
+        $this->assertTrue($payload['rows'][0]['failed']);
+        $this->assertFalse($payload['rows'][1]['failed']);
+        $this->assertFalse(DB::table('urt_mayor_person_ai')->where('person', '蔣萬安')->exists());
+        $this->assertTrue(DB::table('urt_mayor_person_ai')->where('person', '沈伯洋')->exists());
+        $this->assertStringNotContainsString('mayor-db-secret', $output);
+        $this->assertStringContainsString('password=<redacted>', $payload['rows'][0]['skip_reason']);
+        Http::assertSentCount(2);
+    }
+
+    public function test_mayor_person_ai_isolates_candidate_write_failures_and_continues(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:35:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedTaipeiDailySource();
+        DB::statement("CREATE TRIGGER fail_mayor_person_insert BEFORE INSERT ON urt_mayor_person_ai WHEN NEW.person = '蔣萬安' BEGIN SELECT RAISE(ABORT, 'token=mayor-super-secret'); END");
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::sequence()
+                ->push($this->mayorChatPayload('蔣萬安市政聲量'))
+                ->push($this->mayorChatPayload('沈伯洋國會聲量')),
+        ]);
+
+        $exitCode = Artisan::call('ai:mayor-person', [
+            '--execute' => true,
+            '--city' => 'taipei',
+            '--person' => '蔣萬安,沈伯洋',
+            '--date' => '2026-05-24',
+            '--ai-call-limit' => 2,
+            '--json' => true,
+        ]);
+        $output = trim(Artisan::output());
+        $payload = json_decode($output, true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('partial_failure', $payload['status']);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame(1, $payload['inserted']);
+        $this->assertSame(1, $payload['failed']);
+        $this->assertSame(['沈伯洋'], DB::table('urt_mayor_person_ai')->pluck('person')->all());
+        $this->assertStringNotContainsString('mayor-super-secret', $output);
+        Http::assertSentCount(2);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function mayorChatPayload(string $summary): array
+    {
+        return [
+            'choices' => [[
+                'message' => [
+                    'content' => json_encode([
+                        'summary' => $summary,
+                        'what_happened' => ['測試事件'],
+                        'risks' => [],
+                        'adjustments' => [],
+                        'actions_today' => [],
+                        'follow_up_metrics' => [],
+                    ], JSON_UNESCAPED_UNICODE),
+                ],
+            ]],
+            'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 10],
+        ];
+    }
+
     private function createTables(): void
     {
         foreach (['urt_mayor_person_ai', 'urt_show_video_tag_date', 'urt_show_tag_date', 'urt_video', 'urt_tag'] as $table) {

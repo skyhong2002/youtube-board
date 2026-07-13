@@ -2,10 +2,10 @@
 
 namespace App\Services\Integrations;
 
+use App\Support\SensitiveTextRedactor;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
 use RuntimeException;
 
 class YoutubeDataApiQuotaUsage
@@ -394,8 +394,6 @@ class YoutubeDataApiQuotaUsage
 
     private function safeError(string $message): string
     {
-        $message = preg_replace('/-----BEGIN [^-]+-----.*?-----END [^-]+-----/s', '[redacted private key]', $message) ?? $message;
-
-        return Str::limit($message, 180);
+        return SensitiveTextRedactor::redact($message, 180);
     }
 }

@@ -5,16 +5,17 @@ namespace App\Services\Ingestion;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
+use Throwable;
 
 class ChannelStatisticsIngestion
 {
     public function __construct(
         private readonly ChannelStatisticsPreview $preview,
         private readonly YoutubeDataApiClient $youtube,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array<string, mixed>
@@ -37,45 +38,75 @@ class ChannelStatisticsIngestion
         }
 
         $channelIds = $rows->pluck('youtube_id')->map(fn (mixed $id): string => (string) $id)->all();
-        $statisticsByChannel = $this->youtube->channelStatistics($channelIds);
+        try {
+            $statisticsByChannel = $this->youtube->channelStatistics($channelIds);
+        } catch (YoutubeQuotaWindowException $exception) {
+            $skipped = $rows->map(fn (array $row): array => [
+                'u_id' => (int) $row['u_id'],
+                'youtube_id' => (string) $row['youtube_id'],
+                'reason' => 'quota_window_reset',
+            ])->all();
+            Log::warning('Channel statistics polling paused at quota window reset.', [
+                'reason' => 'quota_window_reset',
+                'selected_rows' => $rows->count(),
+                'exception_class' => $exception::class,
+            ]);
+
+            return $this->summary($preview, [], $skipped, $now, true, $rows->count());
+        }
         $applied = [];
         $skipped = [];
 
         foreach ($rows as $row) {
             $youtubeId = (string) $row['youtube_id'];
-            $statistics = $statisticsByChannel[$youtubeId] ?? null;
+            $rowUId = (int) $row['u_id'];
 
-            if ($statistics === null) {
-                $skipped[] = [
-                    'u_id' => (int) $row['u_id'],
+            try {
+                $statistics = $statisticsByChannel[$youtubeId] ?? null;
+
+                if ($statistics === null) {
+                    $skipped[] = [
+                        'u_id' => $rowUId,
+                        'youtube_id' => $youtubeId,
+                        'reason' => 'api_item_missing',
+                    ];
+
+                    continue;
+                }
+
+                if ($statistics['viewCount'] <= 0) {
+                    $skipped[] = [
+                        'u_id' => $rowUId,
+                        'youtube_id' => $youtubeId,
+                        'reason' => 'viewCount_not_positive',
+                    ];
+
+                    continue;
+                }
+
+                DB::transaction(function () use ($rowUId, $statistics, $now): void {
+                    $this->upsertStatistics($rowUId, $statistics, $now);
+                });
+
+                $applied[] = [
+                    'u_id' => $rowUId,
                     'youtube_id' => $youtubeId,
-                    'reason' => 'api_item_missing',
+                    'viewCount' => $statistics['viewCount'],
+                    'subscriberCount' => $statistics['subscriberCount'],
+                    'videoCount' => $statistics['videoCount'],
                 ];
-
-                continue;
-            }
-
-            if ($statistics['viewCount'] <= 0) {
+            } catch (Throwable $exception) {
                 $skipped[] = [
-                    'u_id' => (int) $row['u_id'],
+                    'u_id' => $rowUId,
                     'youtube_id' => $youtubeId,
-                    'reason' => 'viewCount_not_positive',
+                    'reason' => 'item_processing_failed',
                 ];
-
-                continue;
+                Log::warning('Channel statistics item processing failed.', [
+                    'u_id' => $rowUId,
+                    'reason' => 'item_processing_failed',
+                    'exception_class' => $exception::class,
+                ]);
             }
-
-            DB::transaction(function () use ($row, $statistics, $now): void {
-                $this->upsertStatistics((int) $row['u_id'], $statistics, $now);
-            });
-
-            $applied[] = [
-                'u_id' => (int) $row['u_id'],
-                'youtube_id' => $youtubeId,
-                'viewCount' => $statistics['viewCount'],
-                'subscriberCount' => $statistics['subscriberCount'],
-                'videoCount' => $statistics['videoCount'],
-            ];
         }
 
         return $this->summary($preview, $applied, $skipped, $now);
@@ -203,8 +234,16 @@ class ChannelStatisticsIngestion
      * @param  list<array<string, mixed>>  $skipped
      * @return array<string, mixed>
      */
-    private function summary(array $preview, array $applied, array $skipped, CarbonImmutable $now): array
-    {
+    private function summary(
+        array $preview,
+        array $applied,
+        array $skipped,
+        CarbonImmutable $now,
+        bool $quotaWindowReset = false,
+        int $remainingRetryRows = 0,
+    ): array {
+        $failedRows = collect($skipped)->whereIn('reason', ['item_processing_failed', 'quota_window_reset'])->count();
+
         return [
             'mode' => 'local-execute',
             'generated_at' => $now->format('Y-m-d H:i:s'),
@@ -213,6 +252,10 @@ class ChannelStatisticsIngestion
             'api_requested_rows' => count($applied) + count($skipped),
             'updated_rows' => count($applied),
             'skipped_rows' => count($skipped),
+            'failed_rows' => $failedRows,
+            'quota_window_reset' => $quotaWindowReset,
+            'remaining_retry_rows' => $remainingRetryRows,
+            'exit_code' => $failedRows > 0 || $quotaWindowReset ? 1 : 0,
             'write_targets' => [
                 'urt_channel.stime',
                 'urt_channel.mtime',

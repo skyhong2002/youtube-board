@@ -2,7 +2,11 @@
 
 namespace App\Services\Ingestion;
 
+use App\Support\SensitiveTextRedactor;
 use Carbon\CarbonImmutable;
+use Closure;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class AiDaysRefreshIngestion
 {
@@ -132,10 +136,10 @@ class AiDaysRefreshIngestion
             if ($skipDaily) {
                 $jobs[] = $this->skippedJob('daily', $date, 'skip_daily_requested');
             } else {
-                $jobs[] = $this->job(
+                $dailyResult = $this->safeResult(
                     type: 'daily',
                     date: $date,
-                    result: $this->dailyIngestion->execute(
+                    callback: fn (): array => $this->dailyIngestion->execute(
                         date: $date,
                         condition: $condition,
                         dataType: 'oneday',
@@ -148,6 +152,11 @@ class AiDaysRefreshIngestion
                         userToken: $userToken,
                     ),
                 );
+                $jobs[] = $this->job(
+                    type: 'daily',
+                    date: $date,
+                    result: $dailyResult,
+                );
             }
         }
 
@@ -159,12 +168,16 @@ class AiDaysRefreshIngestion
             }
 
             for ($pass = 1; $pass <= max(1, min(5, $maxEventPasses)); $pass++) {
-                $preview = $this->eventIngestion->preview(
+                $preview = $this->safeResult(
+                    type: 'event-preview',
                     date: $date,
-                    condition: $condition,
-                    promptTypes: implode(',', $promptTypes),
-                    limit: $eventLimit,
-                    missingOnly: true,
+                    callback: fn (): array => $this->eventIngestion->preview(
+                        date: $date,
+                        condition: $condition,
+                        promptTypes: implode(',', $promptTypes),
+                        limit: $eventLimit,
+                        missingOnly: true,
+                    ),
                 );
                 $jobs[] = $this->job('event-preview', $date, $preview, ['pass' => $pass]);
                 $groups = $this->missingEventGroups($preview);
@@ -194,15 +207,19 @@ class AiDaysRefreshIngestion
                     }
 
                     $callLimit = min($eventCallsRemaining, count($group['prompt_types']));
-                    $result = $this->eventIngestion->execute(
+                    $result = $this->safeResult(
+                        type: 'event',
                         date: $date,
-                        condition: $condition,
-                        event: $group['event'],
-                        promptTypes: implode(',', $group['prompt_types']),
-                        limit: $eventLimit,
-                        aiCallLimit: $callLimit,
-                        missingOnly: true,
-                        userToken: $userToken,
+                        callback: fn (): array => $this->eventIngestion->execute(
+                            date: $date,
+                            condition: $condition,
+                            event: $group['event'],
+                            promptTypes: implode(',', $group['prompt_types']),
+                            limit: $eventLimit,
+                            aiCallLimit: $callLimit,
+                            missingOnly: true,
+                            userToken: $userToken,
+                        ),
                     );
                     $eventCallsRemaining -= (int) data_get($result, 'ai_call_guard.used', 0);
                     $jobs[] = $this->job('event', $date, $result, ['pass' => $pass, 'event' => $group['event']]);
@@ -220,10 +237,10 @@ class AiDaysRefreshIngestion
             }
         } else {
             foreach ($this->adjacentPairs($dates) as $pair) {
-                $jobs[] = $this->job(
+                $periodResult = $this->safeResult(
                     type: 'period',
                     date: $pair['to'],
-                    result: $this->periodIngestion->execute(
+                    callback: fn (): array => $this->periodIngestion->execute(
                         from: $pair['from'],
                         to: $pair['to'],
                         condition: $condition,
@@ -231,6 +248,11 @@ class AiDaysRefreshIngestion
                         aiCallLimit: $periodAiCallLimit,
                         userToken: $userToken,
                     ),
+                );
+                $jobs[] = $this->job(
+                    type: 'period',
+                    date: $pair['to'],
+                    result: $periodResult,
                     meta: $pair,
                 );
             }
@@ -238,16 +260,21 @@ class AiDaysRefreshIngestion
 
         if (! $skipEvents) {
             foreach ($dates as $date) {
-                $jobs[] = $this->job(
+                $verifyResult = $this->safeResult(
                     type: 'event-verify',
                     date: $date,
-                    result: $this->eventIngestion->preview(
+                    callback: fn (): array => $this->eventIngestion->preview(
                         date: $date,
                         condition: $condition,
                         promptTypes: implode(',', $promptTypes),
                         limit: $eventLimit,
                         missingOnly: true,
                     ),
+                );
+                $jobs[] = $this->job(
+                    type: 'event-verify',
+                    date: $date,
+                    result: $verifyResult,
                 );
             }
         }
@@ -278,8 +305,19 @@ class AiDaysRefreshIngestion
      */
     private function result(string $mode, string $condition, array $dates, array $jobs, CarbonImmutable $generatedAt, array $writes): array
     {
+        $failedRows = collect($jobs)->sum(function (array $job): int {
+            $reported = data_get($job, 'result.failed_rows');
+
+            return is_numeric($reported)
+                ? max(0, (int) $reported)
+                : ((int) data_get($job, 'result.exit_code', 0) !== 0 ? 1 : 0);
+        });
+
         return [
             'mode' => $mode,
+            'status' => $failedRows > 0 ? 'partial_failure' : 'success',
+            'exit_code' => $failedRows > 0 ? 1 : 0,
+            'failed_rows' => $failedRows,
             'source' => 'ai_days_refresh',
             'condition' => $condition,
             'from_date' => $dates[0] ?? null,
@@ -301,6 +339,8 @@ class AiDaysRefreshIngestion
     {
         return [
             'jobs' => count($jobs),
+            'failed_jobs' => collect($jobs)->filter(fn (array $job): bool => (int) data_get($job, 'result.exit_code', 0) !== 0)->count(),
+            'failed_rows' => collect($jobs)->sum(fn (array $job): int => max(0, (int) data_get($job, 'result.failed_rows', 0))),
             'daily_jobs' => collect($jobs)->where('type', 'daily')->count(),
             'event_jobs' => collect($jobs)->whereIn('type', ['event-preview', 'event', 'event-verify'])->count(),
             'period_jobs' => collect($jobs)->where('type', 'period')->count(),
@@ -327,7 +367,7 @@ class AiDaysRefreshIngestion
         return [
             'type' => $type,
             'date' => $date,
-            'action' => 'run',
+            'action' => (int) ($result['exit_code'] ?? 0) !== 0 ? 'failed' : 'run',
             'meta' => $meta,
             'result' => $result,
         ];
@@ -350,6 +390,36 @@ class AiDaysRefreshIngestion
                 'skip_reason' => $reason,
             ],
         ];
+    }
+
+    /**
+     * @param  Closure(): array<string, mixed>  $callback
+     * @return array<string, mixed>
+     */
+    private function safeResult(string $type, string $date, Closure $callback): array
+    {
+        try {
+            return $callback();
+        } catch (Throwable $exception) {
+            Log::warning('AI days refresh child job failed.', [
+                'type' => $type,
+                'date' => $date,
+                'exception_class' => $exception::class,
+            ]);
+
+            return [
+                'mode' => 'execute',
+                'source' => 'ai_days_refresh',
+                'status' => 'failed',
+                'exit_code' => 1,
+                'failed_rows' => 1,
+                'failed' => true,
+                'skipped' => true,
+                'skip_reason' => SensitiveTextRedactor::exception($exception, 240),
+                'writes' => [],
+                'secrets' => 'not_printed',
+            ];
+        }
     }
 
     /**

@@ -5,16 +5,17 @@ namespace App\Services\Ingestion;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
+use Throwable;
 
 class VideoDurationsIngestion
 {
     public function __construct(
         private readonly VideoDurationsPreview $preview,
         private readonly YoutubeDataApiClient $youtube,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array<string, mixed>
@@ -70,35 +71,62 @@ class VideoDurationsIngestion
             return $this->summary($preview, [], [], $queued, $now);
         }
 
-        $detailsByVideo = $this->youtube->videoContentDetails(
-            $rows->pluck('video_id')->map(fn (mixed $id): string => (string) $id)->all(),
-        );
+        try {
+            $detailsByVideo = $this->youtube->videoContentDetails(
+                $rows->pluck('video_id')->map(fn (mixed $id): string => (string) $id)->all(),
+            );
+        } catch (YoutubeQuotaWindowException $exception) {
+            $skipped = $rows->map(fn (array $row): array => [
+                'videoId' => (string) $row['video_id'],
+                'reason' => 'quota_window_reset',
+            ])->all();
+            Log::warning('Video duration polling paused at quota window reset.', [
+                'reason' => 'quota_window_reset',
+                'selected_rows' => $rows->count(),
+                'exception_class' => $exception::class,
+            ]);
+
+            return $this->summary($preview, [], $skipped, $queued, $now, true, $rows->count());
+        }
         $applied = [];
         $skipped = [];
 
         foreach ($rows as $row) {
             $rowVideoId = (string) $row['video_id'];
-            $details = $detailsByVideo[$rowVideoId] ?? null;
 
-            if ($details === null || $details['durationSeconds'] === null) {
+            try {
+                $details = $detailsByVideo[$rowVideoId] ?? null;
+
+                if ($details === null || $details['durationSeconds'] === null) {
+                    $skipped[] = [
+                        'videoId' => $rowVideoId,
+                        'reason' => $details === null ? 'api_item_missing' : 'duration_missing',
+                    ];
+
+                    continue;
+                }
+
+                DB::transaction(function () use ($rowVideoId, $details, $now): void {
+                    $this->updateDuration($rowVideoId, $details, $now);
+                });
+
+                $applied[] = [
+                    'videoId' => $rowVideoId,
+                    'duration' => $details['duration'],
+                    'durationSeconds' => $details['durationSeconds'],
+                    'caption' => $details['caption'],
+                ];
+            } catch (Throwable $exception) {
                 $skipped[] = [
                     'videoId' => $rowVideoId,
-                    'reason' => $details === null ? 'api_item_missing' : 'duration_missing',
+                    'reason' => 'item_processing_failed',
                 ];
-
-                continue;
+                Log::warning('Video duration item processing failed.', [
+                    'video_id' => $rowVideoId,
+                    'reason' => 'item_processing_failed',
+                    'exception_class' => $exception::class,
+                ]);
             }
-
-            DB::transaction(function () use ($rowVideoId, $details, $now): void {
-                $this->updateDuration($rowVideoId, $details, $now);
-            });
-
-            $applied[] = [
-                'videoId' => $rowVideoId,
-                'duration' => $details['duration'],
-                'durationSeconds' => $details['durationSeconds'],
-                'caption' => $details['caption'],
-            ];
         }
 
         return $this->summary($preview, $applied, $skipped, $queued, $now);
@@ -282,8 +310,16 @@ class VideoDurationsIngestion
      * @param  list<array<string, mixed>>  $skipped
      * @return array<string, mixed>
      */
-    private function summary(array $preview, array $applied, array $skipped, array $queued, CarbonImmutable $now): array
-    {
+    private function summary(
+        array $preview,
+        array $applied,
+        array $skipped,
+        array $queued,
+        CarbonImmutable $now,
+        bool $quotaWindowReset = false,
+        int $remainingRetryRows = 0,
+    ): array {
+        $failedVideos = collect($skipped)->whereIn('reason', ['item_processing_failed', 'quota_window_reset'])->count();
         $writeTargets = [
             'urt_video_duration.mtime',
             'urt_video_duration.stime',
@@ -309,6 +345,10 @@ class VideoDurationsIngestion
             'api_requested_videos' => count($applied) + count($skipped),
             'updated_videos' => count($applied),
             'skipped_videos' => count($skipped),
+            'failed_videos' => $failedVideos,
+            'quota_window_reset' => $quotaWindowReset,
+            'remaining_retry_rows' => $remainingRetryRows,
+            'exit_code' => $failedVideos > 0 || $quotaWindowReset ? 1 : 0,
             'write_targets' => $writeTargets,
             'external_calls' => ['YouTube Data API videos.list(part=contentDetails)'],
             'queued' => $queued,

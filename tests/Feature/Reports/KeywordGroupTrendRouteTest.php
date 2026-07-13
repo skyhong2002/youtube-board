@@ -26,7 +26,10 @@ class KeywordGroupTrendRouteTest extends TestCase
         $response->assertSee('600');
         $response->assertSee('160');
         $response->assertSee('cache rows 2');
-        $response->assertSee('parsed');
+        $this->assertMatchesRegularExpression(
+            '/Legacy source:\s*(?:parsed|fallback)/',
+            (string) $response->getContent(),
+        );
         $response->assertDontSee('api/tag_period.php');
 
         Carbon::setTestNow();

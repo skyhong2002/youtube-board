@@ -3,11 +3,18 @@
 namespace Tests\Feature\Ops;
 
 use App\Services\Ingestion\IngestionSchedulerRunner;
+use App\Services\Ingestion\TvbsChannelVideosDiscoveryIngestion;
+use App\Services\Ingestion\TvbsChannelVideosDiscoveryPreview;
+use App\Services\Ingestion\TvbsLivePollingIngestion;
+use App\Services\Ingestion\YoutubeDataApiClient;
+use App\Services\Ingestion\YoutubeQuotaWindowException;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Mockery;
 use Tests\TestCase;
 
 class IngestionTvbsIngestionCommandTest extends TestCase
@@ -189,6 +196,162 @@ class IngestionTvbsIngestionCommandTest extends TestCase
         Http::assertSentCount(2);
     }
 
+    public function test_tvbs_video_discovery_isolates_a_failed_channel_and_sanitizes_the_warning(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createVideoDiscoveryTables();
+        Log::spy();
+
+        DB::table('urt_channel')->insert([
+            $this->channelRow(1, 'Failing TVBS', 'uploads-fail'),
+            $this->channelRow(2, 'Successful TVBS', 'uploads-success'),
+        ]);
+        DB::table('urt_count')->insert([
+            ['u_id' => 1, 'tags' => '[29]'],
+            ['u_id' => 2, 'tags' => '[29]'],
+        ]);
+        DB::statement(<<<'SQL'
+CREATE TRIGGER fail_first_tvbs_discovery
+BEFORE INSERT ON urt_video
+WHEN NEW.videoId = 'a-fail'
+BEGIN
+    SELECT RAISE(FAIL, 'token=super-secret');
+END
+SQL);
+
+        Http::fake([
+            'www.googleapis.com/youtube/v3/playlistItems*' => Http::sequence()
+                ->push([
+                    'items' => [[
+                        'id' => 'playlist-item-fail',
+                        'snippet' => [
+                            'publishedAt' => '2026-05-25T03:30:00Z',
+                            'channelId' => 'channel-1',
+                            'title' => 'Failing video',
+                            'description' => 'failure fixture',
+                            'thumbnails' => ['default' => ['url' => 'https://i.ytimg.com/fail.jpg']],
+                            'channelTitle' => 'Failing TVBS',
+                            'playlistId' => 'uploads-fail',
+                            'position' => 0,
+                            'resourceId' => ['videoId' => 'a-fail'],
+                            'liveBroadcastContent' => 'none',
+                        ],
+                    ]],
+                ], 200)
+                ->push([
+                    'items' => [[
+                        'id' => 'playlist-item-success',
+                        'snippet' => [
+                            'publishedAt' => '2026-05-25T03:30:00Z',
+                            'channelId' => 'channel-2',
+                            'title' => 'Successful video',
+                            'description' => 'success fixture',
+                            'thumbnails' => ['default' => ['url' => 'https://i.ytimg.com/success.jpg']],
+                            'channelTitle' => 'Successful TVBS',
+                            'playlistId' => 'uploads-success',
+                            'position' => 0,
+                            'resourceId' => ['videoId' => 'b-success'],
+                            'liveBroadcastContent' => 'none',
+                        ],
+                    ]],
+                ], 200),
+        ]);
+
+        $payload = app(TvbsChannelVideosDiscoveryIngestion::class)->execute(limit: 2, maxResults: 1);
+
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame(1, $payload['failed_channels']);
+        $this->assertSame(1, $payload['updated_channels']);
+        $this->assertSame(2, $payload['api_requested_channels']);
+        $this->assertSame([
+            'u_id' => 1,
+            'uploads' => 'uploads-fail',
+            'reason' => 'item_processing_failed',
+        ], $payload['skipped'][0]);
+        $this->assertStringNotContainsString('super-secret', json_encode($payload, JSON_THROW_ON_ERROR));
+        $this->assertSame(0, DB::table('urt_video')->where('videoId', 'a-fail')->count());
+        $this->assertSame(1, DB::table('urt_video')->where('videoId', 'b-success')->count());
+        $this->assertSame(1, DB::table('urt_video_schedule')->where('videoId', 'b-success')->count());
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'TVBS video discovery item processing failed.'
+                    && $context['u_id'] === 1
+                    && $context['reason'] === 'item_processing_failed'
+                    && is_string($context['exception_class'])
+                    && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'super-secret');
+            });
+    }
+
+    public function test_tvbs_video_discovery_stops_after_quota_reset_and_preserves_prior_commits(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createVideoDiscoveryTables();
+        Log::spy();
+
+        DB::table('urt_channel')->insert([
+            $this->channelRow(1, 'First TVBS', 'uploads-first'),
+            $this->channelRow(2, 'Reset TVBS', 'uploads-reset'),
+            $this->channelRow(3, 'Never TVBS', 'uploads-never'),
+        ]);
+        DB::table('urt_count')->insert([
+            ['u_id' => 1, 'tags' => '[29]'],
+            ['u_id' => 2, 'tags' => '[29]'],
+            ['u_id' => 3, 'tags' => '[29]'],
+        ]);
+
+        $apiCalls = 0;
+        $youtube = Mockery::mock(YoutubeDataApiClient::class);
+        $youtube->shouldReceive('playlistItems')
+            ->twice()
+            ->andReturnUsing(function (string $uploads) use (&$apiCalls): array {
+                $apiCalls++;
+
+                if ($uploads === 'uploads-reset') {
+                    throw new YoutubeQuotaWindowException('youtube_quota_window_reset_guard');
+                }
+
+                return [[
+                    'id' => 'item-first',
+                    'publishedAt' => '2026-05-25T03:00:00Z',
+                    'channelId' => 'channel-1',
+                    'title' => 'TVBS committed before reset',
+                    'description' => 'first',
+                    'thumbnails' => 'https://img.youtube.test/tvbs-first.jpg',
+                    'channelTitle' => 'First TVBS',
+                    'playlistId' => 'uploads-first',
+                    'position' => 0,
+                    'videoId' => 'tvbs-before-reset',
+                    'liveBroadcastContent' => 'none',
+                ]];
+            });
+        $ingestion = new TvbsChannelVideosDiscoveryIngestion(
+            app(TvbsChannelVideosDiscoveryPreview::class),
+            $youtube,
+        );
+
+        $payload = $ingestion->execute(limit: 3, maxResults: 1);
+
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertTrue($payload['quota_window_reset']);
+        $this->assertSame(2, $payload['remaining_retry_rows']);
+        $this->assertSame(1, $payload['updated_channels']);
+        $this->assertSame(1, $payload['failed_channels']);
+        $this->assertSame('quota_window_reset', $payload['skipped'][0]['reason']);
+        $this->assertSame(2, $apiCalls);
+        $this->assertTrue(DB::table('urt_video')->where('videoId', 'tvbs-before-reset')->exists());
+        $this->assertSame(0, DB::table('urt_video')->whereIn('u_id', [2, 3])->count());
+        $this->assertStringNotContainsString('youtube_quota_window_reset_guard', json_encode($payload, JSON_THROW_ON_ERROR));
+        Log::shouldHaveReceived('warning')->once()->withArgs(
+            fn (string $message, array $context): bool => $message === 'TVBS video discovery paused at quota window reset.'
+                && $context['u_id'] === 2
+                && $context['reason'] === 'quota_window_reset'
+                && $context['exception_class'] === YoutubeQuotaWindowException::class
+                && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'youtube_quota_window_reset_guard'),
+        );
+    }
+
     public function test_youtube_tvbs_live_poll_previews_stale_rows_in_preview_mode(): void
     {
         Http::preventStrayRequests();
@@ -341,6 +504,63 @@ class IngestionTvbsIngestionCommandTest extends TestCase
         $this->assertSame(1, DB::table('urt_video_live_log_tvbs')->where('videoId', 'execute-tvbs-live')->count());
         $this->assertSame(['20:00' => 456], json_decode((string) DB::table('urt_video_live_log_tvbs')->where('videoId', 'execute-tvbs-live')->value('log_json'), true));
         Http::assertSentCount(2);
+    }
+
+    public function test_tvbs_live_polling_isolates_a_failed_video_and_sanitizes_the_warning(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createLivePollingTables();
+        Log::spy();
+
+        DB::table('urt_video_live_tvbs')->insert([
+            $this->tvbsLiveRow('a-fail', 1, '2026-05-25 11:00:00'),
+            $this->tvbsLiveRow('b-success', 2, '2026-05-25 11:00:00'),
+        ]);
+        DB::statement(<<<'SQL'
+CREATE TRIGGER fail_first_tvbs_live_poll
+BEFORE UPDATE ON urt_video_live_tvbs
+WHEN OLD.videoId = 'a-fail'
+BEGIN
+    SELECT RAISE(FAIL, 'token=super-secret');
+END
+SQL);
+
+        Http::fake([
+            'www.googleapis.com/youtube/v3/videos*' => Http::response([
+                'items' => [
+                    [
+                        'id' => 'a-fail',
+                        'liveStreamingDetails' => ['concurrentViewers' => '111'],
+                    ],
+                    [
+                        'id' => 'b-success',
+                        'liveStreamingDetails' => ['concurrentViewers' => '222'],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $payload = app(TvbsLivePollingIngestion::class)->execute(limit: 2);
+
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame(1, $payload['failed_videos']);
+        $this->assertSame(1, $payload['updated_videos']);
+        $this->assertSame(['videoId' => 'a-fail', 'reason' => 'item_processing_failed'], $payload['skipped'][0]);
+        $this->assertStringNotContainsString('super-secret', json_encode($payload, JSON_THROW_ON_ERROR));
+        $this->assertSame(100, DB::table('urt_video_live_tvbs')->where('videoId', 'a-fail')->value('concurrentViewers'));
+        $this->assertSame(222, DB::table('urt_video_live_tvbs')->where('videoId', 'b-success')->value('concurrentViewers'));
+        $this->assertSame(0, DB::table('urt_video_live_log_tvbs')->where('videoId', 'a-fail')->count());
+        $this->assertSame(1, DB::table('urt_video_live_log_tvbs')->where('videoId', 'b-success')->count());
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'TVBS live polling item processing failed.'
+                    && $context['video_id'] === 'a-fail'
+                    && $context['reason'] === 'item_processing_failed'
+                    && is_string($context['exception_class'])
+                    && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'super-secret');
+            });
     }
 
     public function test_youtube_tvbs_live_poll_keeps_single_video_preview_in_tvbs_scope(): void

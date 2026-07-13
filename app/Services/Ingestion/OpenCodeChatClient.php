@@ -2,6 +2,7 @@
 
 namespace App\Services\Ingestion;
 
+use App\Support\SensitiveTextRedactor;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use RuntimeException;
 use Throwable;
@@ -11,8 +12,7 @@ class OpenCodeChatClient
     public function __construct(
         private readonly HttpFactory $http,
         private readonly IngestionTelemetry $telemetry,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array{content: string, model: string, provider: string, provider_failures: list<string>, usage: array<string, mixed>|null, latency_ms: int}
@@ -32,8 +32,8 @@ class OpenCodeChatClient
                     'provider' => $provider['name'],
                     'provider_failures' => $failures,
                 ];
-            } catch (RuntimeException $exception) {
-                $failures[] = $provider['name'].': '.$exception->getMessage();
+            } catch (Throwable $exception) {
+                $failures[] = $provider['name'].': '.$this->sanitizedError($exception->getMessage());
             }
         }
 
@@ -130,7 +130,9 @@ class OpenCodeChatClient
                 error: $this->sanitizedError($exception->getMessage()),
             ));
 
-            throw $exception;
+            throw new RuntimeException(
+                'AI provider connection failed: '.$this->sanitizedError($exception->getMessage()),
+            );
         }
 
         $latencyMs = $this->elapsedMs($started);
@@ -155,7 +157,7 @@ class OpenCodeChatClient
                 error: $this->sanitizedError($message),
             ));
 
-            throw new RuntimeException($message);
+            throw new RuntimeException($this->sanitizedError($message));
         }
 
         $payload = $response->json();
@@ -346,6 +348,7 @@ class OpenCodeChatClient
         foreach ($content as $part) {
             if (is_string($part)) {
                 $parts[] = $part;
+
                 continue;
             }
 
@@ -396,12 +399,6 @@ class OpenCodeChatClient
 
     private function sanitizedError(string $message): string
     {
-        return mb_strimwidth(
-            preg_replace('/(api[_-]?key|password|secret|token|authorization)[^,\s]*/i', '$1=<redacted>', $message) ?? $message,
-            0,
-            240,
-            '...',
-            'UTF-8',
-        );
+        return SensitiveTextRedactor::redact($message, 240);
     }
 }

@@ -2,24 +2,74 @@
 
 namespace App\Services\Ingestion;
 
+use App\Support\SensitiveTextRedactor;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Closure;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
+use Throwable;
 
 class CommentFetchIngestion
 {
     public function __construct(
         private readonly CommentFetchPreview $preview,
         private readonly YoutubeDataApiClient $youtube,
-    ) {
+    ) {}
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function execute(?string $videoId = null, int $limit = 1, int $maxPages = 1, int $maxReplyPages = 20, ?CarbonInterface $now = null): array
+    {
+        $lockSeconds = max(60, min(86400, (int) config('ingestion.job_lock_seconds', 14400)));
+        $lock = Cache::lock('ingestion:command:youtube.comments.fetch', $lockSeconds);
+
+        if (! $lock->get()) {
+            return [
+                'mode' => 'local-execute',
+                'available' => false,
+                'blocked_reason' => 'command_locked',
+                'selected_rows' => 0,
+                'claimed_rows' => 0,
+                'api_called_videos' => 0,
+                'api_attempted_videos' => 0,
+                'moved_to_done_rows' => 0,
+                'continuation_rows' => 0,
+                'skipped_rows' => 0,
+                'failed_rows' => 0,
+                'exit_code' => 1,
+                'write_targets' => [],
+                'external_calls' => [],
+                'applied' => [],
+                'skipped' => [],
+                'failed' => [],
+                'secrets' => 'not printed',
+                'lock' => [
+                    'key' => 'ingestion:command:youtube.comments.fetch',
+                    'acquired' => false,
+                    'ttl_seconds' => $lockSeconds,
+                ],
+            ];
+        }
+
+        try {
+            return $this->executeUnlocked($videoId, $limit, $maxPages, $maxReplyPages, $now);
+        } finally {
+            try {
+                $lock->release();
+            } catch (Throwable) {
+                // An expired lock must not hide the completed batch result.
+            }
+        }
     }
 
     /**
      * @return array<string, mixed>
      */
-    public function execute(?string $videoId = null, int $limit = 1, int $maxPages = 1, ?CarbonInterface $now = null): array
+    private function executeUnlocked(?string $videoId, int $limit, int $maxPages, int $maxReplyPages, ?CarbonInterface $now): array
     {
         foreach (['urt_comment_queue', 'urt_comment_queue_done', 'urt_comment'] as $table) {
             if (! Schema::hasTable($table)) {
@@ -33,10 +83,14 @@ class CommentFetchIngestion
             : CarbonImmutable::instance($now->toDateTimeImmutable())->setTimezone($timezone);
         $limit = max(1, min(10, $limit));
         $maxPages = max(1, min(3, $maxPages));
+        $maxReplyPages = max(1, min(100, $maxReplyPages));
         $preview = $this->preview->preview(videoId: $videoId, limit: $limit, now: $now);
         $rows = collect($preview['rows'] ?? [])->take($limit)->values();
         $applied = [];
         $skipped = [];
+        $failed = [];
+        $claimedRows = 0;
+        $claimMinutes = max(1, min(1440, (int) config('ingestion.comment_claim_minutes', 30)));
 
         foreach ($rows as $row) {
             $queuePk = $row['pk'] !== null ? (int) $row['pk'] : null;
@@ -48,37 +102,92 @@ class CommentFetchIngestion
                 continue;
             }
 
-            DB::transaction(fn () => $this->updateQueue($queuePk, ['stime' => $now->format('Y-m-d H:i:s')]));
+            $claimed = false;
+            $apiCalled = false;
+            $rowNow = CarbonImmutable::now($timezone);
+            $claimExpireTime = $rowNow->subMinutes($claimMinutes);
+            $claimTime = $rowNow->format('Y-m-d H:i:s');
 
-            if ((bool) ($row['would_skip_api_recent_cache'] ?? false)) {
-                DB::transaction(fn () => $this->finishQueueRow($queuePk, $now));
+            try {
+                $claimed = $this->claimQueueRow($queuePk, $claimTime, $claimExpireTime);
+
+                if (! $claimed) {
+                    $skipped[] = [
+                        'videoId' => $rowVideoId,
+                        'reason' => 'claim_not_acquired',
+                    ];
+
+                    continue;
+                }
+
+                $claimedRows++;
+
+                if ((bool) ($row['would_skip_api_recent_cache'] ?? false)) {
+                    DB::transaction(fn () => $this->finishQueueRow($queuePk, $rowNow));
+                    $applied[] = [
+                        'videoId' => $rowVideoId,
+                        'apiCalled' => false,
+                        'reason' => 'recent_cache',
+                        'commentsCount' => $row['comments_count'] ?? null,
+                        'authorsCount' => $row['authors_count'] ?? null,
+                    ];
+
+                    continue;
+                }
+
+                $apiCalled = true;
+                $renewClaim = function () use ($queuePk, $timezone, &$claimTime): void {
+                    $claimTime = $this->renewQueueClaim($queuePk, $claimTime, $timezone);
+                };
+                $fetched = $this->fetchCommentThreads($rowVideoId, $maxPages, $maxReplyPages, $renewClaim);
+                $complete = trim((string) ($fetched['pageToken'] ?? '')) === '';
+
+                DB::transaction(function () use ($queuePk, $rowVideoId, $fetched, $rowNow, $complete): void {
+                    $this->upsertCommentPayload($rowVideoId, $fetched, $rowNow);
+
+                    if ($complete) {
+                        $this->finishQueueRow($queuePk, $rowNow);
+                    }
+                });
+
+                $claimReleased = $complete || $this->releaseQueueClaim(
+                    queuePk: $queuePk,
+                    claimTime: $claimTime,
+                    previousClaimTime: is_string($row['queue_stime'] ?? null) ? $row['queue_stime'] : null,
+                );
+
                 $applied[] = [
                     'videoId' => $rowVideoId,
-                    'apiCalled' => false,
-                    'reason' => 'recent_cache',
-                    'commentsCount' => $row['comments_count'] ?? null,
-                    'authorsCount' => $row['authors_count'] ?? null,
+                    'apiCalled' => true,
+                    'complete' => $complete,
+                    'claim_released' => $claimReleased,
+                    'continuation_pending' => ! $complete,
+                    'pagesFetched' => $fetched['pagesFetched'],
+                    'replyPagesFetched' => $fetched['replyPagesFetched'],
+                    'threadsCount' => $fetched['threadsCount'],
+                    'repliesCount' => $fetched['repliesCount'],
+                    'commentsCount' => $fetched['commentsCount'],
+                    'authorsCount' => $fetched['authorsCount'],
+                ];
+            } catch (Throwable $exception) {
+                $claimReleased = $claimed && $this->releaseQueueClaim(
+                    queuePk: $queuePk,
+                    claimTime: $claimTime,
+                    previousClaimTime: is_string($row['queue_stime'] ?? null) ? $row['queue_stime'] : null,
+                );
+                $failed[] = [
+                    'videoId' => $rowVideoId,
+                    'queue_pk' => $queuePk,
+                    'apiCalled' => $apiCalled,
+                    'reason' => 'item_failed',
+                    'error' => $this->sanitizedFailure($exception),
+                    'claim_released' => $claimReleased,
                 ];
 
-                continue;
+                if ($exception instanceof YoutubeQuotaWindowException) {
+                    break;
+                }
             }
-
-            $fetched = $this->fetchCommentThreads($rowVideoId, $maxPages);
-
-            DB::transaction(function () use ($queuePk, $rowVideoId, $fetched, $now): void {
-                $this->upsertCommentPayload($rowVideoId, $fetched, $now);
-                $this->finishQueueRow($queuePk, $now);
-            });
-
-            $applied[] = [
-                'videoId' => $rowVideoId,
-                'apiCalled' => true,
-                'pagesFetched' => $fetched['pagesFetched'],
-                'threadsCount' => $fetched['threadsCount'],
-                'repliesCount' => $fetched['repliesCount'],
-                'commentsCount' => $fetched['commentsCount'],
-                'authorsCount' => $fetched['authorsCount'],
-            ];
         }
 
         return [
@@ -87,9 +196,17 @@ class CommentFetchIngestion
             'source' => 'comment_queue_drain',
             'target_video_id' => $videoId,
             'selected_rows' => $rows->count(),
+            'claimed_rows' => $claimedRows,
             'api_called_videos' => collect($applied)->filter(fn (array $row): bool => (bool) ($row['apiCalled'] ?? false))->count(),
-            'moved_to_done_rows' => count($applied),
+            'api_attempted_videos' => collect($applied)->filter(fn (array $row): bool => (bool) ($row['apiCalled'] ?? false))->count()
+                + collect($failed)->filter(fn (array $row): bool => (bool) ($row['apiCalled'] ?? false))->count(),
+            'reply_pages_fetched' => collect($applied)->sum(fn (array $row): int => (int) ($row['replyPagesFetched'] ?? 0)),
+            'max_reply_pages_per_video' => $maxReplyPages,
+            'moved_to_done_rows' => collect($applied)->filter(fn (array $row): bool => ($row['complete'] ?? true) === true)->count(),
+            'continuation_rows' => collect($applied)->filter(fn (array $row): bool => ($row['continuation_pending'] ?? false) === true)->count(),
             'skipped_rows' => count($skipped),
+            'failed_rows' => count($failed),
+            'exit_code' => $failed === [] ? 0 : 1,
             'write_targets' => [
                 'urt_comment_queue.stime',
                 'urt_comment.ctime',
@@ -111,29 +228,91 @@ class CommentFetchIngestion
                 'urt_comment_queue_done',
                 'urt_comment_queue delete',
             ],
-            'external_calls' => ['YouTube Data API commentThreads.list(part=id,replies,snippet)'],
+            'external_calls' => [
+                'YouTube Data API commentThreads.list(part=id,replies,snippet)',
+                'YouTube Data API comments.list(part=id,snippet,parentId) when embedded replies are incomplete',
+            ],
             'applied' => $applied,
             'skipped' => $skipped,
+            'failed' => $failed,
             'secrets' => 'not printed',
+            'lock' => [
+                'key' => 'ingestion:command:youtube.comments.fetch',
+                'acquired' => true,
+                'ttl_seconds' => max(60, min(86400, (int) config('ingestion.job_lock_seconds', 14400))),
+            ],
         ];
+    }
+
+    private function claimQueueRow(int $queuePk, string $claimTime, CarbonImmutable $claimExpireTime): bool
+    {
+        return DB::table('urt_comment_queue')
+            ->where('pk', $queuePk)
+            ->whereNull('ftime')
+            ->where(function ($query) use ($claimExpireTime): void {
+                $query
+                    ->whereNull('stime')
+                    ->orWhere('stime', '<=', $claimExpireTime->format('Y-m-d H:i:s'));
+            })
+            ->update(['stime' => $claimTime]) === 1;
+    }
+
+    private function releaseQueueClaim(int $queuePk, string $claimTime, ?string $previousClaimTime): bool
+    {
+        try {
+            return DB::table('urt_comment_queue')
+                ->where('pk', $queuePk)
+                ->where('stime', $claimTime)
+                ->update(['stime' => $previousClaimTime]) === 1;
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
+    private function renewQueueClaim(int $queuePk, string $claimTime, string $timezone): string
+    {
+        $renewedAt = CarbonImmutable::now($timezone)->format('Y-m-d H:i:s');
+
+        if ($renewedAt <= $claimTime) {
+            return $claimTime;
+        }
+
+        $updated = DB::table('urt_comment_queue')
+            ->where('pk', $queuePk)
+            ->whereNull('ftime')
+            ->where('stime', $claimTime)
+            ->update(['stime' => $renewedAt]);
+
+        if ($updated !== 1) {
+            throw new RuntimeException('comment_queue_claim_lost');
+        }
+
+        return $renewedAt;
+    }
+
+    private function sanitizedFailure(Throwable $exception): string
+    {
+        return SensitiveTextRedactor::exception($exception, 240);
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function fetchCommentThreads(string $videoId, int $maxPages): array
+    private function fetchCommentThreads(string $videoId, int $maxPages, int $maxReplyPages, ?Closure $renewClaim = null): array
     {
-        $comments = [];
-        $authors = [];
-        $channelId = null;
-        $latestTime = null;
-        $likesCount = 0;
-        $threadsCount = 0;
-        $repliesCount = 0;
-        $pageToken = null;
+        $existing = DB::table('urt_comment')->where('videoId', $videoId)->first();
+        $resumePageToken = is_string($existing->pageToken ?? null) && trim($existing->pageToken) !== ''
+            ? trim($existing->pageToken)
+            : null;
+        $comments = $resumePageToken === null ? [] : $this->decodedMap($existing->comments_json ?? null);
+        $authors = $resumePageToken === null ? [] : $this->decodedMap($existing->authors_json ?? null);
+        $channelId = is_string($existing->channelId ?? null) ? $existing->channelId : null;
+        $pageToken = $resumePageToken;
         $pagesFetched = 0;
+        $replyPagesFetched = 0;
 
         do {
+            $renewClaim?->__invoke();
             $response = $this->youtube->commentThreads($videoId, $pageToken);
             $pagesFetched++;
 
@@ -149,10 +328,6 @@ class CommentFetchIngestion
                 $comment = $this->mapCommentSnippet($topLevel);
                 $comments[$commentId] = $comment;
                 $this->addAuthor($authors, $comment, $topLevel);
-                $threadsCount++;
-                $likesCount += (int) ($comment['likeCount'] ?? 0);
-                $latestTime = $this->latestTimestamp($latestTime, $comment['publishedAt'] ?? null);
-
                 foreach (($thread['replies']['comments'] ?? []) as $reply) {
                     $replyId = (string) ($reply['id'] ?? '');
                     $replySnippet = $reply['snippet'] ?? [];
@@ -164,28 +339,110 @@ class CommentFetchIngestion
                     $replyComment = $this->mapCommentSnippet($replySnippet);
                     $comments[$commentId]['replies'][$replyId] = $replyComment;
                     $this->addAuthor($authors, $replyComment, $replySnippet);
-                    $repliesCount++;
-                    $likesCount += (int) ($replyComment['likeCount'] ?? 0);
-                    $latestTime = $this->latestTimestamp($latestTime, $replyComment['publishedAt'] ?? null);
+                }
+
+                $embeddedReplyCount = count($comments[$commentId]['replies'] ?? []);
+                $totalReplyCount = max(0, (int) ($thread['snippet']['totalReplyCount'] ?? $embeddedReplyCount));
+
+                if ($totalReplyCount > $embeddedReplyCount) {
+                    $comments[$commentId]['replies'] = [];
+                    $replyPageToken = null;
+                    $replyParentId = trim((string) ($thread['snippet']['topLevelComment']['id'] ?? $commentId));
+
+                    do {
+                        if ($replyPagesFetched >= $maxReplyPages) {
+                            throw new RuntimeException('reply_page_cap_reached');
+                        }
+
+                        $renewClaim?->__invoke();
+                        $replyPage = $this->youtube->comments($replyParentId, $replyPageToken);
+                        $replyPagesFetched++;
+
+                        foreach ($replyPage['items'] as $reply) {
+                            $replyId = (string) ($reply['id'] ?? '');
+                            $replySnippet = $reply['snippet'] ?? [];
+
+                            if ($replyId === '' || ! is_array($replySnippet) || $replySnippet === []) {
+                                continue;
+                            }
+
+                            $replyComment = $this->mapCommentSnippet($replySnippet);
+                            $comments[$commentId]['replies'][$replyId] = $replyComment;
+                            $this->addAuthor($authors, $replyComment, $replySnippet);
+                        }
+
+                        $replyPageToken = $replyPage['nextPageToken'];
+                    } while ($replyPageToken !== null);
                 }
             }
 
             $pageToken = $response['nextPageToken'];
         } while ($pageToken !== null && $pagesFetched < $maxPages);
 
+        $totals = $this->commentTotals($comments);
+
         return [
             'comments' => $comments,
             'authors' => $authors,
             'channelId' => $channelId,
-            'latestTime' => $latestTime,
-            'likesCount' => $likesCount,
-            'threadsCount' => $threadsCount,
-            'repliesCount' => $repliesCount,
-            'commentsCount' => $threadsCount + $repliesCount,
+            'latestTime' => $totals['latestTime'],
+            'likesCount' => $totals['likesCount'],
+            'threadsCount' => $totals['threadsCount'],
+            'repliesCount' => $totals['repliesCount'],
+            'commentsCount' => $totals['threadsCount'] + $totals['repliesCount'],
             'authorsCount' => count($authors),
             'pageToken' => $pageToken ?? '',
             'pagesFetched' => $pagesFetched,
+            'replyPagesFetched' => $replyPagesFetched,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function decodedMap(mixed $json): array
+    {
+        if (! is_string($json) || trim($json) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($json, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * @param  array<string, mixed>  $comments
+     * @return array{latestTime: string|null, likesCount: int, threadsCount: int, repliesCount: int}
+     */
+    private function commentTotals(array $comments): array
+    {
+        $latestTime = null;
+        $likesCount = 0;
+        $threadsCount = 0;
+        $repliesCount = 0;
+
+        foreach ($comments as $comment) {
+            if (! is_array($comment)) {
+                continue;
+            }
+
+            $threadsCount++;
+            $likesCount += (int) ($comment['likeCount'] ?? 0);
+            $latestTime = $this->latestTimestamp($latestTime, $comment['publishedAt'] ?? null);
+
+            foreach (($comment['replies'] ?? []) as $reply) {
+                if (! is_array($reply)) {
+                    continue;
+                }
+
+                $repliesCount++;
+                $likesCount += (int) ($reply['likeCount'] ?? 0);
+                $latestTime = $this->latestTimestamp($latestTime, $reply['publishedAt'] ?? null);
+            }
+        }
+
+        return compact('latestTime', 'likesCount', 'threadsCount', 'repliesCount');
     }
 
     /**
@@ -335,32 +592,23 @@ class CommentFetchIngestion
 
     private function finishQueueRow(int $queuePk, CarbonImmutable $now): void
     {
-        $this->updateQueue($queuePk, ['ftime' => $now->format('Y-m-d H:i:s')]);
         $queue = DB::table('urt_comment_queue')->where('pk', $queuePk)->first();
 
-        if ($queue !== null && ! DB::table('urt_comment_queue_done')->where('pk', $queuePk)->exists()) {
+        if ($queue === null) {
+            return;
+        }
+
+        if (! DB::table('urt_comment_queue_done')->where('pk', $queuePk)->exists()) {
             DB::table('urt_comment_queue_done')->insert($this->onlyExistingColumns('urt_comment_queue_done', [
                 'pk' => $queue->pk,
                 'ctime' => $queue->ctime ?? null,
                 'stime' => $queue->stime ?? null,
-                'ftime' => $queue->ftime ?? null,
+                'ftime' => $now->format('Y-m-d H:i:s'),
                 'videoId' => $queue->videoId ?? null,
             ]));
         }
 
         DB::table('urt_comment_queue')->where('pk', $queuePk)->delete();
-    }
-
-    /**
-     * @param  array<string, mixed>  $values
-     */
-    private function updateQueue(int $queuePk, array $values): void
-    {
-        $values = $this->onlyExistingColumns('urt_comment_queue', $values);
-
-        if ($values !== []) {
-            DB::table('urt_comment_queue')->where('pk', $queuePk)->update($values);
-        }
     }
 
     private function localChannelIdFor(?string $youtubeChannelId): ?int

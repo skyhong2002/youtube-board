@@ -6,6 +6,8 @@ use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class KeywordReportsPreview
 {
@@ -33,10 +35,15 @@ class KeywordReportsPreview
         $limit = max(1, min(100, $limit));
         $recentDays = max(1, min(30, $recentDays));
         $recentSince = $now->subDays($recentDays)->format('Y-m-d H:i:s');
-        $syncedRows = 0;
+        $syncResult = [
+            'candidates' => 0,
+            'attempted' => 0,
+            'synced' => 0,
+            'failed' => 0,
+        ];
 
         if ($execute) {
-            $syncedRows = $this->syncLegacyTags($now, $hours);
+            $syncResult = $this->syncLegacyTags($now, $hours, $limit);
         }
 
         $sourceRows = DB::table('tags')
@@ -109,14 +116,22 @@ class KeywordReportsPreview
                 'data/keyword_all.json',
             ],
             'external_fetch_skipped' => '新文易數 tag.analysis.tw keyword fetch is intentionally skipped in planning mode',
-            'synced_rows' => $syncedRows,
+            'sync_candidates' => $syncResult['candidates'],
+            'sync_attempted' => $syncResult['attempted'],
+            'synced_rows' => $syncResult['synced'],
+            'failed_rows' => $syncResult['failed'],
+            'exit_code' => $syncResult['failed'] > 0 ? 1 : 0,
             'writes' => $execute ? ['tags'] : [],
         ];
     }
 
-    private function syncLegacyTags(CarbonImmutable $now, int $hours): int
+    /**
+     * @return array{candidates: int, attempted: int, synced: int, failed: int}
+     */
+    private function syncLegacyTags(CarbonImmutable $now, int $hours, int $limit): array
     {
         $hours = max(1, min(168, $hours));
+        $limit = max(1, min(100, $limit));
         $response = Http::timeout(30)
             ->retry(2, 500)
             ->get('https://tag.analysis.tw/api/tag_json.php', ['hours' => $hours]);
@@ -131,14 +146,15 @@ class KeywordReportsPreview
             throw new \RuntimeException('tag.analysis.tw keyword sync returned non-json payload');
         }
 
+        $candidates = collect($rows)
+            ->filter(fn (mixed $row): bool => is_array($row) && trim((string) ($row['tag'] ?? '')) !== '')
+            ->values();
+        $attemptedRows = $candidates->take($limit);
         $synced = 0;
+        $failed = 0;
         $generatedAt = $now->format('Y-m-d H:i:s');
 
-        foreach ($rows as $row) {
-            if (! is_array($row) || trim((string) ($row['tag'] ?? '')) === '') {
-                continue;
-            }
-
+        foreach ($attemptedRows as $row) {
             $tag = trim((string) $row['tag']);
             $values = [
                 'mtime' => $this->dateTime($row['mtime'] ?? null, $generatedAt),
@@ -148,21 +164,36 @@ class KeywordReportsPreview
                 'no_tag' => (int) ($row['no_tag'] ?? 0) < 1 ? 0 : 1,
             ];
 
-            $existingPk = DB::table('tags')->where('tag', $tag)->value('pk');
+            try {
+                DB::transaction(function () use ($tag, $values, $generatedAt): void {
+                    $existingPk = DB::table('tags')->where('tag', $tag)->value('pk');
 
-            if ($existingPk === null) {
-                DB::table('tags')->insert($values + [
-                    'ctime' => $generatedAt,
-                    'tag' => $tag,
+                    if ($existingPk === null) {
+                        DB::table('tags')->insert($values + [
+                            'ctime' => $generatedAt,
+                            'tag' => $tag,
+                        ]);
+                    } else {
+                        DB::table('tags')->where('pk', $existingPk)->update($values);
+                    }
+                });
+
+                $synced++;
+            } catch (Throwable $exception) {
+                $failed++;
+                Log::warning('Keyword sync row failed.', [
+                    'tag_hash' => hash('sha256', $tag),
+                    'exception_class' => $exception::class,
                 ]);
-            } else {
-                DB::table('tags')->where('pk', $existingPk)->update($values);
             }
-
-            $synced++;
         }
 
-        return $synced;
+        return [
+            'candidates' => $candidates->count(),
+            'attempted' => $attemptedRows->count(),
+            'synced' => $synced,
+            'failed' => $failed,
+        ];
     }
 
     private function dateTime(mixed $value, string $fallback): string

@@ -1,20 +1,23 @@
 name: youtube-board
 
 x-app: &app
-  build:
-    context: .
-    dockerfile: docker/php/Dockerfile
+  image: youtube-board-dev
   user: "${UID:-501}:${GID:-20}"
   working_dir: /var/www/html
   volumes:
     - .:/var/www/html
-    - "${LEGACY_GROUND_TRUTH_PATH:-/Users/sky/Documents/youtube-board-legacy}:${LEGACY_GROUND_TRUTH_PATH:-/Users/sky/Documents/youtube-board-legacy}:ro"
   env_file:
-    - .env
+    - path: .env
+      required: false
   environment:
     APP_ENV: local
+    APP_KEY: "${APP_KEY:-base64:eW91dHViZS1ib2FyZC1sb2NhbC1jb21wb3NlLWtleSE=}"
     APP_DEBUG: "true"
     APP_URL: "${APP_URL:-http://localhost:8080}"
+    HOME: /tmp
+    COMPOSER_HOME: /tmp/composer
+    COMPOSER_CACHE_DIR: /tmp/composer/cache
+    NPM_CONFIG_CACHE: /tmp/npm-cache
     DB_CONNECTION: mysql
     DB_HOST: mysql
     DB_PORT: 3306
@@ -25,7 +28,6 @@ x-app: &app
     QUEUE_CONNECTION: redis
     SESSION_DRIVER: redis
     REDIS_HOST: redis
-    LEGACY_GROUND_TRUTH_PATH: "${LEGACY_GROUND_TRUTH_PATH:-/Users/sky/Documents/youtube-board-legacy}"
     LEGACY_PUBLIC_SITE_URL: https://youtube.board.tw
   depends_on:
     mysql:
@@ -34,18 +36,39 @@ x-app: &app
       condition: service_started
 
 services:
+  setup:
+    <<: *app
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    command: >-
+      sh -ec "git config --global --add safe.directory /var/www/html
+      && composer install --no-interaction --prefer-dist
+      && npm ci --ignore-scripts
+      && npm run build
+      && php artisan migrate --force --no-interaction"
+
   app:
     <<: *app
-    command: php artisan serve --host=0.0.0.0 --port=8000
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    command: php artisan serve --no-reload --host=0.0.0.0 --port=8000
     ports:
       - "${APP_PORT:-8080}:8000"
 
   worker:
     <<: *app
+    depends_on:
+      setup:
+        condition: service_completed_successfully
     command: php artisan queue:work --sleep=3 --tries=1 --timeout=120
 
   scheduler:
     <<: *app
+    depends_on:
+      setup:
+        condition: service_completed_successfully
     command: sh -c "while true; do php artisan schedule:run --verbose --no-interaction; sleep 60; done"
 
   mysql:
@@ -56,7 +79,7 @@ services:
       MARIADB_PASSWORD: youtube_board
       MARIADB_ROOT_PASSWORD: youtube_board_root
     ports:
-      - "33060:3306"
+      - "${MYSQL_PORT:-33060}:3306"
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
@@ -68,12 +91,12 @@ services:
   redis:
     image: redis:7.4-alpine
     ports:
-      - "63790:6379"
+      - "${REDIS_FORWARD_PORT:-63790}:6379"
 
   phpmyadmin:
     image: phpmyadmin:5-apache
     ports:
-      - "8081:80"
+      - "${PHPMYADMIN_PORT:-8081}:80"
     environment:
       PMA_HOST: mysql
       PMA_PORT: 3306

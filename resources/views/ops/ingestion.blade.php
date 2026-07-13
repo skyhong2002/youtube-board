@@ -69,6 +69,7 @@ Web request gates
 @section('content')
 @php($scheduledWriteScope = $summary['scheduled_write_scope'] ?? 'allowlist')
 @php($quotaEstimate = $youtubeQuotaDailyEstimate ?? [])
+@php($quotaBudget = $youtubeQuotaBudgetLedger ?? [])
 @php($health = $health ?? [])
 @php($healthClass = ['ok' => 'ok', 'warn' => 'warn', 'fail' => 'fail', 'unknown' => 'unknown'])
 <div class="nav" aria-label="Ingestion workload navigation">
@@ -88,14 +89,14 @@ Web request gates
                             {{ $summary['local_polling_enabled'] ? 'local polling enabled' : 'local polling disabled' }}
                         </span>
                         @if ($scheduledWriteScope === 'all')
-                            <span>scheduled writes default on</span>
+                            <span>all scheduled writes enabled</span>
                         @elseif ($scheduledWriteScope === 'off')
                             <span>scheduled writes off</span>
                         @else
                             <span>scheduled write allowlist {{ count($summary['scheduled_write_allowlist']) }}</span>
                         @endif
                     </div>
-                    <p class="muted">Scheduler/polling 預設開啟；Dokploy 或 env 明確設為 <code>false</code> / <code>off</code> 時才會停用。</p>
+                    <p class="muted">Scheduler、polling 與 scheduled writes 預設關閉；只有 runtime env 明確啟用 gate 與審查過的 allowlist 才會執行。</p>
                 </div>
 
                 <div class="panel">
@@ -133,6 +134,17 @@ Web request gates
             <section class="panel" aria-label="YouTube quota estimate">
                 <h2>YouTube Data API Quota Estimate</h2>
                 <div class="status-line">
+                    @if (($quotaBudget['available'] ?? false) === true)
+                        <span class="badge {{ ((int) ($quotaBudget['projected_units'] ?? 0)) >= ((int) ($quotaBudget['budget_units'] ?? 9000) * 0.8) ? 'planned' : 'active' }}">
+                            scheduler budget {{ number_format((int) ($quotaBudget['projected_units'] ?? 0)) }} / {{ number_format((int) ($quotaBudget['budget_units'] ?? 9000)) }} units
+                        </span>
+                        <span>{{ number_format((int) ($quotaBudget['consumed_units'] ?? 0)) }} consumed</span>
+                        <span>{{ number_format((int) ($quotaBudget['reserved_units'] ?? 0)) }} reserved</span>
+                    @else
+                        <span class="badge blocked">scheduler quota ledger unavailable</span>
+                    @endif
+                </div>
+                <div class="status-line">
                     <span class="badge {{ ((float) ($quotaEstimate['percent_used'] ?? 0)) >= 80 ? 'planned' : 'active' }}">
                         estimated {{ number_format((int) ($quotaEstimate['estimated_units'] ?? 0)) }} / {{ number_format((int) ($quotaEstimate['daily_limit'] ?? 10000)) }} units
                     </span>
@@ -141,7 +153,7 @@ Web request gates
                     <span>{{ number_format((int) ($quotaEstimate['record_count'] ?? 0)) }} execute run records</span>
                 </div>
                 <p class="muted">
-                    Local estimator sums run-history job estimates for the current YouTube quota day
+                    Scheduler execution is enforced by the atomic database ledger above. The telemetry estimate below sums run-history job records for diagnosis
                     (<code>{{ $quotaEstimate['window_start'] ?? '-' }}</code> -> <code>{{ $quotaEstimate['window_end'] ?? '-' }}</code>).
                     Google may report slightly different numbers because invalid/retried requests and hidden service-side accounting can differ.
                 </p>
@@ -246,7 +258,9 @@ Web request gates
                         Mode
                         <select name="mode">
                             <option value="dry-run">dry-run</option>
-                            <option value="execute">execute due jobs once</option>
+                            @if ($webExecuteAllowed)
+                                <option value="execute">execute due jobs once</option>
+                            @endif
                         </select>
                     </label>
                     <label>
@@ -266,7 +280,11 @@ Web request gates
                     </label>
                     <button type="submit">Run Once</button>
                 </form>
-                <p class="muted">Execute mode 只會在這次 request 暫時啟用 runner。Scheduled writes 預設使用各 job 的 capped command；若 Dokploy/env 明確關閉 polling 或 scheduled writes，這次執行也會被 gate 擋下。</p>
+                @if ($webExecuteAllowed)
+                    <p class="muted">Execute mode 只限本機開發，並只會在這次 request 暫時啟用 runner。Scheduled writes 使用各 job 的 capped command；若 env 明確關閉 polling 或 scheduled writes，這次執行也會被 gate 擋下。</p>
+                @else
+                    <p class="muted">Web runner 在此環境只提供 dry-run。Write-capable jobs 必須由受控的 scheduler 或 operator CLI 執行。</p>
+                @endif
             </section>
 
             <section class="runs">

@@ -2,16 +2,19 @@
 
 namespace App\Services\Ingestion;
 
-use Illuminate\Support\Facades\Http;
+use App\Support\SensitiveTextRedactor;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Http;
 use RuntimeException;
 use Throwable;
 
 class YoutubeDataApiClient
 {
-    public function __construct(private readonly IngestionTelemetry $telemetry)
-    {
-    }
+    public function __construct(
+        private readonly IngestionTelemetry $telemetry,
+        private readonly YoutubeApiCredentials $credentials,
+        private readonly YoutubeQuotaReservationContext $quotaContext,
+    ) {}
 
     /**
      * @param  list<string>  $channelIds
@@ -300,6 +303,39 @@ class YoutubeDataApiClient
         ];
     }
 
+    /**
+     * @return array{items: list<array<string, mixed>>, nextPageToken: string|null}
+     */
+    public function comments(string $parentId, ?string $pageToken = null, int $maxResults = 100): array
+    {
+        $parentId = trim($parentId);
+
+        if ($parentId === '') {
+            return ['items' => [], 'nextPageToken' => null];
+        }
+
+        $query = [
+            'part' => 'id,snippet',
+            'maxResults' => max(1, min(100, $maxResults)),
+            'parentId' => $parentId,
+        ];
+
+        if (is_string($pageToken) && trim($pageToken) !== '') {
+            $query['pageToken'] = trim($pageToken);
+        }
+
+        $response = $this->get('https://www.googleapis.com/youtube/v3/comments', $query, 20, 'YouTube comments.list request failed.');
+        $this->throwIfFailed($response, 'YouTube comments.list request failed.');
+
+        return [
+            'items' => collect($response->json('items', []))
+                ->filter(fn (mixed $item): bool => is_array($item))
+                ->values()
+                ->all(),
+            'nextPageToken' => is_string($response->json('nextPageToken')) ? $response->json('nextPageToken') : null,
+        ];
+    }
+
     private function iso8601DurationToSeconds(string $duration): int
     {
         if (! preg_match('/^P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/', $duration, $matches)) {
@@ -321,45 +357,79 @@ class YoutubeDataApiClient
         $responses = [];
         $method = $this->method($url, $query);
         $attempt = 0;
+        $transientRetries = max(0, min(3, (int) config('services.youtube.transient_retries', 1)));
+        $retryDelayMs = max(0, min(5000, (int) config('services.youtube.retry_delay_ms', 250)));
 
         foreach ($this->apiKeys() as $apiKey) {
-            $attempt++;
-            $started = hrtime(true);
+            for ($transientAttempt = 0; $transientAttempt <= $transientRetries; $transientAttempt++) {
+                $this->quotaContext->assertRequestWithinQuotaWindow($timeout);
+                $attempt++;
+                $started = hrtime(true);
 
-            try {
-                $response = Http::timeout($timeout)->get($url, $query + ['key' => $apiKey]);
-            } catch (Throwable $exception) {
+                try {
+                    $response = Http::timeout($timeout)->get($url, $query + ['key' => $apiKey]);
+                } catch (Throwable $exception) {
+                    $retryTransient = $transientAttempt < $transientRetries;
+                    $this->telemetry->recordYoutubeRequest($this->requestTelemetry(
+                        url: $url,
+                        query: $query,
+                        method: $method,
+                        attempt: $attempt,
+                        latencyMs: $this->elapsedMs($started),
+                        ok: false,
+                        status: null,
+                        quotaRetry: false,
+                        apiKeyFallback: false,
+                        transientRetry: $retryTransient,
+                        error: $this->sanitizedError($exception->getMessage()),
+                    ));
+
+                    if ($retryTransient) {
+                        $this->retryDelay($retryDelayMs);
+
+                        continue;
+                    }
+
+                    throw new RuntimeException(
+                        $fallbackMessage.' '.$this->sanitizedError($exception->getMessage()),
+                    );
+                }
+
+                $responses[] = $response;
+                $quotaRetry = $this->isQuotaOrRateLimitFailure($response);
+                $apiKeyFallback = $quotaRetry || $this->isAuthenticationFailure($response);
+                $transientRetry = ! $apiKeyFallback
+                    && $this->isTransientFailure($response)
+                    && $transientAttempt < $transientRetries;
+
                 $this->telemetry->recordYoutubeRequest($this->requestTelemetry(
                     url: $url,
                     query: $query,
                     method: $method,
                     attempt: $attempt,
                     latencyMs: $this->elapsedMs($started),
-                    ok: false,
-                    status: null,
-                    quotaRetry: false,
-                    error: $this->sanitizedError($exception->getMessage()),
+                    ok: $response->ok(),
+                    status: $response->status(),
+                    quotaRetry: $quotaRetry,
+                    apiKeyFallback: $apiKeyFallback,
+                    transientRetry: $transientRetry,
+                    error: $response->ok() ? null : $this->responseError($response, $fallbackMessage),
                 ));
 
-                throw $exception;
-            }
+                if ($response->ok()) {
+                    return $response;
+                }
 
-            $responses[] = $response;
-            $quotaRetry = $this->isQuotaOrRateLimitFailure($response);
+                if ($apiKeyFallback) {
+                    break;
+                }
 
-            $this->telemetry->recordYoutubeRequest($this->requestTelemetry(
-                url: $url,
-                query: $query,
-                method: $method,
-                attempt: $attempt,
-                latencyMs: $this->elapsedMs($started),
-                ok: $response->ok(),
-                status: $response->status(),
-                quotaRetry: $quotaRetry,
-                error: $response->ok() ? null : $this->responseError($response, $fallbackMessage),
-            ));
+                if ($transientRetry) {
+                    $this->retryDelay($retryDelayMs);
 
-            if ($response->ok() || ! $quotaRetry) {
+                    continue;
+                }
+
                 return $response;
             }
         }
@@ -373,7 +443,7 @@ class YoutubeDataApiClient
             return;
         }
 
-        $message = $response->json('error.message') ?? $fallbackMessage;
+        $message = $this->sanitizedError((string) ($response->json('error.message') ?? $fallbackMessage));
 
         throw new RuntimeException('YouTube API error '.$response->status().': '.$message);
     }
@@ -383,15 +453,7 @@ class YoutubeDataApiClient
      */
     private function apiKeys(): array
     {
-        $keys = collect([
-            config('services.youtube.api_key'),
-            ...explode(',', (string) config('services.youtube.api_keys', '')),
-        ])
-            ->map(fn (mixed $key): string => trim((string) $key))
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
+        $keys = $this->credentials->keys();
 
         if ($keys === []) {
             throw new RuntimeException('YOUTUBE_API_KEY is not configured.');
@@ -411,8 +473,42 @@ class YoutubeDataApiClient
 
         return str_contains(strtolower($reason), 'quota')
             || str_contains(strtolower($reason), 'rate')
+            || str_contains(strtolower($reason), 'dailylimit')
             || str_contains(strtolower($message), 'quota')
-            || str_contains(strtolower($message), 'rate');
+            || str_contains(strtolower($message), 'rate')
+            || str_contains(strtolower($message), 'daily limit');
+    }
+
+    private function isTransientFailure(Response $response): bool
+    {
+        return in_array($response->status(), [500, 502, 503, 504], true);
+    }
+
+    private function isAuthenticationFailure(Response $response): bool
+    {
+        if ($response->status() === 401) {
+            return true;
+        }
+
+        if (! in_array($response->status(), [400, 403], true)) {
+            return false;
+        }
+
+        $reason = strtolower((string) ($response->json('error.errors.0.reason') ?? ''));
+        $message = strtolower((string) ($response->json('error.message') ?? ''));
+
+        return collect([
+            'keyinvalid',
+            'accessnotconfigured',
+            'iprefererblocked',
+            'autherror',
+        ])->contains(fn (string $needle): bool => str_contains($reason, $needle))
+            || collect([
+                'api key not valid',
+                'invalid api key',
+                'authentication credential',
+                'access not configured',
+            ])->contains(fn (string $needle): bool => str_contains($message, $needle));
     }
 
     /**
@@ -428,6 +524,8 @@ class YoutubeDataApiClient
         bool $ok,
         ?int $status,
         bool $quotaRetry,
+        bool $apiKeyFallback,
+        bool $transientRetry,
         ?string $error,
     ): array {
         return [
@@ -444,6 +542,8 @@ class YoutubeDataApiClient
             'status' => $status,
             'ok' => $ok,
             'quota_or_rate_limit_retry' => $quotaRetry,
+            'api_key_fallback' => $apiKeyFallback,
+            'transient_retry' => $transientRetry,
             'error' => $error,
             'secrets' => 'not_printed',
         ];
@@ -460,6 +560,7 @@ class YoutubeDataApiClient
             str_ends_with($path, '/channels') => 'channels.list',
             str_ends_with($path, '/playlistItems') => 'playlistItems.list',
             str_ends_with($path, '/commentThreads') => 'commentThreads.list',
+            str_ends_with($path, '/comments') => 'comments.list',
             str_ends_with($path, '/videos') => 'videos.list'.(isset($query['part']) ? '('.$query['part'].')' : ''),
             default => 'youtube_data_api',
         };
@@ -489,6 +590,13 @@ class YoutubeDataApiClient
         return (int) round((hrtime(true) - $started) / 1_000_000);
     }
 
+    private function retryDelay(int $milliseconds): void
+    {
+        if ($milliseconds > 0) {
+            usleep($milliseconds * 1000);
+        }
+    }
+
     private function responseError(Response $response, string $fallbackMessage): string
     {
         $message = $response->json('error.message') ?? $fallbackMessage;
@@ -498,12 +606,6 @@ class YoutubeDataApiClient
 
     private function sanitizedError(string $message): string
     {
-        return mb_strimwidth(
-            preg_replace('/(api[_-]?key|password|secret|token|authorization)[^,\s]*/i', '$1=<redacted>', $message) ?? $message,
-            0,
-            240,
-            '...',
-            'UTF-8',
-        );
+        return SensitiveTextRedactor::redact($message, 240);
     }
 }

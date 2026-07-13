@@ -3,10 +3,12 @@
 namespace App\Services\Ingestion;
 
 use App\Services\Legacy\AiDailyReport;
+use App\Support\SensitiveTextRedactor;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 use Throwable;
@@ -84,6 +86,7 @@ class AiPeriodIngestion
                 'inserted' => false,
                 'updated' => false,
                 'skipped' => true,
+                'failed' => false,
                 'skip_reason' => $blockedReason,
                 'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
                 'provider' => null,
@@ -101,6 +104,7 @@ class AiPeriodIngestion
                 'inserted' => false,
                 'updated' => false,
                 'skipped' => true,
+                'failed' => false,
                 'skip_reason' => 'ai_call_guard_exhausted',
                 'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
                 'provider' => null,
@@ -134,6 +138,7 @@ class AiPeriodIngestion
                 'inserted' => $upsert['inserted'],
                 'updated' => $upsert['updated'],
                 'skipped' => false,
+                'failed' => false,
                 'skip_reason' => null,
                 'model' => $completion['model'],
                 'provider' => $completion['provider'],
@@ -144,11 +149,20 @@ class AiPeriodIngestion
                 'ai_calls_used' => 1,
             ]);
         } catch (Throwable $exception) {
+            Log::warning('AI period ingestion row failed.', [
+                'stage' => 'completion_or_write',
+                'from_date' => $range['from_date'],
+                'to_date' => $range['to_date'],
+                'condition' => $condition,
+                'exception_class' => $exception::class,
+            ]);
+
             return $this->executeResult($range, $condition, $fromDay, $toDay, $now, [
                 'ai_call_attempted' => true,
                 'inserted' => false,
                 'updated' => false,
                 'skipped' => true,
+                'failed' => true,
                 'skip_reason' => $this->sanitizedFailure($exception),
                 'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
                 'provider' => null,
@@ -166,8 +180,13 @@ class AiPeriodIngestion
      */
     private function executeResult(array $range, string $condition, array $fromDay, array $toDay, CarbonImmutable $now, array $row): array
     {
+        $failedRows = ($row['failed'] ?? false) ? 1 : 0;
+
         return [
             'mode' => 'execute',
+            'status' => $failedRows > 0 ? 'failed' : 'success',
+            'exit_code' => $failedRows > 0 ? 1 : 0,
+            'failed_rows' => $failedRows,
             'source' => 'legacy_ai_period',
             'condition' => $condition,
             'date_from' => $range['date_from'],
@@ -183,6 +202,7 @@ class AiPeriodIngestion
                 'inserted' => $row['inserted'],
                 'updated' => $row['updated'],
                 'skipped' => $row['skipped'],
+                'failed' => (bool) ($row['failed'] ?? false),
                 'rows' => [$row],
             ],
             'ai_call_guard' => [
@@ -373,7 +393,7 @@ class AiPeriodIngestion
         $decoded = json_decode($this->stripJsonFence($content), true);
 
         if (json_last_error() !== JSON_ERROR_NONE || ! is_array($decoded)) {
-            return [];
+            throw new RuntimeException('invalid_json_response');
         }
 
         foreach (['matches', 'result', 'data', 'events'] as $key) {
@@ -785,12 +805,6 @@ class AiPeriodIngestion
 
     private function sanitizedFailure(Throwable $exception): string
     {
-        return mb_strimwidth(
-            preg_replace('/(api[_-]?key|password|secret|token|authorization)[^,\s]*/i', '$1=<redacted>', $exception->getMessage()) ?? 'ai_completion_failed',
-            0,
-            240,
-            '...',
-            'UTF-8',
-        );
+        return SensitiveTextRedactor::exception($exception, 240);
     }
 }

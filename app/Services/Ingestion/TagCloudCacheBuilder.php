@@ -5,7 +5,9 @@ namespace App\Services\Ingestion;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Throwable;
 
 class TagCloudCacheBuilder
 {
@@ -40,35 +42,106 @@ class TagCloudCacheBuilder
             ->unique()
             ->values()
             ->all();
-        $keywords = $this->keywords($keywordLimit, $now, $onlyKeywords);
-        $channelIds = $this->channelIds($tagIds, $orTagIds, $notTagIds);
-        $videos = $this->videos($channelIds, $now, $days);
-        $metrics = $this->metrics($keywords, $videos);
         $generatedAt = $now->format('Y-m-d H:i:s');
-
-        if ($execute) {
-            $this->upsertCache($tagIds, $orTagIds, $notTagIds, $days, $metrics, count($channelIds), $generatedAt);
-        }
-
-        return [
-            'mode' => $execute ? 'execute' : 'dry-run',
-            'generated_at' => $generatedAt,
-            'tagid' => implode(',', $tagIds),
-            'or' => implode(',', $orTagIds),
-            'not' => implode(',', $notTagIds),
-            'days' => $days,
-            'keyword_limit' => $keywordLimit,
-            'only_keywords' => $onlyKeywords,
-            'keywords_selected' => count($keywords),
-            'channels_matched' => count($channelIds),
-            'videos_scanned' => count($videos),
-            'tags_count' => count($metrics['tags_result']),
-            'count_tags' => $metrics['count_tags'],
-            'count_videos' => $metrics['count_videos'],
-            'total_views' => $metrics['total_views'],
-            'writes' => $execute ? 1 : 0,
-            'write_targets' => ['urt_show_tag_cloud'],
+        $keywords = [];
+        $channelIds = [];
+        $videos = [];
+        $metrics = [
+            'tags_result' => [],
+            'count_tags' => 0,
+            'count_videos' => 0,
+            'total_views' => 0,
         ];
+
+        try {
+            $keywords = $this->keywords($keywordLimit, $now, $onlyKeywords);
+            $channelIds = $this->channelIds($tagIds, $orTagIds, $notTagIds);
+            $videos = $this->videos($channelIds, $now, $days);
+            $metrics = $this->metrics($keywords, $videos);
+
+            if ($execute) {
+                $this->upsertCache($tagIds, $orTagIds, $notTagIds, $days, $metrics, count($channelIds), $generatedAt);
+            }
+
+            $payload = [
+                'mode' => $execute ? 'execute' : 'dry-run',
+                'status' => 'success',
+                'generated_at' => $generatedAt,
+                'tagid' => implode(',', $tagIds),
+                'or' => implode(',', $orTagIds),
+                'not' => implode(',', $notTagIds),
+                'days' => $days,
+                'keyword_limit' => $keywordLimit,
+                'only_keywords' => $onlyKeywords,
+                'keywords_selected' => count($keywords),
+                'channels_matched' => count($channelIds),
+                'videos_scanned' => count($videos),
+                'tags_count' => count($metrics['tags_result']),
+                'count_tags' => $metrics['count_tags'],
+                'count_videos' => $metrics['count_videos'],
+                'total_views' => $metrics['total_views'],
+                'writes' => $execute ? 1 : 0,
+                'failed_rows' => 0,
+                'failure_reason' => null,
+                'exit_code' => 0,
+                'write_targets' => ['urt_show_tag_cloud'],
+            ];
+
+            Log::info('Tag cloud cache period completed.', $this->logContext($payload));
+
+            return $payload;
+        } catch (Throwable $exception) {
+            $payload = [
+                'mode' => $execute ? 'execute' : 'dry-run',
+                'status' => 'failed',
+                'generated_at' => $generatedAt,
+                'tagid' => implode(',', $tagIds),
+                'or' => implode(',', $orTagIds),
+                'not' => implode(',', $notTagIds),
+                'days' => $days,
+                'keyword_limit' => $keywordLimit,
+                'only_keywords' => $onlyKeywords,
+                'keywords_selected' => count($keywords),
+                'channels_matched' => count($channelIds),
+                'videos_scanned' => count($videos),
+                'tags_count' => count($metrics['tags_result']),
+                'count_tags' => $metrics['count_tags'],
+                'count_videos' => $metrics['count_videos'],
+                'total_views' => $metrics['total_views'],
+                'writes' => 0,
+                'failed_rows' => 1,
+                'failure_reason' => 'cache_period_processing_failed',
+                'exit_code' => 1,
+                'write_targets' => ['urt_show_tag_cloud'],
+            ];
+
+            Log::warning('Tag cloud cache period failed.', $this->logContext($payload) + [
+                'exception_class' => $exception::class,
+            ]);
+
+            return $payload;
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function logContext(array $payload): array
+    {
+        return collect($payload)->only([
+            'mode',
+            'status',
+            'tagid',
+            'or',
+            'not',
+            'days',
+            'channels_matched',
+            'videos_scanned',
+            'writes',
+            'failed_rows',
+            'failure_reason',
+        ])->all();
     }
 
     /**
@@ -211,8 +284,8 @@ class TagCloudCacheBuilder
     }
 
     /**
-     * @param list<array{tag: string, divisor: float}> $keywords
-     * @param list<object> $videos
+     * @param  list<array{tag: string, divisor: float}>  $keywords
+     * @param  list<object>  $videos
      * @return array{tags_result: array<string, string>, count_tags: int, count_videos: int, total_views: int}
      */
     private function metrics(array $keywords, array $videos): array
@@ -297,10 +370,10 @@ class TagCloudCacheBuilder
     }
 
     /**
-     * @param list<int> $tagIds
-     * @param list<int> $orTagIds
-     * @param list<int> $notTagIds
-     * @param array{tags_result: array<string, string>, count_tags: int, count_videos: int, total_views: int} $metrics
+     * @param  list<int>  $tagIds
+     * @param  list<int>  $orTagIds
+     * @param  list<int>  $notTagIds
+     * @param  array{tags_result: array<string, string>, count_tags: int, count_videos: int, total_views: int}  $metrics
      */
     private function upsertCache(array $tagIds, array $orTagIds, array $notTagIds, int $days, array $metrics, int $countChannels, string $generatedAt): void
     {

@@ -5,14 +5,14 @@ namespace App\Services\Ingestion;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
+use Throwable;
 
 class CommentQueueIngestion
 {
-    public function __construct(private readonly CommentQueuePreview $preview)
-    {
-    }
+    public function __construct(private readonly CommentQueuePreview $preview) {}
 
     /**
      * @return array<string, mixed>
@@ -60,24 +60,38 @@ class CommentQueueIngestion
                 continue;
             }
 
-            DB::transaction(function () use ($videoId, $now, &$inserted, &$skipped): void {
-                if (DB::table('urt_comment_queue')->where('videoId', $videoId)->exists()) {
-                    $skipped[] = ['videoId' => $videoId, 'reason' => 'already_queued'];
+            try {
+                DB::transaction(function () use ($videoId, $now, &$inserted, &$skipped): void {
+                    if (DB::table('urt_comment_queue')->where('videoId', $videoId)->exists()) {
+                        $skipped[] = ['videoId' => $videoId, 'reason' => 'already_queued'];
 
-                    return;
-                }
+                        return;
+                    }
 
-                $insert = $this->onlyExistingColumns('urt_comment_queue', [
-                    'ctime' => $now->format('Y-m-d H:i:s'),
-                    'stime' => null,
-                    'ftime' => null,
+                    $insert = $this->onlyExistingColumns('urt_comment_queue', [
+                        'ctime' => $now->format('Y-m-d H:i:s'),
+                        'stime' => null,
+                        'ftime' => null,
+                        'videoId' => $videoId,
+                    ]);
+
+                    DB::table('urt_comment_queue')->insert($insert);
+                    $inserted[] = ['videoId' => $videoId];
+                });
+            } catch (Throwable $exception) {
+                $skipped[] = [
                     'videoId' => $videoId,
+                    'reason' => 'item_processing_failed',
+                ];
+                Log::warning('Comment queue item processing failed.', [
+                    'video_id' => $videoId,
+                    'reason' => 'item_processing_failed',
+                    'exception_class' => $exception::class,
                 ]);
-
-                DB::table('urt_comment_queue')->insert($insert);
-                $inserted[] = ['videoId' => $videoId];
-            });
+            }
         }
+
+        $failedRows = collect($skipped)->where('reason', 'item_processing_failed')->count();
 
         return [
             'mode' => 'local-execute',
@@ -86,6 +100,8 @@ class CommentQueueIngestion
             'selected_rows' => $rows->count(),
             'inserted_queue_rows' => count($inserted),
             'skipped_rows' => count($skipped),
+            'failed_rows' => $failedRows,
+            'exit_code' => $failedRows > 0 ? 1 : 0,
             'write_targets' => [
                 'urt_comment_queue.ctime',
                 'urt_comment_queue.videoId',
@@ -119,5 +135,4 @@ class CommentQueueIngestion
             ->filter(fn (mixed $value, string $column): bool => in_array($column, $columns, true))
             ->all();
     }
-
 }

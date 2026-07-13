@@ -6,6 +6,8 @@ use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class ChannelCountsPreview
 {
@@ -19,6 +21,10 @@ class ChannelCountsPreview
      *     missing_logs: int,
      *     would_update: int,
      *     unchanged: int,
+     *     updated: int,
+     *     skipped_rows: int,
+     *     failed_rows: int,
+     *     skipped: list<array{u_id: int, reason: string}>,
      *     rows: list<array<string, mixed>>,
      *     writes: list<string>
      * }
@@ -38,7 +44,7 @@ class ChannelCountsPreview
             ->keyBy('u_id');
 
         if ($countRows->isEmpty()) {
-            return $this->payload($now, 0, 0, 0, 0, 0, []);
+            return $this->payload($now, 0, 0, 0, 0, 0, [], $execute);
         }
 
         $logRows = DB::table('urt_log')
@@ -58,6 +64,7 @@ class ChannelCountsPreview
 
             if ($logs->isEmpty()) {
                 $missingLogs++;
+
                 continue;
             }
 
@@ -67,6 +74,7 @@ class ChannelCountsPreview
 
             if ($diff === []) {
                 $unchanged++;
+
                 continue;
             }
 
@@ -93,14 +101,27 @@ class ChannelCountsPreview
             ->all();
 
         $updated = 0;
+        $skipped = [];
 
         if ($execute && $rows !== []) {
             foreach ($rows as $updateRow) {
-                $updated += DB::table('urt_count')
-                    ->where('u_id', $updateRow['u_id'])
-                    ->update($updateRow['computed'] + [
-                        'mtime' => $now->format('Y-m-d H:i:s'),
+                try {
+                    $updated += DB::transaction(fn (): int => DB::table('urt_count')
+                        ->where('u_id', $updateRow['u_id'])
+                        ->update($updateRow['computed'] + [
+                            'mtime' => $now->format('Y-m-d H:i:s'),
+                        ]));
+                } catch (Throwable $exception) {
+                    $skipped[] = [
+                        'u_id' => (int) $updateRow['u_id'],
+                        'reason' => 'item_processing_failed',
+                    ];
+                    Log::warning('Channel counts item processing failed.', [
+                        'u_id' => (int) $updateRow['u_id'],
+                        'reason' => 'item_processing_failed',
+                        'exception_class' => $exception::class,
                     ]);
+                }
             }
         }
 
@@ -114,6 +135,7 @@ class ChannelCountsPreview
             rows: $rows,
             execute: $execute,
             updated: $updated,
+            skipped: $skipped,
         );
     }
 
@@ -222,6 +244,10 @@ class ChannelCountsPreview
      *     missing_logs: int,
      *     would_update: int,
      *     unchanged: int,
+     *     updated: int,
+     *     skipped_rows: int,
+     *     failed_rows: int,
+     *     skipped: list<array{u_id: int, reason: string}>,
      *     rows: list<array<string, mixed>>,
      *     writes: list<string>
      * }
@@ -236,8 +262,8 @@ class ChannelCountsPreview
         array $rows,
         bool $execute = false,
         int $updated = 0,
-    ): array
-    {
+        array $skipped = [],
+    ): array {
         return [
             'mode' => $execute ? 'execute' : 'ingestion-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
@@ -248,6 +274,9 @@ class ChannelCountsPreview
             'would_update' => $wouldUpdate,
             'unchanged' => $unchanged,
             'updated' => $updated,
+            'skipped_rows' => count($skipped),
+            'failed_rows' => count($skipped),
+            'skipped' => $skipped,
             'rows' => $rows,
             'writes' => $execute ? [
                 'urt_count.view_week',

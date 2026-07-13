@@ -2,6 +2,9 @@
 
 namespace Tests\Feature\Ops;
 
+use App\Services\Ingestion\OpenCodeChatClient;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -53,5 +56,40 @@ class AiProviderProbeCommandTest extends TestCase
                 && $request['model'] === 'gpt-4o-mini'
                 && $request['max_tokens'] === 16;
         });
+    }
+
+    public function test_ai_connection_failure_is_sanitized_and_falls_back(): void
+    {
+        config()->set('services.opencode_go.api_key', 'primary-super-secret');
+        config()->set('services.opencode_go.base_url', 'https://primary.test/v1');
+        config()->set('services.opencode_go.model', 'primary-model');
+        config()->set('services.opencode_go.fallback_api_key', 'fallback-super-secret');
+        config()->set('services.opencode_go.fallback_base_url', 'https://fallback.test/v1');
+        config()->set('services.opencode_go.fallback_model', 'fallback-model');
+
+        $attempts = 0;
+        Http::fake(function (Request $request) use (&$attempts) {
+            $attempts++;
+
+            if (str_starts_with($request->url(), 'https://primary.test/')) {
+                throw new ConnectionException(
+                    'failed https://primary.test/v1/chat/completions?token=primary-super-secret Bearer primary-super-secret',
+                );
+            }
+
+            return Http::response([
+                'choices' => [['message' => ['content' => 'OK']]],
+            ]);
+        });
+
+        $result = app(OpenCodeChatClient::class)->complete('Reply OK');
+
+        $this->assertSame('fallback', $result['provider']);
+        $this->assertCount(1, $result['provider_failures']);
+        $this->assertStringContainsString('<redacted>', $result['provider_failures'][0]);
+        $this->assertStringNotContainsString('primary-super-secret', $result['provider_failures'][0]);
+        $this->assertStringNotContainsString('fallback-super-secret', json_encode($result));
+        $this->assertSame(2, $attempts);
+        Http::assertSentCount(1);
     }
 }
