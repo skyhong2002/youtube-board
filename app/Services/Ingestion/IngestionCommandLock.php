@@ -3,7 +3,6 @@
 namespace App\Services\Ingestion;
 
 use Closure;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -84,7 +83,7 @@ class IngestionCommandLock
         }
 
         $lockSeconds = max(60, min(86400, (int) config('ingestion.job_lock_seconds', 14400)));
-        $lock = Cache::lock(self::name($jobKey), $lockSeconds);
+        $lock = IngestionLockStore::lock(self::name($jobKey), $lockSeconds);
 
         if (! $lock->get()) {
             Log::warning('Ingestion command execution blocked.', [

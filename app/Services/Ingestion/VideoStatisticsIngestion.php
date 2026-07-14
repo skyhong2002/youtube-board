@@ -48,65 +48,115 @@ class VideoStatisticsIngestion
             return $this->summary($preview, [], [], $now);
         }
 
-        try {
-            $statisticsByVideo = $this->youtube->videoStatistics(
-                $rows->pluck('video_id')->map(fn (mixed $id): string => (string) $id)->all(),
-            );
-        } catch (YoutubeQuotaWindowException $exception) {
-            $skipped = $rows->map(fn (array $row): array => [
-                'videoId' => (string) $row['video_id'],
-                'reason' => 'quota_window_reset',
-            ])->all();
-            Log::warning('Video statistics polling paused at quota window reset.', [
-                'reason' => 'quota_window_reset',
-                'selected_rows' => $rows->count(),
-                'exception_class' => $exception::class,
-            ]);
-
-            return $this->summary($preview, [], $skipped, $now, true, $rows->count());
-        }
         $applied = [];
         $skipped = [];
+        $apiBatchesAttempted = 0;
+        $apiBatchesCompleted = 0;
+        $apiRequestedVideos = 0;
+        $processedRows = 0;
+        $quotaWindowReset = false;
+        $remainingRetryRows = 0;
 
-        foreach ($rows as $row) {
-            $rowVideoId = (string) $row['video_id'];
+        foreach ($rows->chunk($batchSize) as $batchRows) {
+            $apiBatchesAttempted++;
+            $apiRequestedVideos += $batchRows->count();
 
             try {
-                $statistics = $statisticsByVideo[$rowVideoId] ?? null;
-
-                if ($statistics === null) {
-                    $skipped[] = [
-                        'videoId' => $rowVideoId,
-                        'reason' => 'api_item_missing',
-                    ];
-
-                    continue;
-                }
-
-                DB::transaction(function () use ($row, $statistics, $now): void {
-                    $this->upsertStatistics($row, $statistics, $now);
-                });
-
-                $applied[] = [
-                    'videoId' => $rowVideoId,
-                    'viewCount' => $statistics['viewCount'],
-                    'likeCount' => $statistics['likeCount'],
-                    'commentCount' => $statistics['commentCount'],
+                $statisticsByVideo = $this->youtube->videoStatistics(
+                    $batchRows->pluck('video_id')->map(fn (mixed $id): string => (string) $id)->all(),
+                );
+                $apiBatchesCompleted++;
+            } catch (YoutubeQuotaWindowException $exception) {
+                $quotaWindowReset = true;
+                $remainingRows = $rows->slice($processedRows)->values();
+                $remainingRetryRows = $remainingRows->count();
+                $skipped = [
+                    ...$skipped,
+                    ...$remainingRows->map(fn (array $row): array => [
+                        'videoId' => (string) $row['video_id'],
+                        'reason' => 'quota_window_reset',
+                    ])->all(),
                 ];
-            } catch (Throwable $exception) {
-                $skipped[] = [
-                    'videoId' => $rowVideoId,
-                    'reason' => 'item_processing_failed',
-                ];
-                Log::warning('Video statistics item processing failed.', [
-                    'video_id' => $rowVideoId,
-                    'reason' => 'item_processing_failed',
+                Log::warning('Video statistics polling paused at quota window reset.', [
+                    'reason' => 'quota_window_reset',
+                    'selected_rows' => $rows->count(),
+                    'remaining_retry_rows' => $remainingRetryRows,
+                    'api_batches_attempted' => $apiBatchesAttempted,
                     'exception_class' => $exception::class,
                 ]);
+
+                break;
+            } catch (Throwable $exception) {
+                $skipped = [
+                    ...$skipped,
+                    ...$batchRows->map(fn (array $row): array => [
+                        'videoId' => (string) $row['video_id'],
+                        'reason' => 'api_batch_failed',
+                    ])->all(),
+                ];
+                $processedRows += $batchRows->count();
+                Log::warning('Video statistics API batch failed.', [
+                    'reason' => 'api_batch_failed',
+                    'batch_rows' => $batchRows->count(),
+                    'api_batches_attempted' => $apiBatchesAttempted,
+                    'exception_class' => $exception::class,
+                ]);
+
+                continue;
             }
+
+            foreach ($batchRows as $row) {
+                $rowVideoId = (string) $row['video_id'];
+
+                try {
+                    $statistics = $statisticsByVideo[$rowVideoId] ?? null;
+
+                    if ($statistics === null) {
+                        $skipped[] = [
+                            'videoId' => $rowVideoId,
+                            'reason' => 'api_item_missing',
+                        ];
+
+                        continue;
+                    }
+
+                    DB::transaction(function () use ($row, $statistics, $now): void {
+                        $this->upsertStatistics($row, $statistics, $now);
+                    });
+
+                    $applied[] = [
+                        'videoId' => $rowVideoId,
+                        'viewCount' => $statistics['viewCount'],
+                        'likeCount' => $statistics['likeCount'],
+                        'commentCount' => $statistics['commentCount'],
+                    ];
+                } catch (Throwable $exception) {
+                    $skipped[] = [
+                        'videoId' => $rowVideoId,
+                        'reason' => 'item_processing_failed',
+                    ];
+                    Log::warning('Video statistics item processing failed.', [
+                        'video_id' => $rowVideoId,
+                        'reason' => 'item_processing_failed',
+                        'exception_class' => $exception::class,
+                    ]);
+                }
+            }
+
+            $processedRows += $batchRows->count();
         }
 
-        return $this->summary($preview, $applied, $skipped, $now);
+        return $this->summary(
+            preview: $preview,
+            applied: $applied,
+            skipped: $skipped,
+            now: $now,
+            quotaWindowReset: $quotaWindowReset,
+            remainingRetryRows: $remainingRetryRows,
+            apiBatchesAttempted: $apiBatchesAttempted,
+            apiBatchesCompleted: $apiBatchesCompleted,
+            apiRequestedVideos: $apiRequestedVideos,
+        );
     }
 
     /**
@@ -144,9 +194,12 @@ class VideoStatisticsIngestion
             ? DB::table('urt_video_log')->where('videoId', $videoId)->where('themonth', $month)->first()
             : null;
         $data = $existingLog !== null && property_exists($existingLog, 'thedata')
-            ? json_decode((string) ($existingLog->thedata ?? ''), true)
+            ? json_decode((string) ($existingLog->thedata ?? ''), true, 512, JSON_THROW_ON_ERROR)
             : [];
-        $data = is_array($data) ? $data : [];
+
+        if (! is_array($data)) {
+            throw new RuntimeException('Existing video statistics history JSON is not an object or array.');
+        }
 
         if ($statistics['viewCount'] + $statistics['likeCount'] > 0) {
             $data[$date] = [
@@ -211,13 +264,7 @@ class VideoStatisticsIngestion
             return;
         }
 
-        $insert = $keys + $values;
-
-        if (Schema::hasColumn($table, 'pk') && ! array_key_exists('pk', $insert)) {
-            $insert['pk'] = ((int) DB::table($table)->max('pk')) + 1;
-        }
-
-        DB::table($table)->insert($insert);
+        DB::table($table)->insert($keys + $values);
     }
 
     /**
@@ -278,15 +325,27 @@ class VideoStatisticsIngestion
         CarbonImmutable $now,
         bool $quotaWindowReset = false,
         int $remainingRetryRows = 0,
+        int $apiBatchesAttempted = 0,
+        int $apiBatchesCompleted = 0,
+        int $apiRequestedVideos = 0,
     ): array {
-        $failedVideos = collect($skipped)->whereIn('reason', ['item_processing_failed', 'quota_window_reset'])->count();
+        $failedVideos = collect($skipped)->whereIn('reason', [
+            'api_batch_failed',
+            'api_item_missing',
+            'item_processing_failed',
+            'quota_window_reset',
+        ])->count();
 
         return [
             'mode' => 'local-execute',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'source' => $preview['source'] ?? null,
             'selected_rows' => (int) ($preview['selected_rows'] ?? 0),
-            'api_requested_videos' => count($applied) + count($skipped),
+            'batch_size' => (int) ($preview['batch_size'] ?? 1),
+            'loops' => (int) ($preview['loops'] ?? 1),
+            'api_batches_attempted' => $apiBatchesAttempted,
+            'api_batches_completed' => $apiBatchesCompleted,
+            'api_requested_videos' => $apiRequestedVideos,
             'updated_videos' => count($applied),
             'skipped_videos' => count($skipped),
             'failed_videos' => $failedVideos,

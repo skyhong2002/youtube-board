@@ -664,8 +664,8 @@ class LegacyTagChannelApiReport
         $videoIds = collect($rows)->pluck('videoId')->filter()->values()->all();
 
         try {
-            $comments = DB::table('urt_comment')
-                ->whereIn('videoId', $videoIds)
+            $comments = CommentPublicationScope::complete(DB::table('urt_comment'))
+                ->whereIn('urt_comment.videoId', $videoIds)
                 ->get()
                 ->keyBy('videoId');
         } catch (QueryException) {

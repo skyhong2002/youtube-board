@@ -4,6 +4,7 @@ namespace App\Services\Ingestion;
 
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -11,6 +12,8 @@ use Throwable;
 
 class GroupReportsPreview
 {
+    private const REMOTE_SOURCE_LIMIT = 5000;
+
     /**
      * @return array{
      *     mode: string,
@@ -27,8 +30,14 @@ class GroupReportsPreview
      *     writes: list<string>
      * }
      */
-    public function preview(?string $groupName = null, int $hours = 22, int $limit = 20, ?CarbonInterface $now = null, bool $execute = false): array
-    {
+    public function preview(
+        ?string $groupName = null,
+        int $hours = 22,
+        int $limit = 20,
+        ?CarbonInterface $now = null,
+        bool $execute = false,
+        int|string|null $offset = 0,
+    ): array {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
         $now = $now === null
             ? CarbonImmutable::now($timezone)
@@ -37,8 +46,18 @@ class GroupReportsPreview
         $limit = max(1, min(200, $limit));
         $groupName = $groupName !== null && trim($groupName) !== '' ? trim($groupName) : null;
         $syncResult = $execute
-            ? $this->syncLegacyGroups($now, $hours, $limit)
-            : ['candidates' => 0, 'attempted' => 0, 'synced' => 0, 'failed' => 0];
+            ? $this->syncLegacyGroups($now, $hours, $limit, $offset)
+            : [
+                'candidates' => 0,
+                'attempted' => 0,
+                'synced' => 0,
+                'failed' => 0,
+                'offset' => 0,
+                'offset_mode' => 'explicit',
+                'next_offset' => 0,
+                'batch_wrapped' => false,
+                'source_truncated' => false,
+            ];
 
         $base = DB::table('tag_group')
             ->when($groupName !== null, fn ($query) => $query->where('group_name', $groupName));
@@ -87,16 +106,26 @@ class GroupReportsPreview
             'sync_attempted' => $syncResult['attempted'],
             'synced_rows' => $syncResult['synced'],
             'failed_rows' => $syncResult['failed'],
+            'sync_source_limit' => self::REMOTE_SOURCE_LIMIT,
+            'sync_offset' => $syncResult['offset'],
+            'sync_offset_mode' => $syncResult['offset_mode'],
+            'sync_next_offset' => $syncResult['next_offset'],
+            'sync_batch_wrapped' => $syncResult['batch_wrapped'],
+            'sync_source_truncated' => $syncResult['source_truncated'],
             'exit_code' => $syncResult['failed'] > 0 ? 1 : 0,
             'writes' => $execute ? ['tag_group'] : [],
         ];
     }
 
     /**
-     * @return array{candidates: int, attempted: int, synced: int, failed: int}
+     * @return array{candidates: int, attempted: int, synced: int, failed: int, offset: int, offset_mode: string, next_offset: int, batch_wrapped: bool, source_truncated: bool}
      */
-    private function syncLegacyGroups(CarbonImmutable $now, int $hours, int $limit): array
-    {
+    private function syncLegacyGroups(
+        CarbonImmutable $now,
+        int $hours,
+        int $limit,
+        int|string|null $offset,
+    ): array {
         $hours = max(1, min(168, $hours));
         $limit = max(1, min(200, $limit));
         $response = Http::timeout(30)
@@ -108,28 +137,36 @@ class GroupReportsPreview
         }
 
         $payload = $response->json();
-        $rows = is_array($payload) && is_array($payload['result'] ?? null) ? $payload['result'] : [];
+
+        if (
+            ! is_array($payload)
+            || ! array_key_exists('result', $payload)
+            || ! is_array($payload['result'])
+            || ! array_is_list($payload['result'])
+        ) {
+            throw new \RuntimeException('tag.analysis.tw group sync returned malformed result');
+        }
+
+        $rows = $payload['result'];
+
+        if (count($rows) > self::REMOTE_SOURCE_LIMIT) {
+            throw new \RuntimeException('tag.analysis.tw group sync source limit exceeded');
+        }
+
         $candidates = collect($rows)
-            ->filter(function (mixed $row): bool {
-                return is_array($row)
-                    && trim((string) ($row['tag'] ?? '')) !== ''
-                    && trim((string) ($row['group'] ?? '')) !== '';
-            })
+            ->map(fn (mixed $row): array => $this->validatedRemoteRow($row))
             ->values();
-        $attemptedRows = $candidates->take($limit);
+        [$effectiveOffset, $offsetMode] = $this->effectiveOffset($offset, $candidates->count(), $limit, $now);
+        [$attemptedRows, $wrapped] = $this->wrappedBatch($candidates, $effectiveOffset, $limit);
         $synced = 0;
         $failed = 0;
         $generatedAt = $now->format('Y-m-d H:i:s');
 
         foreach ($attemptedRows as $row) {
-            $tag = trim((string) ($row['tag'] ?? ''));
-            $group = trim((string) ($row['group'] ?? ''));
-
-            $latestTime = max(
-                $this->dateTime($row['ctime'] ?? null, $generatedAt),
-                $this->dateTime($row['mtime'] ?? null, $generatedAt),
-            );
-            $delFlag = (string) ($row['del_flag'] ?? '0');
+            $tag = $row['tag'];
+            $group = $row['group'];
+            $latestTime = max($row['ctime'], $row['mtime'] ?? $row['ctime']);
+            $delFlag = $row['del_flag'];
             try {
                 DB::transaction(function () use ($tag, $group, $latestTime, $delFlag, $generatedAt): void {
                     $existing = DB::table('tag_group')
@@ -170,13 +207,116 @@ class GroupReportsPreview
             'attempted' => $attemptedRows->count(),
             'synced' => $synced,
             'failed' => $failed,
+            'offset' => $effectiveOffset,
+            'offset_mode' => $offsetMode,
+            'next_offset' => $candidates->isNotEmpty()
+                ? ($effectiveOffset + $attemptedRows->count()) % $candidates->count()
+                : 0,
+            'batch_wrapped' => $wrapped,
+            'source_truncated' => $candidates->count() > $attemptedRows->count(),
         ];
     }
 
-    private function dateTime(mixed $value, string $fallback): string
+    /** @return array{tag: string, group: string, ctime: string, mtime: string|null, del_flag: string} */
+    private function validatedRemoteRow(mixed $row): array
     {
-        return is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $value)
-            ? $value
-            : $fallback;
+        $required = ['tag', 'group', 'ctime', 'mtime', 'del_flag'];
+
+        if (! is_array($row)) {
+            throw new \RuntimeException('tag.analysis.tw group sync returned malformed row');
+        }
+
+        foreach ($required as $key) {
+            if (! array_key_exists($key, $row)) {
+                throw new \RuntimeException('tag.analysis.tw group sync returned malformed row');
+            }
+        }
+
+        $tag = is_string($row['tag']) ? trim($row['tag']) : '';
+        $group = is_string($row['group']) ? trim($row['group']) : '';
+        $ctime = $this->dateTime($row['ctime']);
+        $mtime = $row['mtime'] === null ? null : $this->dateTime($row['mtime']);
+        $delFlag = $this->delFlag($row['del_flag']);
+
+        if (
+            $tag === ''
+            || mb_strlen($tag, 'UTF-8') > 64
+            || $group === ''
+            || mb_strlen($group, 'UTF-8') > 64
+            || $ctime === null
+            || ($row['mtime'] !== null && $mtime === null)
+            || $delFlag === null
+        ) {
+            throw new \RuntimeException('tag.analysis.tw group sync returned malformed row');
+        }
+
+        return [
+            'tag' => $tag,
+            'group' => $group,
+            'ctime' => $ctime,
+            'mtime' => $mtime,
+            'del_flag' => $delFlag,
+        ];
+    }
+
+    private function delFlag(mixed $value): ?string
+    {
+        if ($value === null || $value === 0 || $value === '0') {
+            return '0';
+        }
+
+        if ($value === 1 || $value === '1') {
+            return '1';
+        }
+
+        return null;
+    }
+
+    private function dateTime(mixed $value): ?string
+    {
+        if (! is_string($value) || ! preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $value)) {
+            return null;
+        }
+
+        try {
+            $parsed = CarbonImmutable::createFromFormat('Y-m-d H:i:s', $value);
+        } catch (Throwable) {
+            return null;
+        }
+
+        return $parsed !== false && $parsed->format('Y-m-d H:i:s') === $value ? $value : null;
+    }
+
+    /** @return array{0: int, 1: string} */
+    private function effectiveOffset(
+        int|string|null $offset,
+        int $total,
+        int $limit,
+        CarbonImmutable $now,
+    ): array {
+        if ($total < 1) {
+            return [0, 'explicit'];
+        }
+
+        if (is_string($offset) && strtolower(trim($offset)) === 'auto') {
+            return [(intdiv($now->getTimestamp(), 3600) * $limit) % $total, 'auto'];
+        }
+
+        return [max(0, (int) $offset) % $total, 'explicit'];
+    }
+
+    /** @return array{0: Collection<int, array<string, mixed>>, 1: bool} */
+    private function wrappedBatch(Collection $rows, int $offset, int $limit): array
+    {
+        $selected = $rows->slice($offset, $limit)->values();
+        $wanted = min($limit, $rows->count());
+        $wrapped = false;
+
+        if ($selected->count() < $wanted && $offset > 0) {
+            $wrapped = true;
+            $selected = $selected->concat($rows->take($wanted - $selected->count()))->values();
+        }
+
+        return [$selected, $wrapped];
     }
 }

@@ -6,7 +6,6 @@ use App\Support\SensitiveTextRedactor;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Cache;
 use Throwable;
 
 class IngestionSchedulerRunner
@@ -43,6 +42,7 @@ class IngestionSchedulerRunner
         $startedAt = CarbonImmutable::now($timezone);
         $startedNs = hrtime(true);
         $this->telemetry->reset();
+        $this->quotaContext->resetDirectGuardOutcomes();
         $jobs = $jobKey === null
             ? $this->registry->jobs()
             : collect($this->registry->find($jobKey) ? [$this->registry->find($jobKey)] : []);
@@ -175,9 +175,10 @@ class IngestionSchedulerRunner
         $lock = null;
         $lockAcquired = false;
         $quotaPreflight = null;
+        $directGuardOutcomes = [];
 
         try {
-            $lock = Cache::lock($lockName, $lockSeconds);
+            $lock = IngestionLockStore::lock($lockName, $lockSeconds);
             $lockAcquired = $lock->get();
 
             if (! $lockAcquired) {
@@ -230,6 +231,7 @@ class IngestionSchedulerRunner
                     $callCommand,
                 )
                 : $callCommand();
+            $directGuardOutcomes = $this->quotaContext->takeDirectGuardOutcomes();
             $output = trim(Artisan::output());
             $finishedAt = CarbonImmutable::now($timezone);
             $jobTelemetry = $this->telemetry->finishJob((string) $base['key']);
@@ -256,8 +258,12 @@ class IngestionSchedulerRunner
                 'telemetry' => $jobTelemetry,
             ]));
 
-            return $this->settleQuota($result, $quotaPreflight);
+            return $this->settleQuota($result, $quotaPreflight, $directGuardOutcomes);
         } catch (Throwable $exception) {
+            $directGuardOutcomes = [
+                ...$directGuardOutcomes,
+                ...$this->quotaContext->takeDirectGuardOutcomes(),
+            ];
             $finishedAt = isset($timezone)
                 ? CarbonImmutable::now($timezone)
                 : CarbonImmutable::now((string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei')));
@@ -281,7 +287,7 @@ class IngestionSchedulerRunner
                 'telemetry' => $jobTelemetry,
             ]));
 
-            return $this->settleQuota($result, $quotaPreflight);
+            return $this->settleQuota($result, $quotaPreflight, $directGuardOutcomes);
         } finally {
             if ($lockAcquired && $lock !== null) {
                 try {
@@ -396,29 +402,72 @@ class IngestionSchedulerRunner
      * @param  array<string, mixed>|null  $preflight
      * @return array<string, mixed>
      */
-    private function settleQuota(array $result, ?array $preflight): array
+    private function settleQuota(array $result, ?array $preflight, array $directGuardOutcomes = []): array
     {
-        if (! (bool) ($preflight['reservation_active'] ?? false)) {
+        $reservationActive = (bool) ($preflight['reservation_active'] ?? false);
+        $actualUnits = max(0, (int) data_get($result, 'youtube_quota_estimate.estimated_units', 0));
+        $directOutcome = $directGuardOutcomes[array_key_last($directGuardOutcomes)] ?? null;
+        $directAccountingFailed = is_array($directOutcome)
+            && (bool) data_get($directOutcome, 'state.accounting_failed', false);
+
+        if (! $reservationActive && is_array($directOutcome) && ($actualUnits === 0 || $directAccountingFailed)) {
+            $quotaState = is_array($directOutcome['state'] ?? null) ? $directOutcome['state'] : [];
+
+            if ($quotaState !== []) {
+                $this->youtubeQuotaBudget = ['enabled' => true] + $quotaState;
+            }
+
+            $reason = is_string($directOutcome['reason'] ?? null) ? $directOutcome['reason'] : null;
+
+            if ($quotaState !== [] && $reason !== null) {
+                $this->youtubeQuotaBudget['reason'] = $reason;
+            }
+
+            $result['youtube_quota_budget'] = array_merge($preflight ?? [], $quotaState, [
+                'direct_job_key' => is_string($directOutcome['job_key'] ?? null) ? $directOutcome['job_key'] : null,
+                'accounting_owner' => is_string($directOutcome['accounting_owner'] ?? null) ? $directOutcome['accounting_owner'] : null,
+                'allowed' => (bool) ($directOutcome['allowed'] ?? false),
+                'reason' => $reason,
+                'reservation_active' => (bool) ($quotaState['reservation_active'] ?? false),
+                'actual_units' => $actualUnits,
+            ]);
+
+            if ((bool) ($quotaState['accounting_failed'] ?? false)) {
+                $result['action'] = 'executed:quota-accounting-failed';
+                $result['failed'] = true;
+                $result['quota_accounting_failed'] = true;
+            }
+
+            return $result;
+        }
+
+        if (! $reservationActive && $actualUnits === 0) {
             return $result;
         }
 
         $plannedUnits = max(0, (int) ($preflight['planned_units'] ?? 0));
-        $actualUnits = max(0, (int) data_get($result, 'youtube_quota_estimate.estimated_units', 0));
         $budget = max(0, (int) ($preflight['budget_units'] ?? config('ingestion.youtube_daily_quota_budget', 9000)));
-        $settled = $this->quotaLedger->settle(
-            plannedUnits: $plannedUnits,
-            actualUnits: $actualUnits,
-            budget: $budget,
-            at: $this->quotaAt,
-        );
-        $this->youtubeQuotaBudget = ['enabled' => true] + $settled;
-        $result['youtube_quota_budget'] = array_merge($preflight, $settled, [
+        $quotaState = $reservationActive
+            ? $this->quotaLedger->settle(
+                plannedUnits: $plannedUnits,
+                actualUnits: $actualUnits,
+                budget: $budget,
+                at: $this->quotaAt,
+            )
+            : $this->quotaLedger->state($budget, $this->quotaAt);
+        $this->youtubeQuotaBudget = ['enabled' => true] + $quotaState;
+        $accounting = [
             'reservation_active' => false,
             'actual_units' => $actualUnits,
-            'settlement' => $settled,
-        ]);
+        ];
 
-        if (! (bool) ($settled['available'] ?? false)) {
+        if ($reservationActive) {
+            $accounting['settlement'] = $quotaState;
+        }
+
+        $result['youtube_quota_budget'] = array_merge($preflight ?? [], $quotaState, $accounting);
+
+        if (! (bool) ($quotaState['available'] ?? false)) {
             $result['action'] = 'executed:quota-accounting-failed';
             $result['failed'] = true;
             $result['quota_accounting_failed'] = true;

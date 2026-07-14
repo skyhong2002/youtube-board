@@ -29,7 +29,9 @@ class VideoDetailReport
                 ->where('videoId', $videoId)
                 ->orderBy('themonth')
                 ->get();
-            $comment = DB::table('urt_comment')->where('videoId', $videoId)->first();
+            $comment = CommentPublicationScope::complete(DB::table('urt_comment'))
+                ->where('urt_comment.videoId', $videoId)
+                ->first();
 
             $live = $this->liveSeries($liveLogs, $limit);
             $history = $this->videoHistory($videoLogs, $limit);

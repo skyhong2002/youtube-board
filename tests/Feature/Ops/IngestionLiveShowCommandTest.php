@@ -266,6 +266,62 @@ class IngestionLiveShowCommandTest extends TestCase
         $this->assertSame(1, DB::table('urt_show_video_live')->count());
     }
 
+    public function test_reports_live_build_execute_reports_missing_video_metadata_without_blocking_complete_rows(): void
+    {
+        $this->createTables();
+        $now = now('Asia/Taipei');
+
+        $videoPk = DB::table('urt_video')->insertGetId([
+            'u_id' => 20,
+            'publishedAt' => $now->copy()->subHour()->format('Y-m-d H:i:s'),
+            'channelId' => 'UC-complete',
+            'channelTitle' => 'Complete Channel',
+            'title' => 'Complete live row',
+            'thumbnails' => 'https://example.test/complete.jpg',
+            'videoId' => 'complete-live-cache',
+            'description' => 'complete',
+        ]);
+        $completeLivePk = DB::table('urt_video_live')->insertGetId([
+            'ctime' => $now->copy()->subMinutes(10)->format('Y-m-d H:i:s'),
+            'videoId' => 'complete-live-cache',
+            'u_id' => 20,
+            'publishedAt' => $now->copy()->subHour()->format('Y-m-d H:i:s'),
+        ]);
+        $missingLivePk = DB::table('urt_video_live')->insertGetId([
+            'ctime' => $now->copy()->subMinutes(5)->format('Y-m-d H:i:s'),
+            'videoId' => 'missing-video-metadata',
+            'u_id' => 21,
+            'publishedAt' => $now->copy()->subHour()->format('Y-m-d H:i:s'),
+        ]);
+        Log::spy();
+
+        $exitCode = Artisan::call('reports:live:build', [
+            '--execute' => true,
+            '--limit' => 2,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['missing_video_metadata']);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame(1, $payload['cache_writes']);
+        $this->assertSame([
+            'pk_live' => $missingLivePk,
+            'video_id' => 'missing-video-metadata',
+            'reason' => 'missing_video_metadata',
+        ], $payload['skipped'][0]);
+        $this->assertSame($videoPk, (int) DB::table('urt_show_video_live')->where('pk_live', $completeLivePk)->value('v_pk'));
+        $this->assertFalse(DB::table('urt_show_video_live')->where('pk_live', $missingLivePk)->exists());
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->with('Live display cache source rows are missing video metadata.', [
+                'reason' => 'missing_video_metadata',
+                'missing_video_metadata' => 1,
+                'reported_rows' => 1,
+            ]);
+    }
+
     public function test_reports_live_build_execute_isolates_failed_rows_and_redacts_database_errors(): void
     {
         $this->createTables();

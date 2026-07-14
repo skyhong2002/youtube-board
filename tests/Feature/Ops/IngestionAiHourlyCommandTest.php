@@ -2,14 +2,19 @@
 
 namespace Tests\Feature\Ops;
 
+use App\Services\Ingestion\AiDailyPreview;
 use App\Services\Ingestion\AiHourlyIngestion;
+use App\Services\Ingestion\IngestionRunHistory;
 use App\Services\Ingestion\IngestionSchedulerRunner;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\Console\Output\BufferedOutput;
 use Tests\TestCase;
 
 class IngestionAiHourlyCommandTest extends TestCase
@@ -80,6 +85,61 @@ class IngestionAiHourlyCommandTest extends TestCase
         $this->assertSame(0, $payload['would_call_ai_requests']);
         $this->assertSame(0, $payload['would_insert_ai_hour_rows']);
         $this->assertSame([], $payload['writes']);
+    }
+
+    public function test_ai_hourly_prompt_cap_blocks_preview_execute_and_pipeline_before_ai(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDefaultFixtures();
+        config()->set('services.opencode_go.api_key', 'test-key');
+        Http::fake();
+
+        $previewExit = Artisan::call('ai:hourly', [
+            '--prompt-video-limit' => 2,
+            '--json' => true,
+        ]);
+        $preview = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(1, $previewExit);
+        $this->assertSame('blocked', $preview['status']);
+        $this->assertSame(3, $preview['video_rows']);
+        $this->assertSame(2, $preview['prompt_video_rows']);
+        $this->assertSame(2, $preview['prompt_video_limit']);
+        $this->assertSame(1, $preview['prompt_omitted_video_rows']);
+        $this->assertFalse($preview['source_complete']);
+        $this->assertTrue($preview['source_truncated']);
+        $this->assertSame('hourly_prompt_video_limit_exceeded', $preview['blocked_reason']);
+        $this->assertSame(0, $preview['would_call_ai_requests']);
+
+        $executeExit = Artisan::call('ai:hourly', [
+            '--execute' => true,
+            '--prompt-video-limit' => 2,
+            '--json' => true,
+        ]);
+        $execute = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(1, $executeExit);
+        $this->assertSame('blocked', $execute['status']);
+        $this->assertFalse($execute['ai_call_attempted']);
+        $this->assertSame('hourly_prompt_video_limit_exceeded', $execute['skip_reason']);
+        $this->assertSame([], $execute['write_targets']);
+        $this->assertSame(0, DB::table('urt_ai_hour')->count());
+
+        $pipelineOutput = new BufferedOutput;
+        $pipelineExit = Artisan::call('ai:hourly:pipeline', [
+            '--prompt-video-limit' => 2,
+            '--json' => true,
+        ], $pipelineOutput);
+        $pipelineRaw = $pipelineOutput->fetch();
+        $pipeline = json_decode(trim($pipelineRaw), true);
+
+        $this->assertSame(1, $pipelineExit);
+        $this->assertIsArray($pipeline, var_export($pipelineRaw, true));
+        $this->assertSame('blocked', $pipeline['status']);
+        $this->assertTrue($pipeline['ai']['source_truncated']);
+        $this->assertSame('hourly_prompt_video_limit_exceeded', $pipeline['ai']['blocked_reason']);
+        Http::assertNothingSent();
     }
 
     public function test_ai_hourly_preview_supports_backfill_evaluation_time(): void
@@ -699,6 +759,119 @@ SQL);
         Http::assertSentCount(1);
     }
 
+    public function test_recorded_scheduler_pipeline_restores_parent_telemetry_after_nested_youtube_refresh(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
+        Storage::fake('local');
+        $this->createTables();
+        $this->createScheduledPipelineSourceTables();
+        $this->seedScheduledPipelineChannels();
+        config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.local_polling_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['ai.hourly']);
+        config()->set('ingestion.youtube_daily_quota_budget', 9000);
+        config()->set('services.youtube.api_key', 'test-youtube-key');
+        config()->set('services.youtube.api_keys', null);
+        config()->set('services.youtube.transient_retries', 0);
+        config()->set('services.opencode_go.api_key', 'test-ai-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        config()->set('services.opencode_go.fallback_api_key', null);
+        $youtubeRequests = 0;
+
+        Http::fake(function (Request $request) use (&$youtubeRequests) {
+            if (str_starts_with($request->url(), 'https://www.googleapis.com/youtube/v3/playlistItems')) {
+                $youtubeRequests++;
+                $videoId = 'pipeline-video-'.$youtubeRequests;
+
+                return Http::response([
+                    'items' => [[
+                        'id' => 'pipeline-item-'.$youtubeRequests,
+                        'snippet' => [
+                            'publishedAt' => '2026-05-25T01:30:00Z',
+                            'channelId' => 'UC-pipeline-'.$youtubeRequests,
+                            'title' => 'Pipeline Video '.$youtubeRequests,
+                            'description' => '',
+                            'thumbnails' => ['default' => ['url' => 'https://img.test/'.$videoId.'.jpg']],
+                            'channelTitle' => 'Pipeline Channel '.$youtubeRequests,
+                            'playlistId' => 'UU-pipeline-'.$youtubeRequests,
+                            'position' => 0,
+                            'resourceId' => ['videoId' => $videoId],
+                            'liveBroadcastContent' => 'none',
+                        ],
+                    ]],
+                ]);
+            }
+
+            if ($request->url() === 'https://opencode.test/v1/chat/completions') {
+                return Http::response([
+                    'choices' => [['message' => ['content' => '[{"事件":"排程小時事件","描述":"排程摘要","videoId":["pipeline-video-1","pipeline-video-2"]}]']]],
+                    'usage' => ['prompt_tokens' => 30, 'completion_tokens' => 8, 'total_tokens' => 38],
+                ]);
+            }
+
+            return Http::response(['error' => ['message' => 'unexpected test request']], 500);
+        });
+        Http::preventStrayRequests();
+
+        $exitCode = Artisan::call('ingestion:run', [
+            '--execute' => true,
+            '--record' => true,
+            '--at' => '2026-05-25 10:10:00',
+            '--job' => 'ai.hourly',
+        ]);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(39, $youtubeRequests);
+        $this->assertDatabaseCount('urt_ai_hour', 1);
+        $this->assertDatabaseCount('ingestion_runs', 1);
+        $this->assertDatabaseHas('ingestion_run_jobs', [
+            'job_key' => 'ai.hourly',
+            'succeeded' => 1,
+            'failed' => 0,
+        ]);
+
+        $stored = json_decode((string) DB::table('ingestion_runs')->value('payload_json'), true, 512, JSON_THROW_ON_ERROR);
+        $job = $stored['result']['jobs'][0];
+
+        $this->assertSame('ai.hourly', $job['key']);
+        $this->assertStringStartsWith('ai:hourly:pipeline --execute', $job['effective_command']);
+        $this->assertCount(39, $job['telemetry']['youtube_requests']);
+        $this->assertSame(
+            ['ai.hourly', 'youtube.channels.videos.general'],
+            $job['telemetry']['youtube_requests'][0]['job_path'],
+        );
+        $this->assertSame(1, $job['telemetry']['summary']['ai_requests']);
+        $this->assertSame('ai.hourly', $job['telemetry']['ai_requests'][0]['job_key']);
+        $this->assertSame('primary', $job['telemetry']['ai_requests'][0]['provider']);
+        $this->assertSame(39, $job['estimated_youtube_quota_units']);
+        $this->assertSame(39, $job['youtube_quota_estimate']['estimated_units']);
+        $this->assertSame(0, $job['youtube_quota_budget']['planned_units']);
+        $this->assertSame(39, $stored['result']['youtube_quota_estimate']['estimated_units']);
+        $this->assertSame(39, $stored['result']['telemetry']['youtube_requests']);
+        $this->assertSame(1, $stored['result']['telemetry']['ai_requests']);
+        $this->assertDatabaseHas('ingestion_youtube_quota_daily', [
+            'consumed_units' => 39,
+            'reserved_units' => 0,
+        ]);
+
+        $history = app(IngestionRunHistory::class);
+        $usage = $history->aiProviderUsageDailyEstimate(
+            CarbonImmutable::parse('2026-05-25 10:11:00', 'Asia/Taipei'),
+        );
+        $quota = $history->youtubeQuotaDailyEstimate(
+            CarbonImmutable::parse('2026-05-24 19:11:00', 'America/Los_Angeles'),
+        );
+
+        $this->assertSame(1, $usage['record_count']);
+        $this->assertSame(1, $usage['successful_calls']);
+        $this->assertSame(1, $usage['providers']['primary']['successful_calls']);
+        $this->assertSame(38, $usage['total_tokens']);
+        $this->assertSame(1, $quota['record_count']);
+        $this->assertSame(39, $quota['estimated_units']);
+        Http::assertSentCount(40);
+    }
+
     private function useDirectHourlyScheduledCommand(): void
     {
         config()->set('ingestion.jobs', collect(config('ingestion.jobs', []))
@@ -709,6 +882,61 @@ SQL);
 
                 return $job;
             })
+            ->all());
+    }
+
+    private function createScheduledPipelineSourceTables(): void
+    {
+        foreach (['urt_video_live', 'urt_video_schedule', 'urt_channel'] as $table) {
+            Schema::dropIfExists($table);
+        }
+
+        Schema::create('urt_channel', function ($table): void {
+            $table->integer('u_id')->primary();
+            $table->dateTime('ctime')->nullable();
+            $table->dateTime('mtime')->nullable();
+            $table->dateTime('vtime')->nullable();
+            $table->integer('flag_del')->nullable();
+            $table->string('youtube_id')->nullable();
+            $table->string('title')->nullable();
+            $table->string('uploads')->nullable();
+            $table->integer('videoCount')->nullable();
+        });
+
+        Schema::create('urt_video_schedule', function ($table): void {
+            $table->increments('pk');
+            $table->dateTime('ctime')->nullable();
+            $table->string('videoId');
+            $table->dateTime('publishedAt')->nullable();
+        });
+
+        Schema::create('urt_video_live', function ($table): void {
+            $table->increments('pk');
+            $table->dateTime('ctime')->nullable();
+            $table->string('videoId');
+            $table->dateTime('publishedAt')->nullable();
+            $table->integer('u_id');
+        });
+    }
+
+    private function seedScheduledPipelineChannels(): void
+    {
+        $channels = collect(AiDailyPreview::channelAiUids());
+
+        DB::table('urt_channel')->insert($channels
+            ->values()
+            ->map(fn (int $uId, int $index): array => [
+                'u_id' => $uId,
+                'ctime' => '2026-05-20 00:00:00',
+                'flag_del' => null,
+                'youtube_id' => 'UC-pipeline-'.($index + 1),
+                'title' => 'Pipeline Channel '.($index + 1),
+                'uploads' => 'UU-pipeline-'.($index + 1),
+                'videoCount' => 100,
+            ])
+            ->all());
+        DB::table('urt_count')->insert($channels
+            ->map(fn (int $uId): array => ['u_id' => $uId, 'tags' => '[102]'])
             ->all());
     }
 

@@ -4,6 +4,7 @@ namespace App\Services\Ingestion;
 
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -57,10 +58,12 @@ class ChannelStatisticsPreview
             'missing_log_channels' => $this->missingLogChannels(),
             'eligible_rows' => $eligibleRows,
             'selected_rows' => $channelRows->count(),
-            'missing_youtube_id' => $channelRows
+            'missing_youtube_id' => $this->missingYoutubeIdChannels(),
+            'selected_missing_youtube_id' => $channelRows
                 ->filter(fn (object $row): bool => trim((string) ($row->youtube_id ?? '')) === '')
                 ->count(),
-            'would_call_api' => $channelRows->isNotEmpty(),
+            'would_call_api' => $channelRows
+                ->contains(fn (object $row): bool => trim((string) ($row->youtube_id ?? '')) !== ''),
             'would_set_stime' => $channelRows->isNotEmpty() ? $reserveTime : null,
             'would_update_month' => $now->format('Y-m-01'),
             'would_update_date' => $now->toDateString(),
@@ -80,7 +83,7 @@ class ChannelStatisticsPreview
     }
 
     /**
-     * @return array{0: string, 1: \Illuminate\Database\Query\Builder}
+     * @return array{0: string, 1: Builder}
      */
     private function candidateQuery(?int $uId, CarbonImmutable $expireTime, bool $isNullSweepHour): array
     {
@@ -96,17 +99,15 @@ class ChannelStatisticsPreview
             ];
         }
 
+        $base->whereRaw("TRIM(COALESCE(youtube_id, '')) <> ''");
+
         return [
             $isNullSweepHour ? 'missing_log_or_stale_or_unchecked_at_23' : 'missing_log_or_stale_or_unchecked',
             $base
                 ->where(function ($query) use ($expireTime): void {
-                    $this->applyMissingLogCondition($query);
                     $query
-                        ->orWhere(function ($staleQuery) use ($expireTime): void {
-                            $staleQuery
-                                ->where('stime', '<=', $expireTime->format('Y-m-d H:i:s'))
-                                ->orWhereNull('stime');
-                        });
+                        ->where('stime', '<=', $expireTime->format('Y-m-d H:i:s'))
+                        ->orWhereNull('stime');
                 })
                 ->when(Schema::hasTable('urt_log'), function ($query): void {
                     $query->orderByRaw($this->missingLogSortExpression());
@@ -186,23 +187,14 @@ class ChannelStatisticsPreview
             ->count();
     }
 
-    /**
-     * @param \Illuminate\Database\Query\Builder $query
-     */
-    private function applyMissingLogCondition($query): void
+    private function missingYoutubeIdChannels(): int
     {
-        if (! Schema::hasTable('urt_log')) {
-            $query->whereRaw('1 = 1');
-
-            return;
-        }
-
-        $query->whereNotExists(function ($subQuery): void {
-            $subQuery
-                ->selectRaw('1')
-                ->from('urt_log')
-                ->whereColumn('urt_log.u_id', 'urt_channel.u_id');
-        });
+        return Schema::hasTable('urt_channel')
+            ? DB::table('urt_channel')
+                ->whereNull('flag_del')
+                ->whereRaw("TRIM(COALESCE(youtube_id, '')) = ''")
+                ->count()
+            : 0;
     }
 
     private function missingLogSortExpression(): string

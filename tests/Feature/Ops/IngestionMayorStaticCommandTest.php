@@ -87,6 +87,27 @@ class IngestionMayorStaticCommandTest extends TestCase
         $this->assertSame('/mayor/cities/taichung?days=30', $payload['rows'][0]['modern_url']);
     }
 
+    public function test_reports_mayor_static_supports_wrapped_cursor_pagination(): void
+    {
+        $this->createTagDateCacheTable();
+        $this->writeLegacyShell();
+
+        $exitCode = Artisan::call('reports:mayor:static', [
+            '--limit' => 3,
+            '--offset' => 21,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(22, $payload['targets']);
+        $this->assertSame(21, $payload['offset']);
+        $this->assertSame(2, $payload['next_offset']);
+        $this->assertTrue($payload['batch_wrapped']);
+        $this->assertTrue($payload['source_truncated']);
+        $this->assertSame(['lienchiang', 'taipei', 'newtaipei'], array_column($payload['rows'], 'city'));
+    }
+
     public function test_ingestion_scheduler_can_execute_ingestion_mayor_preview_when_due(): void
     {
         $this->writeLegacyShell();

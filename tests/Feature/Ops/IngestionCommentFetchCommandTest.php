@@ -330,7 +330,7 @@ class IngestionCommentFetchCommandTest extends TestCase
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
         config()->set('services.youtube.api_key', 'test-key');
         config()->set('services.youtube.retry_delay_ms', 0);
-        $this->createTables();
+        $this->createTables(withAuthors: true);
         DB::table('urt_comment_queue')->insert($this->queueRow(1, 'paged-comments', '2026-05-25 10:00:00'));
         DB::table('urt_video')->insert($this->videoRow(10, 'paged-comments', 'Paged Comments'));
         $requestedTokens = [];
@@ -378,9 +378,12 @@ class IngestionCommentFetchCommandTest extends TestCase
         $this->assertSame(0, $firstExit);
         $this->assertSame(1, $first['continuation_rows']);
         $this->assertSame(0, $first['moved_to_done_rows']);
+        $this->assertSame('staged', $first['applied'][0]['publication_status']);
         $this->assertSame(1, DB::table('urt_comment_queue')->count());
         $this->assertNull(DB::table('urt_comment_queue')->value('stime'));
         $this->assertSame('NEXT-PAGE', DB::table('urt_comment')->where('videoId', 'paged-comments')->value('pageToken'));
+        $this->assertSame(0, DB::table('urt_comment_author')->count());
+        $this->assertSame(0, DB::table('urt_comment_rev')->count());
 
         $secondExit = Artisan::call('youtube:comments:fetch', $arguments);
         $second = json_decode(trim(Artisan::output()), true);
@@ -391,12 +394,216 @@ class IngestionCommentFetchCommandTest extends TestCase
         $this->assertSame(['', 'NEXT-PAGE'], $requestedTokens);
         $this->assertSame(0, $second['continuation_rows']);
         $this->assertSame(1, $second['moved_to_done_rows']);
+        $this->assertSame('published', $second['applied'][0]['publication_status']);
         $this->assertSame(0, DB::table('urt_comment_queue')->count());
         $this->assertSame(1, DB::table('urt_comment_queue_done')->count());
         $this->assertSame('', (string) $comment->pageToken);
         $this->assertSame(2, (int) $comment->comments_count);
         $this->assertSame(['thread-first', 'thread-second'], array_keys($comments));
+        $this->assertSame(2, DB::table('urt_comment_author')->count());
+        $this->assertSame(2, DB::table('urt_comment_rev')->count());
         Http::assertSentCount(2);
+    }
+
+    public function test_youtube_comments_fetch_rejects_malformed_staged_json_and_continues_with_later_videos(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+        DB::table('urt_comment_queue')->insert([
+            $this->queueRow(1, 'bad-staged-comments', '2026-05-25 10:00:00'),
+            $this->queueRow(2, 'bad-staged-authors', '2026-05-25 10:01:00'),
+            $this->queueRow(3, 'valid-later-video', '2026-05-25 10:02:00'),
+        ]);
+        DB::table('urt_video')->insert([
+            $this->videoRow(10, 'bad-staged-comments', 'Bad Staged Comments'),
+            $this->videoRow(11, 'bad-staged-authors', 'Bad Staged Authors'),
+            $this->videoRow(12, 'valid-later-video', 'Valid Later Video'),
+        ]);
+        DB::table('urt_comment')->insert([
+            [
+                ...$this->commentRow('bad-staged-comments', '2026-05-25 08:00:00', 1, 1),
+                'pageToken' => 'COMMENTS-NEXT',
+                'comments_json' => '{malformed',
+                'authors_json' => '{}',
+            ],
+            [
+                ...$this->commentRow('bad-staged-authors', '2026-05-25 08:00:00', 1, 1),
+                'pageToken' => 'AUTHORS-NEXT',
+                'comments_json' => '{}',
+                'authors_json' => '"malformed-map"',
+            ],
+        ]);
+        Http::fake(['www.googleapis.com/youtube/v3/commentThreads*' => Http::response(['items' => []])]);
+
+        $exitCode = Artisan::call('youtube:comments:fetch', [
+            '--execute' => true,
+            '--limit' => 3,
+            '--max-pages' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(2, $payload['failed_rows']);
+        $this->assertSame(1, $payload['moved_to_done_rows']);
+        $this->assertStringContainsString('malformed_staged_comments_json', $payload['failed'][0]['error']);
+        $this->assertStringContainsString('malformed_staged_authors_json', $payload['failed'][1]['error']);
+        $this->assertTrue($payload['failed'][0]['claim_released']);
+        $this->assertTrue($payload['failed'][1]['claim_released']);
+        $this->assertSame(1, DB::table('urt_comment_queue')->where('videoId', 'bad-staged-comments')->count());
+        $this->assertSame(1, DB::table('urt_comment_queue')->where('videoId', 'bad-staged-authors')->count());
+        $this->assertNull(DB::table('urt_comment_queue')->where('videoId', 'bad-staged-comments')->value('stime'));
+        $this->assertNull(DB::table('urt_comment_queue')->where('videoId', 'bad-staged-authors')->value('stime'));
+        $this->assertSame('{malformed', DB::table('urt_comment')->where('videoId', 'bad-staged-comments')->value('comments_json'));
+        $this->assertSame('"malformed-map"', DB::table('urt_comment')->where('videoId', 'bad-staged-authors')->value('authors_json'));
+        $this->assertSame(0, DB::table('urt_comment_queue_done')->whereIn('videoId', [
+            'bad-staged-comments',
+            'bad-staged-authors',
+        ])->count());
+        $this->assertSame(1, DB::table('urt_comment_queue_done')->where('videoId', 'valid-later-video')->count());
+        Http::assertSentCount(1);
+    }
+
+    public function test_youtube_comments_fetch_preserves_malformed_author_revision_and_keeps_queue_pending(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables(withAuthors: true);
+        DB::table('urt_comment_queue')->insert($this->queueRow(1, 'invalid-author-revision', '2026-05-25 10:00:00'));
+        DB::table('urt_video')->insert($this->videoRow(10, 'invalid-author-revision', 'Invalid Author Revision'));
+        DB::table('urt_comment_author')->insert([
+            'author_id' => 1,
+            'ctime' => '2026-05-24 00:00:00',
+            'ChannelId' => 'author-existing',
+            'DisplayName' => 'Existing Author',
+        ]);
+        DB::table('urt_comment_rev')->insert([
+            'author_id' => 1,
+            'ctime' => '2026-05-24 00:00:00',
+            'videos' => 3,
+            'index_json' => '{malformed-json',
+        ]);
+        Http::fake([
+            'www.googleapis.com/youtube/v3/commentThreads*' => Http::response([
+                'items' => [[
+                    'id' => 'thread-invalid-revision',
+                    'snippet' => [
+                        'topLevelComment' => [
+                            'snippet' => $this->commentSnippet(
+                                'author-existing',
+                                'Existing Author',
+                                '2026-05-25T10:00:00Z',
+                            ),
+                        ],
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('youtube:comments:fetch', [
+            '--execute' => true,
+            '--limit' => 1,
+            '--max-pages' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertTrue($payload['failed'][0]['claim_released']);
+        $this->assertSame(1, DB::table('urt_comment_queue')->where('videoId', 'invalid-author-revision')->count());
+        $this->assertNull(DB::table('urt_comment_queue')->where('videoId', 'invalid-author-revision')->value('stime'));
+        $this->assertSame(0, DB::table('urt_comment_queue_done')->count());
+        $this->assertSame(0, DB::table('urt_comment')->count());
+        $this->assertSame(3, DB::table('urt_comment_rev')->where('author_id', 1)->value('videos'));
+        $this->assertSame('{malformed-json', DB::table('urt_comment_rev')->where('author_id', 1)->value('index_json'));
+    }
+
+    public function test_youtube_comments_fetch_rejects_malformed_api_items_without_partially_completing_videos(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+        DB::table('urt_comment_queue')->insert([
+            $this->queueRow(1, 'bad-thread', '2026-05-25 10:00:00'),
+            $this->queueRow(2, 'bad-embedded-reply', '2026-05-25 10:01:00'),
+            $this->queueRow(3, 'bad-paged-reply', '2026-05-25 10:02:00'),
+            $this->queueRow(4, 'valid-after-malformed', '2026-05-25 10:03:00'),
+        ]);
+        DB::table('urt_video')->insert([
+            $this->videoRow(10, 'bad-thread', 'Bad Thread'),
+            $this->videoRow(11, 'bad-embedded-reply', 'Bad Embedded Reply'),
+            $this->videoRow(12, 'bad-paged-reply', 'Bad Paged Reply'),
+            $this->videoRow(13, 'valid-after-malformed', 'Valid After Malformed'),
+        ]);
+        Http::fake(function ($request) {
+            if (str_contains($request->url(), '/comments')) {
+                return Http::response(['items' => [['id' => 'reply-without-snippet']]]);
+            }
+
+            return match ((string) $request['videoId']) {
+                'bad-thread' => Http::response([
+                    'items' => [[
+                        'snippet' => [
+                            'topLevelComment' => [
+                                'snippet' => $this->commentSnippet('author-thread', 'Bad Thread', '2026-05-25T10:00:00Z'),
+                            ],
+                        ],
+                    ]],
+                ]),
+                'bad-embedded-reply' => Http::response([
+                    'items' => [[
+                        'id' => 'thread-embedded',
+                        'snippet' => [
+                            'topLevelComment' => [
+                                'snippet' => $this->commentSnippet('author-top', 'Top', '2026-05-25T10:00:00Z'),
+                            ],
+                        ],
+                        'replies' => ['comments' => [['id' => 'reply-without-snippet']]],
+                    ]],
+                ]),
+                'bad-paged-reply' => Http::response([
+                    'items' => [[
+                        'id' => 'thread-paged',
+                        'snippet' => [
+                            'totalReplyCount' => 1,
+                            'topLevelComment' => [
+                                'id' => 'thread-paged',
+                                'snippet' => $this->commentSnippet('author-top', 'Top', '2026-05-25T10:00:00Z'),
+                            ],
+                        ],
+                    ]],
+                ]),
+                default => Http::response(['items' => []]),
+            };
+        });
+
+        $exitCode = Artisan::call('youtube:comments:fetch', [
+            '--execute' => true,
+            '--limit' => 4,
+            '--max-pages' => 1,
+            '--max-reply-pages' => 2,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(3, $payload['failed_rows']);
+        $this->assertSame(1, $payload['moved_to_done_rows']);
+        $this->assertStringContainsString('malformed_comment_thread_item', $payload['failed'][0]['error']);
+        $this->assertStringContainsString('malformed_embedded_reply_item', $payload['failed'][1]['error']);
+        $this->assertStringContainsString('malformed_reply_item', $payload['failed'][2]['error']);
+
+        foreach (['bad-thread', 'bad-embedded-reply', 'bad-paged-reply'] as $videoId) {
+            $this->assertSame(1, DB::table('urt_comment_queue')->where('videoId', $videoId)->count());
+            $this->assertNull(DB::table('urt_comment_queue')->where('videoId', $videoId)->value('stime'));
+            $this->assertSame(0, DB::table('urt_comment_queue_done')->where('videoId', $videoId)->count());
+            $this->assertSame(0, DB::table('urt_comment')->where('videoId', $videoId)->count());
+        }
+
+        $this->assertSame(1, DB::table('urt_comment_queue_done')->where('videoId', 'valid-after-malformed')->count());
+        Http::assertSentCount(5);
     }
 
     public function test_youtube_comments_fetch_paginates_full_reply_list_before_completion(): void

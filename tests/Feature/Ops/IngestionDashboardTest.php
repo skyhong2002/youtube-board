@@ -473,7 +473,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('ai.hourly');
         $response->assertSee('ai:hourly');
-        $response->assertSee('explicit <code>--execute</code> calls OpenCode-compatible chat completions and upserts <code>urt_ai_hour</code>', false);
+        $response->assertSee('explicit <code>--execute</code> calls OpenAI-compatible chat completions and upserts <code>urt_ai_hour</code>', false);
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=ai.hourly');
         $response->assertSee('Scheduled Local Polling');
@@ -488,7 +488,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('ai.daily');
         $response->assertSee('ai:daily');
-        $response->assertSee('explicit <code>--execute</code> calls OpenCode-compatible chat completions and upserts <code>urt_channel_ai</code> / <code>urt_ai_date</code>', false);
+        $response->assertSee('explicit <code>--execute</code> calls OpenAI-compatible chat completions and upserts <code>urt_channel_ai</code> / <code>urt_ai_date</code>', false);
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=ai.daily');
         $response->assertSee('Scheduled Local Polling');
@@ -578,9 +578,9 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=youtube.tvbs.videos');
         $response->assertSee('Scheduled Local Polling');
-        $response->assertSee('youtube:tvbs:videos --execute --limit=1 --max-results=1');
-        $response->assertSee('manual/scheduled <code>--execute --id/--channel --limit --max-results</code>', false);
-        $response->assertSee('Scheduler 在 scheduled-write gates 允許時使用 capped scheduled execute command；關閉時不執行 capped command');
+        $response->assertSee('youtube:tvbs:videos --execute --limit=1 --max-results=1 --offset=auto');
+        $response->assertSee('manual/scheduled <code>--execute --id/--channel --limit --max-results --offset</code>', false);
+        $response->assertSee('Scheduler 使用 <code>--offset=auto</code> 每五分鐘輪轉 capped batch；缺 uploads playlist 會隔離為失敗且不會永久阻塞後續頻道。', false);
     }
 
     public function test_ingestion_job_detail_allows_live_build_ingestion_preview(): void
@@ -712,7 +712,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('reports:keywords:build');
         $response->assertSee('scheduled/local <code>--execute</code> upserts local <code>tags</code> rows', false);
         $response->assertSee('due now');
-        $response->assertSee('reports:keywords:build --execute --hours=2 --limit=100');
+        $response->assertSee('reports:keywords:build --execute --hours=2 --limit=100 --offset=auto');
         $response->assertSee('Runtime env 已明確啟用全部 scheduled polling');
         $response->assertSee('tag.analysis.tw/api/tag_json.php');
     }
@@ -726,7 +726,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('reports:groups:build');
         $response->assertSee('scheduled/local <code>--execute</code> upserts local <code>tag_group</code> rows', false);
         $response->assertSee('due now');
-        $response->assertSee('reports:groups:build --execute --hours=22 --limit=100');
+        $response->assertSee('reports:groups:build --execute --hours=22 --limit=100 --offset=auto');
         $response->assertSee('Runtime env 已明確啟用全部 scheduled polling');
         $response->assertSee('external group API');
     }

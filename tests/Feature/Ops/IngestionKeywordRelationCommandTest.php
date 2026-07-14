@@ -127,30 +127,107 @@ class IngestionKeywordRelationCommandTest extends TestCase
         )->twice();
     }
 
-    public function test_keyword_and_video_limits_bound_source_processing(): void
+    public function test_keyword_and_video_cap_hits_block_incomplete_sources(): void
     {
         $this->setTestTime();
         $this->createTables();
         $this->seedSources();
 
-        $exitCode = Artisan::call('reports:keyword-relations:build', [
+        $keywordExit = Artisan::call('reports:keyword-relations:build', [
             '--from' => '2026-05-21',
             '--to' => '2026-05-22',
             '--keywords' => '少子化,托育',
             '--keyword-limit' => 1,
+            '--json' => true,
+        ]);
+        $keywordPayload = json_decode(trim(Artisan::output()), true);
+
+        $videoExit = Artisan::call('reports:keyword-relations:build', [
+            '--from' => '2026-05-21',
+            '--to' => '2026-05-22',
+            '--keywords' => '少子化',
+            '--keyword-limit' => 10,
             '--video-limit' => 1,
             '--json' => true,
         ]);
+        $videoPayload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(1, $keywordExit);
+        $this->assertSame('keyword_list_limit_exceeded', $keywordPayload['blocked_reason']);
+        $this->assertTrue($keywordPayload['source_truncated']);
+        $this->assertSame(0, $keywordPayload['writes']);
+        $this->assertSame(1, $videoExit);
+        $this->assertSame('video_scan_limit_exceeded', $videoPayload['blocked_reason']);
+        $this->assertSame(['少子化'], $videoPayload['selected_keywords']);
+        $this->assertSame(1, $videoPayload['videos_scanned']);
+        $this->assertTrue($videoPayload['source_truncated']);
+        $this->assertSame(0, $videoPayload['rows_planned']);
+        $this->assertSame(0, DB::table('urt_show_video_tag_date')->count());
+    }
+
+    public function test_video_cap_hit_preserves_existing_keyword_relation_cache(): void
+    {
+        $this->setTestTime();
+        $this->createTables();
+        $this->seedSources();
+        $base = [
+            '--from' => '2026-05-21',
+            '--to' => '2026-05-22',
+            '--keywords' => '少子化',
+            '--keyword-limit' => 10,
+            '--execute' => true,
+            '--json' => true,
+        ];
+
+        $this->assertSame(0, Artisan::call('reports:keyword-relations:build', $base + ['--video-limit' => 10]));
+        $before = DB::table('urt_show_video_tag_date')->orderBy('pk')->pluck('videos_json', 'pk')->all();
+        $exitCode = Artisan::call('reports:keyword-relations:build', $base + ['--video-limit' => 1]);
         $payload = json_decode(trim(Artisan::output()), true);
 
-        $this->assertSame(0, $exitCode);
-        $this->assertSame(1, $payload['keyword_limit']);
-        $this->assertSame(1, $payload['video_limit']);
-        $this->assertSame(['少子化'], $payload['selected_keywords']);
-        $this->assertSame(1, $payload['keywords_scanned']);
-        $this->assertSame(1, $payload['videos_scanned']);
-        $this->assertSame(2, $payload['rows_planned']);
-        $this->assertSame(0, DB::table('urt_show_video_tag_date')->count());
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('video_scan_limit_exceeded', $payload['blocked_reason']);
+        $this->assertSame(0, $payload['writes']);
+        $this->assertSame($before, DB::table('urt_show_video_tag_date')->orderBy('pk')->pluck('videos_json', 'pk')->all());
+    }
+
+    public function test_malformed_video_row_fails_closed_and_preserves_existing_cache(): void
+    {
+        $this->setTestTime();
+        $this->createTables();
+        $this->seedSources();
+        $arguments = [
+            '--from' => '2026-05-21',
+            '--to' => '2026-05-22',
+            '--keywords' => '少子化',
+            '--keyword-limit' => 10,
+            '--video-limit' => 10,
+            '--execute' => true,
+            '--json' => true,
+        ];
+
+        $this->assertSame(0, Artisan::call('reports:keyword-relations:build', $arguments));
+        $before = DB::table('urt_show_video_tag_date')->orderBy('pk')->get()->map(fn (object $row): array => (array) $row)->all();
+        DB::table('urt_video')->insert([
+            'videoId' => '',
+            'u_id' => 10,
+            'publishedAt' => '2026-05-21 12:00:00',
+            'title' => '少子化資料不完整',
+            'description' => '',
+        ]);
+
+        $exitCode = Artisan::call('reports:keyword-relations:build', $arguments);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('invalid_video_rows', $payload['blocked_reason']);
+        $this->assertFalse($payload['source_complete']);
+        $this->assertFalse($payload['source_truncated']);
+        $this->assertSame(1, $payload['failed_video_rows']);
+        $this->assertSame(4, $payload['videos_scanned']);
+        $this->assertSame(0, $payload['rows_planned']);
+        $this->assertSame(0, $payload['writes']);
+        $after = DB::table('urt_show_video_tag_date')->orderBy('pk')->get()->map(fn (object $row): array => (array) $row)->all();
+        $this->assertSame($before, $after);
     }
 
     public function test_execute_requires_explicit_dates_and_reports_missing_schema_safely(): void

@@ -57,11 +57,36 @@ class ChannelVideosDiscoveryIngestion
             $rowUId = (int) ($row['u_id'] ?? 0);
 
             if ($rowUId < 1 || $uploads === '') {
+                try {
+                    if ($rowUId > 0) {
+                        $this->updateExisting('urt_channel', 'u_id', $rowUId, [
+                            'vtime' => $now->addHour()->format('Y-m-d H:i:s'),
+                        ]);
+                    }
+                } catch (Throwable $exception) {
+                    $skipped[] = [
+                        'u_id' => $rowUId,
+                        'uploads' => $uploads,
+                        'reason' => 'item_processing_failed',
+                    ];
+                    Log::warning('Channel video discovery item processing failed.', [
+                        'u_id' => $rowUId,
+                        'reason' => 'item_processing_failed',
+                        'exception_class' => $exception::class,
+                    ]);
+
+                    continue;
+                }
+
                 $skipped[] = [
                     'u_id' => $rowUId,
                     'uploads' => $uploads,
                     'reason' => 'missing_uploads_playlist',
                 ];
+                Log::warning('Channel video discovery channel is missing its uploads playlist.', [
+                    'u_id' => $rowUId,
+                    'reason' => 'missing_uploads_playlist',
+                ]);
 
                 continue;
             }
@@ -151,6 +176,9 @@ class ChannelVideosDiscoveryIngestion
         }
 
         $failedChannels = collect($skipped)->filter(
+            fn (array $row): bool => in_array($row['reason'] ?? null, ['missing_uploads_playlist', 'playlist_api_error', 'item_processing_failed', 'quota_window_reset'], true),
+        )->count();
+        $apiRequestedFailures = collect($skipped)->filter(
             fn (array $row): bool => in_array($row['reason'] ?? null, ['playlist_api_error', 'item_processing_failed', 'quota_window_reset'], true),
         )->count();
 
@@ -159,7 +187,7 @@ class ChannelVideosDiscoveryIngestion
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'source' => $preview['source'] ?? null,
             'selected_rows' => (int) ($preview['selected_rows'] ?? 0),
-            'api_requested_channels' => count($applied) + $failedChannels,
+            'api_requested_channels' => count($applied) + $apiRequestedFailures,
             'api_max_results_per_channel' => $maxResults,
             'updated_channels' => count($applied),
             'skipped_channels' => count($skipped),
@@ -356,13 +384,7 @@ class ChannelVideosDiscoveryIngestion
             return;
         }
 
-        $insert = $keys + $values;
-
-        if (Schema::hasColumn($table, 'pk') && ! array_key_exists('pk', $insert)) {
-            $insert['pk'] = ((int) DB::table($table)->max('pk')) + 1;
-        }
-
-        DB::table($table)->insert($insert);
+        DB::table($table)->insert($keys + $values);
     }
 
     /**

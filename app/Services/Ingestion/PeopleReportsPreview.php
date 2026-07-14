@@ -30,6 +30,7 @@ class PeopleReportsPreview
         ?CarbonInterface $now = null,
         bool $execute = false,
         int $keywordLimit = 5000,
+        int|string|null $offset = 0,
     ): array {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
         $now = $now === null
@@ -48,11 +49,25 @@ class PeopleReportsPreview
 
         $candidates = (clone $base)->count();
         $latestTime = (clone $base)->max('latest_time');
-        $rows = (clone $base)
+        [$effectiveOffset, $offsetMode] = $this->effectiveOffset($offset, $candidates, $limit, $now, 3600);
+        $selected = (clone $base)
             ->orderByDesc('latest_time')
             ->orderBy('tag')
+            ->offset($effectiveOffset)
             ->limit($limit)
-            ->get(['tag', 'latest_time'])
+            ->get(['tag', 'latest_time']);
+        $wrapped = false;
+
+        if ($selected->count() < min($limit, $candidates) && $effectiveOffset > 0) {
+            $wrapped = true;
+            $selected = $selected->concat((clone $base)
+                ->orderByDesc('latest_time')
+                ->orderBy('tag')
+                ->limit(min($limit, $candidates) - $selected->count())
+                ->get(['tag', 'latest_time']));
+        }
+
+        $rows = $selected
             ->map(fn (object $row): array => [
                 'tag' => (string) $row->tag,
                 'latest_time' => (string) $row->latest_time,
@@ -103,6 +118,11 @@ class PeopleReportsPreview
             'days' => $days,
             'candidates' => $candidates,
             'latest_time' => $latestTime !== null ? (string) $latestTime : null,
+            'offset' => $effectiveOffset,
+            'offset_mode' => $offsetMode,
+            'next_offset' => $candidates > 0 ? ($effectiveOffset + count($rows)) % $candidates : 0,
+            'batch_wrapped' => $wrapped,
+            'source_truncated' => $candidates > count($rows),
             'rows' => $rows,
             'cache_writes' => $cacheWrites,
             'cache_jobs' => $cacheJobs,
@@ -112,5 +132,24 @@ class PeopleReportsPreview
             'cache_generation_skipped' => 'legacy api/tag_period.php calls are intentionally not executed in planning mode',
             'writes' => $execute ? ['urt_show_tag_date'] : [],
         ];
+    }
+
+    /** @return array{0: int, 1: string} */
+    private function effectiveOffset(
+        int|string|null $offset,
+        int $total,
+        int $limit,
+        CarbonImmutable $now,
+        int $slotSeconds,
+    ): array {
+        if ($total < 1) {
+            return [0, 'explicit'];
+        }
+
+        if (is_string($offset) && strtolower(trim($offset)) === 'auto') {
+            return [(intdiv($now->getTimestamp(), $slotSeconds) * $limit) % $total, 'auto'];
+        }
+
+        return [max(0, (int) $offset) % $total, 'explicit'];
     }
 }

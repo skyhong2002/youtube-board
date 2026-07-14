@@ -24,7 +24,7 @@ Implementation details and parity notes live in:
 ## Tech Stack
 
 - Laravel 13
-- PHP 8.3
+- PHP 8.4 in the Docker runtime (application constraint: PHP 8.3 or newer)
 - MariaDB/MySQL
 - Vite
 - Tailwind CSS
@@ -44,6 +44,14 @@ app, worker, and scheduler start. A fresh checkout does not require a `.env`,
 `vendor/`, `node_modules/`, or a legacy source snapshot. The committed Compose
 defaults are local-development values only; create `.env` from `.env.example`
 when you need credentials for optional API-backed ingestion.
+
+The Compose scheduler is registered by default so a fresh checkout exercises
+the real Laravel schedule. Its local and Production polling gates remain false
+and its scheduled-write allowlist remains `off`. The default minute loop runs
+`ingestion:run --execute --record`, recording only bounded, sanitized diagnostic
+run history while every ingestion job resolves to a preview. It makes no external
+API calls or ingestion/API target writes; enabling those writes still requires
+explicit local env values and a reviewed exact allowlist.
 
 Inspect bootstrap status:
 
@@ -127,6 +135,10 @@ Artifacts containing reviewed `DROP TABLE IF EXISTS` statements additionally
 require `--replace-existing`; see
 [docs/legacy-inventory/db-dumps.md](docs/legacy-inventory/db-dumps.md) before
 using that destructive local reset option.
+
+The default `DatabaseSeeder` intentionally writes no shared users or dashboard
+fixtures. Use the reviewed local import command or capped ingestion commands for
+real dashboard data instead of adding reusable sample credentials.
 
 ## Data Capture
 

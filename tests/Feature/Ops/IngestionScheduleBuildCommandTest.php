@@ -270,6 +270,60 @@ SQL);
             });
     }
 
+    public function test_reports_schedule_build_bounds_history_scan_and_rotates_selected_rows(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        for ($index = 1; $index <= 3; $index++) {
+            $videoId = 'bounded-schedule-'.$index;
+            DB::table('urt_video_schedule')->insert([
+                'ctime' => '2026-05-25 09:00:00',
+                'mtime' => sprintf('2026-05-25 11:0%d:00', $index - 1),
+                'stime' => null,
+                'videoId' => $videoId,
+                'publishedAt' => '2026-05-25 10:00:00',
+                'viewCount' => 1500,
+            ]);
+            DB::table('urt_video_log_history')->insert([
+                'ctime' => '2026-05-25 12:00:00',
+                'videoId' => $videoId,
+                'viewCount' => 1500,
+                'likeCount' => 0,
+                'dislikeCount' => 0,
+                'favoriteCount' => 0,
+                'commentCount' => 0,
+            ]);
+        }
+
+        $firstExit = Artisan::call('reports:schedule:build', [
+            '--execute' => true,
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $first = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $firstExit);
+        $this->assertSame(3, $first['candidates']);
+        $this->assertSame(1, $first['selected_candidates']);
+        $this->assertTrue($first['source_truncated']);
+        $this->assertSame(1, $first['history_rows_scanned']);
+        $this->assertSame('bounded-schedule-1', $first['rows'][0]['video_id']);
+        $this->assertSame('2026-05-25 12:00:00', DB::table('urt_video_schedule')->where('videoId', 'bounded-schedule-1')->value('mtime'));
+
+        $secondExit = Artisan::call('reports:schedule:build', [
+            '--execute' => true,
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $second = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $secondExit);
+        $this->assertSame('bounded-schedule-2', $second['rows'][0]['video_id']);
+        $this->assertSame('2026-05-25 12:00:00', DB::table('urt_video_schedule')->where('videoId', 'bounded-schedule-2')->value('mtime'));
+        $this->assertSame('2026-05-25 11:02:00', DB::table('urt_video_schedule')->where('videoId', 'bounded-schedule-3')->value('mtime'));
+    }
+
     public function test_ingestion_scheduler_can_execute_ingestion_schedule_preview_when_due(): void
     {
         $this->createTables();

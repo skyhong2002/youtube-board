@@ -13,6 +13,28 @@ use Tests\TestCase;
 
 class IngestionAiDaysRefreshCommandTest extends TestCase
 {
+    public function test_ai_days_refresh_blocks_ranges_over_31_days_before_planning_children(): void
+    {
+        Http::fake();
+
+        $exitCode = Artisan::call('ai:days:refresh', [
+            '--from' => '2026-06-01',
+            '--to' => '2026-07-02',
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('blocked', $payload['status']);
+        $this->assertSame('date_range_exceeds_31_days', $payload['blocked_reason']);
+        $this->assertSame(31, $payload['date_range_limit']);
+        $this->assertSame(0, $payload['date_count']);
+        $this->assertSame([], $payload['dates']);
+        $this->assertSame([], $payload['jobs']);
+        $this->assertSame([], $payload['write_targets']);
+        Http::assertNothingSent();
+    }
+
     public function test_ai_days_refresh_preview_plans_daily_event_and_period_without_writes(): void
     {
         $this->createTables();
@@ -87,6 +109,36 @@ class IngestionAiDaysRefreshCommandTest extends TestCase
         $response->assertJsonPath('meta.history_available', true);
         $this->assertSame(['黃仁勳參加COMPUTEX'], $response->json('result.match.2026-06-02'));
         Http::assertSentCount(9);
+    }
+
+    public function test_ai_days_refresh_returns_nonzero_when_event_guard_leaves_missing_rows(): void
+    {
+        $this->createTables();
+        $this->seedChannelAiRows();
+        Http::fake();
+
+        $exitCode = Artisan::call('ai:days:refresh', [
+            '--execute' => true,
+            '--from' => '2026-06-02',
+            '--to' => '2026-06-02',
+            '--skip-daily' => true,
+            '--skip-period' => true,
+            '--event-ai-call-limit' => 0,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+        $verify = collect($payload['jobs'])->firstWhere('type', 'event-verify');
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('partial_failure', $payload['status']);
+        $this->assertGreaterThan(0, $payload['failed_rows']);
+        $this->assertGreaterThan(0, $payload['summary']['event_missing_after']);
+        $this->assertSame(0, $payload['ai_call_guard']['event_used']);
+        $this->assertSame('failed', $verify['action']);
+        $this->assertSame('event_rows_incomplete_after_refresh', $verify['result']['blocked_reason']);
+        $this->assertSame($payload['summary']['event_missing_after'], $verify['result']['failed_rows']);
+        $this->assertSame(0, DB::table('urt_ai_event')->count());
+        Http::assertNothingSent();
     }
 
     public function test_ai_days_refresh_isolates_child_job_failure_and_continues_next_date(): void

@@ -18,19 +18,6 @@ class YoutubeQuotaEstimator
         $error = (string) ($job['error'] ?? '');
         $text = trim($output.' '.$error);
         $counters = $this->counters($text);
-
-        if (! $this->isYoutubeDataApiJob($key)) {
-            return $this->estimate(0, 'not a YouTube Data API job', null);
-        }
-
-        if (! (bool) ($job['executed'] ?? false) && ! (bool) ($job['failed'] ?? false)) {
-            return $this->estimate(0, 'job did not execute', $this->methodForJob($key));
-        }
-
-        if (str_contains($text, 'YOUTUBE_API_KEY is not configured')) {
-            return $this->estimate(0, 'no YouTube API request attempted because API key is missing', $this->methodForJob($key));
-        }
-
         $telemetryRequests = data_get($job, 'telemetry.youtube_requests');
         $telemetryUnits = collect(is_array($telemetryRequests) ? $telemetryRequests : [])
             ->filter(fn (mixed $request): bool => is_array($request))
@@ -42,6 +29,18 @@ class YoutubeQuotaEstimator
                 'exact request-attempt estimate from sanitized YouTube telemetry',
                 $this->methodForJob($key),
             );
+        }
+
+        if (! $this->isYoutubeDataApiJob($key)) {
+            return $this->estimate(0, 'not a YouTube Data API job', null);
+        }
+
+        if (! (bool) ($job['executed'] ?? false) && ! (bool) ($job['failed'] ?? false)) {
+            return $this->estimate(0, 'job did not execute', $this->methodForJob($key));
+        }
+
+        if (str_contains($text, 'YOUTUBE_API_KEY is not configured')) {
+            return $this->estimate(0, 'no YouTube API request attempted because API key is missing', $this->methodForJob($key));
         }
 
         if ((bool) ($job['failed'] ?? false) && $counters === [] && $this->looksLikeQuotaOrApiFailure($text)) {

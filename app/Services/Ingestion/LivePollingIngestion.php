@@ -177,8 +177,11 @@ class LivePollingIngestion
             ]));
             $data = [];
         } else {
-            $decoded = json_decode((string) ($row->log_json ?? ''), true);
-            $data = is_array($decoded) ? $decoded : [];
+            $data = json_decode((string) ($row->log_json ?? ''), true, 512, JSON_THROW_ON_ERROR);
+
+            if (! is_array($data)) {
+                throw new RuntimeException('Existing live polling history JSON is not an object or array.');
+            }
         }
 
         $data[$minute] = $concurrentViewers;
@@ -230,7 +233,11 @@ class LivePollingIngestion
         bool $quotaWindowReset = false,
         int $remainingRetryRows = 0,
     ): array {
-        $failedVideos = collect($skipped)->whereIn('reason', ['item_processing_failed', 'quota_window_reset'])->count();
+        $failedVideos = collect($skipped)->whereIn('reason', [
+            'api_item_missing',
+            'item_processing_failed',
+            'quota_window_reset',
+        ])->count();
 
         return [
             'mode' => 'local-execute',

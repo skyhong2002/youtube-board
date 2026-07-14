@@ -58,6 +58,16 @@ class ProductionDeploymentContractTest extends TestCase
         $this->assertStringContainsString('storage/app/private/dump-imports/*', $dockerIgnore);
     }
 
+    public function test_default_seeder_never_creates_shared_sample_credentials(): void
+    {
+        $seeder = file_get_contents($this->projectRoot.'/database/seeders/DatabaseSeeder.php');
+
+        $this->assertIsString($seeder);
+        $this->assertStringNotContainsString('User::factory', $seeder);
+        $this->assertStringNotContainsString('test@example.com', $seeder);
+        $this->assertStringContainsString('reviewed local imports or ingestion commands', $seeder);
+    }
+
     public function test_quota_ledger_migration_is_adoption_safe_and_explicitly_innodb(): void
     {
         $migration = file_get_contents(
@@ -114,6 +124,74 @@ class ProductionDeploymentContractTest extends TestCase
         $this->assertStringContainsString("env('INGESTION_LOCAL_POLLING_ENABLED', false)", $config);
         $this->assertStringContainsString("env('INGESTION_PRODUCTION_POLLING_ENABLED', false)", $config);
         $this->assertStringContainsString("env('INGESTION_SCHEDULED_WRITE_ALLOWLIST', 'off')", $config);
+        $this->assertStringContainsString("env('APP_ENV') === 'production' ? 'database' : null", $config);
+    }
+
+    public function test_production_ingestion_locks_use_shared_database_store(): void
+    {
+        $template = file_get_contents($this->projectRoot.'/deploy/dokploy-env.example');
+        $migration = file_get_contents($this->projectRoot.'/database/migrations/0001_01_01_000001_create_cache_table.php');
+        $lockStore = file_get_contents($this->projectRoot.'/app/Services/Ingestion/IngestionLockStore.php');
+
+        $this->assertIsString($template);
+        $this->assertIsString($migration);
+        $this->assertIsString($lockStore);
+        $this->assertStringContainsString('INGESTION_LOCK_STORE=database', $template);
+        $this->assertStringContainsString("Schema::create('cache_locks'", $migration);
+        $this->assertStringContainsString('Cache::store($store)->lock($name, $seconds)', $lockStore);
+    }
+
+    public function test_ai_provider_defaults_match_env_templates_without_credentials(): void
+    {
+        $config = file_get_contents($this->projectRoot.'/config/services.php');
+        $localTemplate = file_get_contents($this->projectRoot.'/.env.example');
+        $productionTemplate = file_get_contents($this->projectRoot.'/deploy/dokploy-env.example');
+
+        $this->assertIsString($config);
+        $this->assertIsString($localTemplate);
+        $this->assertIsString($productionTemplate);
+
+        $this->assertStringContainsString("env('OPENAI_BASE_URL', 'https://api.openai.com/v1')", $config);
+        $this->assertStringContainsString("env('OPENAI_MODEL', 'gpt-5.4-mini')", $config);
+        $this->assertStringContainsString("env('OPENAI_ENDPOINT_STYLE', 'chat')", $config);
+        $this->assertStringContainsString("env('OPENAI_FALLBACK_BASE_URL', 'https://opencode.ai/zen/go/v1')", $config);
+        $this->assertStringContainsString("env('OPENAI_FALLBACK_MODEL', 'qwen3.6-plus')", $config);
+        $this->assertStringContainsString("env('OPENAI_FALLBACK_ENDPOINT_STYLE', 'auto')", $config);
+
+        foreach ([$localTemplate, $productionTemplate] as $template) {
+            $this->assertStringContainsString('OPENAI_BASE_URL=https://api.openai.com/v1', $template);
+            $this->assertStringContainsString('OPENAI_MODEL=gpt-5.4-mini', $template);
+            $this->assertStringContainsString('OPENAI_ENDPOINT_STYLE=chat', $template);
+            $this->assertStringContainsString('OPENAI_FALLBACK_BASE_URL=https://opencode.ai/zen/go/v1', $template);
+            $this->assertStringContainsString('OPENAI_FALLBACK_MODEL=qwen3.6-plus', $template);
+            $this->assertStringContainsString('OPENAI_FALLBACK_ENDPOINT_STYLE=auto', $template);
+            $this->assertMatchesRegularExpression('/^OPENAI_API_KEY=\h*$/m', $template);
+            $this->assertMatchesRegularExpression('/^OPENAI_FALLBACK_API_KEY=\h*$/m', $template);
+        }
+    }
+
+    public function test_local_compose_registers_scheduler_while_scheduled_writes_remain_fail_closed(): void
+    {
+        $compose = file_get_contents($this->projectRoot.'/docker-compose.yml');
+        $consoleRoutes = file_get_contents($this->projectRoot.'/routes/console.php');
+
+        $this->assertIsString($compose);
+        $this->assertIsString($consoleRoutes);
+        $this->assertStringContainsString(
+            'INGESTION_SCHEDULER_ENABLED: "${INGESTION_SCHEDULER_ENABLED:-true}"',
+            $compose,
+        );
+        $this->assertStringContainsString(
+            'INGESTION_LOCAL_POLLING_ENABLED: "${INGESTION_LOCAL_POLLING_ENABLED:-false}"',
+            $compose,
+        );
+        $this->assertStringContainsString('INGESTION_PRODUCTION_POLLING_ENABLED: "false"', $compose);
+        $this->assertStringContainsString(
+            'INGESTION_SCHEDULED_WRITE_ALLOWLIST: "${INGESTION_SCHEDULED_WRITE_ALLOWLIST:-off}"',
+            $compose,
+        );
+        $this->assertStringContainsString("Schedule::command('ingestion:run --execute --record')", $consoleRoutes);
+        $this->assertStringContainsString('->everyMinute()', $consoleRoutes);
     }
 
     public function test_production_template_keeps_secure_sessions_and_documented_fallback_timeout(): void

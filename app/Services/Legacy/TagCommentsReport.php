@@ -90,8 +90,8 @@ class TagCommentsReport
             return [];
         }
 
-        $comments = DB::table('urt_comment')
-            ->whereIn('u_id', $channelIds)
+        $comments = CommentPublicationScope::complete(DB::table('urt_comment'))
+            ->whereIn('urt_comment.u_id', $channelIds)
             ->orderByDesc('ctime')
             ->limit($filters['limit'])
             ->get();
@@ -145,8 +145,8 @@ class TagCommentsReport
         }
 
         $videoIds = collect($rows)->pluck('video_id')->filter()->unique()->values()->all();
-        $comments = DB::table('urt_comment')
-            ->whereIn('videoId', $videoIds)
+        $comments = CommentPublicationScope::complete(DB::table('urt_comment'))
+            ->whereIn('urt_comment.videoId', $videoIds)
             ->get();
         $authors = [];
 

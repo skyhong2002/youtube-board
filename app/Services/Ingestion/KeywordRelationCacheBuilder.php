@@ -32,6 +32,11 @@ class KeywordRelationCacheBuilder
         $keywordLimit = max(1, min(5000, $keywordLimit));
         $videoLimit = max(1, min(10000, $videoLimit));
         $range = $this->range($from, $to, $now);
+        $onlyKeywords = ReportCacheBuildGuardrails::keywords($onlyKeywords);
+
+        if (count($onlyKeywords) > $keywordLimit) {
+            return $this->logged($this->emptyPayload($now, $execute, $range, $keywordLimit, $videoLimit, 'keyword_list_limit_exceeded', sourceTruncated: true));
+        }
 
         if ($range['blocked_reason'] !== null) {
             return $this->logged($this->emptyPayload($now, $execute, $range, $keywordLimit, $videoLimit, $range['blocked_reason']));
@@ -103,16 +108,40 @@ class KeywordRelationCacheBuilder
         bool $execute,
     ): array {
         try {
-            [$keywords, $subjects] = $this->keywords($onlyKeywords, $keywordLimit);
+            $keywordSelection = $this->keywords($onlyKeywords, $keywordLimit);
+
+            if ($keywordSelection['truncated']) {
+                return $this->emptyPayload($now, $execute, $range, $keywordLimit, $videoLimit, 'keyword_scan_limit_exceeded', available: true, sourceTruncated: true, keywordsScanned: $keywordSelection['scanned']);
+            }
+
+            $keywords = $keywordSelection['keywords'];
+            $subjects = $keywordSelection['subjects'];
             $videos = DB::table('urt_video')
                 ->select(['videoId', 'u_id', 'publishedAt', 'title', 'description'])
                 ->whereBetween('publishedAt', [$range['from'].' 00:00:00', $range['to'].' 23:59:59'])
                 ->orderByDesc('publishedAt')
                 ->orderBy('videoId')
-                ->limit($videoLimit)
+                ->limit($videoLimit + 1)
                 ->get();
         } catch (Throwable) {
             return $this->emptyPayload($now, $execute, $range, $keywordLimit, $videoLimit, 'source_query_failed');
+        }
+
+        if ($videos->count() > $videoLimit) {
+            return $this->emptyPayload(
+                now: $now,
+                execute: $execute,
+                range: $range,
+                keywordLimit: $keywordLimit,
+                videoLimit: $videoLimit,
+                reason: 'video_scan_limit_exceeded',
+                available: true,
+                sourceTruncated: true,
+                keywordsScanned: count($keywords),
+                keywordsSelected: count($subjects),
+                selectedKeywords: $subjects,
+                videosScanned: $videoLimit,
+            );
         }
 
         $preparedByDate = [];
@@ -137,6 +166,23 @@ class KeywordRelationCacheBuilder
             } catch (Throwable) {
                 $failedVideoRows++;
             }
+        }
+
+        if ($failedVideoRows > 0) {
+            return $this->emptyPayload(
+                now: $now,
+                execute: $execute,
+                range: $range,
+                keywordLimit: $keywordLimit,
+                videoLimit: $videoLimit,
+                reason: 'invalid_video_rows',
+                available: true,
+                keywordsScanned: count($keywords),
+                keywordsSelected: count($subjects),
+                selectedKeywords: $subjects,
+                videosScanned: $videos->count(),
+                failedVideoRows: $failedVideoRows,
+            );
         }
 
         $rows = [];
@@ -217,6 +263,8 @@ class KeywordRelationCacheBuilder
             'mode' => $execute ? 'execute' : 'ingestion-preview',
             'available' => true,
             'blocked_reason' => null,
+            'source_complete' => true,
+            'source_truncated' => false,
             'generated_at' => $generatedAt,
             'from' => $range['from'],
             'to' => $range['to'],
@@ -249,7 +297,7 @@ class KeywordRelationCacheBuilder
 
     /**
      * @param  list<string>  $onlyKeywords
-     * @return array{0: list<string>, 1: list<string>}
+     * @return array{keywords: list<string>, subjects: list<string>, scanned: int, truncated: bool}
      */
     private function keywords(array $onlyKeywords, int $limit): array
     {
@@ -257,7 +305,6 @@ class KeywordRelationCacheBuilder
             ->map(fn (mixed $keyword): string => trim((string) $keyword))
             ->filter(fn (string $keyword): bool => $this->eligibleKeyword($keyword))
             ->unique()
-            ->take($limit)
             ->values()
             ->all();
 
@@ -275,9 +322,12 @@ class KeywordRelationCacheBuilder
             $query->orderBy('tag');
         }
 
-        $fromTable = $query
-            ->limit(max(1000, $limit * 2))
-            ->pluck('tag')
+        $sourceRows = $query
+            ->limit($limit + 1)
+            ->pluck('tag');
+        $truncated = $sourceRows->count() > $limit;
+        $fromTable = $sourceRows
+            ->take($limit)
             ->map(fn (mixed $keyword): string => trim((string) $keyword))
             ->filter(fn (string $keyword): bool => $this->eligibleKeyword($keyword))
             ->unique()
@@ -293,7 +343,12 @@ class KeywordRelationCacheBuilder
             $subjects = $keywords;
         }
 
-        return [$keywords, $subjects];
+        return [
+            'keywords' => $keywords,
+            'subjects' => $subjects,
+            'scanned' => min($sourceRows->count(), $limit),
+            'truncated' => $truncated,
+        ];
     }
 
     /**
@@ -501,11 +556,19 @@ class KeywordRelationCacheBuilder
         int $videoLimit,
         string $reason,
         bool $available = false,
+        bool $sourceTruncated = false,
+        int $keywordsScanned = 0,
+        int $keywordsSelected = 0,
+        array $selectedKeywords = [],
+        int $videosScanned = 0,
+        int $failedVideoRows = 0,
     ): array {
         return [
             'mode' => $execute ? 'execute' : 'ingestion-preview',
             'available' => $available,
             'blocked_reason' => $reason,
+            'source_complete' => false,
+            'source_truncated' => $sourceTruncated,
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'from' => $range['from'],
             'to' => $range['to'],
@@ -513,11 +576,11 @@ class KeywordRelationCacheBuilder
             'range_explicit' => $range['explicit'],
             'keyword_limit' => $keywordLimit,
             'video_limit' => $videoLimit,
-            'keywords_scanned' => 0,
-            'keywords_selected' => 0,
-            'selected_keywords' => [],
-            'videos_scanned' => 0,
-            'failed_video_rows' => 0,
+            'keywords_scanned' => $keywordsScanned,
+            'keywords_selected' => $keywordsSelected,
+            'selected_keywords' => $selectedKeywords,
+            'videos_scanned' => $videosScanned,
+            'failed_video_rows' => $failedVideoRows,
             'rows_planned' => 0,
             'would_insert' => 0,
             'would_update' => 0,

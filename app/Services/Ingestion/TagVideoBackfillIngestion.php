@@ -69,6 +69,7 @@ class TagVideoBackfillIngestion
                 'or' => implode(',', $orTagIds),
                 'not' => implode(',', $notTagIds),
                 'selected_channels' => count($channels),
+                'selected_channel_ids' => $this->channelIds($channels),
                 'channel_limit' => $limit,
                 'channel_selection_truncated' => $selectionTruncated,
                 'would_call_api' => count($channels) > 0,
@@ -180,10 +181,13 @@ class TagVideoBackfillIngestion
             'or' => implode(',', $orTagIds),
             'not' => implode(',', $notTagIds),
             'selected_channels' => count($channels),
+            'selected_channel_ids' => $this->channelIds($channels),
             'channel_limit' => $limit,
             'channel_selection_truncated' => $selectionTruncated,
             'updated_channels' => count($applied),
+            'completed_channel_ids' => $this->rowChannelIds($applied),
             'skipped_channels' => count($skipped),
+            'failed_channel_ids' => $this->rowChannelIds($skipped),
             'failed_channels' => count($skipped),
             'crawl_complete' => $crawlComplete,
             'exit_code' => $skipped === [] && ! $selectionTruncated && $tagDateFailedRows === 0 ? 0 : 1,
@@ -214,6 +218,30 @@ class TagVideoBackfillIngestion
             ->sort()
             ->values()
             ->all();
+    }
+
+    /**
+     * @param  list<object>  $channels
+     * @return list<int>
+     */
+    private function channelIds(array $channels): array
+    {
+        return $this->normalizedIds(array_map(
+            fn (object $channel): int => (int) ($channel->u_id ?? 0),
+            $channels,
+        ));
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     * @return list<int>
+     */
+    private function rowChannelIds(array $rows): array
+    {
+        return $this->normalizedIds(array_map(
+            fn (array $row): int => (int) ($row['u_id'] ?? 0),
+            $rows,
+        ));
     }
 
     private function dateString(?string $value, string $fallback): string
@@ -422,13 +450,7 @@ class TagVideoBackfillIngestion
             return;
         }
 
-        $insert = $keys + $values;
-
-        if (Schema::hasColumn($table, 'pk') && ! array_key_exists('pk', $insert)) {
-            $insert['pk'] = ((int) DB::table($table)->max('pk')) + 1;
-        }
-
-        DB::table($table)->insert($insert);
+        DB::table($table)->insert($keys + $values);
     }
 
     /**

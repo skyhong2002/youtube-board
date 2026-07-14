@@ -20,6 +20,7 @@ class TvbsChannelVideosDiscoveryPreview
         int $hours = 700,
         int $force = 1,
         int $limit = 20,
+        int|string|null $offset = 0,
         ?CarbonInterface $now = null,
     ): array {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
@@ -49,10 +50,21 @@ class TvbsChannelVideosDiscoveryPreview
         }
 
         $eligibleRows = (clone $query)->count();
+        [$effectiveOffset, $offsetMode] = $this->effectiveOffset($offset, $eligibleRows, $limit, $now);
         $channels = (clone $query)
+            ->offset($effectiveOffset)
             ->limit($limit)
             ->get($this->columnsFor('urt_channel'))
             ->values();
+        $batchWrapped = false;
+
+        if ($channels->count() < min($limit, $eligibleRows) && $effectiveOffset > 0) {
+            $batchWrapped = true;
+            $channels = $channels->concat((clone $query)
+                ->limit(min($limit, $eligibleRows) - $channels->count())
+                ->get($this->columnsFor('urt_channel')))
+                ->values();
+        }
         $uIds = $channels->pluck('u_id')->all();
         $videoStats = $this->videoStats($uIds, $weekStart);
         $tvbsLiveStats = $this->tvbsLiveStats($uIds);
@@ -75,6 +87,11 @@ class TvbsChannelVideosDiscoveryPreview
             'tagged_channels' => $taggedUIds->count(),
             'eligible_rows' => $eligibleRows,
             'selected_rows' => $channels->count(),
+            'offset' => $effectiveOffset,
+            'offset_mode' => $offsetMode,
+            'next_offset' => $eligibleRows > 0 ? ($effectiveOffset + $channels->count()) % $eligibleRows : 0,
+            'batch_wrapped' => $batchWrapped,
+            'source_truncated' => $eligibleRows > $channels->count(),
             'missing_uploads_playlist' => $channels
                 ->filter(fn (object $row): bool => trim((string) ($row->uploads ?? '')) === '')
                 ->count(),
@@ -92,6 +109,24 @@ class TvbsChannelVideosDiscoveryPreview
                 ->all(),
             'writes' => [],
         ];
+    }
+
+    /** @return array{0: int, 1: string} */
+    private function effectiveOffset(
+        int|string|null $offset,
+        int $total,
+        int $limit,
+        CarbonImmutable $now,
+    ): array {
+        if ($total < 1) {
+            return [0, 'explicit'];
+        }
+
+        if (is_string($offset) && strtolower(trim($offset)) === 'auto') {
+            return [(intdiv($now->getTimestamp(), 300) * $limit) % $total, 'auto'];
+        }
+
+        return [max(0, (int) $offset) % $total, 'explicit'];
     }
 
     /**

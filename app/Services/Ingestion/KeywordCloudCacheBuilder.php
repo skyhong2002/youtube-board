@@ -34,6 +34,7 @@ class KeywordCloudCacheBuilder
         int $subjectLimit = 20,
         int $keywordLimit = 5000,
         int $videoLimit = 10000,
+        int $channelLimit = 1000,
         bool $execute = false,
         ?CarbonImmutable $now = null,
     ): array {
@@ -41,6 +42,7 @@ class KeywordCloudCacheBuilder
         $subjectLimit = max(1, min(100, $subjectLimit));
         $keywordLimit = max(1, min(5000, $keywordLimit));
         $videoLimit = max(1, min(10000, $videoLimit));
+        $channelLimit = ReportCacheBuildGuardrails::bounded($channelLimit, ReportCacheBuildGuardrails::CHANNEL_SCAN_LIMIT_MAX);
         [$subjects, $invalidSubjects] = $this->subjects($subjects, $subjectLimit);
         $daysList = $this->days($daysList);
         $filters = [
@@ -48,6 +50,33 @@ class KeywordCloudCacheBuilder
             'or' => $this->normalizedIds($orTagIds),
             'not' => $this->normalizedIds($notTagIds),
         ];
+
+        $listBlockedReason = match (true) {
+            count($subjects) > $subjectLimit => 'subject_list_limit_exceeded',
+            count($subjects) > $keywordLimit => 'keyword_list_limit_exceeded',
+            count($daysList) > 10 => 'period_list_limit_exceeded',
+            count($filters['tagid']) > ReportCacheBuildGuardrails::TAG_ID_LIST_LIMIT => 'tagid_list_limit_exceeded',
+            count($filters['or']) > ReportCacheBuildGuardrails::TAG_ID_LIST_LIMIT => 'or_tag_list_limit_exceeded',
+            count($filters['not']) > ReportCacheBuildGuardrails::TAG_ID_LIST_LIMIT => 'not_tag_list_limit_exceeded',
+            default => null,
+        };
+
+        if ($listBlockedReason !== null) {
+            return $this->logged($this->emptyPayload(
+                now: $now,
+                execute: $execute,
+                subjects: $subjects,
+                invalidSubjects: $invalidSubjects,
+                daysList: $daysList,
+                filters: $filters,
+                subjectLimit: $subjectLimit,
+                keywordLimit: $keywordLimit,
+                videoLimit: $videoLimit,
+                reason: $listBlockedReason,
+                sourceTruncated: true,
+                channelLimit: $channelLimit,
+            ));
+        }
 
         if ($subjects === []) {
             return $this->logged($this->emptyPayload(
@@ -61,6 +90,7 @@ class KeywordCloudCacheBuilder
                 keywordLimit: $keywordLimit,
                 videoLimit: $videoLimit,
                 reason: 'missing_valid_keywords',
+                channelLimit: $channelLimit,
             ));
         }
 
@@ -78,6 +108,7 @@ class KeywordCloudCacheBuilder
                 keywordLimit: $keywordLimit,
                 videoLimit: $videoLimit,
                 reason: $schemaBlock,
+                channelLimit: $channelLimit,
             ));
         }
 
@@ -99,6 +130,7 @@ class KeywordCloudCacheBuilder
                     videoLimit: $videoLimit,
                     reason: 'lock_busy',
                     available: true,
+                    channelLimit: $channelLimit,
                 ));
             }
         }
@@ -113,6 +145,7 @@ class KeywordCloudCacheBuilder
                 subjectLimit: $subjectLimit,
                 keywordLimit: $keywordLimit,
                 videoLimit: $videoLimit,
+                channelLimit: $channelLimit,
                 execute: $execute,
             ));
         } finally {
@@ -161,11 +194,55 @@ class KeywordCloudCacheBuilder
         int $subjectLimit,
         int $keywordLimit,
         int $videoLimit,
+        int $channelLimit,
         bool $execute,
     ): array {
         try {
-            $keywords = $this->keywords($subjects, $keywordLimit);
-            $channelIds = $this->channelIds($filters);
+            $keywordSelection = $this->keywords($subjects, $keywordLimit);
+
+            if ($keywordSelection['truncated']) {
+                return $this->emptyPayload(
+                    now: $now,
+                    execute: $execute,
+                    subjects: $subjects,
+                    invalidSubjects: $invalidSubjects,
+                    daysList: $daysList,
+                    filters: $filters,
+                    subjectLimit: $subjectLimit,
+                    keywordLimit: $keywordLimit,
+                    videoLimit: $videoLimit,
+                    reason: 'keyword_scan_limit_exceeded',
+                    available: true,
+                    sourceTruncated: true,
+                    keywordsSelected: $keywordSelection['scanned'],
+                    channelLimit: $channelLimit,
+                );
+            }
+
+            $keywords = $keywordSelection['rows'];
+            $channelSelection = $this->channelIds($filters, $channelLimit);
+
+            if ($channelSelection['truncated']) {
+                return $this->emptyPayload(
+                    now: $now,
+                    execute: $execute,
+                    subjects: $subjects,
+                    invalidSubjects: $invalidSubjects,
+                    daysList: $daysList,
+                    filters: $filters,
+                    subjectLimit: $subjectLimit,
+                    keywordLimit: $keywordLimit,
+                    videoLimit: $videoLimit,
+                    reason: 'channel_scan_limit_exceeded',
+                    available: true,
+                    sourceTruncated: true,
+                    keywordsSelected: count($keywords),
+                    channelLimit: $channelLimit,
+                    channelsMatched: $channelSelection['scanned'],
+                );
+            }
+
+            $channelIds = $channelSelection['rows'];
         } catch (Throwable) {
             return $this->emptyPayload(
                 now: $now,
@@ -178,6 +255,7 @@ class KeywordCloudCacheBuilder
                 keywordLimit: $keywordLimit,
                 videoLimit: $videoLimit,
                 reason: 'source_query_failed',
+                channelLimit: $channelLimit,
             );
         }
 
@@ -189,11 +267,13 @@ class KeywordCloudCacheBuilder
         $updated = 0;
         $unchanged = 0;
         $failedRows = 0;
+        $blockedSubjects = 0;
 
         foreach ($subjects as $subject) {
             try {
-                $videos = $this->videos($subject, max($daysList), $channelIds, $videoLimit, $now);
-                $videosScanned += count($videos);
+                $videoSelection = $this->videos($subject, max($daysList), $channelIds, $videoLimit, $now);
+                $videos = $videoSelection['rows'];
+                $videosScanned += min(count($videos), $videoLimit);
             } catch (Throwable) {
                 foreach ($daysList as $days) {
                     $rows[] = $this->failedRow($subject, $days, 'source_query_failed');
@@ -203,9 +283,20 @@ class KeywordCloudCacheBuilder
                 continue;
             }
 
+            $subjectBlocked = false;
+
             foreach ($daysList as $days) {
                 try {
                     $periodVideos = $this->periodVideos($videos, $days, $now);
+
+                    if (count($periodVideos) > $videoLimit) {
+                        $subjectBlocked = true;
+                        $rows[] = $this->failedRow($subject, $days, 'video_scan_limit_exceeded', status: 'blocked');
+                        $failedRows++;
+
+                        continue;
+                    }
+
                     $computed = $this->metrics($subject, $periodVideos, $keywords);
                     $existing = $this->existing($subject, $days, $filters);
                     $same = $existing !== null && $this->same($existing, $computed);
@@ -240,12 +331,18 @@ class KeywordCloudCacheBuilder
                     $failedRows++;
                 }
             }
+
+            if ($subjectBlocked) {
+                $blockedSubjects++;
+            }
         }
 
         return [
             'mode' => $execute ? 'execute' : 'dry-run',
             'available' => true,
-            'blocked_reason' => null,
+            'blocked_reason' => $blockedSubjects > 0 ? 'source_incomplete' : null,
+            'source_complete' => $blockedSubjects === 0 && $failedRows === 0,
+            'source_truncated' => $blockedSubjects > 0,
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'subjects' => $subjects,
             'subjects_selected' => count($subjects),
@@ -255,6 +352,8 @@ class KeywordCloudCacheBuilder
             'filters' => $this->filterStrings($filters),
             'keyword_limit' => $keywordLimit,
             'keywords_selected' => count($keywords),
+            'channel_limit' => $channelLimit,
+            'channels_matched' => $channelIds === null ? 0 : count($channelIds),
             'video_limit_per_subject' => $videoLimit,
             'videos_scanned' => $videosScanned,
             'rows_planned' => count($subjects) * count($daysList),
@@ -264,6 +363,7 @@ class KeywordCloudCacheBuilder
             'updated' => $updated,
             'unchanged' => $unchanged,
             'failed_cache_rows' => $failedRows,
+            'blocked_subjects' => $blockedSubjects,
             'rows' => $rows,
             'writes' => $inserted + $updated,
             'write_targets' => ['urt_show_tag_cloud_tag'],
@@ -301,7 +401,7 @@ class KeywordCloudCacheBuilder
         }
 
         return [
-            collect($valid)->unique()->take($limit)->values()->all(),
+            collect($valid)->unique()->values()->all(),
             collect($invalid)->unique()->values()->all(),
         ];
     }
@@ -315,7 +415,6 @@ class KeywordCloudCacheBuilder
             ->map(fn (mixed $days): int => max(1, min(365, (int) $days)))
             ->unique()
             ->sort()
-            ->take(10)
             ->values()
             ->all();
 
@@ -338,7 +437,7 @@ class KeywordCloudCacheBuilder
 
     /**
      * @param  list<string>  $subjects
-     * @return list<string>
+     * @return array{rows: list<string>, scanned: int, truncated: bool}
      */
     private function keywords(array $subjects, int $limit): array
     {
@@ -356,15 +455,24 @@ class KeywordCloudCacheBuilder
             $query->orderBy('tag');
         }
 
-        return $query
-            ->limit($limit)
-            ->pluck('tag')
+        $sourceRows = $query
+            ->limit($limit + 1)
+            ->pluck('tag');
+        $truncated = $sourceRows->count() > $limit;
+        $rows = collect($subjects)
+            ->merge($sourceRows->take($limit))
             ->map(fn (mixed $keyword): string => trim((string) $keyword))
-            ->merge($subjects)
             ->filter(fn (string $keyword): bool => $this->eligibleKeyword($keyword))
             ->unique()
+            ->take($limit)
             ->values()
             ->all();
+
+        return [
+            'rows' => $rows,
+            'scanned' => min($sourceRows->count(), $limit),
+            'truncated' => $truncated,
+        ];
     }
 
     private function eligibleKeyword(string $keyword): bool
@@ -378,12 +486,12 @@ class KeywordCloudCacheBuilder
 
     /**
      * @param  array{tagid: list<int>, or: list<int>, not: list<int>}  $filters
-     * @return list<int>|null
+     * @return array{rows: list<int>|null, scanned: int, truncated: bool}
      */
-    private function channelIds(array $filters): ?array
+    private function channelIds(array $filters, int $limit): array
     {
         if ($filters['tagid'] === [] && $filters['or'] === [] && $filters['not'] === []) {
-            return null;
+            return ['rows' => null, 'scanned' => 0, 'truncated' => false];
         }
 
         $query = DB::table('urt_count')->select('u_id');
@@ -408,23 +516,32 @@ class KeywordCloudCacheBuilder
             });
         }
 
-        return $query
+        $ids = $query
+            ->distinct()
+            ->orderBy('u_id')
+            ->limit($limit + 1)
             ->pluck('u_id')
             ->map(fn (mixed $id): int => (int) $id)
             ->filter(fn (int $id): bool => $id > 0)
             ->unique()
             ->values()
             ->all();
+
+        return [
+            'rows' => array_slice($ids, 0, $limit),
+            'scanned' => min(count($ids), $limit),
+            'truncated' => count($ids) > $limit,
+        ];
     }
 
     /**
      * @param  list<int>|null  $channelIds
-     * @return list<object>
+     * @return array{rows: list<object>, truncated: bool}
      */
     private function videos(string $subject, int $days, ?array $channelIds, int $limit, CarbonImmutable $now): array
     {
         if ($channelIds === []) {
-            return [];
+            return ['rows' => [], 'truncated' => false];
         }
 
         $like = '%'.addcslashes($subject, '\\%_').'%';
@@ -442,12 +559,17 @@ class KeywordCloudCacheBuilder
             $query->whereIn('u_id', $channelIds);
         }
 
-        return $query
+        $rows = $query
             ->orderByDesc('publishedAt')
             ->orderBy('videoId')
-            ->limit($limit)
+            ->limit($limit + 1)
             ->get()
             ->all();
+
+        return [
+            'rows' => $rows,
+            'truncated' => count($rows) > $limit,
+        ];
     }
 
     /**
@@ -688,12 +810,12 @@ class KeywordCloudCacheBuilder
     /**
      * @return array<string, mixed>
      */
-    private function failedRow(string $subject, int $days, string $reason): array
+    private function failedRow(string $subject, int $days, string $reason, string $status = 'failed'): array
     {
         return [
             'tag' => $subject,
             'days' => $days,
-            'status' => 'failed',
+            'status' => $status,
             'reason' => $reason,
             'count_channels' => 0,
             'count_videos' => 0,
@@ -721,11 +843,17 @@ class KeywordCloudCacheBuilder
         int $videoLimit,
         string $reason,
         bool $available = false,
+        bool $sourceTruncated = false,
+        int $keywordsSelected = 0,
+        int $channelLimit = 1000,
+        int $channelsMatched = 0,
     ): array {
         return [
             'mode' => $execute ? 'execute' : 'dry-run',
             'available' => $available,
             'blocked_reason' => $reason,
+            'source_complete' => false,
+            'source_truncated' => $sourceTruncated,
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'subjects' => $subjects,
             'subjects_selected' => count($subjects),
@@ -734,7 +862,9 @@ class KeywordCloudCacheBuilder
             'days_list' => $daysList,
             'filters' => $this->filterStrings($filters),
             'keyword_limit' => $keywordLimit,
-            'keywords_selected' => 0,
+            'keywords_selected' => $keywordsSelected,
+            'channel_limit' => $channelLimit,
+            'channels_matched' => $channelsMatched,
             'video_limit_per_subject' => $videoLimit,
             'videos_scanned' => 0,
             'rows_planned' => 0,
@@ -744,6 +874,7 @@ class KeywordCloudCacheBuilder
             'updated' => 0,
             'unchanged' => 0,
             'failed_cache_rows' => 0,
+            'blocked_subjects' => 0,
             'rows' => [],
             'writes' => 0,
             'write_targets' => ['urt_show_tag_cloud_tag'],

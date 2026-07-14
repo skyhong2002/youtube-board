@@ -38,8 +38,8 @@ class AuthorCommentsReport
                 return $this->empty(true, $authorKey, $filters, $dependencies, '本機 `urt_comment_rev` 沒有這位留言者的影片 index。', $author);
             }
 
-            $commentRows = DB::table('urt_comment')
-                ->whereIn('videoId', $videoIds)
+            $commentRows = CommentPublicationScope::complete(DB::table('urt_comment'))
+                ->whereIn('urt_comment.videoId', $videoIds)
                 ->get();
 
             $analysis = $this->analyze($commentRows, $channelId, $filters['limit']);

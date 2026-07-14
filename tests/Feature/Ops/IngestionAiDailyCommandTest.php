@@ -2,13 +2,16 @@
 
 namespace Tests\Feature\Ops;
 
+use App\Services\Ingestion\AiDailyPreview;
 use App\Services\Ingestion\IngestionSchedulerRunner;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class IngestionAiDailyCommandTest extends TestCase
@@ -90,6 +93,40 @@ class IngestionAiDailyCommandTest extends TestCase
         $this->assertFalse($payload['condition_rows'][0]['would_call_ai']);
         $this->assertFalse($payload['condition_rows'][0]['would_insert_ai_date']);
         $this->assertSame([], $payload['writes']);
+    }
+
+    public function test_ai_daily_complete_low_volume_source_skips_channel_rows_without_failing(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 00:15:00', 'Asia/Taipei'));
+        $this->createTables();
+        Http::fake();
+
+        $exitCode = Artisan::call('ai:daily', [
+            '--execute' => true,
+            '--date' => '2026-05-24',
+            '--condition' => 'all',
+            '--channel-limit' => 39,
+            '--ai-call-limit' => 45,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('success', $payload['status']);
+        $this->assertSame(39, $payload['channel_ai']['attempted']);
+        $this->assertSame(39, $payload['channel_ai']['skipped']);
+        $this->assertSame(0, $payload['channel_ai']['failed']);
+        $this->assertSame(0, $payload['channel_ai']['inserted']);
+        $this->assertSame(0, $payload['channel_ai']['updated']);
+        $this->assertSame(
+            ['fewer_than_10_videos'],
+            collect($payload['channel_ai']['rows'])->pluck('skip_reason')->unique()->values()->all(),
+        );
+        $this->assertTrue(collect($payload['channel_ai']['rows'])->every(
+            fn (array $row): bool => $row['ai_call_attempted'] === false,
+        ));
+        $this->assertSame(0, $payload['ai_call_guard']['used']);
+        Http::assertNothingSent();
     }
 
     public function test_ai_daily_previews_make_ai_day_shell_conditions_and_channel_ai_refresh(): void
@@ -623,7 +660,70 @@ class IngestionAiDailyCommandTest extends TestCase
         $this->assertSame(15, $payload['channel_ai']['rows'][0]['video_rows']);
         $this->assertSame(10, $payload['channel_ai']['rows'][0]['prompt_video_rows']);
         $this->assertSame(10, $payload['channel_ai']['video_limit']);
+        $this->assertTrue($payload['channel_ai']['rows'][0]['prompt_truncated']);
+        $this->assertSame(5, $payload['channel_ai']['rows'][0]['prompt_omitted_video_rows']);
+        $this->assertSame(1, $payload['channel_ai']['prompt_truncated_channels']);
+        $this->assertSame(5, $payload['channel_ai']['prompt_omitted_video_rows']);
         Http::assertSentCount(2);
+    }
+
+    public function test_ai_daily_zero_channel_video_limit_uses_finite_hard_max_and_reports_truncation(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDailyAiFixtures();
+        DB::table('urt_channel')->insert(['u_id' => 76, 'title' => 'Configured News Channel']);
+        $videos = [];
+
+        for ($index = 1; $index <= 501; $index++) {
+            $videos[] = [
+                'u_id' => 76,
+                'videoId' => sprintf('hard-cap-video-%03d', $index),
+                'publishedAt' => '2026-05-24 12:00:00',
+                'title' => 'Hard Cap Video '.$index,
+                'channelTitle' => 'Configured News Channel',
+                'viewCount' => 1000 + $index,
+            ];
+        }
+
+        foreach (array_chunk($videos, 100) as $chunk) {
+            DB::table('urt_video')->insert($chunk);
+        }
+
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::response([
+                'choices' => [['message' => ['content' => '[{"事件":"頻道事件","描述":"頻道描述","關鍵字":["測試"],"videoId":["hard-cap-video-501","hard-cap-video-500"]}]']]],
+                'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5],
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('ai:daily', [
+            '--execute' => true,
+            '--date' => '2026-05-24',
+            '--condition' => 'all',
+            '--channel-limit' => 1,
+            '--channel-video-limit' => 0,
+            '--ai-call-limit' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+        $channelRow = $payload['channel_ai']['rows'][0];
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(0, $payload['channel_ai']['video_limit_requested']);
+        $this->assertSame(500, $payload['channel_ai']['video_limit']);
+        $this->assertSame(500, $payload['channel_ai']['video_limit_max']);
+        $this->assertTrue($payload['channel_ai']['video_limit_clamped']);
+        $this->assertSame(501, $channelRow['video_rows']);
+        $this->assertSame(500, $channelRow['prompt_video_rows']);
+        $this->assertTrue($channelRow['prompt_truncated']);
+        $this->assertSame(1, $channelRow['prompt_omitted_video_rows']);
+        $this->assertSame(1, $payload['channel_ai']['prompt_truncated_channels']);
+        $this->assertSame(1, $payload['channel_ai']['prompt_omitted_video_rows']);
+        Http::assertSentCount(1);
     }
 
     public function test_ingestion_scheduler_executes_allowlisted_ai_daily_command_when_due(): void
@@ -673,6 +773,131 @@ class IngestionAiDailyCommandTest extends TestCase
             'data_type' => 'oneday',
             'condition_type' => 'all',
         ]);
+    }
+
+    public function test_recorded_scheduler_daily_pipeline_crawls_all_required_channels_before_calling_ai(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-26 00:00:00', 'Asia/Taipei'));
+        Storage::fake('local');
+        $this->createTables();
+        $this->createDailyPipelineSourceTables();
+        $this->seedDailyPipelineChannels();
+        config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.local_polling_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['ai.daily']);
+        config()->set('ingestion.youtube_daily_quota_budget', 9000);
+        config()->set('services.youtube.api_key', 'test-youtube-key');
+        config()->set('services.youtube.api_keys', null);
+        config()->set('services.youtube.transient_retries', 0);
+        config()->set('services.opencode_go.api_key', 'test-ai-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        config()->set('services.opencode_go.endpoint_style', 'chat');
+        config()->set('services.opencode_go.fallback_api_key', null);
+        $requestStages = [];
+        $youtubePlaylists = [];
+        $aiRequests = 0;
+
+        Http::fake(function (Request $request) use (&$requestStages, &$youtubePlaylists, &$aiRequests) {
+            if (str_starts_with($request->url(), 'https://www.googleapis.com/youtube/v3/playlistItems')) {
+                $requestStages[] = 'youtube';
+                $playlistId = (string) $request['playlistId'];
+                $youtubePlaylists[] = $playlistId;
+
+                return Http::response([
+                    'items' => $playlistId === 'UU-daily-76'
+                        ? $this->dailyPipelinePlaylistItems()
+                        : [],
+                ]);
+            }
+
+            if ($request->url() === 'https://opencode.test/v1/chat/completions') {
+                $requestStages[] = 'ai';
+                $aiRequests++;
+                $prompt = (string) data_get($request->data(), 'messages.0.content', '');
+                $content = str_contains($prompt, '多個媒體的事件列表')
+                    ? '[{"標題":"整合每日事件","媒體事件":{"Daily Pipeline Channel 76":["整合頻道事件"]}}]'
+                    : '[{"事件":"整合頻道事件","描述":"整合描述","關鍵字":["整合"],"videoId":["daily-pipeline-video-1","daily-pipeline-video-2"]}]';
+
+                return Http::response([
+                    'choices' => [['message' => ['content' => $content]]],
+                    'usage' => ['prompt_tokens' => 30, 'completion_tokens' => 8, 'total_tokens' => 38],
+                ]);
+            }
+
+            return Http::response(['error' => ['message' => 'unexpected test request']], 500);
+        });
+        Http::preventStrayRequests();
+
+        $exitCode = Artisan::call('ingestion:run', [
+            '--execute' => true,
+            '--record' => true,
+            '--at' => '2026-05-26 00:00:00',
+            '--job' => 'ai.daily',
+        ]);
+
+        $this->assertSame(0, $exitCode, Artisan::output());
+        $this->assertEqualsCanonicalizing(
+            collect(AiDailyPreview::channelAiUids())
+                ->map(fn (int $uId): string => 'UU-daily-'.$uId)
+                ->all(),
+            array_values(array_unique($youtubePlaylists)),
+        );
+        $this->assertSame(array_fill(0, 39, 'youtube'), array_slice($requestStages, 0, 39));
+        $this->assertSame(array_fill(0, $aiRequests, 'ai'), array_slice($requestStages, 39));
+        $this->assertSame(3, $aiRequests);
+        $this->assertDatabaseCount('urt_channel_ai', 1);
+        $this->assertDatabaseCount('urt_ai_date', 2);
+        $this->assertDatabaseCount('ingestion_runs', 1);
+        $this->assertDatabaseHas('ingestion_run_jobs', [
+            'job_key' => 'ai.daily',
+            'succeeded' => 1,
+            'failed' => 0,
+        ]);
+        $this->assertDatabaseHas('urt_show_tag_date', [
+            'tagid' => '102',
+            'the_date' => '2026-05-25',
+            'count_channels' => 39,
+            'count_videos' => 10,
+        ]);
+        $stored = json_decode((string) DB::table('ingestion_runs')->value('payload_json'), true, 512, JSON_THROW_ON_ERROR);
+        $job = $stored['result']['jobs'][0];
+
+        $this->assertSame('ai.daily', $job['key']);
+        $this->assertStringStartsWith('ai:daily:pipeline --execute', $job['effective_command']);
+        $this->assertStringContainsString('source_succeeded=yes', $job['output']);
+        $this->assertStringContainsString('source_channels=39', $job['output']);
+        $this->assertStringContainsString('source_failed=0', $job['output']);
+        $this->assertStringContainsString('ai_status=success', $job['output']);
+        $this->assertStringContainsString('ai_calls=3', $job['output']);
+        $this->assertCount(39, $job['telemetry']['youtube_requests']);
+        $this->assertSame(
+            ['ai.daily', 'youtube.tag_videos.backfill'],
+            $job['telemetry']['youtube_requests'][0]['job_path'],
+        );
+        $this->assertSame(3, $job['telemetry']['summary']['ai_requests']);
+        $this->assertSame('ai.daily', $job['telemetry']['ai_requests'][0]['job_key']);
+        $this->assertSame('primary', $job['telemetry']['ai_requests'][0]['provider']);
+        $this->assertSame(39, $job['estimated_youtube_quota_units']);
+        $this->assertSame(39, $job['youtube_quota_estimate']['estimated_units']);
+        $this->assertSame(0, $job['youtube_quota_budget']['planned_units']);
+        $this->assertSame(39, $job['youtube_quota_budget']['actual_units']);
+        $this->assertSame(39, $job['youtube_quota_budget']['consumed_units']);
+        $this->assertSame(0, $job['youtube_quota_budget']['reserved_units']);
+        $this->assertSame(39, $job['youtube_quota_budget']['projected_units']);
+        $this->assertSame(8961, $job['youtube_quota_budget']['remaining_units']);
+        $this->assertFalse($job['youtube_quota_budget']['reservation_active']);
+        $this->assertSame(39, $stored['result']['youtube_quota_budget']['consumed_units']);
+        $this->assertSame(0, $stored['result']['youtube_quota_budget']['reserved_units']);
+        $this->assertSame(39, $stored['result']['youtube_quota_budget']['projected_units']);
+        $this->assertSame(8961, $stored['result']['youtube_quota_budget']['remaining_units']);
+        $this->assertSame(39, $stored['result']['telemetry']['youtube_requests']);
+        $this->assertSame(3, $stored['result']['telemetry']['ai_requests']);
+        $this->assertDatabaseHas('ingestion_youtube_quota_daily', [
+            'consumed_units' => 39,
+            'reserved_units' => 0,
+        ]);
+        Http::assertSentCount(42);
     }
 
     private function useDirectDailyScheduledCommand(): void
@@ -887,6 +1112,123 @@ SQL);
             $table->string('channelTitle')->nullable();
             $table->integer('viewCount')->nullable();
         });
+    }
+
+    private function createDailyPipelineSourceTables(): void
+    {
+        Schema::table('urt_channel', function ($table): void {
+            $table->dateTime('ctime')->nullable();
+            $table->dateTime('mtime')->nullable();
+            $table->dateTime('vtime')->nullable();
+            $table->integer('flag_del')->nullable();
+            $table->string('youtube_id')->nullable();
+            $table->string('uploads')->nullable();
+            $table->integer('videoCount')->nullable();
+        });
+
+        Schema::table('urt_video', function ($table): void {
+            $table->dateTime('ctime')->nullable();
+            $table->string('id')->nullable();
+            $table->string('channelId')->nullable();
+            $table->string('thumbnails')->nullable();
+            $table->string('playlistId')->nullable();
+            $table->integer('position')->nullable();
+            $table->text('description')->nullable();
+        });
+
+        Schema::create('urt_video_schedule', function ($table): void {
+            $table->increments('pk');
+            $table->dateTime('ctime')->nullable();
+            $table->string('videoId');
+            $table->dateTime('publishedAt')->nullable();
+        });
+
+        Schema::create('urt_video_live', function ($table): void {
+            $table->increments('pk');
+            $table->dateTime('ctime')->nullable();
+            $table->string('videoId');
+            $table->dateTime('publishedAt')->nullable();
+            $table->integer('u_id');
+        });
+
+        Schema::create('tags', function ($table): void {
+            $table->increments('pk');
+            $table->string('tag');
+            $table->integer('max_count')->nullable();
+            $table->integer('hours_count')->nullable();
+            $table->dateTime('max_hours')->nullable();
+            $table->integer('no_tag')->nullable();
+        });
+
+        Schema::create('urt_show_tag_date', function ($table): void {
+            $table->increments('pk');
+            $table->dateTime('ctime')->nullable();
+            $table->dateTime('mtime')->nullable();
+            $table->dateTime('stime')->nullable();
+            $table->string('tagid')->nullable();
+            $table->string('tag_or')->nullable();
+            $table->string('tag_not')->nullable();
+            $table->integer('count_channels')->nullable();
+            $table->integer('count_videos')->nullable();
+            $table->integer('count_tags')->nullable();
+            $table->date('the_date')->nullable();
+            $table->integer('tags_count')->nullable();
+            $table->integer('total_views')->nullable();
+            $table->longText('tags_result')->nullable();
+            $table->longText('tags_video')->nullable();
+            $table->longText('tags_views')->nullable();
+        });
+    }
+
+    private function seedDailyPipelineChannels(): void
+    {
+        $channelIds = collect(AiDailyPreview::channelAiUids());
+
+        DB::table('urt_channel')->insert($channelIds
+            ->map(fn (int $uId): array => [
+                'u_id' => $uId,
+                'ctime' => '2026-05-20 00:00:00',
+                'flag_del' => null,
+                'youtube_id' => 'UC-daily-'.$uId,
+                'title' => 'Daily Pipeline Channel '.$uId,
+                'uploads' => 'UU-daily-'.$uId,
+                'videoCount' => 100,
+            ])
+            ->all());
+        DB::table('urt_count')->insert($channelIds
+            ->map(fn (int $uId): array => ['u_id' => $uId, 'tags' => '[102]'])
+            ->all());
+        DB::table('tags')->insert([
+            'tag' => '整合',
+            'max_count' => 10,
+            'hours_count' => 20,
+            'max_hours' => '2026-05-26 00:00:00',
+            'no_tag' => null,
+        ]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function dailyPipelinePlaylistItems(): array
+    {
+        return collect(range(1, 10))
+            ->map(fn (int $index): array => [
+                'id' => 'daily-pipeline-item-'.$index,
+                'snippet' => [
+                    'publishedAt' => sprintf('2026-05-25T%02d:00:00Z', $index),
+                    'channelId' => 'UC-daily-76',
+                    'title' => '整合 Daily Pipeline Video '.$index,
+                    'description' => 'Daily pipeline integration fixture',
+                    'thumbnails' => ['default' => ['url' => 'https://img.test/daily-pipeline-'.$index.'.jpg']],
+                    'channelTitle' => 'Daily Pipeline Channel 76',
+                    'playlistId' => 'UU-daily-76',
+                    'position' => $index - 1,
+                    'resourceId' => ['videoId' => 'daily-pipeline-video-'.$index],
+                    'liveBroadcastContent' => 'none',
+                ],
+            ])
+            ->all();
     }
 
     private function seedRefreshChannelVideos(): void

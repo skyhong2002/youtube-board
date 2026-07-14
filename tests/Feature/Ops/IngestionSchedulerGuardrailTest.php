@@ -217,6 +217,182 @@ class IngestionSchedulerGuardrailTest extends TestCase
         $this->assertTrue($second['jobs'][0]['lock']['acquired']);
     }
 
+    public function test_missing_quota_ledger_does_not_mark_a_non_youtube_job_as_failed(): void
+    {
+        config()->set('legacy.ground_truth_path', storage_path('framework/testing-missing-legacy'));
+        Schema::drop('ingestion_youtube_quota_daily');
+
+        $result = app(IngestionSchedulerRunner::class)->run(
+            at: CarbonImmutable::parse('2026-05-25 00:19:00', 'Asia/Taipei'),
+            execute: true,
+            jobKey: 'reports.live.static',
+        );
+        $job = $result['jobs'][0];
+
+        $this->assertSame('executed', $job['action']);
+        $this->assertTrue($job['executed']);
+        $this->assertFalse($job['failed']);
+        $this->assertArrayNotHasKey('quota_accounting_failed', $job);
+        $this->assertSame(0, $job['youtube_quota_estimate']['estimated_units']);
+        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $result['summary']);
+    }
+
+    public function test_composite_nested_quota_denial_is_recorded_without_double_charge(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-26 00:00:00', 'Asia/Taipei'));
+        config()->set('ingestion.scheduled_write_allowlist', ['ai.daily']);
+        config()->set('services.youtube.api_key', 'test-youtube-key');
+        config()->set('services.youtube.api_keys', null);
+        config()->set('services.youtube.transient_retries', 0);
+        DB::table('ingestion_youtube_quota_daily')->insert([
+            'provider' => 'youtube_data_api_v3',
+            'quota_date' => '2026-05-25',
+            'consumed_units' => 8000,
+            'reserved_units' => 0,
+            'created_at' => '2026-05-25 00:00:00',
+            'updated_at' => '2026-05-25 00:00:00',
+        ]);
+        Http::preventStrayRequests();
+
+        $exitCode = Artisan::call('ingestion:run', [
+            '--execute' => true,
+            '--record' => true,
+            '--at' => '2026-05-26 00:00:00',
+            '--job' => 'ai.daily',
+        ]);
+
+        $this->assertSame(0, $exitCode);
+        $stored = json_decode((string) DB::table('ingestion_runs')->value('payload_json'), true, 512, JSON_THROW_ON_ERROR);
+        $job = $stored['result']['jobs'][0];
+        $jobBudget = $job['youtube_quota_budget'];
+        $runBudget = $stored['result']['youtube_quota_budget'];
+
+        $this->assertTrue($job['failed']);
+        $this->assertSame('youtube.tag_videos.backfill', $jobBudget['direct_job_key']);
+        $this->assertSame('direct_command', $jobBudget['accounting_owner']);
+        $this->assertSame('quota_budget_exceeded', $jobBudget['reason']);
+        $this->assertSame(2000, $jobBudget['planned_units']);
+        $this->assertSame(0, $jobBudget['actual_units']);
+        $this->assertSame(8000, $jobBudget['consumed_units']);
+        $this->assertSame(0, $jobBudget['reserved_units']);
+        $this->assertSame(8000, $jobBudget['projected_units']);
+        $this->assertSame(1000, $jobBudget['remaining_units']);
+        $this->assertFalse($jobBudget['reservation_active']);
+        $this->assertArrayNotHasKey('lock', $jobBudget);
+        $this->assertArrayNotHasKey('_direct_lock', $jobBudget);
+        $this->assertSame('quota_budget_exceeded', $runBudget['reason']);
+        $this->assertSame(8000, $runBudget['consumed_units']);
+        $this->assertSame(0, $runBudget['reserved_units']);
+        $this->assertSame(1000, $runBudget['remaining_units']);
+        $this->assertDatabaseHas('ingestion_youtube_quota_daily', [
+            'consumed_units' => 8000,
+            'reserved_units' => 0,
+        ]);
+        $this->assertStringNotContainsString('test-youtube-key', json_encode($stored, JSON_THROW_ON_ERROR));
+        Http::assertNothingSent();
+
+        $manualExitCode = Artisan::call('ai:daily:pipeline', [
+            '--execute' => true,
+            '--date' => '2026-05-25',
+            '--json' => true,
+        ]);
+        $manual = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $manualExitCode);
+        $this->assertSame('quota_budget_exceeded', $manual['source_refresh']['failure_reason']);
+        $this->assertSame('quota_budget_exceeded', $manual['source_refresh']['youtube_quota_budget']['reason']);
+        $this->assertSame(8000, $manual['source_refresh']['youtube_quota_budget']['consumed_units']);
+        $this->assertSame(0, $manual['source_refresh']['youtube_quota_budget']['reserved_units']);
+        $this->assertSame(1000, $manual['source_refresh']['youtube_quota_budget']['remaining_units']);
+        $this->assertArrayNotHasKey('_direct_lock', $manual['source_refresh']['youtube_quota_budget']);
+        Http::assertNothingSent();
+    }
+
+    public function test_composite_missing_youtube_credential_keeps_the_original_failure_action(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-26 00:00:00', 'Asia/Taipei'));
+        config()->set('ingestion.scheduled_write_allowlist', ['ai.daily']);
+        config()->set('services.youtube.api_key', null);
+        config()->set('services.youtube.api_keys', null);
+        Http::preventStrayRequests();
+
+        $result = app(IngestionSchedulerRunner::class)->run(
+            at: CarbonImmutable::now('Asia/Taipei'),
+            execute: true,
+            jobKey: 'ai.daily',
+        );
+        $job = $result['jobs'][0];
+
+        $this->assertSame('failed', $job['action']);
+        $this->assertTrue($job['failed']);
+        $this->assertSame('youtube_api_key_not_configured', $job['youtube_quota_budget']['reason']);
+        $this->assertSame('youtube.tag_videos.backfill', $job['youtube_quota_budget']['direct_job_key']);
+        $this->assertArrayNotHasKey('quota_accounting_failed', $job);
+        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 0, 'skipped' => 0, 'failed' => 1], $result['summary']);
+        Http::assertNothingSent();
+    }
+
+    public function test_composite_nested_settlement_failure_remains_an_operational_failure(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'America/Los_Angeles'));
+        config()->set('services.youtube.api_key', 'test-key');
+        Artisan::command('testing:nested-youtube-drop-ledger', function (): int {
+            $run = app(DirectYoutubeQuotaGuard::class)->run(
+                jobKey: 'youtube.live.poll',
+                effectiveCommand: 'youtube:live:poll --execute --limit=1',
+                callback: function (): array {
+                    app(IngestionTelemetry::class)->recordYoutubeRequest([
+                        'method' => 'videos.list',
+                        'estimated_quota_units' => 1,
+                        'ok' => true,
+                        'status' => 200,
+                        'latency_ms' => 5,
+                    ]);
+                    Schema::drop('ingestion_youtube_quota_daily');
+
+                    return ['exit_code' => 0];
+                },
+            );
+
+            return (int) data_get($run, 'payload.exit_code', 1);
+        });
+        config()->set('ingestion.jobs', [[
+            'key' => 'testing.nested_youtube',
+            'group' => 'Testing',
+            'priority' => 1,
+            'modern_command' => 'testing:nested-youtube-drop-ledger',
+            'scheduled_execute_command' => 'testing:nested-youtube-drop-ledger',
+            'legacy_command' => 'test only',
+            'schedule' => '* * * * *',
+            'cadence' => 'test only',
+            'status' => 'active',
+            'external_dependency' => 'YouTube Data API',
+            'writes' => ['test only'],
+            'notes' => 'test only',
+        ]]);
+
+        $result = app(IngestionSchedulerRunner::class)->run(
+            at: CarbonImmutable::now('Asia/Taipei'),
+            execute: true,
+            jobKey: 'testing.nested_youtube',
+        );
+        $job = $result['jobs'][0];
+        $budget = $job['youtube_quota_budget'];
+
+        $this->assertSame('executed:quota-accounting-failed', $job['action']);
+        $this->assertTrue($job['failed']);
+        $this->assertTrue($job['quota_accounting_failed']);
+        $this->assertSame('youtube.live.poll', $budget['direct_job_key']);
+        $this->assertSame('direct_command', $budget['accounting_owner']);
+        $this->assertSame(1, $budget['actual_units']);
+        $this->assertTrue($budget['reservation_active']);
+        $this->assertTrue($budget['accounting_failed']);
+        $this->assertFalse($budget['available']);
+        $this->assertSame('quota_ledger_settlement_failed', $budget['settlement_reason']);
+        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 0, 'skipped' => 0, 'failed' => 1], $result['summary']);
+        $this->assertFalse($result['youtube_quota_budget']['available']);
+    }
+
     public function test_runner_skips_scheduled_youtube_job_before_it_exceeds_daily_budget(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 03:17:00', 'Asia/Taipei'));

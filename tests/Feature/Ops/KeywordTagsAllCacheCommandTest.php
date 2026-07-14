@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Ops;
 
+use App\Services\Ingestion\IngestionJobRegistry;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -113,6 +114,59 @@ SQL);
                     && $context['failure_reason'] === 'cache_row_processing_failed'
                     && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'tags-all-secret');
             });
+    }
+
+    public function test_keyword_and_video_source_caps_block_without_publishing_partial_cache(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-26 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedRows();
+
+        $keywordExit = Artisan::call('reports:keywords:cache', [
+            '--keyword-limit' => 1,
+            '--video-limit' => 10,
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $keywordPayload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(1, $keywordExit);
+        $this->assertSame('blocked', $keywordPayload['status']);
+        $this->assertSame('keyword_scan_limit_exceeded', $keywordPayload['blocked_reason']);
+        $this->assertTrue($keywordPayload['source_truncated']);
+        $this->assertSame(0, DB::table('urt_show_data')->count());
+
+        $this->assertSame(0, Artisan::call('reports:keywords:cache', [
+            '--keyword-limit' => 10,
+            '--video-limit' => 10,
+            '--execute' => true,
+            '--json' => true,
+        ]));
+        $existing = DB::table('urt_show_data')->where('data_name', 'tags_all')->value('the_result');
+
+        $videoExit = Artisan::call('reports:keywords:cache', [
+            '--keyword-limit' => 10,
+            '--video-limit' => 1,
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $videoPayload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(1, $videoExit);
+        $this->assertSame('blocked', $videoPayload['status']);
+        $this->assertSame('video_scan_limit_exceeded', $videoPayload['blocked_reason']);
+        $this->assertSame(1, $videoPayload['videos_scanned']);
+        $this->assertSame(0, $videoPayload['writes']);
+        $this->assertSame($existing, DB::table('urt_show_data')->where('data_name', 'tags_all')->value('the_result'));
+    }
+
+    public function test_scheduled_tags_all_rebuild_declares_keyword_and_video_caps(): void
+    {
+        $command = (string) app(IngestionJobRegistry::class)
+            ->find('reports.keywords.cache')['scheduled_execute_command'];
+
+        $this->assertStringContainsString('--keyword-limit=1000', $command);
+        $this->assertStringContainsString('--video-limit=50000', $command);
     }
 
     private function createTables(): void

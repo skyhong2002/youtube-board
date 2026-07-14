@@ -5,6 +5,7 @@
 The production deployment should use separate Dokploy services:
 
 - `youtube-board-web`: Laravel application from this repository.
+- `youtube-board-scheduler`: dedicated scheduler using the same application image and running `php artisan schedule:run --verbose --no-interaction` every minute.
 - `youtube-board-db`: MariaDB/MySQL with a persistent volume mounted at `/var/lib/mysql`.
 - `youtube-board-pma`: phpMyAdmin for protected administrator access only.
 
@@ -89,7 +90,7 @@ Normal rollback is a code rollback followed by redeploy. Do not use `migrate:rol
 
 Production polling is controlled by Dokploy runtime values, not by the committed template. `INGESTION_SCHEDULER_ENABLED` stops scheduler registration, `INGESTION_LOCAL_POLLING_ENABLED` blocks scheduled writes, and `INGESTION_PRODUCTION_POLLING_ENABLED` blocks scheduled writes only in production. Production must use an exact reviewed `INGESTION_SCHEDULED_WRITE_ALLOWLIST`; do not change that list without dry-run evidence, backup/rollback planning, and explicit operator approval. The rate-limited web `/ops/ingestion/run` route is dry-run-only in Production, returns 403 for execute requests, and does not persist public web previews to durable run history.
 
-Runner guardrails use `INGESTION_JOB_LOCK_SECONDS=14400` and `INGESTION_YOUTUBE_DAILY_QUOTA_BUDGET=9000`. Execute-mode jobs take an expiring per-job cache lock. Scheduled YouTube jobs atomically reserve their capped worst-case request estimate in the InnoDB `ingestion_youtube_quota_daily` ledger before execution, then settle the reservation to sanitized request telemetry. Every direct YouTube API `--execute` command uses the same current Pacific Time ledger plus a direct-command lock and fails closed when credentials, a positive budget, or the ledger are unavailable. The scheduler passes its successful reservation through a process-scoped command context so that the nested Artisan command does not reserve, settle, or lock twice. Each reserved HTTP attempt stops before its timeout could cross the Pacific quota reset. A handled success or failure settles to recorded request attempts; a process crash or failed settlement keeps the worst-case reservation fail-safe. Deployments and optional run-history recording cannot erase it. Keep the budget below `YOUTUBE_DATA_API_DAILY_QUOTA_UNITS` to reserve capacity for operator smokes and monitoring lag.
+Runner guardrails use `INGESTION_JOB_LOCK_SECONDS=14400`, `INGESTION_LOCK_STORE=database`, and `INGESTION_YOUTUBE_DAILY_QUOTA_BUDGET=9000`. Production defaults ingestion job locks to Laravel's MariaDB-backed `cache_locks` table even when general `CACHE_STORE=file`, so separate web and scheduler containers share the same lock owner without adding a Redis production service. Local Compose explicitly uses Redis for the same lock API. Execute-mode jobs take an expiring per-job lock. Scheduled YouTube jobs atomically reserve their capped worst-case request estimate in the InnoDB `ingestion_youtube_quota_daily` ledger before execution, then settle the reservation to sanitized request telemetry. Every direct YouTube API `--execute` command uses the same current Pacific Time ledger plus a direct-command lock and fails closed when credentials, a positive budget, or the ledger are unavailable. The scheduler passes its successful reservation through a process-scoped command context so that the nested Artisan command does not reserve, settle, or lock twice. Each reserved HTTP attempt stops before its timeout could cross the Pacific quota reset. A handled success or failure settles to recorded request attempts; a process crash or failed settlement keeps the worst-case reservation fail-safe. Deployments and optional run-history recording cannot erase it. Keep the budget below `YOUTUBE_DATA_API_DAILY_QUOTA_UNITS` to reserve capacity for operator smokes and monitoring lag.
 
 New `ingestion:run --record` history is stored in the persistent MariaDB service through `ingestion_runs` and `ingestion_run_jobs`, so application container replacement no longer erases scheduler evidence, report lineage, or sanitized telemetry. Database age cleanup runs at most hourly and deletes expired rows in 1,000-row batches until the backlog is clear; the hard record cap is enforced after every successful write. Defaults are 14 days and 25,000 runs. The application still reads legacy `storage/app/private/ingestion-runs/*.json` files as a compatibility fallback, and newly managed fallback files use the same age/count bounds if DB history is unavailable. The migration and built-in defaults are sufficient for deployment: no Dokploy env edit or web-service volume is required. Optional `INGESTION_RUN_HISTORY_RETENTION_DAYS` and `INGESTION_RUN_HISTORY_MAX_RECORDS` values tune the age limit and hard record cap.
 
@@ -104,6 +105,7 @@ INGESTION_LOCAL_POLLING_ENABLED=true
 INGESTION_PRODUCTION_POLLING_ENABLED=true
 INGESTION_SCHEDULED_WRITE_ALLOWLIST=off
 INGESTION_JOB_LOCK_SECONDS=14400
+INGESTION_LOCK_STORE=database
 INGESTION_YOUTUBE_DAILY_QUOTA_BUDGET=9000
 YOUTUBE_API_TRANSIENT_RETRIES=1
 YOUTUBE_API_RETRY_DELAY_MS=250
@@ -132,10 +134,12 @@ For `/live/current` parity, these are candidate job keys for a separately review
 - `youtube.tvbs.videos`: discovers TVBS tagged `[29]` uploads and live/upcoming rows into `urt_video_live_tvbs`.
 - `reports.live.build`: fills `urt_show_video_live` display cache from local live/video rows.
 
-For AI page freshness, candidate keys are:
+The current Production-approved AI job keys are `ai.hourly` and `ai.daily`; both were operator-confirmed in the exact allowlist on 2026-07-15:
 
 - `ai.hourly`: at minute 10, runs `ai:hourly:pipeline`; it first refreshes the latest 50 uploads for all 39 configured AI channels and proves that the previous complete hour is covered, then refreshes `urt_ai_hour`. Any incomplete channel source blocks the AI stage.
-- `ai.daily`: at 00:00, runs `ai:daily:pipeline --date=yesterday`; it first completes a paginated tag 102 uploads crawl for the closed calendar day, then refreshes configured channel-level `urt_channel_ai` rows and six daily `urt_ai_date` condition rows. An incomplete crawl blocks the AI stage.
+- `ai.daily`: at 00:00, runs `ai:daily:pipeline --date=yesterday`; it first completes a paginated tag 102 uploads crawl for the closed calendar day and proves that every configured daily-AI channel is in the successful crawl set. It then attempts eligible channel-level `urt_channel_ai` rows and six daily `urt_ai_date` conditions; channels with fewer than 10 videos are valid skips. An incomplete crawl or missing configured-channel coverage blocks the AI stage.
+
+This approval does not cover any additional job key or schedule/allowlist change. Every new Production write/API job still requires exact dry-run evidence, backup and rollback planning, and explicit operator approval.
 
 The AI client tries the primary OpenAI `gpt-5.4-mini` provider first. If it fails and `OPENAI_FALLBACK_*` is configured, it retries once against the OpenCode Go fallback. The legacy daily AI path used OpenAI `chat/completions`; runtime keys remain in Dokploy rather than git.
 

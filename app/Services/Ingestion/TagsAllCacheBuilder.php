@@ -19,7 +19,7 @@ class TagsAllCacheBuilder
         int $days = 31,
         int $recentDays = 7,
         int $keywordLimit = 1000,
-        ?int $videoLimit = null,
+        int $videoLimit = 50000,
         bool $execute = false,
         ?CarbonImmutable $now = null,
     ): array {
@@ -27,7 +27,7 @@ class TagsAllCacheBuilder
         $days = max(1, min(90, $days));
         $recentDays = max(1, min($days, $recentDays));
         $keywordLimit = max(1, min(10000, $keywordLimit));
-        $videoLimit = $videoLimit !== null && $videoLimit > 0 ? min(200000, $videoLimit) : null;
+        $videoLimit = max(1, min(200000, $videoLimit));
         $recentFrom = $now->subDays($recentDays)->startOfDay();
         $generatedAt = $now->format('Y-m-d H:i:s');
         $keywords = [];
@@ -35,8 +35,54 @@ class TagsAllCacheBuilder
         $metrics = [];
 
         try {
-            $keywords = $this->keywordRows($keywordLimit, $now);
-            $videos = $this->videoRows($days, $videoLimit, $now);
+            $keywordSelection = $this->keywordRows($keywordLimit, $now);
+            $keywords = $keywordSelection['rows'];
+
+            if ($keywordSelection['truncated']) {
+                $payload = $this->payload(
+                    now: $now,
+                    recentFrom: $recentFrom,
+                    days: $days,
+                    keywordLimit: $keywordLimit,
+                    videoLimit: $videoLimit,
+                    keywords: $keywords,
+                    videos: [],
+                    metrics: [],
+                    execute: $execute,
+                    generatedAt: $generatedAt,
+                    status: 'blocked',
+                    blockedReason: 'keyword_scan_limit_exceeded',
+                    sourceTruncated: true,
+                );
+                Log::warning('Keyword tags-all cache row blocked.', $this->logContext($payload));
+
+                return $payload;
+            }
+
+            $videoSelection = $this->videoRows($days, $videoLimit, $now);
+            $videos = $videoSelection['rows'];
+
+            if ($videoSelection['truncated']) {
+                $payload = $this->payload(
+                    now: $now,
+                    recentFrom: $recentFrom,
+                    days: $days,
+                    keywordLimit: $keywordLimit,
+                    videoLimit: $videoLimit,
+                    keywords: $keywords,
+                    videos: $videos,
+                    metrics: [],
+                    execute: $execute,
+                    generatedAt: $generatedAt,
+                    status: 'blocked',
+                    blockedReason: 'video_scan_limit_exceeded',
+                    sourceTruncated: true,
+                );
+                Log::warning('Keyword tags-all cache row blocked.', $this->logContext($payload));
+
+                return $payload;
+            }
+
             $metrics = $this->metrics($keywords, $videos, $recentFrom);
 
             if ($execute) {
@@ -48,6 +94,7 @@ class TagsAllCacheBuilder
                 recentFrom: $recentFrom,
                 days: $days,
                 keywordLimit: $keywordLimit,
+                videoLimit: $videoLimit,
                 keywords: $keywords,
                 videos: $videos,
                 metrics: $metrics,
@@ -65,6 +112,7 @@ class TagsAllCacheBuilder
                 recentFrom: $recentFrom,
                 days: $days,
                 keywordLimit: $keywordLimit,
+                videoLimit: $videoLimit,
                 keywords: $keywords,
                 videos: $videos,
                 metrics: $metrics,
@@ -92,31 +140,38 @@ class TagsAllCacheBuilder
         CarbonImmutable $recentFrom,
         int $days,
         int $keywordLimit,
+        int $videoLimit,
         array $keywords,
         array $videos,
         array $metrics,
         bool $execute,
         string $generatedAt,
         string $status,
+        ?string $blockedReason = null,
+        bool $sourceTruncated = false,
     ): array {
-        $failed = $status === 'failed';
+        $failed = $status !== 'success';
 
         return [
             'mode' => $execute ? 'execute' : 'dry-run',
             'status' => $status,
+            'blocked_reason' => $blockedReason,
+            'source_complete' => ! $failed,
+            'source_truncated' => $sourceTruncated,
             'generated_at' => $generatedAt,
             'date_from' => $now->subDays($days - 1)->startOfDay()->toDateString(),
             'date_to' => $now->endOfDay()->toDateString(),
             'recent_from' => $recentFrom->toDateString(),
             'category_tags' => self::DEFAULT_CATEGORY_TAGS,
             'keyword_limit' => $keywordLimit,
+            'video_limit' => $videoLimit,
             'keywords_selected' => count($keywords),
             'videos_scanned' => count($videos),
             'tags_with_metrics' => count($metrics),
             'write_targets' => ['urt_show_data.data_name=tags_all columns=ctime,mtime,api,para,the_result'],
             'writes' => $execute && ! $failed ? 1 : 0,
             'failed_rows' => $failed ? 1 : 0,
-            'failure_reason' => $failed ? 'cache_row_processing_failed' : null,
+            'failure_reason' => $status === 'failed' ? 'cache_row_processing_failed' : ($failed ? 'source_incomplete' : null),
             'exit_code' => $failed ? 1 : 0,
             'sample' => array_slice($metrics, 0, 10, true),
         ];
@@ -139,23 +194,28 @@ class TagsAllCacheBuilder
             'writes',
             'failed_rows',
             'failure_reason',
+            'blocked_reason',
+            'source_truncated',
         ])->all();
     }
 
     /**
-     * @return list<array{tag: string, weight: float}>
+     * @return array{rows: list<array{tag: string, weight: float}>, truncated: bool}
      */
     private function keywordRows(int $limit, CarbonImmutable $now): array
     {
-        return DB::table('tags')
+        $sourceRows = DB::table('tags')
             ->select(['tag', 'max_count', 'hours_count', 'max_hours'])
             ->where(function ($query): void {
                 $query->whereNull('no_tag')
                     ->orWhere('no_tag', '<', 1);
             })
             ->orderByDesc('hours_count')
-            ->limit(5000)
-            ->get()
+            ->limit($limit + 1)
+            ->get();
+        $truncated = $sourceRows->count() > $limit;
+        $rows = $sourceRows
+            ->take($limit)
             ->map(function (object $row) use ($now): array {
                 $tag = (string) $row->tag;
                 $maxCount = (int) ($row->max_count ?? 0);
@@ -173,12 +233,17 @@ class TagsAllCacheBuilder
             ->take($limit)
             ->values()
             ->all();
+
+        return [
+            'rows' => $rows,
+            'truncated' => $truncated,
+        ];
     }
 
     /**
-     * @return list<object>
+     * @return array{rows: list<object>, truncated: bool}
      */
-    private function videoRows(int $days, ?int $limit, CarbonImmutable $now): array
+    private function videoRows(int $days, int $limit, CarbonImmutable $now): array
     {
         $from = $now->subDays($days - 1)->startOfDay()->format('Y-m-d H:i:s');
         $to = $now->endOfDay()->format('Y-m-d H:i:s');
@@ -196,11 +261,12 @@ class TagsAllCacheBuilder
             ->whereBetween('publishedAt', [$from, $to])
             ->orderBy('publishedAt');
 
-        if ($limit !== null) {
-            $query->limit($limit);
-        }
+        $rows = $query->limit($limit + 1)->get()->all();
 
-        return $query->get()->all();
+        return [
+            'rows' => array_slice($rows, 0, $limit),
+            'truncated' => count($rows) > $limit,
+        ];
     }
 
     /**

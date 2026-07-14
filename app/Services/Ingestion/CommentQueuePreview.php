@@ -5,15 +5,14 @@ namespace App\Services\Ingestion;
 use App\Services\Legacy\LegacyTagFilter;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class CommentQueuePreview
 {
-    public function __construct(private readonly LegacyTagFilter $tagFilter)
-    {
-    }
+    public function __construct(private readonly LegacyTagFilter $tagFilter) {}
 
     /**
      * @return array<string, mixed>
@@ -63,7 +62,8 @@ class CommentQueuePreview
         $queuedVideoIds = $this->queuedVideoIds($candidateRows->pluck('videoId'));
         $doneVideoIds = $this->doneVideoIds($candidateRows->pluck('videoId'));
         $wouldInsertRows = $candidateRows
-            ->reject(fn (object $row): bool => $queuedVideoIds->has((string) $row->videoId))
+            ->reject(fn (object $row): bool => $queuedVideoIds->has((string) $row->videoId)
+                || $doneVideoIds->has((string) $row->videoId))
             ->values();
         $rows = $wouldInsertRows->take($limit)->values();
 
@@ -118,7 +118,7 @@ class CommentQueuePreview
     /**
      * @param  list<int>  $channelIds
      */
-    private function recentVideoQuery(array $channelIds, CarbonImmutable $publishedAfter, int $min): \Illuminate\Database\Query\Builder
+    private function recentVideoQuery(array $channelIds, CarbonImmutable $publishedAfter, int $min): Builder
     {
         $query = DB::table('urt_video');
 
@@ -213,7 +213,7 @@ class CommentQueuePreview
             'comment_count' => $this->value($row, 'commentCount') !== null ? (int) $this->value($row, 'commentCount') : null,
             'already_queued' => $queuedVideoIds->has($videoId),
             'already_done' => $doneVideoIds->has($videoId),
-            'would_insert_queue' => ! $queuedVideoIds->has($videoId),
+            'would_insert_queue' => ! $queuedVideoIds->has($videoId) && ! $doneVideoIds->has($videoId),
         ];
     }
 

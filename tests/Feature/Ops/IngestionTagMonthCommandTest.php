@@ -19,7 +19,7 @@ class IngestionTagMonthCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_preview_is_explicit_capped_and_dry_run_wins_without_writes(): void
+    public function test_preview_blocks_explicit_month_and_subject_lists_over_caps_without_writes(): void
     {
         $this->createTables();
         $this->seedDailyRow('3', '2026-04-30', ['甲' => 100, '乙' => 50], ['甲' => 2, '乙' => 1]);
@@ -38,7 +38,7 @@ class IngestionTagMonthCommandTest extends TestCase
         ]);
         $payload = json_decode(trim(Artisan::output()), true);
 
-        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, $exitCode);
         $this->assertSame('ingestion-preview', $payload['mode']);
         $this->assertSame(['2026-04-01'], $payload['months']);
         $this->assertSame(['甲'], $payload['subjects']);
@@ -46,11 +46,25 @@ class IngestionTagMonthCommandTest extends TestCase
         $this->assertSame(1, $payload['months_ignored']);
         $this->assertSame(2, $payload['subjects_requested']);
         $this->assertSame(1, $payload['subjects_ignored']);
+        $this->assertSame('month_list_limit_exceeded', $payload['blocked_reason']);
+        $this->assertTrue($payload['source_truncated']);
         $this->assertSame(1, $payload['source_row_limit']);
         $this->assertSame(1, $payload['rows_planned']);
-        $this->assertSame(1, $payload['would_insert']);
+        $this->assertSame(0, $payload['would_insert']);
         $this->assertSame(0, $payload['writes']);
         $this->assertSame(0, DB::table('urt_show_tag_month')->count());
+
+        $subjectExit = Artisan::call('reports:tag-month:build', [
+            '--months' => '2026-05',
+            '--subjects' => '甲,乙',
+            '--subject-limit' => 1,
+            '--json' => true,
+        ]);
+        $subjectPayload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(1, $subjectExit);
+        $this->assertSame('subject_list_limit_exceeded', $subjectPayload['blocked_reason']);
+        $this->assertSame(0, $subjectPayload['writes']);
     }
 
     public function test_execute_builds_actual_cache_apis_and_keyword_group_trend_then_is_idempotent(): void
@@ -143,7 +157,7 @@ class IngestionTagMonthCommandTest extends TestCase
         $this->assertSame(5, (int) DB::table('urt_show_tag_month')->value('count_videos'));
     }
 
-    public function test_latest_daily_row_metric_shapes_and_duplicate_targets_converge(): void
+    public function test_source_row_cap_preserves_existing_duplicate_targets(): void
     {
         $this->createTables();
         $this->seedDailyRow('3', '2026-05-23', ['詞彙' => 100], ['詞彙' => 1]);
@@ -192,23 +206,136 @@ class IngestionTagMonthCommandTest extends TestCase
             ],
         ]);
 
-        $payload = $this->runExecute('3', '詞彙', ['--source-row-limit' => 1]);
+        $before = DB::table('urt_show_tag_month')->orderBy('pk')->get(['pk', 'count_videos', 'total_views', 'tags_result'])->map(fn (object $row): array => (array) $row)->all();
+        $exitCode = Artisan::call('reports:tag-month:build', [
+            '--months' => '2026-05',
+            '--subjects' => '詞彙',
+            '--tagid' => '3',
+            '--source-row-limit' => 1,
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
 
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('source_incomplete', $payload['blocked_reason']);
+        $this->assertTrue($payload['source_truncated']);
         $this->assertSame(1, $payload['source_rows']);
-        $this->assertSame(1, $payload['updated']);
+        $this->assertSame(0, $payload['updated']);
+        $this->assertSame(0, $payload['writes']);
+        $this->assertSame('blocked', $payload['rows'][0]['status']);
+        $this->assertSame('source_row_limit_exceeded', $payload['rows'][0]['reason']);
         $this->assertSame(2, DB::table('urt_show_tag_month')->count());
-        $this->assertSame([2], DB::table('urt_show_tag_month')->distinct()->pluck('count_videos')->map(fn ($value): int => (int) $value)->all());
-        $this->assertSame([2000], DB::table('urt_show_tag_month')->distinct()->pluck('total_views')->map(fn ($value): int => (int) $value)->all());
+        $after = DB::table('urt_show_tag_month')->orderBy('pk')->get(['pk', 'count_videos', 'total_views', 'tags_result'])->map(fn (object $row): array => (array) $row)->all();
+        $this->assertSame($before, $after);
+    }
 
-        $result = json_decode((string) DB::table('urt_show_tag_month')->value('tags_result'), true);
-        $this->assertSame(2000, $result['2026-05-24']['tags_views']);
-        $this->assertSame(2, $result['2026-05-24']['tags_video']);
-        $this->assertSame('7.500', $result['2026-05-24']['tags_result']);
+    public function test_source_row_cap_isolates_incomplete_month_and_writes_complete_month(): void
+    {
+        $this->createTables();
+        $this->seedDailyRow('3', '2026-04-30', ['甲' => 50], ['甲' => 1]);
+        $this->seedDailyRow('3', '2026-05-23', ['甲' => 100], ['甲' => 2]);
+        $this->seedDailyRow('3', '2026-05-24', ['甲' => 200], ['甲' => 4]);
 
-        $this->getJson('/api/tag_month.php?tag=詞彙&tagid=3&month=2026-05-01')
-            ->assertOk()
-            ->assertJsonPath('result.2026-05-24.tags_views', 2000)
-            ->assertJsonPath('result.2026-05-24.tags_video', 2);
+        $exitCode = Artisan::call('reports:tag-month:build', [
+            '--months' => '2026-04,2026-05',
+            '--subjects' => '甲',
+            '--tagid' => '3',
+            '--source-row-limit' => 1,
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('source_incomplete', $payload['blocked_reason']);
+        $this->assertSame(1, $payload['blocked_months']);
+        $this->assertSame(1, $payload['writes']);
+        $this->assertSame('inserted', $payload['rows'][0]['status']);
+        $this->assertSame('blocked', $payload['rows'][1]['status']);
+        $this->assertSame('source_row_limit_exceeded', $payload['rows'][1]['reason']);
+        $this->assertSame(['2026-04-01'], DB::table('urt_show_tag_month')->pluck('the_month')->all());
+    }
+
+    public function test_malformed_daily_json_blocks_only_affected_month_and_preserves_existing_cache(): void
+    {
+        $this->createTables();
+        $this->seedDailyRow('3', '2026-04-30', ['甲' => 50], ['甲' => 1]);
+        $this->seedDailyRow('3', '2026-05-24', ['甲' => 100], ['甲' => 2]);
+        $this->runExecute('3', '甲');
+        $before = (array) DB::table('urt_show_tag_month')->where('the_month', '2026-05-01')->first();
+        DB::table('urt_show_tag_date')
+            ->where('the_date', '2026-05-24')
+            ->update([
+                'tags_result' => '{bad-json',
+                'tags_video' => '{bad-json',
+                'tags_views' => '{bad-json',
+            ]);
+
+        $exitCode = Artisan::call('reports:tag-month:build', [
+            '--months' => '2026-04,2026-05',
+            '--subjects' => '甲',
+            '--tagid' => '3',
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('source_incomplete', $payload['blocked_reason']);
+        $this->assertFalse($payload['source_complete']);
+        $this->assertFalse($payload['source_truncated']);
+        $this->assertSame(1, $payload['blocked_months']);
+        $this->assertSame(1, $payload['invalid_daily_rows']);
+        $this->assertSame(1, $payload['failed_subjects']);
+        $this->assertSame('inserted', $payload['rows'][0]['status']);
+        $this->assertSame('blocked', $payload['rows'][1]['status']);
+        $this->assertSame('invalid_daily_json', $payload['rows'][1]['reason']);
+        $this->assertSame(1, $payload['writes']);
+        $this->assertSame($before, (array) DB::table('urt_show_tag_month')->where('the_month', '2026-05-01')->first());
+        $this->assertSame(1, DB::table('urt_show_tag_month')->where('the_month', '2026-04-01')->count());
+    }
+
+    public function test_structurally_invalid_daily_json_blocks_only_affected_month_and_preserves_existing_cache(): void
+    {
+        $this->createTables();
+        $this->seedDailyRow('3', '2026-04-30', ['甲' => 50], ['甲' => 1]);
+        $this->seedDailyRow('3', '2026-05-24', ['甲' => 100], ['甲' => 2]);
+        $this->runExecute('3', '甲');
+        $before = (array) DB::table('urt_show_tag_month')->where('the_month', '2026-05-01')->first();
+        $invalidMetricCollection = json_encode([
+            'unexpected' => ['nested' => 'not-a-metric'],
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+        DB::table('urt_show_tag_date')
+            ->where('the_date', '2026-05-24')
+            ->update([
+                'tags_result' => $invalidMetricCollection,
+                'tags_video' => $invalidMetricCollection,
+                'tags_views' => $invalidMetricCollection,
+            ]);
+
+        $exitCode = Artisan::call('reports:tag-month:build', [
+            '--months' => '2026-04,2026-05',
+            '--subjects' => '甲',
+            '--tagid' => '3',
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('source_incomplete', $payload['blocked_reason']);
+        $this->assertFalse($payload['source_complete']);
+        $this->assertFalse($payload['source_truncated']);
+        $this->assertSame(1, $payload['blocked_months']);
+        $this->assertSame(1, $payload['invalid_daily_rows']);
+        $this->assertSame(1, $payload['failed_subjects']);
+        $this->assertSame('inserted', $payload['rows'][0]['status']);
+        $this->assertSame('blocked', $payload['rows'][1]['status']);
+        $this->assertSame('invalid_daily_json', $payload['rows'][1]['reason']);
+        $this->assertSame(1, $payload['writes']);
+        $this->assertSame($before, (array) DB::table('urt_show_tag_month')->where('the_month', '2026-05-01')->first());
+        $this->assertSame(1, DB::table('urt_show_tag_month')->where('the_month', '2026-04-01')->count());
     }
 
     public function test_blockers_and_lock_fail_nonzero_with_sanitized_output(): void

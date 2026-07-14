@@ -9,6 +9,7 @@ use Closure;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use JsonException;
 use RuntimeException;
 use Throwable;
 
@@ -143,7 +144,7 @@ class CommentFetchIngestion
                 $complete = trim((string) ($fetched['pageToken'] ?? '')) === '';
 
                 DB::transaction(function () use ($queuePk, $rowVideoId, $fetched, $rowNow, $complete): void {
-                    $this->upsertCommentPayload($rowVideoId, $fetched, $rowNow);
+                    $this->upsertCommentPayload($rowVideoId, $fetched, $rowNow, publishAuthors: $complete);
 
                     if ($complete) {
                         $this->finishQueueRow($queuePk, $rowNow);
@@ -160,6 +161,7 @@ class CommentFetchIngestion
                     'videoId' => $rowVideoId,
                     'apiCalled' => true,
                     'complete' => $complete,
+                    'publication_status' => $complete ? 'published' : 'staged',
                     'claim_released' => $claimReleased,
                     'continuation_pending' => ! $complete,
                     'pagesFetched' => $fetched['pagesFetched'],
@@ -304,8 +306,12 @@ class CommentFetchIngestion
         $resumePageToken = is_string($existing->pageToken ?? null) && trim($existing->pageToken) !== ''
             ? trim($existing->pageToken)
             : null;
-        $comments = $resumePageToken === null ? [] : $this->decodedMap($existing->comments_json ?? null);
-        $authors = $resumePageToken === null ? [] : $this->decodedMap($existing->authors_json ?? null);
+        $comments = $resumePageToken === null
+            ? []
+            : $this->decodedStagedMap($existing->comments_json ?? null, 'comments_json', true);
+        $authors = $resumePageToken === null
+            ? []
+            : $this->decodedStagedMap($existing->authors_json ?? null, 'authors_json');
         $channelId = is_string($existing->channelId ?? null) ? $existing->channelId : null;
         $pageToken = $resumePageToken;
         $pagesFetched = 0;
@@ -317,24 +323,14 @@ class CommentFetchIngestion
             $pagesFetched++;
 
             foreach ($response['items'] as $thread) {
-                $topLevel = $thread['snippet']['topLevelComment']['snippet'] ?? [];
-                $commentId = (string) ($thread['id'] ?? '');
+                [$commentId, $threadSnippet, $topLevel, $embeddedReplies] = $this->validatedThread($thread);
 
-                if ($commentId === '' || $topLevel === []) {
-                    continue;
-                }
-
-                $channelId = is_string($thread['snippet']['channelId'] ?? null) ? $thread['snippet']['channelId'] : $channelId;
+                $channelId = is_string($threadSnippet['channelId'] ?? null) ? $threadSnippet['channelId'] : $channelId;
                 $comment = $this->mapCommentSnippet($topLevel);
                 $comments[$commentId] = $comment;
                 $this->addAuthor($authors, $comment, $topLevel);
-                foreach (($thread['replies']['comments'] ?? []) as $reply) {
-                    $replyId = (string) ($reply['id'] ?? '');
-                    $replySnippet = $reply['snippet'] ?? [];
-
-                    if ($replyId === '' || $replySnippet === []) {
-                        continue;
-                    }
+                foreach ($embeddedReplies as $reply) {
+                    [$replyId, $replySnippet] = $this->validatedReply($reply, 'malformed_embedded_reply_item');
 
                     $replyComment = $this->mapCommentSnippet($replySnippet);
                     $comments[$commentId]['replies'][$replyId] = $replyComment;
@@ -342,7 +338,7 @@ class CommentFetchIngestion
                 }
 
                 $embeddedReplyCount = count($comments[$commentId]['replies'] ?? []);
-                $totalReplyCount = max(0, (int) ($thread['snippet']['totalReplyCount'] ?? $embeddedReplyCount));
+                $totalReplyCount = max(0, (int) ($threadSnippet['totalReplyCount'] ?? $embeddedReplyCount));
 
                 if ($totalReplyCount > $embeddedReplyCount) {
                     $comments[$commentId]['replies'] = [];
@@ -359,12 +355,7 @@ class CommentFetchIngestion
                         $replyPagesFetched++;
 
                         foreach ($replyPage['items'] as $reply) {
-                            $replyId = (string) ($reply['id'] ?? '');
-                            $replySnippet = $reply['snippet'] ?? [];
-
-                            if ($replyId === '' || ! is_array($replySnippet) || $replySnippet === []) {
-                                continue;
-                            }
+                            [$replyId, $replySnippet] = $this->validatedReply($reply, 'malformed_reply_item');
 
                             $replyComment = $this->mapCommentSnippet($replySnippet);
                             $comments[$commentId]['replies'][$replyId] = $replyComment;
@@ -400,15 +391,85 @@ class CommentFetchIngestion
     /**
      * @return array<string, mixed>
      */
-    private function decodedMap(mixed $json): array
+    private function decodedStagedMap(mixed $json, string $field, bool $validateReplies = false): array
     {
         if (! is_string($json) || trim($json) === '') {
-            return [];
+            throw new RuntimeException("malformed_staged_{$field}");
         }
 
-        $decoded = json_decode($json, true);
+        try {
+            $decoded = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new RuntimeException("malformed_staged_{$field}", previous: $exception);
+        }
 
-        return is_array($decoded) ? $decoded : [];
+        if (! is_array($decoded)) {
+            throw new RuntimeException("malformed_staged_{$field}");
+        }
+
+        foreach ($decoded as $item) {
+            if (! is_array($item)) {
+                throw new RuntimeException("malformed_staged_{$field}");
+            }
+
+            if (! $validateReplies || ! array_key_exists('replies', $item)) {
+                continue;
+            }
+
+            if (! is_array($item['replies'])) {
+                throw new RuntimeException("malformed_staged_{$field}");
+            }
+
+            foreach ($item['replies'] as $reply) {
+                if (! is_array($reply)) {
+                    throw new RuntimeException("malformed_staged_{$field}");
+                }
+            }
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * @param  array<string, mixed>  $thread
+     * @return array{string, array<string, mixed>, array<string, mixed>, array<int, mixed>}
+     */
+    private function validatedThread(array $thread): array
+    {
+        $commentId = trim((string) ($thread['id'] ?? ''));
+        $snippet = $thread['snippet'] ?? null;
+        $topLevel = is_array($snippet) ? ($snippet['topLevelComment']['snippet'] ?? null) : null;
+        $replyContainer = $thread['replies'] ?? null;
+        $replies = is_array($replyContainer) ? ($replyContainer['comments'] ?? []) : [];
+
+        if ($commentId === '' || ! is_array($snippet) || ! is_array($topLevel) || $topLevel === []) {
+            throw new RuntimeException('malformed_comment_thread_item');
+        }
+
+        if ($replyContainer !== null && ! is_array($replyContainer)) {
+            throw new RuntimeException('malformed_comment_thread_replies');
+        }
+
+        if (! is_array($replies)) {
+            throw new RuntimeException('malformed_comment_thread_replies');
+        }
+
+        return [$commentId, $snippet, $topLevel, array_values($replies)];
+    }
+
+    /**
+     * @return array{string, array<string, mixed>}
+     */
+    private function validatedReply(mixed $reply, string $reason): array
+    {
+        $replyId = is_array($reply) ? trim((string) ($reply['id'] ?? '')) : '';
+        $snippet = is_array($reply) ? ($reply['snippet'] ?? null) : null;
+
+        if ($replyId === '' || ! is_array($snippet) || $snippet === []) {
+            throw new RuntimeException($reason);
+        }
+
+        return [$replyId, $snippet];
     }
 
     /**
@@ -493,8 +554,12 @@ class CommentFetchIngestion
     /**
      * @param  array<string, mixed>  $fetched
      */
-    private function upsertCommentPayload(string $videoId, array $fetched, CarbonImmutable $now): void
-    {
+    private function upsertCommentPayload(
+        string $videoId,
+        array $fetched,
+        CarbonImmutable $now,
+        bool $publishAuthors,
+    ): void {
         $nowString = $now->format('Y-m-d H:i:s');
         $existing = DB::table('urt_comment')->where('videoId', $videoId)->first();
         $latestTime = is_string($fetched['latestTime'] ?? null) && $fetched['latestTime'] !== ''
@@ -528,8 +593,10 @@ class CommentFetchIngestion
             DB::table('urt_comment')->where('videoId', $videoId)->update($values);
         }
 
-        foreach ($fetched['authors'] as $authorChannelId => $author) {
-            $this->upsertAuthor((string) $authorChannelId, $author, $videoId, $now);
+        if ($publishAuthors) {
+            foreach ($fetched['authors'] as $authorChannelId => $author) {
+                $this->upsertAuthor((string) $authorChannelId, $author, $videoId, $now);
+            }
         }
     }
 
@@ -563,8 +630,16 @@ class CommentFetchIngestion
         }
 
         $rev = DB::table('urt_comment_rev')->where('author_id', $authorId)->first();
-        $index = $rev !== null && isset($rev->index_json) ? json_decode((string) $rev->index_json, true) : [];
-        $index = is_array($index) ? array_values(array_filter($index, fn (mixed $id): bool => is_string($id) && $id !== '')) : [];
+        $indexJson = $rev !== null ? trim((string) ($rev->index_json ?? '')) : '';
+        $index = $indexJson !== ''
+            ? json_decode($indexJson, true, flags: JSON_THROW_ON_ERROR)
+            : [];
+
+        if (! is_array($index)
+            || ! array_is_list($index)
+            || collect($index)->contains(fn (mixed $id): bool => ! is_string($id) || trim($id) === '')) {
+            throw new RuntimeException('Existing comment author revision index JSON is not a string list.');
+        }
 
         if (! in_array($videoId, $index, true)) {
             $index[] = $videoId;

@@ -46,6 +46,29 @@ class IngestionChannelPredictionCommandTest extends TestCase
         $this->assertSame(0, DB::table('urt_count')->where('u_id', 12)->value('views_pred_month'));
     }
 
+    public function test_channel_predictions_supports_wrapped_offset_pagination(): void
+    {
+        $this->setPredictionTestTime();
+        $this->createTables();
+        $this->seedChannel(10);
+        $this->seedChannel(11);
+        $this->seedChannel(12);
+
+        $exitCode = Artisan::call('reports:channel-predictions:build', [
+            '--limit' => 2,
+            '--offset' => 2,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(2, $payload['offset']);
+        $this->assertSame(1, $payload['next_offset']);
+        $this->assertTrue($payload['batch_wrapped']);
+        $this->assertTrue($payload['source_truncated']);
+        $this->assertSame([12, 10], array_column($payload['rows'], 'u_id'));
+    }
+
     public function test_channel_predictions_execute_updates_one_channel_idempotently(): void
     {
         $this->setPredictionTestTime();

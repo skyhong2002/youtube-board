@@ -6,7 +6,6 @@ use App\Support\SensitiveTextRedactor;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Closure;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -63,7 +62,7 @@ class DirectYoutubeQuotaGuard
         $quotaAt = CarbonImmutable::now('America/Los_Angeles');
         $lockSeconds = max(60, min(86400, (int) config('ingestion.job_lock_seconds', 14400)));
         $lockName = 'ingestion:job:'.sha1($jobKey);
-        $lock = Cache::lock($lockName, $lockSeconds);
+        $lock = IngestionLockStore::lock($lockName, $lockSeconds);
 
         if (! $lock->get()) {
             return [
@@ -162,6 +161,7 @@ class DirectYoutubeQuotaGuard
                 exitCode: 1,
                 runtimeMs: $this->runtimeMs($startedNs),
             ));
+            $this->recordOutcome($jobKey, $guard);
 
             return ['allowed' => false, 'guard' => $guard, 'payload' => null];
         }
@@ -184,6 +184,7 @@ class DirectYoutubeQuotaGuard
             throw $exception;
         } finally {
             $guard = $this->finish($guard);
+            $this->recordOutcome($jobKey, $guard);
         }
 
         $payload['youtube_quota_budget'] = $this->publicState($guard);
@@ -338,6 +339,46 @@ class DirectYoutubeQuotaGuard
             ->reject(fn (mixed $value, string $key): bool => str_starts_with($key, '_'))
             ->except(['estimate'])
             ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $guard
+     */
+    private function recordOutcome(string $jobKey, array $guard): void
+    {
+        $public = $this->publicState($guard);
+        $reason = $public['reason'] ?? $public['settlement_reason'] ?? null;
+        $state = collect($public)->only([
+            'available',
+            'source',
+            'provider',
+            'quota_date',
+            'window_start',
+            'window_end',
+            'window_timezone',
+            'budget_units',
+            'consumed_units',
+            'reserved_units',
+            'history_estimated_units',
+            'projected_units',
+            'remaining_units',
+            'planned_units',
+            'actual_units',
+            'request_attempts',
+            'reservation_active',
+            'accounting_failed',
+            'settlement_reason',
+        ])->all();
+
+        $this->context->recordDirectGuardOutcome([
+            'job_key' => $jobKey,
+            'accounting_owner' => is_string($public['accounting_owner'] ?? null)
+                ? $public['accounting_owner']
+                : null,
+            'allowed' => (bool) ($public['allowed'] ?? false),
+            'reason' => is_string($reason) ? $reason : null,
+            'state' => $state,
+        ]);
     }
 
     public function sanitizedMessage(Throwable $exception): string

@@ -20,7 +20,7 @@ class KeywordCloudCacheCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_preview_applies_caps_and_does_not_write(): void
+    public function test_preview_blocks_explicit_subject_list_over_cap_and_does_not_write(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-26 12:00:00', 'Asia/Taipei'));
         $this->createTables();
@@ -37,14 +37,34 @@ class KeywordCloudCacheCommandTest extends TestCase
         ]);
         $payload = json_decode(trim(Artisan::output()), true);
 
-        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, $exitCode);
         $this->assertSame('dry-run', $payload['mode']);
-        $this->assertSame(['少子化', '托育'], $payload['subjects']);
+        $this->assertSame(['少子化', '托育', '育兒'], $payload['subjects']);
         $this->assertSame([1, 7, 365], $payload['days_list']);
         $this->assertSame(10000, $payload['video_limit_per_subject']);
-        $this->assertSame(6, $payload['rows_planned']);
+        $this->assertSame('subject_list_limit_exceeded', $payload['blocked_reason']);
+        $this->assertTrue($payload['source_truncated']);
+        $this->assertSame(0, $payload['rows_planned']);
         $this->assertSame(0, $payload['writes']);
         $this->assertSame(0, DB::table('urt_show_tag_cloud_tag')->count());
+
+        $periodExit = Artisan::call('reports:keyword-cloud:build', [
+            '--keywords' => '少子化',
+            '--days' => implode(',', range(1, 11)),
+            '--json' => true,
+        ]);
+        $periodPayload = json_decode(trim(Artisan::output()), true);
+        $filterExit = Artisan::call('reports:keyword-cloud:build', [
+            '--keywords' => '少子化',
+            '--tagid' => implode(',', range(1, 51)),
+            '--json' => true,
+        ]);
+        $filterPayload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(1, $periodExit);
+        $this->assertSame('period_list_limit_exceeded', $periodPayload['blocked_reason']);
+        $this->assertSame(1, $filterExit);
+        $this->assertSame('tagid_list_limit_exceeded', $filterPayload['blocked_reason']);
     }
 
     public function test_execute_writes_idempotent_cache_consumed_by_page_and_api(): void
@@ -152,6 +172,99 @@ class KeywordCloudCacheCommandTest extends TestCase
         $this->assertStringNotContainsString('sensitive database detail', $output);
         $this->assertSame(0, DB::table('urt_show_tag_cloud_tag')->where('tag', '故障詞')->count());
         $this->assertSame(1, DB::table('urt_show_tag_cloud_tag')->where('tag', '少子化')->count());
+    }
+
+    public function test_video_cap_blocks_only_incomplete_subject_and_preserves_existing_cache(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-26 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedRows();
+
+        $this->assertSame(0, Artisan::call('reports:keyword-cloud:build', [
+            '--keywords' => '少子化',
+            '--days' => '7',
+            '--video-limit' => 10,
+            '--execute' => true,
+            '--json' => true,
+        ]));
+        $existing = DB::table('urt_show_tag_cloud_tag')->where('tag', '少子化')->value('videos_json');
+
+        $exitCode = Artisan::call('reports:keyword-cloud:build', [
+            '--keywords' => '少子化,育兒',
+            '--days' => '7',
+            '--video-limit' => 1,
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('source_incomplete', $payload['blocked_reason']);
+        $this->assertTrue($payload['source_truncated']);
+        $this->assertSame(1, $payload['blocked_subjects']);
+        $this->assertSame('blocked', $payload['rows'][0]['status']);
+        $this->assertSame('video_scan_limit_exceeded', $payload['rows'][0]['reason']);
+        $this->assertSame('inserted', $payload['rows'][1]['status']);
+        $this->assertSame(1, $payload['writes']);
+        $this->assertSame($existing, DB::table('urt_show_tag_cloud_tag')->where('tag', '少子化')->value('videos_json'));
+        $this->assertSame(1, DB::table('urt_show_tag_cloud_tag')->where('tag', '育兒')->count());
+    }
+
+    public function test_channel_scan_cap_blocks_before_cache_publication_and_preserves_existing_row(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-26 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedRows();
+        $base = [
+            '--keywords' => '少子化',
+            '--tagid' => '13',
+            '--days' => '7',
+            '--channel-limit' => 10,
+            '--execute' => true,
+            '--json' => true,
+        ];
+
+        $this->assertSame(0, Artisan::call('reports:keyword-cloud:build', $base));
+        $existing = (array) DB::table('urt_show_tag_cloud_tag')->first();
+        DB::table('urt_count')->insert(['u_id' => 30, 'tags' => '[13]']);
+
+        $exitCode = Artisan::call('reports:keyword-cloud:build', array_merge($base, [
+            '--channel-limit' => 1,
+        ]));
+        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('channel_scan_limit_exceeded', $payload['blocked_reason']);
+        $this->assertFalse($payload['source_complete']);
+        $this->assertTrue($payload['source_truncated']);
+        $this->assertSame(1, $payload['channels_matched']);
+        $this->assertSame(1, $payload['channel_limit']);
+        $this->assertSame(0, $payload['writes']);
+        $this->assertSame($existing, (array) DB::table('urt_show_tag_cloud_tag')->first());
+    }
+
+    public function test_video_cap_isolates_short_complete_period_from_long_incomplete_period(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-26 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedRows();
+        DB::table('urt_video')->where('videoId', 'filtered-video')->update(['publishedAt' => '2026-05-23 11:00:00']);
+
+        $exitCode = Artisan::call('reports:keyword-cloud:build', [
+            '--keywords' => '少子化',
+            '--days' => '1,7',
+            '--video-limit' => 1,
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['writes']);
+        $this->assertSame('inserted', $payload['rows'][0]['status']);
+        $this->assertSame('blocked', $payload['rows'][1]['status']);
+        $this->assertSame('video_scan_limit_exceeded', $payload['rows'][1]['reason']);
+        $this->assertSame([1], DB::table('urt_show_tag_cloud_tag')->pluck('days')->map(fn (mixed $days): int => (int) $days)->all());
     }
 
     public function test_execute_fails_safely_when_another_rebuild_holds_the_lock(): void

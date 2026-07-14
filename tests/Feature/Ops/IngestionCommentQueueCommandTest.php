@@ -32,6 +32,7 @@ class IngestionCommentQueueCommandTest extends TestCase
             ['u_id' => 3, 'tags' => '[9]'],
         ]);
         DB::table('urt_video')->insert([
+            $this->videoRow(1, 'already-done', '2026-05-25 11:30:00', 1200, 650, 'Already Done'),
             $this->videoRow(1, 'would-queue', '2026-05-25 11:00:00', 1200, 650, 'Would Queue'),
             $this->videoRow(1, 'low-comments', '2026-05-25 11:10:00', 1200, 499, 'Low Comments'),
             $this->videoRow(2, 'already-queued', '2026-05-25 11:20:00', 1600, 800, 'Already Queued'),
@@ -50,7 +51,7 @@ class IngestionCommentQueueCommandTest extends TestCase
             'ctime' => '2026-05-25 10:00:00',
             'stime' => '2026-05-25 10:01:00',
             'ftime' => '2026-05-25 10:02:00',
-            'videoId' => 'would-queue',
+            'videoId' => 'already-done',
         ]);
 
         $exitCode = Artisan::call('youtube:comments:queue', [
@@ -68,17 +69,53 @@ class IngestionCommentQueueCommandTest extends TestCase
         $this->assertSame([9], $payload['filters']['not']);
         $this->assertSame('2026-05-24 12:00:00', $payload['published_after']);
         $this->assertSame(2, $payload['matching_channels']);
-        $this->assertSame(3, $payload['recent_video_rows']);
-        $this->assertSame(2, $payload['comment_threshold_rows']);
+        $this->assertSame(4, $payload['recent_video_rows']);
+        $this->assertSame(3, $payload['comment_threshold_rows']);
         $this->assertSame(1, $payload['already_queued_rows']);
         $this->assertSame(1, $payload['already_done_rows']);
         $this->assertSame(1, $payload['would_insert_queue_rows']);
         $this->assertSame([], $payload['writes']);
         $this->assertSame('would-queue', $payload['rows'][0]['video_id']);
-        $this->assertTrue($payload['rows'][0]['already_done']);
+        $this->assertFalse($payload['rows'][0]['already_done']);
         $this->assertFalse($payload['rows'][0]['already_queued']);
         $this->assertTrue($payload['rows'][0]['would_insert_queue']);
         $this->assertSame(1, DB::table('urt_comment_queue')->count());
+    }
+
+    public function test_youtube_comments_queue_execute_does_not_let_completed_videos_consume_the_limit(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        DB::table('urt_count')->insert(['u_id' => 1, 'tags' => '[1]']);
+        DB::table('urt_video')->insert([
+            $this->videoRow(1, 'already-done', '2026-05-25 11:30:00', 1200, 700, 'Already Done'),
+            $this->videoRow(1, 'new-candidate', '2026-05-25 11:00:00', 1200, 700, 'New Candidate'),
+        ]);
+        DB::table('urt_comment_queue_done')->insert([
+            'pk' => 100,
+            'ctime' => '2026-05-25 10:00:00',
+            'stime' => '2026-05-25 10:01:00',
+            'ftime' => '2026-05-25 10:02:00',
+            'videoId' => 'already-done',
+        ]);
+
+        $exitCode = Artisan::call('youtube:comments:queue', [
+            '--or' => '1',
+            '--hours' => 24,
+            '--min' => 500,
+            '--limit' => 1,
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, $payload['already_done_rows']);
+        $this->assertSame(1, $payload['inserted_queue_rows']);
+        $this->assertSame('new-candidate', $payload['inserted'][0]['videoId']);
+        $this->assertSame(0, DB::table('urt_comment_queue')->where('videoId', 'already-done')->count());
+        $this->assertSame(1, DB::table('urt_comment_queue')->where('videoId', 'new-candidate')->count());
     }
 
     public function test_youtube_comments_queue_execute_inserts_local_queue_rows_idempotently(): void

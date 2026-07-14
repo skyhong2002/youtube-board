@@ -61,9 +61,16 @@ class TagMonthCacheBuilder
         $tagIds = $this->ids($tagIds);
         $orTagIds = $this->ids($orTagIds);
         $notTagIds = $this->ids($notTagIds);
-        $blockedReason = $months === []
-            ? 'explicit_months_required'
-            : ($subjects === [] ? 'explicit_subjects_required' : $this->schemaBlock());
+        $blockedReason = match (true) {
+            count($monthRequests) > $monthLimit => 'month_list_limit_exceeded',
+            count($subjectRequests) > $subjectLimit => 'subject_list_limit_exceeded',
+            count($tagIds) > ReportCacheBuildGuardrails::TAG_ID_LIST_LIMIT => 'tagid_list_limit_exceeded',
+            count($orTagIds) > ReportCacheBuildGuardrails::TAG_ID_LIST_LIMIT => 'or_tag_list_limit_exceeded',
+            count($notTagIds) > ReportCacheBuildGuardrails::TAG_ID_LIST_LIMIT => 'not_tag_list_limit_exceeded',
+            $months === [] => 'explicit_months_required',
+            $subjects === [] => 'explicit_subjects_required',
+            default => $this->schemaBlock(),
+        };
 
         if ($blockedReason !== null) {
             return $this->emptyPayload(
@@ -156,11 +163,15 @@ class TagMonthCacheBuilder
         $unchanged = 0;
         $skipped = 0;
         $failed = 0;
+        $blockedMonths = 0;
+        $truncatedMonths = 0;
+        $invalidDailyRows = 0;
         $sourceRows = 0;
 
         foreach ($months as $month) {
             try {
-                $dailyRows = $this->dailyRows($month, $tagIds, $orTagIds, $notTagIds, $sourceRowLimit);
+                $dailySelection = $this->dailyRows($month, $tagIds, $orTagIds, $notTagIds, $sourceRowLimit);
+                $dailyRows = $dailySelection['rows'];
             } catch (Throwable) {
                 $failed += count($subjects);
 
@@ -172,6 +183,30 @@ class TagMonthCacheBuilder
             }
 
             $sourceRows += count($dailyRows);
+            $invalidDailyRows += $dailySelection['invalid_rows'];
+
+            if ($dailySelection['truncated']) {
+                $blockedMonths++;
+                $truncatedMonths++;
+                $failed += count($subjects);
+
+                foreach ($subjects as $subject) {
+                    $rows[] = $this->resultRow($month, $subject, 'blocked', 'source_row_limit_exceeded', sourceDates: count($dailyRows));
+                }
+
+                continue;
+            }
+
+            if ($dailySelection['invalid_rows'] > 0) {
+                $blockedMonths++;
+                $failed += count($subjects);
+
+                foreach ($subjects as $subject) {
+                    $rows[] = $this->resultRow($month, $subject, 'blocked', 'invalid_daily_json', sourceDates: count($dailyRows));
+                }
+
+                continue;
+            }
 
             foreach ($subjects as $subject) {
                 try {
@@ -251,7 +286,9 @@ class TagMonthCacheBuilder
         $payload = [
             'mode' => $execute ? 'execute' : 'ingestion-preview',
             'available' => true,
-            'blocked_reason' => null,
+            'blocked_reason' => $blockedMonths > 0 ? 'source_incomplete' : null,
+            'source_complete' => $failed === 0,
+            'source_truncated' => $truncatedMonths > 0,
             'generated_at' => $generatedAt,
             'months' => $months,
             'subjects' => $subjects,
@@ -274,6 +311,8 @@ class TagMonthCacheBuilder
             'unchanged' => $unchanged,
             'skipped' => $skipped,
             'failed_subjects' => $failed,
+            'blocked_months' => $blockedMonths,
+            'invalid_daily_rows' => $invalidDailyRows,
             'writes' => $execute ? $inserted + $updated : 0,
             'write_targets' => ['urt_show_tag_month'],
             'rows' => $rows,
@@ -284,13 +323,15 @@ class TagMonthCacheBuilder
             ],
         ];
 
-        Log::info('Tag month cache build completed.', [
+        Log::log($failed > 0 ? 'warning' : 'info', 'Tag month cache build completed.', [
             'mode' => $payload['mode'],
             'months' => count($months),
             'subjects' => count($subjects),
             'source_rows' => $sourceRows,
             'writes' => $payload['writes'],
             'failed_subjects' => $failed,
+            'blocked_months' => $blockedMonths,
+            'invalid_daily_rows' => $invalidDailyRows,
         ]);
 
         return $payload;
@@ -300,7 +341,7 @@ class TagMonthCacheBuilder
      * @param  list<int>  $tagIds
      * @param  list<int>  $orTagIds
      * @param  list<int>  $notTagIds
-     * @return list<object>
+     * @return array{rows: list<object>, truncated: bool, invalid_rows: int}
      */
     private function dailyRows(string $month, array $tagIds, array $orTagIds, array $notTagIds, int $sourceRowLimit): array
     {
@@ -312,12 +353,113 @@ class TagMonthCacheBuilder
             ->groupBy('the_date');
         $this->applyFilters($latest, $tagIds, $orTagIds, $notTagIds);
 
-        return DB::table('urt_show_tag_date')
+        $rows = DB::table('urt_show_tag_date')
             ->whereIn('pk', $latest)
             ->orderByDesc('the_date')
-            ->limit($sourceRowLimit)
+            ->limit($sourceRowLimit + 1)
             ->get(['pk', 'the_date', 'tags_result', 'tags_video', 'tags_views'])
             ->all();
+
+        $selectedRows = array_slice($rows, 0, $sourceRowLimit);
+
+        return [
+            'rows' => $selectedRows,
+            'truncated' => count($rows) > $sourceRowLimit,
+            'invalid_rows' => collect($selectedRows)
+                ->filter(fn (object $row): bool => ! $this->validDailyJson($row))
+                ->count(),
+        ];
+    }
+
+    private function validDailyJson(object $row): bool
+    {
+        $columns = [
+            'tags_result' => ['tags_result', 'score', 'weight', 'value', 'count'],
+            'tags_video' => ['tags_video', 'videos', 'count_videos', 'count', 'value', 'score'],
+            'tags_views' => ['tags_views', 'views', 'total_views', 'value', 'count', 'score'],
+        ];
+
+        foreach ($columns as $column => $valueKeys) {
+            $json = $row->{$column} ?? null;
+
+            if (! is_string($json) || trim($json) === '') {
+                return false;
+            }
+
+            try {
+                $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+
+                if (! is_array($decoded) || ! $this->validMetricCollection($decoded, $valueKeys)) {
+                    return false;
+                }
+            } catch (Throwable) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  array<mixed>  $decoded
+     * @param  list<string>  $valueKeys
+     */
+    private function validMetricCollection(array $decoded, array $valueKeys): bool
+    {
+        foreach (['tags_result', 'tags_views', 'tags_video', 'result', 'data', 'keywords'] as $key) {
+            if (isset($decoded[$key]) && is_array($decoded[$key])) {
+                $decoded = $decoded[$key];
+
+                break;
+            }
+        }
+
+        if ($decoded === []) {
+            return true;
+        }
+
+        if (array_is_list($decoded)) {
+            foreach ($decoded as $item) {
+                if (! is_array($item)
+                    || trim((string) ($item['tag'] ?? $item['keyword'] ?? $item['name'] ?? '')) === ''
+                    || ! $this->containsNumericMetric($item, $valueKeys)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        foreach ($decoded as $subject => $value) {
+            if (! is_string($subject) || trim($subject) === '') {
+                return false;
+            }
+
+            if (is_numeric($value)) {
+                continue;
+            }
+
+            if (! is_array($value) || ! $this->containsNumericMetric($value, $valueKeys)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  array<mixed>  $value
+     * @param  list<string>  $valueKeys
+     */
+    private function containsNumericMetric(array $value, array $valueKeys): bool
+    {
+        foreach ($valueKeys as $key) {
+            if (array_key_exists($key, $value) && is_numeric($value[$key])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -595,7 +737,6 @@ class TagMonthCacheBuilder
             ->filter(fn (int $value): bool => $value > 0)
             ->unique()
             ->sort()
-            ->take(50)
             ->values()
             ->all();
     }
@@ -650,6 +791,8 @@ class TagMonthCacheBuilder
             'mode' => $execute ? 'execute' : 'ingestion-preview',
             'available' => $available,
             'blocked_reason' => $reason,
+            'source_complete' => false,
+            'source_truncated' => str_ends_with($reason, '_limit_exceeded'),
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'months' => $months,
             'subjects' => $subjects,
@@ -672,6 +815,8 @@ class TagMonthCacheBuilder
             'unchanged' => 0,
             'skipped' => 0,
             'failed_subjects' => 0,
+            'blocked_months' => 0,
+            'invalid_daily_rows' => 0,
             'writes' => 0,
             'write_targets' => ['urt_show_tag_month'],
             'rows' => [],

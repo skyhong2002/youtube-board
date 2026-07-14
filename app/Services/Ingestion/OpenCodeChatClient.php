@@ -15,7 +15,7 @@ class OpenCodeChatClient
     ) {}
 
     /**
-     * @return array{content: string, model: string, provider: string, provider_failures: list<string>, usage: array<string, mixed>|null, latency_ms: int}
+     * @return array{content: string, model: string, configured_model: string, provider: string, provider_failures: list<string>, usage: array<string, mixed>|null, latency_ms: int}
      */
     public function complete(string $prompt): array
     {
@@ -38,7 +38,7 @@ class OpenCodeChatClient
         }
 
         throw new RuntimeException(mb_strimwidth(
-            'OpenCode completion failed after '.count($failures).' provider(s): '.implode(' | ', $failures).' secrets=not_printed',
+            'AI completion failed after '.count($failures).' provider(s): '.implode(' | ', $failures).' secrets=not_printed',
             0,
             240,
             '...',
@@ -47,7 +47,7 @@ class OpenCodeChatClient
     }
 
     /**
-     * @return array{content: string, model: string, provider: string, provider_failures: list<string>, usage: array<string, mixed>|null, latency_ms: int}
+     * @return array{content: string, model: string, configured_model: string, provider: string, provider_failures: list<string>, usage: array<string, mixed>|null, latency_ms: int}
      */
     public function probe(string $providerName, string $prompt = 'Reply with OK.', int $maxTokens = 16): array
     {
@@ -71,7 +71,7 @@ class OpenCodeChatClient
 
     /**
      * @param  array{name: string, api_key: string, base_url: string, model: string, endpoint_style: string, timeout: int, max_tokens: int}  $provider
-     * @return array{content: string, model: string, usage: array<string, mixed>|null, latency_ms: int}
+     * @return array{content: string, model: string, configured_model: string, usage: array<string, mixed>|null, latency_ms: int}
      */
     private function completeWithProvider(string $prompt, array $provider, ?int $maxTokensOverride = null): array
     {
@@ -172,6 +172,9 @@ class OpenCodeChatClient
         }
 
         $usage = is_array(data_get($payload, 'usage')) ? data_get($payload, 'usage') : null;
+        $responseModel = is_string($payload['model'] ?? null) && trim((string) $payload['model']) !== ''
+            ? trim((string) $payload['model'])
+            : $model;
         $this->telemetry->recordAiRequest($this->requestTelemetry(
             provider: $provider,
             endpointStyle: $messagesStyle ? 'messages' : 'chat',
@@ -186,7 +189,8 @@ class OpenCodeChatClient
 
         return [
             'content' => $content,
-            'model' => $model,
+            'model' => $responseModel,
+            'configured_model' => $model,
             'usage' => $usage,
             'latency_ms' => $latencyMs,
         ];

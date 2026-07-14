@@ -226,6 +226,133 @@ class IngestionVideoStatsCommandTest extends TestCase
         Http::assertSentCount(2);
     }
 
+    public function test_video_statistics_execute_runs_each_loop_batch_and_fails_when_an_api_item_is_missing(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+        $videos = [];
+        $scheduleRows = [];
+
+        for ($index = 1; $index <= 60; $index++) {
+            $videoId = sprintf('stats-loop-%03d', $index);
+            $videos[] = [
+                'pk' => $index,
+                'ctime' => '2026-05-24 00:00:00',
+                'mtime' => null,
+                'stime' => null,
+                'u_id' => $index,
+                'videoId' => $videoId,
+                'title' => 'Stats loop '.$index,
+                'channelTitle' => 'Channel '.$index,
+                'publishedAt' => '2026-05-20 12:00:00',
+                'viewCount' => null,
+                'likeCount' => null,
+                'commentCount' => null,
+            ];
+            $scheduleRows[] = [
+                'pk' => $index,
+                'ctime' => '2026-05-24 00:00:00',
+                'mtime' => null,
+                'stime' => null,
+                'videoId' => $videoId,
+                'publishedAt' => '2026-05-20 12:00:00',
+                'viewCount' => null,
+                'likeCount' => null,
+                'commentCount' => null,
+            ];
+        }
+
+        DB::table('urt_video')->insert($videos);
+        DB::table('urt_video_schedule')->insert($scheduleRows);
+        $requestedBatches = [];
+
+        Http::fake(function ($request) use (&$requestedBatches) {
+            $videoIds = explode(',', (string) $request['id']);
+            $requestedBatches[] = $videoIds;
+            $items = collect($videoIds)
+                ->reject(fn (string $videoId): bool => $videoId === 'stats-loop-060')
+                ->map(fn (string $videoId): array => [
+                    'id' => $videoId,
+                    'statistics' => [
+                        'viewCount' => '1234',
+                        'likeCount' => '56',
+                        'favoriteCount' => '0',
+                        'commentCount' => '7',
+                    ],
+                ])
+                ->values()
+                ->all();
+
+            return Http::response(['items' => $items], 200);
+        });
+
+        $payload = app(VideoStatisticsIngestion::class)->execute(batchSize: 50, loops: 2);
+
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame(60, $payload['selected_rows']);
+        $this->assertSame(2, $payload['api_batches_attempted']);
+        $this->assertSame(2, $payload['api_batches_completed']);
+        $this->assertSame(60, $payload['api_requested_videos']);
+        $this->assertSame(59, $payload['updated_videos']);
+        $this->assertSame(1, $payload['failed_videos']);
+        $this->assertSame(['videoId' => 'stats-loop-060', 'reason' => 'api_item_missing'], $payload['skipped'][0]);
+        $this->assertSame([50, 10], array_map('count', $requestedBatches));
+        $this->assertSame(1234, DB::table('urt_video')->where('videoId', 'stats-loop-051')->value('viewCount'));
+        $this->assertNull(DB::table('urt_video')->where('videoId', 'stats-loop-060')->value('viewCount'));
+        Http::assertSentCount(2);
+    }
+
+    public function test_video_statistics_execute_isolates_a_failed_api_batch_and_continues(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('services.youtube.transient_retries', 0);
+        $this->createTables();
+
+        for ($index = 1; $index <= 4; $index++) {
+            $videoId = sprintf('stats-batch-%02d', $index);
+            DB::table('urt_video')->insert([
+                'pk' => $index,
+                'ctime' => '2026-05-24 00:00:00',
+                'u_id' => $index,
+                'videoId' => $videoId,
+                'title' => 'Stats batch '.$index,
+                'channelTitle' => 'Channel '.$index,
+                'publishedAt' => '2026-05-20 12:00:00',
+            ]);
+            DB::table('urt_video_schedule')->insert([
+                'pk' => $index,
+                'ctime' => '2026-05-24 00:00:00',
+                'videoId' => $videoId,
+                'publishedAt' => '2026-05-20 12:00:00',
+            ]);
+        }
+
+        Http::fakeSequence()
+            ->push(['error' => ['message' => 'temporary batch failure']], 500)
+            ->push([
+                'items' => collect(['stats-batch-03', 'stats-batch-04'])->map(fn (string $videoId): array => [
+                    'id' => $videoId,
+                    'statistics' => ['viewCount' => '1234', 'likeCount' => '56', 'commentCount' => '7'],
+                ])->all(),
+            ], 200);
+
+        $payload = app(VideoStatisticsIngestion::class)->execute(batchSize: 2, loops: 2);
+
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame(2, $payload['api_batches_attempted']);
+        $this->assertSame(1, $payload['api_batches_completed']);
+        $this->assertSame(2, $payload['updated_videos']);
+        $this->assertSame(2, $payload['failed_videos']);
+        $this->assertSame(['api_batch_failed', 'api_batch_failed'], array_column($payload['skipped'], 'reason'));
+        $this->assertNull(DB::table('urt_video')->where('videoId', 'stats-batch-01')->value('viewCount'));
+        $this->assertSame(1234, DB::table('urt_video')->where('videoId', 'stats-batch-03')->value('viewCount'));
+        Http::assertSentCount(2);
+    }
+
     public function test_video_statistics_execute_isolates_a_failed_video_and_sanitizes_the_warning(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
@@ -344,6 +471,69 @@ SQL);
             });
     }
 
+    public function test_video_statistics_execute_preserves_malformed_history_and_continues_other_videos(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+
+        foreach (['a-invalid-history', 'b-valid-history'] as $index => $videoId) {
+            DB::table('urt_video')->insert([
+                'pk' => $index + 1,
+                'ctime' => '2026-05-24 00:00:00',
+                'u_id' => $index + 1,
+                'videoId' => $videoId,
+                'title' => $videoId,
+                'channelTitle' => 'Channel '.($index + 1),
+                'publishedAt' => '2026-05-20 12:00:00',
+            ]);
+            DB::table('urt_video_schedule')->insert([
+                'pk' => $index + 1,
+                'ctime' => '2026-05-24 00:00:00',
+                'videoId' => $videoId,
+                'publishedAt' => '2026-05-20 12:00:00',
+            ]);
+        }
+        DB::table('urt_video_log')->insert([
+            'videoId' => 'a-invalid-history',
+            'themonth' => '2026-05-01',
+            'thedata' => '{malformed-json',
+        ]);
+
+        Http::fake([
+            'www.googleapis.com/youtube/v3/videos*' => Http::response([
+                'items' => collect(['a-invalid-history', 'b-valid-history'])
+                    ->map(fn (string $videoId): array => [
+                        'id' => $videoId,
+                        'statistics' => [
+                            'viewCount' => '1234',
+                            'likeCount' => '56',
+                            'favoriteCount' => '0',
+                            'commentCount' => '7',
+                        ],
+                    ])
+                    ->all(),
+            ], 200),
+        ]);
+
+        $payload = app(VideoStatisticsIngestion::class)->execute(batchSize: 2, loops: 1);
+
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame(1, $payload['failed_videos']);
+        $this->assertSame(1, $payload['updated_videos']);
+        $this->assertSame([
+            'videoId' => 'a-invalid-history',
+            'reason' => 'item_processing_failed',
+        ], $payload['skipped'][0]);
+        $this->assertSame('{malformed-json', DB::table('urt_video_log')->where('videoId', 'a-invalid-history')->value('thedata'));
+        $this->assertNull(DB::table('urt_video')->where('videoId', 'a-invalid-history')->value('viewCount'));
+        $this->assertNull(DB::table('urt_video_schedule')->where('videoId', 'a-invalid-history')->value('viewCount'));
+        $this->assertFalse(DB::table('urt_video_log_history')->where('videoId', 'a-invalid-history')->exists());
+        $this->assertSame(1234, DB::table('urt_video')->where('videoId', 'b-valid-history')->value('viewCount'));
+        $this->assertTrue(DB::table('urt_video_log_history')->where('videoId', 'b-valid-history')->exists());
+    }
+
     public function test_youtube_videos_stats_supports_today_missing_view_count_branch(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
@@ -451,7 +641,7 @@ SQL);
         }
 
         Schema::create('urt_video_schedule', function ($table): void {
-            $table->integer('pk');
+            $table->increments('pk');
             $table->dateTime('ctime');
             $table->dateTime('mtime')->nullable();
             $table->dateTime('stime')->nullable();
@@ -463,7 +653,7 @@ SQL);
         });
 
         Schema::create('urt_video', function ($table): void {
-            $table->integer('pk');
+            $table->increments('pk');
             $table->dateTime('ctime');
             $table->dateTime('mtime')->nullable();
             $table->dateTime('stime')->nullable();
@@ -478,7 +668,7 @@ SQL);
         });
 
         Schema::create('urt_video_log_history', function ($table): void {
-            $table->integer('pk')->nullable();
+            $table->increments('pk');
             $table->dateTime('ctime')->nullable();
             $table->string('videoId')->nullable();
             $table->integer('viewCount')->nullable();
@@ -489,7 +679,7 @@ SQL);
         });
 
         Schema::create('urt_video_log', function ($table): void {
-            $table->integer('pk')->nullable();
+            $table->increments('pk');
             $table->dateTime('ctime')->nullable();
             $table->dateTime('mtime')->nullable();
             $table->string('videoId')->nullable();

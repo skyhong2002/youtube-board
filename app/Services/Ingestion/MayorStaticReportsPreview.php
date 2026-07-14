@@ -26,7 +26,12 @@ class MayorStaticReportsPreview
      *     writes: list<string>
      * }
      */
-    public function preview(?string $city = null, int $limit = 20, ?CarbonInterface $now = null): array
+    public function preview(
+        ?string $city = null,
+        int $limit = 20,
+        ?CarbonInterface $now = null,
+        int|string|null $offset = 0,
+    ): array
     {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
         $now = $now === null
@@ -44,9 +49,18 @@ class MayorStaticReportsPreview
                 ->all();
         }
 
-        $rows = collect($targets)
+        $targetCount = count($targets);
+        [$effectiveOffset, $offsetMode] = $this->effectiveOffset($offset, $targetCount, $limit, $now);
+        $selected = collect($targets)->slice($effectiveOffset, $limit);
+        $wrapped = false;
+
+        if ($selected->count() < min($limit, $targetCount) && $effectiveOffset > 0) {
+            $wrapped = true;
+            $selected = $selected->concat(collect($targets)->take(min($limit, $targetCount) - $selected->count()));
+        }
+
+        $rows = $selected
             ->map(fn (array $target): array => $this->withDynamicPreview($target))
-            ->take($limit)
             ->values()
             ->all();
 
@@ -55,8 +69,13 @@ class MayorStaticReportsPreview
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'source_path' => $sourcePath,
             'source_status' => $sourceStatus,
-            'targets' => count($targets),
-            'would_generate' => count($targets),
+            'targets' => $targetCount,
+            'would_generate' => $targetCount,
+            'offset' => $effectiveOffset,
+            'offset_mode' => $offsetMode,
+            'next_offset' => $targetCount > 0 ? ($effectiveOffset + count($rows)) % $targetCount : 0,
+            'batch_wrapped' => $wrapped,
+            'source_truncated' => $targetCount > count($rows),
             'rows' => $rows,
             'writes' => [],
         ];
@@ -65,14 +84,20 @@ class MayorStaticReportsPreview
     /**
      * @return array<string, mixed>
      */
-    public function execute(?string $city = null, int $limit = 20, int $keywordLimit = 5000, ?CarbonInterface $now = null): array
+    public function execute(
+        ?string $city = null,
+        int $limit = 20,
+        int $keywordLimit = 5000,
+        ?CarbonInterface $now = null,
+        int|string|null $offset = 0,
+    ): array
     {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
         $now = $now === null
             ? CarbonImmutable::now($timezone)
             : CarbonImmutable::instance($now->toDateTimeImmutable())->setTimezone($timezone);
 
-        $payload = $this->preview($city, $limit, $now);
+        $payload = $this->preview($city, $limit, $now, $offset);
         $targetReports = [];
         $targetKeywords = [];
 
@@ -136,6 +161,24 @@ class MayorStaticReportsPreview
             'exit_code' => $failedCacheRows > 0 ? 1 : 0,
             'writes' => ['urt_show_tag_date'],
         ]);
+    }
+
+    /** @return array{0: int, 1: string} */
+    private function effectiveOffset(
+        int|string|null $offset,
+        int $total,
+        int $limit,
+        CarbonImmutable $now,
+    ): array {
+        if ($total < 1) {
+            return [0, 'explicit'];
+        }
+
+        if (is_string($offset) && strtolower(trim($offset)) === 'auto') {
+            return [(intdiv($now->getTimestamp(), 3600) * $limit) % $total, 'auto'];
+        }
+
+        return [max(0, (int) $offset) % $total, 'explicit'];
     }
 
     /**

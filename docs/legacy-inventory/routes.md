@@ -294,12 +294,6 @@ Source: `nav_index.php`, `nav_live.php`, `nav_channel.php`, `nav_tag.php`, `nav_
 | 每日 Prompt | `/ai_day_prompt.php` | `/ai/days/{date}/prompt`, `/ai/days/{date}/{condition}/prompt` | Implemented as AI prompt builder from local `urt_channel_ai`; preserves legacy condition/tag filters, parses wrapped AI JSON variants, and routes AI writeback through Laravel ingestion commands. |
 | 今日每小時 | `/ai_hour.php` | `/ai/hours` | Implemented as real-time YouTube dashboard hourly AI summary from local `urt_ai_hour`; defaults to latest imported date for local reconstruction and parses list plus wrapped `events`/`topics` legacy AI JSON variants. |
 
-## Include-Only Helpers
-
-| Legacy helper | Modern usage | Notes |
-| --- | --- | --- |
-| `stopwords.php` | `App\Services\Legacy\LegacyStopwords` | Parsed from the legacy ground-truth path and shared by keyword list, tag cloud, channel cloud, daily tag relation, and live tag pages. There is no public route because the legacy file only populates a PHP array for include callers. |
-| `nav_media.php` | Existing group/media links | Include-only menu that points at `/html/group_chart.html`, `/html/group_chart_30.html`, and `/html/group_line.html`; those static URLs already redirect to `/groups/media/ranking` or `/groups/media/trends`. |
 | 期間主要事件 | `/ai_period.php` | `/ai/periods` | Implemented as real-time YouTube dashboard period table from `urt_ai_date.data_json`/`result_json`, including wrapped legacy AI JSON parsing; cache refresh runs through Laravel AI ingestion jobs. |
 | 事件分析 | `/ai_event.php`, `/ai_event_people.php`, `/ai_event_wall.php` | `/ai/events/{id}`, `/ai/events/{id}/people`, `/ai/events/{id}/wall` | Implemented real-time YouTube dashboard summary, people/media, video wall output from `urt_ai_event`, and `urt_ai_period` match-chain history when period rows exist; `ai:event` refreshes `urt_ai_event` summary/people/media rows, `ai:period` refreshes adjacent-day event mapping, and `ai:days:refresh` automates daily/event/period/verify repair flows across one or more dates. |
 | 立場分布表 | `/ai_channel.php`, `/ai_tag.php`, `/ai_dashboard.php` | `/ai/aspects` | Implemented from latest `urt_channel_ai` aspect JSON, with tag filters, condition shortcuts, and grouped or wrapped/flat aspect payload parsing. |
@@ -338,6 +332,13 @@ Source: `nav_index.php`, `nav_live.php`, `nav_channel.php`, `nav_tag.php`, `nav_
 | 頻道人物 | `/channel_days.php`, `/ch/{u_id}/days/` | `/channels/{u_id}/people` | Implemented from local `urt_channel_ai` `oneday` JSON by aggregating people over the latest imported period; parses list plus wrapped `events`/`topics` legacy AI JSON variants. |
 | 頻道 Prompt | `/channel_prompt.php`, `/ch/{u_id}/prompt/` | `/channels/{u_id}/prompt` | Implemented as AI prompt builder from local `urt_video`; channel AI writeback runs through Laravel AI ingestion commands. |
 | 頻道 GPT Prompt / AI 結果 | `/channel_gpt.php`, `/maint/get_channel_openai.php`, `/ch/{u_id}/ai/` | `/channels/{u_id}/ai` | Implemented as live cached `topic`/`people`/`aspect` output from local `urt_channel_ai`, with the legacy manual GPT prompt preview; AI generation runs through Laravel AI ingestion commands. |
+
+## Include-Only Helpers
+
+| Legacy helper | Modern usage | Notes |
+| --- | --- | --- |
+| `stopwords.php` | `App\Services\Legacy\LegacyStopwords` | Parsed from the legacy ground-truth path and shared by keyword list, tag cloud, channel cloud, daily tag relation, and live tag pages. There is no public route because the legacy file only populates a PHP array for include callers. |
+| `nav_media.php` | Existing group/media links | Include-only menu that points at `/html/group_chart.html`, `/html/group_chart_30.html`, and `/html/group_line.html`; those static URLs already redirect to `/groups/media/ranking` or `/groups/media/trends`. |
 
 Full parity backlog: `docs/legacy-inventory/feature-parity.md`.
 

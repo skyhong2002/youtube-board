@@ -13,6 +13,11 @@ class YoutubeQuotaReservationContext
     private array $schedulerReservations = [];
 
     /**
+     * @var list<array<string, mixed>>
+     */
+    private array $directGuardOutcomes = [];
+
+    /**
      * @template T
      *
      * @param  array<string, mixed>  $reservation
@@ -43,6 +48,30 @@ class YoutubeQuotaReservationContext
     public function withDirectReservation(string $jobKey, array $reservation, Closure $callback): mixed
     {
         return $this->withSchedulerReservation($jobKey, $reservation, $callback);
+    }
+
+    public function resetDirectGuardOutcomes(): void
+    {
+        $this->directGuardOutcomes = [];
+    }
+
+    /**
+     * @param  array<string, mixed>  $outcome
+     */
+    public function recordDirectGuardOutcome(array $outcome): void
+    {
+        $this->directGuardOutcomes[] = $outcome;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function takeDirectGuardOutcomes(): array
+    {
+        $outcomes = $this->directGuardOutcomes;
+        $this->directGuardOutcomes = [];
+
+        return $outcomes;
     }
 
     /**

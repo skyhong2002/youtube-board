@@ -144,6 +144,27 @@ class LegacyAiApiTest extends TestCase
         $this->assertSame(0, DB::table('urt_log_api')->count());
     }
 
+    public function test_api_comment_hides_incomplete_comment_staging_row(): void
+    {
+        $this->createCommentTable();
+        $this->createLogApiTable();
+        DB::table('urt_comment')->insert([
+            'pk' => 1,
+            'videoId' => 'video-partial',
+            'ctime' => '2026-05-23 00:00:00',
+            'pageToken' => 'NEXT-PAGE',
+            'authors_json' => json_encode(['partial-author' => 1], JSON_UNESCAPED_UNICODE),
+            'comments_json' => json_encode(['partial-comment' => ['text' => 'not published']], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->getJson('/api/api_comment.php?videoId=video-partial');
+
+        $response->assertOk();
+        $response->assertJsonPath('meta.available', false);
+        $response->assertJsonPath('result', []);
+        $response->assertJsonPath('authors', []);
+    }
+
     /**
      * @param array<string, mixed> $overrides
      */
@@ -245,6 +266,7 @@ class LegacyAiApiTest extends TestCase
             $table->dateTime('stime')->nullable();
             $table->integer('comments_count')->nullable();
             $table->dateTime('latest_time')->nullable();
+            $table->string('pageToken')->nullable();
             $table->longText('authors_json')->nullable();
             $table->longText('comments_json')->nullable();
         });

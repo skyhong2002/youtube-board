@@ -6,7 +6,10 @@ use Carbon\CarbonImmutable;
 
 class IngestionTelemetry
 {
-    private ?string $currentJobKey = null;
+    /**
+     * @var list<array{job_key: string, youtube_start: int, ai_start: int}>
+     */
+    private array $jobStack = [];
 
     /**
      * @var list<array<string, mixed>>
@@ -20,26 +23,31 @@ class IngestionTelemetry
 
     public function reset(): void
     {
-        $this->currentJobKey = null;
+        $this->jobStack = [];
         $this->youtubeRequests = [];
         $this->aiRequests = [];
     }
 
     public function startJob(string $jobKey): void
     {
-        $this->currentJobKey = $jobKey;
-        $this->clearJob($jobKey);
+        $this->jobStack[] = [
+            'job_key' => $jobKey,
+            'youtube_start' => count($this->youtubeRequests),
+            'ai_start' => count($this->aiRequests),
+        ];
     }
 
     public function finishJob(string $jobKey): array
     {
-        $snapshot = $this->snapshotForJob($jobKey);
+        $frame = $this->currentJobFrame();
 
-        if ($this->currentJobKey === $jobKey) {
-            $this->currentJobKey = null;
+        if ($frame === null || $frame['job_key'] !== $jobKey) {
+            return $this->snapshotForJob($jobKey);
         }
 
-        return $snapshot;
+        array_pop($this->jobStack);
+
+        return $this->snapshotForFrame($frame);
     }
 
     public function recordYoutubeRequest(array $event): void
@@ -79,30 +87,46 @@ class IngestionTelemetry
     {
         $youtubeRequests = array_values(array_filter(
             $this->youtubeRequests,
-            fn (array $event): bool => ($event['job_key'] ?? null) === $jobKey,
+            fn (array $event): bool => $this->belongsToJob($event, $jobKey),
         ));
         $aiRequests = array_values(array_filter(
             $this->aiRequests,
-            fn (array $event): bool => ($event['job_key'] ?? null) === $jobKey,
+            fn (array $event): bool => $this->belongsToJob($event, $jobKey),
         ));
 
+        return $this->snapshotFor($youtubeRequests, $aiRequests);
+    }
+
+    /**
+     * @param  array{job_key: string, youtube_start: int, ai_start: int}  $frame
+     * @return array<string, mixed>
+     */
+    private function snapshotForFrame(array $frame): array
+    {
+        $youtubeRequests = array_values(array_filter(
+            array_slice($this->youtubeRequests, $frame['youtube_start']),
+            fn (array $event): bool => $this->belongsToJob($event, $frame['job_key']),
+        ));
+        $aiRequests = array_values(array_filter(
+            array_slice($this->aiRequests, $frame['ai_start']),
+            fn (array $event): bool => $this->belongsToJob($event, $frame['job_key']),
+        ));
+
+        return $this->snapshotFor($youtubeRequests, $aiRequests);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $youtubeRequests
+     * @param  list<array<string, mixed>>  $aiRequests
+     * @return array<string, mixed>
+     */
+    private function snapshotFor(array $youtubeRequests, array $aiRequests): array
+    {
         return [
             'youtube_requests' => $youtubeRequests,
             'ai_requests' => $aiRequests,
             'summary' => $this->summaryFor($youtubeRequests, $aiRequests),
         ];
-    }
-
-    private function clearJob(string $jobKey): void
-    {
-        $this->youtubeRequests = array_values(array_filter(
-            $this->youtubeRequests,
-            fn (array $event): bool => ($event['job_key'] ?? null) !== $jobKey,
-        ));
-        $this->aiRequests = array_values(array_filter(
-            $this->aiRequests,
-            fn (array $event): bool => ($event['job_key'] ?? null) !== $jobKey,
-        ));
     }
 
     /**
@@ -114,9 +138,36 @@ class IngestionTelemetry
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
 
         return [
-            'job_key' => $this->currentJobKey,
+            'job_key' => $this->currentJobKey(),
+            'job_path' => array_column($this->jobStack, 'job_key'),
             'recorded_at' => CarbonImmutable::now($timezone)->toDateTimeString().' '.$timezone,
         ] + $event;
+    }
+
+    /**
+     * @param  array<string, mixed>  $event
+     */
+    private function belongsToJob(array $event, string $jobKey): bool
+    {
+        if (($event['job_key'] ?? null) === $jobKey) {
+            return true;
+        }
+
+        return is_array($event['job_path'] ?? null)
+            && in_array($jobKey, $event['job_path'], true);
+    }
+
+    private function currentJobKey(): ?string
+    {
+        return $this->currentJobFrame()['job_key'] ?? null;
+    }
+
+    /**
+     * @return array{job_key: string, youtube_start: int, ai_start: int}|null
+     */
+    private function currentJobFrame(): ?array
+    {
+        return $this->jobStack === [] ? null : $this->jobStack[array_key_last($this->jobStack)];
     }
 
     /**

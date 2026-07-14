@@ -297,6 +297,74 @@ class IngestionChannelVideosCommandTest extends TestCase
         $this->assertSame(0, DB::table('urt_video_live')->count());
     }
 
+    public function test_youtube_channels_videos_execute_rotates_missing_uploads_playlist_rows(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('services.youtube.api_keys', null);
+        $this->createTables();
+
+        DB::table('urt_channel')->insert([
+            [
+                'u_id' => 10,
+                'ctime' => '2026-05-20 00:00:00',
+                'vtime' => null,
+                'flag_del' => null,
+                'youtube_id' => 'UC-missing-uploads',
+                'title' => 'Missing Uploads Channel',
+                'uploads' => '',
+                'videoCount' => 10,
+            ],
+            [
+                'u_id' => 11,
+                'ctime' => '2026-05-20 00:00:00',
+                'vtime' => null,
+                'flag_del' => null,
+                'youtube_id' => 'UC-ready',
+                'title' => 'Ready Channel',
+                'uploads' => 'UU-ready',
+                'videoCount' => 10,
+            ],
+        ]);
+        Http::fake([
+            'www.googleapis.com/youtube/v3/playlistItems*' => Http::response([
+                'items' => [
+                    $this->playlistItem('ready-item', 'ready-video', '2026-05-25T03:00:00Z', 'Ready upload'),
+                ],
+            ]),
+        ]);
+
+        $firstExit = Artisan::call('youtube:channels:videos', [
+            '--execute' => true,
+            '--limit' => 1,
+            '--max-results' => 1,
+            '--json' => true,
+        ]);
+        $first = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $firstExit);
+        $this->assertSame(1, $first['failed_channels']);
+        $this->assertSame(0, $first['api_requested_channels']);
+        $this->assertSame('missing_uploads_playlist', $first['skipped'][0]['reason']);
+        $this->assertSame('2026-05-25 13:00:00', (string) DB::table('urt_channel')->where('u_id', 10)->value('vtime'));
+        Http::assertNothingSent();
+
+        $secondExit = Artisan::call('youtube:channels:videos', [
+            '--execute' => true,
+            '--limit' => 1,
+            '--max-results' => 1,
+            '--json' => true,
+        ]);
+        $second = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $secondExit);
+        $this->assertSame(1, $second['updated_channels']);
+        $this->assertSame(11, $second['applied'][0]['u_id']);
+        $this->assertSame('Ready upload', DB::table('urt_video')->where('videoId', 'ready-video')->value('title'));
+        Http::assertSentCount(1);
+    }
+
     public function test_youtube_channels_videos_execute_parses_playlist_and_upserts_idempotently(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
@@ -388,6 +456,62 @@ class IngestionChannelVideosCommandTest extends TestCase
         $this->assertSame(2, DB::table('urt_video_schedule')->count());
         $this->assertSame(1, DB::table('urt_video_live')->count());
         Http::assertSentCount(2);
+    }
+
+    public function test_youtube_channels_videos_execute_fails_closed_on_a_malformed_playlist_item(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('services.youtube.api_keys', null);
+        config()->set('services.youtube.transient_retries', 0);
+        $this->createTables();
+
+        DB::table('urt_channel')->insert([
+            'u_id' => 10,
+            'ctime' => '2026-05-20 00:00:00',
+            'mtime' => null,
+            'vtime' => null,
+            'flag_del' => null,
+            'youtube_id' => 'UC-malformed',
+            'title' => 'Malformed Uploads Channel',
+            'uploads' => 'UU-malformed',
+            'videoCount' => 100,
+        ]);
+        $items = collect(range(1, 50))
+            ->map(fn (int $index): array => $this->playlistItem(
+                'item-'.$index,
+                'video-'.$index,
+                '2026-05-25T03:00:00Z',
+                'Upload '.$index,
+            ))
+            ->all();
+        unset($items[49]['snippet']['resourceId']['videoId']);
+        Http::fake([
+            'www.googleapis.com/youtube/v3/playlistItems*' => Http::response([
+                'nextPageToken' => 'MORE-UPLOADS',
+                'items' => $items,
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('youtube:channels:videos', [
+            '--execute' => true,
+            '--channel' => 10,
+            '--limit' => 1,
+            '--max-results' => 50,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['failed_channels']);
+        $this->assertSame(0, $payload['updated_channels']);
+        $this->assertSame('playlist_api_error', $payload['skipped'][0]['reason']);
+        $this->assertSame('2026-05-25 13:00:00', DB::table('urt_channel')->where('u_id', 10)->value('vtime'));
+        $this->assertSame(0, DB::table('urt_video')->count());
+        $this->assertSame(0, DB::table('urt_video_schedule')->count());
+        $this->assertSame(0, DB::table('urt_video_live')->count());
+        Http::assertSentCount(1);
     }
 
     public function test_youtube_channels_videos_execute_isolates_bad_playlist_and_fails_batch_summary(): void
@@ -720,6 +844,9 @@ SQL);
         $this->assertSame(0, $exitCode);
         $this->assertSame('execute', $payload['mode']);
         $this->assertSame(1, $payload['selected_channels']);
+        $this->assertSame([10], $payload['selected_channel_ids']);
+        $this->assertSame([10], $payload['completed_channel_ids']);
+        $this->assertSame([], $payload['failed_channel_ids']);
         $this->assertSame(2, $payload['api_pages']);
         $this->assertSame(4, $payload['api_items']);
         $this->assertSame(2, $payload['videos_in_range']);
@@ -737,6 +864,110 @@ SQL);
         $this->assertSame(0, $payload['youtube_quota_budget']['reserved_units']);
         $this->assertFalse($payload['youtube_quota_budget']['reservation_active']);
         Http::assertSentCount(2);
+    }
+
+    public function test_youtube_tag_videos_backfill_marks_a_complete_zero_video_crawl_as_covered(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-26 00:15:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-26 00:15:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('services.youtube.api_keys', null);
+        config()->set('services.youtube.transient_retries', 0);
+        $this->createTables();
+
+        DB::table('urt_channel')->insert([
+            'u_id' => 10,
+            'ctime' => '2026-05-20 00:00:00',
+            'mtime' => null,
+            'vtime' => null,
+            'flag_del' => null,
+            'youtube_id' => 'UC-news',
+            'title' => 'Low Volume News Channel',
+            'uploads' => 'UU-news',
+            'videoCount' => 1000,
+        ]);
+        DB::table('urt_count')->insert(['u_id' => 10, 'tags' => '[102]']);
+
+        Http::fakeSequence()->push([
+            'items' => [
+                $this->playlistItem('item-old', 'video-old', '2026-05-24T15:59:00Z', 'Older upload'),
+            ],
+        ]);
+
+        $exitCode = Artisan::call('youtube:tag-videos:backfill', [
+            '--tagid' => 102,
+            '--from' => '2026-05-25',
+            '--to' => '2026-05-25',
+            '--execute' => true,
+            '--limit' => 10,
+            '--max-pages' => 5,
+            '--max-results' => 50,
+            '--no-rebuild' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertTrue($payload['crawl_complete']);
+        $this->assertSame([10], $payload['selected_channel_ids']);
+        $this->assertSame([10], $payload['completed_channel_ids']);
+        $this->assertSame([], $payload['failed_channel_ids']);
+        $this->assertSame(0, $payload['videos_in_range']);
+        $this->assertTrue($payload['applied'][0]['stopped_before_from']);
+        $this->assertSame(0, DB::table('urt_video')->count());
+        Http::assertSentCount(1);
+    }
+
+    public function test_youtube_tag_videos_backfill_rejects_a_malformed_full_playlist_page_without_publishing_cache(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-26 12:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-26 12:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('services.youtube.api_keys', null);
+        config()->set('services.youtube.transient_retries', 0);
+        $this->createTables();
+        $this->createTagDateTables();
+        $this->seedTagChannel();
+        $items = collect(range(1, 50))
+            ->map(fn (int $index): array => $this->playlistItem(
+                'daily-item-'.$index,
+                'daily-video-'.$index,
+                '2026-05-26T09:00:00Z',
+                '每日 upload '.$index,
+            ))
+            ->all();
+        unset($items[49]['snippet']['resourceId']['videoId']);
+        Http::fake([
+            'www.googleapis.com/youtube/v3/playlistItems*' => Http::response([
+                'nextPageToken' => 'MORE-DAILY-UPLOADS',
+                'items' => $items,
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('youtube:tag-videos:backfill', [
+            '--tagid' => 102,
+            '--from' => '2026-05-26',
+            '--to' => '2026-05-26',
+            '--execute' => true,
+            '--limit' => 1,
+            '--max-pages' => 5,
+            '--max-results' => 50,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertFalse($payload['crawl_complete']);
+        $this->assertSame([10], $payload['selected_channel_ids']);
+        $this->assertSame([], $payload['completed_channel_ids']);
+        $this->assertSame([10], $payload['failed_channel_ids']);
+        $this->assertSame(1, $payload['failed_channels']);
+        $this->assertSame(0, $payload['updated_channels']);
+        $this->assertSame('incomplete_channel_crawl', $payload['tag_date_rebuild_skipped_reason']);
+        $this->assertSame(0, $payload['tag_date_writes']);
+        $this->assertSame(0, DB::table('urt_video')->count());
+        $this->assertSame(0, DB::table('urt_show_tag_date')->count());
+        Http::assertSentCount(1);
     }
 
     public function test_youtube_tag_videos_backfill_returns_nonzero_when_tag_date_cache_rebuild_fails(): void
@@ -842,6 +1073,9 @@ SQL);
         $this->assertFalse($payload['crawl_complete']);
         $this->assertSame(1, $payload['failed_channels']);
         $this->assertSame(1, $payload['updated_channels']);
+        $this->assertSame([10, 11], $payload['selected_channel_ids']);
+        $this->assertSame([11], $payload['completed_channel_ids']);
+        $this->assertSame([10], $payload['failed_channel_ids']);
         $this->assertSame('incomplete_channel_crawl', $payload['tag_date_rebuild_skipped_reason']);
         $this->assertSame(0, $payload['tag_date_writes']);
         $this->assertFalse(DB::table('urt_video')->where('videoId', 'video-partial')->exists());
@@ -895,6 +1129,9 @@ SQL);
         $this->assertSame(1, $partialExit);
         $this->assertSame(1, $partial['failed_channels']);
         $this->assertFalse($partial['crawl_complete']);
+        $this->assertSame([10], $partial['selected_channel_ids']);
+        $this->assertSame([], $partial['completed_channel_ids']);
+        $this->assertSame([10], $partial['failed_channel_ids']);
         $this->assertSame('incomplete_channel_crawl', $partial['tag_date_rebuild_skipped_reason']);
         $this->assertFalse(DB::table('urt_video')->where('videoId', 'video-partial')->exists());
         $this->assertSame(0, DB::table('urt_show_tag_date')->count());
@@ -1165,7 +1402,7 @@ SQL);
         });
 
         Schema::create('urt_video', function ($table): void {
-            $table->integer('pk');
+            $table->increments('pk');
             $table->dateTime('ctime');
             $table->integer('u_id');
             $table->string('id')->nullable();
@@ -1182,7 +1419,7 @@ SQL);
         });
 
         Schema::create('urt_video_live', function ($table): void {
-            $table->integer('pk');
+            $table->increments('pk');
             $table->dateTime('ctime');
             $table->string('videoId');
             $table->dateTime('publishedAt');
@@ -1190,7 +1427,7 @@ SQL);
         });
 
         Schema::create('urt_video_schedule', function ($table): void {
-            $table->integer('pk')->nullable();
+            $table->increments('pk');
             $table->dateTime('ctime')->nullable();
             $table->string('videoId')->nullable();
             $table->dateTime('publishedAt')->nullable();

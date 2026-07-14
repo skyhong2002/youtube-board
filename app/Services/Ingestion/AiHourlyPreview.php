@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Schema;
 
 class AiHourlyPreview
 {
+    public const MAX_PROMPT_VIDEO_LIMIT = 5000;
+
     public function __construct(private readonly LegacyTagFilter $tagFilter) {}
 
     /**
@@ -22,6 +24,7 @@ class AiHourlyPreview
         int $hour = 1,
         int $period = 1,
         int $limit = 20,
+        int $promptVideoLimit = self::MAX_PROMPT_VIDEO_LIMIT,
         ?CarbonInterface $now = null,
     ): array {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
@@ -31,6 +34,10 @@ class AiHourlyPreview
         $hour = max(0, min(168, $hour));
         $period = max(1, min(48, $period));
         $limit = max(1, min(1000, $limit));
+        $requestedPromptVideoLimit = $promptVideoLimit;
+        $promptVideoLimit = $promptVideoLimit <= 0
+            ? self::MAX_PROMPT_VIDEO_LIMIT
+            : min(self::MAX_PROMPT_VIDEO_LIMIT, $promptVideoLimit);
         $explicitCondition = is_string($condition) && trim($condition) !== '';
         $conditionType = $this->conditionType($condition);
         $filters = $this->filters($conditionType, $explicitCondition);
@@ -38,18 +45,23 @@ class AiHourlyPreview
         $periodWindow = $this->periodWindow($now, $hour, $period);
         $videoQuery = $this->videoQuery($periodWindow, $matchingUIds, $filters);
         $videoRows = (clone $videoQuery)->count();
-        $rows = (clone $videoQuery)
+        $sourceRows = (clone $videoQuery)
             ->orderByDesc('viewCount')
             ->orderBy('videoId')
-            ->limit(5000)
+            ->limit($promptVideoLimit + 1)
             ->get($this->videoColumns());
+        $sourceTruncated = $videoRows > $promptVideoLimit || $sourceRows->count() > $promptVideoLimit;
+        $rows = $sourceRows->take($promptVideoLimit);
         $bounds = $this->promptBounds($videoRows);
         $prompt = $this->prompt($rows, $bounds);
         $displayRows = $rows->take($limit)->map(fn (object $row): array => $this->mapVideoRow($row))->values();
-        $hasEligibleSource = $rows->isNotEmpty();
+        $hasEligibleSource = $rows->isNotEmpty() && ! $sourceTruncated;
 
         return [
             'mode' => 'ingestion-preview',
+            'status' => $sourceTruncated ? 'blocked' : 'success',
+            'exit_code' => $sourceTruncated ? 1 : 0,
+            'failed_rows' => $sourceTruncated ? 1 : 0,
             'source' => 'legacy_ai_hour_prompt',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'condition_type' => $conditionType,
@@ -68,6 +80,14 @@ class AiHourlyPreview
             'video_rows' => $videoRows,
             'displayed_rows' => $displayRows->count(),
             'prompt_video_rows' => $rows->count(),
+            'prompt_video_limit' => $promptVideoLimit,
+            'prompt_video_limit_requested' => $requestedPromptVideoLimit,
+            'prompt_video_limit_clamped' => $requestedPromptVideoLimit !== $promptVideoLimit,
+            'prompt_video_limit_max' => self::MAX_PROMPT_VIDEO_LIMIT,
+            'prompt_omitted_video_rows' => max(0, $videoRows - $rows->count()),
+            'source_complete' => ! $sourceTruncated,
+            'source_truncated' => $sourceTruncated,
+            'blocked_reason' => $sourceTruncated ? 'hourly_prompt_video_limit_exceeded' : null,
             'prompt_bounds' => $bounds,
             'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
             'prompt' => $prompt,

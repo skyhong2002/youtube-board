@@ -5,6 +5,7 @@ namespace App\Services\Ingestion;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class AiScheduledPipelineIngestion
 {
@@ -25,21 +26,22 @@ class AiScheduledPipelineIngestion
     {
         $now = $this->now();
         $date = $this->date($date, $now);
+        $sourceRefresh = $this->tagVideoBackfill->run(
+            tagIds: [102],
+            from: $date,
+            to: $date,
+            limit: 100,
+            maxPages: 20,
+            maxResults: 50,
+            execute: false,
+            now: $now,
+        );
 
         return [
             'mode' => 'ingestion-preview',
             'source' => 'ai_daily_source_first_pipeline',
             'date' => $date,
-            'source_refresh' => $this->tagVideoBackfill->run(
-                tagIds: [102],
-                from: $date,
-                to: $date,
-                limit: 100,
-                maxPages: 20,
-                maxResults: 50,
-                execute: false,
-                now: $now,
-            ),
+            'source_refresh' => $this->dailySourcePreview($sourceRefresh),
             'ai' => $this->dailyPreview->preview(date: $date, dataType: 'oneday', now: $now),
             'writes' => [],
         ];
@@ -73,7 +75,11 @@ class AiScheduledPipelineIngestion
                 now: $now,
             ),
         );
-        $source = $this->sourceResult($sourceRun, 'daily_uploads_backfill');
+        $source = $this->sourceResult(
+            $sourceRun,
+            'daily_uploads_backfill',
+            AiDailyPreview::channelAiUids(),
+        );
 
         if (! $source['succeeded']) {
             return $this->blocked('ai_daily_source_first_pipeline', $date, $source);
@@ -120,19 +126,31 @@ class AiScheduledPipelineIngestion
         int $hour = 1,
         int $period = 1,
         int $limit = 20,
+        int $promptVideoLimit = AiHourlyPreview::MAX_PROMPT_VIDEO_LIMIT,
         ?CarbonInterface $now = null,
     ): array {
         $now = $this->normalizeNow($now);
-        $ai = $this->hourlyPreview->preview($condition, $hour, $period, $limit, $now);
+        $ai = $this->hourlyPreview->preview(
+            condition: $condition,
+            hour: $hour,
+            period: $period,
+            limit: $limit,
+            promptVideoLimit: $promptVideoLimit,
+            now: $now,
+        );
 
         return [
             'mode' => 'ingestion-preview',
+            'status' => (int) ($ai['exit_code'] ?? 0) === 0 ? 'success' : 'blocked',
+            'exit_code' => (int) ($ai['exit_code'] ?? 0),
             'source' => 'ai_hourly_source_first_pipeline',
             'date_from' => $ai['date_from'],
             'date_to' => $ai['date_to'],
             'source_refresh' => [
                 'configured_channels' => count(AiDailyPreview::channelAiUids()),
-                'existing_channels' => DB::table('urt_channel')->whereIn('u_id', AiDailyPreview::channelAiUids())->count(),
+                'existing_channels' => Schema::hasTable('urt_channel')
+                    ? DB::table('urt_channel')->whereIn('u_id', AiDailyPreview::channelAiUids())->count()
+                    : 0,
                 'max_results_per_channel' => 50,
                 'would_call_youtube_requests' => count(AiDailyPreview::channelAiUids()),
             ],
@@ -150,11 +168,19 @@ class AiScheduledPipelineIngestion
         int $period = 1,
         int $limit = 20,
         int $sourceMaxResults = 50,
+        int $promptVideoLimit = AiHourlyPreview::MAX_PROMPT_VIDEO_LIMIT,
         string $userToken = 'cli',
         ?CarbonInterface $now = null,
     ): array {
         $now = $this->normalizeNow($now);
-        $preview = $this->hourlyPreview->preview($condition, $hour, $period, $limit, $now);
+        $preview = $this->hourlyPreview->preview(
+            condition: $condition,
+            hour: $hour,
+            period: $period,
+            limit: $limit,
+            promptVideoLimit: $promptVideoLimit,
+            now: $now,
+        );
         $windowFrom = CarbonImmutable::parse((string) $preview['date_from'], $now->getTimezone());
         $sourceMaxResults = max(1, min(50, $sourceMaxResults));
         $sourceRun = $this->quotaGuard->run(
@@ -175,7 +201,15 @@ class AiScheduledPipelineIngestion
             ]);
         }
 
-        $ai = $this->hourlyIngestion->execute($condition, $hour, $period, $limit, $userToken, $now);
+        $ai = $this->hourlyIngestion->execute(
+            condition: $condition,
+            hour: $hour,
+            period: $period,
+            limit: $limit,
+            promptVideoLimit: $promptVideoLimit,
+            userToken: $userToken,
+            now: $now,
+        );
         $exitCode = (int) ($ai['exit_code'] ?? 1);
 
         return [
@@ -252,32 +286,104 @@ class AiScheduledPipelineIngestion
 
     /**
      * @param  array<string, mixed>  $run
+     * @param  list<int>  $requiredChannelIds
      * @return array<string, mixed>
      */
-    private function sourceResult(array $run, string $stage): array
+    private function sourceResult(array $run, string $stage, array $requiredChannelIds = []): array
     {
         $payload = is_array($run['payload'] ?? null) ? $run['payload'] : [];
         $allowed = (bool) ($run['allowed'] ?? false);
         $exitCode = $allowed ? (int) ($payload['exit_code'] ?? 1) : 1;
         $crawlComplete = $stage !== 'daily_uploads_backfill' || (bool) ($payload['crawl_complete'] ?? false);
-        $succeeded = $allowed && $exitCode === 0 && $crawlComplete;
+        $requiredChannelIds = $this->normalizedChannelIds($requiredChannelIds);
+        $completedChannelIds = $this->completedChannelIds($payload);
+        $coveredRequiredChannelIds = array_values(array_intersect($requiredChannelIds, $completedChannelIds));
+        $missingRequiredChannelIds = array_values(array_diff($requiredChannelIds, $completedChannelIds));
+        $requiredChannelCoverageComplete = $missingRequiredChannelIds === [];
+        $succeeded = $allowed
+            && $exitCode === 0
+            && $crawlComplete
+            && $requiredChannelCoverageComplete;
 
         return [
             'stage' => $stage,
             'succeeded' => $succeeded,
             'allowed' => $allowed,
             'exit_code' => $exitCode,
+            'crawl_complete' => $crawlComplete,
             'failure_reason' => $succeeded
                 ? null
-                : (! $allowed ? (string) data_get($run, 'guard.reason', 'source_refresh_blocked') : ($crawlComplete ? 'source_refresh_failed' : 'incomplete_channel_crawl')),
+                : match (true) {
+                    ! $allowed => (string) data_get($run, 'guard.reason', 'source_refresh_blocked'),
+                    ! $crawlComplete => 'incomplete_channel_crawl',
+                    ! $requiredChannelCoverageComplete => 'required_channel_crawl_incomplete',
+                    default => 'source_refresh_failed',
+                },
             'selected_channels' => (int) ($payload['selected_channels'] ?? $payload['configured_channels'] ?? 0),
             'completed_channels' => (int) ($payload['updated_channels'] ?? $payload['completed_channels'] ?? 0),
             'failed_channels' => (int) ($payload['failed_channels'] ?? $payload['failed_rows'] ?? 0),
+            'required_channels' => count($requiredChannelIds),
+            'required_channel_ids' => $requiredChannelIds,
+            'completed_required_channels' => count($coveredRequiredChannelIds),
+            'completed_required_channel_ids' => $coveredRequiredChannelIds,
+            'missing_required_channel_ids' => $missingRequiredChannelIds,
+            'required_channel_coverage_complete' => $requiredChannelCoverageComplete,
             'api_pages' => (int) ($payload['api_pages'] ?? 0),
             'videos_in_range' => (int) ($payload['videos_in_range'] ?? 0),
             'write_targets' => is_array($payload['write_targets'] ?? null) ? $payload['write_targets'] : [],
-            'youtube_quota_budget' => $payload['youtube_quota_budget'] ?? data_get($run, 'guard.estimate'),
+            'youtube_quota_budget' => is_array($payload['youtube_quota_budget'] ?? null)
+                ? $payload['youtube_quota_budget']
+                : (is_array($run['guard'] ?? null) ? $this->quotaGuard->publicState($run['guard']) : null),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $source
+     * @return array<string, mixed>
+     */
+    private function dailySourcePreview(array $source): array
+    {
+        $requiredChannelIds = AiDailyPreview::channelAiUids();
+        $selectedChannelIds = $this->normalizedChannelIds(
+            is_array($source['selected_channel_ids'] ?? null) ? $source['selected_channel_ids'] : [],
+        );
+        $selectedRequiredChannelIds = array_values(array_intersect($requiredChannelIds, $selectedChannelIds));
+        $missingRequiredChannelIds = array_values(array_diff($requiredChannelIds, $selectedChannelIds));
+
+        return [
+            ...$source,
+            'required_channels' => count($requiredChannelIds),
+            'required_channel_ids' => $requiredChannelIds,
+            'selected_required_channels' => count($selectedRequiredChannelIds),
+            'selected_required_channel_ids' => $selectedRequiredChannelIds,
+            'missing_required_channel_ids' => $missingRequiredChannelIds,
+            'required_channel_selection_complete' => $missingRequiredChannelIds === [],
+            'required_channel_coverage_proven' => false,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return list<int>
+     */
+    private function completedChannelIds(array $payload): array
+    {
+        return is_array($payload['completed_channel_ids'] ?? null)
+            ? $this->normalizedChannelIds($payload['completed_channel_ids'])
+            : [];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function normalizedChannelIds(array $channelIds): array
+    {
+        return collect($channelIds)
+            ->map(fn (mixed $uId): int => (int) $uId)
+            ->filter(fn (int $uId): bool => $uId > 0)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     /**

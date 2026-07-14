@@ -37,40 +37,74 @@ class ChannelCountsPreview
             : CarbonImmutable::instance($now->toDateTimeImmutable())->setTimezone($timezone);
         $limit = max(1, min(100, $limit));
 
-        $countRows = DB::table('urt_count')
-            ->when($uId !== null, fn ($query) => $query->where('u_id', $uId))
-            ->orderBy('u_id')
-            ->get()
-            ->keyBy('u_id');
+        $base = DB::table('urt_count')
+            ->when($uId !== null, fn ($query) => $query->where('urt_count.u_id', $uId));
+        $candidates = (clone $base)->count();
 
-        if ($countRows->isEmpty()) {
+        if ($candidates === 0) {
             return $this->payload($now, 0, 0, 0, 0, 0, [], $execute);
         }
 
-        $logRows = DB::table('urt_log')
-            ->whereIn('u_id', $countRows->keys()->all())
-            ->orderByDesc('pk')
+        $withLogsBase = (clone $base)->whereExists(function ($query): void {
+            $query
+                ->selectRaw('1')
+                ->from('urt_log')
+                ->whereColumn('urt_log.u_id', 'urt_count.u_id');
+        });
+        $withLogs = (clone $withLogsBase)->count();
+        $missingLogs = max(0, $candidates - $withLogs);
+        $countRows = (clone $withLogsBase)
+            ->orderBy('urt_count.mtime')
+            ->orderBy('urt_count.u_id')
+            ->limit($limit)
             ->get()
-            ->groupBy('u_id');
+            ->keyBy('u_id');
+        $sourceTruncated = $withLogs > $countRows->count();
+        $logMonthStart = $now->subDays(31)->startOfMonth()->toDateString();
 
         $rows = [];
-        $withLogs = 0;
-        $missingLogs = 0;
         $wouldUpdate = 0;
         $unchanged = 0;
+        $logRowsScanned = 0;
+        $evaluated = [];
+        $skipped = [];
 
         foreach ($countRows as $row) {
-            $logs = $logRows->get($row->u_id, collect());
+            $logs = DB::table('urt_log')
+                ->where('u_id', $row->u_id)
+                ->where(function ($query) use ($logMonthStart): void {
+                    $query->whereNull('themonth')->orWhere('themonth', '>=', $logMonthStart);
+                })
+                ->orderByDesc('pk')
+                ->limit(3)
+                ->get();
+            $logRowsScanned += $logs->count();
 
             if ($logs->isEmpty()) {
-                $missingLogs++;
+                continue;
+            }
+
+            $computed = $this->computeDeltas($logs, $now);
+
+            if ($computed === null) {
+                $skipped[] = [
+                    'u_id' => (int) $row->u_id,
+                    'reason' => 'invalid_log_payload',
+                ];
+                Log::warning('Channel counts source history is invalid.', [
+                    'u_id' => (int) $row->u_id,
+                    'reason' => 'invalid_log_payload',
+                ]);
 
                 continue;
             }
 
-            $withLogs++;
-            $computed = $this->computeDeltas($logs, $now);
             $diff = $this->diff($row, $computed);
+            $evaluated[] = [
+                'u_id' => (int) $row->u_id,
+                'computed' => $computed,
+                'diff' => $diff,
+            ];
 
             if ($diff === []) {
                 $unchanged++;
@@ -101,16 +135,21 @@ class ChannelCountsPreview
             ->all();
 
         $updated = 0;
-        $skipped = [];
+        $refreshed = 0;
 
-        if ($execute && $rows !== []) {
-            foreach ($rows as $updateRow) {
+        if ($execute && $evaluated !== []) {
+            foreach ($evaluated as $updateRow) {
                 try {
-                    $updated += DB::transaction(fn (): int => DB::table('urt_count')
+                    $affected = DB::transaction(fn (): int => DB::table('urt_count')
                         ->where('u_id', $updateRow['u_id'])
                         ->update($updateRow['computed'] + [
                             'mtime' => $now->format('Y-m-d H:i:s'),
                         ]));
+                    $refreshed += $affected;
+
+                    if ($updateRow['diff'] !== []) {
+                        $updated += $affected;
+                    }
                 } catch (Throwable $exception) {
                     $skipped[] = [
                         'u_id' => (int) $updateRow['u_id'],
@@ -127,7 +166,7 @@ class ChannelCountsPreview
 
         return $this->payload(
             now: $now,
-            candidates: $countRows->count(),
+            candidates: $candidates,
             withLogs: $withLogs,
             missingLogs: $missingLogs,
             wouldUpdate: $wouldUpdate,
@@ -135,24 +174,50 @@ class ChannelCountsPreview
             rows: $rows,
             execute: $execute,
             updated: $updated,
+            refreshed: $refreshed,
             skipped: $skipped,
+            selectedCandidates: $countRows->count(),
+            sourceTruncated: $sourceTruncated,
+            logRowsScanned: $logRowsScanned,
         );
     }
 
     /**
      * @param  Collection<int, object>  $logs
-     * @return array{view_week: int, sub_week: int, video_week: int, view_month: int, sub_month: int, video_month: int}
+     * @return array{view_week: int, sub_week: int, video_week: int, view_month: int, sub_month: int, video_month: int}|null
      */
-    private function computeDeltas(Collection $logs, CarbonImmutable $now): array
+    private function computeDeltas(Collection $logs, CarbonImmutable $now): ?array
     {
         $series = [];
 
         foreach ($logs as $log) {
-            $decoded = json_decode((string) ($log->thedata ?? ''), true);
-
-            if (is_array($decoded)) {
-                $series = array_replace($series, $decoded);
+            try {
+                $decoded = json_decode((string) ($log->thedata ?? ''), true, 512, JSON_THROW_ON_ERROR);
+            } catch (\JsonException) {
+                return null;
             }
+
+            if (! is_array($decoded)) {
+                return null;
+            }
+
+            foreach ($decoded as $date => $point) {
+                if (! is_string($date) || preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1 || ! is_array($point)) {
+                    return null;
+                }
+
+                foreach (['view', 'subscriber', 'video'] as $metric) {
+                    if (! array_key_exists($metric, $point) || ! is_numeric($point[$metric]) || (int) $point[$metric] < 0) {
+                        return null;
+                    }
+                }
+            }
+
+            $series = array_replace($series, $decoded);
+        }
+
+        if ($series === []) {
+            return null;
         }
 
         $latest = [
@@ -166,6 +231,7 @@ class ChannelCountsPreview
             'video' => 0,
         ];
         $month = $week;
+        $observedPoint = false;
 
         for ($i = 0; $i <= 30; $i++) {
             $date = $now->subDays($i)->toDateString();
@@ -174,6 +240,8 @@ class ChannelCountsPreview
             if ($point === null) {
                 continue;
             }
+
+            $observedPoint = true;
 
             foreach (['view', 'subscriber', 'video'] as $metric) {
                 if ($latest[$metric] === null && array_key_exists($metric, $point)) {
@@ -188,6 +256,10 @@ class ChannelCountsPreview
             if ($i <= 29 && $latest['view'] !== null && array_key_exists('view', $point)) {
                 $month = $this->deltaAtPoint($latest, $point);
             }
+        }
+
+        if (! $observedPoint || $latest['view'] === null) {
+            return null;
         }
 
         return [
@@ -262,18 +334,26 @@ class ChannelCountsPreview
         array $rows,
         bool $execute = false,
         int $updated = 0,
+        int $refreshed = 0,
         array $skipped = [],
+        int $selectedCandidates = 0,
+        bool $sourceTruncated = false,
+        int $logRowsScanned = 0,
     ): array {
         return [
             'mode' => $execute ? 'execute' : 'ingestion-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'date' => $now->toDateString(),
             'candidates' => $candidates,
+            'selected_candidates' => $selectedCandidates,
+            'source_truncated' => $sourceTruncated,
+            'log_rows_scanned' => $logRowsScanned,
             'with_logs' => $withLogs,
             'missing_logs' => $missingLogs,
             'would_update' => $wouldUpdate,
             'unchanged' => $unchanged,
             'updated' => $updated,
+            'refreshed' => $refreshed,
             'skipped_rows' => count($skipped),
             'failed_rows' => count($skipped),
             'skipped' => $skipped,

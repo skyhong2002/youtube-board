@@ -74,6 +74,63 @@ class IngestionHealthCheckTest extends TestCase
         $this->assertStringNotContainsString('ai-secret-key', (string) $encoded);
     }
 
+    public function test_telemetry_keeps_same_child_events_across_top_level_and_nested_frames(): void
+    {
+        $telemetry = app(IngestionTelemetry::class);
+        $telemetry->reset();
+
+        $telemetry->startJob('youtube.channels.videos.general');
+        $telemetry->recordYoutubeRequest(['method' => 'top-level']);
+        $topLevel = $telemetry->finishJob('youtube.channels.videos.general');
+
+        $telemetry->startJob('ai.hourly');
+        $telemetry->startJob('youtube.channels.videos.general');
+        $telemetry->recordYoutubeRequest(['method' => 'nested']);
+        $nested = $telemetry->finishJob('youtube.channels.videos.general');
+        $parent = $telemetry->finishJob('ai.hourly');
+
+        $this->assertSame(1, $topLevel['summary']['youtube_requests']);
+        $this->assertSame(1, $nested['summary']['youtube_requests']);
+        $this->assertSame(1, $parent['summary']['youtube_requests']);
+        $this->assertSame(['youtube.channels.videos.general'], $topLevel['youtube_requests'][0]['job_path']);
+        $this->assertSame(
+            ['ai.hourly', 'youtube.channels.videos.general'],
+            $nested['youtube_requests'][0]['job_path'],
+        );
+        $this->assertSame(2, $telemetry->summary()['youtube_requests']);
+    }
+
+    public function test_reentered_parent_frame_excludes_old_descendant_events(): void
+    {
+        $telemetry = app(IngestionTelemetry::class);
+        $telemetry->reset();
+
+        $telemetry->startJob('parent');
+        $telemetry->startJob('first-child');
+        $telemetry->recordYoutubeRequest(['method' => 'first']);
+        $telemetry->recordAiRequest(['provider' => 'first']);
+        $telemetry->finishJob('first-child');
+        $first = $telemetry->finishJob('parent');
+
+        $telemetry->startJob('parent');
+        $telemetry->startJob('second-child');
+        $telemetry->recordYoutubeRequest(['method' => 'second']);
+        $telemetry->recordAiRequest(['provider' => 'second']);
+        $telemetry->finishJob('second-child');
+        $second = $telemetry->finishJob('parent');
+
+        $this->assertSame(1, $first['summary']['youtube_requests']);
+        $this->assertSame(1, $first['summary']['ai_requests']);
+        $this->assertSame(1, $second['summary']['youtube_requests']);
+        $this->assertSame(1, $second['summary']['ai_requests']);
+        $this->assertSame('second', $second['youtube_requests'][0]['method']);
+        $this->assertSame('second', $second['ai_requests'][0]['provider']);
+        $this->assertSame(['parent', 'second-child'], $second['youtube_requests'][0]['job_path']);
+        $this->assertSame(2, $telemetry->snapshotForJob('parent')['summary']['youtube_requests']);
+        $this->assertSame(2, $telemetry->summary()['youtube_requests']);
+        $this->assertSame(2, $telemetry->summary()['ai_requests']);
+    }
+
     public function test_ingestion_health_command_reports_runtime_telemetry_and_daily_completeness(): void
     {
         Storage::fake('local');

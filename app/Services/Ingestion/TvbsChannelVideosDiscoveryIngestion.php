@@ -28,6 +28,7 @@ class TvbsChannelVideosDiscoveryIngestion
         int $force = 1,
         int $limit = 1,
         int $maxResults = 5,
+        int|string|null $offset = 0,
         ?CarbonInterface $now = null,
     ): array {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
@@ -43,6 +44,7 @@ class TvbsChannelVideosDiscoveryIngestion
             hours: $hours,
             force: $force,
             limit: $limit,
+            offset: $offset,
             now: $now,
         );
 
@@ -62,6 +64,10 @@ class TvbsChannelVideosDiscoveryIngestion
                     'uploads' => $uploads,
                     'reason' => 'missing_uploads_playlist',
                 ];
+                Log::warning('TVBS video discovery channel is missing its uploads playlist.', [
+                    'u_id' => $rowUId,
+                    'reason' => 'missing_uploads_playlist',
+                ]);
 
                 continue;
             }
@@ -112,14 +118,26 @@ class TvbsChannelVideosDiscoveryIngestion
             }
         }
 
-        $failedChannels = collect($skipped)->whereIn('reason', ['item_processing_failed', 'quota_window_reset'])->count();
+        $failedChannels = collect($skipped)->whereIn('reason', [
+            'missing_uploads_playlist',
+            'item_processing_failed',
+            'quota_window_reset',
+        ])->count();
+        $apiRequestedChannels = count($applied) + collect($skipped)
+            ->where('reason', '!=', 'missing_uploads_playlist')
+            ->count();
 
         return [
             'mode' => 'local-execute',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'source' => $preview['source'] ?? null,
             'selected_rows' => (int) ($preview['selected_rows'] ?? 0),
-            'api_requested_channels' => count($applied) + $failedChannels,
+            'offset' => (int) ($preview['offset'] ?? 0),
+            'offset_mode' => (string) ($preview['offset_mode'] ?? 'explicit'),
+            'next_offset' => (int) ($preview['next_offset'] ?? 0),
+            'batch_wrapped' => (bool) ($preview['batch_wrapped'] ?? false),
+            'source_truncated' => (bool) ($preview['source_truncated'] ?? false),
+            'api_requested_channels' => $apiRequestedChannels,
             'api_max_results_per_channel' => $maxResults,
             'updated_channels' => count($applied),
             'skipped_channels' => count($skipped),
@@ -272,13 +290,7 @@ class TvbsChannelVideosDiscoveryIngestion
             return;
         }
 
-        $insert = $keys + $values;
-
-        if (Schema::hasColumn($table, 'pk') && ! array_key_exists('pk', $insert)) {
-            $insert['pk'] = ((int) DB::table($table)->max('pk')) + 1;
-        }
-
-        DB::table($table)->insert($insert);
+        DB::table($table)->insert($keys + $values);
     }
 
     /**

@@ -20,7 +20,7 @@ class IngestionLiveTagDateCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_preview_is_capped_dry_run_wins_and_no_rows_are_written(): void
+    public function test_preview_reports_keyword_source_truncation_and_no_rows_are_written(): void
     {
         $this->createTables();
         $this->seedSources();
@@ -37,15 +37,70 @@ class IngestionLiveTagDateCommandTest extends TestCase
         ]);
         $payload = json_decode(trim(Artisan::output()), true);
 
-        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, $exitCode);
         $this->assertSame('ingestion-preview', $payload['mode']);
         $this->assertTrue($payload['available']);
         $this->assertSame(2, $payload['dates']);
         $this->assertSame(2, $payload['video_limit']);
         $this->assertSame(2, $payload['keyword_limit']);
-        $this->assertSame(2, $payload['would_insert']);
+        $this->assertSame('keyword_scan_limit_exceeded', $payload['blocked_reason']);
+        $this->assertTrue($payload['source_truncated']);
+        $this->assertSame(0, $payload['would_insert']);
         $this->assertSame(0, $payload['writes']);
         $this->assertSame(0, DB::table('urt_show_live_tag_date')->count());
+    }
+
+    public function test_explicit_tag_list_cap_reports_source_truncation(): void
+    {
+        $this->createTables();
+        $this->seedSources();
+
+        $exitCode = Artisan::call('reports:live-tag-date:build', [
+            '--from' => '2026-05-21',
+            '--to' => '2026-05-21',
+            '--tagid' => implode(',', range(1, 51)),
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('tagid_list_limit_exceeded', $payload['blocked_reason']);
+        $this->assertFalse($payload['source_complete']);
+        $this->assertTrue($payload['source_truncated']);
+        $this->assertSame(0, $payload['writes']);
+    }
+
+    public function test_channel_scan_cap_blocks_before_cache_publication_and_preserves_existing_row(): void
+    {
+        $this->createTables();
+        $this->seedSources();
+        $base = [
+            '--from' => '2026-05-21',
+            '--to' => '2026-05-21',
+            '--tagid' => '1',
+            '--channel-limit' => 10,
+            '--video-limit' => 10,
+            '--keyword-limit' => 10,
+            '--execute' => true,
+            '--json' => true,
+        ];
+
+        $this->assertSame(0, Artisan::call('reports:live-tag-date:build', $base));
+        $existing = (array) DB::table('urt_show_live_tag_date')->first();
+        DB::table('urt_count')->insert(['u_id' => 30, 'tags' => '[1]']);
+
+        $exitCode = Artisan::call('reports:live-tag-date:build', array_merge($base, [
+            '--channel-limit' => 1,
+        ]));
+        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('channel_scan_limit_exceeded', $payload['blocked_reason']);
+        $this->assertTrue($payload['source_truncated']);
+        $this->assertSame(1, $payload['channels_matched']);
+        $this->assertSame(1, $payload['channel_limit']);
+        $this->assertSame(0, $payload['writes']);
+        $this->assertSame($existing, (array) DB::table('urt_show_live_tag_date')->first());
     }
 
     public function test_execute_builds_legacy_maps_renders_api_and_is_idempotent(): void
@@ -69,7 +124,7 @@ class IngestionLiveTagDateCommandTest extends TestCase
         $this->assertSame('execute', $first['mode']);
         $this->assertSame(1, $first['inserted']);
         $this->assertSame(1, $first['writes']);
-        $this->assertSame(1, $first['invalid_log_rows']);
+        $this->assertSame(0, $first['invalid_log_rows']);
         $this->assertSame(0, $first['failed_dates']);
 
         $row = DB::table('urt_show_live_tag_date')->first();
@@ -161,6 +216,111 @@ class IngestionLiveTagDateCommandTest extends TestCase
             fn (string $message, array $context): bool => $message === 'Live tag-date cache build completed with gaps.'
                 && $context['failed_dates'] === 1,
         );
+    }
+
+    public function test_video_cap_blocks_only_incomplete_date_and_preserves_existing_cache(): void
+    {
+        $this->createTables();
+        $this->seedSources();
+        DB::table('urt_video')->insert(['videoId' => 'video-extra', 'u_id' => 10, 'title' => '選舉政策']);
+        DB::table('urt_video_live_log')->insert([
+            'videoId' => 'video-extra',
+            'u_id' => 10,
+            'the_date' => '2026-05-21',
+            'max_current' => 80,
+            'log_json' => json_encode(['12:00' => 80]),
+        ]);
+        $base = [
+            '--tagid' => '1',
+            '--keyword-limit' => 10,
+            '--execute' => true,
+            '--json' => true,
+        ];
+
+        $this->assertSame(0, Artisan::call('reports:live-tag-date:build', $base + [
+            '--from' => '2026-05-21',
+            '--to' => '2026-05-21',
+            '--video-limit' => 10,
+        ]));
+        $existing = DB::table('urt_show_live_tag_date')->where('the_date', '2026-05-21')->value('videos_result');
+
+        $exitCode = Artisan::call('reports:live-tag-date:build', $base + [
+            '--from' => '2026-05-21',
+            '--to' => '2026-05-22',
+            '--video-limit' => 1,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('source_incomplete', $payload['blocked_reason']);
+        $this->assertTrue($payload['source_truncated']);
+        $this->assertSame(1, $payload['blocked_dates']);
+        $this->assertSame('blocked', $payload['rows'][0]['status']);
+        $this->assertSame('video_scan_limit_exceeded', $payload['rows'][0]['reason']);
+        $this->assertSame('inserted', $payload['rows'][1]['status']);
+        $this->assertSame(1, $payload['writes']);
+        $this->assertSame($existing, DB::table('urt_show_live_tag_date')->where('the_date', '2026-05-21')->value('videos_result'));
+        $this->assertSame(1, DB::table('urt_show_live_tag_date')->where('the_date', '2026-05-22')->count());
+    }
+
+    public function test_invalid_log_blocks_only_affected_date_and_preserves_existing_cache(): void
+    {
+        $this->createTables();
+        $this->seedSources();
+        $base = [
+            '--tagid' => '1',
+            '--video-limit' => 10,
+            '--keyword-limit' => 10,
+            '--execute' => true,
+            '--json' => true,
+        ];
+
+        $this->assertSame(0, Artisan::call('reports:live-tag-date:build', $base + [
+            '--from' => '2026-05-21',
+            '--to' => '2026-05-21',
+        ]));
+        $existing = DB::table('urt_show_live_tag_date')->where('the_date', '2026-05-21')->first();
+        DB::table('urt_video')->insert([
+            ['videoId' => 'video-invalid', 'u_id' => 10, 'title' => '選舉'],
+            ['videoId' => 'video-day-two', 'u_id' => 10, 'title' => '選舉政策'],
+        ]);
+        DB::table('urt_video_live_log')->insert([
+            [
+                'videoId' => 'video-invalid',
+                'u_id' => 10,
+                'the_date' => '2026-05-21',
+                'max_current' => 999,
+                'log_json' => '{bad-json',
+            ],
+            [
+                'videoId' => 'video-day-two',
+                'u_id' => 10,
+                'the_date' => '2026-05-22',
+                'max_current' => 70,
+                'log_json' => json_encode(['09:00' => 70]),
+            ],
+        ]);
+
+        $exitCode = Artisan::call('reports:live-tag-date:build', $base + [
+            '--from' => '2026-05-21',
+            '--to' => '2026-05-22',
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('source_incomplete', $payload['blocked_reason']);
+        $this->assertFalse($payload['source_complete']);
+        $this->assertFalse($payload['source_truncated']);
+        $this->assertSame(1, $payload['invalid_log_rows']);
+        $this->assertSame(1, $payload['failed_dates']);
+        $this->assertSame(1, $payload['blocked_dates']);
+        $this->assertSame('blocked', $payload['rows'][0]['status']);
+        $this->assertSame('invalid_log_rows', $payload['rows'][0]['reason']);
+        $this->assertSame(1, $payload['rows'][0]['invalid_log_rows']);
+        $this->assertSame('inserted', $payload['rows'][1]['status']);
+        $this->assertSame(1, $payload['writes']);
+        $this->assertSame((array) $existing, (array) DB::table('urt_show_live_tag_date')->where('the_date', '2026-05-21')->first());
+        $this->assertSame(1, DB::table('urt_show_live_tag_date')->where('the_date', '2026-05-22')->count());
     }
 
     public function test_execute_requires_dates_and_reports_schema_date_and_lock_blockers_safely(): void
@@ -289,7 +449,6 @@ class IngestionLiveTagDateCommandTest extends TestCase
         DB::table('urt_video')->insert([
             ['videoId' => 'video-a', 'u_id' => 10, 'title' => '選舉政策新聞'],
             ['videoId' => 'video-b', 'u_id' => 20, 'title' => '選舉新聞'],
-            ['videoId' => 'video-invalid', 'u_id' => 10, 'title' => '選舉'],
         ]);
         DB::table('urt_video_live_log')->insert([
             [
@@ -305,13 +464,6 @@ class IngestionLiveTagDateCommandTest extends TestCase
                 'the_date' => '2026-05-21',
                 'max_current' => 200,
                 'log_json' => json_encode(['10:00' => 200]),
-            ],
-            [
-                'videoId' => 'video-invalid',
-                'u_id' => 10,
-                'the_date' => '2026-05-21',
-                'max_current' => 999,
-                'log_json' => '{bad-json',
             ],
         ]);
     }

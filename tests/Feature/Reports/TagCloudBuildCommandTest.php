@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Reports;
 
+use App\Services\Ingestion\IngestionJobRegistry;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -11,6 +12,13 @@ use Tests\TestCase;
 
 class TagCloudBuildCommandTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        CarbonImmutable::setTestNow();
+
+        parent::tearDown();
+    }
+
     public function test_dry_run_does_not_write_rows(): void
     {
         $this->createTables();
@@ -112,6 +120,71 @@ class TagCloudBuildCommandTest extends TestCase
         $this->assertSame($firstPk, DB::table('urt_show_tag_cloud')->value('pk'));
     }
 
+    public function test_subset_rebuild_updates_selected_keyword_without_erasing_omitted_cache_keywords(): void
+    {
+        $this->createTables();
+        $this->seedRawData();
+        $baseArguments = [
+            '--tagid' => '1',
+            '--days' => '3',
+            '--keyword-limit' => 100,
+            '--execute' => true,
+            '--json' => true,
+        ];
+
+        $this->assertSame(0, Artisan::call('reports:tag-cloud:build', $baseArguments));
+        $beforeRow = DB::table('urt_show_tag_cloud')->first();
+        $before = json_decode($beforeRow->tags_result, true, flags: JSON_THROW_ON_ERROR);
+        $this->assertArrayHasKey('政策', $before);
+        $this->assertArrayHasKey('選舉', $before);
+
+        DB::table('urt_video')->update([
+            'title' => '選舉新聞',
+            'description' => '選舉新聞',
+        ]);
+        $exitCode = Artisan::call('reports:tag-cloud:build', $baseArguments + [
+            '--keywords' => '政策',
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+        $afterRow = DB::table('urt_show_tag_cloud')->first();
+        $after = json_decode($afterRow->tags_result, true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('merge_selected_keywords', $payload['rows'][0]['cache_merge_mode']);
+        $this->assertArrayNotHasKey('政策', $after);
+        $this->assertSame($before['選舉'], $after['選舉']);
+        $this->assertSame((int) $beforeRow->count_tags, (int) $afterRow->count_tags);
+    }
+
+    public function test_subset_rebuild_fails_closed_on_malformed_existing_cache(): void
+    {
+        $this->createTables();
+        $this->seedRawData();
+        DB::table('urt_show_tag_cloud')->insert([
+            'ctime' => '2026-06-01 00:00:00',
+            'tagid' => '1',
+            'days' => 3,
+            'count_tags' => 99,
+            'tags_result' => '{malformed-cache',
+        ]);
+
+        $exitCode = Artisan::call('reports:tag-cloud:build', [
+            '--tagid' => '1',
+            '--days' => '3',
+            '--keywords' => '政策',
+            '--keyword-limit' => 100,
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('failed', $payload['rows'][0]['status']);
+        $this->assertSame('cache_period_processing_failed', $payload['rows'][0]['failure_reason']);
+        $this->assertSame('{malformed-cache', DB::table('urt_show_tag_cloud')->value('tags_result'));
+        $this->assertSame(99, (int) DB::table('urt_show_tag_cloud')->value('count_tags'));
+    }
+
     public function test_failed_period_is_sanitized_and_does_not_prevent_the_next_period(): void
     {
         $this->createTables();
@@ -156,6 +229,129 @@ SQL);
                     && $context['failure_reason'] === 'cache_period_processing_failed'
                     && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'tag-cloud-secret');
             });
+    }
+
+    public function test_explicit_tag_period_and_keyword_lists_over_hard_caps_are_blocked_before_processing(): void
+    {
+        $this->createTables();
+        $this->seedRawData();
+        $cases = [
+            [
+                'arguments' => ['--tagid' => implode(',', range(1, 51)), '--days' => '3'],
+                'reason' => 'tagid_list_limit_exceeded',
+                'list' => 'tagid',
+            ],
+            [
+                'arguments' => ['--tagid' => '1', '--days' => implode(',', range(1, 11))],
+                'reason' => 'period_list_limit_exceeded',
+                'list' => 'periods',
+            ],
+            [
+                'arguments' => ['--tagid' => '1', '--days' => '3', '--keywords' => implode(',', array_map(fn (int $id): string => '詞'.$id, range(1, 501)))],
+                'reason' => 'keyword_list_limit_exceeded',
+                'list' => 'keywords',
+            ],
+        ];
+
+        foreach ($cases as $case) {
+            $exitCode = Artisan::call('reports:tag-cloud:build', $case['arguments'] + [
+                '--execute' => true,
+                '--json' => true,
+            ]);
+            $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+
+            $this->assertSame(1, $exitCode);
+            $this->assertSame('blocked', $payload['status']);
+            $this->assertSame($case['reason'], $payload['blocked_reason']);
+            $this->assertTrue($payload['source_truncated']);
+            $this->assertFalse($payload['source_complete']);
+            $this->assertTrue($payload['lists'][$case['list']]['truncated']);
+            $this->assertSame(0, $payload['lists'][$case['list']]['selected']);
+            $this->assertSame([], $payload['rows']);
+            $this->assertSame(0, $payload['writes']);
+        }
+
+        $this->assertSame(0, DB::table('urt_show_tag_cloud')->count());
+    }
+
+    public function test_video_scan_cap_blocks_only_incomplete_period_and_preserves_existing_cache(): void
+    {
+        $now = CarbonImmutable::parse('2026-06-05 12:00:00', 'Asia/Taipei');
+        CarbonImmutable::setTestNow($now);
+        $this->createTables();
+        $this->seedRawData();
+
+        Artisan::call('reports:tag-cloud:build', [
+            '--tagid' => '1',
+            '--days' => '3',
+            '--keyword-limit' => 100,
+            '--video-limit' => 100,
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $existing = DB::table('urt_show_tag_cloud')->where('days', 3)->value('tags_result');
+
+        $exitCode = Artisan::call('reports:tag-cloud:build', [
+            '--tagid' => '1',
+            '--days' => '1,3',
+            '--keyword-limit' => 100,
+            '--video-limit' => 2,
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('partial_failure', $payload['status']);
+        $this->assertSame(1, $payload['writes']);
+        $this->assertSame(1, $payload['blocked_rows']);
+        $this->assertFalse($payload['source_complete']);
+        $this->assertSame('success', $payload['rows'][0]['status']);
+        $this->assertSame('blocked', $payload['rows'][1]['status']);
+        $this->assertSame('video_scan_limit_exceeded', $payload['rows'][1]['blocked_reason']);
+        $this->assertSame(2, $payload['rows'][1]['videos_scanned']);
+        $this->assertSame(2, $payload['rows'][1]['caps']['video_scan_per_period']);
+        $this->assertSame(1, DB::table('urt_show_tag_cloud')->where('days', 1)->count());
+        $this->assertSame($existing, DB::table('urt_show_tag_cloud')->where('days', 3)->value('tags_result'));
+    }
+
+    public function test_source_channel_scan_cap_blocks_cache_publication(): void
+    {
+        $this->createTables();
+        $this->seedRawData();
+
+        $exitCode = Artisan::call('reports:tag-cloud:build', [
+            '--tagid' => '1',
+            '--days' => '3',
+            '--channel-limit' => 1,
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('blocked', $payload['status']);
+        $this->assertSame('channel_scan_limit_exceeded', $payload['rows'][0]['blocked_reason']);
+        $this->assertSame(0, $payload['writes']);
+        $this->assertSame(0, DB::table('urt_show_tag_cloud')->count());
+    }
+
+    public function test_scheduled_cache_build_commands_declare_source_caps_explicitly(): void
+    {
+        $registry = app(IngestionJobRegistry::class);
+        $commands = [
+            'reports.tag_cloud.build' => ['--channel-limit=1000', '--video-limit=50000', '--keyword-limit=5000'],
+            'reports.channel_cloud.build' => ['--limit=50', '--offset=auto', '--video-limit=10000', '--keyword-limit=5000'],
+            'reports.tag_date.build' => ['--date-limit=400', '--channel-limit=1000', '--video-limit=10000', '--keyword-limit=5000'],
+        ];
+
+        foreach ($commands as $key => $options) {
+            $command = (string) $registry->find($key)['scheduled_execute_command'];
+
+            foreach ($options as $option) {
+                $this->assertStringContainsString($option, $command);
+            }
+        }
     }
 
     private function createTables(): void

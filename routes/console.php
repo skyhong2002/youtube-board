@@ -107,11 +107,11 @@ Artisan::command('ingestion:list', function (IngestionJobRegistry $registry) {
     }
 })->purpose('List the planned legacy-to-Laravel ingestion command registry');
 
-Artisan::command('ai:provider:probe {--provider=both : primary, fallback, or both} {--json : Emit JSON instead of text}', function (OpenCodeChatClient $client) {
+Artisan::command('ai:provider:probe {--provider=both : primary/openai, fallback, or both} {--json : Emit JSON instead of text}', function (OpenCodeChatClient $client) {
     $providerOption = strtolower(trim((string) $this->option('provider')));
     $providers = match ($providerOption) {
-        'primary' => ['primary'],
-        'fallback', 'openai' => ['fallback'],
+        'primary', 'openai' => ['primary'],
+        'fallback' => ['fallback'],
         'both' => ['primary', 'fallback'],
         default => [],
     };
@@ -131,6 +131,7 @@ Artisan::command('ai:provider:probe {--provider=both : primary, fallback, or bot
                 'provider' => $provider,
                 'ok' => true,
                 'model' => $probe['model'],
+                'configured_model' => $probe['configured_model'],
                 'usage' => $probe['usage'],
                 'latency_ms' => $probe['latency_ms'],
                 'content_chars' => mb_strlen($probe['content'], 'UTF-8'),
@@ -141,6 +142,9 @@ Artisan::command('ai:provider:probe {--provider=both : primary, fallback, or bot
                 'provider' => $provider,
                 'ok' => false,
                 'model' => $provider === 'fallback'
+                    ? (string) config('services.opencode_go.fallback_model', '')
+                    : (string) config('services.opencode_go.model', ''),
+                'configured_model' => $provider === 'fallback'
                     ? (string) config('services.opencode_go.fallback_model', '')
                     : (string) config('services.opencode_go.model', ''),
                 'usage' => null,
@@ -375,7 +379,7 @@ Artisan::command('youtube:channels:stats {--u_id= : Optional channel u_id to pre
         if ((bool) $this->option('json')) {
             $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
-            return 0;
+            return (int) ($payload['exit_code'] ?? 0);
         }
 
         $this->line(sprintf(
@@ -409,7 +413,7 @@ Artisan::command('youtube:channels:stats {--u_id= : Optional channel u_id to pre
             ));
         }
 
-        return 0;
+        return (int) ($payload['exit_code'] ?? 0);
     } catch (QueryException $exception) {
         $this->error('youtube:channels:stats unavailable: failure=query_failed exception_class='.$exception::class.' secrets=not_printed');
 
@@ -639,7 +643,7 @@ Artisan::command('youtube:channels:videos {--id= : Optional legacy channel u_id 
         if ((bool) $this->option('json')) {
             $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
-            return 0;
+            return (int) ($payload['exit_code'] ?? 0);
         }
 
         $this->line(sprintf(
@@ -670,7 +674,7 @@ Artisan::command('youtube:channels:videos {--id= : Optional legacy channel u_id 
             ));
         }
 
-        return 0;
+        return (int) ($payload['exit_code'] ?? 0);
     } catch (QueryException $exception) {
         $this->error('youtube:channels:videos unavailable: failure=query_failed exception_class='.$exception::class.' secrets=not_printed');
 
@@ -686,7 +690,7 @@ Artisan::command('youtube:channels:videos {--id= : Optional legacy channel u_id 
     }
 })->purpose('Dry-run preview of legacy channel playlist discovery, with explicit local-only --execute support');
 
-Artisan::command('youtube:tvbs:videos {--tag=29 : Legacy TVBS channel tag id in urt_count.tags} {--id= : Optional u_id to fetch} {--channel= : Optional YouTube channel id to fetch} {--hours=700 : Legacy hours option, retained for compatibility} {--force=1 : Legacy duplicate-process threshold, shown only} {--limit=20 : Number of channels to print, capped lower for --execute} {--max-results=5 : Maximum playlist items per channel in execute mode, capped at 50} {--execute : Call YouTube and write selected TVBS playlist items to local DB} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (TvbsChannelVideosDiscoveryPreview $preview, TvbsChannelVideosDiscoveryIngestion $ingestion, DirectYoutubeQuotaGuard $quotaGuard) {
+Artisan::command('youtube:tvbs:videos {--tag=29 : Legacy TVBS channel tag id in urt_count.tags} {--id= : Optional u_id to fetch} {--channel= : Optional YouTube channel id to fetch} {--hours=700 : Legacy hours option, retained for compatibility} {--force=1 : Legacy duplicate-process threshold, shown only} {--limit=20 : Number of channels to print, capped lower for --execute} {--max-results=5 : Maximum playlist items per channel in execute mode, capped at 50} {--offset=0 : Wrapped channel offset, or auto for five-minute scheduler rotation} {--execute : Call YouTube and write selected TVBS playlist items to local DB} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (TvbsChannelVideosDiscoveryPreview $preview, TvbsChannelVideosDiscoveryIngestion $ingestion, DirectYoutubeQuotaGuard $quotaGuard) {
     $tagId = max(1, (int) $this->option('tag'));
     $uId = $this->option('id') !== null ? max(1, (int) $this->option('id')) : null;
     $channel = $this->option('channel') ? (string) $this->option('channel') : null;
@@ -694,13 +698,15 @@ Artisan::command('youtube:tvbs:videos {--tag=29 : Legacy TVBS channel tag id in 
     $force = max(1, min(20, (int) $this->option('force')));
     $limit = max(1, min(80, (int) $this->option('limit')));
     $maxResults = max(1, min(50, (int) $this->option('max-results')));
+    $offsetOption = strtolower(trim((string) $this->option('offset')));
+    $offset = $offsetOption === 'auto' ? 'auto' : max(0, (int) $offsetOption);
     $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
 
     try {
         if ($execute) {
             $quotaRun = $quotaGuard->run(
                 jobKey: 'youtube.tvbs.videos',
-                effectiveCommand: sprintf('youtube:tvbs:videos --execute --limit=%d --max-results=%d', $limit, $maxResults),
+                effectiveCommand: sprintf('youtube:tvbs:videos --execute --limit=%d --max-results=%d --offset=%s', $limit, $maxResults, $offset),
                 callback: fn (): array => $ingestion->execute(
                     tagId: $tagId,
                     uId: $uId,
@@ -709,6 +715,7 @@ Artisan::command('youtube:tvbs:videos {--tag=29 : Legacy TVBS channel tag id in 
                     force: $force,
                     limit: $limit,
                     maxResults: $maxResults,
+                    offset: $offset,
                 ),
             );
 
@@ -768,6 +775,7 @@ Artisan::command('youtube:tvbs:videos {--tag=29 : Legacy TVBS channel tag id in 
             hours: $hours,
             force: $force,
             limit: $limit,
+            offset: $offset,
         );
 
         if ((bool) $this->option('json')) {
@@ -777,13 +785,16 @@ Artisan::command('youtube:tvbs:videos {--tag=29 : Legacy TVBS channel tag id in 
         }
 
         $this->line(sprintf(
-            'youtube:tvbs:videos mode=ingestion-preview source=%s tag=%d active_channels=%d tagged_channels=%d eligible_rows=%d selected_rows=%d missing_uploads_playlist=%d legacy_loop_limit=%d legacy_sleep_seconds=%d would_call_api=%s generated_at=%s writes=0 api_call=skipped video_insert=skipped schedule_insert=skipped tvbs_live_insert=skipped',
+            'youtube:tvbs:videos mode=ingestion-preview source=%s tag=%d active_channels=%d tagged_channels=%d eligible_rows=%d selected_rows=%d offset=%d offset_mode=%s next_offset=%d missing_uploads_playlist=%d legacy_loop_limit=%d legacy_sleep_seconds=%d would_call_api=%s generated_at=%s writes=0 api_call=skipped video_insert=skipped schedule_insert=skipped tvbs_live_insert=skipped',
             $payload['source'],
             $payload['tvbs_tag_id'],
             $payload['active_channels'],
             $payload['tagged_channels'],
             $payload['eligible_rows'],
             $payload['selected_rows'],
+            $payload['offset'],
+            $payload['offset_mode'],
+            $payload['next_offset'],
             $payload['missing_uploads_playlist'],
             $payload['legacy_loop_limit'],
             $payload['legacy_sleep_seconds'],
@@ -1204,7 +1215,7 @@ $guardedIngestionCommand('reports:live:build {--hours=2 : Live rows newer than t
     }
 })->purpose('Preview or execute legacy live display cache inserts from local live rows');
 
-$guardedIngestionCommand('reports:live-tag-date:build {--from= : First cache date YYYY-MM-DD; preview defaults to yesterday} {--to= : Last cache date YYYY-MM-DD; preview defaults to --from} {--tagid= : Comma-separated channel tags that must all match} {--or= : Comma-separated channel tags where one must match} {--not= : Comma-separated channel tags to exclude} {--video-limit=1000 : Per-date live log cap, max 10000} {--keyword-limit=1000 : Keyword dictionary cap, max 5000} {--execute : Write urt_show_live_tag_date rows} {--dry-run : Force preview mode; this is the default} {--json : Emit JSON instead of text}', function (LiveTagDateCacheBuilder $builder) {
+$guardedIngestionCommand('reports:live-tag-date:build {--from= : First cache date YYYY-MM-DD; preview defaults to yesterday} {--to= : Last cache date YYYY-MM-DD; preview defaults to --from} {--tagid= : Comma-separated channel tags that must all match} {--or= : Comma-separated channel tags where one must match} {--not= : Comma-separated channel tags to exclude} {--channel-limit=1000 : Matching channel source cap, max 5000} {--video-limit=1000 : Per-date live log cap, max 10000} {--keyword-limit=1000 : Keyword dictionary cap, max 5000} {--execute : Write urt_show_live_tag_date rows} {--dry-run : Force preview mode; this is the default} {--json : Emit JSON instead of text}', function (LiveTagDateCacheBuilder $builder) {
     $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
     $from = trim((string) $this->option('from'));
     $to = trim((string) $this->option('to'));
@@ -1235,6 +1246,7 @@ $guardedIngestionCommand('reports:live-tag-date:build {--from= : First cache dat
             notTagIds: $integerList('not'),
             videoLimit: (int) $this->option('video-limit'),
             keywordLimit: (int) $this->option('keyword-limit'),
+            channelLimit: (int) $this->option('channel-limit'),
             execute: $execute,
         );
     } catch (InvalidArgumentException $exception) {
@@ -1272,7 +1284,9 @@ $guardedIngestionCommand('reports:live-tag-date:build {--from= : First cache dat
         ];
     }
 
-    $failed = ! (bool) ($payload['available'] ?? false) || (int) ($payload['failed_dates'] ?? 0) > 0;
+    $failed = ! (bool) ($payload['available'] ?? false)
+        || (int) ($payload['failed_dates'] ?? 0) > 0
+        || ($payload['blocked_reason'] ?? null) !== null;
 
     if ((bool) $this->option('json')) {
         $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
@@ -1281,7 +1295,7 @@ $guardedIngestionCommand('reports:live-tag-date:build {--from= : First cache dat
     }
 
     $this->line(sprintf(
-        'reports:live-tag-date:build mode=%s available=%s from=%s to=%s filters=%s/%s/%s dates=%d channels=%d keywords=%d videos=%d invalid_logs=%d would_insert=%d would_update=%d inserted=%d updated=%d unchanged=%d failed=%d blocked_reason=%s generated_at=%s',
+        'reports:live-tag-date:build mode=%s available=%s from=%s to=%s filters=%s/%s/%s dates=%d channels=%d/%d keywords=%d videos=%d invalid_logs=%d would_insert=%d would_update=%d inserted=%d updated=%d unchanged=%d failed=%d truncated=%s blocked_reason=%s generated_at=%s',
         $payload['mode'],
         ($payload['available'] ?? false) ? 'yes' : 'no',
         $payload['from'],
@@ -1291,6 +1305,7 @@ $guardedIngestionCommand('reports:live-tag-date:build {--from= : First cache dat
         $payload['not'] ?? '',
         (int) ($payload['dates'] ?? 0),
         (int) ($payload['channels_matched'] ?? 0),
+        (int) ($payload['channel_limit'] ?? 0),
         (int) ($payload['keywords_scanned'] ?? 0),
         (int) ($payload['videos_scanned'] ?? 0),
         (int) ($payload['invalid_log_rows'] ?? 0),
@@ -1300,6 +1315,7 @@ $guardedIngestionCommand('reports:live-tag-date:build {--from= : First cache dat
         (int) ($payload['updated'] ?? 0),
         (int) ($payload['unchanged'] ?? 0),
         (int) ($payload['failed_dates'] ?? 0),
+        ($payload['source_truncated'] ?? false) ? 'yes' : 'no',
         $payload['blocked_reason'] ?? '-',
         $payload['generated_at'] ?? '-',
     ));
@@ -1333,7 +1349,7 @@ $guardedIngestionCommand('youtube:live:cleanup {--limit=20 : Number of stale liv
         if ((bool) $this->option('json')) {
             $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
-            return 0;
+            return (int) ($payload['exit_code'] ?? 0);
         }
 
         $this->line(sprintf(
@@ -1360,7 +1376,7 @@ $guardedIngestionCommand('youtube:live:cleanup {--limit=20 : Number of stale liv
             ));
         }
 
-        return 0;
+        return (int) ($payload['exit_code'] ?? 0);
     } catch (QueryException $exception) {
         $this->error('youtube:live:cleanup unavailable: failure=query_failed exception_class='.$exception::class.' secrets=not_printed');
 
@@ -1378,7 +1394,7 @@ $guardedIngestionCommand('reports:live:clean {--limit=20 : Number of invalid liv
         if ((bool) $this->option('json')) {
             $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
-            return 0;
+            return (int) ($payload['exit_code'] ?? 0);
         }
 
         $this->line(sprintf(
@@ -1404,7 +1420,7 @@ $guardedIngestionCommand('reports:live:clean {--limit=20 : Number of invalid liv
             ));
         }
 
-        return 0;
+        return (int) ($payload['exit_code'] ?? 0);
     } catch (QueryException $exception) {
         $this->error('reports:live:clean unavailable: failure=query_failed exception_class='.$exception::class.' secrets=not_printed');
 
@@ -1490,13 +1506,13 @@ Artisan::command('reports:static:build {--limit=20 : Number of static group targ
     }
 })->purpose('Ingestion preview of legacy group static HTML generation mapped to dynamic Laravel routes');
 
-$guardedIngestionCommand('reports:mayor:static {--city= : Optional mayor city key to preview} {--limit=20 : Number of mayor static targets to print} {--keyword-limit=5000 : Number of local keywords to scan when --execute builds tag-date cache} {--execute : Build missing local tag-date cache for mayor targets} {--dry-run : Force preview mode; this is the default} {--json : Emit JSON instead of text}', function (MayorStaticReportsPreview $preview) {
+$guardedIngestionCommand('reports:mayor:static {--city= : Optional mayor city key to preview} {--limit=20 : Number of mayor static targets to print} {--offset=0 : Target offset, or auto for scheduler rotation} {--keyword-limit=5000 : Number of local keywords to scan when --execute builds tag-date cache} {--execute : Build missing local tag-date cache for mayor targets} {--dry-run : Force preview mode; this is the default} {--json : Emit JSON instead of text}', function (MayorStaticReportsPreview $preview) {
     try {
         $city = $this->option('city') ? (string) $this->option('city') : null;
         $limit = (int) $this->option('limit');
         $payload = (bool) $this->option('execute') && ! (bool) $this->option('dry-run')
-            ? $preview->execute(city: $city, limit: $limit, keywordLimit: (int) $this->option('keyword-limit'))
-            : $preview->preview(city: $city, limit: $limit);
+            ? $preview->execute(city: $city, limit: $limit, keywordLimit: (int) $this->option('keyword-limit'), offset: (string) $this->option('offset'))
+            : $preview->preview(city: $city, limit: $limit, offset: (string) $this->option('offset'));
 
         if ((bool) $this->option('json')) {
             $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
@@ -1540,7 +1556,7 @@ $guardedIngestionCommand('reports:mayor:static {--city= : Optional mayor city ke
     }
 })->purpose('Preview legacy mayor static HTML generation; --execute rebuilds required local tag-date cache for dynamic Laravel routes');
 
-$guardedIngestionCommand('reports:tag-date:build {--tagid= : Comma-separated required channel tag ids} {--or= : Comma-separated OR channel tag ids} {--not= : Comma-separated excluded channel tag ids} {--date= : Single cache date} {--from= : Start date for cache range} {--to= : End date for cache range} {--days=30 : Relative day count when --from is omitted} {--today=0 : Days before today for relative end date} {--keyword-limit=5000 : Number of local keywords to scan} {--keywords= : Optional comma-separated keyword subset for focused cache rebuilds} {--execute : Write urt_show_tag_date rows} {--dry-run : Force preview mode; this is the default} {--json : Emit JSON instead of text}', function (TagDateCacheBuilder $builder) {
+$guardedIngestionCommand('reports:tag-date:build {--tagid= : Comma-separated required channel tag ids, max 50} {--or= : Comma-separated OR channel tag ids, max 50} {--not= : Comma-separated excluded channel tag ids, max 50} {--date= : Single cache date} {--from= : Start date for cache range} {--to= : End date for cache range} {--days=30 : Relative day count when --from is omitted} {--today=0 : Days before today for relative end date} {--date-limit=400 : Date target cap, max 400; larger ranges are blocked} {--channel-limit=1000 : Matched source channel scan cap, max 5000} {--video-limit=10000 : Raw video scan cap per date, max 100000} {--keyword-limit=5000 : Local keyword source scan cap, max 20000} {--keywords= : Optional comma-separated keyword subset, max 500} {--execute : Write urt_show_tag_date rows} {--dry-run : Force preview mode; this is the default} {--json : Emit JSON instead of text}', function (TagDateCacheBuilder $builder) {
     $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
     $now = CarbonImmutable::now($timezone);
     $tagIds = collect(explode(',', (string) $this->option('tagid')))
@@ -1591,9 +1607,11 @@ $guardedIngestionCommand('reports:tag-date:build {--tagid= : Comma-separated req
         notTagIds: $ids('not'),
         keywordLimit: (int) $this->option('keyword-limit'),
         onlyKeywords: $keywords,
+        channelLimit: (int) $this->option('channel-limit'),
+        videoLimit: (int) $this->option('video-limit'),
         execute: (bool) $this->option('execute') && ! (bool) $this->option('dry-run'),
         now: $now,
-        maxDates: 400,
+        maxDates: (int) $this->option('date-limit'),
     );
 
     if ((bool) $this->option('json')) {
@@ -1603,7 +1621,7 @@ $guardedIngestionCommand('reports:tag-date:build {--tagid= : Comma-separated req
     }
 
     $this->line(sprintf(
-        'reports:tag-date:build mode=%s status=%s tagid=%s from=%s to=%s rows=%d writes=%d failed_rows=%d',
+        'reports:tag-date:build mode=%s status=%s tagid=%s from=%s to=%s rows=%d writes=%d failed_rows=%d source_complete=%s truncated=%s caps=date:%d,channels:%d,videos:%d,keywords:%d blocked_reason=%s',
         $payload['mode'],
         $payload['status'],
         implode(',', $tagIds),
@@ -1612,17 +1630,27 @@ $guardedIngestionCommand('reports:tag-date:build {--tagid= : Comma-separated req
         $payload['dates_selected'],
         $payload['writes'],
         $payload['failed_rows'],
+        $payload['source_complete'] ? 'yes' : 'no',
+        $payload['source_truncated'] ? 'yes' : 'no',
+        $payload['caps']['date_range'],
+        $payload['caps']['channel_scan'],
+        $payload['caps']['video_scan_per_date'],
+        $payload['caps']['keyword_scan'],
+        $payload['blocked_reason'] ?? 'none',
     ));
 
     foreach (array_slice($payload['rows'], 0, 20) as $row) {
         $this->line(sprintf(
-            '%s channels=%d videos=%d tags=%d views=%d writes=%d',
+            '%s status=%s channels=%d videos=%d tags=%d views=%d writes=%d truncated=%s blocked_reason=%s',
             $row['date'],
+            $row['status'],
             $row['channels_matched'],
             $row['videos_scanned'],
             $row['tags_count'],
             $row['total_views'],
             $row['writes'],
+            $row['source_truncated'] ? 'yes' : 'no',
+            $row['blocked_reason'] ?? 'none',
         ));
     }
 
@@ -1661,7 +1689,7 @@ $guardedIngestionCommand('reports:tag-month:build {--months= : Required comma-se
     }
 
     $this->line(sprintf(
-        'reports:tag-month:build mode=%s available=%s months=%d/%d ignored=%d subjects=%d/%d ignored=%d source_rows=%d would_insert=%d would_update=%d inserted=%d updated=%d unchanged=%d skipped=%d failed=%d writes=%d blocked_reason=%s',
+        'reports:tag-month:build mode=%s available=%s months=%d/%d ignored=%d subjects=%d/%d ignored=%d source_rows=%d/%d truncated=%s would_insert=%d would_update=%d inserted=%d updated=%d unchanged=%d skipped=%d failed=%d writes=%d blocked_reason=%s',
         $result['mode'],
         $result['available'] ? 'true' : 'false',
         count($result['months']),
@@ -1671,6 +1699,8 @@ $guardedIngestionCommand('reports:tag-month:build {--months= : Required comma-se
         $result['subjects_requested'],
         $result['subjects_ignored'],
         $result['source_rows'],
+        $result['source_row_limit'],
+        ($result['source_truncated'] ?? false) ? 'yes' : 'no',
         $result['would_insert'],
         $result['would_update'],
         $result['inserted'],
@@ -1698,7 +1728,7 @@ $guardedIngestionCommand('reports:tag-month:build {--months= : Required comma-se
     return $exitCode;
 })->purpose('Build capped keyword month caches from local urt_show_tag_date rows; preview by default and manual only');
 
-$guardedIngestionCommand('reports:tag-cloud:build {--tagid= : Comma-separated required channel tag ids} {--or= : Comma-separated OR channel tag ids} {--not= : Comma-separated excluded channel tag ids} {--days=1,3,7,30,90 : Comma-separated list of period lengths to build} {--keyword-limit=5000 : Number of local keywords to scan} {--keywords= : Optional comma-separated keyword subset} {--execute : Write urt_show_tag_cloud rows} {--dry-run : Force preview mode; this is the default} {--json : Emit JSON instead of text}', function (TagCloudCacheBuilder $builder) {
+$guardedIngestionCommand('reports:tag-cloud:build {--tagid= : Comma-separated required channel tag ids, max 50} {--or= : Comma-separated OR channel tag ids, max 50} {--not= : Comma-separated excluded channel tag ids, max 50} {--days=1,3,7,30,90 : Comma-separated period list, max 10} {--channel-limit=1000 : Matched source channel scan cap, max 5000} {--video-limit=50000 : Raw video scan cap per period, max 100000} {--keyword-limit=5000 : Local keyword source scan cap, max 20000} {--keywords= : Optional comma-separated keyword subset, max 500} {--execute : Write urt_show_tag_cloud rows} {--dry-run : Force preview mode; this is the default} {--json : Emit JSON instead of text}', function (TagCloudCacheBuilder $builder) {
     $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
     $now = CarbonImmutable::now($timezone);
     $tagIds = collect(explode(',', (string) $this->option('tagid')))
@@ -1729,33 +1759,18 @@ $guardedIngestionCommand('reports:tag-cloud:build {--tagid= : Comma-separated re
         ->values()
         ->all();
 
-    $rows = [];
-    $writes = 0;
-
-    foreach ($daysList as $days) {
-        $result = $builder->build(
-            tagIds: $tagIds,
-            days: $days,
-            orTagIds: $ids('or'),
-            notTagIds: $ids('not'),
-            keywordLimit: (int) $this->option('keyword-limit'),
-            onlyKeywords: $keywords,
-            execute: (bool) $this->option('execute') && ! (bool) $this->option('dry-run'),
-            now: $now,
-        );
-        $writes += (int) $result['writes'];
-        $rows[] = $result;
-    }
-
-    $payload = [
-        'mode' => (bool) $this->option('execute') && ! (bool) $this->option('dry-run') ? 'execute' : 'dry-run',
-        'tagid' => implode(',', $tagIds),
-        'days_list' => $daysList,
-        'rows' => $rows,
-        'writes' => $writes,
-        'failed_rows' => collect($rows)->sum(fn (array $row): int => (int) ($row['failed_rows'] ?? 0)),
-        'exit_code' => collect($rows)->contains(fn (array $row): bool => (int) ($row['exit_code'] ?? 0) !== 0) ? 1 : 0,
-    ];
+    $payload = $builder->buildMany(
+        tagIds: $tagIds,
+        daysList: $daysList,
+        orTagIds: $ids('or'),
+        notTagIds: $ids('not'),
+        keywordLimit: (int) $this->option('keyword-limit'),
+        onlyKeywords: $keywords,
+        channelLimit: (int) $this->option('channel-limit'),
+        videoLimit: (int) $this->option('video-limit'),
+        execute: (bool) $this->option('execute') && ! (bool) $this->option('dry-run'),
+        now: $now,
+    );
 
     if ((bool) $this->option('json')) {
         $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
@@ -1764,30 +1779,41 @@ $guardedIngestionCommand('reports:tag-cloud:build {--tagid= : Comma-separated re
     }
 
     $this->line(sprintf(
-        'reports:tag-cloud:build mode=%s tagid=%s days=%s rows=%d writes=%d',
+        'reports:tag-cloud:build mode=%s status=%s tagid=%s days=%s rows=%d writes=%d source_complete=%s truncated=%s caps=periods:%d,channels:%d,videos:%d,keywords:%d blocked_reason=%s',
         $payload['mode'],
+        $payload['status'],
         implode(',', $tagIds),
         implode(',', $daysList),
-        count($rows),
-        $writes,
+        count($payload['rows']),
+        $payload['writes'],
+        $payload['source_complete'] ? 'yes' : 'no',
+        $payload['source_truncated'] ? 'yes' : 'no',
+        $payload['caps']['periods'],
+        $payload['caps']['channel_scan'],
+        $payload['caps']['video_scan_per_period'],
+        $payload['caps']['keyword_scan'],
+        $payload['blocked_reason'] ?? 'none',
     ));
 
-    foreach ($rows as $row) {
+    foreach ($payload['rows'] as $row) {
         $this->line(sprintf(
-            'days=%d channels=%d videos=%d tags=%d views=%d writes=%d',
+            'days=%d status=%s channels=%d videos=%d tags=%d views=%d writes=%d truncated=%s blocked_reason=%s',
             $row['days'],
+            $row['status'],
             $row['channels_matched'],
             $row['videos_scanned'],
             $row['tags_count'],
             $row['total_views'],
             $row['writes'],
+            $row['source_truncated'] ? 'yes' : 'no',
+            $row['blocked_reason'] ?? 'none',
         ));
     }
 
     return (int) $payload['exit_code'];
 })->purpose('Build urt_show_tag_cloud rows from local videos and tags; dry-run by default');
 
-$guardedIngestionCommand('reports:channel-cloud:build {--u_id= : Comma-separated channel u_id values} {--channel= : Alias for --u_id} {--days=1,3,7,30,90 : Comma-separated list of period lengths to build} {--limit=50 : Channel cap when --u_id is omitted} {--recent-days=14 : Recent video window when --u_id is omitted} {--keyword-limit=5000 : Number of local keywords to scan} {--keywords= : Optional comma-separated keyword subset} {--execute : Write urt_show_cloud rows} {--dry-run : Force preview mode; this is the default} {--json : Emit JSON instead of text}', function (ChannelCloudCacheBuilder $builder) {
+$guardedIngestionCommand('reports:channel-cloud:build {--u_id= : Comma-separated channel u_id values, max 500} {--channel= : Alias for --u_id} {--days=1,3,7,30,90 : Comma-separated period list, max 10} {--limit=50 : Channel target cap when --u_id is omitted, max 500} {--offset=0 : Recent-channel target cursor, or auto for time-rotated scheduled batches} {--recent-days=14 : Recent video window when --u_id is omitted} {--video-limit=10000 : Raw video scan cap per channel/period, max 100000} {--keyword-limit=5000 : Local keyword source scan cap, max 20000} {--keywords= : Optional comma-separated keyword subset, max 500} {--execute : Write urt_show_cloud rows} {--dry-run : Force preview mode; this is the default} {--json : Emit JSON instead of text}', function (ChannelCloudCacheBuilder $builder) {
     $idsOption = collect([$this->option('u_id'), $this->option('channel')])
         ->map(fn (mixed $value): string => trim((string) $value))
         ->first(fn (string $value): bool => $value !== '', '');
@@ -1815,6 +1841,8 @@ $guardedIngestionCommand('reports:channel-cloud:build {--u_id= : Comma-separated
         recentDays: (int) $this->option('recent-days'),
         keywordLimit: (int) $this->option('keyword-limit'),
         onlyKeywords: $keywords,
+        videoLimit: (int) $this->option('video-limit'),
+        offset: (string) $this->option('offset'),
         execute: (bool) $this->option('execute') && ! (bool) $this->option('dry-run'),
         now: CarbonImmutable::now((string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'))),
     );
@@ -1826,24 +1854,41 @@ $guardedIngestionCommand('reports:channel-cloud:build {--u_id= : Comma-separated
     }
 
     $this->line(sprintf(
-        'reports:channel-cloud:build mode=%s channels=%d days=%s rows=%d writes=%d',
+        'reports:channel-cloud:build mode=%s status=%s channels=%d/%d offset=%d(%s) next_offset=%d wrapped=%s days=%s rows=%d writes=%d source_complete=%s source_truncated=%s selection_truncated=%s caps=channels:%d,periods:%d,videos:%d,keywords:%d blocked_reason=%s',
         $payload['mode'],
+        $payload['status'],
         $payload['channels_selected'],
+        $payload['channel_selection_candidates'],
+        $payload['channel_selection_offset'],
+        $payload['channel_selection_offset_mode'],
+        $payload['channel_selection_next_offset'],
+        $payload['channel_selection_wrapped'] ? 'yes' : 'no',
         implode(',', $payload['days_list']),
         count($payload['rows']),
         $payload['writes'],
+        $payload['source_complete'] ? 'yes' : 'no',
+        $payload['source_truncated'] ? 'yes' : 'no',
+        $payload['channel_selection_truncated'] ? 'yes' : 'no',
+        $payload['caps']['explicit_channels'],
+        $payload['caps']['periods'],
+        $payload['caps']['video_scan_per_channel_period'],
+        $payload['caps']['keyword_scan'],
+        $payload['blocked_reason'] ?? 'none',
     ));
 
     foreach ($payload['rows'] as $row) {
         $this->line(sprintf(
-            'u_id=%d days=%d videos=%d keywords=%d tags=%d views=%d writes=%d',
+            'u_id=%d days=%d status=%s videos=%d keywords=%d tags=%d views=%d writes=%d truncated=%s blocked_reason=%s',
             $row['u_id'],
             $row['days'],
+            $row['status'],
             $row['count_videos'],
             $row['keywords_count'],
             $row['count_tags'],
             $row['total_views'],
             $row['writes'],
+            $row['source_truncated'] ? 'yes' : 'no',
+            $row['blocked_reason'] ?? 'none',
         ));
     }
 
@@ -2153,13 +2198,14 @@ $guardedIngestionCommand('reports:counts:build {--id= : Optional u_id to preview
     }
 })->purpose('Preview or execute legacy channel weekly/monthly count delta updates');
 
-$guardedIngestionCommand('reports:channel-predictions:build {--u_id= : Optional channel u_id} {--limit=20 : Number of channels to process, capped at 100} {--execute : Update selected urt_count prediction columns} {--dry-run : Force preview mode; this is the default} {--json : Emit JSON instead of text}', function (ChannelPredictionIngestion $ingestion) {
+$guardedIngestionCommand('reports:channel-predictions:build {--u_id= : Optional channel u_id} {--limit=20 : Number of channels to process, capped at 100} {--offset=0 : Channel offset for bounded manual pagination} {--execute : Update selected urt_count prediction columns} {--dry-run : Force preview mode; this is the default} {--json : Emit JSON instead of text}', function (ChannelPredictionIngestion $ingestion) {
     $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
     $uId = $this->option('u_id');
     $payload = $ingestion->run(
         uId: $uId !== null ? (int) $uId : null,
         limit: (int) $this->option('limit'),
         execute: $execute,
+        offset: (int) $this->option('offset'),
     );
     $failed = (int) $payload['failed'] > 0
         || ($execute && (! (bool) $payload['available'] || ($payload['blocked_reason'] ?? null) !== null));
@@ -2227,7 +2273,7 @@ $guardedIngestionCommand('reports:keyword-relations:build {--from= : First cache
         execute: $execute,
     );
     $failed = (int) $payload['failed_cache_rows'] > 0
-        || ($execute && $payload['blocked_reason'] !== null);
+        || $payload['blocked_reason'] !== null;
 
     if ((bool) $this->option('json')) {
         $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
@@ -2236,7 +2282,7 @@ $guardedIngestionCommand('reports:keyword-relations:build {--from= : First cache
     }
 
     $this->line(sprintf(
-        'reports:keyword-relations:build mode=%s available=%s from=%s to=%s keywords=%d/%d videos=%d/%d rows=%d would_insert=%d would_update=%d inserted=%d updated=%d unchanged=%d failed=%d blocked_reason=%s generated_at=%s',
+        'reports:keyword-relations:build mode=%s available=%s from=%s to=%s keywords=%d/%d videos=%d/%d truncated=%s rows=%d would_insert=%d would_update=%d inserted=%d updated=%d unchanged=%d failed=%d blocked_reason=%s generated_at=%s',
         $payload['mode'],
         $payload['available'] ? 'yes' : 'no',
         $payload['from'],
@@ -2245,6 +2291,7 @@ $guardedIngestionCommand('reports:keyword-relations:build {--from= : First cache
         $payload['keyword_limit'],
         $payload['videos_scanned'],
         $payload['video_limit'],
+        ($payload['source_truncated'] ?? false) ? 'yes' : 'no',
         $payload['rows_planned'],
         $payload['would_insert'],
         $payload['would_update'],
@@ -2329,7 +2376,7 @@ $guardedIngestionCommand('reports:photos:build {--tags= : Optional comma-separat
     return $failed ? 1 : 0;
 })->purpose('Preview or explicitly build capped Wikipedia thumbnail cache rows from local tags; manual only');
 
-$guardedIngestionCommand('reports:keyword-cloud:build {--keywords= : Required comma-separated keyword cloud subjects} {--tagid= : Comma-separated required channel tag ids} {--or= : Comma-separated OR channel tag ids} {--not= : Comma-separated excluded channel tag ids} {--days=3,7,30 : Comma-separated periods, max 10 values from 1 to 365} {--subject-limit=20 : Subject cap, max 100} {--keyword-limit=5000 : Local keyword dictionary cap, max 5000} {--video-limit=10000 : Raw video cap per subject, max 10000} {--execute : Write urt_show_tag_cloud_tag rows} {--dry-run : Force preview mode; this is the default} {--json : Emit JSON instead of text}', function (KeywordCloudCacheBuilder $builder) {
+$guardedIngestionCommand('reports:keyword-cloud:build {--keywords= : Required comma-separated keyword cloud subjects} {--tagid= : Comma-separated required channel tag ids} {--or= : Comma-separated OR channel tag ids} {--not= : Comma-separated excluded channel tag ids} {--days=3,7,30 : Comma-separated periods, max 10 values from 1 to 365} {--subject-limit=20 : Subject cap, max 100} {--keyword-limit=5000 : Local keyword dictionary cap, max 5000} {--channel-limit=1000 : Matching channel source cap, max 5000} {--video-limit=10000 : Raw video cap per subject, max 10000} {--execute : Write urt_show_tag_cloud_tag rows} {--dry-run : Force preview mode; this is the default} {--json : Emit JSON instead of text}', function (KeywordCloudCacheBuilder $builder) {
     $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
     $list = fn (string $option): array => collect(explode(',', (string) $this->option($option)))
         ->map(fn (string $value): string => trim($value))
@@ -2349,6 +2396,7 @@ $guardedIngestionCommand('reports:keyword-cloud:build {--keywords= : Required co
         notTagIds: $ids('not'),
         subjectLimit: (int) $this->option('subject-limit'),
         keywordLimit: (int) $this->option('keyword-limit'),
+        channelLimit: (int) $this->option('channel-limit'),
         videoLimit: (int) $this->option('video-limit'),
         execute: $execute,
     );
@@ -2361,15 +2409,19 @@ $guardedIngestionCommand('reports:keyword-cloud:build {--keywords= : Required co
     }
 
     $this->line(sprintf(
-        'reports:keyword-cloud:build mode=%s available=%s subjects=%d/%d days=%s keywords=%d/%d videos=%d rows=%d would_insert=%d would_update=%d inserted=%d updated=%d unchanged=%d failed=%d blocked_reason=%s generated_at=%s',
+        'reports:keyword-cloud:build mode=%s available=%s subjects=%d/%d days=%s channels=%d/%d keywords=%d/%d videos=%d/%d-per-subject truncated=%s rows=%d would_insert=%d would_update=%d inserted=%d updated=%d unchanged=%d failed=%d blocked_reason=%s generated_at=%s',
         $payload['mode'],
         $payload['available'] ? 'yes' : 'no',
         $payload['subjects_selected'],
         $payload['subject_limit'],
         implode(',', $payload['days_list']),
+        $payload['channels_matched'],
+        $payload['channel_limit'],
         $payload['keywords_selected'],
         $payload['keyword_limit'],
         $payload['videos_scanned'],
+        $payload['video_limit_per_subject'],
+        ($payload['source_truncated'] ?? false) ? 'yes' : 'no',
         $payload['rows_planned'],
         $payload['would_insert'],
         $payload['would_update'],
@@ -2399,7 +2451,7 @@ $guardedIngestionCommand('reports:keyword-cloud:build {--keywords= : Required co
     return $failed ? 1 : 0;
 })->purpose('Preview or explicitly rebuild capped keyword cloud cache rows from local videos and tags');
 
-$guardedIngestionCommand('reports:keywords:build {--limit=20 : Maximum keyword rows to preview or write} {--recent-days=7 : Window for keyword_all preview, matching legacy weekly freshness} {--hours=2 : 新文易數 tag.analysis.tw lookback hours for execute sync} {--execute : Fetch tag.analysis.tw keyword JSON and upsert local tags} {--dry-run : Force preview mode; this is the default} {--json : Emit JSON instead of text}', function (KeywordReportsPreview $preview) {
+$guardedIngestionCommand('reports:keywords:build {--limit=20 : Maximum keyword rows to preview or write per source batch} {--offset=0 : Remote source cursor offset, or auto for time-rotated scheduled batches} {--recent-days=7 : Window for keyword_all preview, matching legacy weekly freshness} {--hours=2 : 新文易數 tag.analysis.tw lookback hours for execute sync} {--execute : Fetch tag.analysis.tw keyword JSON and upsert local tags} {--dry-run : Force preview mode; this is the default} {--json : Emit JSON instead of text}', function (KeywordReportsPreview $preview) {
     $limit = max(1, min(100, (int) $this->option('limit')));
     $recentDays = max(1, min(30, (int) $this->option('recent-days')));
 
@@ -2409,6 +2461,7 @@ $guardedIngestionCommand('reports:keywords:build {--limit=20 : Maximum keyword r
             recentDays: $recentDays,
             execute: (bool) $this->option('execute') && ! (bool) $this->option('dry-run'),
             hours: (int) $this->option('hours'),
+            offset: (string) $this->option('offset'),
         );
 
         if ((bool) $this->option('json')) {
@@ -2418,9 +2471,11 @@ $guardedIngestionCommand('reports:keywords:build {--limit=20 : Maximum keyword r
         }
 
         $this->line(sprintf(
-            'reports:keywords:build mode=%s source_tags=%d synced=%d failed=%d eligible_keywords=%d recent_keywords=%d recent_since=%s generated_at=%s writes=%d',
+            'reports:keywords:build mode=%s source_tags=%d source_complete=%s source_truncated=%s synced=%d failed=%d eligible_keywords=%d recent_keywords=%d recent_since=%s generated_at=%s writes=%d',
             $payload['mode'],
             $payload['source_tags'],
+            $payload['source_complete'] ? 'yes' : 'no',
+            $payload['source_truncated'] ? 'yes' : 'no',
             $payload['synced_rows'],
             $payload['failed_rows'],
             $payload['eligible_keywords'],
@@ -2428,6 +2483,17 @@ $guardedIngestionCommand('reports:keywords:build {--limit=20 : Maximum keyword r
             $payload['recent_since'],
             $payload['generated_at'],
             count($payload['writes']),
+        ));
+        $this->line(sprintf(
+            'sync candidates=%d attempted=%d offset=%d offset_mode=%s next_offset=%d wrapped=%s source_truncated=%s blocked_reason=%s',
+            $payload['sync_candidates'],
+            $payload['sync_attempted'],
+            $payload['sync_offset'],
+            $payload['sync_offset_mode'],
+            $payload['sync_next_offset'],
+            $payload['sync_batch_wrapped'] ? 'yes' : 'no',
+            $payload['sync_source_truncated'] ? 'yes' : 'no',
+            $payload['blocked_reason'] ?? '-',
         ));
         $this->line(sprintf(
             'excluded no_tag=%d single_char=%d numeric=%d short_ascii=%d targets=%s',
@@ -2463,11 +2529,11 @@ $guardedIngestionCommand('reports:keywords:build {--limit=20 : Maximum keyword r
     }
 })->purpose('Preview or execute keyword sync from 新文易數 tag.analysis.tw; Laravel uses database-backed keyword cache data');
 
-$guardedIngestionCommand('reports:keywords:cache {--execute : Write the rebuilt tags_all cache to local DB} {--dry-run : Force preview mode; this is the default} {--days=31 : Calendar-day window to aggregate, matching legacy tags_all.php} {--recent-days=7 : Recent window used for video/views metrics; legacy includes today plus this many previous days} {--keyword-limit=1000 : Number of ranked keywords to scan} {--video-limit= : Optional cap for smoke tests} {--json : Emit JSON instead of text}', function (TagsAllCacheBuilder $builder) {
+$guardedIngestionCommand('reports:keywords:cache {--execute : Write the rebuilt tags_all cache to local DB} {--dry-run : Force preview mode; this is the default} {--days=31 : Calendar-day window to aggregate, matching legacy tags_all.php} {--recent-days=7 : Recent window used for video/views metrics; legacy includes today plus this many previous days} {--keyword-limit=1000 : Ranked keyword source scan cap, max 10000} {--video-limit=50000 : Raw video source scan cap, max 200000} {--json : Emit JSON instead of text}', function (TagsAllCacheBuilder $builder) {
     $days = max(1, min(90, (int) $this->option('days')));
     $recentDays = max(1, min($days, (int) $this->option('recent-days')));
     $keywordLimit = max(1, min(10000, (int) $this->option('keyword-limit')));
-    $videoLimit = $this->option('video-limit') !== null ? max(1, (int) $this->option('video-limit')) : null;
+    $videoLimit = max(1, min(200000, (int) $this->option('video-limit')));
     $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
 
     try {
@@ -2486,14 +2552,19 @@ $guardedIngestionCommand('reports:keywords:cache {--execute : Write the rebuilt 
         }
 
         $this->line(sprintf(
-            'reports:keywords:cache mode=%s days=%d recent_days=%d keyword_limit=%d videos_scanned=%d tags_with_metrics=%d writes=%d',
+            'reports:keywords:cache mode=%s status=%s days=%d recent_days=%d keyword_limit=%d video_limit=%d videos_scanned=%d tags_with_metrics=%d writes=%d source_complete=%s truncated=%s blocked_reason=%s',
             $payload['mode'],
+            $payload['status'],
             $days,
             $recentDays,
             $keywordLimit,
+            $videoLimit,
             $payload['videos_scanned'],
             $payload['tags_with_metrics'],
             $payload['writes'],
+            $payload['source_complete'] ? 'yes' : 'no',
+            $payload['source_truncated'] ? 'yes' : 'no',
+            $payload['blocked_reason'] ?? 'none',
         ));
         $this->line('write_targets='.implode('; ', $payload['write_targets']));
         $this->line(sprintf(
@@ -2521,7 +2592,7 @@ $guardedIngestionCommand('reports:keywords:cache {--execute : Write the rebuilt 
     }
 })->purpose('Rebuild legacy urt_show_data.tags_all keyword metric cache from local videos; dry-run by default');
 
-$guardedIngestionCommand('reports:people:build {--group=政治人物 : tag_group group_name to preview} {--tagid=13 : Legacy tagid filter passed to tag_period.php} {--days=37 : Legacy period length passed to tag_period.php} {--limit=20 : Number of people tags to print/build} {--keyword-limit=5000 : Number of local keywords to scan when building tag-date cache} {--execute : Build selected local people tag-date cache rows} {--dry-run : Force preview mode; this is the default} {--json : Emit JSON instead of text}', function (PeopleReportsPreview $preview) {
+$guardedIngestionCommand('reports:people:build {--group=政治人物 : tag_group group_name to preview} {--tagid=13 : Legacy tagid filter passed to tag_period.php} {--days=37 : Legacy period length passed to tag_period.php} {--limit=20 : Number of people tags to print/build} {--offset=0 : People tag offset, or auto for scheduler rotation} {--keyword-limit=5000 : Number of local keywords to scan when building tag-date cache} {--execute : Build selected local people tag-date cache rows} {--dry-run : Force preview mode; this is the default} {--json : Emit JSON instead of text}', function (PeopleReportsPreview $preview) {
     $groupName = trim((string) $this->option('group')) ?: '政治人物';
     $tagId = max(1, (int) $this->option('tagid'));
     $days = max(1, min(365, (int) $this->option('days')));
@@ -2535,6 +2606,7 @@ $guardedIngestionCommand('reports:people:build {--group=政治人物 : tag_group
             limit: $limit,
             execute: (bool) $this->option('execute') && ! (bool) $this->option('dry-run'),
             keywordLimit: (int) $this->option('keyword-limit'),
+            offset: (string) $this->option('offset'),
         );
 
         if ((bool) $this->option('json')) {
@@ -2575,13 +2647,14 @@ $guardedIngestionCommand('reports:people:build {--group=政治人物 : tag_group
     }
 })->purpose('Preview or execute legacy political-people tag-date cache generation from local DB');
 
-$guardedIngestionCommand('reports:groups:build {--group= : Preview one tag_group group_name} {--hours=22 : 新文易數 tag.analysis.tw lookback parameter} {--limit=20 : Maximum group rows to preview or write} {--execute : Fetch tag.analysis.tw group JSON and upsert local tag_group} {--dry-run : Force preview mode; this is the default} {--json : Emit JSON instead of text}', function (GroupReportsPreview $preview) {
+$guardedIngestionCommand('reports:groups:build {--group= : Preview one tag_group group_name} {--hours=22 : 新文易數 tag.analysis.tw lookback parameter} {--limit=20 : Maximum group rows to preview or write per source batch} {--offset=0 : Remote source cursor offset, or auto for time-rotated scheduled batches} {--execute : Fetch tag.analysis.tw group JSON and upsert local tag_group} {--dry-run : Force preview mode; this is the default} {--json : Emit JSON instead of text}', function (GroupReportsPreview $preview) {
     try {
         $payload = $preview->preview(
             groupName: $this->option('group') ? (string) $this->option('group') : null,
             hours: (int) $this->option('hours'),
             limit: (int) $this->option('limit'),
             execute: (bool) $this->option('execute') && ! (bool) $this->option('dry-run'),
+            offset: (string) $this->option('offset'),
         );
 
         if ($this->option('json')) {
@@ -2603,6 +2676,16 @@ $guardedIngestionCommand('reports:groups:build {--group= : Preview one tag_group
             $payload['hours'],
             $payload['generated_at'],
             count($payload['writes']),
+        ));
+        $this->line(sprintf(
+            'sync candidates=%d attempted=%d offset=%d offset_mode=%s next_offset=%d wrapped=%s source_truncated=%s',
+            $payload['sync_candidates'],
+            $payload['sync_attempted'],
+            $payload['sync_offset'],
+            $payload['sync_offset_mode'],
+            $payload['sync_next_offset'],
+            $payload['sync_batch_wrapped'] ? 'yes' : 'no',
+            $payload['sync_source_truncated'] ? 'yes' : 'no',
         ));
 
         foreach ($payload['rows'] as $index => $row) {
@@ -2741,7 +2824,7 @@ $guardedIngestionCommand('ai:channel {u_id : Channel u_id} {--from= : Required s
     }
 })->purpose('Preview or explicitly generate one channel AI cache row for a reviewed date range');
 
-$guardedIngestionCommand('ai:daily {--date= : Legacy date, today, or yesterday; defaults to yesterday in Asia/Taipei} {--condition= : Optional single legacy condition; default previews make_ai_day.sh conditions} {--type=oneday : Legacy urt_channel_ai data_type} {--limit=1000 : Max channel AI rows per condition} {--channel-limit=39 : Max configured channels to refresh in execute mode} {--channel-offset=0 : Eligible configured channels to skip before refresh in execute mode} {--channel-batch-size=0 : Refresh selected channels in chunks; 0 uses one batch} {--ai-call-limit=45 : Max AI completion calls in execute mode} {--channel-video-limit=120 : Max videos included in each channel AI prompt; 0 includes all} {--execute : Call OpenCode-compatible chat completions and upsert urt_channel_ai/urt_ai_date} {--dry-run : Force dry-run preview} {--user-token=CLI : user_token value for execute-mode upserts} {--json : Emit JSON instead of text}', function (AiDailyPreview $preview, AiDailyIngestion $ingestion) {
+$guardedIngestionCommand('ai:daily {--date= : Legacy date, today, or yesterday; defaults to yesterday in Asia/Taipei} {--condition= : Optional single legacy condition; default previews make_ai_day.sh conditions} {--type=oneday : Legacy urt_channel_ai data_type} {--limit=1000 : Max channel AI rows per condition} {--channel-limit=39 : Max configured channels to refresh in execute mode} {--channel-offset=0 : Eligible configured channels to skip before refresh} {--channel-batch-size=0 : Refresh selected channels in chunks; 0 uses one batch} {--ai-call-limit=45 : Max AI completion calls in execute mode} {--channel-video-limit=120 : Max videos in each channel prompt, hard max 500; 0 also uses 500} {--execute : Call the configured AI provider chain and upsert urt_channel_ai/urt_ai_date} {--dry-run : Force dry-run preview} {--user-token=CLI : user_token value for execute-mode upserts} {--json : Emit JSON instead of text}', function (AiDailyPreview $preview, AiDailyIngestion $ingestion) {
     try {
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
 
@@ -2767,7 +2850,7 @@ $guardedIngestionCommand('ai:daily {--date= : Legacy date, today, or yesterday; 
             }
 
             $this->line(sprintf(
-                'ai:daily mode=execute source=%s date=%s type=%s conditions=%d channel_limit=%d channel_offset=%d channel_batch_size=%d channel_batches=%d channel_video_limit=%d ai_call_limit=%d ai_calls_used=%d channel_attempted=%d channel_inserted=%d channel_updated=%d channel_skipped=%d channel_failed=%d daily_attempted=%d daily_inserted=%d daily_updated=%d daily_skipped=%d daily_failed=%d secrets=not_printed generated_at=%s',
+                'ai:daily mode=execute source=%s date=%s type=%s conditions=%d channel_limit=%d channel_offset=%d channel_batch_size=%d channel_batches=%d channel_video_limit=%d requested_video_limit=%d video_limit_clamped=%s prompt_truncated_channels=%d omitted_video_rows=%d ai_call_limit=%d ai_calls_used=%d channel_attempted=%d channel_inserted=%d channel_updated=%d channel_skipped=%d channel_failed=%d daily_attempted=%d daily_inserted=%d daily_updated=%d daily_skipped=%d daily_failed=%d secrets=not_printed generated_at=%s',
                 $payload['source'],
                 $payload['date'],
                 $payload['data_type'],
@@ -2777,6 +2860,10 @@ $guardedIngestionCommand('ai:daily {--date= : Legacy date, today, or yesterday; 
                 $payload['channel_ai']['batch_size'],
                 $payload['channel_ai']['batches'],
                 $payload['channel_ai']['video_limit'],
+                $payload['channel_ai']['video_limit_requested'],
+                $payload['channel_ai']['video_limit_clamped'] ? 'yes' : 'no',
+                $payload['channel_ai']['prompt_truncated_channels'],
+                $payload['channel_ai']['prompt_omitted_video_rows'],
                 $payload['ai_call_guard']['limit'],
                 $payload['ai_call_guard']['used'],
                 $payload['channel_ai']['attempted'],
@@ -2867,7 +2954,7 @@ $guardedIngestionCommand('ai:daily {--date= : Legacy date, today, or yesterday; 
     }
 })->purpose('Ingestion preview of legacy daily AI summary generation; execute mode calls AI and upserts urt_channel_ai/urt_ai_date rows');
 
-$guardedIngestionCommand('ai:daily:pipeline {--date=yesterday : Date, today, or yesterday} {--limit=1000 : Max channel AI rows per condition} {--channel-limit=39 : Max configured channels to refresh} {--channel-batch-size=12 : Channel AI batch size} {--ai-call-limit=45 : Max AI completion calls} {--channel-video-limit=120 : Max videos in each channel prompt} {--execute : Refresh complete YouTube sources before daily AI} {--dry-run : Preview both stages without writes} {--user-token=CLI : user_token for AI rows} {--json : Emit JSON}', function (AiScheduledPipelineIngestion $pipeline) {
+$guardedIngestionCommand('ai:daily:pipeline {--date=yesterday : Date, today, or yesterday} {--limit=1000 : Max channel AI rows per condition} {--channel-limit=39 : Max configured channels to refresh} {--channel-batch-size=12 : Channel AI batch size} {--ai-call-limit=45 : Max AI completion calls} {--channel-video-limit=120 : Max videos in each channel prompt, hard max 500; 0 also uses 500} {--execute : Refresh complete YouTube sources before daily AI} {--dry-run : Preview both stages without writes} {--user-token=CLI : user_token for AI rows} {--json : Emit JSON}', function (AiScheduledPipelineIngestion $pipeline) {
     try {
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
         $payload = $execute
@@ -2889,7 +2976,7 @@ $guardedIngestionCommand('ai:daily:pipeline {--date=yesterday : Date, today, or 
         }
 
         $this->line(sprintf(
-            'ai:daily:pipeline mode=%s date=%s source_succeeded=%s source_channels=%d source_failed=%d ai_status=%s ai_calls=%d reason=%s secrets=not_printed',
+            'ai:daily:pipeline mode=%s date=%s source_succeeded=%s source_channels=%d source_failed=%d ai_status=%s ai_calls=%d channel_video_limit=%d prompt_truncated_channels=%d omitted_video_rows=%d reason=%s secrets=not_printed',
             $payload['mode'],
             $payload['date'],
             data_get($payload, 'source_refresh.succeeded', false) ? 'yes' : 'no',
@@ -2897,6 +2984,9 @@ $guardedIngestionCommand('ai:daily:pipeline {--date=yesterday : Date, today, or 
             (int) data_get($payload, 'source_refresh.failed_channels', 0),
             (string) data_get($payload, 'ai.status', data_get($payload, 'ai.skip_reason', 'preview')),
             (int) data_get($payload, 'ai.ai_call_guard.used', 0),
+            (int) data_get($payload, 'ai.channel_ai.video_limit', 0),
+            (int) data_get($payload, 'ai.channel_ai.prompt_truncated_channels', 0),
+            (int) data_get($payload, 'ai.channel_ai.prompt_omitted_video_rows', 0),
             (string) data_get($payload, 'source_refresh.failure_reason', '-'),
         ));
 
@@ -2908,7 +2998,7 @@ $guardedIngestionCommand('ai:daily:pipeline {--date=yesterday : Date, today, or 
     }
 })->purpose('Refresh complete previous-day YouTube sources, then generate channel and daily AI only after source success');
 
-$guardedIngestionCommand('ai:mayor-person {--city=taipei : Mayor city key} {--person= : Comma-separated candidate names; omitted uses city candidates} {--date= : Date YYYY-MM-DD, defaults to yesterday in Asia/Taipei} {--limit=10 : Max candidates to generate} {--ai-call-limit=10 : Max AI completion calls in execute mode} {--execute : Call OpenCode-compatible chat completions and upsert urt_mayor_person_ai} {--dry-run : Force dry-run preview} {--user-token=CLI : user_token value for execute-mode upserts} {--show-prompt : Include prompt/source in JSON preview output} {--json : Emit JSON instead of text}', function (MayorPersonAiIngestion $ingestion) {
+$guardedIngestionCommand('ai:mayor-person {--city=taipei : Mayor city key} {--person= : Comma-separated candidate names; omitted uses city candidates} {--date= : Date YYYY-MM-DD, defaults to yesterday in Asia/Taipei} {--limit=10 : Max candidates to generate} {--ai-call-limit=10 : Max AI completion calls in execute mode} {--execute : Call the configured AI provider chain and upsert urt_mayor_person_ai} {--dry-run : Force dry-run preview} {--user-token=CLI : user_token value for execute-mode upserts} {--show-prompt : Include prompt/source in JSON preview output} {--json : Emit JSON instead of text}', function (MayorPersonAiIngestion $ingestion) {
     try {
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
 
@@ -3012,7 +3102,7 @@ $guardedIngestionCommand('ai:mayor-person {--city=taipei : Mayor city key} {--pe
     }
 })->purpose('Preview or execute mayor candidate daily AI dashboard generation; execute mode upserts urt_mayor_person_ai rows');
 
-$guardedIngestionCommand('ai:period {--from= : Previous daily date, defaults to the day before --to} {--to= : Current daily date, defaults to yesterday in Asia/Taipei} {--condition=all : Legacy condition_type to match} {--limit=20 : Max topics per day included in the matching prompt} {--ai-call-limit=1 : Max AI completion calls in execute mode} {--execute : Call OpenCode-compatible chat completions and upsert urt_ai_period} {--dry-run : Force dry-run preview; this is the default} {--user-token=CLI : user_token value for execute-mode upserts when the table supports it} {--show-prompt : Include prompt text in JSON/dry-run output} {--json : Emit JSON instead of text}', function (AiPeriodIngestion $ingestion) {
+$guardedIngestionCommand('ai:period {--from= : Previous daily date, defaults to the day before --to} {--to= : Current daily date, defaults to yesterday in Asia/Taipei} {--condition=all : Legacy condition_type to match} {--limit=20 : Max topics per day included in the matching prompt} {--ai-call-limit=1 : Max AI completion calls in execute mode} {--execute : Call the configured AI provider chain and upsert urt_ai_period} {--dry-run : Force dry-run preview; this is the default} {--user-token=CLI : user_token value for execute-mode upserts when the table supports it} {--show-prompt : Include prompt text in JSON/dry-run output} {--json : Emit JSON instead of text}', function (AiPeriodIngestion $ingestion) {
     try {
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
 
@@ -3104,7 +3194,7 @@ $guardedIngestionCommand('ai:period {--from= : Previous daily date, defaults to 
     }
 })->purpose('Preview or execute legacy AI period event matching; execute mode calls AI and upserts urt_ai_period rows');
 
-$guardedIngestionCommand('ai:event {--date= : Legacy daily date; generates visible topics for the date} {--condition=all : Legacy condition_type to match} {--aipk= : Specific urt_ai_date pk for old event links} {--event= : Specific event title to generate} {--prompt-types=summary,people,media : Comma-separated prompt rows to generate} {--limit=20 : Max daily topics to include} {--ai-call-limit=60 : Max AI completion calls in execute mode} {--execute : Call OpenCode-compatible chat completions and upsert urt_ai_event} {--dry-run : Force dry-run preview; this is the default} {--missing-only : Skip prompt rows that already exist} {--user-token=CLI : user_token value for execute-mode upserts when the table supports it} {--show-prompt : Include prompt text in JSON/dry-run output} {--json : Emit JSON instead of text}', function (AiEventIngestion $ingestion) {
+$guardedIngestionCommand('ai:event {--date= : Legacy daily date; generates visible topics for the date} {--condition=all : Legacy condition_type to match} {--aipk= : Specific urt_ai_date pk for old event links} {--event= : Specific event title to generate} {--prompt-types=summary,people,media : Comma-separated prompt rows to generate} {--limit=20 : Max daily topics to include} {--ai-call-limit=60 : Max AI completion calls in execute mode} {--execute : Call the configured AI provider chain and upsert urt_ai_event} {--dry-run : Force dry-run preview; this is the default} {--missing-only : Skip prompt rows that already exist} {--user-token=CLI : user_token value for execute-mode upserts when the table supports it} {--show-prompt : Include prompt text in JSON/dry-run output} {--json : Emit JSON instead of text}', function (AiEventIngestion $ingestion) {
     try {
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
         $aipk = $this->option('aipk') ? (int) $this->option('aipk') : null;
@@ -3224,7 +3314,7 @@ $guardedIngestionCommand('ai:event {--date= : Legacy daily date; generates visib
     }
 })->purpose('Preview or execute legacy AI event summary/people/media generation; execute mode calls AI and upserts urt_ai_event rows');
 
-$guardedIngestionCommand('ai:days:refresh {--from= : First AI daily date to refresh; defaults to yesterday in Asia/Taipei} {--to= : Last AI daily date to refresh; defaults to --from} {--condition=all : Legacy condition_type to refresh} {--daily-limit=1000 : Max source rows for each ai:daily aggregate prompt} {--daily-channel-limit=0 : Max configured channels to refresh before each daily aggregate; 0 skips channel refresh} {--daily-channel-offset=0 : Eligible configured channels to skip before refresh} {--daily-channel-batch-size=0 : Refresh selected channels in chunks; 0 uses one batch} {--daily-ai-call-limit=2 : Max AI completion calls per day for daily aggregate/channel refresh} {--daily-channel-video-limit=120 : Max videos included in each channel AI prompt; 0 includes all} {--event-limit=100 : Max daily topics to include in event generation} {--event-ai-call-limit=60 : Total event summary/people/media AI completion calls across the refresh} {--event-passes=2 : Re-preview and retry missing event rows up to this many passes} {--period-limit=20 : Max topics per day included in period matching} {--period-ai-call-limit=1 : Max period matching AI calls per adjacent date pair} {--prompt-types=summary,people,media : Event prompt rows to generate} {--skip-daily : Do not run ai:daily; use existing daily rows} {--skip-events : Do not run ai:event; only daily/period work} {--skip-period : Do not run ai:period; only daily/event work} {--execute : Call AI completions and upsert daily/event/period rows} {--dry-run : Force dry-run preview; this is the default} {--user-token=CLI : user_token value for execute-mode upserts} {--json : Emit JSON instead of text}', function (AiDaysRefreshIngestion $ingestion) {
+$guardedIngestionCommand('ai:days:refresh {--from= : First AI daily date to refresh; defaults to yesterday; max inclusive range 31 days} {--to= : Last AI daily date to refresh; defaults to --from} {--condition=all : Legacy condition_type to refresh} {--daily-limit=1000 : Max source rows for each ai:daily aggregate prompt} {--daily-channel-limit=0 : Max configured channels to refresh before each daily aggregate; 0 skips channel refresh} {--daily-channel-offset=0 : Eligible configured channels to skip before refresh} {--daily-channel-batch-size=0 : Refresh selected channels in chunks; 0 uses one batch} {--daily-ai-call-limit=2 : Max AI completion calls per day for daily aggregate/channel refresh} {--daily-channel-video-limit=120 : Max videos in each channel prompt, hard max 500; 0 also uses 500} {--event-limit=100 : Max daily topics to include in event generation} {--event-ai-call-limit=60 : Total event summary/people/media AI completion calls across the refresh} {--event-passes=2 : Re-preview and retry missing event rows up to this many passes} {--period-limit=20 : Max topics per day included in period matching} {--period-ai-call-limit=1 : Max period matching AI calls per adjacent date pair} {--prompt-types=summary,people,media : Event prompt rows to generate} {--skip-daily : Do not run ai:daily; use existing daily rows} {--skip-events : Do not run ai:event; only daily/period work} {--skip-period : Do not run ai:period; only daily/event work} {--execute : Call AI completions and upsert daily/event/period rows} {--dry-run : Force dry-run preview; this is the default} {--user-token=CLI : user_token value for execute-mode upserts} {--json : Emit JSON instead of text}', function (AiDaysRefreshIngestion $ingestion) {
     try {
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
         $arguments = [
@@ -3270,11 +3360,13 @@ $guardedIngestionCommand('ai:days:refresh {--from= : First AI daily date to refr
             }
 
             $this->line(sprintf(
-                'ai:days:refresh mode=execute source=%s from=%s to=%s dates=%d condition=%s daily_jobs=%d event_rows_inserted=%d event_rows_updated=%d event_missing_after=%d period_inserted=%d period_updated=%d period_skipped=%d failed_rows=%d event_ai_calls_used=%d generated_at=%s',
+                'ai:days:refresh mode=execute status=%s source=%s from=%s to=%s dates=%d date_limit=%d condition=%s daily_jobs=%d event_rows_inserted=%d event_rows_updated=%d event_missing_after=%d period_inserted=%d period_updated=%d period_skipped=%d failed_rows=%d event_ai_calls_used=%d blocked_reason=%s generated_at=%s',
+                $payload['status'],
                 $payload['source'],
                 $payload['from_date'] ?? '-',
                 $payload['to_date'] ?? '-',
                 $payload['date_count'],
+                $payload['date_range_limit'] ?? AiDaysRefreshIngestion::MAX_DATE_RANGE_DAYS,
                 $payload['condition'],
                 $payload['summary']['daily_jobs'],
                 $payload['summary']['event_rows_inserted'],
@@ -3285,6 +3377,7 @@ $guardedIngestionCommand('ai:days:refresh {--from= : First AI daily date to refr
                 $payload['summary']['period_rows_skipped'],
                 $payload['failed_rows'],
                 $payload['ai_call_guard']['event_used'],
+                $payload['blocked_reason'] ?? '-',
                 $payload['generated_at'],
             ));
             $providerUsage = app(AiProviderUsageSummary::class)->compactLine(
@@ -3330,19 +3423,22 @@ $guardedIngestionCommand('ai:days:refresh {--from= : First AI daily date to refr
         if ((bool) $this->option('json')) {
             $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
-            return 0;
+            return (int) ($payload['exit_code'] ?? 0);
         }
 
         $this->line(sprintf(
-            'ai:days:refresh mode=ingestion-preview source=%s from=%s to=%s dates=%d condition=%s jobs=%d event_missing=%d period_jobs=%d generated_at=%s writes=0 api_call=skipped daily_event_period_upsert=skipped',
+            'ai:days:refresh mode=ingestion-preview status=%s source=%s from=%s to=%s dates=%d date_limit=%d condition=%s jobs=%d event_missing=%d period_jobs=%d blocked_reason=%s generated_at=%s writes=0 api_call=skipped daily_event_period_upsert=skipped',
+            $payload['status'],
             $payload['source'],
             $payload['from_date'] ?? '-',
             $payload['to_date'] ?? '-',
             $payload['date_count'],
+            $payload['date_range_limit'] ?? AiDaysRefreshIngestion::MAX_DATE_RANGE_DAYS,
             $payload['condition'],
             $payload['summary']['jobs'],
             collect($payload['jobs'])->where('type', 'event-preview')->sum(fn (array $job): int => (int) data_get($job, 'result.would_call_ai_requests', 0)),
             $payload['summary']['period_jobs'],
+            $payload['blocked_reason'] ?? '-',
             $payload['generated_at'],
         ));
 
@@ -3361,7 +3457,7 @@ $guardedIngestionCommand('ai:days:refresh {--from= : First AI daily date to refr
             }
         }
 
-        return 0;
+        return (int) ($payload['exit_code'] ?? 0);
     } catch (QueryException $exception) {
         $this->error('ai:days:refresh unavailable: '.SensitiveTextRedactor::exception($exception, 240));
 
@@ -3369,7 +3465,7 @@ $guardedIngestionCommand('ai:days:refresh {--from= : First AI daily date to refr
     }
 })->purpose('Orchestrate daily AI, event AI, adjacent period matching, and missing-row verification for one or more dates');
 
-$guardedIngestionCommand('ai:hourly {--condition= : Optional legacy condition; omitted matches cron default} {--hour=1 : Legacy hours-back offset} {--period=1 : Legacy number of hourly buckets to include} {--limit=20 : Number of candidate videos to print} {--at= : Override evaluation timestamp for backfills/previews} {--execute : Call OpenCode-compatible chat completions and upsert urt_ai_hour} {--dry-run : Force dry-run preview; this is the default} {--user-token=cli : user_token value for execute-mode upsert} {--json : Emit JSON instead of text}', function (AiHourlyPreview $preview, AiHourlyIngestion $ingestion) {
+$guardedIngestionCommand('ai:hourly {--condition= : Optional legacy condition; omitted matches cron default} {--hour=1 : Legacy hours-back offset} {--period=1 : Legacy number of hourly buckets to include} {--limit=20 : Number of candidate videos to print} {--prompt-video-limit=5000 : Complete hourly source cap, hard max 5000; cap hit blocks AI} {--at= : Override evaluation timestamp for backfills/previews} {--execute : Call the configured AI provider chain and upsert urt_ai_hour} {--dry-run : Force dry-run preview; this is the default} {--user-token=cli : user_token value for execute-mode upsert} {--json : Emit JSON instead of text}', function (AiHourlyPreview $preview, AiHourlyIngestion $ingestion) {
     try {
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
@@ -3392,6 +3488,7 @@ $guardedIngestionCommand('ai:hourly {--condition= : Optional legacy condition; o
                 hour: (int) $this->option('hour'),
                 period: (int) $this->option('period'),
                 limit: (int) $this->option('limit'),
+                promptVideoLimit: (int) $this->option('prompt-video-limit'),
                 userToken: (string) $this->option('user-token'),
                 now: $at,
             );
@@ -3407,12 +3504,18 @@ $guardedIngestionCommand('ai:hourly {--condition= : Optional legacy condition; o
                 ? 'none'
                 : implode(' | ', $payload['provider_failures']);
             $this->line(sprintf(
-                'ai:hourly mode=execute source=%s condition=%s date_from=%s date_to=%s prompt_video_rows=%d prompt_chars=%d provider=%s model=%s inserted=%s updated=%s skipped=%s skip_reason=%s provider_failures="%s" secrets=not_printed usage=%s',
+                'ai:hourly mode=execute status=%s source=%s condition=%s date_from=%s date_to=%s source_videos=%d prompt_videos=%d prompt_video_limit=%d omitted_videos=%d source_complete=%s source_truncated=%s prompt_chars=%d provider=%s model=%s inserted=%s updated=%s skipped=%s skip_reason=%s provider_failures="%s" secrets=not_printed usage=%s',
+                $payload['status'],
                 $payload['source'],
                 $payload['condition_type'],
                 $payload['date_from'],
                 $payload['date_to'],
+                $payload['video_rows'],
                 $payload['prompt_video_rows'],
+                $payload['prompt_video_limit'],
+                $payload['prompt_omitted_video_rows'],
+                $payload['source_complete'] ? 'yes' : 'no',
+                $payload['source_truncated'] ? 'yes' : 'no',
                 $payload['prompt_chars'],
                 $payload['provider'] ?? '-',
                 $payload['model'],
@@ -3437,24 +3540,31 @@ $guardedIngestionCommand('ai:hourly {--condition= : Optional legacy condition; o
             hour: (int) $this->option('hour'),
             period: (int) $this->option('period'),
             limit: (int) $this->option('limit'),
+            promptVideoLimit: (int) $this->option('prompt-video-limit'),
             now: $at,
         );
 
         if ((bool) $this->option('json')) {
             $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
-            return 0;
+            return (int) ($payload['exit_code'] ?? 0);
         }
 
         $matchingChannels = $payload['matching_channels'] === null ? 'all' : (string) $payload['matching_channels'];
 
         $this->line(sprintf(
-            'ai:hourly mode=ingestion-preview source=%s condition=%s explicit_condition=%s matching_channels=%s video_rows=%d displayed_rows=%d hour=%d period=%d date_from=%s date_to=%s existing_ai_hour_rows=%d prompt_bounds=%d-%d prompt_chars=%d would_call_ai_requests=%d would_insert_ai_hour_rows=%d generated_at=%s writes=0 api_call=skipped ai_hour_insert=skipped',
+            'ai:hourly mode=ingestion-preview status=%s source=%s condition=%s explicit_condition=%s matching_channels=%s video_rows=%d prompt_video_rows=%d prompt_video_limit=%d omitted_videos=%d source_complete=%s source_truncated=%s displayed_rows=%d hour=%d period=%d date_from=%s date_to=%s existing_ai_hour_rows=%d prompt_bounds=%d-%d prompt_chars=%d would_call_ai_requests=%d would_insert_ai_hour_rows=%d blocked_reason=%s generated_at=%s writes=0 api_call=skipped ai_hour_insert=skipped',
+            $payload['status'],
             $payload['source'],
             $payload['condition_type'],
             $payload['explicit_condition'] ? 'yes' : 'no',
             $matchingChannels,
             $payload['video_rows'],
+            $payload['prompt_video_rows'],
+            $payload['prompt_video_limit'],
+            $payload['prompt_omitted_video_rows'],
+            $payload['source_complete'] ? 'yes' : 'no',
+            $payload['source_truncated'] ? 'yes' : 'no',
             $payload['displayed_rows'],
             $payload['hour'],
             $payload['period'],
@@ -3466,6 +3576,7 @@ $guardedIngestionCommand('ai:hourly {--condition= : Optional legacy condition; o
             $payload['prompt_chars'],
             $payload['would_call_ai_requests'],
             $payload['would_insert_ai_hour_rows'],
+            $payload['blocked_reason'] ?? '-',
             $payload['generated_at'],
         ));
 
@@ -3482,7 +3593,7 @@ $guardedIngestionCommand('ai:hourly {--condition= : Optional legacy condition; o
             ));
         }
 
-        return 0;
+        return (int) ($payload['exit_code'] ?? 0);
     } catch (QueryException $exception) {
         $this->error('ai:hourly unavailable: '.SensitiveTextRedactor::exception($exception, 240));
 
@@ -3492,9 +3603,9 @@ $guardedIngestionCommand('ai:hourly {--condition= : Optional legacy condition; o
 
         return 1;
     }
-})->purpose('Dry-run preview of legacy hourly AI summary generation, with explicit --execute support for OpenCode-compatible urt_ai_hour upsert');
+})->purpose('Dry-run preview of legacy hourly AI summary generation, with explicit --execute support through the configured AI provider chain');
 
-$guardedIngestionCommand('ai:hourly:pipeline {--condition= : Optional legacy condition} {--hour=1 : Hours-back offset} {--period=1 : Hourly buckets} {--limit=20 : Candidate videos to print} {--source-max-results=50 : Latest uploads fetched per configured channel} {--at= : Override evaluation timestamp} {--execute : Refresh source uploads before hourly AI} {--dry-run : Preview both stages without writes} {--user-token=cli : user_token for AI row} {--json : Emit JSON}', function (AiScheduledPipelineIngestion $pipeline) {
+$guardedIngestionCommand('ai:hourly:pipeline {--condition= : Optional legacy condition} {--hour=1 : Hours-back offset} {--period=1 : Hourly buckets} {--limit=20 : Candidate videos to print} {--source-max-results=50 : Latest uploads fetched per configured channel} {--prompt-video-limit=5000 : Complete hourly source cap, hard max 5000; cap hit blocks AI} {--at= : Override evaluation timestamp} {--execute : Refresh source uploads before hourly AI} {--dry-run : Preview both stages without writes} {--user-token=cli : user_token for AI row} {--json : Emit JSON}', function (AiScheduledPipelineIngestion $pipeline) {
     try {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
         $at = is_string($this->option('at')) && trim((string) $this->option('at')) !== ''
@@ -3506,6 +3617,7 @@ $guardedIngestionCommand('ai:hourly:pipeline {--condition= : Optional legacy con
             'hour' => (int) $this->option('hour'),
             'period' => (int) $this->option('period'),
             'limit' => (int) $this->option('limit'),
+            'promptVideoLimit' => (int) $this->option('prompt-video-limit'),
             'now' => $at,
         ];
         $payload = $execute
@@ -3523,15 +3635,18 @@ $guardedIngestionCommand('ai:hourly:pipeline {--condition= : Optional legacy con
         }
 
         $this->line(sprintf(
-            'ai:hourly:pipeline mode=%s from=%s to=%s source_succeeded=%s source_channels=%d source_failed=%d ai_status=%s reason=%s secrets=not_printed',
+            'ai:hourly:pipeline mode=%s status=%s from=%s to=%s source_succeeded=%s source_channels=%d source_failed=%d ai_status=%s prompt_video_limit=%d source_truncated=%s reason=%s secrets=not_printed',
             $payload['mode'],
+            $payload['status'] ?? data_get($payload, 'ai.status', 'preview'),
             $payload['date_from'],
             $payload['date_to'],
             data_get($payload, 'source_refresh.succeeded', false) ? 'yes' : 'no',
             (int) data_get($payload, 'source_refresh.completed_channels', 0),
             (int) data_get($payload, 'source_refresh.failed_channels', 0),
             (string) data_get($payload, 'ai.status', data_get($payload, 'ai.skip_reason', 'preview')),
-            (string) data_get($payload, 'source_refresh.failure_reason', '-'),
+            (int) data_get($payload, 'ai.prompt_video_limit', AiHourlyPreview::MAX_PROMPT_VIDEO_LIMIT),
+            data_get($payload, 'ai.source_truncated', false) ? 'yes' : 'no',
+            (string) data_get($payload, 'source_refresh.failure_reason', data_get($payload, 'ai.blocked_reason', '-')),
         ));
 
         return (int) ($payload['exit_code'] ?? 0);

@@ -182,15 +182,16 @@ class IngestionGroupsBuildCommandTest extends TestCase
         $this->createTable();
         Http::fake([
             'https://tag.analysis.tw/api/group.php*' => Http::response(['result' => [
-                ['tag' => '第一筆', 'group' => '群組一'],
-                ['tag' => '第二筆', 'group' => '群組二'],
-                ['tag' => '不得寫入', 'group' => '群組三'],
+                $this->remoteRow('第一筆', '群組一'),
+                $this->remoteRow('第二筆', '群組二'),
+                $this->remoteRow('不得寫入', '群組三'),
             ]]),
         ]);
 
         $exitCode = Artisan::call('reports:groups:build', [
             '--execute' => true,
             '--limit' => 2,
+            '--offset' => 0,
             '--json' => true,
         ]);
         $payload = json_decode(trim(Artisan::output()), true);
@@ -210,15 +211,16 @@ class IngestionGroupsBuildCommandTest extends TestCase
         DB::statement("CREATE TRIGGER fail_group_insert BEFORE INSERT ON tag_group WHEN NEW.tag = '失敗資料' BEGIN SELECT RAISE(ABORT, 'sensitive database details'); END");
         Http::fake([
             'https://tag.analysis.tw/api/group.php*' => Http::response(['result' => [
-                ['tag' => '成功一', 'group' => '群組'],
-                ['tag' => '失敗資料', 'group' => '群組'],
-                ['tag' => '成功二', 'group' => '群組'],
+                $this->remoteRow('成功一', '群組'),
+                $this->remoteRow('失敗資料', '群組'),
+                $this->remoteRow('成功二', '群組'),
             ]]),
         ]);
 
         $exitCode = Artisan::call('reports:groups:build', [
             '--execute' => true,
             '--limit' => 3,
+            '--offset' => 0,
             '--json' => true,
         ]);
         $output = trim(Artisan::output());
@@ -235,12 +237,102 @@ class IngestionGroupsBuildCommandTest extends TestCase
         $textExitCode = Artisan::call('reports:groups:build', [
             '--execute' => true,
             '--limit' => 3,
+            '--offset' => 0,
         ]);
         $textOutput = Artisan::output();
 
         $this->assertSame(1, $textExitCode);
         $this->assertStringContainsString('failed=1', $textOutput);
         $this->assertStringNotContainsString('sensitive database details', $textOutput);
+    }
+
+    public function test_reports_groups_build_supports_wrapped_source_cursor(): void
+    {
+        $this->createTable();
+        Http::fake([
+            'https://tag.analysis.tw/api/group.php*' => Http::response(['result' => [
+                $this->remoteRow('第一筆', '群組一'),
+                $this->remoteRow('第二筆', '群組二'),
+                $this->remoteRow('第三筆', '群組三'),
+            ]]),
+        ]);
+
+        $exitCode = Artisan::call('reports:groups:build', [
+            '--execute' => true,
+            '--limit' => 2,
+            '--offset' => 2,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(3, $payload['sync_candidates']);
+        $this->assertSame(2, $payload['sync_offset']);
+        $this->assertSame('explicit', $payload['sync_offset_mode']);
+        $this->assertSame(1, $payload['sync_next_offset']);
+        $this->assertTrue($payload['sync_batch_wrapped']);
+        $this->assertTrue($payload['sync_source_truncated']);
+        $this->assertSame(['第三筆', '第一筆'], DB::table('tag_group')->orderBy('pk')->pluck('tag')->all());
+    }
+
+    public function test_reports_groups_build_rejects_missing_or_null_result(): void
+    {
+        $this->createTable();
+        Http::fake([
+            'https://tag.analysis.tw/api/group.php*' => Http::response(['result' => null]),
+        ]);
+
+        $exitCode = Artisan::call('reports:groups:build', [
+            '--execute' => true,
+            '--json' => true,
+        ]);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(0, DB::table('tag_group')->count());
+        $this->assertStringContainsString('failure=external_sync_failed', Artisan::output());
+    }
+
+    public function test_reports_groups_build_rejects_malformed_row_before_any_write(): void
+    {
+        $this->createTable();
+        DB::table('tag_group')->insert($this->localRow('既有', '政治人物', '2026-05-20 10:00:00'));
+        Http::fake([
+            'https://tag.analysis.tw/api/group.php*' => Http::response(['result' => [
+                $this->remoteRow('合法新資料', '群組'),
+                $this->remoteRow('既有', '政治人物', mtime: 'not-a-date'),
+            ]]),
+        ]);
+
+        $exitCode = Artisan::call('reports:groups:build', [
+            '--execute' => true,
+            '--offset' => 0,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, DB::table('tag_group')->count());
+        $this->assertSame('2026-05-20 10:00:00', DB::table('tag_group')->where('tag', '既有')->value('latest_time'));
+        $this->assertFalse(DB::table('tag_group')->where('tag', '合法新資料')->exists());
+        $this->assertStringContainsString('failure=external_sync_failed', $output);
+        $this->assertStringNotContainsString('not-a-date', $output);
+    }
+
+    public function test_reports_groups_build_rejects_remote_source_over_hard_cap(): void
+    {
+        $this->createTable();
+        Http::fake([
+            'https://tag.analysis.tw/api/group.php*' => Http::response(['result' => array_fill(0, 5001, null)]),
+        ]);
+
+        $exitCode = Artisan::call('reports:groups:build', [
+            '--execute' => true,
+            '--json' => true,
+        ]);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(0, DB::table('tag_group')->count());
+        $this->assertStringContainsString('failure=external_sync_failed', Artisan::output());
     }
 
     private function createTable(): void
@@ -256,5 +348,35 @@ class IngestionGroupsBuildCommandTest extends TestCase
             $table->string('group_name', 64);
             $table->string('del_flag', 1)->nullable();
         });
+    }
+
+    /** @return array<string, mixed> */
+    private function remoteRow(
+        string $tag,
+        string $group,
+        ?string $mtime = null,
+        string $ctime = '2026-05-25 10:00:00',
+        string|int|null $delFlag = '0',
+    ): array {
+        return [
+            'tag' => $tag,
+            'group' => $group,
+            'ctime' => $ctime,
+            'mtime' => $mtime,
+            'del_flag' => $delFlag,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function localRow(string $tag, string $group, string $latestTime): array
+    {
+        return [
+            'ctime' => $latestTime,
+            'mtime' => null,
+            'latest_time' => $latestTime,
+            'tag' => $tag,
+            'group_name' => $group,
+            'del_flag' => '0',
+        ];
     }
 }

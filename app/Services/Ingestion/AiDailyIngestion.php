@@ -12,6 +12,8 @@ use Throwable;
 
 class AiDailyIngestion
 {
+    public const MAX_CHANNEL_VIDEO_LIMIT = 500;
+
     public function __construct(
         private readonly AiDailyPreview $preview,
         private readonly OpenCodeChatClient $client,
@@ -41,7 +43,10 @@ class AiDailyIngestion
         $channelOffset = max(0, $channelOffset);
         $channelBatchSize = max(0, $channelBatchSize);
         $aiCallLimit = max(0, $aiCallLimit);
-        $channelVideoLimit = max(0, $channelVideoLimit);
+        $requestedChannelVideoLimit = $channelVideoLimit;
+        $channelVideoLimit = $channelVideoLimit <= 0
+            ? self::MAX_CHANNEL_VIDEO_LIMIT
+            : min(self::MAX_CHANNEL_VIDEO_LIMIT, $channelVideoLimit);
         $period = [
             'from' => $date.' 00:00:00',
             'to' => $date.' 23:59:59',
@@ -200,6 +205,11 @@ class AiDailyIngestion
                 'batch_size' => $channelBatchSize,
                 'batches' => (int) ($channelRows->max('batch') ?? 0),
                 'video_limit' => $channelVideoLimit,
+                'video_limit_requested' => $requestedChannelVideoLimit,
+                'video_limit_clamped' => $requestedChannelVideoLimit !== $channelVideoLimit,
+                'video_limit_max' => self::MAX_CHANNEL_VIDEO_LIMIT,
+                'prompt_truncated_channels' => $channelRows->where('prompt_truncated', true)->count(),
+                'prompt_omitted_video_rows' => $channelRows->sum(fn (array $row): int => max(0, (int) ($row['prompt_omitted_video_rows'] ?? 0))),
                 'attempted' => $channelRows->count(),
                 'inserted' => $channelRows->where('inserted', true)->count(),
                 'updated' => $channelRows->where('updated', true)->count(),
@@ -301,9 +311,11 @@ class AiDailyIngestion
                     ->where('publishedAt', '>=', $period['from'])
                     ->where('publishedAt', '<=', $period['to'])
                     ->orderByDesc('viewCount');
-                $videos = $channelVideoLimit > 0
-                    ? $videosQuery->limit($channelVideoLimit)->get()
-                    : $videosQuery->get();
+                $videos = $videosQuery->limit($channelVideoLimit)->get();
+                $promptMeta = [
+                    'prompt_truncated' => $videoRows > $videos->count(),
+                    'prompt_omitted_video_rows' => max(0, $videoRows - $videos->count()),
+                ];
 
                 $prompt = $this->channelPrompt($videos);
                 try {
@@ -315,6 +327,7 @@ class AiDailyIngestion
                         'batch' => $batchIndex + 1,
                         'video_rows' => $videoRows,
                         'prompt_video_rows' => $videos->count(),
+                        ...$promptMeta,
                         'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
                         'ai_call_attempted' => true,
                         'inserted' => false,
@@ -340,6 +353,7 @@ class AiDailyIngestion
                         'batch' => $batchIndex + 1,
                         'video_rows' => $videoRows,
                         'prompt_video_rows' => $videos->count(),
+                        ...$promptMeta,
                         'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
                         'model' => $completion['model'],
                         'provider' => $completion['provider'],
@@ -400,6 +414,7 @@ class AiDailyIngestion
                         'batch' => $batchIndex + 1,
                         'video_rows' => $videoRows,
                         'prompt_video_rows' => $videos->count(),
+                        ...$promptMeta,
                         'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
                         'model' => $completion['model'],
                         'provider' => $completion['provider'],
@@ -429,6 +444,7 @@ class AiDailyIngestion
                     'batch' => $batchIndex + 1,
                     'video_rows' => $videoRows,
                     'prompt_video_rows' => $videos->count(),
+                    ...$promptMeta,
                     'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
                     'model' => $completion['model'],
                     'provider' => $completion['provider'],

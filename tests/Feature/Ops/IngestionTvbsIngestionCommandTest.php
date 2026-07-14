@@ -506,6 +506,45 @@ SQL);
         Http::assertSentCount(2);
     }
 
+    public function test_youtube_tvbs_live_poll_does_not_refresh_a_video_missing_live_streaming_details(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 20:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('services.youtube.api_keys', null);
+        config()->set('services.youtube.transient_retries', 0);
+        $this->createLivePollingTables();
+        DB::table('urt_video_live_tvbs')->insert($this->tvbsLiveRow(
+            videoId: 'ghost-tvbs-live',
+            uId: 29,
+            mtime: '2026-05-25 19:00:00',
+            scheduledStartTime: '2026-05-25 19:30:00',
+            concurrentViewers: 100,
+            maxCurrent: 120,
+        ));
+        Http::fake([
+            'www.googleapis.com/youtube/v3/videos*' => Http::response([
+                'items' => [['id' => 'ghost-tvbs-live']],
+            ], 200),
+        ]);
+
+        $exitCode = Artisan::call('youtube:tvbs:live:poll', [
+            '--execute' => true,
+            '--videoId' => 'ghost-tvbs-live',
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['failed_videos']);
+        $this->assertSame(0, $payload['updated_videos']);
+        $this->assertSame(['videoId' => 'ghost-tvbs-live', 'reason' => 'api_item_missing'], $payload['skipped'][0]);
+        $this->assertSame('2026-05-25 19:00:00', DB::table('urt_video_live_tvbs')->where('videoId', 'ghost-tvbs-live')->value('mtime'));
+        $this->assertSame(100, DB::table('urt_video_live_tvbs')->where('videoId', 'ghost-tvbs-live')->value('concurrentViewers'));
+        $this->assertSame(0, DB::table('urt_video_live_log_tvbs')->count());
+        Http::assertSentCount(1);
+    }
+
     public function test_tvbs_live_polling_isolates_a_failed_video_and_sanitizes_the_warning(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
@@ -594,7 +633,15 @@ SQL);
         config()->set('services.youtube.api_key', 'test-key');
         Http::fake([
             'www.googleapis.com/youtube/v3/playlistItems*' => Http::response(['items' => []], 200),
-            'www.googleapis.com/youtube/v3/videos*' => Http::response(['items' => []], 200),
+            'www.googleapis.com/youtube/v3/videos*' => Http::response([
+                'items' => [[
+                    'id' => 'eligible-tvbs-01',
+                    'liveStreamingDetails' => [
+                        'actualStartTime' => '2026-05-25T03:59:00Z',
+                        'concurrentViewers' => '123',
+                    ],
+                ]],
+            ], 200),
         ]);
 
         DB::table('urt_channel')->insert($this->channelRow(1, 'TVBS Primary', 'uploads-primary'));
@@ -662,7 +709,7 @@ SQL);
         });
 
         Schema::create('urt_video_schedule', function ($table): void {
-            $table->integer('pk')->nullable();
+            $table->increments('pk');
             $table->dateTime('ctime')->nullable();
             $table->string('videoId')->nullable();
             $table->dateTime('publishedAt')->nullable();

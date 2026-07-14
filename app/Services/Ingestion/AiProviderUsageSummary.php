@@ -11,8 +11,8 @@ class AiProviderUsageSummary
     {
         return [
             'providers' => [
-                'primary' => $this->emptyProvider('Primary key'),
-                'fallback' => $this->emptyProvider('OpenAI fallback'),
+                'primary' => $this->emptyProvider('Primary provider'),
+                'fallback' => $this->emptyProvider('Fallback provider'),
                 'unknown' => $this->emptyProvider('Unknown provider'),
             ],
         ];
@@ -144,7 +144,7 @@ class AiProviderUsageSummary
     public function compactLine(array $summary): string
     {
         return sprintf(
-            'primary_success=%d openai_success=%d unknown_success=%d primary_failed=%d openai_failed=%d unknown_failed=%d primary_prompt_tokens=%d primary_completion_tokens=%d primary_total_tokens=%d openai_prompt_tokens=%d openai_completion_tokens=%d openai_total_tokens=%d unknown_prompt_tokens=%d unknown_completion_tokens=%d unknown_total_tokens=%d prompt_tokens=%d completion_tokens=%d total_tokens=%d',
+            'primary_success=%d fallback_success=%d unknown_success=%d primary_failed=%d fallback_failed=%d unknown_failed=%d primary_prompt_tokens=%d primary_completion_tokens=%d primary_total_tokens=%d fallback_prompt_tokens=%d fallback_completion_tokens=%d fallback_total_tokens=%d unknown_prompt_tokens=%d unknown_completion_tokens=%d unknown_total_tokens=%d prompt_tokens=%d completion_tokens=%d total_tokens=%d',
             (int) data_get($summary, 'providers.primary.successful_calls', 0),
             (int) data_get($summary, 'providers.fallback.successful_calls', 0),
             (int) data_get($summary, 'providers.unknown.successful_calls', 0),
@@ -344,10 +344,10 @@ class AiProviderUsageSummary
         $this->addFailedAttempt($summary, 'unknown', $values['unknown_failed'] ?? 0);
 
         $this->addProviderTokens($summary, 'primary', $values, 'primary');
-        $this->addProviderTokens($summary, 'fallback', $values, 'openai');
+        $this->addProviderTokens($summary, 'fallback', $values, 'fallback', 'openai');
         $this->addProviderTokens($summary, 'unknown', $values, 'unknown');
 
-        if (($values['primary_prompt_tokens'] ?? $values['openai_prompt_tokens'] ?? $values['unknown_prompt_tokens'] ?? null) === null) {
+        if (($values['primary_prompt_tokens'] ?? $values['fallback_prompt_tokens'] ?? $values['openai_prompt_tokens'] ?? $values['unknown_prompt_tokens'] ?? null) === null) {
             $summary['providers']['unknown']['prompt_tokens'] += $values['prompt_tokens'] ?? 0;
             $summary['providers']['unknown']['completion_tokens'] += $values['completion_tokens'] ?? 0;
             $summary['providers']['unknown']['total_tokens'] += $values['total_tokens'] ?? 0;
@@ -360,11 +360,12 @@ class AiProviderUsageSummary
      * @param  array<string, mixed>  $summary
      * @param  array<string, int>  $values
      */
-    private function addProviderTokens(array &$summary, string $provider, array $values, string $prefix): void
+    private function addProviderTokens(array &$summary, string $provider, array $values, string $prefix, ?string $legacyPrefix = null): void
     {
-        $summary['providers'][$provider]['prompt_tokens'] += $values[$prefix.'_prompt_tokens'] ?? 0;
-        $summary['providers'][$provider]['completion_tokens'] += $values[$prefix.'_completion_tokens'] ?? 0;
-        $summary['providers'][$provider]['total_tokens'] += $values[$prefix.'_total_tokens'] ?? 0;
+        foreach (['prompt_tokens', 'completion_tokens', 'total_tokens'] as $field) {
+            $summary['providers'][$provider][$field] += $values[$prefix.'_'.$field]
+                ?? ($legacyPrefix === null ? 0 : ($values[$legacyPrefix.'_'.$field] ?? 0));
+        }
     }
 
     /**

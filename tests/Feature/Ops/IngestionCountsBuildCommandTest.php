@@ -246,6 +246,130 @@ SQL);
             });
     }
 
+    public function test_reports_counts_build_rejects_malformed_history_without_overwriting_existing_deltas(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        DB::table('urt_count')->insert([
+            [
+                'u_id' => 1,
+                'view_week' => 321,
+                'sub_week' => 32,
+                'video_week' => 3,
+                'view_month' => 654,
+                'sub_month' => 65,
+                'video_month' => 6,
+            ],
+            [
+                'u_id' => 2,
+                'view_week' => 0,
+                'sub_week' => 0,
+                'video_week' => 0,
+                'view_month' => 0,
+                'sub_month' => 0,
+                'video_month' => 0,
+            ],
+        ]);
+        DB::table('urt_log')->insert([
+            [
+                'u_id' => 1,
+                'themonth' => '2026-05-01',
+                'thedata' => '{malformed-json',
+            ],
+            [
+                'u_id' => 2,
+                'themonth' => '2026-05-01',
+                'thedata' => json_encode([
+                    '2026-05-25' => ['view' => 200, 'subscriber' => 20, 'video' => 10],
+                    '2026-05-18' => ['view' => 100, 'subscriber' => 10, 'video' => 5],
+                ], JSON_UNESCAPED_UNICODE),
+            ],
+        ]);
+        Log::spy();
+
+        $exitCode = Artisan::call('reports:counts:build', [
+            '--execute' => true,
+            '--limit' => 2,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame(1, $payload['updated']);
+        $this->assertSame([
+            'u_id' => 1,
+            'reason' => 'invalid_log_payload',
+        ], $payload['skipped'][0]);
+        $this->assertSame(321, DB::table('urt_count')->where('u_id', 1)->value('view_week'));
+        $this->assertSame(654, DB::table('urt_count')->where('u_id', 1)->value('view_month'));
+        $this->assertNull(DB::table('urt_count')->where('u_id', 1)->value('mtime'));
+        $this->assertSame(100, DB::table('urt_count')->where('u_id', 2)->value('view_week'));
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->with('Channel counts source history is invalid.', [
+                'u_id' => 1,
+                'reason' => 'invalid_log_payload',
+            ]);
+    }
+
+    public function test_reports_counts_build_bounds_source_scan_and_rotates_unchanged_rows(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        for ($uId = 1; $uId <= 3; $uId++) {
+            DB::table('urt_count')->insert([
+                'u_id' => $uId,
+                'ctime' => '2026-05-01 00:00:00',
+                'mtime' => sprintf('2026-05-25 09:0%d:00', $uId - 1),
+                'view_week' => 0,
+                'sub_week' => 0,
+                'video_week' => 0,
+                'view_month' => 0,
+                'sub_month' => 0,
+                'video_month' => 0,
+            ]);
+            DB::table('urt_log')->insert([
+                'u_id' => $uId,
+                'ctime' => '2026-05-25 10:00:00',
+                'themonth' => '2026-05-01',
+                'thedata' => json_encode([
+                    '2026-05-25' => ['view' => 100, 'subscriber' => 20, 'video' => 10],
+                    '2026-05-18' => ['view' => 100, 'subscriber' => 20, 'video' => 10],
+                ], JSON_UNESCAPED_UNICODE),
+            ]);
+        }
+
+        $firstExit = Artisan::call('reports:counts:build', [
+            '--execute' => true,
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $first = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $firstExit);
+        $this->assertSame(3, $first['candidates']);
+        $this->assertSame(1, $first['selected_candidates']);
+        $this->assertTrue($first['source_truncated']);
+        $this->assertSame(1, $first['log_rows_scanned']);
+        $this->assertSame(0, $first['updated']);
+        $this->assertSame(1, $first['refreshed']);
+        $this->assertSame('2026-05-25 12:00:00', DB::table('urt_count')->where('u_id', 1)->value('mtime'));
+        $this->assertSame('2026-05-25 09:01:00', DB::table('urt_count')->where('u_id', 2)->value('mtime'));
+
+        $secondExit = Artisan::call('reports:counts:build', [
+            '--execute' => true,
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+
+        $this->assertSame(0, $secondExit);
+        $this->assertSame('2026-05-25 12:00:00', DB::table('urt_count')->where('u_id', 2)->value('mtime'));
+        $this->assertSame('2026-05-25 09:02:00', DB::table('urt_count')->where('u_id', 3)->value('mtime'));
+    }
+
     public function test_ingestion_scheduler_can_execute_ingestion_counts_preview_when_due(): void
     {
         $this->createTables();

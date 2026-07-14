@@ -72,6 +72,128 @@ SQL);
             ->once();
     }
 
+    public function test_range_over_date_cap_is_blocked_before_any_partial_write(): void
+    {
+        $this->createTables();
+        $this->seedRawData();
+
+        $payload = app(TagDateCacheBuilder::class)->buildRange(
+            tagIds: [1],
+            from: '2026-06-04',
+            to: '2026-06-05',
+            execute: true,
+            now: CarbonImmutable::parse('2026-06-05 12:00:00', 'Asia/Taipei'),
+            maxDates: 1,
+        );
+
+        $this->assertSame('blocked', $payload['status']);
+        $this->assertSame('date_range_limit_exceeded', $payload['blocked_reason']);
+        $this->assertSame(2, $payload['dates_requested']);
+        $this->assertSame(0, $payload['dates_selected']);
+        $this->assertTrue($payload['range_truncated']);
+        $this->assertTrue($payload['lists']['dates']['truncated']);
+        $this->assertSame(0, $payload['lists']['dates']['selected']);
+        $this->assertSame([], $payload['rows']);
+        $this->assertSame(0, $payload['writes']);
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame(0, DB::table('urt_show_tag_date')->count());
+    }
+
+    public function test_video_scan_cap_isolates_incomplete_date_and_writes_complete_date(): void
+    {
+        $this->createTables();
+        $this->seedRawData();
+        DB::table('urt_video')->insert([
+            'u_id' => 10,
+            'videoId' => 'first-date-extra',
+            'publishedAt' => '2026-06-04 11:00:00',
+            'title' => '選舉追蹤',
+            'description' => '',
+            'viewCount' => 50,
+        ]);
+
+        $payload = app(TagDateCacheBuilder::class)->buildRange(
+            tagIds: [1],
+            from: '2026-06-04',
+            to: '2026-06-05',
+            keywordLimit: 10,
+            videoLimit: 1,
+            execute: true,
+            now: CarbonImmutable::parse('2026-06-05 12:00:00', 'Asia/Taipei'),
+        );
+
+        $this->assertSame('partial_failure', $payload['status']);
+        $this->assertSame(1, $payload['blocked_rows']);
+        $this->assertSame(1, $payload['writes']);
+        $this->assertFalse($payload['source_complete']);
+        $this->assertSame('blocked', $payload['rows'][0]['status']);
+        $this->assertSame('video_scan_limit_exceeded', $payload['rows'][0]['blocked_reason']);
+        $this->assertSame(1, $payload['rows'][0]['videos_scanned']);
+        $this->assertSame('success', $payload['rows'][1]['status']);
+        $this->assertSame(['2026-06-05'], DB::table('urt_show_tag_date')->pluck('the_date')->all());
+    }
+
+    public function test_explicit_tag_and_keyword_lists_over_hard_caps_are_blocked(): void
+    {
+        $this->createTables();
+        $this->seedRawData();
+        $builder = app(TagDateCacheBuilder::class);
+
+        $tagPayload = $builder->build(
+            tagIds: range(1, 51),
+            date: '2026-06-05',
+            execute: true,
+            now: CarbonImmutable::parse('2026-06-05 12:00:00', 'Asia/Taipei'),
+        );
+        $keywordPayload = $builder->build(
+            tagIds: [1],
+            date: '2026-06-05',
+            onlyKeywords: array_map(fn (int $id): string => '詞'.$id, range(1, 501)),
+            execute: true,
+            now: CarbonImmutable::parse('2026-06-05 12:00:00', 'Asia/Taipei'),
+        );
+
+        $this->assertSame('tagid_list_limit_exceeded', $tagPayload['blocked_reason']);
+        $this->assertTrue($tagPayload['lists']['tagid']['truncated']);
+        $this->assertSame('keyword_list_limit_exceeded', $keywordPayload['blocked_reason']);
+        $this->assertTrue($keywordPayload['lists']['keywords']['truncated']);
+        $this->assertSame(0, DB::table('urt_show_tag_date')->count());
+    }
+
+    public function test_channel_and_keyword_source_caps_block_incomplete_rows(): void
+    {
+        $this->createTables();
+        $this->seedRawData();
+        DB::table('urt_count')->insert(['u_id' => 20, 'tags' => '[1]']);
+        DB::table('tags')->insert([
+            'tag' => '政策',
+            'max_count' => 8,
+            'hours_count' => 4,
+            'max_hours' => '2026-06-05 12:00:00',
+            'no_tag' => null,
+        ]);
+        $builder = app(TagDateCacheBuilder::class);
+
+        $channels = $builder->build(
+            tagIds: [1],
+            date: '2026-06-05',
+            channelLimit: 1,
+            execute: true,
+            now: CarbonImmutable::parse('2026-06-05 12:00:00', 'Asia/Taipei'),
+        );
+        $keywords = $builder->build(
+            tagIds: [1],
+            date: '2026-06-05',
+            keywordLimit: 1,
+            execute: true,
+            now: CarbonImmutable::parse('2026-06-05 12:00:00', 'Asia/Taipei'),
+        );
+
+        $this->assertSame('channel_scan_limit_exceeded', $channels['blocked_reason']);
+        $this->assertSame('keyword_scan_limit_exceeded', $keywords['blocked_reason']);
+        $this->assertSame(0, DB::table('urt_show_tag_date')->count());
+    }
+
     private function createTables(): void
     {
         Schema::create('urt_count', function ($table): void {

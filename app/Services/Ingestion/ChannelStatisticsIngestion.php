@@ -29,19 +29,49 @@ class ChannelStatisticsIngestion
         $limit = max(1, min(50, $limit));
 
         $preview = $this->preview->preview(uId: $uId, hours: $hours, limit: $limit, now: $now);
-        $rows = collect($preview['rows'] ?? [])
+        $selectedRows = collect($preview['rows'] ?? [])->values();
+        $rows = $selectedRows
             ->filter(fn (array $row): bool => trim((string) ($row['youtube_id'] ?? '')) !== '')
             ->values();
+        $skipped = [];
+
+        foreach ($selectedRows->filter(fn (array $row): bool => trim((string) ($row['youtube_id'] ?? '')) === '') as $row) {
+            $rowUId = (int) ($row['u_id'] ?? 0);
+
+            try {
+                $this->deferChannel($rowUId, $now);
+                $skipped[] = [
+                    'u_id' => $rowUId,
+                    'youtube_id' => '',
+                    'reason' => 'missing_youtube_id',
+                ];
+                Log::warning('Channel statistics source item rejected.', [
+                    'u_id' => $rowUId,
+                    'reason' => 'missing_youtube_id',
+                ]);
+            } catch (Throwable $exception) {
+                $skipped[] = [
+                    'u_id' => $rowUId,
+                    'youtube_id' => '',
+                    'reason' => 'item_processing_failed',
+                ];
+                Log::warning('Channel statistics item processing failed.', [
+                    'u_id' => $rowUId,
+                    'reason' => 'item_processing_failed',
+                    'exception_class' => $exception::class,
+                ]);
+            }
+        }
 
         if ($rows->isEmpty()) {
-            return $this->summary($preview, [], [], $now);
+            return $this->summary($preview, [], $skipped, $now);
         }
 
         $channelIds = $rows->pluck('youtube_id')->map(fn (mixed $id): string => (string) $id)->all();
         try {
             $statisticsByChannel = $this->youtube->channelStatistics($channelIds);
         } catch (YoutubeQuotaWindowException $exception) {
-            $skipped = $rows->map(fn (array $row): array => [
+            $quotaSkipped = $rows->map(fn (array $row): array => [
                 'u_id' => (int) $row['u_id'],
                 'youtube_id' => (string) $row['youtube_id'],
                 'reason' => 'quota_window_reset',
@@ -52,10 +82,17 @@ class ChannelStatisticsIngestion
                 'exception_class' => $exception::class,
             ]);
 
-            return $this->summary($preview, [], $skipped, $now, true, $rows->count());
+            return $this->summary(
+                $preview,
+                [],
+                [...$skipped, ...$quotaSkipped],
+                $now,
+                true,
+                $rows->count(),
+                $rows->count(),
+            );
         }
         $applied = [];
-        $skipped = [];
 
         foreach ($rows as $row) {
             $youtubeId = (string) $row['youtube_id'];
@@ -65,21 +102,31 @@ class ChannelStatisticsIngestion
                 $statistics = $statisticsByChannel[$youtubeId] ?? null;
 
                 if ($statistics === null) {
+                    $this->deferChannel($rowUId, $now);
                     $skipped[] = [
                         'u_id' => $rowUId,
                         'youtube_id' => $youtubeId,
                         'reason' => 'api_item_missing',
                     ];
+                    Log::warning('Channel statistics source item rejected.', [
+                        'u_id' => $rowUId,
+                        'reason' => 'api_item_missing',
+                    ]);
 
                     continue;
                 }
 
                 if ($statistics['viewCount'] <= 0) {
+                    $this->deferChannel($rowUId, $now);
                     $skipped[] = [
                         'u_id' => $rowUId,
                         'youtube_id' => $youtubeId,
                         'reason' => 'viewCount_not_positive',
                     ];
+                    Log::warning('Channel statistics source item rejected.', [
+                        'u_id' => $rowUId,
+                        'reason' => 'viewCount_not_positive',
+                    ]);
 
                     continue;
                 }
@@ -109,7 +156,24 @@ class ChannelStatisticsIngestion
             }
         }
 
-        return $this->summary($preview, $applied, $skipped, $now);
+        return $this->summary(
+            $preview,
+            $applied,
+            $skipped,
+            $now,
+            apiRequestedRows: $rows->count(),
+        );
+    }
+
+    private function deferChannel(int $uId, CarbonImmutable $now): void
+    {
+        if ($uId < 1) {
+            throw new RuntimeException('Channel statistics row is missing u_id.');
+        }
+
+        $this->updateExisting('urt_channel', 'u_id', $uId, [
+            'stime' => $now->format('Y-m-d H:i:s'),
+        ]);
     }
 
     /**
@@ -139,10 +203,15 @@ class ChannelStatisticsIngestion
         $existingLog = Schema::hasTable('urt_log')
             ? DB::table('urt_log')->where('u_id', $uId)->where('themonth', $month)->first()
             : null;
-        $data = $existingLog !== null && property_exists($existingLog, 'thedata')
-            ? json_decode((string) ($existingLog->thedata ?? ''), true)
-            : [];
-        $data = is_array($data) ? $data : [];
+        $data = [];
+
+        if ($existingLog !== null) {
+            $data = json_decode((string) ($existingLog->thedata ?? ''), true, 512, JSON_THROW_ON_ERROR);
+
+            if (! is_array($data)) {
+                throw new RuntimeException('Existing channel statistics history JSON is not an object or array.');
+            }
+        }
         $data[$date] = [
             'view' => $statistics['viewCount'],
             'subscriber' => $statistics['subscriberCount'],
@@ -241,15 +310,24 @@ class ChannelStatisticsIngestion
         CarbonImmutable $now,
         bool $quotaWindowReset = false,
         int $remainingRetryRows = 0,
+        int $apiRequestedRows = 0,
     ): array {
-        $failedRows = collect($skipped)->whereIn('reason', ['item_processing_failed', 'quota_window_reset'])->count();
+        $failedRows = collect($skipped)->whereIn('reason', [
+            'api_item_missing',
+            'item_processing_failed',
+            'missing_youtube_id',
+            'quota_window_reset',
+            'viewCount_not_positive',
+        ])->count();
 
         return [
             'mode' => 'local-execute',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'source' => $preview['source'] ?? null,
             'selected_rows' => (int) ($preview['selected_rows'] ?? 0),
-            'api_requested_rows' => count($applied) + count($skipped),
+            'missing_youtube_id' => (int) ($preview['missing_youtube_id'] ?? 0),
+            'selected_missing_youtube_id' => (int) ($preview['selected_missing_youtube_id'] ?? 0),
+            'api_requested_rows' => $apiRequestedRows,
             'updated_rows' => count($applied),
             'skipped_rows' => count($skipped),
             'failed_rows' => $failedRows,

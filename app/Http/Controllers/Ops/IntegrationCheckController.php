@@ -338,8 +338,8 @@ class IntegrationCheckController extends Controller
     private function aiProviderUsageDetails(array $usage): array
     {
         $details = [
-            ['label' => 'Primary key usage', 'value' => $this->aiProviderUsageValue((array) data_get($usage, 'providers.primary', []))],
-            ['label' => 'OpenAI fallback usage', 'value' => $this->aiProviderUsageValue((array) data_get($usage, 'providers.fallback', []))],
+            ['label' => 'Primary provider usage', 'value' => $this->aiProviderUsageValue((array) data_get($usage, 'providers.primary', []))],
+            ['label' => 'Fallback provider usage', 'value' => $this->aiProviderUsageValue((array) data_get($usage, 'providers.fallback', []))],
         ];
 
         $unknown = (array) data_get($usage, 'providers.unknown', []);

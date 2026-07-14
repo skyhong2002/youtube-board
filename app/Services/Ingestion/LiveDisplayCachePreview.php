@@ -25,7 +25,7 @@ class LiveDisplayCachePreview
      *     cache_writes: int,
      *     skipped_rows: int,
      *     failed_rows: int,
-     *     skipped: list<array{pk_live: int, reason: string}>,
+     *     skipped: list<array{pk_live: int, reason: string, video_id?: string}>,
      *     write_targets: list<string>
      * }
      */
@@ -54,6 +54,21 @@ class LiveDisplayCachePreview
         $missingVideoMetadata = $this->leftJoinVideo((clone $missingCache))
             ->whereNull('video.pk')
             ->count();
+        $missingMetadataRows = $execute && $missingVideoMetadata > 0
+            ? $this->leftJoinVideo((clone $missingCache))
+                ->whereNull('video.pk')
+                ->select(['live.pk as pk_live', 'live.videoId'])
+                ->orderByDesc('live.ctime')
+                ->limit($limit)
+                ->get()
+                ->map(fn (object $row): array => [
+                    'pk_live' => (int) $row->pk_live,
+                    'video_id' => (string) $row->videoId,
+                    'reason' => 'missing_video_metadata',
+                ])
+                ->values()
+                ->all()
+            : [];
 
         $rows = $this->joinVideo((clone $missingCache))
             ->select([
@@ -93,6 +108,16 @@ class LiveDisplayCachePreview
         $writeResult = $execute && $rows !== []
             ? $this->writeRows($rows, $generatedAt)
             : ['written' => 0, 'skipped' => []];
+        $skipped = [...$missingMetadataRows, ...$writeResult['skipped']];
+        $failedRows = count($writeResult['skipped']) + ($execute ? $missingVideoMetadata : 0);
+
+        if ($execute && $missingVideoMetadata > 0) {
+            Log::warning('Live display cache source rows are missing video metadata.', [
+                'reason' => 'missing_video_metadata',
+                'missing_video_metadata' => $missingVideoMetadata,
+                'reported_rows' => count($missingMetadataRows),
+            ]);
+        }
 
         return [
             'mode' => $execute ? 'execute' : 'ingestion-preview',
@@ -106,9 +131,9 @@ class LiveDisplayCachePreview
             'rows' => $rows,
             'writes' => $execute ? $writeResult['written'] : [],
             'cache_writes' => $execute ? $writeResult['written'] : 0,
-            'skipped_rows' => count($writeResult['skipped']),
-            'failed_rows' => count($writeResult['skipped']),
-            'skipped' => $writeResult['skipped'],
+            'skipped_rows' => $failedRows,
+            'failed_rows' => $failedRows,
+            'skipped' => $skipped,
             'write_targets' => $execute ? ['urt_show_video_live'] : [],
         ];
     }

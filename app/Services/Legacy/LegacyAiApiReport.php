@@ -153,7 +153,9 @@ class LegacyAiApiReport
         $videoId = trim((string) $request->query('videoId', 'azzXesons8Q')) ?: 'azzXesons8Q';
 
         try {
-            $row = DB::table('urt_comment')->where('videoId', $videoId)->first();
+            $row = CommentPublicationScope::complete(DB::table('urt_comment'))
+                ->where('urt_comment.videoId', $videoId)
+                ->first();
 
             return [
                 'result' => $this->decodeJson($row->comments_json ?? null),

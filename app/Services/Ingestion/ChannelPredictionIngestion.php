@@ -28,6 +28,7 @@ class ChannelPredictionIngestion
         int $limit = 20,
         bool $execute = false,
         ?CarbonInterface $now = null,
+        int $offset = 0,
     ): array {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
         $now = $now === null
@@ -35,11 +36,12 @@ class ChannelPredictionIngestion
             : CarbonImmutable::instance($now->toDateTimeImmutable())->setTimezone($timezone);
         $uId = $uId !== null ? max(1, $uId) : null;
         $limit = max(1, min(100, $limit));
+        $offset = max(0, $offset);
 
         $schemaBlock = $this->schemaBlock();
 
         if ($schemaBlock !== null) {
-            return $this->logged($this->emptyPayload($now, $execute, $limit, $uId, $schemaBlock));
+            return $this->logged($this->emptyPayload($now, $execute, $limit, $uId, $schemaBlock, offset: $offset));
         }
 
         $lock = null;
@@ -53,7 +55,7 @@ class ChannelPredictionIngestion
         }
 
         try {
-            return $this->logged($this->process($now, $uId, $limit, $execute));
+            return $this->logged($this->process($now, $uId, $limit, $execute, $offset));
         } finally {
             $this->release($lock);
         }
@@ -88,20 +90,36 @@ class ChannelPredictionIngestion
     /**
      * @return array<string, mixed>
      */
-    private function process(CarbonImmutable $now, ?int $uId, int $limit, bool $execute): array
+    private function process(CarbonImmutable $now, ?int $uId, int $limit, bool $execute, int $offset): array
     {
         try {
             $base = DB::table('urt_channel')
                 ->when($uId !== null, fn ($query) => $query->where('u_id', $uId));
             $candidateTotal = (clone $base)->count();
-            $candidateIds = $base
+            $effectiveOffset = $candidateTotal > 0 ? $offset % $candidateTotal : 0;
+            $candidateIds = (clone $base)
                 ->orderBy('u_id')
+                ->offset($effectiveOffset)
                 ->limit($limit)
                 ->pluck('u_id')
                 ->map(fn (mixed $value): int => (int) $value)
                 ->all();
+            $wrapped = false;
+
+            if (count($candidateIds) < min($limit, $candidateTotal) && $effectiveOffset > 0) {
+                $wrapped = true;
+                $candidateIds = [
+                    ...$candidateIds,
+                    ...(clone $base)
+                        ->orderBy('u_id')
+                        ->limit(min($limit, $candidateTotal) - count($candidateIds))
+                        ->pluck('u_id')
+                        ->map(fn (mixed $value): int => (int) $value)
+                        ->all(),
+                ];
+            }
         } catch (Throwable) {
-            return $this->emptyPayload($now, $execute, $limit, $uId, 'candidate_query_failed');
+            return $this->emptyPayload($now, $execute, $limit, $uId, 'candidate_query_failed', offset: $offset);
         }
 
         $rows = [];
@@ -189,6 +207,10 @@ class ChannelPredictionIngestion
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'u_id' => $uId,
             'limit' => $limit,
+            'offset' => $effectiveOffset,
+            'next_offset' => $candidateTotal > 0 ? ($effectiveOffset + count($candidateIds)) % $candidateTotal : 0,
+            'batch_wrapped' => $wrapped,
+            'source_truncated' => $candidateTotal > count($candidateIds),
             'candidate_total' => $candidateTotal,
             'candidates' => count($candidateIds),
             'would_update' => $wouldUpdate,
@@ -301,6 +323,7 @@ class ChannelPredictionIngestion
         ?int $uId,
         string $reason,
         bool $available = false,
+        int $offset = 0,
     ): array {
         return [
             'mode' => $execute ? 'execute' : 'ingestion-preview',
@@ -309,6 +332,10 @@ class ChannelPredictionIngestion
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'u_id' => $uId,
             'limit' => $limit,
+            'offset' => $offset,
+            'next_offset' => 0,
+            'batch_wrapped' => false,
+            'source_truncated' => false,
             'candidate_total' => 0,
             'candidates' => 0,
             'would_update' => 0,

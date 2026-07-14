@@ -268,6 +268,105 @@ class IngestionVideoDurationCommandTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_video_duration_execute_runs_each_loop_batch_and_fails_when_an_api_item_is_missing(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+        $durationRows = [];
+
+        for ($index = 1; $index <= 60; $index++) {
+            $durationRows[] = [
+                'pk_video' => $index,
+                'ctime' => '2026-05-24 00:00:00',
+                'mtime' => null,
+                'stime' => null,
+                'publishedAt' => '2026-05-23 12:00:00',
+                'u_id' => $index,
+                'videoId' => sprintf('duration-loop-%03d', $index),
+                'duration' => null,
+                'caption' => null,
+            ];
+        }
+
+        DB::table('urt_video_duration')->insert($durationRows);
+        $requestedBatches = [];
+
+        Http::fake(function ($request) use (&$requestedBatches) {
+            $videoIds = explode(',', (string) $request['id']);
+            $requestedBatches[] = $videoIds;
+            $items = collect($videoIds)
+                ->reject(fn (string $videoId): bool => $videoId === 'duration-loop-060')
+                ->map(fn (string $videoId): array => [
+                    'id' => $videoId,
+                    'contentDetails' => [
+                        'duration' => 'PT2M',
+                        'caption' => 'false',
+                    ],
+                ])
+                ->values()
+                ->all();
+
+            return Http::response(['items' => $items], 200);
+        });
+
+        $payload = app(VideoDurationsIngestion::class)->execute(batchSize: 50, loops: 2);
+
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame(60, $payload['selected_rows']);
+        $this->assertSame(2, $payload['api_batches_attempted']);
+        $this->assertSame(2, $payload['api_batches_completed']);
+        $this->assertSame(60, $payload['api_requested_videos']);
+        $this->assertSame(59, $payload['updated_videos']);
+        $this->assertSame(1, $payload['failed_videos']);
+        $this->assertSame(['videoId' => 'duration-loop-060', 'reason' => 'api_item_missing'], $payload['skipped'][0]);
+        $this->assertSame([50, 10], array_map('count', $requestedBatches));
+        $this->assertSame(120, DB::table('urt_video_duration')->where('videoId', 'duration-loop-051')->value('duration'));
+        $this->assertNull(DB::table('urt_video_duration')->where('videoId', 'duration-loop-060')->value('duration'));
+        Http::assertSentCount(2);
+    }
+
+    public function test_video_duration_execute_isolates_a_failed_api_batch_and_continues(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('services.youtube.transient_retries', 0);
+        $this->createTables();
+
+        for ($index = 1; $index <= 4; $index++) {
+            DB::table('urt_video_duration')->insert([
+                'pk_video' => $index,
+                'ctime' => '2026-05-24 00:00:00',
+                'publishedAt' => '2026-05-23 12:00:00',
+                'u_id' => $index,
+                'videoId' => sprintf('duration-batch-%02d', $index),
+            ]);
+        }
+
+        Http::fakeSequence()
+            ->push(['error' => ['message' => 'temporary batch failure']], 500)
+            ->push([
+                'items' => collect(['duration-batch-03', 'duration-batch-04'])->map(fn (string $videoId): array => [
+                    'id' => $videoId,
+                    'contentDetails' => ['duration' => 'PT2M', 'caption' => 'false'],
+                ])->all(),
+            ], 200);
+
+        $payload = app(VideoDurationsIngestion::class)->execute(batchSize: 2, loops: 2);
+
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame(2, $payload['api_batches_attempted']);
+        $this->assertSame(1, $payload['api_batches_completed']);
+        $this->assertSame(2, $payload['updated_videos']);
+        $this->assertSame(2, $payload['failed_videos']);
+        $this->assertSame(['api_batch_failed', 'api_batch_failed'], array_column($payload['skipped'], 'reason'));
+        $this->assertNull(DB::table('urt_video_duration')->where('videoId', 'duration-batch-01')->value('duration'));
+        $this->assertSame(120, DB::table('urt_video_duration')->where('videoId', 'duration-batch-03')->value('duration'));
+        Http::assertSentCount(2);
+    }
+
     public function test_video_duration_execute_isolates_a_failed_video_and_sanitizes_the_warning(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));

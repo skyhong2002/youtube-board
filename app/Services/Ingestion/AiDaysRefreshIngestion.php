@@ -10,6 +10,8 @@ use Throwable;
 
 class AiDaysRefreshIngestion
 {
+    public const MAX_DATE_RANGE_DAYS = 31;
+
     public function __construct(
         private readonly AiDailyPreview $dailyPreview,
         private readonly AiDailyIngestion $dailyIngestion,
@@ -34,8 +36,14 @@ class AiDaysRefreshIngestion
     ): array {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
         $now = CarbonImmutable::now($timezone);
-        $dates = $this->dates($from, $to, $now);
+        $range = $this->dateRange($from, $to, $now);
         $condition = $this->condition($condition);
+
+        if ($range['blocked_reason'] !== null) {
+            return $this->blockedRangeResult('ingestion-preview', $condition, $range, $now);
+        }
+
+        $dates = $range['dates'];
         $jobs = [];
 
         foreach ($dates as $date) {
@@ -126,8 +134,23 @@ class AiDaysRefreshIngestion
     ): array {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
         $now = CarbonImmutable::now($timezone);
-        $dates = $this->dates($from, $to, $now);
+        $range = $this->dateRange($from, $to, $now);
         $condition = $this->condition($condition);
+
+        if ($range['blocked_reason'] !== null) {
+            return $this->blockedRangeResult('execute', $condition, $range, $now) + [
+                'ai_call_guard' => [
+                    'event_limit' => max(0, $eventAiCallLimit),
+                    'event_used' => 0,
+                    'event_remaining' => max(0, $eventAiCallLimit),
+                    'daily_limit_per_day' => max(0, $dailyAiCallLimit),
+                    'period_limit_per_pair' => max(0, $periodAiCallLimit),
+                ],
+                'secrets' => 'not_printed',
+            ];
+        }
+
+        $dates = $range['dates'];
         $promptTypes = $this->promptTypes($promptTypes);
         $jobs = [];
         $eventCallsRemaining = max(0, $eventAiCallLimit);
@@ -271,6 +294,7 @@ class AiDaysRefreshIngestion
                         missingOnly: true,
                     ),
                 );
+                $verifyResult = $this->eventVerificationResult($verifyResult);
                 $jobs[] = $this->job(
                     type: 'event-verify',
                     date: $date,
@@ -456,6 +480,34 @@ class AiDaysRefreshIngestion
     }
 
     /**
+     * @param  array<string, mixed>  $result
+     * @return array<string, mixed>
+     */
+    private function eventVerificationResult(array $result): array
+    {
+        $missingRows = max(0, (int) ($result['would_call_ai_requests'] ?? 0));
+
+        if ($missingRows === 0 && ($result['blocked_reason'] ?? null) !== null) {
+            $missingRows = collect($result['rows'] ?? [])
+                ->where('skipped', false)
+                ->count();
+        }
+
+        if ($missingRows === 0 || (int) ($result['exit_code'] ?? 0) !== 0) {
+            return $result;
+        }
+
+        return array_merge($result, [
+            'status' => 'incomplete',
+            'exit_code' => 1,
+            'failed_rows' => $missingRows,
+            'incomplete_rows' => $missingRows,
+            'would_call_ai_requests' => $missingRows,
+            'blocked_reason' => 'event_rows_incomplete_after_refresh',
+        ]);
+    }
+
+    /**
      * @return list<array{from: string, to: string}>
      */
     private function adjacentPairs(array $dates): array
@@ -470,9 +522,9 @@ class AiDaysRefreshIngestion
     }
 
     /**
-     * @return list<string>
+     * @return array{from: string, to: string, dates: list<string>, blocked_reason: string|null}
      */
-    private function dates(?string $from, ?string $to, CarbonImmutable $now): array
+    private function dateRange(?string $from, ?string $to, CarbonImmutable $now): array
     {
         $fromDate = $this->dateString($from) ?? $now->subDay()->toDateString();
         $toDate = $this->dateString($to) ?? $fromDate;
@@ -483,14 +535,56 @@ class AiDaysRefreshIngestion
 
         $cursor = CarbonImmutable::parse($fromDate, $now->getTimezone());
         $end = CarbonImmutable::parse($toDate, $now->getTimezone());
+
+        if ($cursor->diffInDays($end) + 1 > self::MAX_DATE_RANGE_DAYS) {
+            return [
+                'from' => $fromDate,
+                'to' => $toDate,
+                'dates' => [],
+                'blocked_reason' => 'date_range_exceeds_31_days',
+            ];
+        }
+
         $dates = [];
 
-        while ($cursor->lessThanOrEqualTo($end) && count($dates) < 31) {
+        while ($cursor->lessThanOrEqualTo($end)) {
             $dates[] = $cursor->toDateString();
             $cursor = $cursor->addDay();
         }
 
-        return $dates;
+        return [
+            'from' => $fromDate,
+            'to' => $toDate,
+            'dates' => $dates,
+            'blocked_reason' => null,
+        ];
+    }
+
+    /**
+     * @param  array{from: string, to: string, dates: list<string>, blocked_reason: string|null}  $range
+     * @return array<string, mixed>
+     */
+    private function blockedRangeResult(string $mode, string $condition, array $range, CarbonImmutable $now): array
+    {
+        return [
+            'mode' => $mode,
+            'status' => 'blocked',
+            'exit_code' => 1,
+            'failed_rows' => 1,
+            'available' => false,
+            'blocked_reason' => $range['blocked_reason'],
+            'source' => 'ai_days_refresh',
+            'condition' => $condition,
+            'from_date' => $range['from'],
+            'to_date' => $range['to'],
+            'dates' => [],
+            'date_count' => 0,
+            'date_range_limit' => self::MAX_DATE_RANGE_DAYS,
+            'jobs' => [],
+            'summary' => $this->summary([]),
+            'write_targets' => [],
+            'generated_at' => $now->format('Y-m-d H:i:s'),
+        ];
     }
 
     private function dateString(?string $date): ?string

@@ -176,15 +176,16 @@ class IngestionKeywordsBuildCommandTest extends TestCase
         $this->createTables();
         Http::fake([
             'https://tag.analysis.tw/api/tag_json.php*' => Http::response([
-                ['tag' => '第一筆'],
-                ['tag' => '第二筆'],
-                ['tag' => '不得寫入'],
+                $this->remoteRow('第一筆'),
+                $this->remoteRow('第二筆'),
+                $this->remoteRow('不得寫入'),
             ]),
         ]);
 
         $exitCode = Artisan::call('reports:keywords:build', [
             '--execute' => true,
             '--limit' => 2,
+            '--offset' => 0,
             '--json' => true,
         ]);
         $payload = json_decode(trim(Artisan::output()), true);
@@ -204,15 +205,16 @@ class IngestionKeywordsBuildCommandTest extends TestCase
         DB::statement("CREATE TRIGGER fail_keyword_insert BEFORE INSERT ON tags WHEN NEW.tag = '失敗資料' BEGIN SELECT RAISE(ABORT, 'sensitive database details'); END");
         Http::fake([
             'https://tag.analysis.tw/api/tag_json.php*' => Http::response([
-                ['tag' => '成功一'],
-                ['tag' => '失敗資料'],
-                ['tag' => '成功二'],
+                $this->remoteRow('成功一'),
+                $this->remoteRow('失敗資料'),
+                $this->remoteRow('成功二'),
             ]),
         ]);
 
         $exitCode = Artisan::call('reports:keywords:build', [
             '--execute' => true,
             '--limit' => 3,
+            '--offset' => 0,
             '--json' => true,
         ]);
         $output = trim(Artisan::output());
@@ -229,12 +231,113 @@ class IngestionKeywordsBuildCommandTest extends TestCase
         $textExitCode = Artisan::call('reports:keywords:build', [
             '--execute' => true,
             '--limit' => 3,
+            '--offset' => 0,
         ]);
         $textOutput = Artisan::output();
 
         $this->assertSame(1, $textExitCode);
         $this->assertStringContainsString('failed=1', $textOutput);
         $this->assertStringNotContainsString('sensitive database details', $textOutput);
+    }
+
+    public function test_reports_keywords_build_supports_wrapped_source_cursor(): void
+    {
+        $this->createTables();
+        Http::fake([
+            'https://tag.analysis.tw/api/tag_json.php*' => Http::response([
+                $this->remoteRow('第一筆'),
+                $this->remoteRow('第二筆'),
+                $this->remoteRow('第三筆'),
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('reports:keywords:build', [
+            '--execute' => true,
+            '--limit' => 2,
+            '--offset' => 2,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(3, $payload['sync_candidates']);
+        $this->assertSame(2, $payload['sync_offset']);
+        $this->assertSame('explicit', $payload['sync_offset_mode']);
+        $this->assertSame(1, $payload['sync_next_offset']);
+        $this->assertTrue($payload['sync_batch_wrapped']);
+        $this->assertTrue($payload['sync_source_truncated']);
+        $this->assertSame(['第三筆', '第一筆'], DB::table('tags')->orderBy('pk')->pluck('tag')->all());
+    }
+
+    public function test_reports_keywords_build_rejects_malformed_payload_before_any_write(): void
+    {
+        $this->createTables();
+        DB::table('tags')->insert($this->localRow('既有', maxCount: 99));
+        Http::fake([
+            'https://tag.analysis.tw/api/tag_json.php*' => Http::response([
+                $this->remoteRow('合法新資料'),
+                $this->remoteRow('既有', maxCount: null),
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('reports:keywords:build', [
+            '--execute' => true,
+            '--offset' => 0,
+            '--json' => true,
+        ]);
+        $output = Artisan::output();
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, DB::table('tags')->count());
+        $this->assertSame(99, DB::table('tags')->where('tag', '既有')->value('max_count'));
+        $this->assertFalse(DB::table('tags')->where('tag', '合法新資料')->exists());
+        $this->assertStringContainsString('failure=external_sync_failed', $output);
+        $this->assertStringNotContainsString('max_count', $output);
+    }
+
+    public function test_reports_keywords_build_rejects_remote_source_over_hard_cap(): void
+    {
+        $this->createTables();
+        Http::fake([
+            'https://tag.analysis.tw/api/tag_json.php*' => Http::response(array_fill(0, 5001, null)),
+        ]);
+
+        $exitCode = Artisan::call('reports:keywords:build', [
+            '--execute' => true,
+            '--json' => true,
+        ]);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(0, DB::table('tags')->count());
+        $this->assertStringContainsString('failure=external_sync_failed', Artisan::output());
+    }
+
+    public function test_reports_keywords_build_blocks_truncated_local_preview_before_external_fetch(): void
+    {
+        $this->createTables();
+
+        foreach (array_chunk(range(1, 10001), 500) as $ids) {
+            DB::table('tags')->insert(array_map(
+                fn (int $id): array => $this->localRow('關鍵字'.$id),
+                $ids,
+            ));
+        }
+
+        Http::fake();
+        $exitCode = Artisan::call('reports:keywords:build', [
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertFalse($payload['source_complete']);
+        $this->assertTrue($payload['source_truncated']);
+        $this->assertSame('source_tag_limit_exceeded', $payload['blocked_reason']);
+        $this->assertSame(10000, $payload['source_limit']);
+        $this->assertSame(0, $payload['source_selected']);
+        $this->assertSame([], $payload['writes']);
+        Http::assertNothingSent();
     }
 
     private function createTables(): void
@@ -251,5 +354,32 @@ class IngestionKeywordsBuildCommandTest extends TestCase
             $table->dateTime('max_hours');
             $table->tinyInteger('no_tag')->nullable();
         });
+    }
+
+    /** @return array<string, mixed> */
+    private function remoteRow(string $tag, ?int $maxCount = 10): array
+    {
+        return [
+            'tag' => $tag,
+            'max_count' => $maxCount,
+            'hours_count' => 20,
+            'max_hours' => '2026-05-25 11:00:00',
+            'mtime' => '2026-05-25 11:00:00',
+            'no_tag' => 0,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function localRow(string $tag, int $maxCount = 10): array
+    {
+        return [
+            'tag' => $tag,
+            'ctime' => '2026-05-25 10:00:00',
+            'mtime' => '2026-05-25 10:00:00',
+            'max_count' => $maxCount,
+            'hours_count' => 20,
+            'max_hours' => '2026-05-25 10:00:00',
+            'no_tag' => 0,
+        ];
     }
 }

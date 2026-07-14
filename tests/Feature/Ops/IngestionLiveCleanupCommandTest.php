@@ -227,6 +227,76 @@ class IngestionLiveCleanupCommandTest extends TestCase
         $this->assertSame('2026-05-23', DB::table('urt_show_live_tag_date')->value('the_date'));
     }
 
+    public function test_youtube_live_cleanup_isolates_failed_row_and_returns_nonzero(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+        DB::table('urt_video_live')->insert([
+            $this->staleLiveRow('cleanup-fail', 1, '2026-05-25 10:00:00'),
+            $this->staleLiveRow('cleanup-success', 2, '2026-05-25 10:01:00'),
+        ]);
+        DB::statement(<<<'SQL'
+CREATE TRIGGER fail_first_live_cleanup
+BEFORE UPDATE ON urt_video_live
+WHEN OLD.videoId = 'cleanup-fail'
+BEGIN
+    SELECT RAISE(FAIL, 'token=super-secret');
+END
+SQL);
+
+        $exitCode = Artisan::call('youtube:live:cleanup', [
+            '--execute' => true,
+            '--limit' => 2,
+            '--json' => true,
+        ]);
+        $output = trim(Artisan::output());
+        $payload = json_decode($output, true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['updated']);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertStringNotContainsString('super-secret', $output);
+        $this->assertNull(DB::table('urt_video_live')->where('videoId', 'cleanup-fail')->value('del_flag'));
+        $this->assertSame(1, DB::table('urt_video_live')->where('videoId', 'cleanup-success')->value('del_flag'));
+    }
+
+    public function test_reports_live_clean_isolates_failed_delete_and_bounds_selection(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+        DB::table('urt_show_live_tag_date')->insert([
+            ['ctime' => '2026-05-25 12:00:00', 'tagid' => '13', 'the_date' => '2026-05-24'],
+            ['ctime' => '2026-05-25 11:00:00', 'tagid' => '13', 'the_date' => '2026-05-24'],
+            ['ctime' => '2026-05-25 10:00:00', 'tagid' => '13', 'the_date' => '2026-05-24'],
+        ]);
+        $failedPk = (int) DB::table('urt_show_live_tag_date')->orderByDesc('ctime')->value('pk');
+        DB::statement(sprintf(<<<'SQL'
+CREATE TRIGGER fail_first_live_cache_cleanup
+BEFORE DELETE ON urt_show_live_tag_date
+WHEN OLD.pk = %d
+BEGIN
+    SELECT RAISE(FAIL, 'token=super-secret');
+END
+SQL, $failedPk));
+
+        $exitCode = Artisan::call('reports:live:clean', [
+            '--execute' => true,
+            '--limit' => 2,
+            '--json' => true,
+        ]);
+        $output = trim(Artisan::output());
+        $payload = json_decode($output, true);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(3, $payload['would_delete']);
+        $this->assertSame(2, $payload['selected_rows']);
+        $this->assertTrue($payload['source_truncated']);
+        $this->assertSame(1, $payload['deleted']);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertStringNotContainsString('super-secret', $output);
+        $this->assertSame(2, DB::table('urt_show_live_tag_date')->count());
+    }
+
     public function test_ingestion_scheduler_can_execute_ingestion_live_cleanup_previews_when_due(): void
     {
         $this->createTables();
@@ -291,5 +361,22 @@ class IngestionLiveCleanupCommandTest extends TestCase
             $table->longText('tags_video')->nullable();
             $table->longText('tags_views')->nullable();
         });
+    }
+
+    /** @return array<string, mixed> */
+    private function staleLiveRow(string $videoId, int $uId, string $mtime): array
+    {
+        return [
+            'ctime' => '2026-05-25 09:00:00',
+            'videoId' => $videoId,
+            'u_id' => $uId,
+            'publishedAt' => '2026-05-25 08:00:00',
+            'actualEndTime' => null,
+            'scheduledStartTime' => null,
+            'concurrentViewers' => 0,
+            'max_current' => 100,
+            'mtime' => $mtime,
+            'del_flag' => null,
+        ];
     }
 }

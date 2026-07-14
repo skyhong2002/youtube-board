@@ -118,8 +118,8 @@ class ChannelCommentsReport
             return [];
         }
 
-        return DB::table('urt_comment')
-            ->whereIn('videoId', $videoIds)
+        return CommentPublicationScope::complete(DB::table('urt_comment'))
+            ->whereIn('urt_comment.videoId', $videoIds)
             ->get()
             ->keyBy('videoId')
             ->all();

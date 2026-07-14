@@ -187,6 +187,45 @@ class IngestionLivePollingCommandTest extends TestCase
         Http::assertSentCount(2);
     }
 
+    public function test_youtube_live_poll_does_not_refresh_a_video_missing_live_streaming_details(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 20:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('services.youtube.api_keys', null);
+        config()->set('services.youtube.transient_retries', 0);
+        $this->createTables();
+        DB::table('urt_video_live')->insert($this->liveRow(
+            videoId: 'ghost-live',
+            uId: 7,
+            mtime: '2026-05-25 19:00:00',
+            scheduledStartTime: '2026-05-25 19:30:00',
+            concurrentViewers: 100,
+            maxCurrent: 120,
+        ));
+        Http::fake([
+            'www.googleapis.com/youtube/v3/videos*' => Http::response([
+                'items' => [['id' => 'ghost-live']],
+            ], 200),
+        ]);
+
+        $exitCode = Artisan::call('youtube:live:poll', [
+            '--execute' => true,
+            '--videoId' => 'ghost-live',
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['failed_videos']);
+        $this->assertSame(0, $payload['updated_videos']);
+        $this->assertSame(['videoId' => 'ghost-live', 'reason' => 'api_item_missing'], $payload['skipped'][0]);
+        $this->assertSame('2026-05-25 19:00:00', DB::table('urt_video_live')->where('videoId', 'ghost-live')->value('mtime'));
+        $this->assertSame(100, DB::table('urt_video_live')->where('videoId', 'ghost-live')->value('concurrentViewers'));
+        $this->assertSame(0, DB::table('urt_video_live_log')->count());
+        Http::assertSentCount(1);
+    }
+
     public function test_live_polling_isolates_a_failed_video_and_sanitizes_the_warning(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));

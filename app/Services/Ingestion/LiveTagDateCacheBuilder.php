@@ -32,6 +32,7 @@ class LiveTagDateCacheBuilder
         array $notTagIds = [],
         int $videoLimit = 1000,
         int $keywordLimit = 1000,
+        int $channelLimit = 1000,
         bool $execute = false,
         ?CarbonImmutable $now = null,
     ): array {
@@ -39,11 +40,18 @@ class LiveTagDateCacheBuilder
         $now ??= CarbonImmutable::now($timezone);
         $videoLimit = max(1, min(10000, $videoLimit));
         $keywordLimit = max(1, min(5000, $keywordLimit));
+        $channelLimit = ReportCacheBuildGuardrails::bounded($channelLimit, ReportCacheBuildGuardrails::CHANNEL_SCAN_LIMIT_MAX);
         $tagIds = $this->normalizedIds($tagIds);
         $orTagIds = $this->normalizedIds($orTagIds);
         $notTagIds = $this->normalizedIds($notTagIds);
         $range = $this->dateRange($from, $to, $timezone);
-        $blockedReason = $this->schemaBlocker();
+        $listBlockedReason = match (true) {
+            count($tagIds) > ReportCacheBuildGuardrails::TAG_ID_LIST_LIMIT => 'tagid_list_limit_exceeded',
+            count($orTagIds) > ReportCacheBuildGuardrails::TAG_ID_LIST_LIMIT => 'or_tag_list_limit_exceeded',
+            count($notTagIds) > ReportCacheBuildGuardrails::TAG_ID_LIST_LIMIT => 'not_tag_list_limit_exceeded',
+            default => null,
+        };
+        $blockedReason = $listBlockedReason ?? $this->schemaBlocker();
 
         if ($blockedReason !== null) {
             return $this->logged($this->blockedPayload(
@@ -56,6 +64,8 @@ class LiveTagDateCacheBuilder
                 $execute,
                 $blockedReason,
                 $now,
+                sourceTruncated: $listBlockedReason !== null,
+                channelLimit: $channelLimit,
             ));
         }
 
@@ -75,6 +85,7 @@ class LiveTagDateCacheBuilder
                     true,
                     'cache_build_locked',
                     $now,
+                    channelLimit: $channelLimit,
                 ));
             }
         }
@@ -87,6 +98,7 @@ class LiveTagDateCacheBuilder
                 $notTagIds,
                 $videoLimit,
                 $keywordLimit,
+                $channelLimit,
                 $execute,
                 $now,
             ));
@@ -140,12 +152,54 @@ class LiveTagDateCacheBuilder
         array $notTagIds,
         int $videoLimit,
         int $keywordLimit,
+        int $channelLimit,
         bool $execute,
         CarbonImmutable $now,
     ): array {
-        $channelIds = $this->channelIds($tagIds, $orTagIds, $notTagIds);
+        $channelSelection = $this->channelIds($tagIds, $orTagIds, $notTagIds, $channelLimit);
+        $channelIds = $channelSelection['rows'];
         $channelFilterActive = $tagIds !== [] || $orTagIds !== [] || $notTagIds !== [];
-        $keywords = $this->keywords($keywordLimit);
+
+        if ($channelSelection['truncated']) {
+            return $this->blockedPayload(
+                range: $range,
+                tagIds: $tagIds,
+                orTagIds: $orTagIds,
+                notTagIds: $notTagIds,
+                videoLimit: $videoLimit,
+                keywordLimit: $keywordLimit,
+                execute: $execute,
+                reason: 'channel_scan_limit_exceeded',
+                now: $now,
+                available: true,
+                sourceTruncated: true,
+                channelsMatched: $channelSelection['scanned'],
+                channelLimit: $channelLimit,
+            );
+        }
+
+        $keywordSelection = $this->keywords($keywordLimit);
+
+        if ($keywordSelection['truncated']) {
+            return $this->blockedPayload(
+                range: $range,
+                tagIds: $tagIds,
+                orTagIds: $orTagIds,
+                notTagIds: $notTagIds,
+                videoLimit: $videoLimit,
+                keywordLimit: $keywordLimit,
+                execute: $execute,
+                reason: 'keyword_scan_limit_exceeded',
+                now: $now,
+                available: true,
+                sourceTruncated: true,
+                keywordsScanned: $keywordSelection['scanned'],
+                channelsMatched: count($channelIds),
+                channelLimit: $channelLimit,
+            );
+        }
+
+        $keywords = $keywordSelection['rows'];
         $rows = [];
         $wouldInsert = 0;
         $wouldUpdate = 0;
@@ -153,6 +207,8 @@ class LiveTagDateCacheBuilder
         $updated = 0;
         $unchanged = 0;
         $failedDates = 0;
+        $blockedDates = 0;
+        $truncatedDates = 0;
         $videosScanned = 0;
         $invalidLogRows = 0;
         $generatedAt = $now->format('Y-m-d H:i:s');
@@ -162,6 +218,48 @@ class LiveTagDateCacheBuilder
                 $computed = $this->computeDate($date, $channelIds, $channelFilterActive, $keywords, $videoLimit);
                 $videosScanned += $computed['videos_scanned'];
                 $invalidLogRows += $computed['invalid_log_rows'];
+
+                if ($computed['source_truncated']) {
+                    $failedDates++;
+                    $blockedDates++;
+                    $truncatedDates++;
+                    $rows[] = [
+                        'date' => $date,
+                        'status' => 'blocked',
+                        'reason' => 'video_scan_limit_exceeded',
+                        'source_truncated' => true,
+                        'videos_scanned' => $computed['videos_scanned'],
+                        'invalid_log_rows' => 0,
+                        'count_channels' => 0,
+                        'count_videos' => 0,
+                        'count_tags' => 0,
+                        'tags_count' => 0,
+                        'total_views' => 0,
+                    ];
+
+                    continue;
+                }
+
+                if ($computed['invalid_log_rows'] > 0) {
+                    $failedDates++;
+                    $blockedDates++;
+                    $rows[] = [
+                        'date' => $date,
+                        'status' => 'blocked',
+                        'reason' => 'invalid_log_rows',
+                        'source_truncated' => false,
+                        'videos_scanned' => $computed['videos_scanned'],
+                        'invalid_log_rows' => $computed['invalid_log_rows'],
+                        'count_channels' => 0,
+                        'count_videos' => 0,
+                        'count_tags' => 0,
+                        'tags_count' => 0,
+                        'total_views' => 0,
+                    ];
+
+                    continue;
+                }
+
                 $existing = $this->cacheQuery($tagIds, $orTagIds, $notTagIds, $date)
                     ->orderByDesc('pk')
                     ->first();
@@ -218,6 +316,7 @@ class LiveTagDateCacheBuilder
                     'date' => $date,
                     'status' => $status,
                     'reason' => null,
+                    'source_truncated' => false,
                     'videos_scanned' => $computed['videos_scanned'],
                     'invalid_log_rows' => $computed['invalid_log_rows'],
                     'count_channels' => $computed['count_channels'],
@@ -232,6 +331,7 @@ class LiveTagDateCacheBuilder
                     'date' => $date,
                     'status' => 'failed',
                     'reason' => 'cache_date_processing_failed',
+                    'source_truncated' => false,
                     'videos_scanned' => 0,
                     'invalid_log_rows' => 0,
                     'count_channels' => 0,
@@ -246,7 +346,9 @@ class LiveTagDateCacheBuilder
         return [
             'mode' => $execute ? 'execute' : 'ingestion-preview',
             'available' => true,
-            'blocked_reason' => null,
+            'blocked_reason' => $blockedDates > 0 ? 'source_incomplete' : null,
+            'source_complete' => $failedDates === 0,
+            'source_truncated' => $truncatedDates > 0,
             'generated_at' => $generatedAt,
             'from' => $range['from'],
             'to' => $range['to'],
@@ -256,6 +358,7 @@ class LiveTagDateCacheBuilder
             'not' => implode(',', $notTagIds),
             'keyword_limit' => $keywordLimit,
             'video_limit' => $videoLimit,
+            'channel_limit' => $channelLimit,
             'keywords_scanned' => count($keywords),
             'channels_matched' => count($channelIds),
             'videos_scanned' => $videosScanned,
@@ -266,6 +369,7 @@ class LiveTagDateCacheBuilder
             'updated' => $updated,
             'unchanged' => $unchanged,
             'failed_dates' => $failedDates,
+            'blocked_dates' => $blockedDates,
             'writes' => $execute ? $inserted + $updated : 0,
             'write_targets' => ['urt_show_live_tag_date'],
             'rows' => $rows,
@@ -293,13 +397,15 @@ class LiveTagDateCacheBuilder
             ->select(['videoId', 'u_id', 'max_current', 'log_json'])
             ->where('the_date', $date)
             ->orderBy('pk')
-            ->limit($videoLimit);
+            ->limit($videoLimit + 1);
 
         if ($channelFilterActive) {
             $query->whereIn('u_id', $channelIds);
         }
 
-        $logs = $query->get();
+        $sourceLogs = $query->get();
+        $sourceTruncated = $sourceLogs->count() > $videoLimit;
+        $logs = $sourceLogs->take($videoLimit);
         $videoIds = $logs->pluck('videoId')->map(fn (mixed $id): string => (string) $id)->filter()->unique()->values()->all();
         $titles = $videoIds === []
             ? collect()
@@ -389,6 +495,7 @@ class LiveTagDateCacheBuilder
 
         return [
             'videos_scanned' => $logs->count(),
+            'source_truncated' => $sourceTruncated,
             'invalid_log_rows' => $invalidLogRows,
             'count_channels' => count($channels),
             'count_videos' => count($videoHours),
@@ -450,26 +557,35 @@ class LiveTagDateCacheBuilder
     }
 
     /**
-     * @return list<string>
+     * @return array{rows: list<string>, scanned: int, truncated: bool}
      */
     private function keywords(int $limit): array
     {
         $stopwords = $this->stopwords->lookup();
 
-        return DB::table('tags')
+        $sourceRows = DB::table('tags')
             ->select(['tag'])
             ->where(function (Builder $query): void {
                 $query->whereNull('no_tag')->orWhere('no_tag', '<', 1);
             })
             ->orderByDesc('hours_count')
-            ->limit(max(1000, $limit * 2))
-            ->pluck('tag')
+            ->limit($limit + 1)
+            ->pluck('tag');
+        $truncated = $sourceRows->count() > $limit;
+        $rows = $sourceRows
+            ->take($limit)
             ->map(fn (mixed $tag): string => trim((string) $tag))
             ->filter(fn (string $tag): bool => $this->eligibleKeyword($tag) && ! isset($stopwords[$tag]))
             ->unique()
             ->take($limit)
             ->values()
             ->all();
+
+        return [
+            'rows' => $rows,
+            'scanned' => min($sourceRows->count(), $limit),
+            'truncated' => $truncated,
+        ];
     }
 
     private function eligibleKeyword(string $keyword): bool
@@ -485,12 +601,12 @@ class LiveTagDateCacheBuilder
      * @param  list<int>  $tagIds
      * @param  list<int>  $orTagIds
      * @param  list<int>  $notTagIds
-     * @return list<int>
+     * @return array{rows: list<int>, scanned: int, truncated: bool}
      */
-    private function channelIds(array $tagIds, array $orTagIds, array $notTagIds): array
+    private function channelIds(array $tagIds, array $orTagIds, array $notTagIds, int $limit): array
     {
         if ($tagIds === [] && $orTagIds === [] && $notTagIds === []) {
-            return [];
+            return ['rows' => [], 'scanned' => 0, 'truncated' => false];
         }
 
         $query = DB::table('urt_count')->select('u_id');
@@ -511,12 +627,22 @@ class LiveTagDateCacheBuilder
             $query->where('tags', 'not like', '%['.$tagId.']%');
         }
 
-        return $query->pluck('u_id')
+        $ids = $query
+            ->distinct()
+            ->orderBy('u_id')
+            ->limit($limit + 1)
+            ->pluck('u_id')
             ->map(fn (mixed $id): int => (int) $id)
             ->filter(fn (int $id): bool => $id > 0)
             ->unique()
             ->values()
             ->all();
+
+        return [
+            'rows' => array_slice($ids, 0, $limit),
+            'scanned' => min(count($ids), $limit),
+            'truncated' => count($ids) > $limit,
+        ];
     }
 
     /**
@@ -594,11 +720,19 @@ class LiveTagDateCacheBuilder
         bool $execute,
         string $reason,
         CarbonImmutable $now,
+        bool $available = false,
+        bool $sourceTruncated = false,
+        int $keywordsScanned = 0,
+        int $channelsMatched = 0,
+        int $videosScanned = 0,
+        int $channelLimit = 1000,
     ): array {
         return [
             'mode' => $execute ? 'execute' : 'ingestion-preview',
-            'available' => false,
+            'available' => $available,
             'blocked_reason' => $reason,
+            'source_complete' => false,
+            'source_truncated' => $sourceTruncated,
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'from' => $range['from'],
             'to' => $range['to'],
@@ -608,9 +742,10 @@ class LiveTagDateCacheBuilder
             'not' => implode(',', $notTagIds),
             'keyword_limit' => $keywordLimit,
             'video_limit' => $videoLimit,
-            'keywords_scanned' => 0,
-            'channels_matched' => 0,
-            'videos_scanned' => 0,
+            'channel_limit' => $channelLimit,
+            'keywords_scanned' => $keywordsScanned,
+            'channels_matched' => $channelsMatched,
+            'videos_scanned' => $videosScanned,
             'invalid_log_rows' => 0,
             'would_insert' => 0,
             'would_update' => 0,
@@ -618,6 +753,7 @@ class LiveTagDateCacheBuilder
             'updated' => 0,
             'unchanged' => 0,
             'failed_dates' => 0,
+            'blocked_dates' => 0,
             'writes' => 0,
             'write_targets' => ['urt_show_live_tag_date'],
             'rows' => [],

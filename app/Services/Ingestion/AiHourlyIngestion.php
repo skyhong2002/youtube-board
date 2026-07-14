@@ -20,15 +20,52 @@ class AiHourlyIngestion
     /**
      * @return array<string, mixed>
      */
-    public function execute(?string $condition = null, int $hour = 1, int $period = 1, int $limit = 20, string $userToken = 'cli', ?CarbonInterface $now = null): array
-    {
+    public function execute(
+        ?string $condition = null,
+        int $hour = 1,
+        int $period = 1,
+        int $limit = 20,
+        int $promptVideoLimit = AiHourlyPreview::MAX_PROMPT_VIDEO_LIMIT,
+        string $userToken = 'cli',
+        ?CarbonInterface $now = null,
+    ): array {
         $payload = $this->preview->preview(
             condition: $condition,
             hour: $hour,
             period: $period,
             limit: $limit,
+            promptVideoLimit: $promptVideoLimit,
             now: $now,
         );
+
+        if (! (bool) ($payload['source_complete'] ?? true)) {
+            return [
+                'mode' => 'execute',
+                'status' => 'blocked',
+                'exit_code' => 1,
+                'failed_rows' => 1,
+                'source' => $payload['source'],
+                'date_from' => $payload['date_from'],
+                'date_to' => $payload['date_to'],
+                'condition_type' => $payload['condition_type'],
+                'prompt_video_rows' => $payload['prompt_video_rows'],
+                'prompt_chars' => $payload['prompt_chars'],
+                ...$this->sourceMeta($payload),
+                'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
+                'provider' => null,
+                'provider_failures' => [],
+                'usage' => null,
+                'write_targets' => [],
+                'upserted' => false,
+                'inserted' => false,
+                'updated' => false,
+                'ai_call_attempted' => false,
+                'skipped' => true,
+                'failed' => true,
+                'skip_reason' => $payload['blocked_reason'] ?? 'hourly_source_incomplete',
+                'secrets' => 'not_printed',
+            ];
+        }
 
         if ((int) $payload['prompt_video_rows'] <= 0) {
             return [
@@ -42,6 +79,7 @@ class AiHourlyIngestion
                 'condition_type' => $payload['condition_type'],
                 'prompt_video_rows' => $payload['prompt_video_rows'],
                 'prompt_chars' => $payload['prompt_chars'],
+                ...$this->sourceMeta($payload),
                 'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
                 'provider' => null,
                 'provider_failures' => [],
@@ -140,6 +178,7 @@ class AiHourlyIngestion
             'condition_type' => $payload['condition_type'],
             'prompt_video_rows' => $payload['prompt_video_rows'],
             'prompt_chars' => $payload['prompt_chars'],
+            ...$this->sourceMeta($payload),
             'model' => $completion['model'],
             'provider' => $completion['provider'],
             'provider_failures' => $completion['provider_failures'],
@@ -185,6 +224,7 @@ class AiHourlyIngestion
             'condition_type' => $payload['condition_type'],
             'prompt_video_rows' => $payload['prompt_video_rows'],
             'prompt_chars' => $payload['prompt_chars'],
+            ...$this->sourceMeta($payload),
             'model' => $completion['model'] ?? (string) config('services.opencode_go.model', 'qwen3.6-plus'),
             'provider' => $completion['provider'] ?? null,
             'provider_failures' => $completion['provider_failures'] ?? [],
@@ -198,6 +238,24 @@ class AiHourlyIngestion
             'failed' => true,
             'skip_reason' => $reason,
             'secrets' => 'not_printed',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function sourceMeta(array $payload): array
+    {
+        return [
+            'video_rows' => (int) ($payload['video_rows'] ?? 0),
+            'prompt_video_limit' => (int) ($payload['prompt_video_limit'] ?? AiHourlyPreview::MAX_PROMPT_VIDEO_LIMIT),
+            'prompt_video_limit_requested' => (int) ($payload['prompt_video_limit_requested'] ?? AiHourlyPreview::MAX_PROMPT_VIDEO_LIMIT),
+            'prompt_video_limit_clamped' => (bool) ($payload['prompt_video_limit_clamped'] ?? false),
+            'prompt_video_limit_max' => (int) ($payload['prompt_video_limit_max'] ?? AiHourlyPreview::MAX_PROMPT_VIDEO_LIMIT),
+            'prompt_omitted_video_rows' => (int) ($payload['prompt_omitted_video_rows'] ?? 0),
+            'source_complete' => (bool) ($payload['source_complete'] ?? true),
+            'source_truncated' => (bool) ($payload['source_truncated'] ?? false),
+            'blocked_reason' => $payload['blocked_reason'] ?? null,
         ];
     }
 

@@ -103,14 +103,14 @@ class IngestionChannelStatsCommandTest extends TestCase
         $this->assertSame(1, $payload['unchecked_channels']);
         $this->assertSame(1, $payload['stale_channels']);
         $this->assertSame(3, $payload['missing_log_channels']);
-        $this->assertSame(3, $payload['eligible_rows']);
-        $this->assertSame(3, $payload['selected_rows']);
+        $this->assertSame(2, $payload['eligible_rows']);
+        $this->assertSame(2, $payload['selected_rows']);
         $this->assertTrue($payload['would_call_api']);
         $this->assertSame('2026-05-24 18:00:00', $payload['would_set_stime']);
         $this->assertSame([], $payload['writes']);
-        $this->assertSame([3, 2, 1], collect($payload['rows'])->pluck('u_id')->all());
-        $this->assertSame('Fresh Channel', $payload['rows'][0]['title']);
-        $this->assertSame(900, $payload['rows'][2]['count_table']['viewCount']);
+        $this->assertSame([2, 1], collect($payload['rows'])->pluck('u_id')->all());
+        $this->assertSame('Stale Channel', $payload['rows'][0]['title']);
+        $this->assertSame(900, $payload['rows'][1]['count_table']['viewCount']);
         $this->assertContains('urt_channel.stime reserve update', $payload['writes_skipped']);
 
         $this->assertNull(DB::table('urt_channel')->where('u_id', 1)->value('stime'));
@@ -423,6 +423,92 @@ class IngestionChannelStatsCommandTest extends TestCase
 
             return count(explode(',', (string) ($query['id'] ?? ''))) === 50;
         });
+    }
+
+    public function test_channel_statistics_zero_view_rows_cool_down_and_do_not_starve_later_channels(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+
+        for ($uId = 1; $uId <= 25; $uId++) {
+            DB::table('urt_channel')->insert([
+                'u_id' => $uId,
+                'ctime' => '2026-05-20 00:00:00',
+                'stime' => null,
+                'flag_del' => null,
+                'youtube_id' => 'UC-zero-'.$uId,
+                'title' => 'Zero View '.$uId,
+                'viewCount' => 1000 + $uId,
+            ]);
+        }
+        DB::table('urt_channel')->insert([
+            [
+                'u_id' => 26,
+                'ctime' => '2026-05-20 00:00:00',
+                'stime' => null,
+                'flag_del' => null,
+                'youtube_id' => 'UC-ready-after-zero',
+                'title' => 'Ready After Zero',
+                'viewCount' => 1,
+            ],
+            [
+                'u_id' => 27,
+                'ctime' => '2026-05-20 00:00:00',
+                'stime' => null,
+                'flag_del' => null,
+                'youtube_id' => '',
+                'title' => 'Missing Identity',
+                'viewCount' => 999999,
+            ],
+        ]);
+        Http::fake(function ($request) {
+            $ids = explode(',', (string) $request['id']);
+
+            return Http::response([
+                'items' => collect($ids)->map(fn (string $id): array => [
+                    'id' => $id,
+                    'statistics' => [
+                        'viewCount' => $id === 'UC-ready-after-zero' ? '777' : '0',
+                        'subscriberCount' => '10',
+                        'hiddenSubscriberCount' => false,
+                        'videoCount' => '1',
+                    ],
+                ])->all(),
+            ]);
+        });
+
+        $firstExit = Artisan::call('youtube:channels:stats', [
+            '--execute' => true,
+            '--limit' => 25,
+            '--json' => true,
+        ]);
+        $first = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $firstExit);
+        $this->assertSame(25, $first['failed_rows']);
+        $this->assertSame(25, $first['api_requested_rows']);
+        $this->assertSame(0, $first['updated_rows']);
+        $this->assertSame(1, $first['missing_youtube_id']);
+        $this->assertSame('2026-05-24 18:00:00', DB::table('urt_channel')->where('u_id', 1)->value('stime'));
+        $this->assertNull(DB::table('urt_channel')->where('u_id', 26)->value('stime'));
+        $this->assertNull(DB::table('urt_channel')->where('u_id', 27)->value('stime'));
+
+        $secondExit = Artisan::call('youtube:channels:stats', [
+            '--execute' => true,
+            '--limit' => 25,
+            '--json' => true,
+        ]);
+        $second = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $secondExit);
+        $this->assertSame(1, $second['selected_rows']);
+        $this->assertSame(1, $second['api_requested_rows']);
+        $this->assertSame(1, $second['updated_rows']);
+        $this->assertSame(777, DB::table('urt_channel')->where('u_id', 26)->value('viewCount'));
+        $this->assertNull(DB::table('urt_channel')->where('u_id', 27)->value('stime'));
+        Http::assertSentCount(2);
     }
 
     public function test_channel_statistics_execute_isolates_a_failed_channel_and_sanitizes_the_warning(): void

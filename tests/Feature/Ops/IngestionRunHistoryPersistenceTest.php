@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Ops;
 
+use App\Services\Ingestion\AiProviderUsageSummary;
 use App\Services\Ingestion\IngestionRunHistory;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
@@ -21,6 +22,25 @@ class IngestionRunHistoryPersistenceTest extends TestCase
         Storage::fake('local');
         Cache::flush();
         config()->set('ingestion.timezone', 'Asia/Taipei');
+    }
+
+    public function test_compact_provider_usage_uses_neutral_fallback_fields_and_reads_legacy_rows(): void
+    {
+        $summarizer = app(AiProviderUsageSummary::class);
+        $summary = $summarizer->summarizeOutput(
+            'provider_usage="primary_success=1 openai_success=2 primary_failed=3 openai_failed=4 openai_prompt_tokens=5 openai_completion_tokens=6 openai_total_tokens=11"',
+        );
+
+        $this->assertSame(2, data_get($summary, 'providers.fallback.successful_calls'));
+        $this->assertSame(4, data_get($summary, 'providers.fallback.failed_attempts'));
+
+        $compact = $summarizer->compactLine($summary);
+
+        $this->assertStringContainsString('fallback_success=2', $compact);
+        $this->assertStringContainsString('fallback_failed=4', $compact);
+        $this->assertStringContainsString('fallback_total_tokens=11', $compact);
+        $this->assertStringNotContainsString('openai_', $compact);
+        $this->assertSame($summary, $summarizer->summarizeOutput('provider_usage="'.$compact.'"'));
     }
 
     public function test_record_persists_database_payload_and_only_normalizes_attempted_jobs(): void

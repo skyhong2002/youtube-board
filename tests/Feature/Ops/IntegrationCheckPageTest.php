@@ -169,9 +169,9 @@ class IntegrationCheckPageTest extends TestCase
         $response = $this->get(route('ops.integrations'));
 
         $response->assertOk();
-        $response->assertSee('Primary key usage');
+        $response->assertSee('Primary provider usage');
         $response->assertSee('1 successful call; 1 failed attempt; prompt 10 / completion 2 / total 12 tokens');
-        $response->assertSee('OpenAI fallback usage');
+        $response->assertSee('Fallback provider usage');
         $response->assertSee('1 successful call; 0 failed attempts; prompt 20 / completion 5 / total 25 tokens');
         $response->assertSee('AI tokens today');
         $response->assertSee('prompt 30; completion 7; total 37');

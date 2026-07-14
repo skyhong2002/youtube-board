@@ -116,33 +116,60 @@ class YoutubeDataApiClient
 
         $this->throwIfFailed($response, 'YouTube playlistItems.list request failed.');
 
-        return [
-            'items' => collect($response->json('items', []))
-                ->map(function (array $item): array {
-                    $snippet = $item['snippet'] ?? [];
-                    $thumbnail = $snippet['thumbnails']['default']['url']
-                        ?? $snippet['thumbnails']['medium']['url']
-                        ?? $snippet['thumbnails']['high']['url']
-                        ?? '';
+        $rawItems = $response->json('items');
 
-                    return [
-                        'id' => (string) ($item['id'] ?? ''),
-                        'publishedAt' => isset($snippet['publishedAt']) ? (string) $snippet['publishedAt'] : null,
-                        'channelId' => (string) ($snippet['channelId'] ?? ''),
-                        'title' => (string) ($snippet['title'] ?? ''),
-                        'description' => (string) ($snippet['description'] ?? ''),
-                        'thumbnails' => (string) $thumbnail,
-                        'channelTitle' => (string) ($snippet['channelTitle'] ?? ''),
-                        'playlistId' => (string) ($snippet['playlistId'] ?? ''),
-                        'position' => (int) ($snippet['position'] ?? 0),
-                        'videoId' => (string) ($snippet['resourceId']['videoId'] ?? ''),
-                        'liveBroadcastContent' => (string) ($snippet['liveBroadcastContent'] ?? ''),
-                    ];
-                })
-                ->filter(fn (array $item): bool => $item['videoId'] !== '' && $item['publishedAt'] !== null)
-                ->values()
-                ->all(),
-            'nextPageToken' => is_string($response->json('nextPageToken')) ? $response->json('nextPageToken') : null,
+        if (! is_array($rawItems) || ! array_is_list($rawItems)) {
+            throw new RuntimeException('YouTube playlistItems.list response items are not a list.');
+        }
+
+        $items = collect($rawItems)
+            ->map(function (mixed $item): array {
+                if (! is_array($item)) {
+                    throw new RuntimeException('YouTube playlistItems.list returned a malformed item.');
+                }
+
+                $snippet = $item['snippet'] ?? [];
+
+                if (! is_array($snippet)) {
+                    throw new RuntimeException('YouTube playlistItems.list returned a malformed item snippet.');
+                }
+
+                $thumbnail = $snippet['thumbnails']['default']['url']
+                    ?? $snippet['thumbnails']['medium']['url']
+                    ?? $snippet['thumbnails']['high']['url']
+                    ?? '';
+                $videoId = trim((string) ($snippet['resourceId']['videoId'] ?? ''));
+                $publishedAt = isset($snippet['publishedAt']) ? trim((string) $snippet['publishedAt']) : '';
+
+                if ($videoId === '' || $publishedAt === '') {
+                    throw new RuntimeException('YouTube playlistItems.list returned an item without videoId or publishedAt.');
+                }
+
+                return [
+                    'id' => (string) ($item['id'] ?? ''),
+                    'publishedAt' => $publishedAt,
+                    'channelId' => (string) ($snippet['channelId'] ?? ''),
+                    'title' => (string) ($snippet['title'] ?? ''),
+                    'description' => (string) ($snippet['description'] ?? ''),
+                    'thumbnails' => (string) $thumbnail,
+                    'channelTitle' => (string) ($snippet['channelTitle'] ?? ''),
+                    'playlistId' => (string) ($snippet['playlistId'] ?? ''),
+                    'position' => (int) ($snippet['position'] ?? 0),
+                    'videoId' => $videoId,
+                    'liveBroadcastContent' => (string) ($snippet['liveBroadcastContent'] ?? ''),
+                ];
+            })
+            ->values()
+            ->all();
+        $nextPageToken = $response->json('nextPageToken');
+
+        if ($nextPageToken !== null && ! is_string($nextPageToken)) {
+            throw new RuntimeException('YouTube playlistItems.list returned an invalid nextPageToken.');
+        }
+
+        return [
+            'items' => $items,
+            'nextPageToken' => is_string($nextPageToken) && trim($nextPageToken) !== '' ? $nextPageToken : null,
         ];
     }
 
@@ -265,7 +292,19 @@ class YoutubeDataApiClient
 
                 return [(string) ($item['id'] ?? '') => is_array($details) ? $details : []];
             })
-            ->filter(fn (array $details, string $id): bool => $id !== '')
+            ->filter(function (array $details, string $id): bool {
+                if ($id === '') {
+                    return false;
+                }
+
+                foreach (['actualStartTime', 'actualEndTime', 'scheduledStartTime', 'concurrentViewers', 'activeLiveChatId'] as $key) {
+                    if (array_key_exists($key, $details)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            })
             ->all();
     }
 

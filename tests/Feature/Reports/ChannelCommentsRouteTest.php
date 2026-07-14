@@ -66,6 +66,41 @@ class ChannelCommentsRouteTest extends TestCase
         $response->assertSee('JSON-only comments video');
     }
 
+    public function test_channel_comments_page_hides_incomplete_comment_staging_rows(): void
+    {
+        $this->createTables();
+
+        DB::table('urt_channel')->insert([
+            'u_id' => 10,
+            'title' => 'Example Channel',
+            'thumbnails' => 'https://example.test/channel.jpg',
+        ]);
+        DB::table('urt_video')->insert([
+            'videoId' => 'video-partial',
+            'u_id' => 10,
+            'title' => 'Partial comments video',
+            'thumbnails' => 'https://example.test/video-partial.jpg',
+            'viewCount' => 3000,
+            'publishedAt' => now('Asia/Taipei')->subHour()->format('Y-m-d H:i:s'),
+        ]);
+        DB::table('urt_comment')->insert([
+            'videoId' => 'video-partial',
+            'u_id' => 10,
+            'authors_count' => 1,
+            'comments_count' => 1,
+            'latest_time' => now('Asia/Taipei')->subMinutes(30)->format('Y-m-d H:i:s'),
+            'pageToken' => 'NEXT-PAGE',
+            'authors_json' => json_encode([
+                'UC-partial' => ['DisplayName' => 'Partial Author'],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $this->get('/channels/10/comments?hours=72&limit=10')
+            ->assertOk()
+            ->assertDontSee('Partial Author')
+            ->assertDontSee('Partial comments video');
+    }
+
     private function createTables(): void
     {
         foreach (['urt_channel', 'urt_video', 'urt_comment', 'urt_comment_author'] as $table) {
@@ -93,6 +128,7 @@ class ChannelCommentsRouteTest extends TestCase
             $table->integer('authors_count')->nullable();
             $table->integer('comments_count')->nullable();
             $table->dateTime('latest_time')->nullable();
+            $table->string('pageToken')->nullable();
             $table->text('authors_json')->nullable();
         });
 

@@ -94,6 +94,31 @@ class IngestionPeopleBuildCommandTest extends TestCase
         $this->assertSame('藝人A', $payload['rows'][0]['tag']);
     }
 
+    public function test_reports_people_build_supports_wrapped_cursor_pagination(): void
+    {
+        $this->createTables();
+        DB::table('tag_group')->insert([
+            ['latest_time' => '2026-05-24 12:00:00', 'tag' => '人物一', 'group_name' => '政治人物', 'del_flag' => '0'],
+            ['latest_time' => '2026-05-24 11:00:00', 'tag' => '人物二', 'group_name' => '政治人物', 'del_flag' => '0'],
+            ['latest_time' => '2026-05-24 10:00:00', 'tag' => '人物三', 'group_name' => '政治人物', 'del_flag' => '0'],
+        ]);
+
+        $exitCode = Artisan::call('reports:people:build', [
+            '--limit' => 2,
+            '--offset' => 2,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(2, $payload['offset']);
+        $this->assertSame('explicit', $payload['offset_mode']);
+        $this->assertSame(1, $payload['next_offset']);
+        $this->assertTrue($payload['batch_wrapped']);
+        $this->assertTrue($payload['source_truncated']);
+        $this->assertSame(['人物三', '人物一'], array_column($payload['rows'], 'tag'));
+    }
+
     public function test_ingestion_scheduler_can_execute_ingestion_people_preview_when_due(): void
     {
         $this->createTables();

@@ -5,6 +5,8 @@ namespace App\Services\Ingestion;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class LiveCleanupPreview
 {
@@ -71,11 +73,28 @@ class LiveCleanupPreview
             ->all();
 
         $updated = 0;
+        $skipped = [];
 
         if ($execute && $rows !== []) {
-            $updated = DB::table('urt_video_live')
-                ->whereIn('pk', collect($rows)->pluck('pk')->all())
-                ->update(['del_flag' => 1]);
+            foreach ($rows as $row) {
+                try {
+                    $updated += DB::transaction(fn (): int => DB::table('urt_video_live')
+                        ->where('pk', $row['pk'])
+                        ->update(['del_flag' => 1]));
+                } catch (Throwable $exception) {
+                    $skipped[] = [
+                        'pk' => $row['pk'],
+                        'video_id' => $row['video_id'],
+                        'reason' => 'item_processing_failed',
+                    ];
+                    Log::warning('Live cleanup item processing failed.', [
+                        'pk' => $row['pk'],
+                        'video_id' => $row['video_id'],
+                        'reason' => 'item_processing_failed',
+                        'exception_class' => $exception::class,
+                    ]);
+                }
+            }
         }
 
         return [
@@ -88,6 +107,10 @@ class LiveCleanupPreview
             'grace_rows' => $candidates - $wouldMarkDeleted,
             'rows' => $rows,
             'updated' => $updated,
+            'skipped_rows' => count($skipped),
+            'failed_rows' => count($skipped),
+            'skipped' => $skipped,
+            'exit_code' => $skipped === [] ? 0 : 1,
             'writes' => $execute ? ['urt_video_live.del_flag'] : [],
         ];
     }
@@ -111,31 +134,51 @@ class LiveCleanupPreview
             : CarbonImmutable::instance($now->toDateTimeImmutable())->setTimezone($timezone);
         $limit = max(1, min(200, $limit));
 
-        $rows = DB::table('urt_show_live_tag_date')
+        $totalRows = DB::table('urt_show_live_tag_date')->count();
+        $invalidRows = $this->invalidTagDateRows();
+        $wouldDelete = (clone $invalidRows)->count();
+        $limitedRows = (clone $invalidRows)
             ->select(['pk', 'ctime', 'the_date', 'tagid', 'tag_or', 'tag_not', 'count_channels', 'count_videos', 'tags_count', 'total_views'])
             ->orderByDesc('ctime')
+            ->orderBy('pk')
+            ->limit($limit)
             ->get();
-
-        $wouldDelete = $rows
-            ->filter(fn (object $row): bool => $this->legacyDeletesTagDateCacheRow($row, $timezone))
-            ->values();
-
-        $limitedRows = $wouldDelete->take($limit);
         $deleted = 0;
+        $skipped = [];
 
         if ($execute && $limitedRows->isNotEmpty()) {
-            $deleted = DB::table('urt_show_live_tag_date')
-                ->whereIn('pk', $limitedRows->pluck('pk')->all())
-                ->delete();
+            foreach ($limitedRows as $row) {
+                try {
+                    $deleted += DB::transaction(fn (): int => DB::table('urt_show_live_tag_date')
+                        ->where('pk', $row->pk)
+                        ->delete());
+                } catch (Throwable $exception) {
+                    $skipped[] = [
+                        'pk' => (int) $row->pk,
+                        'reason' => 'item_processing_failed',
+                    ];
+                    Log::warning('Live tag-date cache cleanup item processing failed.', [
+                        'pk' => (int) $row->pk,
+                        'reason' => 'item_processing_failed',
+                        'exception_class' => $exception::class,
+                    ]);
+                }
+            }
         }
 
         return [
             'mode' => $execute ? 'execute' : 'ingestion-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
-            'total_rows' => $rows->count(),
-            'would_delete' => $wouldDelete->count(),
-            'retained_rows' => $rows->count() - $wouldDelete->count(),
+            'total_rows' => $totalRows,
+            'would_delete' => $wouldDelete,
+            'retained_rows' => $totalRows - $wouldDelete,
             'deleted' => $deleted,
+            'selected_rows' => $limitedRows->count(),
+            'source_truncated' => $wouldDelete > $limitedRows->count(),
+            'skipped_rows' => count($skipped),
+            'failed_rows' => count($skipped),
+            'skipped' => $skipped,
+            'exit_code' => $skipped === [] ? 0 : 1,
             'rows' => $limitedRows
                 ->map(fn (object $row): array => [
                     'pk' => (int) $row->pk,
@@ -156,15 +199,16 @@ class LiveCleanupPreview
         ];
     }
 
-    private function legacyDeletesTagDateCacheRow(object $row, string $timezone): bool
+    private function invalidTagDateRows(): \Illuminate\Database\Query\Builder
     {
-        if ($row->ctime === null || $row->the_date === null) {
-            return false;
+        $query = DB::table('urt_show_live_tag_date')
+            ->whereNotNull('ctime')
+            ->whereNotNull('the_date');
+
+        if (DB::connection()->getDriverName() === 'sqlite') {
+            return $query->whereRaw("datetime(the_date) > datetime(ctime, '-2 days')");
         }
 
-        $cacheDate = CarbonImmutable::parse((string) $row->the_date, $timezone)->startOfDay();
-        $deleteCutoff = CarbonImmutable::parse((string) $row->ctime, $timezone)->subDays(2);
-
-        return $cacheDate->greaterThan($deleteCutoff);
+        return $query->whereRaw('CAST(the_date AS DATETIME) > DATE_SUB(ctime, INTERVAL 2 DAY)');
     }
 }

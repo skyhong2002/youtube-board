@@ -43,33 +43,40 @@ class ScheduleReportsPreview
         $base = DB::table('urt_video_schedule')
             ->where('mtime', '>=', $windowStart->format('Y-m-d H:i:s'))
             ->when($videoId !== null, fn ($query) => $query->where('videoId', $videoId));
+        $candidates = (clone $base)->count();
 
-        $candidateRows = (clone $base)
-            ->orderBy('mtime')
-            ->orderBy('videoId')
-            ->get(['videoId', 'publishedAt', 'mtime', 'stime']);
-
-        if ($candidateRows->isEmpty()) {
+        if ($candidates === 0) {
             return $this->payload($now, $windowStart, $hours, $videoId, 0, 0, 0, 0, [], $execute);
         }
 
-        $historyRows = DB::table('urt_video_log_history')
-            ->whereIn('videoId', $candidateRows->pluck('videoId')->all())
-            ->orderByDesc('pk')
-            ->get(['pk', 'videoId', 'ctime', 'viewCount'])
-            ->groupBy('videoId');
+        $withHistoryBase = (clone $base)->whereExists(function ($query): void {
+            $query
+                ->selectRaw('1')
+                ->from('urt_video_log_history')
+                ->whereColumn('urt_video_log_history.videoId', 'urt_video_schedule.videoId');
+        });
+        $withHistory = (clone $withHistoryBase)->count();
+        $missingHistory = max(0, $candidates - $withHistory);
+        $candidateRows = (clone $withHistoryBase)
+            ->orderBy('mtime')
+            ->orderBy('videoId')
+            ->limit($limit)
+            ->get(['videoId', 'publishedAt', 'mtime', 'stime']);
+        $sourceTruncated = $withHistory > $candidateRows->count();
 
         $rows = [];
-        $withHistory = 0;
-        $missingHistory = 0;
+        $historyRowsScanned = 0;
 
         foreach ($candidateRows as $row) {
-            $history = $historyRows->get($row->videoId, collect())->values();
+            $history = DB::table('urt_video_log_history')
+                ->where('videoId', $row->videoId)
+                ->orderByDesc('pk')
+                ->limit(2)
+                ->get(['pk', 'videoId', 'ctime', 'viewCount']);
+            $historyRowsScanned += $history->count();
             $current = $history->get(0);
 
             if ($current === null || $current->ctime === null) {
-                $missingHistory++;
-
                 continue;
             }
 
@@ -77,12 +84,9 @@ class ScheduleReportsPreview
             $computed = $this->estimateNextCheck($row, $current, $previous, $timezone);
 
             if ($computed === null) {
-                $missingHistory++;
-
                 continue;
             }
 
-            $withHistory++;
             $rows[] = [
                 'video_id' => (string) $row->videoId,
                 'published_at' => $row->publishedAt !== null ? (string) $row->publishedAt : null,
@@ -94,7 +98,6 @@ class ScheduleReportsPreview
 
         $limitedRows = collect($rows)
             ->sortBy('estimated_stime')
-            ->take($limit)
             ->values()
             ->all();
 
@@ -129,14 +132,17 @@ class ScheduleReportsPreview
             windowStart: $windowStart,
             hours: $hours,
             videoId: $videoId,
-            candidates: $candidateRows->count(),
+            candidates: $candidates,
             withHistory: $withHistory,
             missingHistory: $missingHistory,
-            wouldUpdate: $withHistory,
+            wouldUpdate: count($limitedRows),
             rows: $limitedRows,
             execute: $execute,
             updated: $updated,
             skipped: $skipped,
+            selectedCandidates: $candidateRows->count(),
+            sourceTruncated: $sourceTruncated,
+            historyRowsScanned: $historyRowsScanned,
         );
     }
 
@@ -234,6 +240,9 @@ class ScheduleReportsPreview
         bool $execute = false,
         int $updated = 0,
         array $skipped = [],
+        int $selectedCandidates = 0,
+        bool $sourceTruncated = false,
+        int $historyRowsScanned = 0,
     ): array {
         return [
             'mode' => $execute ? 'execute' : 'ingestion-preview',
@@ -242,6 +251,9 @@ class ScheduleReportsPreview
             'hours' => $hours,
             'video_id' => $videoId,
             'candidates' => $candidates,
+            'selected_candidates' => $selectedCandidates,
+            'source_truncated' => $sourceTruncated,
+            'history_rows_scanned' => $historyRowsScanned,
             'with_history' => $withHistory,
             'missing_history' => $missingHistory,
             'would_update' => $wouldUpdate,

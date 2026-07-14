@@ -12,7 +12,7 @@ use Throwable;
 class TagDateCacheBuilder
 {
     /**
-     * @var array<string, list<array{tag: string, divisor: float}>>
+     * @var array<string, array{rows: list<array{tag: string, divisor: float}>, scanned: int, truncated: bool}>
      */
     private array $keywordCache = [];
 
@@ -27,6 +27,8 @@ class TagDateCacheBuilder
         array $notTagIds = [],
         int $keywordLimit = 5000,
         array $onlyKeywords = [],
+        int $channelLimit = 1000,
+        int $videoLimit = 10000,
         bool $execute = false,
         ?CarbonImmutable $now = null,
         int $maxDates = 400,
@@ -39,15 +41,52 @@ class TagDateCacheBuilder
             [$from, $to] = [$to, $from];
         }
 
-        $maxDates = max(1, min(400, $maxDates));
+        $tagIds = ReportCacheBuildGuardrails::ids($tagIds);
+        $orTagIds = ReportCacheBuildGuardrails::ids($orTagIds);
+        $notTagIds = ReportCacheBuildGuardrails::ids($notTagIds);
+        $onlyKeywords = ReportCacheBuildGuardrails::keywords($onlyKeywords);
+        $keywordLimit = ReportCacheBuildGuardrails::bounded($keywordLimit, ReportCacheBuildGuardrails::KEYWORD_SCAN_LIMIT_MAX);
+        $channelLimit = ReportCacheBuildGuardrails::bounded($channelLimit, ReportCacheBuildGuardrails::CHANNEL_SCAN_LIMIT_MAX);
+        $videoLimit = ReportCacheBuildGuardrails::bounded($videoLimit, ReportCacheBuildGuardrails::VIDEO_SCAN_LIMIT_MAX);
+        $maxDates = ReportCacheBuildGuardrails::bounded($maxDates, ReportCacheBuildGuardrails::DATE_RANGE_LIMIT);
         $cursor = CarbonImmutable::parse($from, $now->getTimezone());
         $end = CarbonImmutable::parse($to, $now->getTimezone());
         $datesRequested = (int) $cursor->diffInDays($end) + 1;
+        $caps = $this->caps($keywordLimit, $channelLimit, $videoLimit, $maxDates);
+        $lists = $this->listSummary($tagIds, $orTagIds, $notTagIds, $onlyKeywords, $datesRequested, $maxDates);
+        $blockedReason = $this->listLimitReason($tagIds, $orTagIds, $notTagIds, $onlyKeywords);
+
+        if ($blockedReason === null && count($onlyKeywords) > $keywordLimit) {
+            $blockedReason = 'keyword_list_limit_exceeded';
+        }
+
+        if ($blockedReason === null && $datesRequested > $maxDates) {
+            $blockedReason = 'date_range_limit_exceeded';
+        }
+
+        if ($blockedReason !== null) {
+            return $this->blockedRangePayload(
+                tagIds: $tagIds,
+                orTagIds: $orTagIds,
+                notTagIds: $notTagIds,
+                from: $from,
+                to: $to,
+                datesRequested: $datesRequested,
+                onlyKeywords: $onlyKeywords,
+                execute: $execute,
+                now: $now,
+                caps: $caps,
+                lists: $lists,
+                reason: $blockedReason,
+            );
+        }
+
         $rows = [];
         $writes = 0;
         $failedRows = 0;
+        $blockedRows = 0;
 
-        while ($cursor <= $end && count($rows) < $maxDates) {
+        while ($cursor <= $end) {
             $row = $this->build(
                 tagIds: $tagIds,
                 date: $cursor->toDateString(),
@@ -55,31 +94,42 @@ class TagDateCacheBuilder
                 notTagIds: $notTagIds,
                 keywordLimit: $keywordLimit,
                 onlyKeywords: $onlyKeywords,
+                channelLimit: $channelLimit,
+                videoLimit: $videoLimit,
                 execute: $execute,
                 now: $now,
             );
             $writes += (int) ($row['writes'] ?? 0);
             $failedRows += (int) ($row['failed_rows'] ?? 0);
+            $blockedRows += ($row['status'] ?? null) === 'blocked' ? 1 : 0;
             $rows[] = $row;
             $cursor = $cursor->addDay();
         }
 
+        $allBlocked = $rows !== [] && $blockedRows === count($rows);
         $payload = [
             'mode' => $execute ? 'execute' : 'dry-run',
-            'status' => $failedRows > 0 ? 'partial_failure' : 'success',
+            'status' => $allBlocked ? 'blocked' : ($failedRows > 0 ? 'partial_failure' : 'success'),
             'generated_at' => $now->format('Y-m-d H:i:s'),
-            'tagid' => implode(',', $this->normalizedIds($tagIds)),
-            'or' => implode(',', $this->normalizedIds($orTagIds)),
-            'not' => implode(',', $this->normalizedIds($notTagIds)),
+            'tagid' => implode(',', $tagIds),
+            'or' => implode(',', $orTagIds),
+            'not' => implode(',', $notTagIds),
             'from' => $from,
             'to' => $to,
             'dates_requested' => $datesRequested,
             'dates_selected' => count($rows),
             'date_limit' => $maxDates,
-            'range_truncated' => count($rows) < $datesRequested,
+            'range_truncated' => false,
+            'only_keywords' => $onlyKeywords,
+            'caps' => $caps,
+            'lists' => $lists,
             'rows' => $rows,
             'writes' => $writes,
             'failed_rows' => $failedRows,
+            'blocked_rows' => $blockedRows,
+            'source_complete' => $failedRows === 0,
+            'source_truncated' => $blockedRows > 0,
+            'blocked_reason' => $blockedRows > 0 ? 'source_incomplete' : null,
             'failure_reason' => $failedRows > 0 ? 'cache_rows_failed' : null,
             'exit_code' => $failedRows > 0 ? 1 : 0,
             'write_targets' => ['urt_show_tag_date'],
@@ -97,6 +147,10 @@ class TagDateCacheBuilder
             'range_truncated',
             'writes',
             'failed_rows',
+            'blocked_rows',
+            'source_complete',
+            'source_truncated',
+            'blocked_reason',
             'failure_reason',
         ])->all();
 
@@ -119,22 +173,22 @@ class TagDateCacheBuilder
         array $notTagIds = [],
         int $keywordLimit = 5000,
         array $onlyKeywords = [],
+        int $channelLimit = 1000,
+        int $videoLimit = 10000,
         bool $execute = false,
         ?CarbonImmutable $now = null,
     ): array {
         $now ??= CarbonImmutable::now('Asia/Taipei');
         $date = preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) ? $date : $now->toDateString();
-        $keywordLimit = max(1, min(20000, $keywordLimit));
-        $tagIds = $this->normalizedIds($tagIds);
-        $orTagIds = $this->normalizedIds($orTagIds);
-        $notTagIds = $this->normalizedIds($notTagIds);
-
-        $onlyKeywords = collect($onlyKeywords)
-            ->map(fn (mixed $keyword): string => trim((string) $keyword))
-            ->filter(fn (string $keyword): bool => $keyword !== '')
-            ->unique()
-            ->values()
-            ->all();
+        $keywordLimit = ReportCacheBuildGuardrails::bounded($keywordLimit, ReportCacheBuildGuardrails::KEYWORD_SCAN_LIMIT_MAX);
+        $channelLimit = ReportCacheBuildGuardrails::bounded($channelLimit, ReportCacheBuildGuardrails::CHANNEL_SCAN_LIMIT_MAX);
+        $videoLimit = ReportCacheBuildGuardrails::bounded($videoLimit, ReportCacheBuildGuardrails::VIDEO_SCAN_LIMIT_MAX);
+        $tagIds = ReportCacheBuildGuardrails::ids($tagIds);
+        $orTagIds = ReportCacheBuildGuardrails::ids($orTagIds);
+        $notTagIds = ReportCacheBuildGuardrails::ids($notTagIds);
+        $onlyKeywords = ReportCacheBuildGuardrails::keywords($onlyKeywords);
+        $caps = $this->caps($keywordLimit, $channelLimit, $videoLimit, ReportCacheBuildGuardrails::DATE_RANGE_LIMIT);
+        $lists = $this->listSummary($tagIds, $orTagIds, $notTagIds, $onlyKeywords, 1, ReportCacheBuildGuardrails::DATE_RANGE_LIMIT);
         $generatedAt = $now->format('Y-m-d H:i:s');
         $keywords = [];
         $channelIds = [];
@@ -148,10 +202,49 @@ class TagDateCacheBuilder
             'total_views' => 0,
         ];
 
+        $blockedReason = $this->listLimitReason($tagIds, $orTagIds, $notTagIds, $onlyKeywords);
+
+        if ($blockedReason === null && count($onlyKeywords) > $keywordLimit) {
+            $blockedReason = 'keyword_list_limit_exceeded';
+        }
+
+        if ($blockedReason !== null) {
+            return $this->blockedRowPayload(
+                tagIds: $tagIds,
+                orTagIds: $orTagIds,
+                notTagIds: $notTagIds,
+                date: $date,
+                onlyKeywords: $onlyKeywords,
+                execute: $execute,
+                generatedAt: $generatedAt,
+                caps: $caps,
+                lists: $lists,
+                reason: $blockedReason,
+            );
+        }
+
         try {
-            $keywords = $this->keywords($keywordLimit, $now, $onlyKeywords);
-            $channelIds = $this->channelIds($tagIds, $orTagIds, $notTagIds);
-            $videos = $this->videos($channelIds, $date);
+            $keywordSelection = $this->keywords($keywordLimit, $now, $onlyKeywords);
+            $keywords = $keywordSelection['rows'];
+
+            if ($keywordSelection['truncated']) {
+                return $this->blockedRowPayload($tagIds, $orTagIds, $notTagIds, $date, $onlyKeywords, $execute, $generatedAt, $caps, $lists, 'keyword_scan_limit_exceeded', keywordRowsScanned: $keywordSelection['scanned']);
+            }
+
+            $channelSelection = $this->channelIds($tagIds, $orTagIds, $notTagIds, $channelLimit);
+            $channelIds = $channelSelection['rows'];
+
+            if ($channelSelection['truncated']) {
+                return $this->blockedRowPayload($tagIds, $orTagIds, $notTagIds, $date, $onlyKeywords, $execute, $generatedAt, $caps, $lists, 'channel_scan_limit_exceeded', keywordRowsScanned: $keywordSelection['scanned'], keywordsSelected: count($keywords), channelsMatched: count($channelIds));
+            }
+
+            $videoSelection = $this->videos($channelIds, $date, $videoLimit);
+            $videos = $videoSelection['rows'];
+
+            if ($videoSelection['truncated']) {
+                return $this->blockedRowPayload($tagIds, $orTagIds, $notTagIds, $date, $onlyKeywords, $execute, $generatedAt, $caps, $lists, 'video_scan_limit_exceeded', keywordRowsScanned: $keywordSelection['scanned'], keywordsSelected: count($keywords), channelsMatched: count($channelIds), videosScanned: count($videos));
+            }
+
             $metrics = $this->metrics($keywords, $videos);
 
             if ($execute) {
@@ -167,6 +260,11 @@ class TagDateCacheBuilder
                 'not' => implode(',', $notTagIds),
                 'date' => $date,
                 'keyword_limit' => $keywordLimit,
+                'keyword_rows_scanned' => $keywordSelection['scanned'],
+                'channel_limit' => $channelLimit,
+                'video_limit' => $videoLimit,
+                'caps' => $caps,
+                'lists' => $lists,
                 'only_keywords' => $onlyKeywords,
                 'keywords_selected' => count($keywords),
                 'channels_matched' => count($channelIds),
@@ -180,6 +278,10 @@ class TagDateCacheBuilder
                 'tags_views' => $metrics['tags_views'],
                 'writes' => $execute ? 1 : 0,
                 'failed_rows' => 0,
+                'blocked_rows' => 0,
+                'source_complete' => true,
+                'source_truncated' => false,
+                'blocked_reason' => null,
                 'failure_reason' => null,
                 'exit_code' => 0,
                 'write_targets' => ['urt_show_tag_date'],
@@ -198,6 +300,11 @@ class TagDateCacheBuilder
                 'not' => implode(',', $notTagIds),
                 'date' => $date,
                 'keyword_limit' => $keywordLimit,
+                'keyword_rows_scanned' => 0,
+                'channel_limit' => $channelLimit,
+                'video_limit' => $videoLimit,
+                'caps' => $caps,
+                'lists' => $lists,
                 'only_keywords' => $onlyKeywords,
                 'keywords_selected' => count($keywords),
                 'channels_matched' => count($channelIds),
@@ -211,6 +318,10 @@ class TagDateCacheBuilder
                 'tags_views' => $metrics['tags_views'],
                 'writes' => 0,
                 'failed_rows' => 1,
+                'blocked_rows' => 0,
+                'source_complete' => false,
+                'source_truncated' => false,
+                'blocked_reason' => null,
                 'failure_reason' => 'cache_row_processing_failed',
                 'exit_code' => 1,
                 'write_targets' => ['urt_show_tag_date'],
@@ -237,30 +348,204 @@ class TagDateCacheBuilder
             'or',
             'not',
             'date',
+            'caps',
             'channels_matched',
             'videos_scanned',
             'writes',
             'failed_rows',
+            'blocked_rows',
+            'source_complete',
+            'source_truncated',
+            'blocked_reason',
             'failure_reason',
         ])->all();
     }
 
     /**
-     * @return list<int>
+     * @return array<string, int>
      */
-    private function normalizedIds(array $ids): array
+    private function caps(int $keywordLimit, int $channelLimit, int $videoLimit, int $dateLimit): array
     {
-        return collect($ids)
-            ->map(fn (mixed $id): int => (int) $id)
-            ->filter(fn (int $id): bool => $id > 0)
-            ->unique()
-            ->sort()
-            ->values()
-            ->all();
+        return [
+            'tag_ids_per_list' => ReportCacheBuildGuardrails::TAG_ID_LIST_LIMIT,
+            'date_range' => $dateLimit,
+            'explicit_keywords' => ReportCacheBuildGuardrails::KEYWORD_LIST_LIMIT,
+            'keyword_scan' => $keywordLimit,
+            'channel_scan' => $channelLimit,
+            'video_scan_per_date' => $videoLimit,
+        ];
+    }
+
+    private function listLimitReason(array $tagIds, array $orTagIds, array $notTagIds, array $onlyKeywords): ?string
+    {
+        if (count($tagIds) > ReportCacheBuildGuardrails::TAG_ID_LIST_LIMIT) {
+            return 'tagid_list_limit_exceeded';
+        }
+
+        if (count($orTagIds) > ReportCacheBuildGuardrails::TAG_ID_LIST_LIMIT) {
+            return 'or_tag_list_limit_exceeded';
+        }
+
+        if (count($notTagIds) > ReportCacheBuildGuardrails::TAG_ID_LIST_LIMIT) {
+            return 'not_tag_list_limit_exceeded';
+        }
+
+        if (count($onlyKeywords) > ReportCacheBuildGuardrails::KEYWORD_LIST_LIMIT) {
+            return 'keyword_list_limit_exceeded';
+        }
+
+        return null;
     }
 
     /**
-     * @return list<array{tag: string, divisor: float}>
+     * @return array<string, array{requested: int, selected: int, limit: int, truncated: bool}>
+     */
+    private function listSummary(array $tagIds, array $orTagIds, array $notTagIds, array $onlyKeywords, int $datesRequested, int $dateLimit): array
+    {
+        $summary = fn (int $requested, int $limit): array => [
+            'requested' => $requested,
+            'selected' => $requested > $limit ? 0 : $requested,
+            'limit' => $limit,
+            'truncated' => $requested > $limit,
+        ];
+
+        return [
+            'tagid' => $summary(count($tagIds), ReportCacheBuildGuardrails::TAG_ID_LIST_LIMIT),
+            'or' => $summary(count($orTagIds), ReportCacheBuildGuardrails::TAG_ID_LIST_LIMIT),
+            'not' => $summary(count($notTagIds), ReportCacheBuildGuardrails::TAG_ID_LIST_LIMIT),
+            'keywords' => $summary(count($onlyKeywords), ReportCacheBuildGuardrails::KEYWORD_LIST_LIMIT),
+            'dates' => $summary($datesRequested, $dateLimit),
+        ];
+    }
+
+    /**
+     * @param  array<string, int>  $caps
+     * @return array<string, mixed>
+     */
+    private function blockedRangePayload(
+        array $tagIds,
+        array $orTagIds,
+        array $notTagIds,
+        string $from,
+        string $to,
+        int $datesRequested,
+        array $onlyKeywords,
+        bool $execute,
+        CarbonImmutable $now,
+        array $caps,
+        array $lists,
+        string $reason,
+    ): array {
+        $payload = [
+            'mode' => $execute ? 'execute' : 'dry-run',
+            'status' => 'blocked',
+            'generated_at' => $now->format('Y-m-d H:i:s'),
+            'tagid' => implode(',', $tagIds),
+            'or' => implode(',', $orTagIds),
+            'not' => implode(',', $notTagIds),
+            'from' => $from,
+            'to' => $to,
+            'dates_requested' => $datesRequested,
+            'dates_selected' => 0,
+            'date_limit' => $caps['date_range'],
+            'range_truncated' => $reason === 'date_range_limit_exceeded',
+            'only_keywords' => $onlyKeywords,
+            'caps' => $caps,
+            'lists' => $lists,
+            'rows' => [],
+            'writes' => 0,
+            'failed_rows' => 1,
+            'blocked_rows' => 1,
+            'source_complete' => false,
+            'source_truncated' => true,
+            'blocked_reason' => $reason,
+            'failure_reason' => 'guardrail_blocked',
+            'exit_code' => 1,
+            'write_targets' => ['urt_show_tag_date'],
+        ];
+
+        Log::warning('Tag date cache batch blocked.', collect($payload)->only([
+            'mode',
+            'status',
+            'tagid',
+            'from',
+            'to',
+            'dates_requested',
+            'date_limit',
+            'range_truncated',
+            'caps',
+            'writes',
+            'source_complete',
+            'source_truncated',
+            'blocked_reason',
+        ])->all());
+
+        return $payload;
+    }
+
+    /**
+     * @param  array<string, int>  $caps
+     * @return array<string, mixed>
+     */
+    private function blockedRowPayload(
+        array $tagIds,
+        array $orTagIds,
+        array $notTagIds,
+        string $date,
+        array $onlyKeywords,
+        bool $execute,
+        string $generatedAt,
+        array $caps,
+        array $lists,
+        string $reason,
+        int $keywordRowsScanned = 0,
+        int $keywordsSelected = 0,
+        int $channelsMatched = 0,
+        int $videosScanned = 0,
+    ): array {
+        $payload = [
+            'mode' => $execute ? 'execute' : 'dry-run',
+            'status' => 'blocked',
+            'generated_at' => $generatedAt,
+            'tagid' => implode(',', $tagIds),
+            'or' => implode(',', $orTagIds),
+            'not' => implode(',', $notTagIds),
+            'date' => $date,
+            'keyword_limit' => $caps['keyword_scan'],
+            'keyword_rows_scanned' => $keywordRowsScanned,
+            'channel_limit' => $caps['channel_scan'],
+            'video_limit' => $caps['video_scan_per_date'],
+            'caps' => $caps,
+            'lists' => $lists,
+            'only_keywords' => $onlyKeywords,
+            'keywords_selected' => $keywordsSelected,
+            'channels_matched' => $channelsMatched,
+            'videos_scanned' => $videosScanned,
+            'tags_count' => 0,
+            'count_tags' => 0,
+            'count_videos' => 0,
+            'total_views' => 0,
+            'tags_result' => [],
+            'tags_video' => [],
+            'tags_views' => [],
+            'writes' => 0,
+            'failed_rows' => 1,
+            'blocked_rows' => 1,
+            'source_complete' => false,
+            'source_truncated' => true,
+            'blocked_reason' => $reason,
+            'failure_reason' => 'source_incomplete',
+            'exit_code' => 1,
+            'write_targets' => ['urt_show_tag_date'],
+        ];
+
+        Log::warning('Tag date cache row blocked.', $this->logContext($payload));
+
+        return $payload;
+    }
+
+    /**
+     * @return array{rows: list<array{tag: string, divisor: float}>, scanned: int, truncated: bool}
      */
     private function keywords(int $limit, CarbonImmutable $now, array $onlyKeywords = []): array
     {
@@ -280,10 +565,14 @@ class TagDateCacheBuilder
             $query->whereIn('tag', $onlyKeywords);
         }
 
-        $keywords = $query
+        $sourceRows = $query
             ->orderByDesc('hours_count')
-            ->limit(max($limit * 2, 1000))
-            ->get()
+            ->limit($limit + 1)
+            ->get();
+        $truncated = $sourceRows->count() > $limit;
+        $scanned = min($sourceRows->count(), $limit);
+        $keywords = $sourceRows
+            ->take($limit)
             ->map(function (object $row) use ($now): array {
                 $tag = (string) $row->tag;
                 $maxCount = max(0, (int) ($row->max_count ?? 0));
@@ -318,7 +607,11 @@ class TagDateCacheBuilder
             }
         }
 
-        return $this->keywordCache[$cacheKey] = $keywords;
+        return $this->keywordCache[$cacheKey] = [
+            'rows' => $keywords,
+            'scanned' => $scanned,
+            'truncated' => $truncated,
+        ];
     }
 
     private function eligibleKeyword(string $tag): bool
@@ -331,9 +624,9 @@ class TagDateCacheBuilder
     }
 
     /**
-     * @return list<int>
+     * @return array{rows: list<int>, truncated: bool}
      */
-    private function channelIds(array $tagIds, array $orTagIds, array $notTagIds): array
+    private function channelIds(array $tagIds, array $orTagIds, array $notTagIds, int $limit): array
     {
         $query = DB::table('urt_count')->select('u_id');
 
@@ -357,28 +650,43 @@ class TagDateCacheBuilder
             });
         }
 
-        return $query->pluck('u_id')
+        $ids = $query
+            ->orderBy('u_id')
+            ->limit($limit + 1)
+            ->pluck('u_id')
             ->map(fn (mixed $id): int => (int) $id)
             ->values()
             ->all();
+
+        return [
+            'rows' => array_slice($ids, 0, $limit),
+            'truncated' => count($ids) > $limit,
+        ];
     }
 
     /**
-     * @return list<object>
+     * @return array{rows: list<object>, truncated: bool}
      */
-    private function videos(array $channelIds, string $date): array
+    private function videos(array $channelIds, string $date, int $limit): array
     {
         if ($channelIds === []) {
-            return [];
+            return ['rows' => [], 'truncated' => false];
         }
 
-        return DB::table('urt_video')
+        $rows = DB::table('urt_video')
             ->select(['pk', 'u_id', 'videoId', 'publishedAt', 'title', 'description', 'viewCount'])
             ->whereIn('u_id', $channelIds)
             ->whereBetween('publishedAt', [$date.' 00:00:00', $date.' 23:59:59'])
             ->orderBy('publishedAt')
+            ->orderBy('pk')
+            ->limit($limit + 1)
             ->get()
             ->all();
+
+        return [
+            'rows' => array_slice($rows, 0, $limit),
+            'truncated' => count($rows) > $limit,
+        ];
     }
 
     /**
