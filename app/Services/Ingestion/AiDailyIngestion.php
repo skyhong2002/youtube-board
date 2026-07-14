@@ -523,11 +523,21 @@ class AiDailyIngestion
 
     private function date(?string $date, CarbonInterface $now): string
     {
+        $now = CarbonImmutable::instance($now->toDateTimeImmutable());
+
+        if ($date === 'today') {
+            return $now->toDateString();
+        }
+
+        if ($date === 'yesterday') {
+            return $now->subDay()->toDateString();
+        }
+
         if (is_string($date) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
             return $date;
         }
 
-        return CarbonImmutable::instance($now->toDateTimeImmutable())->subDay()->toDateString();
+        return $now->subDay()->toDateString();
     }
 
     private function dataType(string $dataType): string

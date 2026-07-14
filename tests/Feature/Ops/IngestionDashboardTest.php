@@ -492,7 +492,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=ai.daily');
         $response->assertSee('Scheduled Local Polling');
-        $response->assertSee('ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000');
+        $response->assertSee('ai:daily --execute --date=today --type=todate --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000');
         $response->assertSee('Runtime env 已明確啟用全部 scheduled polling');
     }
 

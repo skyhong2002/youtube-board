@@ -31,13 +31,14 @@ class AiDailyReport
             $row = $this->row($request, $condition);
 
             if (! $row) {
-                $fallback = $this->channelAiFallback($request, $condition);
+                $fallbackDate = $this->routeDate($request) ?? $this->latestDate($condition);
+                $fallback = $this->channelAiFallback($request, $condition, $fallbackDate);
 
                 if ($fallback !== null) {
                     return $fallback;
                 }
 
-                return $this->empty(true, $this->routeDate($request), $condition);
+                return $this->empty(true, $fallbackDate, $condition);
             }
 
             $date = substr((string) $row->date_from, 0, 10);
@@ -213,8 +214,8 @@ class AiDailyReport
     }
 
     /**
-     * @param array<int, string> $channelMap
-     * @param array<int, list<array<string, mixed>>> $channelAi
+     * @param  array<int, string>  $channelMap
+     * @param  array<int, list<array<string, mixed>>>  $channelAi
      * @return list<array<string, mixed>>
      */
     private function dailyTopicsFromChannelRows(array $channelMap, array $channelAi): array
@@ -290,9 +291,9 @@ class AiDailyReport
     }
 
     /**
-     * @param array<int, string> $channelMap
-     * @param array<int, list<array<string, mixed>>> $channelAi
-     * @param array<int, list<int>> $channelTags
+     * @param  array<int, string>  $channelMap
+     * @param  array<int, list<array<string, mixed>>>  $channelAi
+     * @param  array<int, list<int>>  $channelTags
      * @return list<array<string, mixed>>
      */
     private function topicsFromChannelRows(array $channelMap, array $channelAi, array $channelTags): array
@@ -466,7 +467,7 @@ class AiDailyReport
     }
 
     /**
-     * @param list<int> $tags
+     * @param  list<int>  $tags
      */
     private function channelMatchesCondition(array $tags, string $condition): bool
     {
@@ -504,7 +505,28 @@ class AiDailyReport
             $query->where('condition_type', $condition);
         }
 
-        $latest = $query->max('date_from');
+        $latestDaily = $query->max('date_from');
+
+        if ($condition !== 'all' || ! $this->hasTable('urt_channel_ai')) {
+            return is_string($latestDaily) && $latestDaily !== '' ? substr($latestDaily, 0, 10) : null;
+        }
+
+        $channelQuery = DB::table('urt_channel_ai')
+            ->whereNull('del_flag')
+            ->whereNotNull('result_json')
+            ->where('result_json', '!=', '');
+
+        if ($this->hasColumn('urt_channel_ai', 'data_type')) {
+            $channelQuery->where(function ($inner): void {
+                $inner->whereNull('data_type')->orWhereIn('data_type', ['todate', 'oneday']);
+            });
+        }
+
+        $latestChannel = $channelQuery->max('date_from');
+
+        $latest = collect([$latestDaily, $latestChannel])
+            ->filter(fn (mixed $date): bool => is_string($date) && $date !== '')
+            ->max();
 
         return is_string($latest) && $latest !== '' ? substr($latest, 0, 10) : null;
     }

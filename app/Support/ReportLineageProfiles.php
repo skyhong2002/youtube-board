@@ -2040,7 +2040,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: '頻道 AI 摘要',
-                    command: 'ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
+                    command: 'ai:daily --execute --date=today --type=todate --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -2388,7 +2388,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: '頻道 AI 摘要',
-                    command: 'ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
+                    command: 'ai:daily --execute --date=today --type=todate --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -2445,7 +2445,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: '頻道 AI 摘要',
-                    command: 'ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
+                    command: 'ai:daily --execute --date=today --type=todate --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -2501,7 +2501,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: '頻道 AI 摘要',
-                    command: 'ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
+                    command: 'ai:daily --execute --date=today --type=todate --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -3147,7 +3147,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: 'AI daily summary',
-                    command: 'ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
+                    command: 'ai:daily --execute --date=today --type=todate --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -3201,7 +3201,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: 'AI daily/event inputs',
-                    command: 'ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
+                    command: 'ai:daily --execute --date=today --type=todate --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -3287,7 +3287,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: '頻道 aspect AI',
-                    command: 'ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
+                    command: 'ai:daily --execute --date=today --type=todate --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -3358,7 +3358,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: 'AI daily source rows',
-                    command: 'ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
+                    command: 'ai:daily --execute --date=today --type=todate --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -3429,7 +3429,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: 'AI daily summary',
-                    command: 'ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
+                    command: 'ai:daily --execute --date=today --type=todate --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],

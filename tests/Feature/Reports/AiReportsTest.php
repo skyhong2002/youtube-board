@@ -18,7 +18,7 @@ class AiReportsTest extends TestCase
         $response->assertSee('data-lineage-graph', false);
         $response->assertSee('urt_ai_date');
         $response->assertSee('urt_channel_ai');
-        $response->assertSee('ai:daily --execute --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000');
+        $response->assertSee('ai:daily --execute --date=today --type=todate --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000');
         $response->assertSee('OpenCode-compatible chat completions');
         $response->assertSee('AI condition rules');
         $response->assertSee('AiDailyReport');
@@ -421,7 +421,7 @@ class AiReportsTest extends TestCase
         $response->assertSee('/ai/events/121?event=', false);
     }
 
-    public function test_ai_daily_index_uses_latest_date_channel_ai_fallback_when_latest_daily_summary_row_is_empty(): void
+    public function test_ai_daily_index_prefers_newer_channel_ai_date_before_daily_summary_finishes(): void
     {
         $this->createAiDailyTables();
 
@@ -432,13 +432,13 @@ class AiReportsTest extends TestCase
 
         DB::table('urt_ai_date')->insert([
             'pk' => 122,
-            'date_from' => '2026-05-25 00:00:00',
-            'date_to' => '2026-05-25 23:59:59',
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
             'condition_type' => 'all',
             'data_type' => 'oneday',
             'del_flag' => null,
             'channel_id' => json_encode([15 => 'Fallback Channel'], JSON_UNESCAPED_UNICODE),
-            'result_json' => '[]',
+            'result_json' => '[{"標題":"昨天的 daily 摘要","媒體事件":{}}]',
         ]);
 
         DB::table('urt_channel_ai')->insert([
@@ -491,9 +491,8 @@ class AiReportsTest extends TestCase
         $response->assertSee('latest fallback 第二媒體');
         $response->assertSee('媒體數：2 個 / 影片數：4 則');
         $response->assertSee('latest-index-fallback-a');
+        $response->assertDontSee('昨天的 daily 摘要');
         $response->assertDontSee('目前沒有符合條件的 AI daily summary');
-        $response->assertSee('pk=122');
-        $response->assertSee('/ai/events/122?event=', false);
     }
 
     public function test_ai_event_page_renders_summary_and_people_prompts(): void

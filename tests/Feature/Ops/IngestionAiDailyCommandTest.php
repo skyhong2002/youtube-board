@@ -632,6 +632,7 @@ class IngestionAiDailyCommandTest extends TestCase
         $this->createTables();
         $this->seedDailyAiFixtures();
         $this->seedRefreshChannelVideos();
+        DB::table('urt_video')->update(['publishedAt' => '2026-05-25 12:00:00']);
         config()->set('ingestion.scheduler_enabled', true);
         config()->set('ingestion.local_polling_enabled', true);
         config()->set('ingestion.scheduled_write_allowlist', ['ai.daily']);
@@ -659,9 +660,18 @@ class IngestionAiDailyCommandTest extends TestCase
 
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $result['summary']);
         $this->assertSame('executed:local-polling', $result['jobs'][0]['action']);
-        $this->assertStringContainsString('ai:daily --execute', $result['jobs'][0]['effective_command']);
+        $this->assertStringContainsString('ai:daily --execute --date=today --type=todate', $result['jobs'][0]['effective_command']);
         $this->assertGreaterThanOrEqual(1, DB::table('urt_channel_ai')->count());
         $this->assertGreaterThanOrEqual(1, DB::table('urt_ai_date')->count());
+        $this->assertDatabaseHas('urt_channel_ai', [
+            'date_from' => '2026-05-25 00:00:00',
+            'data_type' => 'todate',
+        ]);
+        $this->assertDatabaseHas('urt_ai_date', [
+            'date_from' => '2026-05-25 00:00:00',
+            'data_type' => 'todate',
+            'condition_type' => 'all',
+        ]);
     }
 
     public function test_ai_daily_execute_records_ai_failures_and_returns_nonzero_batch_status(): void
