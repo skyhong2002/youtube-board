@@ -85,29 +85,19 @@ class OpenCodeChatClient
             : max(1, min($provider['max_tokens'], $maxTokensOverride));
         $messagesStyle = $this->usesMessagesEndpoint($model, $endpointStyle);
         $path = $messagesStyle ? '/messages' : '/chat/completions';
-        $body = $messagesStyle
-            ? [
-                'model' => $model,
-                'messages' => [
-                    [
-                        'role' => 'user',
-                        'content' => $prompt,
-                    ],
+        $body = [
+            'model' => $model,
+            'messages' => [
+                [
+                    'role' => 'user',
+                    'content' => $prompt,
                 ],
-                'temperature' => 0.2,
-                'max_tokens' => $maxTokens,
-            ]
-            : [
-                'model' => $model,
-                'messages' => [
-                    [
-                        'role' => 'user',
-                        'content' => $prompt,
-                    ],
-                ],
-                'temperature' => 0.2,
-                'max_tokens' => $maxTokens,
-            ];
+            ],
+            'temperature' => 0.2,
+        ];
+        $body[$messagesStyle || ! $this->usesCompletionTokenLimit($model)
+            ? 'max_tokens'
+            : 'max_completion_tokens'] = $maxTokens;
         $started = hrtime(true);
 
         try {
@@ -287,6 +277,11 @@ class OpenCodeChatClient
             'minimax-m2.5',
             'minimax-m2.7',
         ], true);
+    }
+
+    private function usesCompletionTokenLimit(string $model): bool
+    {
+        return str_starts_with(strtolower($model), 'gpt-5');
     }
 
     /**

@@ -58,6 +58,34 @@ class AiProviderProbeCommandTest extends TestCase
         });
     }
 
+    public function test_ai_provider_probe_uses_completion_token_limit_for_gpt_five_models(): void
+    {
+        config()->set('services.opencode_go.api_key', 'primary-key');
+        config()->set('services.opencode_go.base_url', 'https://api.openai.test/v1');
+        config()->set('services.opencode_go.model', 'gpt-5.4-mini');
+        config()->set('services.opencode_go.endpoint_style', 'chat');
+
+        Http::fake([
+            'https://api.openai.test/v1/chat/completions' => Http::response([
+                'choices' => [['message' => ['content' => 'OK']]],
+            ]),
+        ]);
+        Http::preventStrayRequests();
+
+        $exitCode = Artisan::call('ai:provider:probe', [
+            '--provider' => 'primary',
+            '--json' => true,
+        ]);
+
+        $this->assertSame(0, $exitCode);
+        Http::assertSent(function ($request): bool {
+            return $request->url() === 'https://api.openai.test/v1/chat/completions'
+                && $request['model'] === 'gpt-5.4-mini'
+                && $request['max_completion_tokens'] === 16
+                && ! isset($request['max_tokens']);
+        });
+    }
+
     public function test_ai_connection_failure_is_sanitized_and_falls_back(): void
     {
         config()->set('services.opencode_go.api_key', 'primary-super-secret');

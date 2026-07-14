@@ -113,11 +113,13 @@ INGESTION_RUN_HISTORY_MAX_RECORDS=25000
 YOUTUBE_API_KEY=<youtube-data-api-key>
 # Optional comma-separated fallback keys, configured only in Dokploy secrets/env:
 YOUTUBE_API_KEYS=<youtube-data-api-key-2>,<youtube-data-api-key-3>
-OPENAI_ENDPOINT_STYLE=auto
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-5.4-mini
+OPENAI_ENDPOINT_STYLE=chat
 # AI fallback provider. Keep the fallback key in Dokploy secrets/env only.
-OPENAI_FALLBACK_BASE_URL=https://api.openai.com/v1
-OPENAI_FALLBACK_MODEL=gpt-4o-mini
-OPENAI_FALLBACK_ENDPOINT_STYLE=chat
+OPENAI_FALLBACK_BASE_URL=https://opencode.ai/zen/go/v1
+OPENAI_FALLBACK_MODEL=qwen3.6-plus
+OPENAI_FALLBACK_ENDPOINT_STYLE=auto
 OPENAI_FALLBACK_TIMEOUT=300
 ```
 
@@ -135,7 +137,7 @@ For AI page freshness, candidate keys are:
 - `ai.hourly`: at minute 10, runs `ai:hourly:pipeline`; it first refreshes the latest 50 uploads for all 39 configured AI channels and proves that the previous complete hour is covered, then refreshes `urt_ai_hour`. Any incomplete channel source blocks the AI stage.
 - `ai.daily`: at 00:00, runs `ai:daily:pipeline --date=yesterday`; it first completes a paginated tag 102 uploads crawl for the closed calendar day, then refreshes configured channel-level `urt_channel_ai` rows and six daily `urt_ai_date` condition rows. An incomplete crawl blocks the AI stage.
 
-The AI client tries the primary `OPENAI_*` provider first. If it fails and `OPENAI_FALLBACK_*` is configured, it retries once against the fallback provider. This matches the observed legacy daily AI path, which used OpenAI `chat/completions` with `gpt-4o-mini`, while keeping secrets out of git.
+The AI client tries the primary OpenAI `gpt-5.4-mini` provider first. If it fails and `OPENAI_FALLBACK_*` is configured, it retries once against the OpenCode Go fallback. The legacy daily AI path used OpenAI `chat/completions`; runtime keys remain in Dokploy rather than git.
 
 For derived report freshness, candidate keys are:
 
