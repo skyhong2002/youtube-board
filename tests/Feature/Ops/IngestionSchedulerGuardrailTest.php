@@ -219,7 +219,7 @@ class IngestionSchedulerGuardrailTest extends TestCase
 
     public function test_runner_skips_scheduled_youtube_job_before_it_exceeds_daily_budget(): void
     {
-        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 00:17:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 03:17:00', 'Asia/Taipei'));
         config()->set('ingestion.scheduled_write_allowlist', ['youtube.tag_videos.backfill']);
         config()->set('ingestion.youtube_daily_quota_budget', 9000);
         Http::preventStrayRequests();
@@ -284,7 +284,7 @@ class IngestionSchedulerGuardrailTest extends TestCase
         ]);
 
         $result = app(IngestionSchedulerRunner::class)->run(
-            at: CarbonImmutable::parse('2026-05-25 00:17:00', 'Asia/Taipei'),
+            at: CarbonImmutable::parse('2026-05-25 03:17:00', 'Asia/Taipei'),
             execute: true,
             jobKey: 'youtube.tag_videos.backfill',
         );
@@ -296,7 +296,7 @@ class IngestionSchedulerGuardrailTest extends TestCase
 
     public function test_missing_quota_ledger_fails_closed_and_health_is_not_ok(): void
     {
-        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 00:17:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 03:17:00', 'Asia/Taipei'));
         config()->set('ingestion.scheduled_write_allowlist', ['youtube.tag_videos.backfill']);
         Schema::drop('ingestion_youtube_quota_daily');
         Http::preventStrayRequests();
@@ -318,7 +318,7 @@ class IngestionSchedulerGuardrailTest extends TestCase
 
     public function test_zero_quota_budget_fails_closed_for_scheduled_youtube_jobs_and_health(): void
     {
-        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 00:17:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 03:17:00', 'Asia/Taipei'));
         config()->set('ingestion.scheduled_write_allowlist', ['youtube.tag_videos.backfill']);
         config()->set('ingestion.youtube_daily_quota_budget', 0);
         Http::preventStrayRequests();

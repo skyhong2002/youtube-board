@@ -574,6 +574,7 @@ SQL);
         config()->set('ingestion.scheduler_enabled', true);
         config()->set('ingestion.local_polling_enabled', true);
         config()->set('ingestion.scheduled_write_allowlist', ['ai.hourly']);
+        $this->useDirectHourlyScheduledCommand();
 
         Http::fake([
             'https://opencode.test/v1/chat/completions' => Http::response([
@@ -612,6 +613,7 @@ SQL);
         config()->set('ingestion.scheduler_enabled', true);
         config()->set('ingestion.local_polling_enabled', true);
         config()->set('ingestion.scheduled_write_allowlist', ['ai.hourly']);
+        $this->useDirectHourlyScheduledCommand();
 
         Http::fake([
             'https://opencode.test/v1/chat/completions' => Http::response([
@@ -656,6 +658,7 @@ SQL);
         config()->set('ingestion.local_polling_enabled', true);
         config()->set('ingestion.production_polling_enabled', false);
         config()->set('ingestion.scheduled_write_allowlist', ['ai.hourly']);
+        $this->useDirectHourlyScheduledCommand();
         Http::fake([
             'https://opencode.test/v1/chat/completions' => Http::response([
                 'choices' => [
@@ -694,6 +697,19 @@ SQL);
         $this->assertTrue($allowed['jobs'][0]['scheduled_write']['allowed']);
         $this->assertSame(1, DB::table('urt_ai_hour')->count());
         Http::assertSentCount(1);
+    }
+
+    private function useDirectHourlyScheduledCommand(): void
+    {
+        config()->set('ingestion.jobs', collect(config('ingestion.jobs', []))
+            ->map(function (array $job): array {
+                if (($job['key'] ?? null) === 'ai.hourly') {
+                    $job['scheduled_execute_command'] = 'ai:hourly --execute --limit=20';
+                }
+
+                return $job;
+            })
+            ->all());
     }
 
     private function createTables(): void

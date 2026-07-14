@@ -82,7 +82,7 @@ Every write-capable command must keep these properties before it can be consider
 - Execute mode checks required API keys before any external call and prints sanitized diagnostics only.
 - Writes are transactional or idempotent upserts.
 - Re-running the same limited command must not duplicate dirty rows.
-- AI generation has both prompt preview and explicit execute paths; `ai:hourly --execute` is implemented for OpenCode-compatible `urt_ai_hour` upsert, and `ai:daily --execute` is implemented for legacy channel-first `urt_channel_ai` plus `urt_ai_date` upserts.
+- AI generation has both prompt preview and explicit execute paths. Manual `ai:hourly --execute` and `ai:daily --execute` remain available; scheduled `ai:hourly:pipeline` and `ai:daily:pipeline` add a required YouTube source-refresh stage before the same idempotent AI writes.
 
 ## Rate Limits
 
@@ -104,8 +104,8 @@ The scheduler now enforces a Pacific Time daily quota budget before starting You
 - `playlistItems.list`: live discovery uses at most 3 channels and `maxResults=5`; general discovery uses at most 5 channels and `maxResults=3` per scheduled run.
 - `videos.list`: live polling uses at most 50 videos per scheduled run in the current capped scheduler command.
 - comment ingestion: at most 5 queued videos, 1 thread page and 20 shared full-reply pages per video in the reviewed scheduled command; the quota preflight includes both page caps.
-- AI hourly: capped scheduler command `ai:hourly --execute --limit=20` runs each hour when scheduler, local/production polling, and scheduled-write scope allow it. Command-level `--at` supports reviewed backfills of a specific evaluation time. `OPENAI_ENDPOINT_STYLE=auto` follows the OpenCode Go endpoint table: MiniMax M2.5/M2.7 uses `/messages`, while Qwen, GLM, Kimi, MiMo, and DeepSeek models remain on `/chat/completions`.
-- AI daily: at 00:00 the scheduler runs `ai:daily --execute --date=yesterday --type=oneday --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000`, so the complete previous calendar day begins processing as soon as it closes. The daily index considers both `urt_ai_date` and `urt_channel_ai`, so it can render the channel fallback after the first successful channel rows while the full batch continues. `--ai-call-limit=45` leaves room for 39 channel summaries plus the six daily condition summaries, while `--channel-video-limit=120` bounds each channel prompt.
+- AI hourly: capped scheduler command `ai:hourly:pipeline --execute --limit=20 --source-max-results=50` runs at minute 10 each hour. It refreshes all 39 AI channels first and requires the returned uploads window to reach the previous complete hour. Any failed refresh or 50-item page cap that does not cover the window returns nonzero without an AI call. Command-level `--at` supports reviewed backfills of a specific evaluation time.
+- AI daily: at 00:00 the scheduler runs `ai:daily:pipeline --execute --date=yesterday --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000`. It first performs the paginated tag 102 uploads crawl for the closed day and requires `crawl_complete=true`; only then does it generate 39 channel summaries and six daily condition summaries. The daily index can render channel fallback rows while the AI stage continues. The standalone tag 102 backfill no longer runs again at 00:17; its remaining cadence starts at 03:17.
 - AI provider fallback: legacy `make_channel_ai.php`, `get_ai_day.php`, and `ai_hour_prompt.php` call OpenAI `chat/completions` with `gpt-4o-mini`. Modern AI execution now supports one configured `OPENAI_FALLBACK_*` provider after the primary OpenCode-compatible provider fails, so production can preserve the current primary provider and add an OpenAI fallback secret without committing credentials.
 
 ## Locks
@@ -186,7 +186,7 @@ Production polling changes require all of the following before expanding or narr
 - Confirmed `APP_ENV=production` behavior does not bypass dry-run defaults.
 - API quota budget and alerting.
 - Run-history retention and failure reporting.
-- AI generation requires a command with explicit execute support; `ai:hourly --execute`, `ai:daily --execute`, and `ai:mayor-person --execute` are implemented and verified with fake API tests.
+- AI generation requires a command with explicit execute support; the manual AI commands and source-first `ai:hourly:pipeline` / `ai:daily:pipeline` scheduled commands are implemented and verified with fake API tests, including fail-closed source failures.
 
 ## Promotion Checklist
 
@@ -220,6 +220,6 @@ To promote a pipeline to production polling, repeat the checklist against produc
 | derived count/schedule/keyword/group/people/tag-cloud/channel-cloud/tag-date builds | implemented and tested | scheduler-capable; runtime allowlist-dependent | Each command has a capped execute profile; external keyword/group sync remains credential/network dependent, while cloud/date cache builders use local DB only. |
 | remaining derived static report builds | dynamic routes | intentionally replaced | Dynamic Laravel routes serve the rebuilt public pages instead of legacy filesystem HTML outputs. Mayor/city cache refresh has a capped execute mode and is scheduler-capable only when included in the exact reviewed allowlist. |
 | manual keyword-relation/keyword-cloud/live-tag-date/tag-month/photo cache and prediction builders | implemented and tested | intentionally unscheduled | Manual-only registry entries have empty scheduled commands, explicit execute, caps, locks, idempotency, and focused read-path tests; photo execution additionally depends on the public zh.wikipedia.org pageimages API. Production allowlists are unchanged. |
-| hourly AI | implemented and smoked | scheduler-capable; provider and runtime allowlist-dependent | `ai:hourly --execute --limit=20` is capped. Empty source windows return a sanitized skipped summary with exit code 0; `--at` supports reviewed backfills. |
-| daily AI | implemented and tested | scheduler-capable; provider and runtime allowlist-dependent | `ai:daily --execute` refreshes channel summaries then daily condition rows under explicit AI call and prompt-size caps. Provider fallback configuration remains in runtime secrets, not git. |
+| hourly AI | implemented and tested | scheduler-capable; provider and runtime allowlist-dependent | `ai:hourly:pipeline --execute --limit=20 --source-max-results=50` refreshes all 39 source channels, proves coverage of the previous complete hour, and only then runs hourly AI. |
+| daily AI | implemented and tested | scheduler-capable; provider and runtime allowlist-dependent | `ai:daily:pipeline --execute --date=yesterday` requires a complete tag 102 paginated crawl before channel and daily AI. Provider fallback configuration remains in runtime secrets, not git. |
 | mayor person AI | implemented and tested | scheduler-capable; provider and runtime allowlist-dependent | Capped command is `ai:mayor-person --execute --city=taipei --limit=10 --ai-call-limit=10`; page requests only read the generated cache. |

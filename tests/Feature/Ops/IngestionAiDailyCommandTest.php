@@ -636,6 +636,7 @@ class IngestionAiDailyCommandTest extends TestCase
         config()->set('ingestion.scheduler_enabled', true);
         config()->set('ingestion.local_polling_enabled', true);
         config()->set('ingestion.scheduled_write_allowlist', ['ai.daily']);
+        $this->useDirectDailyScheduledCommand();
         config()->set('services.opencode_go.api_key', 'test-key');
         config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
         config()->set('services.opencode_go.model', 'qwen-test');
@@ -672,6 +673,19 @@ class IngestionAiDailyCommandTest extends TestCase
             'data_type' => 'oneday',
             'condition_type' => 'all',
         ]);
+    }
+
+    private function useDirectDailyScheduledCommand(): void
+    {
+        config()->set('ingestion.jobs', collect(config('ingestion.jobs', []))
+            ->map(function (array $job): array {
+                if (($job['key'] ?? null) === 'ai.daily') {
+                    $job['scheduled_execute_command'] = 'ai:daily --execute --date=yesterday --type=oneday --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000';
+                }
+
+                return $job;
+            })
+            ->all());
     }
 
     public function test_ai_daily_execute_records_ai_failures_and_returns_nonzero_batch_status(): void

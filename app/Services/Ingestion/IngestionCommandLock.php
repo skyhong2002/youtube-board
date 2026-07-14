@@ -22,13 +22,23 @@ class IngestionCommandLock
     public function jobKeyForCommand(string $commandName): ?string
     {
         $matches = $this->registry->jobs()
-            ->filter(fn (array $job): bool => $this->registry->commandName($job) === $commandName)
+            ->filter(fn (array $job): bool => in_array($commandName, [
+                $this->registry->commandName($job),
+                $this->commandName((string) ($job['scheduled_execute_command'] ?? '')),
+            ], true))
             ->pluck('key')
             ->filter(fn (mixed $key): bool => is_string($key) && $key !== '')
             ->unique()
             ->values();
 
         return $matches->count() === 1 ? (string) $matches->first() : null;
+    }
+
+    private function commandName(string $command): string
+    {
+        $parts = preg_split('/\s+/', trim($command));
+
+        return $parts[0] ?? '';
     }
 
     /**

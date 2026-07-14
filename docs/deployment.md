@@ -132,8 +132,8 @@ For `/live/current` parity, these are candidate job keys for a separately review
 
 For AI page freshness, candidate keys are:
 
-- `ai.hourly`: refreshes `urt_ai_hour` from the previous complete hour of `urt_video`.
-- `ai.daily`: refreshes configured channel-level `urt_channel_ai` rows in capped batches first, then writes six daily `urt_ai_date` condition rows from those channel summaries.
+- `ai.hourly`: at minute 10, runs `ai:hourly:pipeline`; it first refreshes the latest 50 uploads for all 39 configured AI channels and proves that the previous complete hour is covered, then refreshes `urt_ai_hour`. Any incomplete channel source blocks the AI stage.
+- `ai.daily`: at 00:00, runs `ai:daily:pipeline --date=yesterday`; it first completes a paginated tag 102 uploads crawl for the closed calendar day, then refreshes configured channel-level `urt_channel_ai` rows and six daily `urt_ai_date` condition rows. An incomplete crawl blocks the AI stage.
 
 The AI client tries the primary `OPENAI_*` provider first. If it fails and `OPENAI_FALLBACK_*` is configured, it retries once against the fallback provider. This matches the observed legacy daily AI path, which used OpenAI `chat/completions` with `gpt-4o-mini`, while keeping secrets out of git.
 

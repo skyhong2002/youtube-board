@@ -128,6 +128,8 @@ class ChannelVideosDiscoveryIngestion
                     'u_id' => $rowUId,
                     'uploads' => $uploads,
                     'api_items' => count($items),
+                    'oldest_published_at' => collect($items)->pluck('publishedAt')->filter()->min(),
+                    'newest_published_at' => collect($items)->pluck('publishedAt')->filter()->max(),
                     'video_upserts' => $result['video_upserts'],
                     'schedule_upserts' => $result['schedule_upserts'],
                     'live_upserts' => $result['live_upserts'],

@@ -9,6 +9,7 @@ use App\Services\Ingestion\AiHourlyIngestion;
 use App\Services\Ingestion\AiHourlyPreview;
 use App\Services\Ingestion\AiPeriodIngestion;
 use App\Services\Ingestion\AiProviderUsageSummary;
+use App\Services\Ingestion\AiScheduledPipelineIngestion;
 use App\Services\Ingestion\ChannelAiIngestion;
 use App\Services\Ingestion\ChannelCloudCacheBuilder;
 use App\Services\Ingestion\ChannelCountsPreview;
@@ -2866,6 +2867,47 @@ $guardedIngestionCommand('ai:daily {--date= : Legacy date, today, or yesterday; 
     }
 })->purpose('Ingestion preview of legacy daily AI summary generation; execute mode calls AI and upserts urt_channel_ai/urt_ai_date rows');
 
+$guardedIngestionCommand('ai:daily:pipeline {--date=yesterday : Date, today, or yesterday} {--limit=1000 : Max channel AI rows per condition} {--channel-limit=39 : Max configured channels to refresh} {--channel-batch-size=12 : Channel AI batch size} {--ai-call-limit=45 : Max AI completion calls} {--channel-video-limit=120 : Max videos in each channel prompt} {--execute : Refresh complete YouTube sources before daily AI} {--dry-run : Preview both stages without writes} {--user-token=CLI : user_token for AI rows} {--json : Emit JSON}', function (AiScheduledPipelineIngestion $pipeline) {
+    try {
+        $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
+        $payload = $execute
+            ? $pipeline->executeDaily(
+                date: (string) $this->option('date'),
+                channelLimit: (int) $this->option('channel-limit'),
+                channelBatchSize: (int) $this->option('channel-batch-size'),
+                aiCallLimit: (int) $this->option('ai-call-limit'),
+                channelVideoLimit: (int) $this->option('channel-video-limit'),
+                limit: (int) $this->option('limit'),
+                userToken: (string) $this->option('user-token'),
+            )
+            : $pipeline->previewDaily((string) $this->option('date'));
+
+        if ((bool) $this->option('json')) {
+            $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+            return (int) ($payload['exit_code'] ?? 0);
+        }
+
+        $this->line(sprintf(
+            'ai:daily:pipeline mode=%s date=%s source_succeeded=%s source_channels=%d source_failed=%d ai_status=%s ai_calls=%d reason=%s secrets=not_printed',
+            $payload['mode'],
+            $payload['date'],
+            data_get($payload, 'source_refresh.succeeded', false) ? 'yes' : 'no',
+            (int) data_get($payload, 'source_refresh.completed_channels', 0),
+            (int) data_get($payload, 'source_refresh.failed_channels', 0),
+            (string) data_get($payload, 'ai.status', data_get($payload, 'ai.skip_reason', 'preview')),
+            (int) data_get($payload, 'ai.ai_call_guard.used', 0),
+            (string) data_get($payload, 'source_refresh.failure_reason', '-'),
+        ));
+
+        return (int) ($payload['exit_code'] ?? 0);
+    } catch (Throwable $exception) {
+        $this->error('ai:daily:pipeline unavailable: '.SensitiveTextRedactor::exception($exception, 240).' secrets=not_printed');
+
+        return 1;
+    }
+})->purpose('Refresh complete previous-day YouTube sources, then generate channel and daily AI only after source success');
+
 $guardedIngestionCommand('ai:mayor-person {--city=taipei : Mayor city key} {--person= : Comma-separated candidate names; omitted uses city candidates} {--date= : Date YYYY-MM-DD, defaults to yesterday in Asia/Taipei} {--limit=10 : Max candidates to generate} {--ai-call-limit=10 : Max AI completion calls in execute mode} {--execute : Call OpenCode-compatible chat completions and upsert urt_mayor_person_ai} {--dry-run : Force dry-run preview} {--user-token=CLI : user_token value for execute-mode upserts} {--show-prompt : Include prompt/source in JSON preview output} {--json : Emit JSON instead of text}', function (MayorPersonAiIngestion $ingestion) {
     try {
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
@@ -3451,6 +3493,54 @@ $guardedIngestionCommand('ai:hourly {--condition= : Optional legacy condition; o
         return 1;
     }
 })->purpose('Dry-run preview of legacy hourly AI summary generation, with explicit --execute support for OpenCode-compatible urt_ai_hour upsert');
+
+$guardedIngestionCommand('ai:hourly:pipeline {--condition= : Optional legacy condition} {--hour=1 : Hours-back offset} {--period=1 : Hourly buckets} {--limit=20 : Candidate videos to print} {--source-max-results=50 : Latest uploads fetched per configured channel} {--at= : Override evaluation timestamp} {--execute : Refresh source uploads before hourly AI} {--dry-run : Preview both stages without writes} {--user-token=cli : user_token for AI row} {--json : Emit JSON}', function (AiScheduledPipelineIngestion $pipeline) {
+    try {
+        $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
+        $at = is_string($this->option('at')) && trim((string) $this->option('at')) !== ''
+            ? CarbonImmutable::parse(trim((string) $this->option('at')), $timezone)
+            : null;
+        $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
+        $arguments = [
+            'condition' => $this->option('condition') ? (string) $this->option('condition') : null,
+            'hour' => (int) $this->option('hour'),
+            'period' => (int) $this->option('period'),
+            'limit' => (int) $this->option('limit'),
+            'now' => $at,
+        ];
+        $payload = $execute
+            ? $pipeline->executeHourly(
+                ...$arguments,
+                sourceMaxResults: (int) $this->option('source-max-results'),
+                userToken: (string) $this->option('user-token'),
+            )
+            : $pipeline->previewHourly(...$arguments);
+
+        if ((bool) $this->option('json')) {
+            $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+            return (int) ($payload['exit_code'] ?? 0);
+        }
+
+        $this->line(sprintf(
+            'ai:hourly:pipeline mode=%s from=%s to=%s source_succeeded=%s source_channels=%d source_failed=%d ai_status=%s reason=%s secrets=not_printed',
+            $payload['mode'],
+            $payload['date_from'],
+            $payload['date_to'],
+            data_get($payload, 'source_refresh.succeeded', false) ? 'yes' : 'no',
+            (int) data_get($payload, 'source_refresh.completed_channels', 0),
+            (int) data_get($payload, 'source_refresh.failed_channels', 0),
+            (string) data_get($payload, 'ai.status', data_get($payload, 'ai.skip_reason', 'preview')),
+            (string) data_get($payload, 'source_refresh.failure_reason', '-'),
+        ));
+
+        return (int) ($payload['exit_code'] ?? 0);
+    } catch (Throwable $exception) {
+        $this->error('ai:hourly:pipeline unavailable: '.SensitiveTextRedactor::exception($exception, 240).' secrets=not_printed');
+
+        return 1;
+    }
+})->purpose('Refresh all configured AI channel uploads, then generate the previous complete hourly AI summary');
 
 $guardedIngestionCommand('youtube:comments:queue {--tagid= : Legacy AND tag filter} {--or= : Legacy OR tag filter} {--not= : Legacy NOT tag filter} {--hours=24 : Recent publishedAt window} {--min=500 : Minimum viewCount and commentCount threshold} {--limit=20 : Number of candidate rows to print, capped lower for --execute} {--execute : Insert selected queue rows into local DB} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (CommentQueuePreview $preview, CommentQueueIngestion $ingestion) {
     try {

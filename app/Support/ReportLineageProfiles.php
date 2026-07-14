@@ -347,7 +347,7 @@ class ReportLineageProfiles
                     reads: ['urt_count.tags selected channels'],
                     writes: ['urt_video', 'urt_video_schedule', 'urt_video_live', 'urt_show_tag_date'],
                     summary: '高流量 tag 可分頁抓 selected channels uploads，補齊本機 urt_video；頁面本身只讀 DB。',
-                    scheduler: 'config/ingestion.php job youtube.tag_videos.backfill；每日 8 次，需在 scheduled-write allowlist 中。',
+                    scheduler: 'config/ingestion.php job youtube.tag_videos.backfill；03:17 起每日 7 次，00:00 由 daily AI pipeline 執行，需在 scheduled-write allowlist 中。',
                 ),
                 self::job(
                     key: 'youtube.videos.stats',
@@ -572,7 +572,7 @@ class ReportLineageProfiles
                     reads: ['urt_count.tags selected channels'],
                     writes: ['urt_video', 'urt_video_schedule', 'urt_video_live', 'urt_show_tag_date'],
                     summary: '針對高流量頻道 tag 分頁爬取 uploads playlist，補齊本機影片資料並可重建逐日 tag cache。',
-                    scheduler: 'config/ingestion.php job youtube.tag_videos.backfill；每日 8 次，需在 scheduled-write allowlist 中。',
+                    scheduler: 'config/ingestion.php job youtube.tag_videos.backfill；03:17 起每日 7 次，00:00 由 daily AI pipeline 執行，需在 scheduled-write allowlist 中。',
                 ),
                 self::job(
                     key: 'reports.tag_date.build',
@@ -666,7 +666,7 @@ class ReportLineageProfiles
                     reads: ['urt_count.tags selected channels'],
                     writes: ['urt_video', 'urt_video_schedule', 'urt_video_live', 'urt_show_tag_date'],
                     summary: '只在 ingestion job 執行時呼叫 YouTube；補齊 urt_video 後，tag cloud cache builder 才有本機來源可聚合。',
-                    scheduler: 'config/ingestion.php job youtube.tag_videos.backfill；每日 8 次，需在 scheduled-write allowlist 中。',
+                    scheduler: 'config/ingestion.php job youtube.tag_videos.backfill；03:17 起每日 7 次，00:00 由 daily AI pipeline 執行，需在 scheduled-write allowlist 中。',
                 ),
             ],
             'render' => [
@@ -818,7 +818,7 @@ class ReportLineageProfiles
                     reads: ['urt_count.tags selected channels'],
                     writes: ['urt_video', 'urt_video_schedule', 'urt_video_live', 'urt_show_tag_date'],
                     summary: '高流量 tag 可先分頁抓 uploads，補齊 urt_video 後重建 urt_show_tag_date。',
-                    scheduler: 'config/ingestion.php job youtube.tag_videos.backfill；每日 8 次，需在 scheduled-write allowlist 中。',
+                    scheduler: 'config/ingestion.php job youtube.tag_videos.backfill；03:17 起每日 7 次，00:00 由 daily AI pipeline 執行，需在 scheduled-write allowlist 中。',
                 ),
             ],
             'render' => [
@@ -2040,7 +2040,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: '頻道 AI 摘要',
-                    command: 'ai:daily --execute --date=yesterday --type=oneday --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
+                    command: 'ai:daily:pipeline --execute --date=yesterday --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -2388,7 +2388,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: '頻道 AI 摘要',
-                    command: 'ai:daily --execute --date=yesterday --type=oneday --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
+                    command: 'ai:daily:pipeline --execute --date=yesterday --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -2445,7 +2445,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: '頻道 AI 摘要',
-                    command: 'ai:daily --execute --date=yesterday --type=oneday --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
+                    command: 'ai:daily:pipeline --execute --date=yesterday --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -2501,7 +2501,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: '頻道 AI 摘要',
-                    command: 'ai:daily --execute --date=yesterday --type=oneday --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
+                    command: 'ai:daily:pipeline --execute --date=yesterday --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -3093,7 +3093,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.hourly',
                     label: 'AI hourly summary',
-                    command: 'ai:hourly --execute --limit=20',
+                    command: 'ai:hourly:pipeline --execute --limit=20 --source-max-results=50',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_count'],
                     writes: ['urt_ai_hour'],
@@ -3147,7 +3147,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: 'AI daily summary',
-                    command: 'ai:daily --execute --date=yesterday --type=oneday --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
+                    command: 'ai:daily:pipeline --execute --date=yesterday --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -3201,7 +3201,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: 'AI daily/event inputs',
-                    command: 'ai:daily --execute --date=yesterday --type=oneday --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
+                    command: 'ai:daily:pipeline --execute --date=yesterday --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -3287,7 +3287,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: '頻道 aspect AI',
-                    command: 'ai:daily --execute --date=yesterday --type=oneday --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
+                    command: 'ai:daily:pipeline --execute --date=yesterday --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -3358,7 +3358,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: 'AI daily source rows',
-                    command: 'ai:daily --execute --date=yesterday --type=oneday --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
+                    command: 'ai:daily:pipeline --execute --date=yesterday --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],
@@ -3429,7 +3429,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'ai.daily',
                     label: 'AI daily summary',
-                    command: 'ai:daily --execute --date=yesterday --type=oneday --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
+                    command: 'ai:daily:pipeline --execute --date=yesterday --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000',
                     apiCalls: ['OpenCode-compatible chat completions (OPENAI_BASE_URL / OPENAI_MODEL)'],
                     reads: ['urt_video', 'urt_channel_ai', 'urt_count'],
                     writes: ['urt_channel_ai', 'urt_ai_date'],

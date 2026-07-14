@@ -1,0 +1,330 @@
+<?php
+
+namespace App\Services\Ingestion;
+
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\DB;
+
+class AiScheduledPipelineIngestion
+{
+    public function __construct(
+        private readonly TagVideoBackfillIngestion $tagVideoBackfill,
+        private readonly ChannelVideosDiscoveryIngestion $channelVideos,
+        private readonly DirectYoutubeQuotaGuard $quotaGuard,
+        private readonly AiDailyPreview $dailyPreview,
+        private readonly AiDailyIngestion $dailyIngestion,
+        private readonly AiHourlyPreview $hourlyPreview,
+        private readonly AiHourlyIngestion $hourlyIngestion,
+    ) {}
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function previewDaily(?string $date = null): array
+    {
+        $now = $this->now();
+        $date = $this->date($date, $now);
+
+        return [
+            'mode' => 'ingestion-preview',
+            'source' => 'ai_daily_source_first_pipeline',
+            'date' => $date,
+            'source_refresh' => $this->tagVideoBackfill->run(
+                tagIds: [102],
+                from: $date,
+                to: $date,
+                limit: 100,
+                maxPages: 20,
+                maxResults: 50,
+                execute: false,
+                now: $now,
+            ),
+            'ai' => $this->dailyPreview->preview(date: $date, dataType: 'oneday', now: $now),
+            'writes' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function executeDaily(
+        ?string $date = null,
+        int $channelLimit = 39,
+        int $channelBatchSize = 12,
+        int $aiCallLimit = 45,
+        int $channelVideoLimit = 120,
+        int $limit = 1000,
+        string $userToken = 'CLI',
+    ): array {
+        $now = $this->now();
+        $date = $this->date($date, $now);
+        $sourceRun = $this->quotaGuard->run(
+            jobKey: 'youtube.tag_videos.backfill',
+            effectiveCommand: 'youtube:tag-videos:backfill --execute --limit=100 --max-pages=20 --max-results=50',
+            callback: fn (): array => $this->tagVideoBackfill->run(
+                tagIds: [102],
+                from: $date,
+                to: $date,
+                limit: 100,
+                maxPages: 20,
+                maxResults: 50,
+                execute: true,
+                now: $now,
+            ),
+        );
+        $source = $this->sourceResult($sourceRun, 'daily_uploads_backfill');
+
+        if (! $source['succeeded']) {
+            return $this->blocked('ai_daily_source_first_pipeline', $date, $source);
+        }
+
+        $ai = $this->dailyIngestion->execute(
+            date: $date,
+            dataType: 'oneday',
+            limit: $limit,
+            channelLimit: $channelLimit,
+            channelBatchSize: $channelBatchSize,
+            aiCallLimit: $aiCallLimit,
+            channelVideoLimit: $channelVideoLimit,
+            userToken: $userToken,
+        );
+        $exitCode = (int) ($ai['exit_code'] ?? 1);
+
+        return [
+            'mode' => 'execute',
+            'status' => $exitCode === 0 ? 'success' : 'partial_failure',
+            'exit_code' => $exitCode,
+            'failed_rows' => (int) ($ai['failed_rows'] ?? ($exitCode === 0 ? 0 : 1)),
+            'source' => 'ai_daily_source_first_pipeline',
+            'date' => $date,
+            'source_refresh' => $source,
+            'ai' => $ai,
+            'write_targets' => array_values(array_unique([
+                'urt_video',
+                'urt_video_schedule',
+                'urt_video_live',
+                'urt_show_tag_date',
+                ...($ai['write_targets'] ?? []),
+            ])),
+            'generated_at' => $now->format('Y-m-d H:i:s'),
+            'secrets' => 'not_printed',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function previewHourly(
+        ?string $condition = null,
+        int $hour = 1,
+        int $period = 1,
+        int $limit = 20,
+        ?CarbonInterface $now = null,
+    ): array {
+        $now = $this->normalizeNow($now);
+        $ai = $this->hourlyPreview->preview($condition, $hour, $period, $limit, $now);
+
+        return [
+            'mode' => 'ingestion-preview',
+            'source' => 'ai_hourly_source_first_pipeline',
+            'date_from' => $ai['date_from'],
+            'date_to' => $ai['date_to'],
+            'source_refresh' => [
+                'configured_channels' => count(AiDailyPreview::channelAiUids()),
+                'existing_channels' => DB::table('urt_channel')->whereIn('u_id', AiDailyPreview::channelAiUids())->count(),
+                'max_results_per_channel' => 50,
+                'would_call_youtube_requests' => count(AiDailyPreview::channelAiUids()),
+            ],
+            'ai' => $ai,
+            'writes' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function executeHourly(
+        ?string $condition = null,
+        int $hour = 1,
+        int $period = 1,
+        int $limit = 20,
+        int $sourceMaxResults = 50,
+        string $userToken = 'cli',
+        ?CarbonInterface $now = null,
+    ): array {
+        $now = $this->normalizeNow($now);
+        $preview = $this->hourlyPreview->preview($condition, $hour, $period, $limit, $now);
+        $windowFrom = CarbonImmutable::parse((string) $preview['date_from'], $now->getTimezone());
+        $sourceMaxResults = max(1, min(50, $sourceMaxResults));
+        $sourceRun = $this->quotaGuard->run(
+            jobKey: 'youtube.channels.videos.general',
+            effectiveCommand: sprintf(
+                'youtube:channels:videos --execute --limit=%d --max-results=%d',
+                count(AiDailyPreview::channelAiUids()),
+                $sourceMaxResults,
+            ),
+            callback: fn (): array => $this->refreshHourlySources($windowFrom, $sourceMaxResults, $now),
+        );
+        $source = $this->sourceResult($sourceRun, 'hourly_uploads_refresh');
+
+        if (! $source['succeeded']) {
+            return $this->blocked('ai_hourly_source_first_pipeline', substr((string) $preview['date_from'], 0, 10), $source, [
+                'date_from' => $preview['date_from'],
+                'date_to' => $preview['date_to'],
+            ]);
+        }
+
+        $ai = $this->hourlyIngestion->execute($condition, $hour, $period, $limit, $userToken, $now);
+        $exitCode = (int) ($ai['exit_code'] ?? 1);
+
+        return [
+            'mode' => 'execute',
+            'status' => $exitCode === 0 ? 'success' : 'partial_failure',
+            'exit_code' => $exitCode,
+            'failed_rows' => (int) ($ai['failed_rows'] ?? ($exitCode === 0 ? 0 : 1)),
+            'source' => 'ai_hourly_source_first_pipeline',
+            'date_from' => $preview['date_from'],
+            'date_to' => $preview['date_to'],
+            'source_refresh' => $source,
+            'ai' => $ai,
+            'write_targets' => array_values(array_unique([
+                'urt_video',
+                'urt_video_schedule',
+                'urt_video_live',
+                ...($ai['write_targets'] ?? []),
+            ])),
+            'generated_at' => $now->format('Y-m-d H:i:s'),
+            'secrets' => 'not_printed',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function refreshHourlySources(CarbonImmutable $windowFrom, int $maxResults, CarbonImmutable $now): array
+    {
+        $rows = [];
+
+        foreach (AiDailyPreview::channelAiUids() as $uId) {
+            $result = $this->channelVideos->execute(
+                uId: $uId,
+                limit: 1,
+                maxResults: $maxResults,
+                now: $now,
+            );
+            $applied = $result['applied'][0] ?? null;
+            $oldest = is_array($applied) && is_string($applied['oldest_published_at'] ?? null)
+                ? CarbonImmutable::parse($applied['oldest_published_at'], $now->getTimezone())
+                : null;
+            $apiItems = (int) ($applied['api_items'] ?? 0);
+            $windowComplete = (int) ($result['exit_code'] ?? 1) === 0
+                && is_array($applied)
+                && ($apiItems < $maxResults || ($oldest !== null && $oldest->lessThanOrEqualTo($windowFrom)));
+
+            $rows[] = [
+                'u_id' => $uId,
+                'api_items' => $apiItems,
+                'oldest_published_at' => $oldest?->format('Y-m-d H:i:s'),
+                'window_complete' => $windowComplete,
+                'failed' => ! $windowComplete,
+                'failure_reason' => $windowComplete
+                    ? null
+                    : ((int) ($result['exit_code'] ?? 1) !== 0 ? 'channel_refresh_failed' : 'source_window_exceeds_page_cap'),
+            ];
+        }
+
+        $failedRows = collect($rows)->where('failed', true)->count();
+
+        return [
+            'mode' => 'execute',
+            'status' => $failedRows === 0 ? 'success' : 'partial_failure',
+            'exit_code' => $failedRows === 0 ? 0 : 1,
+            'failed_rows' => $failedRows,
+            'configured_channels' => count($rows),
+            'completed_channels' => count($rows) - $failedRows,
+            'max_results_per_channel' => $maxResults,
+            'window_from' => $windowFrom->format('Y-m-d H:i:s'),
+            'rows' => $rows,
+            'write_targets' => ['urt_video', 'urt_video_schedule', 'urt_video_live', 'urt_channel.vtime'],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $run
+     * @return array<string, mixed>
+     */
+    private function sourceResult(array $run, string $stage): array
+    {
+        $payload = is_array($run['payload'] ?? null) ? $run['payload'] : [];
+        $allowed = (bool) ($run['allowed'] ?? false);
+        $exitCode = $allowed ? (int) ($payload['exit_code'] ?? 1) : 1;
+        $crawlComplete = $stage !== 'daily_uploads_backfill' || (bool) ($payload['crawl_complete'] ?? false);
+        $succeeded = $allowed && $exitCode === 0 && $crawlComplete;
+
+        return [
+            'stage' => $stage,
+            'succeeded' => $succeeded,
+            'allowed' => $allowed,
+            'exit_code' => $exitCode,
+            'failure_reason' => $succeeded
+                ? null
+                : (! $allowed ? (string) data_get($run, 'guard.reason', 'source_refresh_blocked') : ($crawlComplete ? 'source_refresh_failed' : 'incomplete_channel_crawl')),
+            'selected_channels' => (int) ($payload['selected_channels'] ?? $payload['configured_channels'] ?? 0),
+            'completed_channels' => (int) ($payload['updated_channels'] ?? $payload['completed_channels'] ?? 0),
+            'failed_channels' => (int) ($payload['failed_channels'] ?? $payload['failed_rows'] ?? 0),
+            'api_pages' => (int) ($payload['api_pages'] ?? 0),
+            'videos_in_range' => (int) ($payload['videos_in_range'] ?? 0),
+            'write_targets' => is_array($payload['write_targets'] ?? null) ? $payload['write_targets'] : [],
+            'youtube_quota_budget' => $payload['youtube_quota_budget'] ?? data_get($run, 'guard.estimate'),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $source
+     * @param  array<string, mixed>  $extra
+     * @return array<string, mixed>
+     */
+    private function blocked(string $pipeline, string $date, array $source, array $extra = []): array
+    {
+        return [
+            'mode' => 'execute',
+            'status' => 'blocked',
+            'exit_code' => 1,
+            'failed_rows' => 1,
+            'source' => $pipeline,
+            'date' => $date,
+            'source_refresh' => $source,
+            'ai' => [
+                'skipped' => true,
+                'skip_reason' => 'source_refresh_not_complete',
+                'ai_call_attempted' => false,
+            ],
+            'write_targets' => $source['write_targets'] ?? [],
+            'generated_at' => $this->now()->format('Y-m-d H:i:s'),
+            'secrets' => 'not_printed',
+        ] + $extra;
+    }
+
+    private function date(?string $date, CarbonImmutable $now): string
+    {
+        return match (true) {
+            $date === 'today' => $now->toDateString(),
+            $date === 'yesterday', $date === null, $date === '' => $now->subDay()->toDateString(),
+            is_string($date) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1 => $date,
+            default => $now->subDay()->toDateString(),
+        };
+    }
+
+    private function now(): CarbonImmutable
+    {
+        return CarbonImmutable::now((string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei')));
+    }
+
+    private function normalizeNow(?CarbonInterface $now): CarbonImmutable
+    {
+        return $now === null
+            ? $this->now()
+            : CarbonImmutable::instance($now->toDateTimeImmutable())->setTimezone($this->now()->getTimezone());
+    }
+}
