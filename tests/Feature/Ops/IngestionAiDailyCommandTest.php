@@ -185,7 +185,7 @@ class IngestionAiDailyCommandTest extends TestCase
         config()->set('ingestion.scheduled_write_allowlist', ['off']);
 
         $result = app(IngestionSchedulerRunner::class)->run(
-            at: CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'),
+            at: CarbonImmutable::parse('2026-05-26 00:00:00', 'Asia/Taipei'),
             execute: true,
             jobKey: 'ai.daily',
         );
@@ -628,7 +628,7 @@ class IngestionAiDailyCommandTest extends TestCase
 
     public function test_ingestion_scheduler_executes_allowlisted_ai_daily_command_when_due(): void
     {
-        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-26 00:00:00', 'Asia/Taipei'));
         $this->createTables();
         $this->seedDailyAiFixtures();
         $this->seedRefreshChannelVideos();
@@ -653,23 +653,23 @@ class IngestionAiDailyCommandTest extends TestCase
         });
 
         $result = app(IngestionSchedulerRunner::class)->run(
-            at: CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'),
+            at: CarbonImmutable::parse('2026-05-26 00:00:00', 'Asia/Taipei'),
             execute: true,
             jobKey: 'ai.daily',
         );
 
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 1, 'skipped' => 0, 'failed' => 0], $result['summary']);
         $this->assertSame('executed:local-polling', $result['jobs'][0]['action']);
-        $this->assertStringContainsString('ai:daily --execute --date=today --type=todate', $result['jobs'][0]['effective_command']);
+        $this->assertStringContainsString('ai:daily --execute --date=yesterday --type=oneday', $result['jobs'][0]['effective_command']);
         $this->assertGreaterThanOrEqual(1, DB::table('urt_channel_ai')->count());
         $this->assertGreaterThanOrEqual(1, DB::table('urt_ai_date')->count());
         $this->assertDatabaseHas('urt_channel_ai', [
             'date_from' => '2026-05-25 00:00:00',
-            'data_type' => 'todate',
+            'data_type' => 'oneday',
         ]);
         $this->assertDatabaseHas('urt_ai_date', [
             'date_from' => '2026-05-25 00:00:00',
-            'data_type' => 'todate',
+            'data_type' => 'oneday',
             'condition_type' => 'all',
         ]);
     }
