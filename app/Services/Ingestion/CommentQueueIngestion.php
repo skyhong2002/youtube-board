@@ -62,8 +62,15 @@ class CommentQueueIngestion
 
             try {
                 DB::transaction(function () use ($videoId, $now, &$inserted, &$skipped): void {
-                    if (DB::table('urt_comment_queue')->where('videoId', $videoId)->exists()) {
+                    if ($this->hasVideoId('urt_comment_queue', $videoId)) {
                         $skipped[] = ['videoId' => $videoId, 'reason' => 'already_queued'];
+
+                        return;
+                    }
+
+                    if (Schema::hasTable('urt_comment_queue_done')
+                        && $this->hasVideoId('urt_comment_queue_done', $videoId)) {
+                        $skipped[] = ['videoId' => $videoId, 'reason' => 'already_done'];
 
                         return;
                     }
@@ -117,10 +124,28 @@ class CommentQueueIngestion
             'already_queued_rows',
             'already_done_rows',
             'would_insert_queue_rows',
+            'candidate_query_limit',
+            'candidate_rows_loaded',
+            'displayed_rows',
+            'source_complete',
+            'source_truncated',
             'hours',
             'min',
             'published_after',
         ])->all();
+    }
+
+    private function hasVideoId(string $table, string $videoId): bool
+    {
+        $query = DB::table($table);
+
+        if (! in_array(DB::connection()->getDriverName(), ['mysql', 'mariadb'], true)) {
+            return $query->where('videoId', $videoId)->exists();
+        }
+
+        $column = DB::connection()->getQueryGrammar()->wrap('videoId');
+
+        return $query->whereRaw("BINARY {$column} = BINARY ?", [$videoId])->exists();
     }
 
     /**

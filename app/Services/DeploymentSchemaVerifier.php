@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Support\LegacyDashboardSchema;
+use App\Support\YoutubeIdentifierSchema;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
@@ -171,6 +172,14 @@ class DeploymentSchemaVerifier
     ];
 
     /**
+     * YouTube resource IDs are case-sensitive. These collations protect both
+     * lookup semantics and the legacy unique indexes that own those IDs.
+     *
+     * @var array<string, array<string, array{length: int, nullable: bool}>>
+     */
+    private const REQUIRED_BINARY_COLLATION_COLUMNS = YoutubeIdentifierSchema::COLUMNS;
+
+    /**
      * @return array<string, mixed>
      */
     public function inspect(): array
@@ -178,12 +187,10 @@ class DeploymentSchemaVerifier
         try {
             $requirements = $this->requirements();
             $requiredTables = array_keys($requirements['columns']);
-            $existingTables = array_map(
-                fn (string $table): string => str_contains($table, '.')
-                    ? substr($table, (int) strrpos($table, '.') + 1)
-                    : $table,
+            $existingTables = array_values(array_unique(array_map(
+                $this->logicalTableName(...),
                 Schema::getTableListing(),
-            );
+            )));
             $missingTables = array_values(array_diff($requiredTables, $existingTables));
             $missingColumns = [];
             $missingIndexes = [];
@@ -245,6 +252,20 @@ class DeploymentSchemaVerifier
                 || collect($requiredTableEngines)->every(
                     fn (?string $engine): bool => $engine === 'InnoDB',
                 );
+            $requiredIdentifierMetadata = $this->requiredIdentifierMetadata($driver, $existingTables);
+            $requiredBinaryCollations = $this->requiredBinaryCollations($requiredIdentifierMetadata);
+            $requiredIdentifierMetadataIssues = $this->requiredIdentifierMetadataIssues(
+                $driver,
+                $requiredIdentifierMetadata,
+            );
+            $requiredIdentifierMetadataValid = ! $this->hasTableEngines($driver)
+                || $requiredIdentifierMetadataIssues === [];
+            $requiredBinaryCollationsValid = ! $this->hasTableEngines($driver)
+                || collect($requiredBinaryCollations)
+                    ->flatten()
+                    ->every(
+                        fn (?string $collation): bool => $collation === YoutubeIdentifierSchema::COLLATION,
+                    );
             $quotaEngine = $requiredTableEngines['ingestion_youtube_quota_daily'];
             $quotaEngineValid = ! $this->hasTableEngines($driver) || $quotaEngine === 'InnoDB';
             $ready = $missingTables === []
@@ -252,7 +273,9 @@ class DeploymentSchemaVerifier
                 && $missingIndexes === []
                 && $missingForeignKeys === []
                 && $quotaUnique
-                && $requiredTableEnginesValid;
+                && $requiredTableEnginesValid
+                && $requiredIdentifierMetadataValid
+                && $requiredBinaryCollationsValid;
 
             return [
                 'status' => $ready ? 'ready' : 'failed',
@@ -269,6 +292,10 @@ class DeploymentSchemaVerifier
                 'quota_engine_valid' => $quotaEngineValid,
                 'required_table_engines' => $requiredTableEngines,
                 'required_table_engines_valid' => $requiredTableEnginesValid,
+                'required_binary_collations' => $requiredBinaryCollations,
+                'required_binary_collations_valid' => $requiredBinaryCollationsValid,
+                'required_identifier_metadata_issues' => $requiredIdentifierMetadataIssues,
+                'required_identifier_metadata_valid' => $requiredIdentifierMetadataValid,
                 'secrets' => 'not_printed',
             ];
         } catch (Throwable) {
@@ -418,7 +445,9 @@ class DeploymentSchemaVerifier
         foreach ($existingForeignKeys as $foreignKey) {
             $columns = array_map('strtolower', array_values($foreignKey['columns'] ?? []));
             $foreignColumns = array_map('strtolower', array_values($foreignKey['foreign_columns'] ?? []));
-            $foreignTable = strtolower((string) ($foreignKey['foreign_table'] ?? ''));
+            $foreignTable = strtolower($this->logicalTableName(
+                (string) ($foreignKey['foreign_table'] ?? ''),
+            ));
             $onDelete = strtolower((string) ($foreignKey['on_delete'] ?? ''));
 
             if (
@@ -476,16 +505,164 @@ class DeploymentSchemaVerifier
             return $engines;
         }
 
-        $storedEngines = DB::table('information_schema.TABLES')
-            ->where('TABLE_SCHEMA', DB::connection()->getDatabaseName())
-            ->whereIn('TABLE_NAME', $tables)
-            ->pluck('ENGINE', 'TABLE_NAME');
+        $prefix = DB::connection()->getTablePrefix();
+        $physicalTables = array_map(
+            fn (string $table): string => $prefix.$table,
+            $tables,
+        );
+        $placeholders = implode(', ', array_fill(0, count($physicalTables), '?'));
+        $storedEngines = collect(DB::select(
+            'SELECT TABLE_NAME AS table_name, ENGINE AS engine '
+            .'FROM information_schema.TABLES '
+            .'WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN ('.$placeholders.')',
+            [DB::connection()->getDatabaseName(), ...$physicalTables],
+        ))->pluck('engine', 'table_name');
 
         foreach ($tables as $table) {
-            $engine = $storedEngines->get($table);
+            $engine = $storedEngines->get($prefix.$table);
             $engines[$table] = is_string($engine) ? $engine : null;
         }
 
         return $engines;
+    }
+
+    /**
+     * @param  list<string>  $existingTables
+     * @return array<string, array<string, array{
+     *     data_type: string,
+     *     column_type: string,
+     *     character_maximum_length: int,
+     *     nullable: bool,
+     *     character_set: string|null,
+     *     collation: string|null,
+     *     default_is_null: bool,
+     *     extra: string,
+     *     comment: string,
+     *     generation_expression: string
+     * }|null>>
+     */
+    private function requiredIdentifierMetadata(string $driver, array $existingTables): array
+    {
+        $metadata = [];
+
+        foreach (self::REQUIRED_BINARY_COLLATION_COLUMNS as $table => $columns) {
+            foreach (array_keys($columns) as $column) {
+                $metadata[$table][$column] = null;
+            }
+        }
+
+        if (! $this->hasTableEngines($driver)) {
+            return $metadata;
+        }
+
+        $tables = array_values(array_intersect(
+            array_keys(self::REQUIRED_BINARY_COLLATION_COLUMNS),
+            $existingTables,
+        ));
+
+        if ($tables === []) {
+            return $metadata;
+        }
+
+        $prefix = DB::connection()->getTablePrefix();
+        $physicalTables = array_map(
+            fn (string $table): string => $prefix.$table,
+            $tables,
+        );
+        $placeholders = implode(', ', array_fill(0, count($physicalTables), '?'));
+        $rows = DB::select(
+            'SELECT TABLE_NAME AS table_name, COLUMN_NAME AS column_name, '
+            .'DATA_TYPE AS data_type, COLUMN_TYPE AS column_type, '
+            .'CHARACTER_MAXIMUM_LENGTH AS character_maximum_length, '
+            .'IS_NULLABLE AS is_nullable, CHARACTER_SET_NAME AS character_set_name, '
+            ."COLLATION_NAME AS collation_name, CASE WHEN COLUMN_DEFAULT IS NULL "
+            ."OR COLUMN_DEFAULT = 'NULL' THEN 1 ELSE 0 END AS default_is_null, "
+            .'EXTRA AS extra, COLUMN_COMMENT AS column_comment, '
+            .'GENERATION_EXPRESSION AS generation_expression '
+            .'FROM information_schema.COLUMNS '
+            .'WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN ('.$placeholders.')',
+            [DB::connection()->getDatabaseName(), ...$physicalTables],
+        );
+
+        foreach ($rows as $row) {
+            $table = $this->logicalTableName((string) ($row->table_name ?? ''));
+            $column = (string) ($row->column_name ?? '');
+
+            if (array_key_exists($column, $metadata[$table] ?? [])) {
+                $metadata[$table][$column] = YoutubeIdentifierSchema::normalizeMetadata($row);
+            }
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param  array<string, array<string, array{collation: string|null}|null>>  $metadata
+     * @return array<string, array<string, string|null>>
+     */
+    private function requiredBinaryCollations(array $metadata): array
+    {
+        $collations = [];
+
+        foreach ($metadata as $table => $columns) {
+            foreach ($columns as $column => $columnMetadata) {
+                $collations[$table][$column] = $columnMetadata['collation'] ?? null;
+            }
+        }
+
+        return $collations;
+    }
+
+    /**
+     * @param  array<string, array<string, array{
+     *     data_type: string,
+     *     column_type: string,
+     *     character_maximum_length: int,
+     *     nullable: bool,
+     *     character_set: string|null,
+     *     collation: string|null,
+     *     default_is_null: bool,
+     *     extra: string,
+     *     comment: string,
+     *     generation_expression: string
+     * }|null>>  $metadata
+     * @return array<string, list<string>>
+     */
+    private function requiredIdentifierMetadataIssues(string $driver, array $metadata): array
+    {
+        if (! $this->hasTableEngines($driver)) {
+            return [];
+        }
+
+        $issues = [];
+
+        foreach (self::REQUIRED_BINARY_COLLATION_COLUMNS as $table => $columns) {
+            foreach ($columns as $column => $definition) {
+                $columnIssues = YoutubeIdentifierSchema::metadataIssues(
+                    $definition,
+                    $metadata[$table][$column] ?? null,
+                    true,
+                );
+
+                if ($columnIssues !== []) {
+                    $issues[$table.'.'.$column] = $columnIssues;
+                }
+            }
+        }
+
+        return $issues;
+    }
+
+    private function logicalTableName(string $table): string
+    {
+        if (str_contains($table, '.')) {
+            $table = substr($table, (int) strrpos($table, '.') + 1);
+        }
+
+        $prefix = DB::connection()->getTablePrefix();
+
+        return $prefix !== '' && str_starts_with($table, $prefix)
+            ? substr($table, strlen($prefix))
+            : $table;
     }
 }

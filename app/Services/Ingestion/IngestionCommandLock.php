@@ -19,19 +19,52 @@ class IngestionCommandLock
         return 'ingestion:job:'.sha1($jobKey);
     }
 
-    public function jobKeyForCommand(string $commandName): ?string
+    /**
+     * @param  array<string, mixed>  $options
+     */
+    public function jobKeyForCommand(string $commandName, array $options = []): ?string
     {
         $matches = $this->registry->jobs()
             ->filter(fn (array $job): bool => in_array($commandName, [
                 $this->registry->commandName($job),
                 $this->commandName((string) ($job['scheduled_execute_command'] ?? '')),
             ], true))
-            ->pluck('key')
-            ->filter(fn (mixed $key): bool => is_string($key) && $key !== '')
-            ->unique()
+            ->filter(fn (array $job): bool => is_string($job['key'] ?? null) && $job['key'] !== '')
+            ->unique('key')
             ->values();
 
-        return $matches->count() === 1 ? (string) $matches->first() : null;
+        if ($matches->count() === 1) {
+            return (string) $matches->first()['key'];
+        }
+
+        if ($matches->isEmpty()) {
+            return null;
+        }
+
+        $ownedJob = $this->context->uniquelyOwnedJob($matches->pluck('key')->all());
+        $discriminatorMatches = $matches
+            ->filter(fn (array $job): bool => $this->matchesDiscriminator($job, $options))
+            ->values();
+
+        if ($options !== []) {
+            if ($discriminatorMatches->count() !== 1) {
+                return null;
+            }
+
+            $discriminatorJob = (string) $discriminatorMatches->first()['key'];
+
+            return $ownedJob === null || $ownedJob === $discriminatorJob
+                ? $discriminatorJob
+                : null;
+        }
+
+        if ($ownedJob !== null) {
+            return $ownedJob;
+        }
+
+        return $discriminatorMatches->count() === 1
+            ? (string) $discriminatorMatches->first()['key']
+            : null;
     }
 
     private function commandName(string $command): string
@@ -42,12 +75,44 @@ class IngestionCommandLock
     }
 
     /**
+     * @param  array<string, mixed>  $job
+     * @param  array<string, mixed>  $options
+     */
+    private function matchesDiscriminator(array $job, array $options): bool
+    {
+        $discriminator = $job['command_lock_discriminator'] ?? null;
+
+        if (! is_array($discriminator) || $discriminator === []) {
+            return false;
+        }
+
+        foreach ($discriminator as $option => $expected) {
+            $actual = $options[(string) $option] ?? null;
+
+            if ($expected === null) {
+                if ($actual !== null && $actual !== '') {
+                    return false;
+                }
+
+                continue;
+            }
+
+            if (! is_scalar($actual) || (string) $actual !== (string) $expected) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * @param  Closure(): int  $callback
+     * @param  array<string, mixed>  $options
      * @return array{executed: bool, exit_code: int, blocked_reason: string|null, job_key: string|null, lock: array{name: string, ttl_seconds: int, acquired: bool}|null}
      */
-    public function run(string $commandName, Closure $callback): array
+    public function run(string $commandName, Closure $callback, array $options = []): array
     {
-        $jobKey = $this->jobKeyForCommand($commandName);
+        $jobKey = $this->jobKeyForCommand($commandName, $options);
 
         if ($jobKey === null) {
             Log::warning('Ingestion command execution blocked.', [

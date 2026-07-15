@@ -33,7 +33,7 @@ until php artisan db:show --no-interaction >/dev/null 2>&1; do
     sleep "$wait_seconds"
 done
 
-php artisan migrate --force --no-interaction
+php artisan deployment:migrate --lock-timeout=0 --no-interaction
 php artisan migrate:status --no-interaction
 php artisan deployment:schema-check --no-interaction
 php artisan config:cache --no-interaction

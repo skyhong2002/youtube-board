@@ -3,6 +3,7 @@
 namespace Tests\Feature\Ops;
 
 use App\Support\LegacyDashboardSchema;
+use App\Support\YoutubeIdentifierSchema;
 use Tests\TestCase;
 
 class LegacyDashboardBaselineSchemaTest extends TestCase
@@ -24,6 +25,37 @@ class LegacyDashboardBaselineSchemaTest extends TestCase
         $this->assertContains('urt_show_tag_date', array_column($statements, 'table'));
         $this->assertContains('urt_ai_date', array_column($statements, 'table'));
         $this->assertNotContains('urt_mayor_person_ai', array_column($statements, 'table'));
+        $sqlByTable = collect($statements)->pluck('sql', 'table');
+
+        foreach (YoutubeIdentifierSchema::COLUMNS as $table => $columns) {
+            foreach ($columns as $column => $definition) {
+                $nullability = $definition['nullable'] ? 'DEFAULT NULL' : 'NOT NULL';
+                $this->assertStringContainsString(
+                    sprintf(
+                        '`%s` varchar(%d) CHARACTER SET %s COLLATE %s %s',
+                        $column,
+                        $definition['length'],
+                        YoutubeIdentifierSchema::CHARACTER_SET,
+                        YoutubeIdentifierSchema::COLLATION,
+                        $nullability,
+                    ),
+                    $sqlByTable[$table],
+                    "{$table}.{$column}",
+                );
+                $this->assertMatchesRegularExpression(
+                    sprintf(
+                        '/^  `%s` varchar\(%d\) CHARACTER SET %s COLLATE %s %s,?$/m',
+                        preg_quote($column, '/'),
+                        $definition['length'],
+                        YoutubeIdentifierSchema::CHARACTER_SET,
+                        YoutubeIdentifierSchema::COLLATION,
+                        preg_quote($nullability, '/'),
+                    ),
+                    $sqlByTable[$table],
+                    "{$table}.{$column}",
+                );
+            }
+        }
         $this->assertDoesNotMatchRegularExpression('/\bDROP\b/i', $contents);
         $this->assertDoesNotMatchRegularExpression('/\b(?:DATA|INDEX)\s+DIRECTORY\b/i', $contents);
         $this->assertDoesNotMatchRegularExpression('/\bAUTO_INCREMENT\s*=\s*\d+/i', $contents);

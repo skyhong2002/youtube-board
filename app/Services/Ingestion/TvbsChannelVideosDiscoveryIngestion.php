@@ -88,6 +88,22 @@ class TvbsChannelVideosDiscoveryIngestion
                     'week_count' => $result['week_count'],
                 ];
             } catch (Throwable $exception) {
+                if ($exception instanceof YoutubeApiKeyPoolExhaustedException) {
+                    $remainingRetryRows = $rows->count() - $index;
+                    $skipped[] = [
+                        'u_id' => $rowUId,
+                        'uploads' => $uploads,
+                        'reason' => $exception->failureReason(),
+                    ];
+                    Log::warning('TVBS video discovery paused after all YouTube API keys failed.', [
+                        'u_id' => $rowUId,
+                        'reason' => $exception->failureReason(),
+                        'exception_class' => $exception::class,
+                    ]);
+
+                    break;
+                }
+
                 if ($exception instanceof YoutubeQuotaWindowException) {
                     $quotaWindowReset = true;
                     $remainingRetryRows = $rows->count() - $index;
@@ -122,6 +138,8 @@ class TvbsChannelVideosDiscoveryIngestion
             'missing_uploads_playlist',
             'item_processing_failed',
             'quota_window_reset',
+            YoutubeApiKeyPoolExhaustedException::AUTHENTICATION_FAILURE,
+            YoutubeApiKeyPoolExhaustedException::QUOTA_FAILURE,
         ])->count();
         $apiRequestedChannels = count($applied) + collect($skipped)
             ->where('reason', '!=', 'missing_uploads_playlist')

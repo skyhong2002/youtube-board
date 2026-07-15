@@ -1032,6 +1032,80 @@ class AiReportsTest extends TestCase
         $response->assertDontSee('舊事件');
     }
 
+    public function test_ai_hourly_page_uses_only_the_latest_preexisting_provider_row_for_an_hour(): void
+    {
+        $this->createAiHourTable();
+
+        DB::table('urt_ai_hour')->insert([
+            [
+                'pk' => 1,
+                'date_from' => '2026-05-24 11:00:00',
+                'date_to' => '2026-05-24 11:59:59',
+                'condition_type' => 'all',
+                'ai_type' => 'old-model',
+                'data_type' => 'each',
+                'user_token' => 'CLI',
+                'del_flag' => null,
+                'result_json' => json_encode([['事件' => '舊模型事件', 'videoId' => ['old-model-video']]], JSON_UNESCAPED_UNICODE),
+            ],
+            [
+                'pk' => 2,
+                'date_from' => '2026-05-24 11:00:00',
+                'date_to' => '2026-05-24 11:59:59',
+                'condition_type' => 'all',
+                'ai_type' => 'new-model',
+                'data_type' => 'each',
+                'user_token' => 'CLI',
+                'del_flag' => null,
+                'result_json' => json_encode([['事件' => '新模型事件', 'videoId' => ['new-model-video']]], JSON_UNESCAPED_UNICODE),
+            ],
+        ]);
+
+        $response = $this->get('/ai/hours?date=2026-05-24&condition=all');
+
+        $response->assertOk();
+        $response->assertSee('新模型事件');
+        $response->assertDontSee('舊模型事件');
+        $response->assertSee('1 rows');
+    }
+
+    public function test_ai_hourly_page_treats_null_and_all_as_the_same_logical_condition(): void
+    {
+        $this->createAiHourTable();
+
+        DB::table('urt_ai_hour')->insert([
+            [
+                'pk' => 1,
+                'date_from' => '2026-05-24 11:00:00',
+                'date_to' => '2026-05-24 11:59:59',
+                'condition_type' => null,
+                'ai_type' => 'legacy-model',
+                'data_type' => 'each',
+                'user_token' => 'CLI',
+                'del_flag' => null,
+                'result_json' => json_encode([['事件' => 'Legacy Null Event', 'videoId' => ['legacy-null-video']]], JSON_UNESCAPED_UNICODE),
+            ],
+            [
+                'pk' => 2,
+                'date_from' => '2026-05-24 11:00:00',
+                'date_to' => '2026-05-24 11:59:59',
+                'condition_type' => 'all',
+                'ai_type' => 'current-model',
+                'data_type' => 'each',
+                'user_token' => 'CLI',
+                'del_flag' => null,
+                'result_json' => json_encode([['事件' => 'Current All Event', 'videoId' => ['current-all-video']]], JSON_UNESCAPED_UNICODE),
+            ],
+        ]);
+
+        $response = $this->get('/ai/hours?date=2026-05-24&condition=all');
+
+        $response->assertOk();
+        $response->assertSee('Current All Event');
+        $response->assertDontSee('Legacy Null Event');
+        $response->assertSee('1 rows');
+    }
+
     public function test_ai_hourly_page_expands_wrapped_legacy_topic_payloads(): void
     {
         $this->createAiHourTable();

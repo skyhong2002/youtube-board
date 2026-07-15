@@ -246,7 +246,7 @@ SQL);
             });
     }
 
-    public function test_reports_counts_build_rejects_malformed_history_without_overwriting_existing_deltas(): void
+    public function test_reports_counts_build_cools_down_malformed_history_and_rotates_to_valid_rows(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
         $this->createTables();
@@ -290,21 +290,37 @@ SQL);
 
         $exitCode = Artisan::call('reports:counts:build', [
             '--execute' => true,
-            '--limit' => 2,
+            '--limit' => 1,
             '--json' => true,
         ]);
         $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
 
         $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['selected_candidates']);
+        $this->assertTrue($payload['source_truncated']);
         $this->assertSame(1, $payload['failed_rows']);
-        $this->assertSame(1, $payload['updated']);
+        $this->assertSame(0, $payload['updated']);
         $this->assertSame([
             'u_id' => 1,
             'reason' => 'invalid_log_payload',
         ], $payload['skipped'][0]);
         $this->assertSame(321, DB::table('urt_count')->where('u_id', 1)->value('view_week'));
         $this->assertSame(654, DB::table('urt_count')->where('u_id', 1)->value('view_month'));
-        $this->assertNull(DB::table('urt_count')->where('u_id', 1)->value('mtime'));
+        $this->assertSame('2026-05-25 12:00:00', DB::table('urt_count')->where('u_id', 1)->value('mtime'));
+        $this->assertSame('{malformed-json', DB::table('urt_log')->where('u_id', 1)->value('thedata'));
+        $this->assertSame(0, DB::table('urt_count')->where('u_id', 2)->value('view_week'));
+
+        $secondExitCode = Artisan::call('reports:counts:build', [
+            '--execute' => true,
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $secondPayload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $secondExitCode);
+        $this->assertSame(1, $secondPayload['selected_candidates']);
+        $this->assertSame(0, $secondPayload['failed_rows']);
+        $this->assertSame(1, $secondPayload['updated']);
         $this->assertSame(100, DB::table('urt_count')->where('u_id', 2)->value('view_week'));
         Log::shouldHaveReceived('warning')
             ->once()
@@ -312,6 +328,147 @@ SQL);
                 'u_id' => 1,
                 'reason' => 'invalid_log_payload',
             ]);
+    }
+
+    public function test_reports_counts_build_isolates_invalid_source_cooldown_write_failures(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        DB::table('urt_count')->insert([
+            [
+                'u_id' => 1,
+                'mtime' => '2026-05-25 09:00:00',
+                'view_week' => 321,
+                'sub_week' => 32,
+                'video_week' => 3,
+                'view_month' => 654,
+                'sub_month' => 65,
+                'video_month' => 6,
+            ],
+            [
+                'u_id' => 2,
+                'mtime' => '2026-05-25 09:01:00',
+                'view_week' => 0,
+                'sub_week' => 0,
+                'video_week' => 0,
+                'view_month' => 0,
+                'sub_month' => 0,
+                'video_month' => 0,
+            ],
+        ]);
+        DB::table('urt_log')->insert([
+            [
+                'u_id' => 1,
+                'themonth' => '2026-05-01',
+                'thedata' => '{malformed-json',
+            ],
+            [
+                'u_id' => 2,
+                'themonth' => '2026-05-01',
+                'thedata' => json_encode([
+                    '2026-05-25' => ['view' => 200, 'subscriber' => 20, 'video' => 10],
+                    '2026-05-18' => ['view' => 100, 'subscriber' => 10, 'video' => 5],
+                ], JSON_UNESCAPED_UNICODE),
+            ],
+        ]);
+        DB::statement(<<<'SQL'
+CREATE TRIGGER fail_channel_count_cooldown
+BEFORE UPDATE ON urt_count
+WHEN OLD.u_id = 1
+BEGIN
+    SELECT RAISE(FAIL, 'token=super-secret');
+END
+SQL);
+        Log::spy();
+
+        $exitCode = Artisan::call('reports:counts:build', [
+            '--execute' => true,
+            '--limit' => 2,
+            '--json' => true,
+        ]);
+        $output = trim(Artisan::output());
+        $payload = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame(1, $payload['updated']);
+        $this->assertStringNotContainsString('super-secret', $output);
+        $this->assertSame('2026-05-25 09:00:00', DB::table('urt_count')->where('u_id', 1)->value('mtime'));
+        $this->assertSame(321, DB::table('urt_count')->where('u_id', 1)->value('view_week'));
+        $this->assertSame(100, DB::table('urt_count')->where('u_id', 2)->value('view_week'));
+        Log::shouldHaveReceived('warning')
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'Channel counts invalid-source cooldown failed.'
+                    && $context['u_id'] === 1
+                    && $context['reason'] === 'cooldown_write_failed'
+                    && is_string($context['exception_class'])
+                    && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'super-secret');
+            })
+            ->once();
+    }
+
+    public function test_reports_counts_build_excludes_old_only_logs_before_applying_the_candidate_cap(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        DB::table('urt_count')->insert([
+            [
+                'u_id' => 1,
+                'mtime' => '2026-05-25 09:00:00',
+                'view_week' => 0,
+                'sub_week' => 0,
+                'video_week' => 0,
+                'view_month' => 0,
+                'sub_month' => 0,
+                'video_month' => 0,
+            ],
+            [
+                'u_id' => 2,
+                'mtime' => '2026-05-25 10:00:00',
+                'view_week' => 0,
+                'sub_week' => 0,
+                'video_week' => 0,
+                'view_month' => 0,
+                'sub_month' => 0,
+                'video_month' => 0,
+            ],
+        ]);
+        DB::table('urt_log')->insert([
+            [
+                'u_id' => 1,
+                'themonth' => '2026-03-01',
+                'thedata' => json_encode([
+                    '2026-03-31' => ['view' => 100, 'subscriber' => 10, 'video' => 5],
+                ], JSON_UNESCAPED_UNICODE),
+            ],
+            [
+                'u_id' => 2,
+                'themonth' => '2026-05-01',
+                'thedata' => json_encode([
+                    '2026-05-25' => ['view' => 200, 'subscriber' => 20, 'video' => 10],
+                    '2026-05-18' => ['view' => 100, 'subscriber' => 10, 'video' => 5],
+                ], JSON_UNESCAPED_UNICODE),
+            ],
+        ]);
+
+        $exitCode = Artisan::call('reports:counts:build', [
+            '--execute' => true,
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(2, $payload['candidates']);
+        $this->assertSame(1, $payload['with_logs']);
+        $this->assertSame(1, $payload['missing_logs']);
+        $this->assertSame(1, $payload['selected_candidates']);
+        $this->assertFalse($payload['source_truncated']);
+        $this->assertSame(1, $payload['updated']);
+        $this->assertSame(100, DB::table('urt_count')->where('u_id', 2)->value('view_week'));
+        $this->assertSame('2026-05-25 09:00:00', DB::table('urt_count')->where('u_id', 1)->value('mtime'));
     }
 
     public function test_reports_counts_build_bounds_source_scan_and_rotates_unchanged_rows(): void
@@ -368,6 +525,139 @@ SQL);
         $this->assertSame(0, $secondExit);
         $this->assertSame('2026-05-25 12:00:00', DB::table('urt_count')->where('u_id', 2)->value('mtime'));
         $this->assertSame('2026-05-25 09:02:00', DB::table('urt_count')->where('u_id', 3)->value('mtime'));
+    }
+
+    public function test_reports_counts_build_preserves_subscriber_deltas_when_historical_subscribers_are_hidden(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+        DB::table('urt_count')->insert([
+            'u_id' => 10,
+            'mtime' => '2026-05-25 09:00:00',
+            'view_week' => 11,
+            'sub_week' => 12,
+            'video_week' => 13,
+            'view_month' => 21,
+            'sub_month' => 22,
+            'video_month' => 23,
+        ]);
+        DB::table('urt_log')->insert([
+            'u_id' => 10,
+            'themonth' => '2026-05-01',
+            'thedata' => json_encode([
+                '2026-05-25' => ['view' => 200, 'subscriber' => 50, 'video' => 10],
+                '2026-05-18' => ['view' => 150, 'hidden' => true, 'video' => 8],
+                '2026-04-26' => ['view' => 100, 'hidden' => true, 'video' => 6],
+            ], JSON_THROW_ON_ERROR),
+        ]);
+
+        $exitCode = Artisan::call('reports:counts:build', [
+            '--execute' => true,
+            '--id' => 10,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+        $stored = DB::table('urt_count')->where('u_id', 10)->first();
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame([
+            'view_week' => 50,
+            'video_week' => 2,
+            'view_month' => 100,
+            'video_month' => 4,
+        ], $payload['rows'][0]['computed']);
+        $this->assertSame(50, $stored->view_week);
+        $this->assertSame(12, $stored->sub_week);
+        $this->assertSame(2, $stored->video_week);
+        $this->assertSame(100, $stored->view_month);
+        $this->assertSame(22, $stored->sub_month);
+        $this->assertSame(4, $stored->video_month);
+    }
+
+    public function test_reports_counts_build_tracks_week_and_month_subscriber_baselines_independently(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+        DB::table('urt_count')->insert([
+            'u_id' => 10,
+            'mtime' => '2026-05-25 09:00:00',
+            'view_week' => 11,
+            'sub_week' => 12,
+            'video_week' => 13,
+            'view_month' => 21,
+            'sub_month' => 22,
+            'video_month' => 23,
+        ]);
+        DB::table('urt_log')->insert([
+            'u_id' => 10,
+            'themonth' => '2026-05-01',
+            'thedata' => json_encode([
+                '2026-05-25' => ['view' => 1000, 'subscriber' => 100, 'video' => 50],
+                '2026-05-18' => ['view' => 900, 'hidden' => true, 'video' => 45],
+                '2026-05-05' => ['view' => 700, 'subscriber' => 70, 'video' => 40],
+            ], JSON_THROW_ON_ERROR),
+        ]);
+
+        $exitCode = Artisan::call('reports:counts:build', [
+            '--execute' => true,
+            '--id' => 10,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+        $stored = DB::table('urt_count')->where('u_id', 10)->first();
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame([
+            'view_week' => 100,
+            'video_week' => 5,
+            'view_month' => 300,
+            'sub_month' => 30,
+            'video_month' => 10,
+        ], $payload['rows'][0]['computed']);
+        $this->assertSame(12, $stored->sub_week);
+        $this->assertSame(30, $stored->sub_month);
+    }
+
+    public function test_reports_counts_build_rejects_missing_subscriber_without_an_explicit_hidden_marker(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+        DB::table('urt_count')->insert([
+            'u_id' => 10,
+            'mtime' => '2026-05-25 09:00:00',
+            'view_week' => 11,
+            'sub_week' => 12,
+            'video_week' => 13,
+            'view_month' => 21,
+            'sub_month' => 22,
+            'video_month' => 23,
+        ]);
+        DB::table('urt_log')->insert([
+            'u_id' => 10,
+            'themonth' => '2026-05-01',
+            'thedata' => json_encode([
+                '2026-05-25' => ['view' => 200, 'video' => 10],
+                '2026-05-18' => ['view' => 100, 'subscriber' => 10, 'video' => 5],
+            ], JSON_THROW_ON_ERROR),
+        ]);
+
+        $exitCode = Artisan::call('reports:counts:build', [
+            '--execute' => true,
+            '--id' => 10,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+        $stored = DB::table('urt_count')->where('u_id', 10)->first();
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame('invalid_log_payload', $payload['skipped'][0]['reason']);
+        $this->assertSame(11, $stored->view_week);
+        $this->assertSame(12, $stored->sub_week);
+        $this->assertSame(13, $stored->video_week);
+        $this->assertSame(21, $stored->view_month);
+        $this->assertSame(22, $stored->sub_month);
+        $this->assertSame(23, $stored->video_month);
     }
 
     public function test_ingestion_scheduler_can_execute_ingestion_counts_preview_when_due(): void

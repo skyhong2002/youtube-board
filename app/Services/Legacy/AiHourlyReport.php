@@ -2,7 +2,6 @@
 
 namespace App\Services\Legacy;
 
-use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -52,9 +51,14 @@ class AiHourlyReport
                 $query->where('data_type', (string) $request->query('type'));
             }
 
-            $rows = $query
-                ->orderByDesc('date_from')
-                ->orderByDesc('pk')
+            $latestRows = $query
+                ->selectRaw('MAX(pk) as pk')
+                ->groupBy('date_from', 'date_to', 'data_type');
+            $rows = DB::table('urt_ai_hour as hour')
+                ->joinSub($latestRows, 'latest', 'latest.pk', '=', 'hour.pk')
+                ->select('hour.*')
+                ->orderByDesc('hour.date_from')
+                ->orderByDesc('hour.pk')
                 ->limit(48)
                 ->get();
 

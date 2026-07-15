@@ -12,6 +12,8 @@ use Throwable;
 
 class VideoDurationsIngestion
 {
+    private const RETRY_COOLDOWN_MINUTES = 5;
+
     public function __construct(
         private readonly VideoDurationsPreview $preview,
         private readonly YoutubeDataApiClient $youtube,
@@ -89,6 +91,24 @@ class VideoDurationsIngestion
                     $batchRows->pluck('video_id')->map(fn (mixed $id): string => (string) $id)->all(),
                 );
                 $apiBatchesCompleted++;
+            } catch (YoutubeApiKeyPoolExhaustedException $exception) {
+                $remainingRows = $rows->slice($processedRows)->values();
+                $remainingRetryRows = $remainingRows->count();
+                $skipped = [
+                    ...$skipped,
+                    ...$remainingRows->map(fn (array $row): array => [
+                        'videoId' => (string) $row['video_id'],
+                        'reason' => $exception->failureReason(),
+                    ])->all(),
+                ];
+                Log::warning('Video duration polling paused after all YouTube API keys failed.', [
+                    'reason' => $exception->failureReason(),
+                    'remaining_retry_rows' => $remainingRetryRows,
+                    'api_batches_attempted' => $apiBatchesAttempted,
+                    'exception_class' => $exception::class,
+                ]);
+
+                break;
             } catch (YoutubeQuotaWindowException $exception) {
                 $quotaWindowReset = true;
                 $remainingRows = $rows->slice($processedRows)->values();
@@ -110,13 +130,27 @@ class VideoDurationsIngestion
 
                 break;
             } catch (Throwable $exception) {
-                $skipped = [
-                    ...$skipped,
-                    ...$batchRows->map(fn (array $row): array => [
-                        'videoId' => (string) $row['video_id'],
-                        'reason' => 'api_batch_failed',
-                    ])->all(),
-                ];
+                foreach ($batchRows as $row) {
+                    $rowVideoId = (string) $row['video_id'];
+
+                    try {
+                        $this->deferRetry($row, $now);
+                        $skipped[] = [
+                            'videoId' => $rowVideoId,
+                            'reason' => 'api_batch_failed',
+                        ];
+                    } catch (Throwable $cooldownException) {
+                        $skipped[] = [
+                            'videoId' => $rowVideoId,
+                            'reason' => 'item_processing_failed',
+                        ];
+                        Log::warning('Video duration retry cooldown failed.', [
+                            'video_id' => $rowVideoId,
+                            'reason' => 'item_processing_failed',
+                            'exception_class' => $cooldownException::class,
+                        ]);
+                    }
+                }
                 $processedRows += $batchRows->count();
                 Log::warning('Video duration API batch failed.', [
                     'reason' => 'api_batch_failed',
@@ -135,10 +169,15 @@ class VideoDurationsIngestion
                     $details = $detailsByVideo[$rowVideoId] ?? null;
 
                     if ($details === null || $details['durationSeconds'] === null) {
+                        $this->deferRetry($row, $now);
                         $skipped[] = [
                             'videoId' => $rowVideoId,
                             'reason' => $details === null ? 'api_item_missing' : 'duration_missing',
                         ];
+                        Log::warning('Video duration source item rejected.', [
+                            'video_id' => $rowVideoId,
+                            'reason' => $details === null ? 'api_item_missing' : 'duration_missing',
+                        ]);
 
                         continue;
                     }
@@ -154,6 +193,11 @@ class VideoDurationsIngestion
                         'caption' => $details['caption'],
                     ];
                 } catch (Throwable $exception) {
+                    try {
+                        $this->deferRetry($row, $now);
+                    } catch (Throwable) {
+                        // The original item failure remains authoritative and sanitized below.
+                    }
                     $skipped[] = [
                         'videoId' => $rowVideoId,
                         'reason' => 'item_processing_failed',
@@ -309,6 +353,29 @@ class VideoDurationsIngestion
     }
 
     /**
+     * @param  array<string, mixed>  $row
+     */
+    private function deferRetry(array $row, CarbonImmutable $now): void
+    {
+        if (! Schema::hasTable('urt_video_duration')) {
+            throw new RuntimeException('Missing local table: urt_video_duration');
+        }
+
+        $query = DB::table('urt_video_duration');
+        $pkVideo = (int) ($row['pk_video'] ?? 0);
+
+        if ($pkVideo > 0) {
+            $query->where('pk_video', $pkVideo);
+        } else {
+            $query->where('videoId', (string) ($row['video_id'] ?? ''));
+        }
+
+        $query->update([
+            'stime' => $now->addMinutes(self::RETRY_COOLDOWN_MINUTES)->format('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /**
      * @param  array{duration: string|null, durationSeconds: int|null, caption: string|null}  $details
      */
     private function updateDuration(string $videoId, array $details, CarbonImmutable $now): void
@@ -379,6 +446,8 @@ class VideoDurationsIngestion
             'duration_missing',
             'item_processing_failed',
             'quota_window_reset',
+            YoutubeApiKeyPoolExhaustedException::AUTHENTICATION_FAILURE,
+            YoutubeApiKeyPoolExhaustedException::QUOTA_FAILURE,
         ])->count();
         $writeTargets = [
             'urt_video_duration.mtime',

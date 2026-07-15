@@ -6,6 +6,7 @@ use App\Support\SensitiveTextRedactor;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Closure;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -123,8 +124,11 @@ class CommentFetchIngestion
 
                 $claimedRows++;
 
-                if ((bool) ($row['would_skip_api_recent_cache'] ?? false)) {
-                    DB::transaction(fn () => $this->finishQueueRow($queuePk, $rowNow));
+                $this->assertPublicationTablesAvailable();
+
+                if ((bool) ($row['would_skip_api_recent_cache'] ?? false)
+                    && $this->hasRecentPublishedComment($rowVideoId, $rowNow->subHours(3))) {
+                    $this->finishQueueRow($queuePk, $rowNow);
                     $applied[] = [
                         'videoId' => $rowVideoId,
                         'apiCalled' => false,
@@ -143,13 +147,11 @@ class CommentFetchIngestion
                 $fetched = $this->fetchCommentThreads($rowVideoId, $maxPages, $maxReplyPages, $renewClaim);
                 $complete = trim((string) ($fetched['pageToken'] ?? '')) === '';
 
-                DB::transaction(function () use ($queuePk, $rowVideoId, $fetched, $rowNow, $complete): void {
-                    $this->upsertCommentPayload($rowVideoId, $fetched, $rowNow, publishAuthors: $complete);
+                $this->persistCommentPayload($rowVideoId, $fetched, $rowNow, $complete);
 
-                    if ($complete) {
-                        $this->finishQueueRow($queuePk, $rowNow);
-                    }
-                });
+                if ($complete) {
+                    $this->finishQueueRow($queuePk, $rowNow);
+                }
 
                 $claimReleased = $complete || $this->releaseQueueClaim(
                     queuePk: $queuePk,
@@ -181,12 +183,17 @@ class CommentFetchIngestion
                     'videoId' => $rowVideoId,
                     'queue_pk' => $queuePk,
                     'apiCalled' => $apiCalled,
-                    'reason' => 'item_failed',
+                    'reason' => $exception instanceof YoutubeApiKeyPoolExhaustedException
+                        ? $exception->failureReason()
+                        : ($exception instanceof YoutubeQuotaWindowException ? 'quota_window_reset' : 'item_failed'),
                     'error' => $this->sanitizedFailure($exception),
                     'claim_released' => $claimReleased,
                 ];
 
-                if ($exception instanceof YoutubeQuotaWindowException) {
+                if (
+                    $exception instanceof YoutubeQuotaWindowException
+                    || $exception instanceof YoutubeApiKeyPoolExhaustedException
+                ) {
                     break;
                 }
             }
@@ -213,6 +220,7 @@ class CommentFetchIngestion
                 'urt_comment_queue.stime',
                 'urt_comment.ctime',
                 'urt_comment.mtime',
+                'urt_comment.stime publication marker',
                 'urt_comment.comments_count',
                 'urt_comment.latest_time',
                 'urt_comment.likes_count',
@@ -297,12 +305,55 @@ class CommentFetchIngestion
         return SensitiveTextRedactor::exception($exception, 240);
     }
 
+    private function hasRecentPublishedComment(string $videoId, CarbonImmutable $refreshExpireTime): bool
+    {
+        foreach (['mtime', 'pageToken'] as $column) {
+            if (! Schema::hasColumn('urt_comment', $column)) {
+                return false;
+            }
+        }
+
+        $columns = ['mtime'];
+
+        if (Schema::hasColumn('urt_comment', 'stime')) {
+            $columns[] = 'stime';
+        }
+
+        $comment = $this->whereExactYoutubeId(DB::table('urt_comment'), 'videoId', $videoId)
+            ->where(function ($query): void {
+                $query->whereNull('pageToken')->orWhere('pageToken', '');
+            })
+            ->where('mtime', '>', $refreshExpireTime->format('Y-m-d H:i:s'))
+            ->first($columns);
+
+        if ($comment === null) {
+            return false;
+        }
+
+        if (property_exists($comment, 'stime')
+            && $comment->stime !== null
+            && (string) $comment->stime === (string) $comment->mtime) {
+            return true;
+        }
+
+        return Schema::hasTable('urt_comment_queue_done')
+            && $this->whereExactYoutubeId(
+                DB::table('urt_comment_queue_done'),
+                'videoId',
+                $videoId,
+            )->exists();
+    }
+
     /**
      * @return array<string, mixed>
      */
     private function fetchCommentThreads(string $videoId, int $maxPages, int $maxReplyPages, ?Closure $renewClaim = null): array
     {
-        $existing = DB::table('urt_comment')->where('videoId', $videoId)->first();
+        $existing = $this->whereExactYoutubeId(
+            DB::table('urt_comment'),
+            'videoId',
+            $videoId,
+        )->first();
         $resumePageToken = is_string($existing->pageToken ?? null) && trim($existing->pageToken) !== ''
             ? trim($existing->pageToken)
             : null;
@@ -529,7 +580,7 @@ class CommentFetchIngestion
      */
     private function addAuthor(array &$authors, array $comment, array $snippet): void
     {
-        $authorId = (string) ($comment['authorChannelId'] ?? '');
+        $authorId = trim((string) ($comment['authorChannelId'] ?? ''));
 
         if ($authorId === '' || isset($authors[$authorId])) {
             return;
@@ -554,28 +605,50 @@ class CommentFetchIngestion
     /**
      * @param  array<string, mixed>  $fetched
      */
-    private function upsertCommentPayload(
+    private function persistCommentPayload(
         string $videoId,
         array $fetched,
         CarbonImmutable $now,
-        bool $publishAuthors,
+        bool $complete,
     ): void {
+        $authorStates = $complete
+            ? $this->prevalidatedAuthorStates($fetched['authors'])
+            : [];
+
+        if ($complete) {
+            foreach ($authorStates as $authorChannelId => $state) {
+                $this->upsertAuthor(
+                    $authorChannelId,
+                    $fetched['authors'][$authorChannelId],
+                    $videoId,
+                    $now,
+                    $state,
+                );
+            }
+        }
+
         $nowString = $now->format('Y-m-d H:i:s');
-        $existing = DB::table('urt_comment')->where('videoId', $videoId)->first();
+        $existing = $this->whereExactYoutubeId(
+            DB::table('urt_comment'),
+            'videoId',
+            $videoId,
+        )->first();
         $latestTime = is_string($fetched['latestTime'] ?? null) && $fetched['latestTime'] !== ''
             ? CarbonImmutable::parse($fetched['latestTime'])->setTimezone($now->timezone)->format('Y-m-d H:i:s')
             : null;
         $uId = $this->localChannelIdFor((string) ($fetched['channelId'] ?? ''));
 
+        // Equal stime/mtime values mark a Laravel-published row on the legacy schema.
         $values = $this->onlyExistingColumns('urt_comment', [
             'mtime' => $nowString,
+            'stime' => $complete ? $nowString : null,
             'comments_count' => $fetched['commentsCount'],
             'latest_time' => $latestTime,
             'likes_count' => $fetched['likesCount'],
             'threads_count' => $fetched['threadsCount'],
             'replies_count' => $fetched['repliesCount'],
             'authors_count' => $fetched['authorsCount'],
-            'pageToken' => $fetched['pageToken'],
+            'pageToken' => $complete ? '' : $fetched['pageToken'],
             'channelId' => $fetched['channelId'],
             'u_id' => $uId,
             'authors_json' => json_encode($fetched['authors'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
@@ -590,29 +663,114 @@ class CommentFetchIngestion
 
             DB::table('urt_comment')->insert($insert);
         } elseif ($values !== []) {
-            DB::table('urt_comment')->where('videoId', $videoId)->update($values);
-        }
-
-        if ($publishAuthors) {
-            foreach ($fetched['authors'] as $authorChannelId => $author) {
-                $this->upsertAuthor((string) $authorChannelId, $author, $videoId, $now);
-            }
+            $this->whereExactYoutubeId(
+                DB::table('urt_comment'),
+                'videoId',
+                $videoId,
+            )->update($values);
         }
     }
 
     /**
-     * @param  array<string, mixed>  $author
+     * @param  array<string, array<string, mixed>>  $authors
+     * @return array<string, array{author_id: int|null, revision_exists: bool, index: list<string>}>
      */
-    private function upsertAuthor(string $authorChannelId, array $author, string $videoId, CarbonImmutable $now): void
+    private function prevalidatedAuthorStates(array $authors): array
     {
-        if (! Schema::hasTable('urt_comment_author') || ! Schema::hasTable('urt_comment_rev') || $authorChannelId === '') {
+        $this->assertPublicationTablesAvailable();
+
+        $states = [];
+
+        foreach (array_keys($authors) as $authorChannelId) {
+            $authorChannelId = trim((string) $authorChannelId);
+
+            if ($authorChannelId === '') {
+                continue;
+            }
+
+            $authorRow = $this->whereExactYoutubeId(
+                DB::table('urt_comment_author'),
+                'ChannelId',
+                $authorChannelId,
+            )->first();
+
+            if ($authorRow === null) {
+                $states[$authorChannelId] = [
+                    'author_id' => null,
+                    'revision_exists' => false,
+                    'index' => [],
+                ];
+
+                continue;
+            }
+
+            $authorId = (int) ($authorRow->author_id ?? 0);
+
+            if ($authorId < 1) {
+                throw new RuntimeException('Existing comment author has an invalid author id.');
+            }
+
+            $revision = DB::table('urt_comment_rev')->where('author_id', $authorId)->first();
+            $states[$authorChannelId] = [
+                'author_id' => $authorId,
+                'revision_exists' => $revision !== null,
+                'index' => $this->validatedRevisionIndex($revision?->index_json),
+            ];
+        }
+
+        return $states;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function validatedRevisionIndex(mixed $indexJson): array
+    {
+        $indexJson = is_string($indexJson) ? trim($indexJson) : '';
+
+        try {
+            $index = $indexJson !== ''
+                ? json_decode($indexJson, true, flags: JSON_THROW_ON_ERROR)
+                : [];
+        } catch (JsonException $exception) {
+            throw new RuntimeException(
+                'Existing comment author revision index JSON is not a string list.',
+                previous: $exception,
+            );
+        }
+
+        if (! is_array($index)
+            || ! array_is_list($index)
+            || collect($index)->contains(fn (mixed $id): bool => ! is_string($id) || trim($id) === '')) {
+            throw new RuntimeException('Existing comment author revision index JSON is not a string list.');
+        }
+
+        return $index;
+    }
+
+    /**
+     * @param  array<string, mixed>  $author
+     * @param  array{author_id: int|null, revision_exists: bool, index: list<string>}  $state
+     */
+    private function upsertAuthor(
+        string $authorChannelId,
+        array $author,
+        string $videoId,
+        CarbonImmutable $now,
+        array $state,
+    ): void {
+        $this->assertPublicationTablesAvailable();
+
+        if ($authorChannelId === '') {
             return;
         }
 
         $nowString = $now->format('Y-m-d H:i:s');
-        $authorRow = DB::table('urt_comment_author')->where('ChannelId', $authorChannelId)->first();
+        $authorId = $state['author_id'];
+        $revisionExists = $state['revision_exists'];
+        $index = $state['index'];
 
-        if ($authorRow === null) {
+        if ($authorId === null) {
             DB::table('urt_comment_author')->insert($this->onlyExistingColumns('urt_comment_author', [
                 'ctime' => $nowString,
                 'ChannelId' => $authorChannelId,
@@ -620,25 +778,15 @@ class CommentFetchIngestion
                 'ImageUrl' => $author['ImageUrl'] ?? null,
                 'DisplayName' => $author['DisplayName'] ?? null,
             ]));
-            $authorId = (int) DB::table('urt_comment_author')->where('ChannelId', $authorChannelId)->value('author_id');
-        } else {
-            $authorId = (int) $authorRow->author_id;
+            $authorId = (int) $this->whereExactYoutubeId(
+                DB::table('urt_comment_author'),
+                'ChannelId',
+                $authorChannelId,
+            )->value('author_id');
         }
 
         if ($authorId < 1) {
-            return;
-        }
-
-        $rev = DB::table('urt_comment_rev')->where('author_id', $authorId)->first();
-        $indexJson = $rev !== null ? trim((string) ($rev->index_json ?? '')) : '';
-        $index = $indexJson !== ''
-            ? json_decode($indexJson, true, flags: JSON_THROW_ON_ERROR)
-            : [];
-
-        if (! is_array($index)
-            || ! array_is_list($index)
-            || collect($index)->contains(fn (mixed $id): bool => ! is_string($id) || trim($id) === '')) {
-            throw new RuntimeException('Existing comment author revision index JSON is not a string list.');
+            throw new RuntimeException('Comment author insert did not produce an author id.');
         }
 
         if (! in_array($videoId, $index, true)) {
@@ -651,7 +799,7 @@ class CommentFetchIngestion
             'index_json' => json_encode($index, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         ]);
 
-        if ($rev === null) {
+        if (! $revisionExists) {
             DB::table('urt_comment_rev')->insert($this->onlyExistingColumns('urt_comment_rev', [
                 'author_id' => $authorId,
                 'ctime' => $nowString,
@@ -692,7 +840,11 @@ class CommentFetchIngestion
             return null;
         }
 
-        $uId = DB::table('urt_channel')->where('youtube_id', $youtubeChannelId)->value('u_id');
+        $uId = $this->whereExactYoutubeId(
+            DB::table('urt_channel'),
+            'youtube_id',
+            $youtubeChannelId,
+        )->value('u_id');
 
         return $uId !== null ? (int) $uId : null;
     }
@@ -708,5 +860,25 @@ class CommentFetchIngestion
         return collect($values)
             ->filter(fn (mixed $value, string $column): bool => in_array($column, $columns, true))
             ->all();
+    }
+
+    private function assertPublicationTablesAvailable(): void
+    {
+        foreach (['urt_comment_author', 'urt_comment_rev'] as $table) {
+            if (! Schema::hasTable($table)) {
+                throw new RuntimeException("Missing required comment publication table: {$table}");
+            }
+        }
+    }
+
+    private function whereExactYoutubeId(Builder $query, string $column, string $value): Builder
+    {
+        if (! in_array(DB::connection()->getDriverName(), ['mysql', 'mariadb'], true)) {
+            return $query->where($column, $value);
+        }
+
+        $qualifiedColumn = DB::connection()->getQueryGrammar()->wrap($column);
+
+        return $query->whereRaw("BINARY {$qualifiedColumn} = BINARY ?", [$value]);
     }
 }

@@ -5,6 +5,7 @@ namespace Tests\Feature\Ops;
 use App\Services\Ingestion\IngestionSchedulerRunner;
 use App\Services\Ingestion\VideoDurationsIngestion;
 use App\Services\Ingestion\VideoDurationsPreview;
+use App\Services\Ingestion\YoutubeApiKeyPoolExhaustedException;
 use App\Services\Ingestion\YoutubeDataApiClient;
 use App\Services\Ingestion\YoutubeQuotaWindowException;
 use Carbon\CarbonImmutable;
@@ -327,6 +328,75 @@ class IngestionVideoDurationCommandTest extends TestCase
         Http::assertSentCount(2);
     }
 
+    public function test_video_duration_missing_items_cool_down_rotate_and_retry_after_expiry(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+
+        foreach (['a-api-missing', 'b-duration-missing', 'c-valid'] as $index => $videoId) {
+            DB::table('urt_video_duration')->insert([
+                'pk_video' => $index + 1,
+                'ctime' => '2026-05-24 00:00:00',
+                'publishedAt' => '2026-05-23 12:00:00',
+                'u_id' => $index + 1,
+                'videoId' => $videoId,
+            ]);
+        }
+        $attempts = [];
+        Http::fake(function ($request) use (&$attempts) {
+            $videoId = (string) $request['id'];
+            $attempts[] = $videoId;
+            $attempt = count(array_filter($attempts, fn (string $id): bool => $id === $videoId));
+
+            if ($videoId === 'a-api-missing' && $attempt === 1) {
+                return Http::response(['items' => []]);
+            }
+
+            if ($videoId === 'b-duration-missing' && $attempt === 1) {
+                return Http::response(['items' => [[
+                    'id' => $videoId,
+                    'contentDetails' => ['caption' => 'false'],
+                ]]]);
+            }
+
+            return Http::response(['items' => [[
+                'id' => $videoId,
+                'contentDetails' => ['duration' => 'PT2M', 'caption' => 'false'],
+            ]]]);
+        });
+
+        $first = app(VideoDurationsIngestion::class)->execute(batchSize: 1, loops: 1);
+        $second = app(VideoDurationsIngestion::class)->execute(batchSize: 1, loops: 1);
+        $third = app(VideoDurationsIngestion::class)->execute(batchSize: 1, loops: 1);
+
+        $this->assertSame('api_item_missing', $first['skipped'][0]['reason']);
+        $this->assertSame('duration_missing', $second['skipped'][0]['reason']);
+        $this->assertSame(0, $third['exit_code']);
+        $this->assertSame(120, DB::table('urt_video_duration')->where('videoId', 'c-valid')->value('duration'));
+        $this->assertSame('2026-05-24 18:05:00', DB::table('urt_video_duration')->where('videoId', 'a-api-missing')->value('stime'));
+        $this->assertSame('2026-05-24 18:05:00', DB::table('urt_video_duration')->where('videoId', 'b-duration-missing')->value('stime'));
+        $this->assertSame(['a-api-missing', 'b-duration-missing', 'c-valid'], $attempts);
+
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:05:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:05:00', 'Asia/Taipei'));
+        $firstRetry = app(VideoDurationsIngestion::class)->execute(batchSize: 1, loops: 1);
+        $secondRetry = app(VideoDurationsIngestion::class)->execute(batchSize: 1, loops: 1);
+
+        $this->assertSame(0, $firstRetry['exit_code']);
+        $this->assertSame(0, $secondRetry['exit_code']);
+        $this->assertSame(120, DB::table('urt_video_duration')->where('videoId', 'a-api-missing')->value('duration'));
+        $this->assertSame(120, DB::table('urt_video_duration')->where('videoId', 'b-duration-missing')->value('duration'));
+        $this->assertSame([
+            'a-api-missing',
+            'b-duration-missing',
+            'c-valid',
+            'a-api-missing',
+            'b-duration-missing',
+        ], $attempts);
+    }
+
     public function test_video_duration_execute_isolates_a_failed_api_batch_and_continues(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
@@ -352,6 +422,12 @@ class IngestionVideoDurationCommandTest extends TestCase
                     'id' => $videoId,
                     'contentDetails' => ['duration' => 'PT2M', 'caption' => 'false'],
                 ])->all(),
+            ], 200)
+            ->push([
+                'items' => collect(['duration-batch-01', 'duration-batch-02'])->map(fn (string $videoId): array => [
+                    'id' => $videoId,
+                    'contentDetails' => ['duration' => 'PT3M', 'caption' => 'false'],
+                ])->all(),
             ], 200);
 
         $payload = app(VideoDurationsIngestion::class)->execute(batchSize: 2, loops: 2);
@@ -363,8 +439,70 @@ class IngestionVideoDurationCommandTest extends TestCase
         $this->assertSame(2, $payload['failed_videos']);
         $this->assertSame(['api_batch_failed', 'api_batch_failed'], array_column($payload['skipped'], 'reason'));
         $this->assertNull(DB::table('urt_video_duration')->where('videoId', 'duration-batch-01')->value('duration'));
+        $this->assertSame('2026-05-24 18:05:00', DB::table('urt_video_duration')->where('videoId', 'duration-batch-01')->value('stime'));
         $this->assertSame(120, DB::table('urt_video_duration')->where('videoId', 'duration-batch-03')->value('duration'));
-        Http::assertSentCount(2);
+
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:05:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:05:00', 'Asia/Taipei'));
+        $retry = app(VideoDurationsIngestion::class)->execute(batchSize: 2, loops: 1);
+
+        $this->assertSame(0, $retry['exit_code']);
+        $this->assertSame(2, $retry['updated_videos']);
+        $this->assertSame(180, DB::table('urt_video_duration')->where('videoId', 'duration-batch-01')->value('duration'));
+        Http::assertSentCount(3);
+    }
+
+    public function test_video_duration_cooldown_write_failures_are_isolated_and_sanitized(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('services.youtube.transient_retries', 0);
+        $this->createTables();
+        Log::spy();
+
+        foreach (['a-cooldown-write-fails', 'b-cooldown-succeeds'] as $index => $videoId) {
+            DB::table('urt_video_duration')->insert([
+                'pk_video' => $index + 1,
+                'ctime' => '2026-05-24 00:00:00',
+                'publishedAt' => '2026-05-23 12:00:00',
+                'u_id' => $index + 1,
+                'videoId' => $videoId,
+            ]);
+        }
+        DB::statement(<<<'SQL'
+CREATE TRIGGER fail_first_duration_cooldown
+BEFORE UPDATE ON urt_video_duration
+WHEN OLD.videoId = 'a-cooldown-write-fails'
+BEGIN
+    SELECT RAISE(FAIL, 'token=cooldown-secret');
+END
+SQL);
+        Http::fake([
+            'www.googleapis.com/youtube/v3/videos*' => Http::response([
+                'error' => ['message' => 'token=api-secret'],
+            ], 500),
+        ]);
+
+        $payload = app(VideoDurationsIngestion::class)->execute(batchSize: 2, loops: 1);
+
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame(2, $payload['failed_videos']);
+        $this->assertSame([
+            ['videoId' => 'a-cooldown-write-fails', 'reason' => 'item_processing_failed'],
+            ['videoId' => 'b-cooldown-succeeds', 'reason' => 'api_batch_failed'],
+        ], $payload['skipped']);
+        $this->assertStringNotContainsString('cooldown-secret', json_encode($payload, JSON_THROW_ON_ERROR));
+        $this->assertStringNotContainsString('api-secret', json_encode($payload, JSON_THROW_ON_ERROR));
+        $this->assertNull(DB::table('urt_video_duration')->where('videoId', 'a-cooldown-write-fails')->value('stime'));
+        $this->assertSame('2026-05-24 18:05:00', DB::table('urt_video_duration')->where('videoId', 'b-cooldown-succeeds')->value('stime'));
+        Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message, array $context): bool => $message === 'Video duration retry cooldown failed.'
+                && $context['video_id'] === 'a-cooldown-write-fails'
+                && $context['reason'] === 'item_processing_failed'
+                && is_string($context['exception_class'])
+                && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'cooldown-secret'))
+            ->once();
     }
 
     public function test_video_duration_execute_isolates_a_failed_video_and_sanitizes_the_warning(): void
@@ -615,6 +753,53 @@ SQL);
                 && $context['exception_class'] === YoutubeQuotaWindowException::class
                 && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'super-secret'),
         );
+    }
+
+    public function test_video_duration_api_key_pool_exhaustion_preserves_current_and_remaining_rows(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+
+        foreach ([
+            YoutubeApiKeyPoolExhaustedException::AUTHENTICATION_FAILURE,
+            YoutubeApiKeyPoolExhaustedException::QUOTA_FAILURE,
+        ] as $reason) {
+            $this->createTables();
+            DB::table('urt_video_duration')->insert([
+                [
+                    'pk_video' => 1,
+                    'ctime' => '2026-05-24 00:00:00',
+                    'publishedAt' => '2026-05-23 12:00:00',
+                    'u_id' => 1,
+                    'videoId' => 'duration-key-pool-a',
+                ],
+                [
+                    'pk_video' => 2,
+                    'ctime' => '2026-05-24 00:00:00',
+                    'publishedAt' => '2026-05-23 12:00:00',
+                    'u_id' => 2,
+                    'videoId' => 'duration-key-pool-b',
+                ],
+            ]);
+            $youtube = Mockery::mock(YoutubeDataApiClient::class);
+            $youtube->shouldReceive('videoContentDetails')
+                ->once()
+                ->andThrow(new YoutubeApiKeyPoolExhaustedException($reason));
+            $ingestion = new VideoDurationsIngestion(app(VideoDurationsPreview::class), $youtube);
+
+            $payload = $ingestion->execute(batchSize: 1, loops: 2);
+
+            $this->assertSame(1, $payload['exit_code']);
+            $this->assertFalse($payload['quota_window_reset']);
+            $this->assertSame(1, $payload['api_batches_attempted']);
+            $this->assertSame(1, $payload['api_requested_videos']);
+            $this->assertSame(2, $payload['remaining_retry_rows']);
+            $this->assertSame(2, $payload['failed_videos']);
+            $this->assertSame([$reason, $reason], array_column($payload['skipped'], 'reason'));
+            $this->assertSame(0, DB::table('urt_video_duration')->whereNotNull('stime')->count());
+            $this->assertSame(0, DB::table('urt_video_duration')->whereNotNull('mtime')->count());
+            $this->assertSame(0, DB::table('urt_video_duration')->whereNotNull('duration')->count());
+        }
     }
 
     public function test_youtube_videos_duration_supports_single_queued_video_preview(): void

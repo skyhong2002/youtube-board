@@ -153,16 +153,27 @@ class GroupReportsPreview
             throw new \RuntimeException('tag.analysis.tw group sync source limit exceeded');
         }
 
-        $candidates = collect($rows)
-            ->map(fn (mixed $row): array => $this->validatedRemoteRow($row))
-            ->values();
+        $candidates = collect($rows)->values();
         [$effectiveOffset, $offsetMode] = $this->effectiveOffset($offset, $candidates->count(), $limit, $now);
         [$attemptedRows, $wrapped] = $this->wrappedBatch($candidates, $effectiveOffset, $limit);
         $synced = 0;
         $failed = 0;
         $generatedAt = $now->format('Y-m-d H:i:s');
 
-        foreach ($attemptedRows as $row) {
+        foreach ($attemptedRows as $index => $candidate) {
+            try {
+                $row = $this->validatedRemoteRow($candidate);
+            } catch (Throwable $exception) {
+                $failed++;
+                Log::warning('Group sync row failed.', [
+                    'source_index' => $this->sourceIndex($effectiveOffset, (int) $index, $candidates->count()),
+                    'reason' => 'invalid_remote_row',
+                    'exception_class' => $exception::class,
+                ]);
+
+                continue;
+            }
+
             $tag = $row['tag'];
             $group = $row['group'];
             $latestTime = max($row['ctime'], $row['mtime'] ?? $row['ctime']);
@@ -215,6 +226,11 @@ class GroupReportsPreview
             'batch_wrapped' => $wrapped,
             'source_truncated' => $candidates->count() > $attemptedRows->count(),
         ];
+    }
+
+    private function sourceIndex(int $offset, int $batchIndex, int $total): int
+    {
+        return $total > 0 ? ($offset + $batchIndex) % $total : 0;
     }
 
     /** @return array{tag: string, group: string, ctime: string, mtime: string|null, del_flag: string} */

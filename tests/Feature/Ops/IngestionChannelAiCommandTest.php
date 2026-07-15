@@ -2,10 +2,10 @@
 
 namespace Tests\Feature\Ops;
 
+use App\Services\Ingestion\AiBusinessKeyLock;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -67,7 +67,7 @@ class IngestionChannelAiCommandTest extends TestCase
         $this->assertSame(0, DB::table('urt_channel_ai')->count());
     }
 
-    public function test_channel_ai_execute_upserts_idempotently(): void
+    public function test_channel_ai_execute_updates_the_logical_row_when_the_provider_model_changes(): void
     {
         $this->configureProvider();
         Log::spy();
@@ -138,8 +138,14 @@ class IngestionChannelAiCommandTest extends TestCase
         ])->expectsOutputToContain('invalid_ai_payload_shape')->assertExitCode(1);
         $this->assertSame(0, DB::table('urt_channel_ai')->count());
 
-        $lock = Cache::lock('ingestion:ai-channel:77:2026-05-24:2026-05-24:oneday', 600);
-        $this->assertTrue($lock->get());
+        $lock = app(AiBusinessKeyLock::class)->acquire('urt_channel_ai', [
+            'u_id' => 77,
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
+            'data_type' => 'oneday',
+            'user_token' => 'CLI',
+        ]);
+        $this->assertNotNull($lock);
 
         try {
             $exitCode = Artisan::call('ai:channel', [
@@ -153,7 +159,7 @@ class IngestionChannelAiCommandTest extends TestCase
 
             $this->assertSame(1, $exitCode);
             $this->assertTrue($payload['skipped']);
-            $this->assertSame('command_locked', $payload['skip_reason']);
+            $this->assertSame('business_key_locked', $payload['skip_reason']);
             $this->assertSame(0, DB::table('urt_channel_ai')->count());
             Http::assertSentCount(2);
         } finally {

@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
 
@@ -21,6 +22,7 @@ class MayorPersonAiIngestion
         private readonly MayorPersonDailyReport $dailyReport,
         private readonly OpenCodeChatClient $client,
         private readonly AiJsonPayloadValidator $jsonValidator,
+        private readonly AiBusinessKeyLock $businessKeyLock,
     ) {}
 
     /**
@@ -73,15 +75,16 @@ class MayorPersonAiIngestion
         int $aiCallLimit = 10,
         string $userToken = 'CLI',
     ): array {
-        if (! Schema::hasTable('urt_mayor_person_ai')) {
-            throw new RuntimeException('urt_mayor_person_ai table is missing; run php artisan migrate --force first');
-        }
-
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
         $now = CarbonImmutable::now($timezone);
         $date = $this->date($date, $now);
         $city = $this->city($cityKey);
         $targets = $this->targets($city, $person, $limit);
+
+        if (! Schema::hasTable('urt_mayor_person_ai')) {
+            throw new RuntimeException('urt_mayor_person_ai table is missing; run php artisan migrate --force first');
+        }
+
         $aiCallLimit = max(0, $aiCallLimit);
         $aiCallsUsed = 0;
         $rows = [];
@@ -90,6 +93,7 @@ class MayorPersonAiIngestion
             $source = [];
             $prompt = '';
             $aiCallAttempted = false;
+            $lock = null;
             try {
                 $source = $this->source($city, $target['person'], $date);
                 $prompt = $this->prompt($source);
@@ -107,7 +111,32 @@ class MayorPersonAiIngestion
                 }
 
                 if ($aiCallsUsed >= $aiCallLimit) {
-                    $rows[] = $this->skippedRow($target, 'ai_call_guard_exhausted', $source, $prompt);
+                    $rows[] = $this->skippedRow(
+                        $target,
+                        'ai_call_guard_exhausted',
+                        $source,
+                        $prompt,
+                        failed: true,
+                    );
+
+                    continue;
+                }
+
+                $lock = $this->businessKeyLock->acquire('urt_mayor_person_ai', [
+                    'city_key' => $city['key'],
+                    'person' => $target['person'],
+                    'the_date' => $date,
+                    'user_token' => $userToken,
+                ]);
+
+                if ($lock === null) {
+                    $rows[] = $this->skippedRow(
+                        $target,
+                        'business_key_locked',
+                        $source,
+                        $prompt,
+                        failed: true,
+                    );
 
                     continue;
                 }
@@ -182,6 +211,8 @@ class MayorPersonAiIngestion
                     'person' => $target['person'],
                     'exception_class' => $exception::class,
                 ]);
+            } finally {
+                $lock?->release();
             }
         }
 
@@ -320,10 +351,18 @@ class MayorPersonAiIngestion
     private function city(string $cityKey): array
     {
         $cityKey = strtolower(trim($cityKey));
-        $cityKey = preg_match('/^[a-z0-9_]+$/', $cityKey) ? $cityKey : 'taipei';
+
+        if ($cityKey === '' || preg_match('/^[a-z0-9_]+$/', $cityKey) !== 1) {
+            throw new InvalidArgumentException('--city contains unsupported characters');
+        }
+
         $cities = $this->mayorReport->cities();
 
-        return $cities[$cityKey] ?? $cities['taipei'];
+        if (! isset($cities[$cityKey])) {
+            throw new InvalidArgumentException('--city must be one of: '.implode(', ', array_keys($cities)));
+        }
+
+        return $cities[$cityKey];
     }
 
     /**
@@ -350,7 +389,9 @@ class MayorPersonAiIngestion
 
     private function date(?string $date, CarbonImmutable $now): string
     {
-        if (is_string($date) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        $date = AiCommandInputValidator::date($date, '--date');
+
+        if ($date !== null) {
             return $date;
         }
 

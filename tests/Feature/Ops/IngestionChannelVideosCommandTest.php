@@ -4,6 +4,7 @@ namespace Tests\Feature\Ops;
 
 use App\Services\Ingestion\ChannelVideosDiscoveryIngestion;
 use App\Services\Ingestion\ChannelVideosDiscoveryPreview;
+use App\Services\Ingestion\IngestionCommandLock;
 use App\Services\Ingestion\IngestionSchedulerRunner;
 use App\Services\Ingestion\TagDateCacheBuilder;
 use App\Services\Ingestion\YoutubeDataApiClient;
@@ -120,7 +121,9 @@ class IngestionChannelVideosCommandTest extends TestCase
         $this->assertSame(2, $payload['eligible_rows']);
         $this->assertSame(2, $payload['selected_rows']);
         $this->assertTrue($payload['would_call_api']);
-        $this->assertSame('2026-05-24 19:00:00', $payload['would_set_initial_vtime']);
+        $this->assertFalse($payload['initial_vtime_reservation']);
+        $this->assertSame('after_video_schedule_live_writes', $payload['success_vtime_update_order']);
+        $this->assertSame(5, $payload['database_failure_retry_minutes']);
         $this->assertSame([], $payload['writes']);
         $this->assertSame(1, $payload['rows'][0]['u_id']);
         $this->assertSame('uploads-null', $payload['rows'][0]['uploads']);
@@ -269,6 +272,82 @@ class IngestionChannelVideosCommandTest extends TestCase
         $this->assertSame('skip:controlled-execution-guardrail', $liveGroup['jobs'][0]['action']);
     }
 
+    public function test_youtube_channels_videos_manual_execute_uses_the_variant_job_lock(): void
+    {
+        config()->set('ingestion.lock_store', null);
+        config()->set('ingestion.youtube_daily_quota_budget', 9000);
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('services.youtube.api_keys', null);
+        $variants = [
+            'youtube.channels.videos.general' => [],
+            'youtube.channels.videos.live' => ['--live' => 1],
+            'youtube.channels.videos.live_group' => ['--live' => 2],
+        ];
+
+        foreach ($variants as $jobKey => $arguments) {
+            $lock = Cache::lock(IngestionCommandLock::name($jobKey), 600);
+            $this->assertTrue($lock->get());
+
+            try {
+                $exitCode = Artisan::call('youtube:channels:videos', [
+                    '--execute' => true,
+                    '--json' => true,
+                    ...$arguments,
+                ]);
+                $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+            } finally {
+                $lock->release();
+            }
+
+            $this->assertSame(1, $exitCode);
+            $this->assertSame('command_locked', $payload['blocked_reason']);
+            $this->assertSame(IngestionCommandLock::name($jobKey), $payload['youtube_quota_budget']['lock']['name']);
+        }
+
+        Http::assertNothingSent();
+    }
+
+    public function test_youtube_channels_videos_scheduler_executes_each_shared_command_without_a_second_lock(): void
+    {
+        config()->set('ingestion.lock_store', null);
+        config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.local_polling_enabled', true);
+        config()->set('ingestion.production_polling_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', [
+            'youtube.channels.videos.general',
+            'youtube.channels.videos.live',
+            'youtube.channels.videos.live_group',
+        ]);
+        config()->set('ingestion.youtube_daily_quota_budget', 9000);
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('services.youtube.api_keys', null);
+        Http::preventStrayRequests();
+        $this->createTables();
+        $variants = [
+            'youtube.channels.videos.general' => '2026-05-25 00:05:00',
+            'youtube.channels.videos.live' => '2026-05-25 02:05:00',
+            'youtube.channels.videos.live_group' => '2026-05-25 00:01:00',
+        ];
+
+        foreach ($variants as $jobKey => $at) {
+            $result = app(IngestionSchedulerRunner::class)->run(
+                at: CarbonImmutable::parse($at, 'Asia/Taipei'),
+                execute: true,
+                jobKey: $jobKey,
+            );
+            $job = $result['jobs'][0];
+
+            $this->assertSame('executed:local-polling', $job['action'], json_encode($job));
+            $this->assertTrue($job['executed']);
+            $this->assertFalse($job['failed']);
+            $this->assertSame(IngestionCommandLock::name($jobKey), $job['lock']['name']);
+            $this->assertStringNotContainsString('command_lock_mapping_unavailable', $job['output']);
+            $this->assertStringNotContainsString('command_locked', $job['output']);
+        }
+
+        Http::assertNothingSent();
+    }
+
     public function test_youtube_channels_videos_execute_requires_api_key_before_upsert(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
@@ -406,7 +485,6 @@ class IngestionChannelVideosCommandTest extends TestCase
                             'playlistId' => 'UU-execute',
                             'position' => 0,
                             'resourceId' => ['videoId' => 'video-execute-a'],
-                            'liveBroadcastContent' => 'none',
                         ],
                     ],
                     [
@@ -421,7 +499,6 @@ class IngestionChannelVideosCommandTest extends TestCase
                             'playlistId' => 'UU-execute',
                             'position' => 1,
                             'resourceId' => ['videoId' => 'video-execute-live'],
-                            'liveBroadcastContent' => 'upcoming',
                         ],
                     ],
                 ],
@@ -485,6 +562,20 @@ class IngestionChannelVideosCommandTest extends TestCase
             'uploads' => 'UU-malformed',
             'videoCount' => 100,
         ]);
+        DB::table('urt_video')->insert([
+            'ctime' => '2026-05-24 00:00:00',
+            'u_id' => 10,
+            'id' => 'existing-playlist-item',
+            'videoId' => 'video-50',
+            'publishedAt' => '2026-05-24 11:00:00',
+            'channelId' => 'UC-existing',
+            'title' => 'Existing Valid Title',
+            'thumbnails' => 'https://img.youtube.test/existing.jpg',
+            'channelTitle' => 'Existing Valid Channel',
+            'playlistId' => 'UU-existing',
+            'position' => 49,
+            'description' => 'Existing valid description',
+        ]);
         $items = collect(range(1, 50))
             ->map(fn (int $index): array => $this->playlistItem(
                 'item-'.$index,
@@ -493,7 +584,7 @@ class IngestionChannelVideosCommandTest extends TestCase
                 'Upload '.$index,
             ))
             ->all();
-        unset($items[49]['snippet']['resourceId']['videoId']);
+        $items[49]['snippet']['publishedAt'] = '2026-02-30T03:00:00Z';
         Http::fake([
             'www.googleapis.com/youtube/v3/playlistItems*' => Http::response([
                 'nextPageToken' => 'MORE-UPLOADS',
@@ -515,7 +606,10 @@ class IngestionChannelVideosCommandTest extends TestCase
         $this->assertSame(0, $payload['updated_channels']);
         $this->assertSame('playlist_api_error', $payload['skipped'][0]['reason']);
         $this->assertSame('2026-05-25 13:00:00', DB::table('urt_channel')->where('u_id', 10)->value('vtime'));
-        $this->assertSame(0, DB::table('urt_video')->count());
+        $this->assertSame(1, DB::table('urt_video')->count());
+        $this->assertSame('Existing Valid Title', DB::table('urt_video')->where('videoId', 'video-50')->value('title'));
+        $this->assertSame('https://img.youtube.test/existing.jpg', DB::table('urt_video')->where('videoId', 'video-50')->value('thumbnails'));
+        $this->assertSame('Existing valid description', DB::table('urt_video')->where('videoId', 'video-50')->value('description'));
         $this->assertSame(0, DB::table('urt_video_schedule')->count());
         $this->assertSame(0, DB::table('urt_video_live')->count());
         Http::assertSentCount(1);
@@ -657,13 +751,15 @@ class IngestionChannelVideosCommandTest extends TestCase
         Http::assertSentCount(5);
     }
 
-    public function test_channel_video_discovery_isolates_a_database_failure_and_returns_nonzero_summary(): void
+    public function test_channel_video_discovery_rotates_database_failure_and_idempotently_completes_partial_writes(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
         config()->set('services.youtube.api_key', 'test-key');
         config()->set('services.youtube.api_keys', null);
+        config()->set('services.youtube.transient_retries', 0);
         $this->createTables();
+        Log::spy();
 
         DB::table('urt_channel')->insert([
             [
@@ -684,9 +780,9 @@ class IngestionChannelVideosCommandTest extends TestCase
             ],
         ]);
         DB::statement(<<<'SQL'
-CREATE TRIGGER fail_first_channel_video
-BEFORE INSERT ON urt_video
-WHEN NEW.videoId = 'a-fail'
+CREATE TRIGGER fail_first_channel_schedule
+BEFORE INSERT ON urt_video_schedule
+WHEN NEW.videoId = 'a-retry'
 BEGIN
     SELECT RAISE(FAIL, 'token=super-secret');
 END
@@ -694,25 +790,58 @@ SQL);
 
         Http::fakeSequence()
             ->push([
-                'items' => [$this->playlistItem('item-fail', 'a-fail', '2026-05-25T03:00:00Z', 'Failing video')],
+                'items' => [$this->playlistItem('item-retry', 'a-retry', '2026-05-25T03:00:00Z', 'Partially written video')],
             ])
             ->push([
                 'items' => [$this->playlistItem('item-success', 'b-success', '2026-05-25T03:00:00Z', 'Successful video')],
+            ])
+            ->push([
+                'items' => [$this->playlistItem('item-retry', 'a-retry', '2026-05-25T03:00:00Z', 'Recovered retry video')],
             ]);
 
-        $payload = app(ChannelVideosDiscoveryIngestion::class)->execute(limit: 2, maxResults: 1);
+        $ingestion = app(ChannelVideosDiscoveryIngestion::class);
+        $failed = $ingestion->execute(limit: 1, maxResults: 1);
 
-        $this->assertSame(1, $payload['exit_code']);
-        $this->assertSame(
-            1,
-            $payload['failed_channels'],
-            json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
-        );
-        $this->assertSame(1, $payload['updated_channels']);
-        $this->assertSame('item_processing_failed', $payload['skipped'][0]['reason']);
-        $this->assertStringNotContainsString('super-secret', json_encode($payload, JSON_THROW_ON_ERROR));
-        $this->assertFalse(DB::table('urt_video')->where('videoId', 'a-fail')->exists());
+        $this->assertSame(1, $failed['exit_code']);
+        $this->assertSame(1, $failed['failed_channels']);
+        $this->assertSame(0, $failed['updated_channels']);
+        $this->assertSame('item_processing_failed', $failed['skipped'][0]['reason']);
+        $this->assertSame('database_failure_cooldown', $failed['skipped'][0]['retry_state']);
+        $this->assertSame('2026-05-25 12:05:00', $failed['skipped'][0]['retry_vtime']);
+        $this->assertSame(5, $failed['skipped'][0]['retry_cooldown_minutes']);
+        $this->assertSame('2026-05-25 12:05:00', (string) DB::table('urt_channel')->where('u_id', 10)->value('vtime'));
+        $this->assertStringNotContainsString('super-secret', json_encode($failed, JSON_THROW_ON_ERROR));
+        $this->assertTrue(DB::table('urt_video')->where('videoId', 'a-retry')->exists());
+        $this->assertFalse(DB::table('urt_video_schedule')->where('videoId', 'a-retry')->exists());
+
+        $laterChannel = $ingestion->execute(limit: 1, maxResults: 1);
+
+        $this->assertSame(0, $laterChannel['exit_code']);
+        $this->assertSame(11, $laterChannel['applied'][0]['u_id']);
         $this->assertTrue(DB::table('urt_video')->where('videoId', 'b-success')->exists());
+
+        DB::statement('DROP TRIGGER fail_first_channel_schedule');
+        $retried = $ingestion->execute(
+            limit: 1,
+            maxResults: 1,
+            now: CarbonImmutable::parse('2026-05-25 12:05:00', 'Asia/Taipei'),
+        );
+
+        $this->assertSame(0, $retried['exit_code']);
+        $this->assertSame(10, $retried['applied'][0]['u_id']);
+        $this->assertSame('2026-05-27 20:05:00', $retried['applied'][0]['final_vtime']);
+        $this->assertSame(1, DB::table('urt_video')->where('videoId', 'a-retry')->count());
+        $this->assertSame('Recovered retry video', DB::table('urt_video')->where('videoId', 'a-retry')->value('title'));
+        $this->assertSame(1, DB::table('urt_video_schedule')->where('videoId', 'a-retry')->count());
+        $this->assertSame('2026-05-27 20:05:00', (string) DB::table('urt_channel')->where('u_id', 10)->value('vtime'));
+        Http::assertSentCount(3);
+        Log::shouldHaveReceived('warning')->withArgs(
+            fn (string $message, array $context): bool => $message === 'Channel video discovery item processing failed.'
+                && $context['u_id'] === 10
+                && $context['retry_state'] === 'database_failure_cooldown'
+                && $context['retry_vtime'] === '2026-05-25 12:05:00'
+                && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'super-secret'),
+        );
     }
 
     public function test_channel_video_discovery_stops_after_quota_reset_and_preserves_retry_state(): void
@@ -877,6 +1006,95 @@ SQL);
         $this->assertSame(0, $payload['youtube_quota_budget']['reserved_units']);
         $this->assertFalse($payload['youtube_quota_budget']['reservation_active']);
         Http::assertSentCount(2);
+    }
+
+    public function test_youtube_tag_videos_backfill_rejects_invalid_explicit_dates_before_quota_or_writes(): void
+    {
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('ingestion.youtube_daily_quota_budget', 9000);
+        $this->createTables();
+        Http::preventStrayRequests();
+
+        foreach ([
+            ['--from' => '2026-02-31', '--to' => '2026-03-01'],
+            ['--from' => '2026-04-01', '--to' => '2026-04-31'],
+        ] as $dates) {
+            $exitCode = Artisan::call('youtube:tag-videos:backfill', [
+                '--tagid' => 102,
+                ...$dates,
+                '--execute' => true,
+                '--limit' => 1,
+                '--max-pages' => 1,
+                '--json' => true,
+            ]);
+            $payload = json_decode(trim(Artisan::output()), true);
+
+            $this->assertSame(1, $exitCode);
+            $this->assertSame('execute', $payload['mode']);
+            $this->assertFalse($payload['available']);
+            $this->assertSame('invalid_date', $payload['blocked_reason']);
+            $this->assertSame('date_options_must_be_valid_calendar_dates', $payload['error']);
+            $this->assertSame(0, $payload['writes']);
+        }
+
+        $this->assertSame(0, DB::table('ingestion_youtube_quota_daily')->count());
+        $this->assertSame(0, DB::table('urt_video')->count());
+        $this->assertSame(0, DB::table('urt_video_schedule')->count());
+        $this->assertSame(0, DB::table('urt_video_live')->count());
+        Http::assertNothingSent();
+    }
+
+    public function test_youtube_tag_videos_backfill_and_scheduler_fail_when_no_channels_are_selected(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-26 00:15:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-26 00:15:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('services.youtube.api_keys', null);
+        config()->set('ingestion.youtube_daily_quota_budget', 9000);
+        $this->createTables();
+        Http::preventStrayRequests();
+
+        $exitCode = Artisan::call('youtube:tag-videos:backfill', [
+            '--tagid' => 102,
+            '--from' => '2026-05-25',
+            '--to' => '2026-05-25',
+            '--execute' => true,
+            '--limit' => 10,
+            '--max-pages' => 1,
+            '--max-results' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('failed', $payload['status']);
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertFalse($payload['crawl_complete']);
+        $this->assertSame(0, $payload['selected_channels']);
+        $this->assertSame('no_channels_selected', $payload['tag_date_rebuild_skipped_reason']);
+        $this->assertSame(0, $payload['tag_date_writes']);
+        $this->assertSame(0, $payload['youtube_quota_budget']['actual_units']);
+        Http::assertNothingSent();
+
+        config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.local_polling_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['youtube.tag_videos.backfill']);
+
+        $result = app(IngestionSchedulerRunner::class)->run(
+            at: CarbonImmutable::parse('2026-05-26 03:17:00', 'Asia/Taipei'),
+            execute: true,
+            jobKey: 'youtube.tag_videos.backfill',
+        );
+        $job = $result['jobs'][0];
+
+        $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 0, 'skipped' => 0, 'failed' => 1], $result['summary']);
+        $this->assertSame('failed', $job['action']);
+        $this->assertFalse($job['executed']);
+        $this->assertTrue($job['failed']);
+        $this->assertSame(1, $job['exit_code']);
+        $this->assertStringContainsString('crawl_complete=no', $job['output']);
+        $this->assertStringContainsString('tag_date_skip=no_channels_selected', $job['output']);
+        Http::assertNothingSent();
     }
 
     public function test_youtube_tag_videos_backfill_marks_a_complete_zero_video_crawl_as_covered(): void
@@ -1528,7 +1746,7 @@ SQL);
         string $broadcast = 'none',
         string $thumbnail = 'https://img.youtube.test/default.jpg',
     ): array {
-        return [
+        $item = [
             'id' => $itemId,
             'snippet' => [
                 'publishedAt' => $publishedAt,
@@ -1540,8 +1758,13 @@ SQL);
                 'playlistId' => 'UU-news',
                 'position' => 0,
                 'resourceId' => ['videoId' => $videoId],
-                'liveBroadcastContent' => $broadcast,
             ],
         ];
+
+        if ($broadcast !== 'none') {
+            $item['snippet']['liveBroadcastContent'] = $broadcast;
+        }
+
+        return $item;
     }
 }

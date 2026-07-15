@@ -12,6 +12,8 @@ use Throwable;
 
 class VideoStatisticsIngestion
 {
+    private const REJECTED_ITEM_RETRY_MINUTES = 5;
+
     public function __construct(
         private readonly VideoStatisticsPreview $preview,
         private readonly YoutubeDataApiClient $youtube,
@@ -66,6 +68,24 @@ class VideoStatisticsIngestion
                     $batchRows->pluck('video_id')->map(fn (mixed $id): string => (string) $id)->all(),
                 );
                 $apiBatchesCompleted++;
+            } catch (YoutubeApiKeyPoolExhaustedException $exception) {
+                $remainingRows = $rows->slice($processedRows)->values();
+                $remainingRetryRows = $remainingRows->count();
+                $skipped = [
+                    ...$skipped,
+                    ...$remainingRows->map(fn (array $row): array => [
+                        'videoId' => (string) $row['video_id'],
+                        'reason' => $exception->failureReason(),
+                    ])->all(),
+                ];
+                Log::warning('Video statistics polling paused after all YouTube API keys failed.', [
+                    'reason' => $exception->failureReason(),
+                    'remaining_retry_rows' => $remainingRetryRows,
+                    'api_batches_attempted' => $apiBatchesAttempted,
+                    'exception_class' => $exception::class,
+                ]);
+
+                break;
             } catch (YoutubeQuotaWindowException $exception) {
                 $quotaWindowReset = true;
                 $remainingRows = $rows->slice($processedRows)->values();
@@ -112,17 +132,20 @@ class VideoStatisticsIngestion
                     $statistics = $statisticsByVideo[$rowVideoId] ?? null;
 
                     if ($statistics === null) {
+                        $this->deferRejectedRow($row, $now);
                         $skipped[] = [
                             'videoId' => $rowVideoId,
                             'reason' => 'api_item_missing',
                         ];
+                        Log::warning('Video statistics source item rejected.', [
+                            'video_id' => $rowVideoId,
+                            'reason' => 'api_item_missing',
+                        ]);
 
                         continue;
                     }
 
-                    DB::transaction(function () use ($row, $statistics, $now): void {
-                        $this->upsertStatistics($row, $statistics, $now);
-                    });
+                    $this->upsertStatistics($row, $statistics, $now);
 
                     $applied[] = [
                         'videoId' => $rowVideoId,
@@ -161,7 +184,7 @@ class VideoStatisticsIngestion
 
     /**
      * @param  array<string, mixed>  $row
-     * @param  array{viewCount: int, likeCount: int, dislikeCount: int, favoriteCount: int, commentCount: int}  $statistics
+     * @param  array{viewCount: int, likeCount: int|null, dislikeCount: int, favoriteCount: int|null, commentCount: int|null}  $statistics
      */
     private function upsertStatistics(array $row, array $statistics, CarbonImmutable $now): void
     {
@@ -169,27 +192,9 @@ class VideoStatisticsIngestion
         $nowString = $now->format('Y-m-d H:i:s');
         $month = $now->format('Y-m-01');
         $date = $now->toDateString();
-        $reserveUntil = $now->addDays(30)->format('Y-m-d H:i:s');
         $publishedAt = (string) ($row['published_at'] ?? $nowString);
-
-        $this->upsertByKeys('urt_video_log_history', ['videoId' => $videoId, 'ctime' => $nowString], [
-            'viewCount' => $statistics['viewCount'],
-            'likeCount' => $statistics['likeCount'],
-            'dislikeCount' => $statistics['dislikeCount'],
-            'favoriteCount' => $statistics['favoriteCount'],
-            'commentCount' => $statistics['commentCount'],
-        ]);
-
-        $this->upsertByKeys('urt_video_schedule', ['videoId' => $videoId], [
-            'ctime' => $nowString,
-            'mtime' => $nowString,
-            'stime' => $reserveUntil,
-            'publishedAt' => $publishedAt,
-            'viewCount' => $statistics['viewCount'],
-            'likeCount' => $statistics['likeCount'],
-            'commentCount' => $statistics['commentCount'],
-        ]);
-
+        $source = (string) ($row['source'] ?? 'urt_video_schedule');
+        // Production legacy tables may be MyISAM, so validate and publish history before source freshness.
         $existingLog = Schema::hasTable('urt_video_log')
             ? DB::table('urt_video_log')->where('videoId', $videoId)->where('themonth', $month)->first()
             : null;
@@ -201,13 +206,75 @@ class VideoStatisticsIngestion
             throw new RuntimeException('Existing video statistics history JSON is not an object or array.');
         }
 
-        if ($statistics['viewCount'] + $statistics['likeCount'] > 0) {
-            $data[$date] = [
-                'view' => $statistics['viewCount'],
-                'like' => $statistics['likeCount'],
-                'dislike' => $statistics['dislikeCount'],
-                'comment' => $statistics['commentCount'],
-            ];
+        $existingVideo = Schema::hasTable('urt_video')
+            ? DB::table('urt_video')->where('videoId', $videoId)->first()
+            : null;
+        $existingSchedule = Schema::hasTable('urt_video_schedule')
+            ? DB::table('urt_video_schedule')->where('videoId', $videoId)->first()
+            : null;
+        $nextCheckAt = $this->estimateNextCheck(
+            previousObservation: $existingSchedule ?? $existingVideo,
+            currentViewCount: $statistics['viewCount'],
+            publishedAt: $publishedAt,
+            now: $now,
+        );
+        $latestHistory = Schema::hasTable('urt_video_log_history')
+            ? DB::table('urt_video_log_history')->where('videoId', $videoId)->orderByDesc('pk')->first()
+            : null;
+        $videoLikeCount = $this->firstKnownCount([
+            $statistics['likeCount'],
+            $existingVideo->likeCount ?? null,
+            $existingSchedule->likeCount ?? null,
+            $latestHistory->likeCount ?? null,
+        ]);
+        $scheduleLikeCount = $this->firstKnownCount([
+            $statistics['likeCount'],
+            $existingSchedule->likeCount ?? null,
+            $existingVideo->likeCount ?? null,
+            $latestHistory->likeCount ?? null,
+        ]);
+        $favoriteCount = $this->firstKnownCount([
+            $statistics['favoriteCount'],
+            $existingVideo->favoriteCount ?? null,
+            $latestHistory->favoriteCount ?? null,
+        ]);
+        $videoCommentCount = $this->firstKnownCount([
+            $statistics['commentCount'],
+            $existingVideo->commentCount ?? null,
+            $existingSchedule->commentCount ?? null,
+            $latestHistory->commentCount ?? null,
+        ]);
+        $scheduleCommentCount = $this->firstKnownCount([
+            $statistics['commentCount'],
+            $existingSchedule->commentCount ?? null,
+            $existingVideo->commentCount ?? null,
+            $latestHistory->commentCount ?? null,
+        ]);
+
+        if ($statistics['viewCount'] + ($videoLikeCount ?? 0) > 0) {
+            $point = is_array($data[$date] ?? null) ? $data[$date] : [];
+            $point['view'] = $statistics['viewCount'];
+            $point['dislike'] = $statistics['dislikeCount'];
+
+            if ($videoLikeCount !== null) {
+                $point['like'] = $videoLikeCount;
+            }
+
+            if ($videoCommentCount !== null) {
+                $point['comment'] = $videoCommentCount;
+            }
+
+            $data[$date] = $point;
+        }
+
+        if ($videoLikeCount !== null && $favoriteCount !== null && $videoCommentCount !== null) {
+            $this->upsertByKeys('urt_video_log_history', ['videoId' => $videoId, 'ctime' => $nowString], [
+                'viewCount' => $statistics['viewCount'],
+                'likeCount' => $videoLikeCount,
+                'dislikeCount' => $statistics['dislikeCount'],
+                'favoriteCount' => $favoriteCount,
+                'commentCount' => $videoCommentCount,
+            ]);
         }
 
         $logValues = [
@@ -221,15 +288,137 @@ class VideoStatisticsIngestion
 
         $this->upsertByKeys('urt_video_log', ['videoId' => $videoId, 'themonth' => $month], $logValues);
 
-        $this->updateByKeys('urt_video', ['videoId' => $videoId], [
+        $scheduleValues = [
+            'ctime' => $nowString,
             'mtime' => $nowString,
-            'stime' => $reserveUntil,
+            'stime' => $nextCheckAt,
             'publishedAt' => $publishedAt,
             'viewCount' => $statistics['viewCount'],
-            'likeCount' => $statistics['likeCount'],
+        ];
+        $videoValues = [
+            'mtime' => $nowString,
+            'stime' => $nextCheckAt,
+            'publishedAt' => $publishedAt,
+            'viewCount' => $statistics['viewCount'],
             'dislikeCount' => $statistics['dislikeCount'],
-            'favoriteCount' => $statistics['favoriteCount'],
-            'commentCount' => $statistics['commentCount'],
+        ];
+
+        if ($scheduleLikeCount !== null) {
+            $scheduleValues['likeCount'] = $scheduleLikeCount;
+        }
+
+        if ($videoLikeCount !== null) {
+            $videoValues['likeCount'] = $videoLikeCount;
+        }
+
+        if ($favoriteCount !== null) {
+            $videoValues['favoriteCount'] = $favoriteCount;
+        }
+
+        if ($scheduleCommentCount !== null) {
+            $scheduleValues['commentCount'] = $scheduleCommentCount;
+        }
+
+        if ($videoCommentCount !== null) {
+            $videoValues['commentCount'] = $videoCommentCount;
+        }
+
+        if ($source === 'urt_video') {
+            $this->upsertByKeys('urt_video_schedule', ['videoId' => $videoId], $scheduleValues);
+            $this->updateByKeys('urt_video', ['videoId' => $videoId], $videoValues);
+
+            return;
+        }
+
+        $this->updateByKeys('urt_video', ['videoId' => $videoId], collect($videoValues)->except(['mtime', 'stime'])->all());
+        $this->upsertByKeys('urt_video_schedule', ['videoId' => $videoId], $scheduleValues);
+    }
+
+    private function estimateNextCheck(
+        ?object $previousObservation,
+        int $currentViewCount,
+        string $publishedAt,
+        CarbonImmutable $now,
+    ): string {
+        $timezone = $now->getTimezone();
+        $previousTime = null;
+        $previousViewCount = 0;
+
+        if ($previousObservation !== null && ($previousObservation->mtime ?? null) !== null) {
+            try {
+                $candidateTime = CarbonImmutable::parse((string) $previousObservation->mtime, $timezone);
+                $candidateViewCount = $this->firstKnownCount([$previousObservation->viewCount ?? null]);
+
+                if ($candidateTime->lessThan($now) && $candidateViewCount !== null) {
+                    $previousTime = $candidateTime;
+                    $previousViewCount = $candidateViewCount;
+                }
+            } catch (Throwable) {
+                $previousTime = null;
+            }
+        }
+
+        if ($previousTime === null) {
+            try {
+                $previousTime = CarbonImmutable::parse($publishedAt, $timezone);
+            } catch (Throwable) {
+                $previousTime = $now->subHours(2);
+            }
+
+            if (! $previousTime->lessThan($now)) {
+                $previousTime = $now->subHours(2);
+            }
+        }
+
+        $viewDelta = max(1, $currentViewCount - $previousViewCount);
+        $periodSeconds = max(1, $now->getTimestamp() - $previousTime->getTimestamp() + 1);
+        $viewsPerHour = $viewDelta / ($periodSeconds / 3600);
+        $hoursPerThousandViews = $viewsPerHour > 0 ? 1000 / $viewsPerHour : 3000;
+
+        if ($hoursPerThousandViews > 1000) {
+            $hoursPerThousandViews = 3000;
+        }
+
+        if ($hoursPerThousandViews < 2) {
+            $hoursPerThousandViews = 2;
+        }
+
+        return $now
+            ->addSeconds((int) round($hoursPerThousandViews * 3600))
+            ->format('Y-m-d H:i:s');
+    }
+
+    /**
+     * @param  list<mixed>  $values
+     */
+    private function firstKnownCount(array $values): ?int
+    {
+        foreach ($values as $value) {
+            if (is_int($value) && $value >= 0) {
+                return $value;
+            }
+
+            if (is_string($value) && preg_match('/^\d+$/D', $value) === 1) {
+                return (int) $value;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private function deferRejectedRow(array $row, CarbonImmutable $now): void
+    {
+        $source = (string) ($row['source'] ?? 'urt_video_schedule');
+        $table = $source === 'urt_video' ? 'urt_video' : 'urt_video_schedule';
+        $keys = isset($row['pk']) && (int) $row['pk'] > 0
+            ? ['pk' => (int) $row['pk']]
+            : ['videoId' => (string) ($row['video_id'] ?? '')];
+
+        $this->updateByKeys($table, $keys, [
+            'stime' => $now->addMinutes(self::REJECTED_ITEM_RETRY_MINUTES)->format('Y-m-d H:i:s'),
         ]);
     }
 
@@ -334,6 +523,8 @@ class VideoStatisticsIngestion
             'api_item_missing',
             'item_processing_failed',
             'quota_window_reset',
+            YoutubeApiKeyPoolExhaustedException::AUTHENTICATION_FAILURE,
+            YoutubeApiKeyPoolExhaustedException::QUOTA_FAILURE,
         ])->count();
 
         return [

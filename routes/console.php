@@ -1,6 +1,7 @@
 <?php
 
 use App\Console\GuardedClosureCommand;
+use App\Services\Ingestion\AiCommandInputValidator;
 use App\Services\Ingestion\AiDailyIngestion;
 use App\Services\Ingestion\AiDailyPreview;
 use App\Services\Ingestion\AiDaysRefreshIngestion;
@@ -24,6 +25,7 @@ use App\Services\Ingestion\CommentQueueIngestion;
 use App\Services\Ingestion\CommentQueuePreview;
 use App\Services\Ingestion\DirectYoutubeQuotaGuard;
 use App\Services\Ingestion\GroupReportsPreview;
+use App\Services\Ingestion\IngestionCommandLock;
 use App\Services\Ingestion\IngestionHealthCheck;
 use App\Services\Ingestion\IngestionJobRegistry;
 use App\Services\Ingestion\IngestionRunHistory;
@@ -192,13 +194,14 @@ Artisan::command('ai:provider:probe {--provider=both : primary/openai, fallback,
 
 Artisan::command('ingestion:run {--execute : Execute active due jobs instead of dry-running} {--dry-run : Force dry-run even when --execute is also supplied} {--record : Store the run result in local ingestion run history} {--at= : Timestamp to evaluate, for deterministic checks} {--job= : Evaluate one registry job key} {--all : Include jobs that are not currently due}', function (IngestionSchedulerRunner $runner, IngestionRunHistory $history) {
     $timezone = config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
+    $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
     $at = $this->option('at')
         ? CarbonImmutable::parse((string) $this->option('at'), $timezone)
         : CarbonImmutable::now($timezone);
 
     $result = $runner->run(
         at: $at,
-        execute: (bool) $this->option('execute') && ! (bool) $this->option('dry-run'),
+        execute: $execute,
         jobKey: $this->option('job') ? (string) $this->option('job') : null,
         showAll: (bool) $this->option('all'),
     );
@@ -231,7 +234,7 @@ Artisan::command('ingestion:run {--execute : Execute active due jobs instead of 
 
     if ((bool) $this->option('record')) {
         $record = $history->record($result, [
-            'mode' => (bool) $this->option('execute') ? 'execute' : 'dry-run',
+            'mode' => $execute ? 'execute' : 'dry-run',
             'job' => $this->option('job') ? (string) $this->option('job') : null,
             'at' => $at->toDateTimeString().' '.$at->getTimezone()->getName(),
             'show_all' => (bool) $this->option('all'),
@@ -359,7 +362,7 @@ Artisan::command('youtube:channels:stats {--u_id= : Optional channel u_id to pre
                     $row['u_id'],
                     $row['youtube_id'],
                     number_format($row['viewCount']),
-                    number_format($row['subscriberCount']),
+                    $row['subscriberCount'] !== null ? number_format($row['subscriberCount']) : 'hidden',
                     number_format($row['videoCount']),
                 ));
             }
@@ -446,6 +449,37 @@ Artisan::command('youtube:tag-videos:backfill {--tagid=102 : Comma-separated req
     }
 
     $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
+    $from = $this->option('from');
+    $to = $this->option('to');
+    $validDate = static function (mixed $date): bool {
+        if (! is_string($date)) {
+            return false;
+        }
+
+        $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+
+        return $parsed instanceof DateTimeImmutable && $parsed->format('Y-m-d') === $date;
+    };
+
+    if (($from !== null && ! $validDate($from)) || ($to !== null && ! $validDate($to))) {
+        $payload = [
+            'mode' => $execute ? 'execute' : 'dry-run',
+            'available' => false,
+            'blocked_reason' => 'invalid_date',
+            'error' => 'date_options_must_be_valid_calendar_dates',
+            'writes' => 0,
+            'secrets' => 'not_printed',
+        ];
+
+        if ((bool) $this->option('json')) {
+            $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        } else {
+            $this->error('youtube:tag-videos:backfill date options must be valid calendar dates in YYYY-MM-DD');
+        }
+
+        return 1;
+    }
+
     $limit = max(1, min(500, (int) $this->option('limit')));
     $maxPages = max(1, min(200, (int) $this->option('max-pages')));
     $maxResults = max(1, min(50, (int) $this->option('max-results')));
@@ -455,8 +489,8 @@ Artisan::command('youtube:tag-videos:backfill {--tagid=102 : Comma-separated req
             tagIds: $tagIds,
             orTagIds: $ids('or'),
             notTagIds: $ids('not'),
-            from: $this->option('from') ? (string) $this->option('from') : null,
-            to: $this->option('to') ? (string) $this->option('to') : null,
+            from: is_string($from) ? $from : null,
+            to: is_string($to) ? $to : null,
             days: (int) $this->option('days'),
             limit: $limit,
             maxPages: $maxPages,
@@ -547,7 +581,7 @@ Artisan::command('youtube:tag-videos:backfill {--tagid=102 : Comma-separated req
     return (int) ($payload['exit_code'] ?? ((int) ($payload['failed_channels'] ?? 0) > 0 ? 1 : 0));
 })->purpose('Paginated uploads crawl for all channels in a tag, then rebuild local tag-date cache');
 
-Artisan::command('youtube:channels:videos {--id= : Optional legacy channel u_id to preview} {--channel= : Alias for --id when running a local execute smoke} {--live= : Legacy live filter, 1 uses tag 52 and 2 uses tag 89} {--rescan : Preview legacy large-channel rescan branch} {--hours=700 : Legacy hours option, retained for compatibility} {--force=1 : Legacy duplicate-process threshold, shown only} {--limit=20 : Number of channels to print, capped at legacy loop count} {--max-results=5 : Execute-mode playlist item cap, max 50} {--execute : Call YouTube and write selected playlist items to local DB} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (ChannelVideosDiscoveryPreview $preview, ChannelVideosDiscoveryIngestion $ingestion, DirectYoutubeQuotaGuard $quotaGuard) {
+Artisan::command('youtube:channels:videos {--id= : Optional legacy channel u_id to preview} {--channel= : Alias for --id when running a local execute smoke} {--live= : Legacy live filter, 1 uses tag 52 and 2 uses tag 89} {--rescan : Preview legacy large-channel rescan branch} {--hours=700 : Legacy hours option, retained for compatibility} {--force=1 : Legacy duplicate-process threshold, shown only} {--limit=20 : Number of channels to print, capped at legacy loop count} {--max-results=5 : Execute-mode playlist item cap, max 50} {--execute : Call YouTube and write selected playlist items to local DB} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (ChannelVideosDiscoveryPreview $preview, ChannelVideosDiscoveryIngestion $ingestion, DirectYoutubeQuotaGuard $quotaGuard, IngestionCommandLock $commandLock) {
     $channelOption = $this->option('channel') ?? $this->option('id');
     $uId = $channelOption !== null ? max(1, (int) $channelOption) : null;
     $live = $this->option('live') !== null ? (int) $this->option('live') : null;
@@ -560,11 +594,26 @@ Artisan::command('youtube:channels:videos {--id= : Optional legacy channel u_id 
     try {
         if ($execute) {
             $executeLimit = min($limit, 10);
-            $jobKey = match ($live) {
-                1 => 'youtube.channels.videos.live',
-                2 => 'youtube.channels.videos.live_group',
-                default => 'youtube.channels.videos.general',
-            };
+            $jobKey = $commandLock->jobKeyForCommand('youtube:channels:videos', ['live' => $live]);
+
+            if ($jobKey === null) {
+                $blocked = [
+                    'mode' => 'execute',
+                    'available' => false,
+                    'blocked_reason' => 'command_lock_mapping_unavailable',
+                    'writes' => 0,
+                    'job_key' => null,
+                    'lock' => null,
+                    'secrets' => 'not_printed',
+                    'exit_code' => 1,
+                ];
+                $this->line((bool) $this->option('json')
+                    ? json_encode($blocked, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                    : 'youtube:channels:videos execute unavailable: command_lock_mapping_unavailable secrets=not_printed');
+
+                return 1;
+            }
+
             $quotaRun = $quotaGuard->run(
                 jobKey: $jobKey,
                 effectiveCommand: sprintf('youtube:channels:videos --execute --limit=%d --max-results=%d', $executeLimit, $maxResults),
@@ -1573,15 +1622,27 @@ $guardedIngestionCommand('reports:tag-date:build {--tagid= : Comma-separated req
         return 1;
     }
 
+    $validDate = static function (string $date): bool {
+        $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+
+        return $parsed instanceof DateTimeImmutable && $parsed->format('Y-m-d') === $date;
+    };
     $to = $this->option('date')
         ? (string) $this->option('date')
         : ($this->option('to') ? (string) $this->option('to') : $now->subDays(max(0, (int) $this->option('today')))->toDateString());
+
+    if (! $validDate($to)) {
+        $this->error('reports:tag-date:build date options must be valid calendar dates in YYYY-MM-DD');
+
+        return 1;
+    }
+
     $from = $this->option('date')
         ? $to
         : ($this->option('from') ? (string) $this->option('from') : CarbonImmutable::parse($to, $timezone)->subDays(max(1, (int) $this->option('days')) - 1)->toDateString());
 
-    if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) {
-        $this->error('reports:tag-date:build date options must use YYYY-MM-DD');
+    if (! $validDate($from)) {
+        $this->error('reports:tag-date:build date options must be valid calendar dates in YYYY-MM-DD');
 
         return 1;
     }
@@ -2775,16 +2836,21 @@ $guardedIngestionCommand('ai:channel {u_id : Channel u_id} {--from= : Required s
 
     try {
         $arguments = [
-            'uId' => max(1, (int) $this->argument('u_id')),
-            'from' => $from,
-            'to' => $this->option('to') ? (string) $this->option('to') : null,
+            'uId' => AiCommandInputValidator::integer($this->argument('u_id'), 'u_id', 1),
+            'from' => AiCommandInputValidator::date($from, '--from'),
+            'to' => is_string($this->option('to'))
+                ? AiCommandInputValidator::date((string) $this->option('to'), '--to')
+                : null,
             'dataType' => (string) $this->option('type'),
-            'limit' => (int) $this->option('limit'),
+            'limit' => AiCommandInputValidator::integer($this->option('limit'), '--limit', 1),
         ];
         $payload = $execute
             ? $ingestion->execute(...$arguments, userToken: (string) $this->option('user-token'))
             : $ingestion->preview(...$arguments);
-        $failed = $execute && ($payload['skip_reason'] ?? null) === 'command_locked';
+        $failed = $execute && (
+            (bool) ($payload['failed'] ?? false)
+            || (int) ($payload['exit_code'] ?? 0) !== 0
+        );
 
         if ((bool) $this->option('json')) {
             $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
@@ -2829,18 +2895,24 @@ $guardedIngestionCommand('ai:channel {u_id : Channel u_id} {--from= : Required s
 $guardedIngestionCommand('ai:daily {--date= : Legacy date, today, or yesterday; defaults to yesterday in Asia/Taipei} {--condition= : Optional single legacy condition; default previews make_ai_day.sh conditions} {--type=oneday : Legacy urt_channel_ai data_type} {--limit=1000 : Max channel AI rows per condition} {--channel-limit=39 : Max configured channels to refresh in execute mode} {--channel-offset=0 : Eligible configured channels to skip before refresh} {--channel-batch-size=0 : Refresh selected channels in chunks; 0 uses one batch} {--ai-call-limit=45 : Max logical AI completion chains; provider attempts within each chain are separately bounded} {--channel-video-limit=120 : Max videos in each channel prompt, hard max 500; 0 also uses 500} {--execute : Call the configured AI provider chain and upsert urt_channel_ai/urt_ai_date} {--dry-run : Force dry-run preview} {--user-token=CLI : user_token value for execute-mode upserts} {--json : Emit JSON instead of text}', function (AiDailyPreview $preview, AiDailyIngestion $ingestion) {
     try {
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
+        $limit = AiCommandInputValidator::integer($this->option('limit'), '--limit', 1);
+        $channelLimit = AiCommandInputValidator::integer($this->option('channel-limit'), '--channel-limit');
+        $channelOffset = AiCommandInputValidator::integer($this->option('channel-offset'), '--channel-offset');
+        $channelBatchSize = AiCommandInputValidator::integer($this->option('channel-batch-size'), '--channel-batch-size');
+        $aiCallLimit = AiCommandInputValidator::integer($this->option('ai-call-limit'), '--ai-call-limit');
+        $channelVideoLimit = AiCommandInputValidator::integer($this->option('channel-video-limit'), '--channel-video-limit');
 
         if ($execute) {
             $payload = $ingestion->execute(
-                date: $this->option('date') ? (string) $this->option('date') : null,
-                condition: $this->option('condition') ? (string) $this->option('condition') : null,
+                date: is_string($this->option('date')) ? (string) $this->option('date') : null,
+                condition: is_string($this->option('condition')) ? (string) $this->option('condition') : null,
                 dataType: (string) $this->option('type'),
-                limit: (int) $this->option('limit'),
-                channelLimit: (int) $this->option('channel-limit'),
-                channelOffset: (int) $this->option('channel-offset'),
-                channelBatchSize: (int) $this->option('channel-batch-size'),
-                aiCallLimit: (int) $this->option('ai-call-limit'),
-                channelVideoLimit: (int) $this->option('channel-video-limit'),
+                limit: $limit,
+                channelLimit: $channelLimit,
+                channelOffset: $channelOffset,
+                channelBatchSize: $channelBatchSize,
+                aiCallLimit: $aiCallLimit,
+                channelVideoLimit: $channelVideoLimit,
                 userToken: (string) $this->option('user-token'),
             );
             $failed = (int) $payload['channel_ai']['failed'] + (int) $payload['daily_ai']['failed'];
@@ -2893,15 +2965,15 @@ $guardedIngestionCommand('ai:daily {--date= : Legacy date, today, or yesterday; 
         }
 
         $payload = $preview->preview(
-            date: $this->option('date') ? (string) $this->option('date') : null,
-            condition: $this->option('condition') ? (string) $this->option('condition') : null,
+            date: is_string($this->option('date')) ? (string) $this->option('date') : null,
+            condition: is_string($this->option('condition')) ? (string) $this->option('condition') : null,
             dataType: (string) $this->option('type'),
-            limit: (int) $this->option('limit'),
-            channelLimit: (int) $this->option('channel-limit'),
-            channelOffset: (int) $this->option('channel-offset'),
-            channelBatchSize: (int) $this->option('channel-batch-size'),
-            aiCallLimit: (int) $this->option('ai-call-limit'),
-            channelVideoLimit: (int) $this->option('channel-video-limit'),
+            limit: $limit,
+            channelLimit: $channelLimit,
+            channelOffset: $channelOffset,
+            channelBatchSize: $channelBatchSize,
+            aiCallLimit: $aiCallLimit,
+            channelVideoLimit: $channelVideoLimit,
         );
 
         if ((bool) $this->option('json')) {
@@ -2957,7 +3029,7 @@ $guardedIngestionCommand('ai:daily {--date= : Legacy date, today, or yesterday; 
         }
 
         return 0;
-    } catch (QueryException $exception) {
+    } catch (Throwable $exception) {
         $this->error('ai:daily unavailable: '.SensitiveTextRedactor::exception($exception, 240));
 
         return 1;
@@ -2967,14 +3039,19 @@ $guardedIngestionCommand('ai:daily {--date= : Legacy date, today, or yesterday; 
 $guardedIngestionCommand('ai:daily:pipeline {--date=yesterday : Date, today, or yesterday} {--limit=1000 : Max channel AI rows per condition} {--channel-limit=39 : Max configured channels to refresh} {--channel-batch-size=12 : Channel AI batch size} {--ai-call-limit=45 : Max logical AI completion chains; provider attempts within each chain are separately bounded} {--channel-video-limit=120 : Max videos in each channel prompt, hard max 500; 0 also uses 500} {--execute : Refresh complete YouTube sources before daily AI} {--dry-run : Preview both stages without writes} {--user-token=CLI : user_token for AI rows} {--json : Emit JSON}', function (AiScheduledPipelineIngestion $pipeline) {
     try {
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
+        $limit = AiCommandInputValidator::integer($this->option('limit'), '--limit', 1);
+        $channelLimit = AiCommandInputValidator::integer($this->option('channel-limit'), '--channel-limit');
+        $channelBatchSize = AiCommandInputValidator::integer($this->option('channel-batch-size'), '--channel-batch-size');
+        $aiCallLimit = AiCommandInputValidator::integer($this->option('ai-call-limit'), '--ai-call-limit');
+        $channelVideoLimit = AiCommandInputValidator::integer($this->option('channel-video-limit'), '--channel-video-limit');
         $payload = $execute
             ? $pipeline->executeDaily(
                 date: (string) $this->option('date'),
-                channelLimit: (int) $this->option('channel-limit'),
-                channelBatchSize: (int) $this->option('channel-batch-size'),
-                aiCallLimit: (int) $this->option('ai-call-limit'),
-                channelVideoLimit: (int) $this->option('channel-video-limit'),
-                limit: (int) $this->option('limit'),
+                channelLimit: $channelLimit,
+                channelBatchSize: $channelBatchSize,
+                aiCallLimit: $aiCallLimit,
+                channelVideoLimit: $channelVideoLimit,
+                limit: $limit,
                 userToken: (string) $this->option('user-token'),
             )
             : $pipeline->previewDaily(
@@ -3022,14 +3099,20 @@ $guardedIngestionCommand('ai:daily:pipeline {--date=yesterday : Date, today, or 
 $guardedIngestionCommand('ai:mayor-person {--city=taipei : Mayor city key} {--person= : Comma-separated candidate names; omitted uses city candidates} {--date= : Date YYYY-MM-DD, defaults to yesterday in Asia/Taipei} {--limit=10 : Max candidates to generate} {--ai-call-limit=10 : Max AI completion calls in execute mode} {--execute : Call the configured AI provider chain and upsert urt_mayor_person_ai} {--dry-run : Force dry-run preview} {--user-token=CLI : user_token value for execute-mode upserts} {--show-prompt : Include prompt/source in JSON preview output} {--json : Emit JSON instead of text}', function (MayorPersonAiIngestion $ingestion) {
     try {
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
+        $personOption = $this->option('person');
+        $person = $personOption === null
+            ? null
+            : AiCommandInputValidator::commaSeparated($personOption, '--person');
+        $limit = AiCommandInputValidator::integer($this->option('limit'), '--limit', 1);
+        $aiCallLimit = AiCommandInputValidator::integer($this->option('ai-call-limit'), '--ai-call-limit');
 
         if ($execute) {
             $payload = $ingestion->execute(
                 cityKey: (string) $this->option('city'),
-                person: $this->option('person') ? (string) $this->option('person') : null,
-                date: $this->option('date') ? (string) $this->option('date') : null,
-                limit: (int) $this->option('limit'),
-                aiCallLimit: (int) $this->option('ai-call-limit'),
+                person: $person,
+                date: is_string($this->option('date')) ? (string) $this->option('date') : null,
+                limit: $limit,
+                aiCallLimit: $aiCallLimit,
                 userToken: (string) $this->option('user-token'),
             );
 
@@ -3078,9 +3161,9 @@ $guardedIngestionCommand('ai:mayor-person {--city=taipei : Mayor city key} {--pe
 
         $payload = $ingestion->preview(
             cityKey: (string) $this->option('city'),
-            person: $this->option('person') ? (string) $this->option('person') : null,
-            date: $this->option('date') ? (string) $this->option('date') : null,
-            limit: (int) $this->option('limit'),
+            person: $person,
+            date: is_string($this->option('date')) ? (string) $this->option('date') : null,
+            limit: $limit,
             includePrompt: (bool) $this->option('show-prompt'),
         );
 
@@ -3126,14 +3209,16 @@ $guardedIngestionCommand('ai:mayor-person {--city=taipei : Mayor city key} {--pe
 $guardedIngestionCommand('ai:period {--from= : Previous daily date, defaults to the day before --to} {--to= : Current daily date, defaults to yesterday in Asia/Taipei} {--condition=all : Legacy condition_type to match} {--limit=20 : Max topics per day included in the matching prompt} {--ai-call-limit=1 : Max AI completion calls in execute mode} {--execute : Call the configured AI provider chain and upsert urt_ai_period} {--dry-run : Force dry-run preview; this is the default} {--user-token=CLI : user_token value for execute-mode upserts when the table supports it} {--show-prompt : Include prompt text in JSON/dry-run output} {--json : Emit JSON instead of text}', function (AiPeriodIngestion $ingestion) {
     try {
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
+        $limit = AiCommandInputValidator::integer($this->option('limit'), '--limit', 1);
+        $aiCallLimit = AiCommandInputValidator::integer($this->option('ai-call-limit'), '--ai-call-limit');
 
         if ($execute) {
             $payload = $ingestion->execute(
-                from: $this->option('from') ? (string) $this->option('from') : null,
-                to: $this->option('to') ? (string) $this->option('to') : null,
+                from: is_string($this->option('from')) ? (string) $this->option('from') : null,
+                to: is_string($this->option('to')) ? (string) $this->option('to') : null,
                 condition: (string) $this->option('condition'),
-                limit: (int) $this->option('limit'),
-                aiCallLimit: (int) $this->option('ai-call-limit'),
+                limit: $limit,
+                aiCallLimit: $aiCallLimit,
                 userToken: (string) $this->option('user-token'),
             );
 
@@ -3172,10 +3257,10 @@ $guardedIngestionCommand('ai:period {--from= : Previous daily date, defaults to 
         }
 
         $payload = $ingestion->preview(
-            from: $this->option('from') ? (string) $this->option('from') : null,
-            to: $this->option('to') ? (string) $this->option('to') : null,
+            from: is_string($this->option('from')) ? (string) $this->option('from') : null,
+            to: is_string($this->option('to')) ? (string) $this->option('to') : null,
             condition: (string) $this->option('condition'),
-            limit: (int) $this->option('limit'),
+            limit: $limit,
             includePrompt: (bool) $this->option('show-prompt'),
         );
 
@@ -3208,7 +3293,7 @@ $guardedIngestionCommand('ai:period {--from= : Previous daily date, defaults to 
         }
 
         return 0;
-    } catch (QueryException $exception) {
+    } catch (Throwable $exception) {
         $this->error('ai:period unavailable: '.SensitiveTextRedactor::exception($exception, 240));
 
         return 1;
@@ -3218,18 +3303,26 @@ $guardedIngestionCommand('ai:period {--from= : Previous daily date, defaults to 
 $guardedIngestionCommand('ai:event {--date= : Legacy daily date; generates visible topics for the date} {--condition=all : Legacy condition_type to match} {--aipk= : Specific urt_ai_date pk for old event links} {--event= : Specific event title to generate} {--prompt-types=summary,people,media : Comma-separated prompt rows to generate} {--limit=20 : Max daily topics to include} {--ai-call-limit=60 : Max AI completion calls in execute mode} {--execute : Call the configured AI provider chain and upsert urt_ai_event} {--dry-run : Force dry-run preview; this is the default} {--missing-only : Skip prompt rows that already exist} {--user-token=CLI : user_token value for execute-mode upserts when the table supports it} {--show-prompt : Include prompt text in JSON/dry-run output} {--json : Emit JSON instead of text}', function (AiEventIngestion $ingestion) {
     try {
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
-        $aipk = $this->option('aipk') ? (int) $this->option('aipk') : null;
-        $event = $this->option('event') ? (string) $this->option('event') : null;
+        $aipkOption = $this->option('aipk');
+        $aipk = $aipkOption === null
+            ? null
+            : AiCommandInputValidator::integer($aipkOption, '--aipk', 1);
+        $eventOption = $this->option('event');
+        $event = $eventOption === null
+            ? null
+            : AiCommandInputValidator::nonEmptyString($eventOption, '--event');
+        $limit = AiCommandInputValidator::integer($this->option('limit'), '--limit', 1);
+        $aiCallLimit = AiCommandInputValidator::integer($this->option('ai-call-limit'), '--ai-call-limit');
 
         if ($execute) {
             $payload = $ingestion->execute(
-                date: $this->option('date') ? (string) $this->option('date') : null,
+                date: is_string($this->option('date')) ? (string) $this->option('date') : null,
                 condition: (string) $this->option('condition'),
                 aipk: $aipk,
                 event: $event,
                 promptTypes: (string) $this->option('prompt-types'),
-                limit: (int) $this->option('limit'),
-                aiCallLimit: (int) $this->option('ai-call-limit'),
+                limit: $limit,
+                aiCallLimit: $aiCallLimit,
                 missingOnly: (bool) $this->option('missing-only'),
                 userToken: (string) $this->option('user-token'),
             );
@@ -3282,12 +3375,12 @@ $guardedIngestionCommand('ai:event {--date= : Legacy daily date; generates visib
         }
 
         $payload = $ingestion->preview(
-            date: $this->option('date') ? (string) $this->option('date') : null,
+            date: is_string($this->option('date')) ? (string) $this->option('date') : null,
             condition: (string) $this->option('condition'),
             aipk: $aipk,
             event: $event,
             promptTypes: (string) $this->option('prompt-types'),
-            limit: (int) $this->option('limit'),
+            limit: $limit,
             missingOnly: (bool) $this->option('missing-only'),
             includePrompt: (bool) $this->option('show-prompt'),
         );
@@ -3328,7 +3421,7 @@ $guardedIngestionCommand('ai:event {--date= : Legacy daily date; generates visib
         }
 
         return 0;
-    } catch (QueryException $exception) {
+    } catch (Throwable $exception) {
         $this->error('ai:event unavailable: '.SensitiveTextRedactor::exception($exception, 240));
 
         return 1;
@@ -3338,20 +3431,28 @@ $guardedIngestionCommand('ai:event {--date= : Legacy daily date; generates visib
 $guardedIngestionCommand('ai:days:refresh {--from= : First AI daily date to refresh; defaults to yesterday; max inclusive range 31 days} {--to= : Last AI daily date to refresh; defaults to --from} {--condition=all : Legacy condition_type to refresh} {--daily-limit=1000 : Max source rows for each ai:daily aggregate prompt} {--daily-channel-limit=0 : Max configured channels to refresh before each daily aggregate; 0 skips channel refresh} {--daily-channel-offset=0 : Eligible configured channels to skip before refresh} {--daily-channel-batch-size=0 : Refresh selected channels in chunks; 0 uses one batch} {--daily-ai-call-limit=2 : Max AI completion calls per day for daily aggregate/channel refresh} {--daily-channel-video-limit=120 : Max videos in each channel prompt, hard max 500; 0 also uses 500} {--event-limit=100 : Max daily topics to include in event generation} {--event-ai-call-limit=60 : Total event summary/people/media AI completion calls across the refresh} {--event-passes=2 : Re-preview and retry missing event rows up to this many passes} {--period-limit=20 : Max topics per day included in period matching} {--period-ai-call-limit=1 : Max period matching AI calls per adjacent date pair} {--prompt-types=summary,people,media : Event prompt rows to generate} {--skip-daily : Do not run ai:daily; use existing daily rows} {--skip-events : Do not run ai:event; only daily/period work} {--skip-period : Do not run ai:period; only daily/event work} {--execute : Call AI completions and upsert daily/event/period rows} {--dry-run : Force dry-run preview; this is the default} {--user-token=CLI : user_token value for execute-mode upserts} {--json : Emit JSON instead of text}', function (AiDaysRefreshIngestion $ingestion) {
     try {
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
+        $dailyChannelLimit = AiCommandInputValidator::integer($this->option('daily-channel-limit'), '--daily-channel-limit');
+        $dailyChannelOffset = AiCommandInputValidator::integer($this->option('daily-channel-offset'), '--daily-channel-offset');
+        $dailyChannelBatchSize = AiCommandInputValidator::integer($this->option('daily-channel-batch-size'), '--daily-channel-batch-size');
+        $dailyAiCallLimit = AiCommandInputValidator::integer($this->option('daily-ai-call-limit'), '--daily-ai-call-limit');
+        $dailyChannelVideoLimit = AiCommandInputValidator::integer($this->option('daily-channel-video-limit'), '--daily-channel-video-limit');
+        $eventAiCallLimit = AiCommandInputValidator::integer($this->option('event-ai-call-limit'), '--event-ai-call-limit');
+        $periodAiCallLimit = AiCommandInputValidator::integer($this->option('period-ai-call-limit'), '--period-ai-call-limit');
+        $eventPasses = AiCommandInputValidator::integer($this->option('event-passes'), '--event-passes', 1);
         $arguments = [
-            'from' => $this->option('from') ? (string) $this->option('from') : null,
-            'to' => $this->option('to') ? (string) $this->option('to') : null,
+            'from' => is_string($this->option('from')) ? (string) $this->option('from') : null,
+            'to' => is_string($this->option('to')) ? (string) $this->option('to') : null,
             'condition' => (string) $this->option('condition'),
-            'dailyLimit' => (int) $this->option('daily-limit'),
-            'dailyChannelLimit' => (int) $this->option('daily-channel-limit'),
-            'dailyChannelOffset' => (int) $this->option('daily-channel-offset'),
-            'dailyChannelBatchSize' => (int) $this->option('daily-channel-batch-size'),
-            'dailyAiCallLimit' => (int) $this->option('daily-ai-call-limit'),
-            'dailyChannelVideoLimit' => (int) $this->option('daily-channel-video-limit'),
-            'eventLimit' => (int) $this->option('event-limit'),
-            'eventAiCallLimit' => (int) $this->option('event-ai-call-limit'),
-            'periodLimit' => (int) $this->option('period-limit'),
-            'periodAiCallLimit' => (int) $this->option('period-ai-call-limit'),
+            'dailyLimit' => AiCommandInputValidator::integer($this->option('daily-limit'), '--daily-limit', 1),
+            'dailyChannelLimit' => $dailyChannelLimit,
+            'dailyChannelOffset' => $dailyChannelOffset,
+            'dailyChannelBatchSize' => $dailyChannelBatchSize,
+            'dailyAiCallLimit' => $dailyAiCallLimit,
+            'dailyChannelVideoLimit' => $dailyChannelVideoLimit,
+            'eventLimit' => AiCommandInputValidator::integer($this->option('event-limit'), '--event-limit', 1),
+            'eventAiCallLimit' => $eventAiCallLimit,
+            'periodLimit' => AiCommandInputValidator::integer($this->option('period-limit'), '--period-limit', 1),
+            'periodAiCallLimit' => $periodAiCallLimit,
             'promptTypes' => (string) $this->option('prompt-types'),
             'skipDaily' => (bool) $this->option('skip-daily'),
             'skipEvents' => (bool) $this->option('skip-events'),
@@ -3375,7 +3476,7 @@ $guardedIngestionCommand('ai:days:refresh {--from= : First AI daily date to refr
                 periodAiCallLimit: $arguments['periodAiCallLimit'],
                 promptTypes: $arguments['promptTypes'],
                 userToken: (string) $this->option('user-token'),
-                maxEventPasses: (int) $this->option('event-passes'),
+                maxEventPasses: $eventPasses,
                 skipDaily: $arguments['skipDaily'],
                 skipEvents: $arguments['skipEvents'],
                 skipPeriod: $arguments['skipPeriod'],
@@ -3486,37 +3587,30 @@ $guardedIngestionCommand('ai:days:refresh {--from= : First AI daily date to refr
         }
 
         return (int) ($payload['exit_code'] ?? 0);
-    } catch (QueryException $exception) {
+    } catch (Throwable $exception) {
         $this->error('ai:days:refresh unavailable: '.SensitiveTextRedactor::exception($exception, 240));
 
         return 1;
     }
 })->purpose('Orchestrate daily AI, event AI, adjacent period matching, and missing-row verification for one or more dates');
 
-$guardedIngestionCommand('ai:hourly {--condition= : Optional legacy condition; omitted matches cron default} {--hour=1 : Legacy hours-back offset} {--period=1 : Legacy number of hourly buckets to include} {--limit=20 : Number of candidate videos to print} {--prompt-video-limit=5000 : Complete hourly source cap, hard max 5000; cap hit blocks AI} {--at= : Override evaluation timestamp for backfills/previews} {--execute : Call the configured AI provider chain and upsert urt_ai_hour} {--dry-run : Force dry-run preview; this is the default} {--user-token=cli : user_token value for execute-mode upsert} {--json : Emit JSON instead of text}', function (AiHourlyPreview $preview, AiHourlyIngestion $ingestion) {
+$guardedIngestionCommand('ai:hourly {--condition= : Optional legacy condition; omitted matches cron default} {--hour=1 : Legacy hours-back offset} {--period=1 : Legacy number of hourly buckets to include} {--limit=20 : Number of candidate videos to print} {--prompt-video-limit=5000 : Complete hourly source cap, hard max 5000; cap hit blocks AI} {--at= : Override evaluation timestamp in Y-m-d H:i:s} {--execute : Call the configured AI provider chain and upsert urt_ai_hour} {--dry-run : Force dry-run preview; this is the default} {--user-token=cli : user_token value for execute-mode upsert} {--json : Emit JSON instead of text}', function (AiHourlyPreview $preview, AiHourlyIngestion $ingestion) {
     try {
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
-        $at = null;
-        $atOption = $this->option('at');
-
-        if (is_string($atOption) && trim($atOption) !== '') {
-            try {
-                $at = CarbonImmutable::parse(trim($atOption), $timezone);
-            } catch (Throwable) {
-                $this->error('ai:hourly invalid --at timestamp: '.$atOption);
-
-                return 1;
-            }
-        }
+        $at = AiCommandInputValidator::timestamp($this->option('at'), '--at', $timezone);
+        $hour = AiCommandInputValidator::integer($this->option('hour'), '--hour');
+        $period = AiCommandInputValidator::integer($this->option('period'), '--period', 1);
+        $limit = AiCommandInputValidator::integer($this->option('limit'), '--limit', 1);
+        $promptVideoLimit = AiCommandInputValidator::integer($this->option('prompt-video-limit'), '--prompt-video-limit');
 
         if ($execute) {
             $payload = $ingestion->execute(
-                condition: $this->option('condition') ? (string) $this->option('condition') : null,
-                hour: (int) $this->option('hour'),
-                period: (int) $this->option('period'),
-                limit: (int) $this->option('limit'),
-                promptVideoLimit: (int) $this->option('prompt-video-limit'),
+                condition: is_string($this->option('condition')) ? (string) $this->option('condition') : null,
+                hour: $hour,
+                period: $period,
+                limit: $limit,
+                promptVideoLimit: $promptVideoLimit,
                 userToken: (string) $this->option('user-token'),
                 now: $at,
             );
@@ -3564,11 +3658,11 @@ $guardedIngestionCommand('ai:hourly {--condition= : Optional legacy condition; o
         }
 
         $payload = $preview->preview(
-            condition: $this->option('condition') ? (string) $this->option('condition') : null,
-            hour: (int) $this->option('hour'),
-            period: (int) $this->option('period'),
-            limit: (int) $this->option('limit'),
-            promptVideoLimit: (int) $this->option('prompt-video-limit'),
+            condition: is_string($this->option('condition')) ? (string) $this->option('condition') : null,
+            hour: $hour,
+            period: $period,
+            limit: $limit,
+            promptVideoLimit: $promptVideoLimit,
             now: $at,
         );
 
@@ -3633,25 +3727,24 @@ $guardedIngestionCommand('ai:hourly {--condition= : Optional legacy condition; o
     }
 })->purpose('Dry-run preview of legacy hourly AI summary generation, with explicit --execute support through the configured AI provider chain');
 
-$guardedIngestionCommand('ai:hourly:pipeline {--condition= : Optional legacy condition} {--hour=1 : Hours-back offset} {--period=1 : Hourly buckets} {--limit=20 : Candidate videos to print} {--source-max-results=50 : Latest uploads fetched per configured channel} {--prompt-video-limit=5000 : Complete hourly source cap, hard max 5000; cap hit blocks AI} {--at= : Override evaluation timestamp} {--execute : Refresh source uploads before hourly AI} {--dry-run : Preview both stages without writes} {--user-token=cli : user_token for AI row} {--json : Emit JSON}', function (AiScheduledPipelineIngestion $pipeline) {
+$guardedIngestionCommand('ai:hourly:pipeline {--condition= : Optional legacy condition} {--hour=1 : Hours-back offset} {--period=1 : Hourly buckets} {--limit=20 : Candidate videos to print} {--source-max-results=50 : Latest uploads fetched per configured channel} {--prompt-video-limit=5000 : Complete hourly source cap, hard max 5000; cap hit blocks AI} {--at= : Override evaluation timestamp in Y-m-d H:i:s} {--execute : Refresh source uploads before hourly AI} {--dry-run : Preview both stages without writes} {--user-token=cli : user_token for AI row} {--json : Emit JSON}', function (AiScheduledPipelineIngestion $pipeline) {
     try {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
-        $at = is_string($this->option('at')) && trim((string) $this->option('at')) !== ''
-            ? CarbonImmutable::parse(trim((string) $this->option('at')), $timezone)
-            : null;
+        $at = AiCommandInputValidator::timestamp($this->option('at'), '--at', $timezone);
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
+        $sourceMaxResults = AiCommandInputValidator::integer($this->option('source-max-results'), '--source-max-results', 1);
         $arguments = [
-            'condition' => $this->option('condition') ? (string) $this->option('condition') : null,
-            'hour' => (int) $this->option('hour'),
-            'period' => (int) $this->option('period'),
-            'limit' => (int) $this->option('limit'),
-            'promptVideoLimit' => (int) $this->option('prompt-video-limit'),
+            'condition' => is_string($this->option('condition')) ? (string) $this->option('condition') : null,
+            'hour' => AiCommandInputValidator::integer($this->option('hour'), '--hour'),
+            'period' => AiCommandInputValidator::integer($this->option('period'), '--period', 1),
+            'limit' => AiCommandInputValidator::integer($this->option('limit'), '--limit', 1),
+            'promptVideoLimit' => AiCommandInputValidator::integer($this->option('prompt-video-limit'), '--prompt-video-limit'),
             'now' => $at,
         ];
         $payload = $execute
             ? $pipeline->executeHourly(
                 ...$arguments,
-                sourceMaxResults: (int) $this->option('source-max-results'),
+                sourceMaxResults: $sourceMaxResults,
                 userToken: (string) $this->option('user-token'),
             )
             : $pipeline->previewHourly(...$arguments);

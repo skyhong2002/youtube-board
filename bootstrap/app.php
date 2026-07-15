@@ -1,6 +1,7 @@
 <?php
 
 use App\Console\Commands\DeploymentSchemaCheckCommand;
+use App\Console\Commands\DeploymentMigrateCommand;
 use App\Console\Commands\ImportLocalDumpCommand;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -13,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withCommands([
+        DeploymentMigrateCommand::class,
         DeploymentSchemaCheckCommand::class,
         ImportLocalDumpCommand::class,
     ])

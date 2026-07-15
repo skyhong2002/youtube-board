@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Ops;
 
+use App\Services\Ingestion\CommentQueueIngestion;
+use App\Services\Ingestion\CommentQueuePreview;
 use App\Services\Ingestion\IngestionSchedulerRunner;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
@@ -9,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Mockery;
 use Tests\TestCase;
 
 class IngestionCommentQueueCommandTest extends TestCase
@@ -74,12 +77,152 @@ class IngestionCommentQueueCommandTest extends TestCase
         $this->assertSame(1, $payload['already_queued_rows']);
         $this->assertSame(1, $payload['already_done_rows']);
         $this->assertSame(1, $payload['would_insert_queue_rows']);
+        $this->assertSame(21, $payload['candidate_query_limit']);
+        $this->assertSame(1, $payload['candidate_rows_loaded']);
+        $this->assertTrue($payload['source_complete']);
+        $this->assertFalse($payload['source_truncated']);
         $this->assertSame([], $payload['writes']);
         $this->assertSame('would-queue', $payload['rows'][0]['video_id']);
         $this->assertFalse($payload['rows'][0]['already_done']);
         $this->assertFalse($payload['rows'][0]['already_queued']);
         $this->assertTrue($payload['rows'][0]['would_insert_queue']);
         $this->assertSame(1, DB::table('urt_comment_queue')->count());
+    }
+
+    public function test_youtube_comments_queue_bounds_candidates_after_excluding_queued_and_completed_videos(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        DB::table('urt_count')->insert(['u_id' => 1, 'tags' => '[1]']);
+        DB::table('urt_video')->insert([
+            $this->videoRow(1, 'already-done', '2026-05-25 11:50:00', 1200, 700, 'Already Done'),
+            $this->videoRow(1, 'already-queued', '2026-05-25 11:40:00', 1200, 700, 'Already Queued'),
+            $this->videoRow(1, 'candidate-a', '2026-05-25 11:30:00', 1200, 700, 'Candidate A'),
+            $this->videoRow(1, 'candidate-b', '2026-05-25 11:20:00', 1200, 700, 'Candidate B'),
+            $this->videoRow(1, 'candidate-c', '2026-05-25 11:10:00', 1200, 700, 'Candidate C'),
+            $this->videoRow(1, 'candidate-d', '2026-05-25 11:00:00', 1200, 700, 'Candidate D'),
+        ]);
+        DB::table('urt_comment_queue')->insert([
+            'ctime' => '2026-05-25 11:45:00',
+            'stime' => null,
+            'ftime' => null,
+            'videoId' => 'already-queued',
+        ]);
+        DB::table('urt_comment_queue_done')->insert([
+            'pk' => 100,
+            'ctime' => '2026-05-25 10:00:00',
+            'stime' => '2026-05-25 10:01:00',
+            'ftime' => '2026-05-25 10:02:00',
+            'videoId' => 'already-done',
+        ]);
+
+        $exitCode = Artisan::call('youtube:comments:queue', [
+            '--or' => '1',
+            '--hours' => 24,
+            '--min' => 500,
+            '--limit' => 2,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(6, $payload['comment_threshold_rows']);
+        $this->assertSame(1, $payload['already_queued_rows']);
+        $this->assertSame(1, $payload['already_done_rows']);
+        $this->assertSame(4, $payload['would_insert_queue_rows']);
+        $this->assertSame(3, $payload['candidate_query_limit']);
+        $this->assertSame(3, $payload['candidate_rows_loaded']);
+        $this->assertSame(2, $payload['displayed_rows']);
+        $this->assertFalse($payload['source_complete']);
+        $this->assertTrue($payload['source_truncated']);
+        $this->assertSame(['candidate-a', 'candidate-b'], array_column($payload['rows'], 'video_id'));
+        $this->assertNotContains('already-done', array_column($payload['rows'], 'video_id'));
+        $this->assertNotContains('already-queued', array_column($payload['rows'], 'video_id'));
+    }
+
+    public function test_mysql_comment_queue_treats_case_differing_youtube_ids_as_distinct(): void
+    {
+        $connectionName = 'mysql_case_sensitive_comment_queue';
+        $originalConnection = DB::getDefaultConnection();
+        $mysql = config('database.connections.mysql');
+
+        if (! is_array($mysql)) {
+            $this->markTestSkipped('MySQL connection is not configured.');
+        }
+
+        $mysql['prefix'] = 'comment_case_proof_';
+        config()->set("database.connections.{$connectionName}", $mysql);
+        DB::purge($connectionName);
+
+        try {
+            DB::connection($connectionName)->getPdo();
+        } catch (\Throwable) {
+            DB::purge($connectionName);
+            config()->set("database.connections.{$connectionName}", null);
+            $this->markTestSkipped('MySQL is unavailable for case-sensitive ID proof.');
+        }
+
+        DB::setDefaultConnection($connectionName);
+
+        try {
+            CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+            $this->createTables();
+            $comparison = DB::selectOne(
+                'SELECT ? = ? AS collation_match, BINARY ? = BINARY ? AS binary_match',
+                ['CaseVideoId', 'casevideoid', 'CaseVideoId', 'casevideoid'],
+            );
+
+            $this->assertSame(1, (int) $comparison->collation_match);
+            $this->assertSame(0, (int) $comparison->binary_match);
+
+            DB::table('urt_count')->insert(['u_id' => 1, 'tags' => '[1]']);
+            DB::table('urt_video')->insert($this->videoRow(
+                1,
+                'CaseVideoId',
+                '2026-05-25 11:00:00',
+                1200,
+                700,
+                'Case-sensitive candidate',
+            ));
+            DB::table('urt_comment_queue')->insert([
+                'ctime' => '2026-05-25 11:30:00',
+                'videoId' => 'casevideoid',
+            ]);
+
+            $preview = app(CommentQueuePreview::class)->preview(
+                or: '1',
+                min: 500,
+                hours: 24,
+                limit: 1,
+                now: CarbonImmutable::now('Asia/Taipei'),
+            );
+
+            $this->assertSame(0, $preview['already_queued_rows']);
+            $this->assertSame(1, $preview['would_insert_queue_rows']);
+            $this->assertSame('CaseVideoId', $preview['rows'][0]['video_id']);
+
+            $payload = app(CommentQueueIngestion::class)->execute(
+                or: '1',
+                min: 500,
+                hours: 24,
+                limit: 1,
+                now: CarbonImmutable::now('Asia/Taipei'),
+            );
+
+            $this->assertSame(0, $payload['exit_code']);
+            $this->assertSame(1, $payload['inserted_queue_rows']);
+            $this->assertSame(1, DB::table('urt_comment_queue')->whereRaw('BINARY `videoId` = BINARY ?', ['CaseVideoId'])->count());
+            $this->assertSame(1, DB::table('urt_comment_queue')->whereRaw('BINARY `videoId` = BINARY ?', ['casevideoid'])->count());
+        } finally {
+            foreach (['urt_comment_queue_done', 'urt_comment_queue', 'urt_video', 'urt_count'] as $table) {
+                Schema::dropIfExists($table);
+            }
+
+            DB::purge($connectionName);
+            DB::setDefaultConnection($originalConnection);
+            config()->set("database.connections.{$connectionName}", null);
+        }
     }
 
     public function test_youtube_comments_queue_execute_does_not_let_completed_videos_consume_the_limit(): void
@@ -116,6 +259,41 @@ class IngestionCommentQueueCommandTest extends TestCase
         $this->assertSame('new-candidate', $payload['inserted'][0]['videoId']);
         $this->assertSame(0, DB::table('urt_comment_queue')->where('videoId', 'already-done')->count());
         $this->assertSame(1, DB::table('urt_comment_queue')->where('videoId', 'new-candidate')->count());
+    }
+
+    public function test_youtube_comments_queue_execute_rechecks_completed_videos_before_insert(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        DB::table('urt_comment_queue_done')->insert([
+            'pk' => 100,
+            'ctime' => '2026-05-25 10:00:00',
+            'stime' => '2026-05-25 10:01:00',
+            'ftime' => '2026-05-25 10:02:00',
+            'videoId' => 'done-after-preview',
+        ]);
+        $preview = Mockery::mock(CommentQueuePreview::class);
+        $preview->shouldReceive('preview')->once()->andReturn([
+            'rows' => [[
+                'video_id' => 'done-after-preview',
+                'would_insert_queue' => true,
+            ]],
+        ]);
+
+        $payload = (new CommentQueueIngestion($preview))->execute(
+            limit: 1,
+            now: CarbonImmutable::now('Asia/Taipei'),
+        );
+
+        $this->assertSame(0, $payload['exit_code']);
+        $this->assertSame(0, $payload['inserted_queue_rows']);
+        $this->assertSame(1, $payload['skipped_rows']);
+        $this->assertSame([
+            'videoId' => 'done-after-preview',
+            'reason' => 'already_done',
+        ], $payload['skipped'][0]);
+        $this->assertSame(0, DB::table('urt_comment_queue')->where('videoId', 'done-after-preview')->count());
     }
 
     public function test_youtube_comments_queue_execute_inserts_local_queue_rows_idempotently(): void

@@ -106,11 +106,7 @@ class AiHourlyPreview
 
     private function conditionType(?string $condition): string
     {
-        $condition = is_string($condition) && trim($condition) !== '' ? trim($condition) : 'all';
-
-        return in_array($condition, ['all', 'green', 'blue', 'neutral', 'finance', 'world', 'news'], true)
-            ? $condition
-            : 'all';
+        return AiCommandInputValidator::condition($condition, AiCommandInputValidator::HOURLY_CONDITIONS);
     }
 
     /**

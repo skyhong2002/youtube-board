@@ -21,6 +21,7 @@ class GuardedClosureCommand extends ClosureCommand
         $result = $this->laravel->make(IngestionCommandLock::class)->run(
             (string) $this->getName(),
             fn (): int => parent::execute($input, $output),
+            $input->getOptions(),
         );
 
         if ($result['executed']) {

@@ -12,6 +12,8 @@ use Throwable;
 
 class ChannelVideosDiscoveryIngestion
 {
+    public const DATABASE_FAILURE_RETRY_MINUTES = 5;
+
     public function __construct(
         private readonly ChannelVideosDiscoveryPreview $preview,
         private readonly YoutubeDataApiClient $youtube,
@@ -94,6 +96,22 @@ class ChannelVideosDiscoveryIngestion
             try {
                 $items = $this->youtube->playlistItems($uploads, $maxResults);
             } catch (Throwable $exception) {
+                if ($exception instanceof YoutubeApiKeyPoolExhaustedException) {
+                    $remainingRetryRows = $rows->count() - $index;
+                    $skipped[] = [
+                        'u_id' => $rowUId,
+                        'uploads' => $uploads,
+                        'reason' => $exception->failureReason(),
+                    ];
+                    Log::warning('Channel video discovery paused after all YouTube API keys failed.', [
+                        'u_id' => $rowUId,
+                        'reason' => $exception->failureReason(),
+                        'exception_class' => $exception::class,
+                    ]);
+
+                    break;
+                }
+
                 if ($exception instanceof YoutubeQuotaWindowException) {
                     $quotaWindowReset = true;
                     $remainingRetryRows = $rows->count() - $index;
@@ -145,9 +163,7 @@ class ChannelVideosDiscoveryIngestion
             }
 
             try {
-                $result = DB::transaction(function () use ($rowUId, $items, $now): array {
-                    return $this->upsertChannelItems($rowUId, $items, $now);
-                });
+                $result = $this->upsertChannelItems($rowUId, $items, $now);
 
                 $applied[] = [
                     'u_id' => $rowUId,
@@ -162,24 +178,40 @@ class ChannelVideosDiscoveryIngestion
                     'final_vtime' => $result['final_vtime'],
                 ];
             } catch (Throwable $exception) {
+                $retry = $this->scheduleDatabaseFailureRetry($rowUId, $now);
                 $skipped[] = [
                     'u_id' => $rowUId,
                     'uploads' => $uploads,
                     'reason' => 'item_processing_failed',
+                    ...$retry,
                 ];
                 Log::warning('Channel video discovery item processing failed.', [
                     'u_id' => $rowUId,
                     'reason' => 'item_processing_failed',
+                    ...$retry,
                     'exception_class' => $exception::class,
                 ]);
             }
         }
 
         $failedChannels = collect($skipped)->filter(
-            fn (array $row): bool => in_array($row['reason'] ?? null, ['missing_uploads_playlist', 'playlist_api_error', 'item_processing_failed', 'quota_window_reset'], true),
+            fn (array $row): bool => in_array($row['reason'] ?? null, [
+                'missing_uploads_playlist',
+                'playlist_api_error',
+                'item_processing_failed',
+                'quota_window_reset',
+                YoutubeApiKeyPoolExhaustedException::AUTHENTICATION_FAILURE,
+                YoutubeApiKeyPoolExhaustedException::QUOTA_FAILURE,
+            ], true),
         )->count();
         $apiRequestedFailures = collect($skipped)->filter(
-            fn (array $row): bool => in_array($row['reason'] ?? null, ['playlist_api_error', 'item_processing_failed', 'quota_window_reset'], true),
+            fn (array $row): bool => in_array($row['reason'] ?? null, [
+                'playlist_api_error',
+                'item_processing_failed',
+                'quota_window_reset',
+                YoutubeApiKeyPoolExhaustedException::AUTHENTICATION_FAILURE,
+                YoutubeApiKeyPoolExhaustedException::QUOTA_FAILURE,
+            ], true),
         )->count();
 
         return [
@@ -194,6 +226,7 @@ class ChannelVideosDiscoveryIngestion
             'failed_channels' => $failedChannels,
             'quota_window_reset' => $quotaWindowReset,
             'remaining_retry_rows' => $remainingRetryRows,
+            'database_failure_retry_minutes' => self::DATABASE_FAILURE_RETRY_MINUTES,
             'exit_code' => $failedChannels > 0 || $quotaWindowReset ? 1 : 0,
             'write_targets' => [
                 'urt_channel.vtime',
@@ -232,9 +265,6 @@ class ChannelVideosDiscoveryIngestion
     {
         $nowString = $now->format('Y-m-d H:i:s');
         $weekStart = $now->subDays(7);
-        $oneHourLater = $now->addHour()->format('Y-m-d H:i:s');
-
-        $this->updateExisting('urt_channel', 'u_id', $uId, ['vtime' => $oneHourLater]);
 
         $videoUpserts = 0;
         $scheduleUpserts = 0;
@@ -294,6 +324,36 @@ class ChannelVideosDiscoveryIngestion
             'live_upserts' => $liveUpserts,
             'week_count' => $weekCount,
             'final_vtime' => $finalVtime,
+        ];
+    }
+
+    /**
+     * @return array{retry_state: string, retry_vtime: string|null, retry_cooldown_minutes: int}
+     */
+    private function scheduleDatabaseFailureRetry(int $uId, CarbonImmutable $now): array
+    {
+        $retryVtime = $now->addMinutes(self::DATABASE_FAILURE_RETRY_MINUTES)->format('Y-m-d H:i:s');
+
+        try {
+            $this->updateExisting('urt_channel', 'u_id', $uId, ['vtime' => $retryVtime]);
+        } catch (Throwable $exception) {
+            Log::warning('Channel video discovery retry cooldown write failed.', [
+                'u_id' => $uId,
+                'reason' => 'retry_cooldown_write_failed',
+                'exception_class' => $exception::class,
+            ]);
+
+            return [
+                'retry_state' => 'cooldown_write_failed',
+                'retry_vtime' => null,
+                'retry_cooldown_minutes' => self::DATABASE_FAILURE_RETRY_MINUTES,
+            ];
+        }
+
+        return [
+            'retry_state' => 'database_failure_cooldown',
+            'retry_vtime' => $retryVtime,
+            'retry_cooldown_minutes' => self::DATABASE_FAILURE_RETRY_MINUTES,
         ];
     }
 

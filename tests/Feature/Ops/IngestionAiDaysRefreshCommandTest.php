@@ -259,6 +259,19 @@ class IngestionAiDaysRefreshCommandTest extends TestCase
     {
         $this->createTables();
         $this->seedChannelAiRows();
+        DB::table('urt_ai_date')->insert([
+            'pk' => 10,
+            'date_from' => '2026-06-02 00:00:00',
+            'date_to' => '2026-06-02 23:59:59',
+            'condition_type' => 'all',
+            'data_type' => 'oneday',
+            'del_flag' => null,
+            'channel_id' => json_encode([15 => '新聞頻道'], JSON_UNESCAPED_UNICODE),
+            'result_json' => json_encode([[
+                '標題' => '黃仁勳COMPUTEX',
+                '媒體事件' => ['新聞頻道' => ['黃仁勳COMPUTEX']],
+            ]], JSON_UNESCAPED_UNICODE),
+        ]);
         Http::fake();
 
         $exitCode = Artisan::call('ai:days:refresh', [
@@ -282,6 +295,35 @@ class IngestionAiDaysRefreshCommandTest extends TestCase
         $this->assertSame('event_rows_incomplete_after_refresh', $verify['result']['blocked_reason']);
         $this->assertSame($payload['summary']['event_missing_after'], $verify['result']['failed_rows']);
         $this->assertSame(0, DB::table('urt_ai_event')->count());
+        Http::assertNothingSent();
+    }
+
+    public function test_ai_days_refresh_skip_daily_fails_when_required_daily_source_is_missing(): void
+    {
+        $this->createTables();
+        Http::preventStrayRequests();
+
+        $exitCode = Artisan::call('ai:days:refresh', [
+            '--execute' => true,
+            '--from' => '2026-06-02',
+            '--to' => '2026-06-02',
+            '--condition' => 'all',
+            '--skip-daily' => true,
+            '--skip-period' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+        $verification = collect($payload['jobs'])->firstWhere('type', 'event-verify');
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('partial_failure', $payload['status']);
+        $this->assertGreaterThanOrEqual(1, $payload['failed_rows']);
+        $this->assertSame('failed', $verification['action']);
+        $this->assertSame(1, $verification['result']['exit_code']);
+        $this->assertGreaterThanOrEqual(1, $verification['result']['failed_rows']);
+        $this->assertNotNull($verification['result']['blocked_reason']);
+        $this->assertSame(0, DB::table('urt_ai_event')->count());
+        $this->assertSame(0, DB::table('urt_ai_period')->count());
         Http::assertNothingSent();
     }
 

@@ -421,7 +421,8 @@ class IngestionChannelStatsCommandTest extends TestCase
         Http::assertSent(function ($request): bool {
             parse_str(parse_url($request->url(), PHP_URL_QUERY) ?: '', $query);
 
-            return count(explode(',', (string) ($query['id'] ?? ''))) === 50;
+            return count(explode(',', (string) ($query['id'] ?? ''))) === 50
+                && ($query['maxResults'] ?? null) === '50';
         });
     }
 
@@ -597,8 +598,10 @@ SQL);
         $this->assertStringContainsString('reason=item_processing_failed', $job['output']);
         $this->assertStringNotContainsString('super-secret', $job['output']);
         $this->assertSame(200, DB::table('urt_channel')->where('u_id', 1)->value('viewCount'));
+        $this->assertNull(DB::table('urt_channel')->where('u_id', 1)->value('stime'));
         $this->assertSame(2222, DB::table('urt_channel')->where('u_id', 2)->value('viewCount'));
-        $this->assertSame(0, DB::table('urt_log')->where('u_id', 1)->count());
+        $this->assertSame(1111, DB::table('urt_count')->where('u_id', 1)->value('viewCount'));
+        $this->assertSame(1, DB::table('urt_log')->where('u_id', 1)->count());
         $this->assertSame(1, DB::table('urt_log')->where('u_id', 2)->count());
         Log::shouldHaveReceived('warning')
             ->withArgs(function (string $message, array $context): bool {
@@ -609,6 +612,246 @@ SQL);
                     && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'super-secret');
             })
             ->once();
+    }
+
+    public function test_channel_statistics_rejects_malformed_counts_and_preserves_hidden_subscriber_value(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('services.youtube.api_keys', null);
+        config()->set('services.youtube.transient_retries', 0);
+        $this->createTables();
+
+        foreach (['UC-malformed-count', 'UC-hidden-count', 'UC-valid-count'] as $index => $youtubeId) {
+            $uId = $index + 1;
+            DB::table('urt_channel')->insert([
+                'u_id' => $uId,
+                'ctime' => '2026-05-20 00:00:00',
+                'mtime' => null,
+                'stime' => null,
+                'flag_del' => null,
+                'youtube_id' => $youtubeId,
+                'title' => 'Payload Channel '.$uId,
+                'viewCount' => 100 * $uId,
+                'subscriberCount' => 10 * $uId,
+                'videoCount' => $uId,
+            ]);
+            DB::table('urt_count')->insert([
+                'u_id' => $uId,
+                'viewCount' => 100 * $uId,
+                'subscriberCount' => 10 * $uId,
+                'videoCount' => $uId,
+            ]);
+        }
+
+        Http::fake([
+            'www.googleapis.com/youtube/v3/channels*' => Http::response([
+                'items' => [
+                    [
+                        'id' => 'UC-malformed-count',
+                        'statistics' => [
+                            'viewCount' => '1000',
+                            'subscriberCount' => 'not-a-count',
+                            'hiddenSubscriberCount' => false,
+                            'videoCount' => '10',
+                        ],
+                    ],
+                    [
+                        'id' => 'UC-hidden-count',
+                        'statistics' => [
+                            'viewCount' => '2000',
+                            'hiddenSubscriberCount' => true,
+                            'videoCount' => '20',
+                        ],
+                    ],
+                    [
+                        'id' => 'UC-valid-count',
+                        'statistics' => [
+                            'viewCount' => '3000',
+                            'subscriberCount' => '300',
+                            'hiddenSubscriberCount' => false,
+                            'videoCount' => '30',
+                        ],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $exitCode = Artisan::call('youtube:channels:stats', [
+            '--execute' => true,
+            '--limit' => 3,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame(2, $payload['updated_rows']);
+        $this->assertSame('api_item_missing', $payload['skipped'][0]['reason']);
+        $this->assertSame(100, DB::table('urt_channel')->where('u_id', 1)->value('viewCount'));
+        $this->assertSame('2026-05-24 18:00:00', DB::table('urt_channel')->where('u_id', 1)->value('stime'));
+        $this->assertSame(2000, DB::table('urt_channel')->where('u_id', 2)->value('viewCount'));
+        $this->assertSame(20, DB::table('urt_channel')->where('u_id', 2)->value('subscriberCount'));
+        $this->assertSame(20, DB::table('urt_count')->where('u_id', 2)->value('subscriberCount'));
+        $hiddenApplied = collect($payload['applied'])->firstWhere('youtube_id', 'UC-hidden-count');
+        $this->assertIsArray($hiddenApplied);
+        $this->assertNull($hiddenApplied['subscriberCount']);
+        $hiddenLog = json_decode((string) DB::table('urt_log')->where('u_id', 2)->value('thedata'), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertTrue($hiddenLog['2026-05-24']['hidden']);
+        $this->assertArrayNotHasKey('subscriber', $hiddenLog['2026-05-24']);
+        $this->assertSame(300, DB::table('urt_channel')->where('u_id', 3)->value('subscriberCount'));
+    }
+
+    public function test_channel_statistics_preserves_malformed_existing_history_and_fails_the_row(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('services.youtube.api_keys', null);
+        config()->set('services.youtube.transient_retries', 0);
+        $this->createTables();
+
+        DB::table('urt_channel')->insert([
+            'u_id' => 10,
+            'ctime' => '2026-05-20 00:00:00',
+            'mtime' => null,
+            'stime' => null,
+            'flag_del' => null,
+            'youtube_id' => 'UC-malformed-history',
+            'title' => 'Malformed History',
+            'viewCount' => 100,
+            'subscriberCount' => 10,
+            'videoCount' => 1,
+        ]);
+        DB::table('urt_count')->insert([
+            'u_id' => 10,
+            'viewCount' => 100,
+            'subscriberCount' => 10,
+            'videoCount' => 1,
+        ]);
+        DB::table('urt_log')->insert([
+            'u_id' => 10,
+            'themonth' => '2026-05-01',
+            'thedata' => '{malformed',
+        ]);
+        Http::fake([
+            'www.googleapis.com/youtube/v3/channels*' => Http::response([
+                'items' => [[
+                    'id' => 'UC-malformed-history',
+                    'statistics' => [
+                        'viewCount' => '999',
+                        'subscriberCount' => '99',
+                        'hiddenSubscriberCount' => false,
+                        'videoCount' => '9',
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('youtube:channels:stats', [
+            '--execute' => true,
+            '--channel' => 10,
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame(0, $payload['updated_rows']);
+        $this->assertSame('item_processing_failed', $payload['skipped'][0]['reason']);
+        $this->assertSame(100, DB::table('urt_channel')->where('u_id', 10)->value('viewCount'));
+        $this->assertNull(DB::table('urt_channel')->where('u_id', 10)->value('stime'));
+        $this->assertSame(100, DB::table('urt_count')->where('u_id', 10)->value('viewCount'));
+        $this->assertSame('{malformed', DB::table('urt_log')->where('u_id', 10)->value('thedata'));
+    }
+
+    public function test_hidden_subscriber_ingestion_still_rebuilds_view_and_video_deltas_without_overwriting_subscriber_deltas(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+
+        DB::table('urt_channel')->insert([
+            'u_id' => 10,
+            'ctime' => '2026-05-20 00:00:00',
+            'youtube_id' => 'UC-hidden-deltas',
+            'title' => 'Hidden subscriber deltas',
+            'viewCount' => 100,
+            'subscriberCount' => 10,
+            'videoCount' => 5,
+        ]);
+        DB::table('urt_count')->insert([
+            'u_id' => 10,
+            'viewCount' => 100,
+            'subscriberCount' => 10,
+            'videoCount' => 5,
+            'view_week' => 1,
+            'sub_week' => 7,
+            'video_week' => 1,
+            'view_month' => 2,
+            'sub_month' => 12,
+            'video_month' => 2,
+        ]);
+        DB::table('urt_log')->insert([
+            'pk' => 1,
+            'u_id' => 10,
+            'ctime' => '2026-05-18 12:00:00',
+            'mtime' => '2026-05-18 12:00:00',
+            'themonth' => '2026-05-01',
+            'thedata' => json_encode([
+                '2026-05-18' => ['view' => 100, 'subscriber' => 10, 'video' => 5],
+            ], JSON_THROW_ON_ERROR),
+        ]);
+        Http::fake([
+            'www.googleapis.com/youtube/v3/channels*' => Http::response([
+                'items' => [[
+                    'id' => 'UC-hidden-deltas',
+                    'statistics' => [
+                        'viewCount' => '250',
+                        'hiddenSubscriberCount' => true,
+                        'videoCount' => '8',
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $statsExit = Artisan::call('youtube:channels:stats', [
+            '--execute' => true,
+            '--channel' => 10,
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $stats = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $statsExit);
+        $this->assertSame(1, $stats['updated_rows']);
+
+        $countsExit = Artisan::call('reports:counts:build', [
+            '--execute' => true,
+            '--id' => 10,
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $counts = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+        $stored = DB::table('urt_count')->where('u_id', 10)->first();
+
+        $this->assertSame(0, $countsExit);
+        $this->assertSame(0, $counts['failed_rows']);
+        $this->assertSame([
+            'view_week' => 150,
+            'video_week' => 3,
+            'view_month' => 150,
+            'video_month' => 3,
+        ], $counts['rows'][0]['computed']);
+        $this->assertSame(150, $stored->view_week);
+        $this->assertSame(3, $stored->video_week);
+        $this->assertSame(150, $stored->view_month);
+        $this->assertSame(3, $stored->video_month);
+        $this->assertSame(7, $stored->sub_week);
+        $this->assertSame(12, $stored->sub_month);
     }
 
     private function createTables(): void
@@ -636,6 +879,12 @@ SQL);
             $table->integer('viewCount')->nullable();
             $table->integer('subscriberCount')->nullable();
             $table->integer('videoCount')->nullable();
+            $table->integer('view_week')->nullable();
+            $table->integer('sub_week')->nullable();
+            $table->integer('video_week')->nullable();
+            $table->integer('view_month')->nullable();
+            $table->integer('sub_month')->nullable();
+            $table->integer('video_month')->nullable();
             $table->string('tags')->nullable();
         });
 

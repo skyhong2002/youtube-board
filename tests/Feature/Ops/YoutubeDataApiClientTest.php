@@ -3,6 +3,7 @@
 namespace Tests\Feature\Ops;
 
 use App\Services\Ingestion\IngestionTelemetry;
+use App\Services\Ingestion\YoutubeApiKeyPoolExhaustedException;
 use App\Services\Ingestion\YoutubeDataApiClient;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
@@ -216,6 +217,41 @@ class YoutubeDataApiClientTest extends TestCase
         $this->assertSame(1, $events[0]['api_key_attempt']);
         $this->assertTrue($events[1]['ok']);
         Http::assertSentCount(2);
+    }
+
+    public function test_youtube_client_classifies_expired_only_key_pool_as_authentication_exhaustion(): void
+    {
+        config()->set('services.youtube.api_key', 'expired-only-key');
+        config()->set('services.youtube.api_keys', null);
+
+        Http::fake([
+            'www.googleapis.com/*' => Http::response([
+                'error' => [
+                    'message' => 'Credential rejected.',
+                    'errors' => [['reason' => 'API_KEY_EXPIRED']],
+                ],
+            ], 400),
+        ]);
+
+        try {
+            app(YoutubeDataApiClient::class)->videoLiveStreamingDetails(['video-1']);
+            $this->fail('Expected the expired YouTube key pool to fail closed.');
+        } catch (YoutubeApiKeyPoolExhaustedException $exception) {
+            $this->assertSame(
+                YoutubeApiKeyPoolExhaustedException::AUTHENTICATION_FAILURE,
+                $exception->failureReason(),
+            );
+        }
+
+        $events = app(IngestionTelemetry::class)->snapshot()['youtube_requests'];
+
+        $this->assertCount(1, $events);
+        $this->assertSame(400, $events[0]['status']);
+        $this->assertTrue($events[0]['api_key_fallback']);
+        $this->assertFalse($events[0]['quota_or_rate_limit_retry']);
+        $this->assertFalse($events[0]['transient_retry']);
+        $this->assertSame(1, $events[0]['api_key_attempt']);
+        Http::assertSentCount(1);
     }
 
     public function test_youtube_client_retries_one_transient_server_failure_with_the_same_key(): void

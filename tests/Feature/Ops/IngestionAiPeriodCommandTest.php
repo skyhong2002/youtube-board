@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Ops;
 
+use App\Services\Ingestion\AiBusinessKeyLock;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -10,6 +11,40 @@ use Tests\TestCase;
 
 class IngestionAiPeriodCommandTest extends TestCase
 {
+    public function test_ai_period_fails_closed_on_a_contended_business_key_without_calling_ai(): void
+    {
+        $this->createTables();
+        $this->seedDailyFallbackRows();
+        Http::fake();
+
+        $lock = app(AiBusinessKeyLock::class)->acquire('urt_ai_period', [
+            'date_from' => '2026-06-02 00:00:00',
+            'date_to' => '2026-06-03 23:59:59',
+            'condition_type' => 'all',
+        ]);
+        $this->assertNotNull($lock);
+
+        try {
+            $exitCode = Artisan::call('ai:period', [
+                '--execute' => true,
+                '--from' => '2026-06-02',
+                '--to' => '2026-06-03',
+                '--condition' => 'all',
+                '--json' => true,
+            ]);
+            $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+            $this->assertSame(1, $exitCode);
+            $this->assertSame('business_key_locked', $payload['period_ai']['rows'][0]['skip_reason']);
+            $this->assertFalse($payload['period_ai']['rows'][0]['ai_call_attempted']);
+            $this->assertSame(0, $payload['ai_call_guard']['used']);
+            $this->assertSame(0, DB::table('urt_ai_period')->count());
+            Http::assertNothingSent();
+        } finally {
+            $lock->release();
+        }
+    }
+
     public function test_ai_period_execute_matches_adjacent_daily_topics_and_upserts_period_history(): void
     {
         $this->createTables();
@@ -101,6 +136,61 @@ class IngestionAiPeriodCommandTest extends TestCase
         $this->assertSame(1, $payload['from_topics']);
         $this->assertSame(1, $payload['to_topics']);
         $this->assertSame(1, $payload['would_call_ai_requests']);
+        $this->assertSame(0, DB::table('urt_ai_period')->count());
+        Http::assertNothingSent();
+    }
+
+    public function test_ai_period_call_cap_exhaustion_fails_when_both_source_days_are_ready(): void
+    {
+        $this->createTables();
+        $this->seedDailyFallbackRows();
+        Http::fake();
+
+        $exitCode = Artisan::call('ai:period', [
+            '--execute' => true,
+            '--from' => '2026-06-02',
+            '--to' => '2026-06-03',
+            '--condition' => 'all',
+            '--ai-call-limit' => 0,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('failed', $payload['status']);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertTrue($payload['period_ai']['failed']);
+        $this->assertSame('ai_call_guard_exhausted', $payload['period_ai']['rows'][0]['skip_reason']);
+        $this->assertFalse($payload['period_ai']['rows'][0]['ai_call_attempted']);
+        $this->assertSame(['limit' => 0, 'used' => 0, 'remaining' => 0], $payload['ai_call_guard']);
+        $this->assertSame(0, DB::table('urt_ai_period')->count());
+        Http::assertNothingSent();
+    }
+
+    public function test_ai_period_execute_fails_when_required_daily_sources_are_missing(): void
+    {
+        $this->createTables();
+        Http::preventStrayRequests();
+
+        $exitCode = Artisan::call('ai:period', [
+            '--execute' => true,
+            '--from' => '2026-06-02',
+            '--to' => '2026-06-03',
+            '--condition' => 'all',
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('failed', $payload['status']);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertTrue($payload['period_ai']['failed']);
+        $this->assertTrue($payload['period_ai']['skipped']);
+        $this->assertContains($payload['period_ai']['rows'][0]['skip_reason'], [
+            'daily_report_unavailable',
+            'missing_daily_pk',
+            'missing_daily_topics',
+        ]);
         $this->assertSame(0, DB::table('urt_ai_period')->count());
         Http::assertNothingSent();
     }

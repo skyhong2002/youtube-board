@@ -24,6 +24,8 @@ return [
     'scheduled_write_allowlist' => $scheduledWriteAllowlist(),
     'timezone' => env('INGESTION_TIMEZONE', 'Asia/Taipei'),
     'job_lock_seconds' => (int) env('INGESTION_JOB_LOCK_SECONDS', 14400),
+    'ai_business_lock_seconds' => (int) env('INGESTION_AI_BUSINESS_LOCK_SECONDS', 900),
+    'ai_business_lock_timeout_seconds' => (int) env('INGESTION_AI_BUSINESS_LOCK_TIMEOUT_SECONDS', 0),
     'lock_store' => env(
         'INGESTION_LOCK_STORE',
         env('APP_ENV') === 'production' ? 'database' : null,
@@ -48,7 +50,7 @@ return [
             'status' => 'active',
             'external_dependency' => 'YouTube Data API + Local DB',
             'writes' => ['preview mode; scheduled/local `--execute` updates channel/count/log rows'],
-            'notes' => 'Legacy 從 `urt_channel` 挑 `stime` 過期或 NULL 的頻道，23 點只補 NULL，先更新 `urt_channel.stime`，再呼叫 YouTube `channels.list(statistics)` 並更新 `urt_log`、`urt_count`、`urt_channel`。Modern command 的 preview mode 會列出 would-refresh channels；explicit/scheduled `--execute --u_id/--channel --limit` 會檢查 `YOUTUBE_API_KEY` 後限量呼叫 YouTube，transactionally/idempotently 更新本機 `urt_channel`、`urt_count`、`urt_log`。Scheduler 在 scheduled-write gates 允許時使用 capped scheduled execute command；關閉時不執行 capped command。',
+            'notes' => 'Legacy 從 `urt_channel` 挑 `stime` 過期或 NULL 的頻道，23 點只補 NULL，先更新 `urt_channel.stime`，再呼叫 YouTube `channels.list(statistics)` 並更新 `urt_log`、`urt_count`、`urt_channel`。Modern command 的 preview mode 會列出 would-refresh channels；explicit/scheduled `--execute --u_id/--channel --limit` 會檢查 `YOUTUBE_API_KEY` 後限量呼叫 YouTube。Execute 嚴格驗證 counts，hidden subscriber 不會清空既有 subscriberCount，先發布 idempotent history/count rows，最後才更新 `urt_channel.stime/mtime`，不依賴 imported MyISAM rollback。Scheduler 在 scheduled-write gates 允許時使用 capped scheduled execute command；關閉時不執行 capped command。',
         ],
         [
             'key' => 'youtube.live.poll',
@@ -62,7 +64,7 @@ return [
             'status' => 'active',
             'external_dependency' => 'YouTube Data API + Local DB',
             'writes' => ['dashboard-safe live polling preview; scheduled/local `--execute` updates live rows and live logs'],
-            'notes' => 'Legacy 從 `urt_video_live` 挑 `mtime` 超過 interval、尚未結束、排程時間已到且未刪除的直播 row；少於 10 筆且未指定 `videoId` 時會直接離開，否則呼叫 YouTube `videos.list(liveStreamingDetails)` 更新 `urt_video_live` 並 upsert `urt_video_live_log.log_json`。Modern command 的 preview mode 會列出 would-poll rows；explicit/scheduled `--execute --videoId/--limit` 會檢查 `YOUTUBE_API_KEY` 後限量呼叫 YouTube，transactionally 更新本機 `urt_video_live` 與 `urt_video_live_log`。Scheduler 在 scheduled-write gates 允許時使用 scheduled execute command；關閉時不執行 capped command。',
+            'notes' => 'Legacy 從 `urt_video_live` 挑 `mtime` 超過 interval、尚未結束、排程時間已到且未刪除的直播 row；少於 10 筆且未指定 `videoId` 時會直接離開，否則呼叫 YouTube `videos.list(liveStreamingDetails)` 更新 `urt_video_live` 並 upsert `urt_video_live_log.log_json`。Modern command 的 preview mode 會列出 would-poll rows；explicit/scheduled `--execute --videoId/--limit` 會檢查 `YOUTUBE_API_KEY` 後限量呼叫 YouTube，先驗證並 idempotently upsert live log，最後才更新 `urt_video_live` freshness。Malformed/missing live details 不會讓 imported MyISAM source row 看起來已刷新。Scheduler 在 scheduled-write gates 允許時使用 scheduled execute command；關閉時不執行 capped command。',
         ],
         [
             'key' => 'youtube.tvbs.live.poll',
@@ -76,7 +78,7 @@ return [
             'status' => 'active',
             'external_dependency' => 'YouTube Data API + Local DB',
             'writes' => ['preview mode; scheduled/local `--execute` updates `urt_video_live_tvbs` and `urt_video_live_log_tvbs`'],
-            'notes' => 'Legacy TVBS poller 從 `urt_video_live_tvbs` 挑 `mtime` 超過硬編碼 40 秒、尚未結束、排程時間已到且未刪除的直播 row，呼叫 YouTube `videos.list(liveStreamingDetails)` 後更新 `urt_video_live_tvbs` 並 upsert `urt_video_live_log_tvbs.log_json`。這支是 standalone while-loop，未列在目前 production crontab；Modern command 的 preview mode 會列出 would-poll rows；manual/scheduled `--execute --videoId/--limit` 會檢查 `YOUTUBE_API_KEY` 後限量呼叫 YouTube，transactionally 更新本機 `urt_video_live_tvbs` 與 `urt_video_live_log_tvbs`。Scheduler 在 scheduled-write gates 允許時使用 capped scheduled execute command；關閉時不執行 capped command。`videoId` branch 在 legacy source 意外查 `urt_video_live`，modern implementation 保持 TVBS table scope 並記錄 compatibility note。',
+            'notes' => 'Legacy TVBS poller 從 `urt_video_live_tvbs` 挑 `mtime` 超過硬編碼 40 秒、尚未結束、排程時間已到且未刪除的直播 row，呼叫 YouTube `videos.list(liveStreamingDetails)` 後更新 `urt_video_live_tvbs` 並 upsert `urt_video_live_log_tvbs.log_json`。這支是 standalone while-loop，未列在目前 production crontab；Modern command 的 preview mode 會列出 would-poll rows；manual/scheduled `--execute --videoId/--limit` 會檢查 `YOUTUBE_API_KEY` 後限量呼叫 YouTube，先驗證並 idempotently upsert TVBS live log，最後才更新 `urt_video_live_tvbs` freshness，不依賴 MyISAM rollback。Scheduler 在 scheduled-write gates 允許時使用 capped scheduled execute command；關閉時不執行 capped command。`videoId` branch 在 legacy source 意外查 `urt_video_live`，modern implementation 保持 TVBS table scope 並記錄 compatibility note。',
         ],
         [
             'key' => 'youtube.live.cleanup',
@@ -98,6 +100,7 @@ return [
             'priority' => 2,
             'modern_command' => 'youtube:channels:videos --live=2 --force=3',
             'scheduled_execute_command' => 'youtube:channels:videos --live=2 --force=3 --execute --limit=3 --max-results=5',
+            'command_lock_discriminator' => ['live' => 2],
             'legacy_command' => '/usr/bin/php /home/urtube/maint/get_video.php live=2 force=3',
             'schedule' => '1,31 0-15 * * *',
             'cadence' => '00-15 點每小時第 1、31 分',
@@ -112,6 +115,7 @@ return [
             'priority' => 2,
             'modern_command' => 'youtube:channels:videos --live=1 --force=3',
             'scheduled_execute_command' => 'youtube:channels:videos --live=1 --force=3 --execute --limit=3 --max-results=5',
+            'command_lock_discriminator' => ['live' => 1],
             'legacy_command' => '/usr/bin/php /home/urtube/maint/get_video.php live=1 force=3',
             'schedule' => '5 2-16 * * *',
             'cadence' => '02-16 點每小時第 5 分',
@@ -126,13 +130,14 @@ return [
             'priority' => 2,
             'modern_command' => 'youtube:channels:videos',
             'scheduled_execute_command' => 'youtube:channels:videos --execute --limit=5 --max-results=3',
+            'command_lock_discriminator' => ['live' => null],
             'legacy_command' => '/usr/bin/php /home/urtube/maint/get_video.php',
             'schedule' => '*/5 * * * *',
             'cadence' => '每 5 分鐘',
             'status' => 'active',
             'external_dependency' => 'YouTube Data API + Local DB',
             'writes' => ['preview mode; scheduled/local `--execute` inserts videos/schedules/live rows'],
-            'notes' => 'Legacy 會挑 `urt_channel.vtime` 到期或 NULL 的頻道，先把 `vtime` 推到一小時後，再呼叫 YouTube `playlistItems.list(snippet)` 抓 uploads playlist，insert `urt_video`、`urt_video_schedule`，live/upcoming 時 insert `urt_video_live`，最後依近七天影片數估算下一次 `vtime`。Modern command 的 preview mode 會列出 would-fetch channels 和本地估算；explicit/scheduled `--execute --id/--channel --limit --max-results` 會檢查 `YOUTUBE_API_KEY` 後限量呼叫 YouTube，idempotently upsert 本機 `urt_video`、`urt_video_schedule`、`urt_video_live` 並更新 `urt_channel.vtime`。Scheduler 在 scheduled-write gates 允許時使用 scheduled execute command；單一 playlist API 失敗會跳過該 channel 並延後重試，避免整個 job 卡死。',
+            'notes' => 'Legacy 會挑 `urt_channel.vtime` 到期或 NULL 的頻道，先把 `vtime` 推到一小時後，再呼叫 YouTube `playlistItems.list(snippet)` 抓 uploads playlist，insert `urt_video`、`urt_video_schedule`，live/upcoming 時 insert `urt_video_live`，最後依近七天影片數估算下一次 `vtime`。Modern command 的 preview mode 會列出 would-fetch channels 和本地估算；explicit/scheduled `--execute --id/--channel --limit --max-results` 會檢查 `YOUTUBE_API_KEY` 後限量呼叫 YouTube，idempotently upsert 本機 `urt_video`、`urt_video_schedule`、`urt_video_live`。Modern MyISAM-safe path 不先 reserve `vtime`；正常 next-check `vtime` 只在所有 item writes 完成後更新，DB item failure 則明確設定五分鐘 retry cooldown，讓 capped batch 輪替並在重試時補完可能保留的冪等 partial writes。Scheduler 在 scheduled-write gates 允許時使用 scheduled execute command；單一 playlist API 失敗會跳過該 channel 並延後重試，避免整個 job 卡死。',
         ],
         [
             'key' => 'youtube.tvbs.videos',
@@ -160,7 +165,7 @@ return [
             'status' => 'active',
             'external_dependency' => 'YouTube Data API + Local DB',
             'writes' => ['preview mode; scheduled/local `--execute` upserts `urt_video`, `urt_video_schedule`, `urt_video_live`, and `urt_show_tag_date`'],
-            'notes' => '針對每日新聞頻道等高產量 tag，不能只靠一般 discovery 每頻道少量 playlist item。此 job 依 `urt_count.tags` 找指定 tag 全部頻道，分頁抓 uploads playlist 直到超出日期範圍，寫入影片資料後用 `TagDateCacheBuilder` 重建 `urt_show_tag_date`。00:00 的前一日 crawl 是每日 AI pipeline 的硬性上游；crawl 不完整時不執行 AI。',
+            'notes' => '針對每日新聞頻道等高產量 tag，不能只靠一般 discovery 每頻道少量 playlist item。此 job 依 `urt_count.tags` 找指定 tag 全部頻道，分頁抓 uploads playlist 直到超出日期範圍，寫入影片資料後用 `TagDateCacheBuilder` 重建 `urt_show_tag_date`。Explicit `--from/--to` 必須是實際存在的 YYYY-MM-DD，非法日期在 quota reservation、API 與 DB selection 前回傳 nonzero。00:00 的前一日 crawl 是每日 AI pipeline 的硬性上游；crawl 不完整時不執行 AI。',
         ],
         [
             'key' => 'youtube.videos.stats',
@@ -174,7 +179,7 @@ return [
             'status' => 'active',
             'external_dependency' => 'YouTube Data API + Local DB',
             'writes' => ['preview mode; scheduled/local `--execute` updates video stats/log rows'],
-            'notes' => 'Legacy 從 `urt_video_schedule` 挑 `stime` 到期且 210 天內發布的影片，先把 `stime` 推到未來，再呼叫 YouTube `videos.list(statistics)` 並更新 `urt_video`、`urt_video_schedule`、`urt_video_log`、`urt_video_log_history`。Modern command 的 preview mode 會列出 would-refresh candidates；explicit/scheduled `--execute --videoId/--limit` 會檢查 `YOUTUBE_API_KEY` 後限量呼叫 YouTube，transactionally/idempotently upsert 本機 stats/log rows。Scheduler 在 scheduled-write gates 允許時使用 capped scheduled execute command；關閉時不執行 capped command。',
+            'notes' => 'Legacy 從 `urt_video_schedule` 挑 `stime` 到期且 210 天內發布的影片，先把 `stime` 推到未來，再呼叫 YouTube `videos.list(statistics)` 並更新 `urt_video`、`urt_video_schedule`、`urt_video_log`、`urt_video_log_history`。Modern command 的 preview mode 會列出 would-refresh candidates；explicit/scheduled `--execute --videoId/--limit` 會檢查 `YOUTUBE_API_KEY` 後限量呼叫 YouTube。`viewCount` 必須有效；YouTube 合法省略 like/favorite/comment counts 時保留各表既有值，未知值不被歸零。History/log 先 idempotently 寫入，來源 freshness 最後更新；malformed item 得到五分鐘 cooldown 並讓 capped batch 輪替。Scheduler 在 scheduled-write gates 允許時使用 capped scheduled execute command；關閉時不執行 capped command。',
         ],
         [
             'key' => 'reports.counts.build',
@@ -188,7 +193,7 @@ return [
             'status' => 'active',
             'external_dependency' => 'Local DB',
             'writes' => ['preview mode; scheduled/local `--execute` updates `urt_count` weekly/monthly delta columns'],
-            'notes' => 'Legacy 會根據 `urt_log.thedata` update `urt_count` 的週/月 view/sub/video 增量與 `mtime`；modern command 的 preview mode 輸出本機 preview。Explicit/scheduled `--execute` 會限量更新本機 `urt_count` delta columns。',
+            'notes' => 'Legacy 會根據 `urt_log.thedata` update `urt_count` 的週/月 view/sub/video 增量與 `mtime`；modern command 的 preview mode 輸出本機 preview。Explicit/scheduled `--execute` 限量更新 valid delta rows；malformed oldest history 只更新 `mtime` 作 cooldown，保留 derived values、讓 capped batch 輪替，且 cooldown failure 會隔離。',
         ],
         [
             'key' => 'reports.keywords.build',
@@ -202,7 +207,7 @@ return [
             'status' => 'active',
             'external_dependency' => '新文易數 tag.analysis.tw keyword API when scheduled-write gates allow it',
             'writes' => ['preview mode; scheduled/local `--execute` upserts local `tags` rows'],
-            'notes' => 'Legacy maintenance 會從新文易數 `tag.analysis.tw` 抓 tag JSON、更新 `tags`，再寫 `data/keyword.json` / `data/keyword_all.json`；modern command 的 preview mode 用本機 `tags` 預覽 keyword JSON。Explicit/scheduled `--execute` 會呼叫 `tag.analysis.tw/api/tag_json.php` 並 upsert 本機 `tags`；filesystem JSON 輸出改由 DB-backed cache 承接。',
+            'notes' => 'Legacy maintenance 會從新文易數 `tag.analysis.tw` 抓 tag JSON、更新 `tags`，再寫 `data/keyword.json` / `data/keyword_all.json`；modern command 的 preview mode 用本機 `tags` 預覽 keyword JSON。Explicit/scheduled `--execute` bounds list source，先套 offset/limit 再逐筆驗證，malformed selected row 隔離且 cursor 仍前進，valid rows idempotently upsert 本機 `tags`；filesystem JSON 輸出改由 DB-backed cache 承接。',
         ],
         [
             'key' => 'reports.people.build',
@@ -314,7 +319,7 @@ return [
             'status' => 'active',
             'external_dependency' => '新文易數 tag.analysis.tw group API when scheduled-write gates allow it',
             'writes' => ['preview mode; scheduled/local `--execute` upserts local `tag_group` rows'],
-            'notes' => 'Legacy maintenance 會呼叫新文易數 `https://tag.analysis.tw/api/group.php?hours=...`，再 insert/update `tag_group`；modern command 的 preview mode 彙整本機 `tag_group` 狀態。Explicit/scheduled `--execute` 會呼叫 external group API 並 upsert 本機 `tag_group`。',
+            'notes' => 'Legacy maintenance 會呼叫新文易數 `https://tag.analysis.tw/api/group.php?hours=...`，再 insert/update `tag_group`；modern command 的 preview mode 彙整本機 `tag_group` 狀態。Explicit/scheduled `--execute` bounds list source，先套 offset/limit 再逐筆驗證，malformed selected row 隔離且 cursor 仍前進，valid rows idempotently upsert 本機 `tag_group`。',
         ],
         [
             'key' => 'reports.schedule.build',
@@ -328,7 +333,7 @@ return [
             'status' => 'active',
             'external_dependency' => 'Local DB',
             'writes' => ['preview mode; scheduled/local `--execute` updates `urt_video_schedule.stime/mtime`'],
-            'notes' => 'Legacy 讀最近更新的 `urt_video_schedule`，用 `urt_video_log_history` 最近兩筆觀看數估算下一次 `stime`，再更新 `urt_video_schedule.stime/mtime`；modern command 的 preview mode 輸出估算結果。Explicit/scheduled `--execute` 會限量更新本機 schedule rows。',
+            'notes' => 'Legacy 讀最近更新的 `urt_video_schedule`，用 `urt_video_log_history` 最近兩筆觀看數估算下一次 `stime`，再更新 `urt_video_schedule.stime/mtime`；modern command 的 preview mode 輸出估算結果。Explicit/scheduled `--execute` 限量更新 valid schedule rows；malformed oldest history 只更新 `mtime` 作 cooldown、保留既有 `stime` 並讓 capped batch 輪替，cooldown failure 會隔離。',
         ],
         [
             'key' => 'reports.static.html',
@@ -382,7 +387,7 @@ return [
             'status' => 'active',
             'external_dependency' => 'YouTube Data API + Local DB',
             'writes' => ['preview mode; scheduled/local `--execute` updates duration queue rows'],
-            'notes' => 'Legacy 從 `urt_video_duration` queue 挑 `mtime/duration/stime` 皆為 NULL 的 row，先把 `stime` 推到未來，再呼叫 YouTube `videos.list(contentDetails)` 並更新 `duration/caption`。Modern command 的 preview mode 會列出 queue candidates 和 missing queue diagnostics；explicit/scheduled `--execute --videoId/--limit` 會檢查 `YOUTUBE_API_KEY` 後限量呼叫 YouTube，transactionally/idempotently 更新本機 `urt_video_duration`。`--enqueue-missing` 可從既有本機 `urt_video` 補缺少 duration row 的影片；未指定 `--videoId` 時會補一批最近影片，讓 scheduler 不會因空 queue 而空跑。Scheduler 在 scheduled-write gates 允許時使用 capped scheduled execute command；關閉時不執行 capped command。',
+            'notes' => 'Legacy 從 `urt_video_duration` queue 挑 `mtime/duration/stime` 皆為 NULL 的 row，先把 `stime` 推到未來，再呼叫 YouTube `videos.list(contentDetails)` 並更新 `duration/caption`。Modern command 的 preview mode 會列出 queue candidates 和 missing queue diagnostics；explicit/scheduled `--execute --videoId/--limit` 會檢查 `YOUTUBE_API_KEY` 後限量呼叫 YouTube，idempotently 更新本機 `urt_video_duration`。`--enqueue-missing` 可從既有本機 `urt_video` 補缺少 duration row 的影片；未指定 `--videoId` 時會補一批最近影片，讓 scheduler 不會因空 queue 而空跑。Scheduler 在 scheduled-write gates 允許時使用 capped scheduled execute command；關閉時不執行 capped command。',
         ],
         [
             'key' => 'reports.live.build',
@@ -465,7 +470,7 @@ return [
             'status' => 'active',
             'external_dependency' => 'Local DB + OpenAI-compatible provider',
             'writes' => ['preview mode; explicit `--execute` calls OpenAI-compatible chat completions and upserts `urt_channel_ai` / `urt_ai_date`'],
-            'notes' => 'Legacy 先執行 `make_channel_ai.php`，對硬編碼 39 個頻道逐一用當日 `urt_video` raw rows 產生 prompt，影片數少於 10 就跳過，AI 回應後 insert `urt_channel_ai`；再用 `get_ai_day.php condition=all/green/blue/neutral/finance/world` 讀 `urt_channel_ai.result_json`，依 `urt_count.tags` 套用 condition filters，合併媒體事件 prompt，呼叫 AI 後 insert `urt_ai_date.channel_id/result_json`。Modern manual command 保留 `ai:daily`；00:00 scheduler 改跑 `ai:daily:pipeline --date=yesterday`，先對 tag 102 全部頻道完成分頁 uploads crawl，並逐一證明設定的 39 個 AI 頻道都在成功 crawl 集合內，才嘗試 channel AI 與六種 daily rows。單一頻道當日少於 10 支影片是合法 skip，不保證寫入 39 筆 channel AI。第一批 channel AI 寫入後，`/ai/days` 即可先用 channel fallback 顯示。YouTube quota ledger、AI call limit、prompt cap、locks 與 scheduled-write gates 仍全部生效。',
+            'notes' => 'Legacy 先執行 `make_channel_ai.php`，對硬編碼 39 個頻道逐一用當日 `urt_video` raw rows 產生 prompt，影片數少於 10 就跳過，AI 回應後 insert `urt_channel_ai`；再用 `get_ai_day.php condition=all/green/blue/neutral/finance/world` 讀 `urt_channel_ai.result_json`，依 `urt_count.tags` 套用 condition filters，合併媒體事件 prompt，呼叫 AI 後 insert `urt_ai_date.channel_id/result_json`。Modern manual command 保留 `ai:daily`；00:00 scheduler 改跑 `ai:daily:pipeline --date=yesterday`，先對 tag 102 全部頻道完成分頁 uploads crawl，並逐一證明設定的 39 個 AI 頻道都在成功 crawl 集合內，才嘗試 channel AI 與六種 daily rows。Explicit dates/types/conditions fail closed。Provider/model 不屬於 logical row identity，切換 provider 會更新同一筆並同步 `ai_type`；有合格來源但 AI call cap 耗盡屬於 nonzero failure。單一頻道當日少於 10 支影片仍是合法 skip。第一批 channel AI 寫入後，`/ai/days` 即可先用 channel fallback 顯示。YouTube quota ledger、AI call limit、prompt cap、locks 與 scheduled-write gates 仍全部生效。',
         ],
         [
             'key' => 'ai.mayor_person',
@@ -549,7 +554,7 @@ return [
             'status' => 'active',
             'external_dependency' => 'Local DB',
             'writes' => ['preview mode; scheduled/local `--execute` inserts `urt_comment_queue`'],
-            'notes' => 'Legacy 會用 `urt_count.tags` 篩頻道，再找 `urt_video.publishedAt` 在指定 hours 內且 `viewCount/commentCount` 都超過 min 的影片，若不在 `urt_comment_queue` 就 insert queue row。Production crontab 使用 `hours=72 min=500` 且只在 04/10/16 點第 23 分排程。Modern command 的 preview mode 會列出 would-queue videos；explicit/scheduled `--execute --limit` 會 idempotently 插入本機 `urt_comment_queue`。Scheduler 在 scheduled-write gates 允許時用 capped execute command 補 queue rows。',
+            'notes' => 'Legacy 會用 `urt_count.tags` 篩頻道，再找 `urt_video.publishedAt` 在指定 hours 內且 `viewCount/commentCount` 都超過 min 的影片，若不在 `urt_comment_queue` 就 insert queue row。Production crontab 使用 `hours=72 min=500` 且只在 04/10/16 點第 23 分排程。Modern preview 先以 case-sensitive YouTube ID 排除 queued/done rows，再 bounded load `limit + 1`；explicit/scheduled `--execute --limit` 在 insert 前重查兩表並 idempotently 插入 queue。Scheduler 在 scheduled-write gates 允許時用 capped execute command 補 queue rows。',
         ],
         [
             'key' => 'youtube.comments.fetch',
@@ -563,7 +568,7 @@ return [
             'status' => 'active',
             'external_dependency' => 'Local DB; YouTube Data API commentThreads.list and comments.list only with explicit/scheduled `--execute`',
             'writes' => ['preview mode; scheduled/local `--execute` updates comments/authors/revisions and moves queue rows'],
-            'notes' => 'Legacy 逐筆讀 `urt_comment_queue`，先更新 `stime`，呼叫 `maint/get_comment.php videoId=...` 抓 YouTube `commentThreads.list` 並更新 `urt_comment` / `urt_comment_author` / `urt_comment_rev`，再更新 `ftime`、copy 到 `urt_comment_queue_done`、delete queue row。Production crontab 只在每小時第 5 分排程。Modern command 的 preview mode 只列出未 claim 或 `stime` claim 已過期的 rows；active claims 會排除。Explicit/scheduled `--execute --videoId/--limit --max-pages --max-reply-pages` 在 command lock 下原子 claim 每筆 row、檢查 `YOUTUBE_API_KEY`，呼叫 capped `commentThreads.list`，並在 embedded replies 不完整時呼叫 capped `comments.list(parentId)`。Thread/reply cap 尚有 continuation 時不發布完成 cache；成功後先建立 idempotent done row 再刪 queue row，維持 imported MyISAM tables 的可恢復性。單筆失敗會保留 queue row、釋放 claim、記錄 sanitized failure 並繼續後續 rows；batch 有失敗時 summary 仍完整輸出且 command 回傳 non-zero。',
+            'notes' => 'Legacy 逐筆讀 `urt_comment_queue`，先更新 `stime`，呼叫 `maint/get_comment.php videoId=...` 抓 YouTube `commentThreads.list` 並更新 `urt_comment` / `urt_comment_author` / `urt_comment_rev`，再更新 `ftime`、copy 到 `urt_comment_queue_done`、delete queue row。Production crontab 只在每小時第 5 分排程。Modern command 的 preview mode 只列出未 claim 或 `stime` claim 已過期的 rows；active claims 會排除。Explicit/scheduled `--execute --videoId/--limit --max-pages --max-reply-pages` 在 command lock 下原子 claim 每筆 row、檢查 `YOUTUBE_API_KEY`，呼叫 capped `commentThreads.list`，並在 embedded replies 不完整時呼叫 capped `comments.list(parentId)`。Complete crawl 先驗證全部 revision JSON，再寫 author/revision rows，最後才發布 `urt_comment`；新 Laravel row 用 `stime == mtime` 標記完成，legacy done row 仍可作相容 marker。完成後才建立 idempotent done row 並刪 queue row，維持 imported MyISAM tables 的可恢復性。單筆失敗會保留 queue row、釋放 claim、記錄 sanitized failure 並繼續後續 rows；batch 有失敗時 summary 仍完整輸出且 command 回傳 non-zero。',
         ],
         [
             'key' => 'reports.channel_predictions.build',

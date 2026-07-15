@@ -467,11 +467,12 @@ class AiScheduledPipelineIngestion
 
     private function date(?string $date, CarbonImmutable $now): string
     {
+        $date = AiCommandInputValidator::date($date, '--date', ['today', 'yesterday']);
+
         return match (true) {
             $date === 'today' => $now->toDateString(),
             $date === 'yesterday', $date === null, $date === '' => $now->subDay()->toDateString(),
-            is_string($date) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1 => $date,
-            default => $now->subDay()->toDateString(),
+            default => $date,
         };
     }
 

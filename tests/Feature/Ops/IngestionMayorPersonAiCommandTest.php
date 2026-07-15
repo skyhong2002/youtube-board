@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Ops;
 
+use App\Services\Ingestion\AiBusinessKeyLock;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +17,43 @@ class IngestionMayorPersonAiCommandTest extends TestCase
         CarbonImmutable::setTestNow();
 
         parent::tearDown();
+    }
+
+    public function test_mayor_person_isolates_a_contended_person_key_without_calling_ai(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:35:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedTaipeiDailySource();
+        Http::fake();
+
+        $lock = app(AiBusinessKeyLock::class)->acquire('urt_mayor_person_ai', [
+            'city_key' => 'taipei',
+            'person' => '蔣萬安',
+            'the_date' => '2026-05-24',
+            'user_token' => 'CLI',
+        ]);
+        $this->assertNotNull($lock);
+
+        try {
+            $exitCode = Artisan::call('ai:mayor-person', [
+                '--execute' => true,
+                '--city' => 'taipei',
+                '--person' => '蔣萬安',
+                '--date' => '2026-05-24',
+                '--json' => true,
+            ]);
+            $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+            $this->assertSame(1, $exitCode);
+            $this->assertSame(1, $payload['failed_rows']);
+            $this->assertSame('business_key_locked', $payload['rows'][0]['skip_reason']);
+            $this->assertFalse($payload['rows'][0]['ai_call_attempted']);
+            $this->assertSame(0, $payload['ai_call_guard']['used']);
+            $this->assertSame(0, DB::table('urt_mayor_person_ai')->count());
+            Http::assertNothingSent();
+        } finally {
+            $lock->release();
+        }
     }
 
     public function test_mayor_person_ai_preview_and_execute_upsert_daily_rows(): void
@@ -105,6 +143,38 @@ class IngestionMayorPersonAiCommandTest extends TestCase
             'ai_type' => 'qwen-test',
             'provider' => 'primary',
         ]);
+    }
+
+    public function test_mayor_person_call_cap_exhaustion_fails_eligible_source_rows(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:35:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedTaipeiDailySource();
+        Http::fake();
+
+        $exitCode = Artisan::call('ai:mayor-person', [
+            '--execute' => true,
+            '--city' => 'taipei',
+            '--person' => '蔣萬安,沈伯洋',
+            '--date' => '2026-05-24',
+            '--ai-call-limit' => 0,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('partial_failure', $payload['status']);
+        $this->assertSame(2, $payload['failed_rows']);
+        $this->assertSame(2, $payload['skipped']);
+        $this->assertSame(2, $payload['failed']);
+        $this->assertTrue(collect($payload['rows'])->every(
+            fn (array $row): bool => $row['skip_reason'] === 'ai_call_guard_exhausted'
+                && $row['failed'] === true
+                && $row['ai_call_attempted'] === false,
+        ));
+        $this->assertSame(['limit' => 0, 'used' => 0, 'remaining' => 0], $payload['ai_call_guard']);
+        $this->assertSame(0, DB::table('urt_mayor_person_ai')->count());
+        Http::assertNothingSent();
     }
 
     public function test_mayor_person_db_failure_is_isolated_and_later_target_is_written(): void

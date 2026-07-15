@@ -226,6 +226,122 @@ class IngestionLivePollingCommandTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_live_polling_rejects_malformed_concurrent_viewers_and_preserves_existing_row(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('services.youtube.api_keys', null);
+        config()->set('services.youtube.transient_retries', 0);
+        $this->createTables();
+        $rows = [
+            $this->liveRow('a-malformed', 1, '2026-05-25 11:00:00', concurrentViewers: 100, maxCurrent: 120),
+            $this->liveRow('b-valid', 2, '2026-05-25 11:00:00', concurrentViewers: 200, maxCurrent: 220),
+        ];
+
+        for ($index = 3; $index <= 10; $index++) {
+            $rows[] = $this->liveRow('candidate-'.$index, $index, '2026-05-25 11:00:00');
+        }
+
+        DB::table('urt_video_live')->insert($rows);
+        Http::fake([
+            'www.googleapis.com/youtube/v3/videos*' => Http::response([
+                'items' => [
+                    [
+                        'id' => 'a-malformed',
+                        'liveStreamingDetails' => ['concurrentViewers' => 'not-a-count'],
+                    ],
+                    [
+                        'id' => 'b-valid',
+                        'liveStreamingDetails' => ['concurrentViewers' => '333'],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $payload = app(LivePollingIngestion::class)->execute(limit: 2);
+
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame(1, $payload['failed_videos']);
+        $this->assertSame(1, $payload['updated_videos']);
+        $this->assertSame(['videoId' => 'a-malformed', 'reason' => 'api_item_missing'], $payload['skipped'][0]);
+        $this->assertSame('2026-05-25 11:00:00', DB::table('urt_video_live')->where('videoId', 'a-malformed')->value('mtime'));
+        $this->assertSame(100, DB::table('urt_video_live')->where('videoId', 'a-malformed')->value('concurrentViewers'));
+        $this->assertSame(333, DB::table('urt_video_live')->where('videoId', 'b-valid')->value('concurrentViewers'));
+        $this->assertSame(0, DB::table('urt_video_live_log')->where('videoId', 'a-malformed')->count());
+        $this->assertSame(1, DB::table('urt_video_live_log')->where('videoId', 'b-valid')->count());
+    }
+
+    public function test_live_polling_rejects_malformed_optional_fields_without_advancing_freshness(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('services.youtube.api_keys', null);
+        config()->set('services.youtube.transient_retries', 0);
+        $this->createTables();
+
+        $videoIds = [
+            'a-bad-start',
+            'b-bad-end',
+            'c-bad-scheduled',
+            'd-bad-chat',
+            'e-bad-calendar',
+            'f-valid',
+            'g-candidate',
+            'h-candidate',
+            'i-candidate',
+            'j-candidate',
+        ];
+
+        foreach ($videoIds as $index => $videoId) {
+            DB::table('urt_video_live')->insert($this->liveRow(
+                videoId: $videoId,
+                uId: $index + 1,
+                mtime: '2026-05-25 11:00:00',
+                concurrentViewers: 100,
+                maxCurrent: 120,
+            ));
+        }
+
+        Http::fake([
+            'www.googleapis.com/youtube/v3/videos*' => Http::response([
+                'items' => [
+                    ['id' => 'a-bad-start', 'liveStreamingDetails' => ['actualStartTime' => 123]],
+                    ['id' => 'b-bad-end', 'liveStreamingDetails' => ['actualEndTime' => []]],
+                    ['id' => 'c-bad-scheduled', 'liveStreamingDetails' => ['scheduledStartTime' => false]],
+                    ['id' => 'd-bad-chat', 'liveStreamingDetails' => ['activeLiveChatId' => 987]],
+                    ['id' => 'e-bad-calendar', 'liveStreamingDetails' => ['actualStartTime' => '2026-02-30T03:30:00Z']],
+                    ['id' => 'f-valid', 'liveStreamingDetails' => [
+                        'actualStartTime' => '2026-05-25T03:30:00.123Z',
+                        'activeLiveChatId' => 'chat-f-valid',
+                        'concurrentViewers' => '333',
+                    ]],
+                ],
+            ], 200),
+        ]);
+
+        $payload = app(LivePollingIngestion::class)->execute(limit: 6);
+
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame(5, $payload['failed_videos']);
+        $this->assertSame(1, $payload['updated_videos']);
+        $this->assertSame(
+            ['a-bad-start', 'b-bad-end', 'c-bad-scheduled', 'd-bad-chat', 'e-bad-calendar'],
+            collect($payload['skipped'])->pluck('videoId')->all(),
+        );
+        $this->assertSame(['api_item_missing'], collect($payload['skipped'])->pluck('reason')->unique()->values()->all());
+
+        foreach (array_slice($videoIds, 0, 5) as $videoId) {
+            $this->assertSame('2026-05-25 11:00:00', DB::table('urt_video_live')->where('videoId', $videoId)->value('mtime'));
+            $this->assertSame(0, DB::table('urt_video_live_log')->where('videoId', $videoId)->count());
+        }
+
+        $this->assertSame('2026-05-25 12:00:00', DB::table('urt_video_live')->where('videoId', 'f-valid')->value('mtime'));
+        $this->assertSame('2026-05-25 11:30:00', DB::table('urt_video_live')->where('videoId', 'f-valid')->value('actualStartTime'));
+        $this->assertSame('chat-f-valid', DB::table('urt_video_live')->where('videoId', 'f-valid')->value('activeLiveChatId'));
+        $this->assertSame(333, DB::table('urt_video_live')->where('videoId', 'f-valid')->value('concurrentViewers'));
+        $this->assertSame(1, DB::table('urt_video_live_log')->where('videoId', 'f-valid')->count());
+    }
+
     public function test_live_polling_isolates_a_failed_video_and_sanitizes_the_warning(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
@@ -274,9 +390,11 @@ SQL);
         $this->assertSame(1, $payload['updated_videos']);
         $this->assertSame(['videoId' => 'a-fail', 'reason' => 'item_processing_failed'], $payload['skipped'][0]);
         $this->assertStringNotContainsString('super-secret', json_encode($payload, JSON_THROW_ON_ERROR));
+        $this->assertSame('2026-05-25 11:00:00', DB::table('urt_video_live')->where('videoId', 'a-fail')->value('mtime'));
         $this->assertSame(100, DB::table('urt_video_live')->where('videoId', 'a-fail')->value('concurrentViewers'));
         $this->assertSame(222, DB::table('urt_video_live')->where('videoId', 'b-success')->value('concurrentViewers'));
-        $this->assertSame(0, DB::table('urt_video_live_log')->where('videoId', 'a-fail')->count());
+        $this->assertSame(1, DB::table('urt_video_live_log')->where('videoId', 'a-fail')->count());
+        $this->assertSame(['12:00' => 111], json_decode((string) DB::table('urt_video_live_log')->where('videoId', 'a-fail')->value('log_json'), true));
         $this->assertSame(1, DB::table('urt_video_live_log')->where('videoId', 'b-success')->count());
         Log::shouldHaveReceived('warning')
             ->once()
@@ -287,6 +405,53 @@ SQL);
                     && is_string($context['exception_class'])
                     && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'super-secret');
             });
+    }
+
+    public function test_live_polling_preserves_malformed_existing_history_and_fails_the_row(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 20:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('services.youtube.api_keys', null);
+        config()->set('services.youtube.transient_retries', 0);
+        $this->createTables();
+        DB::table('urt_video_live')->insert($this->liveRow(
+            videoId: 'malformed-live-history',
+            uId: 7,
+            mtime: '2026-05-25 19:00:00',
+            concurrentViewers: 100,
+            maxCurrent: 120,
+        ));
+        DB::table('urt_video_live_log')->insert([
+            'videoId' => 'malformed-live-history',
+            'u_id' => 7,
+            'the_date' => '2026-05-25',
+            'log_json' => '{malformed',
+            'max_current' => 120,
+        ]);
+        Http::fake([
+            'www.googleapis.com/youtube/v3/videos*' => Http::response([
+                'items' => [[
+                    'id' => 'malformed-live-history',
+                    'liveStreamingDetails' => ['concurrentViewers' => '999'],
+                ]],
+            ], 200),
+        ]);
+
+        $exitCode = Artisan::call('youtube:live:poll', [
+            '--execute' => true,
+            '--videoId' => 'malformed-live-history',
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['failed_videos']);
+        $this->assertSame(0, $payload['updated_videos']);
+        $this->assertSame('item_processing_failed', $payload['skipped'][0]['reason']);
+        $this->assertSame('2026-05-25 19:00:00', DB::table('urt_video_live')->where('videoId', 'malformed-live-history')->value('mtime'));
+        $this->assertSame(100, DB::table('urt_video_live')->where('videoId', 'malformed-live-history')->value('concurrentViewers'));
+        $this->assertSame('{malformed', DB::table('urt_video_live_log')->where('videoId', 'malformed-live-history')->value('log_json'));
     }
 
     public function test_youtube_live_poll_preserves_legacy_minimum_batch_skip(): void

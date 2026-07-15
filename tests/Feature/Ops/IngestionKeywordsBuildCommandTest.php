@@ -269,7 +269,7 @@ class IngestionKeywordsBuildCommandTest extends TestCase
         $this->assertSame(['第三筆', '第一筆'], DB::table('tags')->orderBy('pk')->pluck('tag')->all());
     }
 
-    public function test_reports_keywords_build_rejects_malformed_payload_before_any_write(): void
+    public function test_reports_keywords_build_isolates_malformed_rows_and_keeps_valid_rows(): void
     {
         $this->createTables();
         DB::table('tags')->insert($this->localRow('既有', maxCount: 99));
@@ -288,11 +288,47 @@ class IngestionKeywordsBuildCommandTest extends TestCase
         $output = Artisan::output();
 
         $this->assertSame(1, $exitCode);
-        $this->assertSame(1, DB::table('tags')->count());
+        $payload = json_decode(trim($output), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(2, DB::table('tags')->count());
         $this->assertSame(99, DB::table('tags')->where('tag', '既有')->value('max_count'));
-        $this->assertFalse(DB::table('tags')->where('tag', '合法新資料')->exists());
-        $this->assertStringContainsString('failure=external_sync_failed', $output);
-        $this->assertStringNotContainsString('max_count', $output);
+        $this->assertTrue(DB::table('tags')->where('tag', '合法新資料')->exists());
+        $this->assertSame(2, $payload['sync_attempted']);
+        $this->assertSame(1, $payload['synced_rows']);
+        $this->assertSame(1, $payload['failed_rows']);
+    }
+
+    public function test_reports_keywords_build_cursor_advances_past_a_malformed_row(): void
+    {
+        $this->createTables();
+        Http::fake([
+            'https://tag.analysis.tw/api/tag_json.php*' => Http::response([
+                $this->remoteRow('第一筆', maxCount: null),
+                $this->remoteRow('第二筆'),
+            ]),
+        ]);
+
+        $firstExit = Artisan::call('reports:keywords:build', [
+            '--execute' => true,
+            '--limit' => 1,
+            '--offset' => 0,
+            '--json' => true,
+        ]);
+        $first = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+        $secondExit = Artisan::call('reports:keywords:build', [
+            '--execute' => true,
+            '--limit' => 1,
+            '--offset' => $first['sync_next_offset'],
+            '--json' => true,
+        ]);
+        $second = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $firstExit);
+        $this->assertSame(1, $first['failed_rows']);
+        $this->assertSame(1, $first['sync_next_offset']);
+        $this->assertSame(0, $secondExit);
+        $this->assertSame(1, $second['synced_rows']);
+        $this->assertTrue(DB::table('tags')->where('tag', '第二筆')->exists());
     }
 
     public function test_reports_keywords_build_rejects_remote_source_over_hard_cap(): void

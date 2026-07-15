@@ -5,9 +5,11 @@ namespace App\Services\Ingestion;
 use App\Support\SensitiveTextRedactor;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use DateTimeImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
 
@@ -105,7 +107,10 @@ class TagVideoBackfillIngestion
             try {
                 $result = $this->fetchChannel($uId, $uploads, $fromDate, $toDate, $maxPages, $maxResults, $now);
             } catch (Throwable $exception) {
-                if ($exception instanceof YoutubeQuotaWindowException) {
+                if (
+                    $exception instanceof YoutubeQuotaWindowException
+                    || $exception instanceof YoutubeApiKeyPoolExhaustedException
+                ) {
                     throw $exception;
                 }
 
@@ -172,8 +177,11 @@ class TagVideoBackfillIngestion
             };
         }
 
+        $exitCode = $crawlComplete && $tagDateFailedRows === 0 ? 0 : 1;
+
         return [
             'mode' => 'execute',
+            'status' => $exitCode === 0 ? 'success' : 'failed',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'from' => $fromDate,
             'to' => $toDate,
@@ -190,7 +198,7 @@ class TagVideoBackfillIngestion
             'failed_channel_ids' => $this->rowChannelIds($skipped),
             'failed_channels' => count($skipped),
             'crawl_complete' => $crawlComplete,
-            'exit_code' => $skipped === [] && ! $selectionTruncated && $tagDateFailedRows === 0 ? 0 : 1,
+            'exit_code' => $exitCode,
             ...$totals,
             'tag_date_writes' => $tagDateWrites,
             'tag_date_failed_rows' => $tagDateFailedRows,
@@ -246,7 +254,17 @@ class TagVideoBackfillIngestion
 
     private function dateString(?string $value, string $fallback): string
     {
-        return is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) ? $value : $fallback;
+        if ($value === null) {
+            return $fallback;
+        }
+
+        $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+
+        if (! $parsed instanceof DateTimeImmutable || $parsed->format('Y-m-d') !== $value) {
+            throw new InvalidArgumentException('date_options_must_be_valid_calendar_dates');
+        }
+
+        return $value;
     }
 
     /**

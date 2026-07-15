@@ -93,6 +93,39 @@ class ChannelPeopleRouteTest extends TestCase
         $response->assertSee('2026-05-24');
     }
 
+    public function test_channel_people_page_uses_only_the_latest_preexisting_provider_row_per_day(): void
+    {
+        $this->createTables();
+
+        DB::table('urt_channel_ai')->insert([
+            [
+                'pk' => 4,
+                'u_id' => 10,
+                'date_from' => '2026-05-24 00:00:00',
+                'date_to' => '2026-05-24 23:59:59',
+                'data_type' => 'oneday',
+                'del_flag' => null,
+                'result_json' => json_encode([['事件' => '舊模型事件', '人物' => ['舊模型人物'], 'videoId' => ['old']]], JSON_UNESCAPED_UNICODE),
+            ],
+            [
+                'pk' => 5,
+                'u_id' => 10,
+                'date_from' => '2026-05-24 00:00:00',
+                'date_to' => '2026-05-24 23:59:59',
+                'data_type' => 'oneday',
+                'del_flag' => null,
+                'result_json' => json_encode([['事件' => '新模型事件', '人物' => ['新模型人物'], 'videoId' => ['new-a', 'new-b']]], JSON_UNESCAPED_UNICODE),
+            ],
+        ]);
+
+        $response = $this->get('/channels/10/people?days=1&limit=5');
+
+        $response->assertOk();
+        $response->assertSee('新模型人物');
+        $response->assertSee('2 部 / 1 則');
+        $response->assertDontSee('舊模型人物');
+    }
+
     private function createTables(): void
     {
         foreach (['urt_channel', 'urt_channel_ai'] as $table) {

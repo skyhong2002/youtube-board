@@ -5,7 +5,6 @@ namespace App\Services\Ingestion;
 use App\Support\AiChannelContract;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -18,6 +17,7 @@ class ChannelAiIngestion
     public function __construct(
         private readonly OpenCodeChatClient $client,
         private readonly AiJsonPayloadValidator $validator,
+        private readonly AiBusinessKeyLock $businessKeyLock,
     ) {}
 
     /**
@@ -102,23 +102,27 @@ class ChannelAiIngestion
             ]);
         }
 
-        $lockName = sprintf(
-            'ingestion:ai-channel:%d:%s:%s:%s',
-            $uId,
-            substr((string) $preview['date_from'], 0, 10),
-            substr((string) $preview['date_to'], 0, 10),
-            $preview['data_type'],
-        );
-        $lock = Cache::lock($lockName, 600);
+        $attributes = [
+            'u_id' => $uId,
+            'date_from' => (string) $preview['date_from'],
+            'date_to' => (string) $preview['date_to'],
+            'data_type' => (string) $preview['data_type'],
+            'user_token' => $userToken,
+        ];
+        $lock = $this->businessKeyLock->acquire('urt_channel_ai', $attributes);
 
-        if (! $lock->get()) {
+        if ($lock === null) {
             return $this->logged($preview + [
                 'mode' => 'execute',
+                'status' => 'failed',
+                'exit_code' => 1,
+                'failed_rows' => 1,
                 'ai_call_attempted' => false,
                 'inserted' => false,
                 'updated' => false,
                 'skipped' => true,
-                'skip_reason' => 'command_locked',
+                'failed' => true,
+                'skip_reason' => 'business_key_locked',
                 'write_targets' => [],
             ]);
         }
@@ -167,13 +171,6 @@ class ChannelAiIngestion
             if (! is_string($resultJson)) {
                 throw new RuntimeException('invalid_ai_payload');
             }
-            $attributes = [
-                'u_id' => $uId,
-                'date_from' => $preview['date_from'],
-                'date_to' => $preview['date_to'],
-                'data_type' => $preview['data_type'],
-                'user_token' => $userToken,
-            ];
             $existingPk = DB::table('urt_channel_ai')
                 ->where($attributes)
                 ->whereNull('del_flag')
@@ -207,6 +204,7 @@ class ChannelAiIngestion
                 'inserted' => $existingPk === null,
                 'updated' => $existingPk !== null,
                 'skipped' => false,
+                'failed' => false,
                 'skip_reason' => null,
                 'write_targets' => ['urt_channel_ai'],
             ]);

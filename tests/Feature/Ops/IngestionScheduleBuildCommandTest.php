@@ -324,6 +324,173 @@ SQL);
         $this->assertSame('2026-05-25 11:02:00', DB::table('urt_video_schedule')->where('videoId', 'bounded-schedule-3')->value('mtime'));
     }
 
+    public function test_reports_schedule_build_cools_down_invalid_history_and_rotates_to_valid_rows(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        DB::table('urt_video_schedule')->insert([
+            [
+                'ctime' => '2026-05-25 09:00:00',
+                'mtime' => '2026-05-25 11:00:00',
+                'stime' => '2026-05-25 11:15:00',
+                'videoId' => 'invalid-history',
+                'publishedAt' => '2026-05-25 10:00:00',
+                'viewCount' => 100,
+            ],
+            [
+                'ctime' => '2026-05-25 09:01:00',
+                'mtime' => '2026-05-25 11:01:00',
+                'stime' => '2026-05-25 11:30:00',
+                'videoId' => 'valid-history',
+                'publishedAt' => '2026-05-25 10:00:00',
+                'viewCount' => 1500,
+            ],
+        ]);
+        DB::table('urt_video_log_history')->insert([
+            [
+                'ctime' => '2026-05-25 09:00:00',
+                'videoId' => 'invalid-history',
+                'viewCount' => 100,
+                'likeCount' => 0,
+                'dislikeCount' => 0,
+                'favoriteCount' => 0,
+                'commentCount' => 0,
+            ],
+            [
+                'ctime' => '2026-05-25 12:00:00',
+                'videoId' => 'valid-history',
+                'viewCount' => 1500,
+                'likeCount' => 0,
+                'dislikeCount' => 0,
+                'favoriteCount' => 0,
+                'commentCount' => 0,
+            ],
+        ]);
+        Log::spy();
+
+        $firstExitCode = Artisan::call('reports:schedule:build', [
+            '--execute' => true,
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $firstPayload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $firstExitCode);
+        $this->assertSame(1, $firstPayload['selected_candidates']);
+        $this->assertTrue($firstPayload['source_truncated']);
+        $this->assertSame(1, $firstPayload['failed_rows']);
+        $this->assertSame(0, $firstPayload['updated']);
+        $this->assertSame([
+            'video_id' => 'invalid-history',
+            'reason' => 'invalid_history_payload',
+        ], $firstPayload['skipped'][0]);
+        $this->assertSame('2026-05-25 11:15:00', DB::table('urt_video_schedule')->where('videoId', 'invalid-history')->value('stime'));
+        $this->assertSame('2026-05-25 12:00:00', DB::table('urt_video_schedule')->where('videoId', 'invalid-history')->value('mtime'));
+        $this->assertSame('2026-05-25 09:00:00', DB::table('urt_video_log_history')->where('videoId', 'invalid-history')->value('ctime'));
+        $this->assertSame(100, DB::table('urt_video_log_history')->where('videoId', 'invalid-history')->value('viewCount'));
+        $this->assertSame('2026-05-25 11:30:00', DB::table('urt_video_schedule')->where('videoId', 'valid-history')->value('stime'));
+
+        $secondExitCode = Artisan::call('reports:schedule:build', [
+            '--execute' => true,
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $secondPayload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $secondExitCode);
+        $this->assertSame(0, $secondPayload['failed_rows']);
+        $this->assertSame(1, $secondPayload['updated']);
+        $this->assertSame('valid-history', $secondPayload['rows'][0]['video_id']);
+        $this->assertSame('2026-05-25 13:01:00', DB::table('urt_video_schedule')->where('videoId', 'valid-history')->value('stime'));
+        $this->assertSame('2026-05-25 12:00:00', DB::table('urt_video_schedule')->where('videoId', 'valid-history')->value('mtime'));
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->with('Schedule reports source history is invalid.', [
+                'video_id' => 'invalid-history',
+                'reason' => 'invalid_history_payload',
+            ]);
+    }
+
+    public function test_reports_schedule_build_isolates_invalid_source_cooldown_write_failures(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+
+        DB::table('urt_video_schedule')->insert([
+            [
+                'ctime' => '2026-05-25 09:00:00',
+                'mtime' => '2026-05-25 11:00:00',
+                'stime' => '2026-05-25 11:15:00',
+                'videoId' => 'invalid-history',
+                'publishedAt' => '2026-05-25 10:00:00',
+                'viewCount' => 100,
+            ],
+            [
+                'ctime' => '2026-05-25 09:01:00',
+                'mtime' => '2026-05-25 11:01:00',
+                'stime' => '2026-05-25 11:30:00',
+                'videoId' => 'valid-history',
+                'publishedAt' => '2026-05-25 10:00:00',
+                'viewCount' => 1500,
+            ],
+        ]);
+        DB::table('urt_video_log_history')->insert([
+            [
+                'ctime' => '2026-05-25 09:00:00',
+                'videoId' => 'invalid-history',
+                'viewCount' => 100,
+                'likeCount' => 0,
+                'dislikeCount' => 0,
+                'favoriteCount' => 0,
+                'commentCount' => 0,
+            ],
+            [
+                'ctime' => '2026-05-25 12:00:00',
+                'videoId' => 'valid-history',
+                'viewCount' => 1500,
+                'likeCount' => 0,
+                'dislikeCount' => 0,
+                'favoriteCount' => 0,
+                'commentCount' => 0,
+            ],
+        ]);
+        DB::statement(<<<'SQL'
+CREATE TRIGGER fail_schedule_report_cooldown
+BEFORE UPDATE ON urt_video_schedule
+WHEN OLD.videoId = 'invalid-history'
+BEGIN
+    SELECT RAISE(FAIL, 'token=super-secret');
+END
+SQL);
+        Log::spy();
+
+        $exitCode = Artisan::call('reports:schedule:build', [
+            '--execute' => true,
+            '--limit' => 2,
+            '--json' => true,
+        ]);
+        $output = trim(Artisan::output());
+        $payload = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame(1, $payload['updated']);
+        $this->assertStringNotContainsString('super-secret', $output);
+        $this->assertSame('2026-05-25 11:00:00', DB::table('urt_video_schedule')->where('videoId', 'invalid-history')->value('mtime'));
+        $this->assertSame('2026-05-25 11:15:00', DB::table('urt_video_schedule')->where('videoId', 'invalid-history')->value('stime'));
+        $this->assertSame('2026-05-25 13:01:00', DB::table('urt_video_schedule')->where('videoId', 'valid-history')->value('stime'));
+        Log::shouldHaveReceived('warning')
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'Schedule reports invalid-source cooldown failed.'
+                    && $context['video_id'] === 'invalid-history'
+                    && $context['reason'] === 'cooldown_write_failed'
+                    && is_string($context['exception_class'])
+                    && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'super-secret');
+            })
+            ->once();
+    }
+
     public function test_ingestion_scheduler_can_execute_ingestion_schedule_preview_when_due(): void
     {
         $this->createTables();

@@ -185,34 +185,34 @@ class AiDailyPromptReport
      */
     private function rows(array $filters, array $period, string $dataType, string $condition): array
     {
-        $query = DB::table('urt_channel_ai as ai')
-            ->leftJoin('urt_channel as c', 'ai.u_id', '=', 'c.u_id')
-            ->where('ai.date_from', $period['from'])
-            ->where('ai.date_to', $period['to'])
-            ->where('ai.data_type', $dataType)
-            ->whereNull('ai.del_flag')
-            ->orderByDesc('ai.pk')
-            ->select(['ai.pk', 'ai.u_id', 'ai.result_json', 'c.title']);
+        $latestRows = DB::table('urt_channel_ai as candidate')
+            ->where('candidate.date_from', $period['from'])
+            ->where('candidate.date_to', $period['to'])
+            ->where('candidate.data_type', $dataType)
+            ->whereNull('candidate.del_flag');
 
         $uIds = $this->matchingUIds($filters);
 
         if ($uIds !== []) {
-            $query->whereIn('ai.u_id', $uIds);
+            $latestRows->whereIn('candidate.u_id', $uIds);
         } elseif ($filters['or'] !== [] || $filters['tagid'] !== [] || $filters['not'] !== []) {
-            $query->whereRaw('1 = 0');
+            $latestRows->whereRaw('1 = 0');
         }
 
-        $seen = [];
+        $latestRows
+            ->selectRaw('MAX(candidate.pk) as pk')
+            ->groupBy('candidate.u_id');
+        $query = DB::query()
+            ->fromSub($latestRows, 'latest')
+            ->join('urt_channel_ai as ai', 'ai.pk', '=', 'latest.pk')
+            ->leftJoin('urt_channel as c', 'ai.u_id', '=', 'c.u_id')
+            ->orderByDesc('ai.pk')
+            ->select(['ai.pk', 'ai.u_id', 'ai.result_json', 'c.title']);
+
         $rows = [];
 
         foreach ($query->limit($filters['limit'])->get() as $row) {
             $uId = (int) $row->u_id;
-
-            if (isset($seen[$uId])) {
-                continue;
-            }
-
-            $seen[$uId] = true;
             $events = $this->events($row->result_json ?? null, $condition);
             $videoCount = collect($events)->sum('video_count');
 

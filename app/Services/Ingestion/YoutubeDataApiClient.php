@@ -18,7 +18,7 @@ class YoutubeDataApiClient
 
     /**
      * @param  list<string>  $channelIds
-     * @return array<string, array{viewCount: int, subscriberCount: int, hiddenSubscriberCount: bool, videoCount: int}>
+     * @return array<string, array{viewCount: int, subscriberCount: int|null, hiddenSubscriberCount: bool, videoCount: int}>
      */
     public function channelStatistics(array $channelIds): array
     {
@@ -36,24 +36,49 @@ class YoutubeDataApiClient
         $response = $this->get('https://www.googleapis.com/youtube/v3/channels', [
             'part' => 'statistics',
             'id' => implode(',', $channelIds),
+            'maxResults' => 50,
         ], 15, 'YouTube channels.list request failed.');
 
         $this->throwIfFailed($response, 'YouTube channels.list request failed.');
 
         return collect($response->json('items', []))
-            ->mapWithKeys(function (array $item): array {
-                $statistics = $item['statistics'] ?? [];
+            ->mapWithKeys(function (mixed $item): array {
+                if (! is_array($item)) {
+                    return [];
+                }
+
+                $id = isset($item['id']) && is_string($item['id']) ? trim($item['id']) : '';
+                $statistics = $item['statistics'] ?? null;
+
+                if ($id === '' || ! is_array($statistics)) {
+                    return [];
+                }
+
+                $viewCount = $this->unsignedInteger($statistics['viewCount'] ?? null);
+                $videoCount = $this->unsignedInteger($statistics['videoCount'] ?? null);
+                $hiddenSubscriberCount = $statistics['hiddenSubscriberCount'] ?? false;
+
+                if ($viewCount === null || $videoCount === null || ! is_bool($hiddenSubscriberCount)) {
+                    return [];
+                }
+
+                $subscriberCount = array_key_exists('subscriberCount', $statistics)
+                    ? $this->unsignedInteger($statistics['subscriberCount'])
+                    : null;
+
+                if ($subscriberCount === null && ! $hiddenSubscriberCount) {
+                    return [];
+                }
 
                 return [
-                    (string) ($item['id'] ?? '') => [
-                        'viewCount' => (int) ($statistics['viewCount'] ?? 0),
-                        'subscriberCount' => (int) ($statistics['subscriberCount'] ?? 0),
-                        'hiddenSubscriberCount' => (bool) ($statistics['hiddenSubscriberCount'] ?? false),
-                        'videoCount' => (int) ($statistics['videoCount'] ?? 0),
+                    $id => [
+                        'viewCount' => $viewCount,
+                        'subscriberCount' => $subscriberCount,
+                        'hiddenSubscriberCount' => $hiddenSubscriberCount,
+                        'videoCount' => $videoCount,
                     ],
                 ];
             })
-            ->filter(fn (array $statistics, string $id): bool => $id !== '')
             ->all();
     }
 
@@ -128,35 +153,63 @@ class YoutubeDataApiClient
                     throw new RuntimeException('YouTube playlistItems.list returned a malformed item.');
                 }
 
+                $itemId = isset($item['id']) && is_string($item['id']) ? trim($item['id']) : '';
                 $snippet = $item['snippet'] ?? [];
 
                 if (! is_array($snippet)) {
                     throw new RuntimeException('YouTube playlistItems.list returned a malformed item snippet.');
                 }
 
-                $thumbnail = $snippet['thumbnails']['default']['url']
-                    ?? $snippet['thumbnails']['medium']['url']
-                    ?? $snippet['thumbnails']['high']['url']
-                    ?? '';
+                $thumbnails = is_array($snippet['thumbnails'] ?? null) ? $snippet['thumbnails'] : [];
+                $thumbnail = collect(['default', 'medium', 'high'])
+                    ->map(fn (string $size): mixed => is_array($thumbnails[$size] ?? null)
+                        ? ($thumbnails[$size]['url'] ?? null)
+                        : null)
+                    ->first(fn (mixed $url): bool => is_string($url) && trim($url) !== '');
                 $videoId = trim((string) ($snippet['resourceId']['videoId'] ?? ''));
                 $publishedAt = isset($snippet['publishedAt']) ? trim((string) $snippet['publishedAt']) : '';
+                $channelId = isset($snippet['channelId']) && is_string($snippet['channelId']) ? trim($snippet['channelId']) : '';
+                $title = isset($snippet['title']) && is_string($snippet['title']) ? trim($snippet['title']) : '';
+                $channelTitle = isset($snippet['channelTitle']) && is_string($snippet['channelTitle']) ? trim($snippet['channelTitle']) : '';
+                $snippetPlaylistId = isset($snippet['playlistId']) && is_string($snippet['playlistId']) ? trim($snippet['playlistId']) : '';
+                $position = $this->unsignedInteger($snippet['position'] ?? null);
+                $liveBroadcastContent = 'none';
 
-                if ($videoId === '' || $publishedAt === '') {
-                    throw new RuntimeException('YouTube playlistItems.list returned an item without videoId or publishedAt.');
+                if (array_key_exists('liveBroadcastContent', $snippet)) {
+                    $liveBroadcastContent = is_string($snippet['liveBroadcastContent'])
+                        ? trim($snippet['liveBroadcastContent'])
+                        : '';
+                }
+
+                if (
+                    $itemId === ''
+                    || $videoId === ''
+                    || ! $this->isRfc3339DateTime($publishedAt)
+                    || $channelId === ''
+                    || $title === ''
+                    || $channelTitle === ''
+                    || $snippetPlaylistId === ''
+                    || ! array_key_exists('description', $snippet)
+                    || ! is_string($snippet['description'])
+                    || ! is_string($thumbnail)
+                    || $position === null
+                    || ! in_array($liveBroadcastContent, ['live', 'none', 'upcoming'], true)
+                ) {
+                    throw new RuntimeException('YouTube playlistItems.list returned an item with incomplete metadata.');
                 }
 
                 return [
-                    'id' => (string) ($item['id'] ?? ''),
+                    'id' => $itemId,
                     'publishedAt' => $publishedAt,
-                    'channelId' => (string) ($snippet['channelId'] ?? ''),
-                    'title' => (string) ($snippet['title'] ?? ''),
-                    'description' => (string) ($snippet['description'] ?? ''),
-                    'thumbnails' => (string) $thumbnail,
-                    'channelTitle' => (string) ($snippet['channelTitle'] ?? ''),
-                    'playlistId' => (string) ($snippet['playlistId'] ?? ''),
-                    'position' => (int) ($snippet['position'] ?? 0),
+                    'channelId' => $channelId,
+                    'title' => $title,
+                    'description' => $snippet['description'],
+                    'thumbnails' => $thumbnail,
+                    'channelTitle' => $channelTitle,
+                    'playlistId' => $snippetPlaylistId,
+                    'position' => $position,
                     'videoId' => $videoId,
-                    'liveBroadcastContent' => (string) ($snippet['liveBroadcastContent'] ?? ''),
+                    'liveBroadcastContent' => $liveBroadcastContent,
                 ];
             })
             ->values()
@@ -175,7 +228,7 @@ class YoutubeDataApiClient
 
     /**
      * @param  list<string>  $videoIds
-     * @return array<string, array{viewCount: int, likeCount: int, dislikeCount: int, favoriteCount: int, commentCount: int}>
+     * @return array<string, array{viewCount: int, likeCount: int|null, dislikeCount: int, favoriteCount: int|null, commentCount: int|null}>
      */
     public function videoStatistics(array $videoIds): array
     {
@@ -200,20 +253,54 @@ class YoutubeDataApiClient
         $this->throwIfFailed($response, 'YouTube videos.list request failed.');
 
         return collect($response->json('items', []))
-            ->mapWithKeys(function (array $item): array {
-                $statistics = $item['statistics'] ?? [];
+            ->mapWithKeys(function (mixed $item): array {
+                if (! is_array($item)) {
+                    return [];
+                }
+
+                $id = isset($item['id']) && is_string($item['id']) ? trim($item['id']) : '';
+                $statistics = $item['statistics'] ?? null;
+
+                if ($id === '' || ! is_array($statistics)) {
+                    return [];
+                }
+
+                $viewCount = $this->unsignedInteger($statistics['viewCount'] ?? null);
+
+                if ($viewCount === null) {
+                    return [];
+                }
+
+                $counts = ['viewCount' => $viewCount];
+
+                foreach (['likeCount', 'favoriteCount', 'commentCount'] as $key) {
+                    if (! array_key_exists($key, $statistics)) {
+                        $counts[$key] = null;
+
+                        continue;
+                    }
+
+                    $counts[$key] = $this->unsignedInteger($statistics[$key]);
+
+                    if ($counts[$key] === null) {
+                        return [];
+                    }
+                }
+
+                $dislikeCount = array_key_exists('dislikeCount', $statistics)
+                    ? $this->unsignedInteger($statistics['dislikeCount'])
+                    : 0;
+
+                if ($dislikeCount === null) {
+                    return [];
+                }
+
+                $counts['dislikeCount'] = $dislikeCount;
 
                 return [
-                    (string) ($item['id'] ?? '') => [
-                        'viewCount' => (int) ($statistics['viewCount'] ?? 0),
-                        'likeCount' => (int) ($statistics['likeCount'] ?? 0),
-                        'dislikeCount' => (int) ($statistics['dislikeCount'] ?? 0),
-                        'favoriteCount' => (int) ($statistics['favoriteCount'] ?? 0),
-                        'commentCount' => (int) ($statistics['commentCount'] ?? 0),
-                    ],
+                    $id => $counts,
                 ];
             })
-            ->filter(fn (array $statistics, string $id): bool => $id !== '')
             ->all();
     }
 
@@ -287,10 +374,38 @@ class YoutubeDataApiClient
         $this->throwIfFailed($response, 'YouTube videos.list request failed.');
 
         return collect($response->json('items', []))
-            ->mapWithKeys(function (array $item): array {
-                $details = $item['liveStreamingDetails'] ?? [];
+            ->mapWithKeys(function (mixed $item): array {
+                if (! is_array($item)) {
+                    return [];
+                }
 
-                return [(string) ($item['id'] ?? '') => is_array($details) ? $details : []];
+                $id = isset($item['id']) && is_string($item['id']) ? trim($item['id']) : '';
+                $details = $item['liveStreamingDetails'] ?? null;
+
+                if ($id === '' || ! is_array($details)) {
+                    return [];
+                }
+
+                if (array_key_exists('concurrentViewers', $details)) {
+                    if ($this->unsignedInteger($details['concurrentViewers']) === null) {
+                        return [];
+                    }
+                }
+
+                foreach (['actualStartTime', 'actualEndTime', 'scheduledStartTime'] as $key) {
+                    if (array_key_exists($key, $details) && ! $this->isRfc3339DateTime($details[$key])) {
+                        return [];
+                    }
+                }
+
+                if (
+                    array_key_exists('activeLiveChatId', $details)
+                    && (! is_string($details['activeLiveChatId']) || trim($details['activeLiveChatId']) === '')
+                ) {
+                    return [];
+                }
+
+                return [$id => $details];
             })
             ->filter(function (array $details, string $id): bool {
                 if ($id === '') {
@@ -388,12 +503,51 @@ class YoutubeDataApiClient
             + (int) ($matches[5] ?? 0);
     }
 
+    private function unsignedInteger(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value >= 0 ? $value : null;
+        }
+
+        if (! is_string($value) || preg_match('/^\d+$/D', $value) !== 1) {
+            return null;
+        }
+
+        $integer = filter_var($value, FILTER_VALIDATE_INT, [
+            'options' => ['min_range' => 0],
+        ]);
+
+        return $integer === false ? null : $integer;
+    }
+
+    private function isRfc3339DateTime(mixed $value): bool
+    {
+        if (
+            ! is_string($value)
+            || preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/D', $value) !== 1
+        ) {
+            return false;
+        }
+
+        try {
+            new \DateTimeImmutable($value);
+            $errors = \DateTimeImmutable::getLastErrors();
+
+            return $errors === false
+                || ((int) ($errors['warning_count'] ?? 0) === 0
+                    && (int) ($errors['error_count'] ?? 0) === 0);
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
     /**
      * @param  array<string, mixed>  $query
      */
     private function get(string $url, array $query, int $timeout, string $fallbackMessage): Response
     {
         $responses = [];
+        $keyPoolFailureReason = null;
         $method = $this->method($url, $query);
         $attempt = 0;
         $transientRetries = max(0, min(3, (int) config('services.youtube.transient_retries', 1)));
@@ -460,6 +614,9 @@ class YoutubeDataApiClient
                 }
 
                 if ($apiKeyFallback) {
+                    $keyPoolFailureReason = $quotaRetry
+                        ? YoutubeApiKeyPoolExhaustedException::QUOTA_FAILURE
+                        : YoutubeApiKeyPoolExhaustedException::AUTHENTICATION_FAILURE;
                     break;
                 }
 
@@ -471,6 +628,10 @@ class YoutubeDataApiClient
 
                 return $response;
             }
+        }
+
+        if ($keyPoolFailureReason !== null) {
+            throw new YoutubeApiKeyPoolExhaustedException($keyPoolFailureReason);
         }
 
         return $responses[array_key_last($responses)] ?? throw new RuntimeException('YOUTUBE_API_KEY is not configured.');

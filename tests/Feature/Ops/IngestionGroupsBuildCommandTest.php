@@ -292,7 +292,7 @@ class IngestionGroupsBuildCommandTest extends TestCase
         $this->assertStringContainsString('failure=external_sync_failed', Artisan::output());
     }
 
-    public function test_reports_groups_build_rejects_malformed_row_before_any_write(): void
+    public function test_reports_groups_build_isolates_malformed_rows_and_keeps_valid_rows(): void
     {
         $this->createTable();
         DB::table('tag_group')->insert($this->localRow('既有', '政治人物', '2026-05-20 10:00:00'));
@@ -311,11 +311,48 @@ class IngestionGroupsBuildCommandTest extends TestCase
         $output = Artisan::output();
 
         $this->assertSame(1, $exitCode);
-        $this->assertSame(1, DB::table('tag_group')->count());
+        $payload = json_decode(trim($output), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(2, DB::table('tag_group')->count());
         $this->assertSame('2026-05-20 10:00:00', DB::table('tag_group')->where('tag', '既有')->value('latest_time'));
-        $this->assertFalse(DB::table('tag_group')->where('tag', '合法新資料')->exists());
-        $this->assertStringContainsString('failure=external_sync_failed', $output);
+        $this->assertTrue(DB::table('tag_group')->where('tag', '合法新資料')->exists());
+        $this->assertSame(2, $payload['sync_attempted']);
+        $this->assertSame(1, $payload['synced_rows']);
+        $this->assertSame(1, $payload['failed_rows']);
         $this->assertStringNotContainsString('not-a-date', $output);
+    }
+
+    public function test_reports_groups_build_cursor_advances_past_a_malformed_row(): void
+    {
+        $this->createTable();
+        Http::fake([
+            'https://tag.analysis.tw/api/group.php*' => Http::response(['result' => [
+                $this->remoteRow('第一筆', '群組一', mtime: 'not-a-date'),
+                $this->remoteRow('第二筆', '群組二'),
+            ]]),
+        ]);
+
+        $firstExit = Artisan::call('reports:groups:build', [
+            '--execute' => true,
+            '--limit' => 1,
+            '--offset' => 0,
+            '--json' => true,
+        ]);
+        $first = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+        $secondExit = Artisan::call('reports:groups:build', [
+            '--execute' => true,
+            '--limit' => 1,
+            '--offset' => $first['sync_next_offset'],
+            '--json' => true,
+        ]);
+        $second = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $firstExit);
+        $this->assertSame(1, $first['failed_rows']);
+        $this->assertSame(1, $first['sync_next_offset']);
+        $this->assertSame(0, $secondExit);
+        $this->assertSame(1, $second['synced_rows']);
+        $this->assertTrue(DB::table('tag_group')->where('tag', '第二筆')->exists());
     }
 
     public function test_reports_groups_build_rejects_remote_source_over_hard_cap(): void

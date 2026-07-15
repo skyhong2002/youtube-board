@@ -5,6 +5,7 @@ namespace Tests\Feature\Reports;
 use App\Services\Ingestion\TagDateCacheBuilder;
 use App\Services\Ingestion\TagDateCacheWriteLock;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -103,6 +104,49 @@ SQL);
         $this->assertSame(0, $retry['exit_code']);
         $this->assertSame(1, $retry['writes']);
         $this->assertDatabaseCount('urt_show_tag_date', 1);
+    }
+
+    public function test_invalid_calendar_dates_fail_closed_without_normalizing_or_writing_another_date(): void
+    {
+        $this->createTables();
+        $this->seedRawData();
+        $now = CarbonImmutable::parse('2026-06-05 12:00:00', 'Asia/Taipei');
+
+        $payload = app(TagDateCacheBuilder::class)->buildRange(
+            tagIds: [1],
+            from: '2026-02-31',
+            to: '2026-02-31',
+            execute: true,
+            now: $now,
+        );
+        $row = app(TagDateCacheBuilder::class)->build(
+            tagIds: [1],
+            date: '2026-02-31',
+            execute: true,
+            now: $now,
+        );
+        $commandExit = Artisan::call('reports:tag-date:build', [
+            '--tagid' => '1',
+            '--date' => '2026-02-31',
+            '--execute' => true,
+            '--json' => true,
+        ]);
+
+        $this->assertSame('blocked', $payload['status']);
+        $this->assertSame('invalid_date_range', $payload['blocked_reason']);
+        $this->assertSame('2026-02-31', $payload['from']);
+        $this->assertSame('2026-02-31', $payload['to']);
+        $this->assertSame(0, $payload['dates_selected']);
+        $this->assertSame(0, $payload['writes']);
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame('blocked', $row['status']);
+        $this->assertSame('invalid_date', $row['blocked_reason']);
+        $this->assertSame('2026-02-31', $row['date']);
+        $this->assertSame(0, $row['writes']);
+        $this->assertSame(1, $row['exit_code']);
+        $this->assertSame(1, $commandExit);
+        $this->assertStringContainsString('valid calendar dates in YYYY-MM-DD', Artisan::output());
+        $this->assertDatabaseCount('urt_show_tag_date', 0);
     }
 
     public function test_failed_date_is_sanitized_and_does_not_prevent_the_next_date(): void

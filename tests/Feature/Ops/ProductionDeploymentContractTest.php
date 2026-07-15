@@ -28,7 +28,10 @@ class ProductionDeploymentContractTest extends TestCase
 
         $wait = strpos($entrypoint, 'php artisan db:show --no-interaction');
         $clearConfig = strpos($entrypoint, 'rm -f bootstrap/cache/config.php');
-        $migrate = strpos($entrypoint, 'php artisan migrate --force --no-interaction');
+        $migrate = strpos(
+            $entrypoint,
+            'php artisan deployment:migrate --lock-timeout=0 --no-interaction',
+        );
         $status = strpos($entrypoint, 'php artisan migrate:status --no-interaction');
         $schema = strpos($entrypoint, 'php artisan deployment:schema-check --no-interaction');
         $serve = strpos($entrypoint, 'exec php artisan serve');
@@ -45,6 +48,16 @@ class ProductionDeploymentContractTest extends TestCase
         $this->assertLessThan($schema, $status);
         $this->assertLessThan($serve, $schema);
         $this->assertStringContainsString('set -eu', $entrypoint);
+        $migrationCommand = file_get_contents(
+            $this->projectRoot.'/app/Console/Commands/DeploymentMigrateCommand.php',
+        );
+        $bootstrap = file_get_contents($this->projectRoot.'/bootstrap/app.php');
+
+        $this->assertIsString($migrationCommand);
+        $this->assertIsString($bootstrap);
+        $this->assertStringContainsString('SELECT GET_LOCK(?, ?) AS lock_acquired', $migrationCommand);
+        $this->assertStringContainsString('SELECT RELEASE_LOCK(?) AS lock_released', $migrationCommand);
+        $this->assertStringContainsString('DeploymentMigrateCommand::class', $bootstrap);
     }
 
     public function test_production_build_context_excludes_local_generated_runtime_state(): void
@@ -139,6 +152,66 @@ class ProductionDeploymentContractTest extends TestCase
             'in_array($driver, self::ENGINE_BEARING_DRIVERS, true)',
             $verifier,
         );
+        $this->assertStringContainsString('private const REQUIRED_BINARY_COLLATION_COLUMNS', $verifier);
+        $this->assertStringContainsString('FROM information_schema.COLUMNS', $verifier);
+        $this->assertStringContainsString('YoutubeIdentifierSchema::metadataIssues(', $verifier);
+        $this->assertStringContainsString('required_identifier_metadata_issues', $verifier);
+        $this->assertStringContainsString('required_identifier_metadata_valid', $verifier);
+        $this->assertStringContainsString(
+            '$collation === YoutubeIdentifierSchema::COLLATION',
+            $verifier,
+        );
+    }
+
+    public function test_identifier_migration_is_preflighted_gated_and_lock_bounded(): void
+    {
+        $migration = file_get_contents(
+            $this->projectRoot
+            .'/database/migrations/2026_07_15_000000_enforce_case_sensitive_comment_youtube_ids.php',
+        );
+        $localEnvironment = file_get_contents($this->projectRoot.'/.env.example');
+        $productionEnvironment = file_get_contents($this->projectRoot.'/deploy/dokploy-env.example');
+
+        $this->assertIsString($migration);
+        $this->assertIsString($localEnvironment);
+        $this->assertIsString($productionEnvironment);
+        $preflight = strpos($migration, '$metadata = $this->preflight($connection);');
+        $approval = strpos($migration, '$this->assertProductionApproval();');
+        $lockTimeout = strpos($migration, 'SET SESSION lock_wait_timeout');
+        $alter = strpos($migration, "'ALTER TABLE %s %s'");
+
+        $this->assertIsInt($preflight);
+        $this->assertIsInt($approval);
+        $this->assertIsInt($lockTimeout);
+        $this->assertIsInt($alter);
+        $this->assertLessThan($approval, $preflight);
+        $this->assertLessThan($lockTimeout, $approval);
+        $this->assertLessThan($alter, $lockTimeout);
+        $this->assertStringContainsString(
+            "private const LOCK_WAIT_TIMEOUT_SECONDS = 15;",
+            $migration,
+        );
+        $this->assertStringContainsString(
+            "private const PRODUCTION_APPROVAL_ENV = 'YOUTUBE_IDENTIFIER_SCHEMA_MIGRATION_APPROVED';",
+            $migration,
+        );
+        $this->assertStringContainsString(
+            "OR COLUMN_DEFAULT = 'NULL' THEN 1 ELSE 0 END AS default_is_null",
+            $migration,
+        );
+        $this->assertStringContainsString('EXTRA AS extra', $migration);
+        $this->assertStringContainsString('COLUMN_COMMENT AS column_comment', $migration);
+        $this->assertStringContainsString('GENERATION_EXPRESSION AS generation_expression', $migration);
+        $this->assertStringNotContainsString('Schema::hasTable', $migration);
+        $this->assertStringNotContainsString('Schema::hasColumn', $migration);
+        $this->assertStringContainsString(
+            'YOUTUBE_IDENTIFIER_SCHEMA_MIGRATION_APPROVED=false',
+            $localEnvironment,
+        );
+        $this->assertStringContainsString(
+            'YOUTUBE_IDENTIFIER_SCHEMA_MIGRATION_APPROVED=false',
+            $productionEnvironment,
+        );
     }
 
     public function test_ingestion_defaults_fail_closed_without_runtime_environment_values(): void
@@ -153,18 +226,28 @@ class ProductionDeploymentContractTest extends TestCase
         $this->assertStringContainsString("env('APP_ENV') === 'production' ? 'database' : null", $config);
     }
 
-    public function test_production_ingestion_locks_use_shared_database_store(): void
+    public function test_production_ingestion_locks_are_shared_across_containers(): void
     {
         $template = file_get_contents($this->projectRoot.'/deploy/dokploy-env.example');
         $migration = file_get_contents($this->projectRoot.'/database/migrations/0001_01_01_000001_create_cache_table.php');
         $lockStore = file_get_contents($this->projectRoot.'/app/Services/Ingestion/IngestionLockStore.php');
+        $aiBusinessLock = file_get_contents($this->projectRoot.'/app/Services/Ingestion/AiBusinessKeyLock.php');
+        $deployment = file_get_contents($this->projectRoot.'/docs/deployment.md');
 
         $this->assertIsString($template);
         $this->assertIsString($migration);
         $this->assertIsString($lockStore);
+        $this->assertIsString($aiBusinessLock);
+        $this->assertIsString($deployment);
+        $this->assertStringContainsString('CACHE_STORE=file', $template);
         $this->assertStringContainsString('INGESTION_LOCK_STORE=database', $template);
+        $this->assertStringContainsString('INGESTION_AI_BUSINESS_LOCK_SECONDS=900', $template);
+        $this->assertStringContainsString('INGESTION_AI_BUSINESS_LOCK_TIMEOUT_SECONDS=0', $template);
         $this->assertStringContainsString("Schema::create('cache_locks'", $migration);
         $this->assertStringContainsString('Cache::store($store)->lock($name, $seconds)', $lockStore);
+        $this->assertStringContainsString("'SELECT GET_LOCK(?, ?) AS lock_acquired'", $aiBusinessLock);
+        $this->assertStringContainsString("'SELECT RELEASE_LOCK(?) AS lock_released'", $aiBusinessLock);
+        $this->assertStringContainsString('connection-scoped `GET_LOCK`/`RELEASE_LOCK` on the write PDO', $deployment);
     }
 
     public function test_ai_provider_defaults_match_env_templates_without_credentials(): void
