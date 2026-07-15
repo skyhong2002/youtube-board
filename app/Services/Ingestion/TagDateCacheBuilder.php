@@ -3,6 +3,7 @@
 namespace App\Services\Ingestion;
 
 use Carbon\CarbonImmutable;
+use DateTimeImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -34,13 +35,8 @@ class TagDateCacheBuilder
         int $maxDates = 400,
     ): array {
         $now ??= CarbonImmutable::now('Asia/Taipei');
-        $from = preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) ? $from : $now->toDateString();
-        $to = preg_match('/^\d{4}-\d{2}-\d{2}$/', $to) ? $to : $from;
-
-        if ($from > $to) {
-            [$from, $to] = [$to, $from];
-        }
-
+        $from = trim($from);
+        $to = trim($to);
         $tagIds = ReportCacheBuildGuardrails::ids($tagIds);
         $orTagIds = ReportCacheBuildGuardrails::ids($orTagIds);
         $notTagIds = ReportCacheBuildGuardrails::ids($notTagIds);
@@ -49,6 +45,31 @@ class TagDateCacheBuilder
         $channelLimit = ReportCacheBuildGuardrails::bounded($channelLimit, ReportCacheBuildGuardrails::CHANNEL_SCAN_LIMIT_MAX);
         $videoLimit = ReportCacheBuildGuardrails::bounded($videoLimit, ReportCacheBuildGuardrails::VIDEO_SCAN_LIMIT_MAX);
         $maxDates = ReportCacheBuildGuardrails::bounded($maxDates, ReportCacheBuildGuardrails::DATE_RANGE_LIMIT);
+
+        if (! $this->validDate($from) || ! $this->validDate($to)) {
+            $caps = $this->caps($keywordLimit, $channelLimit, $videoLimit, $maxDates);
+            $lists = $this->listSummary($tagIds, $orTagIds, $notTagIds, $onlyKeywords, 0, $maxDates);
+
+            return $this->blockedRangePayload(
+                tagIds: $tagIds,
+                orTagIds: $orTagIds,
+                notTagIds: $notTagIds,
+                from: $from,
+                to: $to,
+                datesRequested: 0,
+                onlyKeywords: $onlyKeywords,
+                execute: $execute,
+                now: $now,
+                caps: $caps,
+                lists: $lists,
+                reason: 'invalid_date_range',
+            );
+        }
+
+        if ($from > $to) {
+            [$from, $to] = [$to, $from];
+        }
+
         $cursor = CarbonImmutable::parse($from, $now->getTimezone());
         $end = CarbonImmutable::parse($to, $now->getTimezone());
         $datesRequested = (int) $cursor->diffInDays($end) + 1;
@@ -179,7 +200,7 @@ class TagDateCacheBuilder
         ?CarbonImmutable $now = null,
     ): array {
         $now ??= CarbonImmutable::now('Asia/Taipei');
-        $date = preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) ? $date : $now->toDateString();
+        $date = trim($date);
         $keywordLimit = ReportCacheBuildGuardrails::bounded($keywordLimit, ReportCacheBuildGuardrails::KEYWORD_SCAN_LIMIT_MAX);
         $channelLimit = ReportCacheBuildGuardrails::bounded($channelLimit, ReportCacheBuildGuardrails::CHANNEL_SCAN_LIMIT_MAX);
         $videoLimit = ReportCacheBuildGuardrails::bounded($videoLimit, ReportCacheBuildGuardrails::VIDEO_SCAN_LIMIT_MAX);
@@ -203,6 +224,10 @@ class TagDateCacheBuilder
         ];
 
         $blockedReason = $this->listLimitReason($tagIds, $orTagIds, $notTagIds, $onlyKeywords);
+
+        if ($blockedReason === null && ! $this->validDate($date)) {
+            $blockedReason = 'invalid_date';
+        }
 
         if ($blockedReason === null && count($onlyKeywords) > $keywordLimit) {
             $blockedReason = 'keyword_list_limit_exceeded';
@@ -621,6 +646,13 @@ class TagDateCacheBuilder
         }
 
         return preg_match('/^[A-Za-z]+$/', $tag) !== 1 || strlen($tag) >= 3;
+    }
+
+    private function validDate(string $date): bool
+    {
+        $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+
+        return $parsed instanceof DateTimeImmutable && $parsed->format('Y-m-d') === $date;
     }
 
     /**

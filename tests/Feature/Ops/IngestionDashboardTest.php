@@ -700,7 +700,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('scheduled/local <code>--execute</code> updates <code>urt_count</code> weekly/monthly delta columns', false);
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=reports.counts.build');
-        $response->assertSee('更新本機 <code>urt_count</code> delta columns', false);
+        $response->assertSee('malformed oldest history 只更新 <code>mtime</code> 作 cooldown', false);
     }
 
     public function test_ingestion_job_detail_allows_keywords_build_ingestion_preview(): void
@@ -714,7 +714,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('due now');
         $response->assertSee('reports:keywords:build --execute --hours=2 --limit=100 --offset=auto');
         $response->assertSee('Runtime env 已明確啟用全部 scheduled polling');
-        $response->assertSee('tag.analysis.tw/api/tag_json.php');
+        $response->assertSee('先套 offset/limit 再逐筆驗證');
     }
 
     public function test_ingestion_job_detail_allows_groups_build_ingestion_preview(): void
@@ -728,7 +728,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('due now');
         $response->assertSee('reports:groups:build --execute --hours=22 --limit=100 --offset=auto');
         $response->assertSee('Runtime env 已明確啟用全部 scheduled polling');
-        $response->assertSee('external group API');
+        $response->assertSee('malformed selected row 隔離且 cursor 仍前進');
     }
 
     public function test_ingestion_job_detail_allows_people_build_ingestion_preview(): void
@@ -754,7 +754,7 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('scheduled/local <code>--execute</code> updates <code>urt_video_schedule.stime/mtime</code>', false);
         $response->assertSee('due now');
         $response->assertSee('INGESTION_SCHEDULER_ENABLED=true php artisan ingestion:run --execute --job=reports.schedule.build');
-        $response->assertSee('限量更新本機 schedule rows');
+        $response->assertSee('保留既有 <code>stime</code> 並讓 capped batch 輪替', false);
     }
 
     public function test_ingestion_job_detail_allows_comment_queue_ingestion_preview(): void
@@ -779,7 +779,8 @@ class IngestionDashboardTest extends TestCase
         $response->assertSee('youtube:comments:fetch');
         $response->assertSee('Explicit/scheduled <code>--execute --videoId/--limit --max-pages --max-reply-pages</code>', false);
         $response->assertSee('comments.list(parentId)');
-        $response->assertSee('idempotent done row 再刪 queue row');
+        $response->assertSee('最後才發布 <code>urt_comment</code>', false);
+        $response->assertSee('完成後才建立 idempotent done row 並刪 queue row');
         $response->assertSee('單筆失敗會保留 queue row、釋放 claim');
         $response->assertSee('due now');
         $response->assertSee('此 job 目前不會執行；下面保留 guardrail 原始原因，方便對照 CLI/output。');

@@ -17,6 +17,22 @@ class IngestionCommandLockContext
     }
 
     /**
+     * @param  iterable<string>  $jobKeys
+     */
+    public function uniquelyOwnedJob(iterable $jobKeys): ?string
+    {
+        $owned = [];
+
+        foreach ($jobKeys as $jobKey) {
+            if ($this->owns($jobKey)) {
+                $owned[$jobKey] = true;
+            }
+        }
+
+        return count($owned) === 1 ? (string) array_key_first($owned) : null;
+    }
+
+    /**
      * @template T
      *
      * @param  Closure(): T  $callback

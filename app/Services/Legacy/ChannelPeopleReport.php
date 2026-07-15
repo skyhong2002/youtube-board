@@ -37,14 +37,18 @@ class ChannelPeopleReport
 
             $to = CarbonImmutable::parse($latest, 'Asia/Taipei')->startOfDay();
             $from = $to->subDays($days - 1);
-            $rows = DB::table('urt_channel_ai')
+            $latestRows = DB::table('urt_channel_ai')
                 ->where('u_id', $uId)
                 ->where('data_type', 'oneday')
                 ->whereNull('del_flag')
                 ->where('date_from', '>=', $from->format('Y-m-d 00:00:00'))
                 ->where('date_from', '<=', $to->format('Y-m-d 23:59:59'))
-                ->orderBy('date_from')
-                ->get(['date_from', 'result_json']);
+                ->selectRaw('MAX(pk) as pk')
+                ->groupBy('u_id', 'date_from', 'date_to', 'data_type');
+            $rows = DB::table('urt_channel_ai as ai')
+                ->joinSub($latestRows, 'latest', 'latest.pk', '=', 'ai.pk')
+                ->orderBy('ai.date_from')
+                ->get(['ai.date_from', 'ai.result_json']);
 
             $aggregates = $this->aggregate($rows);
             $people = collect($aggregates)

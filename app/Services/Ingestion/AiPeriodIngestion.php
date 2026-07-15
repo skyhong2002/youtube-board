@@ -18,6 +18,7 @@ class AiPeriodIngestion
     public function __construct(
         private readonly AiDailyReport $dailyReport,
         private readonly OpenCodeChatClient $client,
+        private readonly AiBusinessKeyLock $businessKeyLock,
     ) {}
 
     /**
@@ -81,12 +82,12 @@ class AiPeriodIngestion
         $blockedReason = $this->blockedReason($fromDay, $toDay, $prompt);
 
         if ($blockedReason !== null) {
-            return $this->executeResult($range, $condition, $fromDay, $toDay, $now, [
+            return $this->executeResult($range, $condition, $fromDay, $toDay, $now, $aiCallLimit, [
                 'ai_call_attempted' => false,
                 'inserted' => false,
                 'updated' => false,
                 'skipped' => true,
-                'failed' => false,
+                'failed' => true,
                 'skip_reason' => $blockedReason,
                 'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
                 'provider' => null,
@@ -99,13 +100,42 @@ class AiPeriodIngestion
         }
 
         if ($aiCallLimit < 1) {
-            return $this->executeResult($range, $condition, $fromDay, $toDay, $now, [
+            return $this->executeResult($range, $condition, $fromDay, $toDay, $now, $aiCallLimit, [
                 'ai_call_attempted' => false,
                 'inserted' => false,
                 'updated' => false,
                 'skipped' => true,
-                'failed' => false,
+                'failed' => true,
                 'skip_reason' => 'ai_call_guard_exhausted',
+                'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
+                'provider' => null,
+                'provider_failures' => [],
+                'usage' => null,
+                'matches' => [],
+                'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
+                'ai_calls_used' => 0,
+            ]);
+        }
+
+        $identity = [
+            'date_from' => $range['date_from'],
+            'date_to' => $range['date_to'],
+        ];
+
+        if (Schema::hasColumn('urt_ai_period', 'condition_type')) {
+            $identity['condition_type'] = $condition;
+        }
+
+        $lock = $this->businessKeyLock->acquire('urt_ai_period', $identity);
+
+        if ($lock === null) {
+            return $this->executeResult($range, $condition, $fromDay, $toDay, $now, $aiCallLimit, [
+                'ai_call_attempted' => false,
+                'inserted' => false,
+                'updated' => false,
+                'skipped' => true,
+                'failed' => true,
+                'skip_reason' => 'business_key_locked',
                 'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
                 'provider' => null,
                 'provider_failures' => [],
@@ -133,7 +163,7 @@ class AiPeriodIngestion
             );
             $upsert = $this->upsertPeriod($range, $condition, (string) $fromDay['pk'], (string) $toDay['pk'], $matches, $completion['model'], $userToken, $now);
 
-            return $this->executeResult($range, $condition, $fromDay, $toDay, $now, [
+            return $this->executeResult($range, $condition, $fromDay, $toDay, $now, $aiCallLimit, [
                 'ai_call_attempted' => true,
                 'inserted' => $upsert['inserted'],
                 'updated' => $upsert['updated'],
@@ -157,7 +187,7 @@ class AiPeriodIngestion
                 'exception_class' => $exception::class,
             ]);
 
-            return $this->executeResult($range, $condition, $fromDay, $toDay, $now, [
+            return $this->executeResult($range, $condition, $fromDay, $toDay, $now, $aiCallLimit, [
                 'ai_call_attempted' => true,
                 'inserted' => false,
                 'updated' => false,
@@ -172,14 +202,23 @@ class AiPeriodIngestion
                 'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
                 'ai_calls_used' => 1,
             ]);
+        } finally {
+            $lock->release();
         }
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function executeResult(array $range, string $condition, array $fromDay, array $toDay, CarbonImmutable $now, array $row): array
-    {
+    private function executeResult(
+        array $range,
+        string $condition,
+        array $fromDay,
+        array $toDay,
+        CarbonImmutable $now,
+        int $aiCallLimit,
+        array $row,
+    ): array {
         $failedRows = ($row['failed'] ?? false) ? 1 : 0;
 
         return [
@@ -206,9 +245,9 @@ class AiPeriodIngestion
                 'rows' => [$row],
             ],
             'ai_call_guard' => [
-                'limit' => 1,
+                'limit' => $aiCallLimit,
                 'used' => $row['ai_calls_used'],
-                'remaining' => max(0, 1 - (int) $row['ai_calls_used']),
+                'remaining' => max(0, $aiCallLimit - (int) $row['ai_calls_used']),
             ],
             'write_targets' => ['urt_ai_period'],
             'secrets' => 'not_printed',
@@ -221,11 +260,12 @@ class AiPeriodIngestion
      */
     private function range(?string $from, ?string $to, CarbonImmutable $now): array
     {
-        $toDate = $this->dateString($to) ?? $now->subDay()->toDateString();
-        $fromDate = $this->dateString($from) ?? CarbonImmutable::parse($toDate, $now->getTimezone())->subDay()->toDateString();
+        $toDate = AiCommandInputValidator::date($to, '--to') ?? $now->subDay()->toDateString();
+        $fromDate = AiCommandInputValidator::date($from, '--from')
+            ?? CarbonImmutable::parse($toDate, $now->getTimezone())->subDay()->toDateString();
 
         if ($fromDate > $toDate) {
-            [$fromDate, $toDate] = [$toDate, $fromDate];
+            throw new \InvalidArgumentException('--from must not be after --to');
         }
 
         return [
@@ -236,16 +276,9 @@ class AiPeriodIngestion
         ];
     }
 
-    private function dateString(?string $date): ?string
-    {
-        return is_string($date) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) ? $date : null;
-    }
-
     private function condition(string $condition): string
     {
-        $condition = trim($condition) !== '' ? trim($condition) : 'all';
-
-        return preg_match('/^[A-Za-z0-9_-]{1,40}$/', $condition) ? $condition : 'all';
+        return AiCommandInputValidator::condition($condition, AiCommandInputValidator::DAILY_CONDITIONS);
     }
 
     /**

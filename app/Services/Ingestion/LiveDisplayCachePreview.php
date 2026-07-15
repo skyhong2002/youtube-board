@@ -200,29 +200,11 @@ class LiveDisplayCachePreview
 
     private function joinVideo($query)
     {
-        if (DB::connection()->getDriverName() === 'mysql') {
-            return $query->join(
-                'urt_video as video',
-                DB::raw('video.videoId COLLATE utf8mb4_uca1400_ai_ci'),
-                '=',
-                'live.videoId',
-            );
-        }
-
         return $query->join('urt_video as video', 'video.videoId', '=', 'live.videoId');
     }
 
     private function leftJoinVideo($query)
     {
-        if (DB::connection()->getDriverName() === 'mysql') {
-            return $query->leftJoin(
-                'urt_video as video',
-                DB::raw('video.videoId COLLATE utf8mb4_uca1400_ai_ci'),
-                '=',
-                'live.videoId',
-            );
-        }
-
         return $query->leftJoin('urt_video as video', 'video.videoId', '=', 'live.videoId');
     }
 

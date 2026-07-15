@@ -85,17 +85,17 @@ class IngestionSchedulerRunner
         }
 
         if ($jobKey !== null && $results === []) {
-            $summary['skipped']++;
+            $summary['failed']++;
             $results[] = $this->withQuotaEstimate([
                 'key' => $jobKey,
                 'status' => 'missing',
                 'command' => '',
                 'schedule' => '',
                 'due' => false,
-                'action' => 'skip:job-missing',
+                'action' => 'failed:job-missing',
                 'executed' => false,
-                'failed' => false,
-                'exit_code' => null,
+                'failed' => true,
+                'exit_code' => 1,
             ]);
         }
 
@@ -149,7 +149,12 @@ class IngestionSchedulerRunner
         }
 
         if (! $this->registry->commandExists($job)) {
-            return $this->withQuotaEstimate(array_merge($base, ['action' => 'skip:command-missing']));
+            return $this->withQuotaEstimate(array_merge($base, [
+                'action' => 'failed:command-missing',
+                'failed' => true,
+                'exit_code' => 1,
+                'skip_reason' => 'active ingestion job command is not registered',
+            ]));
         }
 
         $scheduledWrite = $this->registry->scheduledWriteProfile($job);
@@ -274,6 +279,7 @@ class IngestionSchedulerRunner
             $result = $this->withQuotaEstimate(array_merge($base, [
                 'action' => 'failed:exception',
                 'failed' => true,
+                'exit_code' => 1,
                 'started_at' => isset($startedAt) ? $startedAt->toDateTimeString().' '.$startedAt->getTimezone()->getName() : null,
                 'finished_at' => $finishedAt->toDateTimeString().' '.$finishedAt->getTimezone()->getName(),
                 'runtime_ms' => isset($startedNs) ? $this->elapsedMs($startedNs) : null,
@@ -435,6 +441,7 @@ class IngestionSchedulerRunner
             if ((bool) ($quotaState['accounting_failed'] ?? false)) {
                 $result['action'] = 'executed:quota-accounting-failed';
                 $result['failed'] = true;
+                $result['exit_code'] = max(1, (int) ($result['exit_code'] ?? 0));
                 $result['quota_accounting_failed'] = true;
             }
 
@@ -470,6 +477,7 @@ class IngestionSchedulerRunner
         if (! (bool) ($quotaState['available'] ?? false)) {
             $result['action'] = 'executed:quota-accounting-failed';
             $result['failed'] = true;
+            $result['exit_code'] = max(1, (int) ($result['exit_code'] ?? 0));
             $result['quota_accounting_failed'] = true;
         }
 

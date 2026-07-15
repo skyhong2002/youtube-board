@@ -4,6 +4,7 @@ namespace App\Services\Ingestion;
 
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -94,7 +95,7 @@ class CommentFetchPreview
             ->orderBy('pk');
 
         if ($videoId !== null) {
-            $query->where('videoId', $videoId);
+            $this->whereExactYoutubeId($query, 'videoId', $videoId);
         }
 
         return $query
@@ -109,12 +110,16 @@ class CommentFetchPreview
             return 0;
         }
 
-        return DB::table('urt_comment_queue')
+        $query = DB::table('urt_comment_queue')
             ->whereNull('ftime')
             ->whereNotNull('stime')
-            ->where('stime', '>', $claimExpireTime->format('Y-m-d H:i:s'))
-            ->when($videoId !== null, fn ($query) => $query->where('videoId', $videoId))
-            ->count();
+            ->where('stime', '>', $claimExpireTime->format('Y-m-d H:i:s'));
+
+        if ($videoId !== null) {
+            $this->whereExactYoutubeId($query, 'videoId', $videoId);
+        }
+
+        return $query->count();
     }
 
     /**
@@ -130,7 +135,7 @@ class CommentFetchPreview
         return $this->rowsByVideoId(
             'urt_comment',
             $videoIds,
-            ['pk', 'videoId', 'ctime', 'mtime', 'comments_count', 'latest_time', 'authors_count', 'pageToken', 'channelId', 'u_id'],
+            ['pk', 'videoId', 'ctime', 'mtime', 'stime', 'comments_count', 'latest_time', 'authors_count', 'pageToken', 'channelId', 'u_id'],
         );
     }
 
@@ -167,8 +172,11 @@ class CommentFetchPreview
             return collect();
         }
 
-        return DB::table('urt_comment_queue_done')
-            ->whereIn('videoId', $ids->all())
+        return $this->whereAnyExactYoutubeId(
+            DB::table('urt_comment_queue_done'),
+            'videoId',
+            $ids,
+        )
             ->pluck('videoId')
             ->mapWithKeys(fn (string $videoId): array => [$videoId => true]);
     }
@@ -186,8 +194,7 @@ class CommentFetchPreview
             return collect();
         }
 
-        return DB::table($table)
-            ->whereIn('videoId', $ids->all())
+        return $this->whereAnyExactYoutubeId(DB::table($table), 'videoId', $ids)
             ->get($this->columnsFor($table, $columns))
             ->keyBy('videoId');
     }
@@ -200,7 +207,7 @@ class CommentFetchPreview
     {
         return $videoIds
             ->filter(fn (mixed $id): bool => is_string($id) && $id !== '')
-            ->unique()
+            ->uniqueStrict()
             ->values();
     }
 
@@ -243,10 +250,18 @@ class CommentFetchPreview
         $commentMtime = $commentRow !== null && $this->value($commentRow, 'mtime') !== null
             ? (string) $this->value($commentRow, 'mtime')
             : null;
+        $commentStime = $commentRow !== null && $this->value($commentRow, 'stime') !== null
+            ? (string) $this->value($commentRow, 'stime')
+            : null;
         $resumePageToken = $commentRow !== null && is_string($this->value($commentRow, 'pageToken'))
             ? trim((string) $this->value($commentRow, 'pageToken'))
             : '';
+        $publicationMarkerPresent = $commentMtime !== null
+            && $commentStime !== null
+            && $commentStime === $commentMtime;
+        $legacyCompletionMarkerPresent = $doneVideoIds->has($videoId);
         $wouldSkipRecentCache = $resumePageToken === ''
+            && ($publicationMarkerPresent || $legacyCompletionMarkerPresent)
             && $commentMtime !== null
             && $commentMtime > $refreshExpireTime->format('Y-m-d H:i:s');
 
@@ -264,11 +279,15 @@ class CommentFetchPreview
             'video_comment_count' => $videoRow !== null && $this->value($videoRow, 'commentCount') !== null ? (int) $this->value($videoRow, 'commentCount') : null,
             'existing_comment_row' => $commentRow !== null,
             'comment_mtime' => $commentMtime,
+            'comment_stime' => $commentStime,
+            'publication_marker_present' => $publicationMarkerPresent,
+            'legacy_completion_marker_present' => $legacyCompletionMarkerPresent,
+            'durable_completion_marker_present' => $publicationMarkerPresent || $legacyCompletionMarkerPresent,
             'resume_page_token_present' => $resumePageToken !== '',
             'comments_count' => $commentRow !== null && $this->value($commentRow, 'comments_count') !== null ? (int) $this->value($commentRow, 'comments_count') : null,
             'authors_count' => $commentRow !== null && $this->value($commentRow, 'authors_count') !== null ? (int) $this->value($commentRow, 'authors_count') : null,
             'latest_time' => $commentRow !== null && $this->value($commentRow, 'latest_time') !== null ? (string) $this->value($commentRow, 'latest_time') : null,
-            'already_in_done' => $doneVideoIds->has($videoId),
+            'already_in_done' => $legacyCompletionMarkerPresent,
             'would_set_stime' => $now->format('Y-m-d H:i:s'),
             'claim_status' => $this->value($queueRow, 'stime') === null ? 'unclaimed' : 'stale_claim',
             'would_call_get_comment' => true,
@@ -283,5 +302,40 @@ class CommentFetchPreview
     private function value(object $row, string $column): mixed
     {
         return property_exists($row, $column) ? $row->{$column} : null;
+    }
+
+    private function whereExactYoutubeId(Builder $query, string $column, string $value): Builder
+    {
+        if (! $this->usesMysqlFamily()) {
+            return $query->where($column, $value);
+        }
+
+        $qualifiedColumn = DB::connection()->getQueryGrammar()->wrap($column);
+
+        return $query->whereRaw("BINARY {$qualifiedColumn} = BINARY ?", [$value]);
+    }
+
+    /**
+     * @param  Collection<int, string>  $values
+     */
+    private function whereAnyExactYoutubeId(Builder $query, string $column, Collection $values): Builder
+    {
+        if (! $this->usesMysqlFamily()) {
+            return $query->whereIn($column, $values->all());
+        }
+
+        $qualifiedColumn = DB::connection()->getQueryGrammar()->wrap($column);
+
+        return $query->where(function (Builder $query) use ($qualifiedColumn, $values): void {
+            foreach ($values->values() as $index => $value) {
+                $method = $index === 0 ? 'whereRaw' : 'orWhereRaw';
+                $query->{$method}("BINARY {$qualifiedColumn} = BINARY ?", [$value]);
+            }
+        });
+    }
+
+    private function usesMysqlFamily(): bool
+    {
+        return in_array(DB::connection()->getDriverName(), ['mysql', 'mariadb'], true);
     }
 }

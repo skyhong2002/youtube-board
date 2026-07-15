@@ -3,6 +3,7 @@
 namespace Tests\Feature\Ops;
 
 use App\Services\Ingestion\IngestionSchedulerRunner;
+use App\Services\Legacy\CommentPublicationScope;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
@@ -107,6 +108,64 @@ class IngestionCommentFetchCommandTest extends TestCase
         $this->assertSame(['stale-claim', 'unclaimed'], array_column($payload['rows'], 'video_id'));
         $this->assertSame('stale_claim', $payload['rows'][0]['claim_status']);
         $this->assertSame('unclaimed', $payload['rows'][1]['claim_status']);
+    }
+
+    public function test_youtube_comments_fetch_preview_requires_a_durable_marker_before_recent_cache_finalization(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+        DB::table('urt_comment_queue')->insert([
+            $this->queueRow(1, 'marked-recent', '2026-05-25 10:00:00'),
+            $this->queueRow(2, 'legacy-done-recent', '2026-05-25 10:01:00'),
+            $this->queueRow(3, 'unmarked-recent', '2026-05-25 10:02:00'),
+        ]);
+        DB::table('urt_comment')->insert([
+            $this->commentRow('marked-recent', '2026-05-25 11:30:00', 1, 1),
+            [...$this->commentRow('legacy-done-recent', '2026-05-25 11:31:00', 1, 1), 'stime' => null],
+            [...$this->commentRow('unmarked-recent', '2026-05-25 11:32:00', 1, 1), 'stime' => null],
+        ]);
+        DB::table('urt_comment_queue_done')->insert([
+            'pk' => 99,
+            'ctime' => '2026-05-25 09:00:00',
+            'stime' => '2026-05-25 09:01:00',
+            'ftime' => '2026-05-25 09:02:00',
+            'videoId' => 'legacy-done-recent',
+        ]);
+
+        $exitCode = Artisan::call('youtube:comments:fetch', ['--json' => true]);
+        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+        $rows = collect($payload['rows'])->keyBy('video_id');
+
+        $this->assertSame(0, $exitCode);
+        $this->assertTrue($rows['marked-recent']['publication_marker_present']);
+        $this->assertTrue($rows['marked-recent']['would_skip_api_recent_cache']);
+        $this->assertTrue($rows['legacy-done-recent']['legacy_completion_marker_present']);
+        $this->assertTrue($rows['legacy-done-recent']['would_skip_api_recent_cache']);
+        $this->assertFalse($rows['unmarked-recent']['durable_completion_marker_present']);
+        $this->assertFalse($rows['unmarked-recent']['would_skip_api_recent_cache']);
+        $this->assertTrue($rows['unmarked-recent']['would_call_comment_threads']);
+
+        config()->set('services.youtube.api_key', 'test-key');
+        Http::fake([
+            'www.googleapis.com/youtube/v3/commentThreads*' => Http::response(['items' => []]),
+        ]);
+        $executeExitCode = Artisan::call('youtube:comments:fetch', [
+            '--execute' => true,
+            '--videoId' => 'unmarked-recent',
+            '--limit' => 1,
+            '--max-pages' => 1,
+            '--json' => true,
+        ]);
+        $execute = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+        $comment = DB::table('urt_comment')->where('videoId', 'unmarked-recent')->first();
+
+        $this->assertSame(0, $executeExitCode);
+        $this->assertSame(1, $execute['api_called_videos']);
+        $this->assertTrue($execute['applied'][0]['apiCalled']);
+        $this->assertSame('published', $execute['applied'][0]['publication_status']);
+        $this->assertSame($comment->mtime, $comment->stime);
+        $this->assertSame(1, DB::table('urt_comment_queue_done')->where('videoId', 'unmarked-recent')->count());
+        Http::assertSentCount(1);
     }
 
     public function test_youtube_comments_fetch_execute_requires_api_key_before_upsert(): void
@@ -269,6 +328,131 @@ class IngestionCommentFetchCommandTest extends TestCase
         $this->assertSame(2, DB::table('urt_comment_rev')->count());
         $this->assertSame(2, DB::table('urt_comment_queue_done')->where('videoId', 'execute-comments')->count());
         Http::assertSentCount(1);
+    }
+
+    public function test_youtube_comments_fetch_preserves_case_distinct_thread_and_reply_ids(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+        DB::table('urt_comment_queue')->insert($this->queueRow(1, 'case-json-ids', '2026-05-25 10:00:00'));
+
+        Http::fake([
+            'www.googleapis.com/youtube/v3/commentThreads*' => Http::response([
+                'items' => [[
+                    'id' => 'ThreadCase',
+                    'snippet' => [
+                        'topLevelComment' => [
+                            'snippet' => $this->commentSnippet('AuthorCase', 'Upper thread', '2026-05-25T10:00:00Z'),
+                        ],
+                    ],
+                    'replies' => [
+                        'comments' => [[
+                            'id' => 'ReplyCase',
+                            'snippet' => $this->commentSnippet('ReplyAuthorCase', 'Upper reply', '2026-05-25T10:01:00Z'),
+                        ]],
+                    ],
+                ], [
+                    'id' => 'threadcase',
+                    'snippet' => [
+                        'topLevelComment' => [
+                            'snippet' => $this->commentSnippet('authorcase', 'Lower thread', '2026-05-25T10:02:00Z'),
+                        ],
+                    ],
+                    'replies' => [
+                        'comments' => [[
+                            'id' => 'replycase',
+                            'snippet' => $this->commentSnippet('replyauthorcase', 'Lower reply', '2026-05-25T10:03:00Z'),
+                        ]],
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('youtube:comments:fetch', [
+            '--execute' => true,
+            '--videoId' => 'case-json-ids',
+            '--limit' => 1,
+            '--max-pages' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+        $comment = DB::table('urt_comment')->where('videoId', 'case-json-ids')->first();
+        $comments = json_decode((string) $comment->comments_json, true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(0, $payload['failed_rows']);
+        $this->assertSame(['ThreadCase', 'threadcase'], array_keys($comments));
+        $this->assertSame(['ReplyCase'], array_keys($comments['ThreadCase']['replies']));
+        $this->assertSame(['replycase'], array_keys($comments['threadcase']['replies']));
+        $this->assertSame(4, (int) $comment->comments_count);
+    }
+
+    public function test_youtube_comments_fetch_fails_each_selected_row_closed_when_author_table_is_missing(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+        Schema::drop('urt_comment_author');
+        DB::table('urt_comment_queue')->insert([
+            $this->queueRow(1, 'missing-author-a', '2026-05-25 10:00:00'),
+            $this->queueRow(2, 'missing-author-b', '2026-05-25 10:01:00'),
+        ]);
+        Http::preventStrayRequests();
+
+        $exitCode = Artisan::call('youtube:comments:fetch', [
+            '--execute' => true,
+            '--limit' => 2,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(2, $payload['selected_rows']);
+        $this->assertSame(2, $payload['claimed_rows']);
+        $this->assertSame(2, $payload['failed_rows']);
+        $this->assertSame(0, $payload['api_attempted_videos']);
+        $this->assertSame(
+            ['missing-author-a', 'missing-author-b'],
+            array_column($payload['failed'], 'videoId'),
+        );
+        foreach ($payload['failed'] as $failed) {
+            $this->assertStringContainsString('urt_comment_author', $failed['error']);
+            $this->assertTrue($failed['claim_released']);
+        }
+        $this->assertSame(2, DB::table('urt_comment_queue')->whereNull('stime')->count());
+        $this->assertSame(0, DB::table('urt_comment_queue_done')->count());
+        $this->assertSame(0, DB::table('urt_comment')->count());
+        $this->assertSame(0, DB::table('urt_comment_rev')->count());
+        Http::assertNothingSent();
+    }
+
+    public function test_youtube_comments_fetch_fails_closed_when_revision_table_is_missing(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->createTables();
+        Schema::drop('urt_comment_rev');
+        DB::table('urt_comment_queue')->insert($this->queueRow(1, 'missing-revision', '2026-05-25 10:00:00'));
+        Http::preventStrayRequests();
+
+        $exitCode = Artisan::call('youtube:comments:fetch', [
+            '--execute' => true,
+            '--limit' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame(0, $payload['api_attempted_videos']);
+        $this->assertStringContainsString('urt_comment_rev', $payload['failed'][0]['error']);
+        $this->assertTrue($payload['failed'][0]['claim_released']);
+        $this->assertSame(1, DB::table('urt_comment_queue')->whereNull('stime')->count());
+        $this->assertSame(0, DB::table('urt_comment_queue_done')->count());
+        $this->assertSame(0, DB::table('urt_comment')->count());
+        $this->assertSame(0, DB::table('urt_comment_author')->count());
+        Http::assertNothingSent();
     }
 
     public function test_youtube_comments_fetch_isolates_first_item_failure_and_sanitizes_error(): void
@@ -465,7 +649,7 @@ class IngestionCommentFetchCommandTest extends TestCase
         Http::assertSentCount(1);
     }
 
-    public function test_youtube_comments_fetch_preserves_malformed_author_revision_and_keeps_queue_pending(): void
+    public function test_youtube_comments_fetch_keeps_pending_row_unpublished_across_repeated_revision_failures(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
         config()->set('services.youtube.api_key', 'test-key');
@@ -484,9 +668,30 @@ class IngestionCommentFetchCommandTest extends TestCase
             'videos' => 3,
             'index_json' => '{malformed-json',
         ]);
-        Http::fake([
-            'www.googleapis.com/youtube/v3/commentThreads*' => Http::response([
+        DB::table('urt_comment')->insert([
+            ...$this->commentRow('invalid-author-revision', '2026-05-25 11:59:00', 0, 0),
+            'stime' => null,
+            'pageToken' => 'REVISION-NEXT',
+            'comments_json' => '{}',
+            'authors_json' => '{}',
+        ]);
+        $requestedTokens = [];
+        Http::fake(function ($request) use (&$requestedTokens) {
+            $requestedTokens[] = (string) ($request['pageToken'] ?? '');
+
+            return Http::response([
                 'items' => [[
+                    'id' => 'thread-new-author',
+                    'snippet' => [
+                        'topLevelComment' => [
+                            'snippet' => $this->commentSnippet(
+                                'author-new',
+                                'New Author',
+                                '2026-05-25T10:01:00Z',
+                            ),
+                        ],
+                    ],
+                ], [
                     'id' => 'thread-invalid-revision',
                     'snippet' => [
                         'topLevelComment' => [
@@ -498,26 +703,40 @@ class IngestionCommentFetchCommandTest extends TestCase
                         ],
                     ],
                 ]],
-            ]),
-        ]);
+            ]);
+        });
 
-        $exitCode = Artisan::call('youtube:comments:fetch', [
-            '--execute' => true,
-            '--limit' => 1,
-            '--max-pages' => 1,
-            '--json' => true,
-        ]);
-        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+        for ($attempt = 0; $attempt < 2; $attempt++) {
+            $exitCode = Artisan::call('youtube:comments:fetch', [
+                '--execute' => true,
+                '--limit' => 1,
+                '--max-pages' => 1,
+                '--json' => true,
+            ]);
+            $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+            $comment = DB::table('urt_comment')->where('videoId', 'invalid-author-revision')->first();
 
-        $this->assertSame(1, $exitCode);
-        $this->assertSame(1, $payload['failed_rows']);
-        $this->assertTrue($payload['failed'][0]['claim_released']);
-        $this->assertSame(1, DB::table('urt_comment_queue')->where('videoId', 'invalid-author-revision')->count());
-        $this->assertNull(DB::table('urt_comment_queue')->where('videoId', 'invalid-author-revision')->value('stime'));
-        $this->assertSame(0, DB::table('urt_comment_queue_done')->count());
-        $this->assertSame(0, DB::table('urt_comment')->count());
-        $this->assertSame(3, DB::table('urt_comment_rev')->where('author_id', 1)->value('videos'));
-        $this->assertSame('{malformed-json', DB::table('urt_comment_rev')->where('author_id', 1)->value('index_json'));
+            $this->assertSame(1, $exitCode);
+            $this->assertSame(1, $payload['failed_rows']);
+            $this->assertStringContainsString('revision index JSON', $payload['failed'][0]['error']);
+            $this->assertTrue($payload['failed'][0]['claim_released']);
+            $this->assertSame(1, DB::table('urt_comment_queue')->where('videoId', 'invalid-author-revision')->count());
+            $this->assertNull(DB::table('urt_comment_queue')->where('videoId', 'invalid-author-revision')->value('stime'));
+            $this->assertSame(0, DB::table('urt_comment_queue_done')->count());
+            $this->assertSame('REVISION-NEXT', $comment->pageToken);
+            $this->assertSame('2026-05-25 11:59:00', $comment->mtime);
+            $this->assertNull($comment->stime);
+            $this->assertSame(0, CommentPublicationScope::complete(DB::table('urt_comment'))
+                ->where('videoId', 'invalid-author-revision')
+                ->count());
+            $this->assertSame(1, DB::table('urt_comment_author')->count());
+            $this->assertSame(0, DB::table('urt_comment_author')->where('ChannelId', 'author-new')->count());
+            $this->assertSame(3, DB::table('urt_comment_rev')->where('author_id', 1)->value('videos'));
+            $this->assertSame('{malformed-json', DB::table('urt_comment_rev')->where('author_id', 1)->value('index_json'));
+        }
+
+        $this->assertSame(['REVISION-NEXT', 'REVISION-NEXT'], $requestedTokens);
+        Http::assertSentCount(2);
     }
 
     public function test_youtube_comments_fetch_rejects_malformed_api_items_without_partially_completing_videos(): void
@@ -984,7 +1203,7 @@ class IngestionCommentFetchCommandTest extends TestCase
         Http::assertSentCount(3);
     }
 
-    private function createTables(bool $withAuthors = false): void
+    private function createTables(bool $withAuthors = true): void
     {
         foreach (['urt_comment_queue_done', 'urt_comment_queue', 'urt_comment_rev', 'urt_comment_author', 'urt_channel', 'urt_comment', 'urt_video'] as $table) {
             Schema::dropIfExists($table);
@@ -1120,6 +1339,7 @@ class IngestionCommentFetchCommandTest extends TestCase
             'videoId' => $videoId,
             'ctime' => '2026-05-25 09:00:00',
             'mtime' => $mtime,
+            'stime' => $mtime,
             'comments_count' => $comments,
             'latest_time' => '2026-05-25 09:30:00',
             'likes_count' => 0,

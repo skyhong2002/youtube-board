@@ -15,12 +15,13 @@ use Throwable;
 
 class AiEventIngestion
 {
-    private const PROMPT_TYPES = ['summary', 'people', 'media'];
+    private const PROMPT_TYPES = AiCommandInputValidator::EVENT_PROMPT_TYPES;
 
     public function __construct(
         private readonly AiDailyReport $dailyReport,
         private readonly OpenCodeChatClient $client,
         private readonly AiJsonPayloadValidator $jsonValidator,
+        private readonly AiBusinessKeyLock $businessKeyLock,
     ) {}
 
     /**
@@ -131,12 +132,39 @@ class AiEventIngestion
                 }
 
                 if ($aiCallsUsed >= $aiCallLimit) {
-                    $rows[] = $baseRow + $this->skippedRow('ai_call_guard_exhausted');
+                    $rows[] = $baseRow + $this->skippedRow('ai_call_guard_exhausted', true);
+
+                    continue;
+                }
+
+                $identity = [
+                    'aipk' => (int) $day['pk'],
+                    'event_name' => (string) $topic['title'],
+                    'prompt_type' => $promptType,
+                ];
+
+                if (Schema::hasColumn('urt_ai_event', 'condition_type')) {
+                    $identity['condition_type'] = (string) $day['condition'];
+                }
+
+                $lock = $this->businessKeyLock->acquire('urt_ai_event', $identity);
+
+                if ($lock === null) {
+                    $rows[] = $baseRow + $this->skippedRow('business_key_locked', true);
 
                     continue;
                 }
 
                 try {
+                    $existingRows = $this->existingEventRows((int) $day['pk'], (string) $topic['title'], $promptType);
+                    $baseRow['existing_rows'] = $existingRows;
+
+                    if ($missingOnly && $existingRows > 0) {
+                        $rows[] = $baseRow + $this->skippedRow('existing_row');
+
+                        continue;
+                    }
+
                     $aiCallsUsed++;
                     $completion = $this->client->complete($prompt);
                     $fallbackUsed = false;
@@ -191,6 +219,8 @@ class AiEventIngestion
                         'prompt_type' => $promptType,
                         'exception_class' => $exception::class,
                     ]);
+                } finally {
+                    $lock->release();
                 }
             }
         }
@@ -524,27 +554,17 @@ class AiEventIngestion
      */
     private function promptTypes(string $promptTypes): array
     {
-        $types = collect(explode(',', $promptTypes))
-            ->map(fn (string $type): string => trim($type))
-            ->filter()
-            ->unique()
-            ->filter(fn (string $type): bool => in_array($type, self::PROMPT_TYPES, true))
-            ->values()
-            ->all();
-
-        return $types === [] ? self::PROMPT_TYPES : $types;
+        return AiCommandInputValidator::promptTypes($promptTypes);
     }
 
     private function dateString(?string $date): ?string
     {
-        return is_string($date) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) ? $date : null;
+        return AiCommandInputValidator::date($date, '--date');
     }
 
     private function condition(string $condition): string
     {
-        $condition = trim($condition) !== '' ? trim($condition) : 'all';
-
-        return preg_match('/^[A-Za-z0-9_-]{1,40}$/', $condition) ? $condition : 'all';
+        return AiCommandInputValidator::condition($condition, AiCommandInputValidator::DAILY_CONDITIONS);
     }
 
     private function existingEventRows(int $aipk, string $event, string $promptType): int
@@ -823,14 +843,14 @@ class AiEventIngestion
     /**
      * @return array<string, mixed>
      */
-    private function skippedRow(string $reason): array
+    private function skippedRow(string $reason, bool $failed = false): array
     {
         return [
             'ai_call_attempted' => false,
             'inserted' => false,
             'updated' => false,
             'skipped' => true,
-            'failed' => false,
+            'failed' => $failed,
             'skip_reason' => $reason,
             'fallback_used' => false,
             'fallback_reason' => null,

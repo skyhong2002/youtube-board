@@ -45,11 +45,15 @@ class ChannelCountsPreview
             return $this->payload($now, 0, 0, 0, 0, 0, [], $execute);
         }
 
-        $withLogsBase = (clone $base)->whereExists(function ($query): void {
+        $logMonthStart = $now->subDays(31)->startOfMonth()->toDateString();
+        $withLogsBase = (clone $base)->whereExists(function ($query) use ($logMonthStart): void {
             $query
                 ->selectRaw('1')
                 ->from('urt_log')
-                ->whereColumn('urt_log.u_id', 'urt_count.u_id');
+                ->whereColumn('urt_log.u_id', 'urt_count.u_id')
+                ->where(function ($query) use ($logMonthStart): void {
+                    $query->whereNull('urt_log.themonth')->orWhere('urt_log.themonth', '>=', $logMonthStart);
+                });
         });
         $withLogs = (clone $withLogsBase)->count();
         $missingLogs = max(0, $candidates - $withLogs);
@@ -60,8 +64,6 @@ class ChannelCountsPreview
             ->get()
             ->keyBy('u_id');
         $sourceTruncated = $withLogs > $countRows->count();
-        $logMonthStart = $now->subDays(31)->startOfMonth()->toDateString();
-
         $rows = [];
         $wouldUpdate = 0;
         $unchanged = 0;
@@ -95,6 +97,22 @@ class ChannelCountsPreview
                     'u_id' => (int) $row->u_id,
                     'reason' => 'invalid_log_payload',
                 ]);
+
+                if ($execute) {
+                    try {
+                        DB::transaction(fn (): int => DB::table('urt_count')
+                            ->where('u_id', $row->u_id)
+                            ->update([
+                                'mtime' => $now->format('Y-m-d H:i:s'),
+                            ]));
+                    } catch (Throwable $exception) {
+                        Log::warning('Channel counts invalid-source cooldown failed.', [
+                            'u_id' => (int) $row->u_id,
+                            'reason' => 'cooldown_write_failed',
+                            'exception_class' => $exception::class,
+                        ]);
+                    }
+                }
 
                 continue;
             }
@@ -184,7 +202,7 @@ class ChannelCountsPreview
 
     /**
      * @param  Collection<int, object>  $logs
-     * @return array{view_week: int, sub_week: int, video_week: int, view_month: int, sub_month: int, video_month: int}|null
+     * @return array{view_week: int, video_week: int, view_month: int, video_month: int, sub_week?: int, sub_month?: int}|null
      */
     private function computeDeltas(Collection $logs, CarbonImmutable $now): ?array
     {
@@ -206,10 +224,22 @@ class ChannelCountsPreview
                     return null;
                 }
 
-                foreach (['view', 'subscriber', 'video'] as $metric) {
+                foreach (['view', 'video'] as $metric) {
                     if (! array_key_exists($metric, $point) || ! is_numeric($point[$metric]) || (int) $point[$metric] < 0) {
                         return null;
                     }
+                }
+
+                if (array_key_exists('hidden', $point) && ! is_bool($point['hidden'])) {
+                    return null;
+                }
+
+                if (array_key_exists('subscriber', $point)) {
+                    if (! is_numeric($point['subscriber']) || (int) $point['subscriber'] < 0) {
+                        return null;
+                    }
+                } elseif (($point['hidden'] ?? false) !== true) {
+                    return null;
                 }
             }
 
@@ -220,18 +250,16 @@ class ChannelCountsPreview
             return null;
         }
 
-        $latest = [
-            'view' => null,
-            'subscriber' => null,
-            'video' => null,
-        ];
+        $latest = ['view' => null, 'video' => null];
         $week = [
             'view' => 0,
-            'subscriber' => 0,
             'video' => 0,
         ];
         $month = $week;
         $observedPoint = false;
+        $latestSubscriber = null;
+        $weekSubscriber = null;
+        $monthSubscriber = null;
 
         for ($i = 0; $i <= 30; $i++) {
             $date = $now->subDays($i)->toDateString();
@@ -241,20 +269,31 @@ class ChannelCountsPreview
                 continue;
             }
 
-            $observedPoint = true;
+            $isLatestPoint = ! $observedPoint;
 
-            foreach (['view', 'subscriber', 'video'] as $metric) {
-                if ($latest[$metric] === null && array_key_exists($metric, $point)) {
-                    $latest[$metric] = (int) $point[$metric];
-                }
+            if ($isLatestPoint) {
+                $latest['view'] = (int) $point['view'];
+                $latest['video'] = (int) $point['video'];
+                $latestSubscriber = array_key_exists('subscriber', $point)
+                    ? (int) $point['subscriber']
+                    : null;
             }
+            $observedPoint = true;
 
             if ($i <= 7 && $latest['view'] !== null && array_key_exists('view', $point)) {
                 $week = $this->deltaAtPoint($latest, $point);
+
+                if (! $isLatestPoint && $latestSubscriber !== null && array_key_exists('subscriber', $point)) {
+                    $weekSubscriber = $latestSubscriber - (int) $point['subscriber'];
+                }
             }
 
             if ($i <= 29 && $latest['view'] !== null && array_key_exists('view', $point)) {
                 $month = $this->deltaAtPoint($latest, $point);
+
+                if (! $isLatestPoint && $latestSubscriber !== null && array_key_exists('subscriber', $point)) {
+                    $monthSubscriber = $latestSubscriber - (int) $point['subscriber'];
+                }
             }
         }
 
@@ -262,32 +301,41 @@ class ChannelCountsPreview
             return null;
         }
 
-        return [
+        $computed = [
             'view_week' => $week['view'],
-            'sub_week' => $week['subscriber'],
-            'video_week' => $week['video'],
-            'view_month' => $month['view'],
-            'sub_month' => $month['subscriber'],
-            'video_month' => $month['video'],
         ];
+
+        if ($weekSubscriber !== null) {
+            $computed['sub_week'] = $weekSubscriber;
+        }
+
+        $computed['video_week'] = $week['video'];
+        $computed['view_month'] = $month['view'];
+
+        if ($monthSubscriber !== null) {
+            $computed['sub_month'] = $monthSubscriber;
+        }
+
+        $computed['video_month'] = $month['video'];
+
+        return $computed;
     }
 
     /**
-     * @param  array{view: int|null, subscriber: int|null, video: int|null}  $latest
+     * @param  array{view: int|null, video: int|null}  $latest
      * @param  array<string, mixed>  $point
-     * @return array{view: int, subscriber: int, video: int}
+     * @return array{view: int, video: int}
      */
     private function deltaAtPoint(array $latest, array $point): array
     {
         return [
             'view' => (int) ($latest['view'] ?? 0) - (int) ($point['view'] ?? 0),
-            'subscriber' => (int) ($latest['subscriber'] ?? 0) - (int) ($point['subscriber'] ?? 0),
             'video' => (int) ($latest['video'] ?? 0) - (int) ($point['video'] ?? 0),
         ];
     }
 
     /**
-     * @param  array{view_week: int, sub_week: int, video_week: int, view_month: int, sub_month: int, video_month: int}  $computed
+     * @param  array{view_week: int, video_week: int, view_month: int, video_month: int, sub_week?: int, sub_month?: int}  $computed
      * @return array<string, int>
      */
     private function diff(object $row, array $computed): array

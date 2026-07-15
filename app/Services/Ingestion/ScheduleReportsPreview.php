@@ -66,6 +66,7 @@ class ScheduleReportsPreview
 
         $rows = [];
         $historyRowsScanned = 0;
+        $skipped = [];
 
         foreach ($candidateRows as $row) {
             $history = DB::table('urt_video_log_history')
@@ -75,15 +76,43 @@ class ScheduleReportsPreview
                 ->get(['pk', 'videoId', 'ctime', 'viewCount']);
             $historyRowsScanned += $history->count();
             $current = $history->get(0);
+            $computed = null;
 
-            if ($current === null || $current->ctime === null) {
-                continue;
+            if ($current !== null && $current->ctime !== null) {
+                try {
+                    $previous = $history->get(1);
+                    $computed = $this->estimateNextCheck($row, $current, $previous, $timezone);
+                } catch (Throwable) {
+                    $computed = null;
+                }
             }
 
-            $previous = $history->get(1);
-            $computed = $this->estimateNextCheck($row, $current, $previous, $timezone);
-
             if ($computed === null) {
+                $skipped[] = [
+                    'video_id' => (string) $row->videoId,
+                    'reason' => 'invalid_history_payload',
+                ];
+                Log::warning('Schedule reports source history is invalid.', [
+                    'video_id' => (string) $row->videoId,
+                    'reason' => 'invalid_history_payload',
+                ]);
+
+                if ($execute) {
+                    try {
+                        DB::transaction(fn (): int => DB::table('urt_video_schedule')
+                            ->where('videoId', $row->videoId)
+                            ->update([
+                                'mtime' => $now->format('Y-m-d H:i:s'),
+                            ]));
+                    } catch (Throwable $exception) {
+                        Log::warning('Schedule reports invalid-source cooldown failed.', [
+                            'video_id' => (string) $row->videoId,
+                            'reason' => 'cooldown_write_failed',
+                            'exception_class' => $exception::class,
+                        ]);
+                    }
+                }
+
                 continue;
             }
 
@@ -102,7 +131,6 @@ class ScheduleReportsPreview
             ->all();
 
         $updated = 0;
-        $skipped = [];
 
         if ($execute && $limitedRows !== []) {
             foreach ($limitedRows as $updateRow) {

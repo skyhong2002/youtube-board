@@ -9,9 +9,7 @@ use Illuminate\Support\Facades\DB;
 
 class AiDailyPromptReport
 {
-    public function __construct(private readonly LegacyTagFilter $tagFilter)
-    {
-    }
+    public function __construct(private readonly LegacyTagFilter $tagFilter) {}
 
     /**
      * @return array{available: bool, title: string, date: string|null, condition: string, data_type: string, period: array{from: string, to: string, previous: string, next: string}, rows: list<array<string, mixed>>, media_without_events: list<string>, prompt: string, prompt_bounds: array{min: int, max: int}, filters: array<string, string|int>, generated_at: string}
@@ -163,7 +161,7 @@ class AiDailyPromptReport
     }
 
     /**
-     * @param array{or: list<int>, tagid: list<int>, not: list<int>} $filters
+     * @param  array{or: list<int>, tagid: list<int>, not: list<int>}  $filters
      * @return list<int>
      */
     private function matchingUIds(array $filters): array
@@ -180,40 +178,40 @@ class AiDailyPromptReport
     }
 
     /**
-     * @param array{or: list<int>, tagid: list<int>, not: list<int>, limit: int} $filters
-     * @param array{from: string, to: string} $period
+     * @param  array{or: list<int>, tagid: list<int>, not: list<int>, limit: int}  $filters
+     * @param  array{from: string, to: string}  $period
      * @return list<array<string, mixed>>
      */
     private function rows(array $filters, array $period, string $dataType, string $condition): array
     {
-        $query = DB::table('urt_channel_ai as ai')
-            ->leftJoin('urt_channel as c', 'ai.u_id', '=', 'c.u_id')
-            ->where('ai.date_from', $period['from'])
-            ->where('ai.date_to', $period['to'])
-            ->where('ai.data_type', $dataType)
-            ->whereNull('ai.del_flag')
-            ->orderByDesc('ai.pk')
-            ->select(['ai.pk', 'ai.u_id', 'ai.result_json', 'c.title']);
+        $latestRows = DB::table('urt_channel_ai as candidate')
+            ->where('candidate.date_from', $period['from'])
+            ->where('candidate.date_to', $period['to'])
+            ->where('candidate.data_type', $dataType)
+            ->whereNull('candidate.del_flag');
 
         $uIds = $this->matchingUIds($filters);
 
         if ($uIds !== []) {
-            $query->whereIn('ai.u_id', $uIds);
+            $latestRows->whereIn('candidate.u_id', $uIds);
         } elseif ($filters['or'] !== [] || $filters['tagid'] !== [] || $filters['not'] !== []) {
-            $query->whereRaw('1 = 0');
+            $latestRows->whereRaw('1 = 0');
         }
 
-        $seen = [];
+        $latestRows
+            ->selectRaw('MAX(candidate.pk) as pk')
+            ->groupBy('candidate.u_id');
+        $query = DB::query()
+            ->fromSub($latestRows, 'latest')
+            ->join('urt_channel_ai as ai', 'ai.pk', '=', 'latest.pk')
+            ->leftJoin('urt_channel as c', 'ai.u_id', '=', 'c.u_id')
+            ->orderByDesc('ai.pk')
+            ->select(['ai.pk', 'ai.u_id', 'ai.result_json', 'c.title']);
+
         $rows = [];
 
         foreach ($query->limit($filters['limit'])->get() as $row) {
             $uId = (int) $row->u_id;
-
-            if (isset($seen[$uId])) {
-                continue;
-            }
-
-            $seen[$uId] = true;
             $events = $this->events($row->result_json ?? null, $condition);
             $videoCount = collect($events)->sum('video_count');
 
@@ -290,8 +288,8 @@ class AiDailyPromptReport
     }
 
     /**
-     * @param array<string, mixed> $item
-     * @param list<string> $keys
+     * @param  array<string, mixed>  $item
+     * @param  list<string>  $keys
      */
     private function text(array $item, array $keys): string
     {
@@ -305,8 +303,8 @@ class AiDailyPromptReport
     }
 
     /**
-     * @param array<string, mixed> $item
-     * @param list<string> $keys
+     * @param  array<string, mixed>  $item
+     * @param  list<string>  $keys
      * @return list<string>
      */
     private function stringList(array $item, array $keys): array
@@ -342,8 +340,8 @@ class AiDailyPromptReport
     }
 
     /**
-     * @param list<array<string, mixed>> $rows
-     * @param array{min: int, max: int} $bounds
+     * @param  list<array<string, mixed>>  $rows
+     * @param  array{min: int, max: int}  $bounds
      */
     private function prompt(array $rows, array $bounds, string $condition): string
     {
@@ -392,7 +390,7 @@ class AiDailyPromptReport
     }
 
     /**
-     * @param array{or: list<int>, tagid: list<int>, not: list<int>, limit: int} $filters
+     * @param  array{or: list<int>, tagid: list<int>, not: list<int>, limit: int}  $filters
      * @return array<string, string|int>
      */
     private function displayFilters(array $filters, string $condition, string $dataType): array

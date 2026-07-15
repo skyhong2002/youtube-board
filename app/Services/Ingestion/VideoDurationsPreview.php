@@ -28,7 +28,11 @@ class VideoDurationsPreview
         $readyQuery = DB::table('urt_video_duration')
             ->whereNull('mtime')
             ->whereNull('duration')
-            ->whereNull('stime');
+            ->where(function ($query) use ($now): void {
+                $query
+                    ->whereNull('stime')
+                    ->orWhere('stime', '<=', $now->format('Y-m-d H:i:s'));
+            });
 
         if ($videoId !== null) {
             $readyQuery->where('videoId', $videoId);
@@ -47,7 +51,7 @@ class VideoDurationsPreview
         $reservedRows = DB::table('urt_video_duration')
             ->whereNull('duration')
             ->whereNull('mtime')
-            ->whereNotNull('stime')
+            ->where('stime', '>', $now->format('Y-m-d H:i:s'))
             ->count();
         $failedOrMissingRows = DB::table('urt_video_duration')
             ->whereNull('duration')

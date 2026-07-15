@@ -5,6 +5,7 @@ namespace Tests\Feature\Ops;
 use App\Console\GuardedClosureCommand;
 use App\Services\Ingestion\DirectYoutubeQuotaGuard;
 use App\Services\Ingestion\IngestionCommandLock;
+use App\Services\Ingestion\IngestionCommandLockContext;
 use App\Services\Ingestion\IngestionHealthCheck;
 use App\Services\Ingestion\IngestionJobRegistry;
 use App\Services\Ingestion\IngestionSchedulerRunner;
@@ -102,12 +103,115 @@ class IngestionSchedulerGuardrailTest extends TestCase
             if ($name === 'ingestion:run' || in_array($name, $quotaOwned, true)) {
                 $this->assertNotInstanceOf(GuardedClosureCommand::class, $command, $name);
 
+                if ($name !== 'ingestion:run') {
+                    $this->assertNotNull($lock->jobKeyForCommand($name), $name);
+                }
+
                 continue;
             }
 
             $this->assertInstanceOf(GuardedClosureCommand::class, $command, $name);
             $this->assertNotNull($lock->jobKeyForCommand($name), $name);
         }
+    }
+
+    public function test_shared_channel_video_command_resolves_each_manual_lock_owner(): void
+    {
+        $commandLock = app(IngestionCommandLock::class);
+        $variants = [
+            'youtube.channels.videos.general' => ['live' => null],
+            'youtube.channels.videos.live' => ['live' => 1],
+            'youtube.channels.videos.live_group' => ['live' => '2'],
+        ];
+        $lockNames = [];
+
+        foreach ($variants as $jobKey => $options) {
+            $this->assertSame($jobKey, $commandLock->jobKeyForCommand('youtube:channels:videos', $options));
+            $lockNames[] = IngestionCommandLock::name($jobKey);
+            $held = Cache::lock(IngestionCommandLock::name($jobKey), 600);
+            $this->assertTrue($held->get());
+
+            try {
+                $result = $commandLock->run(
+                    'youtube:channels:videos',
+                    fn (): int => 0,
+                    $options,
+                );
+            } finally {
+                $held->release();
+            }
+
+            $this->assertFalse($result['executed']);
+            $this->assertSame('command_locked', $result['blocked_reason']);
+            $this->assertSame($jobKey, $result['job_key']);
+            $this->assertSame(IngestionCommandLock::name($jobKey), $result['lock']['name']);
+        }
+
+        $this->assertCount(count($variants), array_unique($lockNames));
+    }
+
+    public function test_shared_channel_video_command_reuses_scheduler_owned_lock_without_reacquiring_it(): void
+    {
+        $commandLock = app(IngestionCommandLock::class);
+        $context = app(IngestionCommandLockContext::class);
+        $variants = [
+            'youtube.channels.videos.general',
+            'youtube.channels.videos.live',
+            'youtube.channels.videos.live_group',
+        ];
+
+        foreach ($variants as $jobKey) {
+            $held = Cache::lock(IngestionCommandLock::name($jobKey), 600);
+            $this->assertTrue($held->get());
+            $callbackCalls = 0;
+
+            try {
+                $result = $context->withOwnership(
+                    $jobKey,
+                    function () use ($commandLock, &$callbackCalls): array {
+                        return $commandLock->run(
+                            'youtube:channels:videos',
+                            function () use (&$callbackCalls): int {
+                                $callbackCalls++;
+
+                                return 0;
+                            },
+                        );
+                    },
+                );
+
+                $this->assertTrue($held->isOwnedByCurrentProcess());
+            } finally {
+                $held->release();
+            }
+
+            $this->assertTrue($result['executed']);
+            $this->assertNull($result['blocked_reason']);
+            $this->assertSame($jobKey, $result['job_key']);
+            $this->assertSame(1, $callbackCalls);
+        }
+    }
+
+    public function test_shared_channel_video_command_rejects_scheduler_context_that_conflicts_with_options(): void
+    {
+        $commandLock = app(IngestionCommandLock::class);
+        $context = app(IngestionCommandLockContext::class);
+
+        $resolved = $context->withOwnership(
+            'youtube.channels.videos.general',
+            fn (): ?string => $commandLock->jobKeyForCommand('youtube:channels:videos', ['live' => 1]),
+        );
+        $result = $context->withOwnership(
+            'youtube.channels.videos.general',
+            fn (): array => $commandLock->run('youtube:channels:videos', fn (): int => 0, ['live' => 1]),
+        );
+
+        $this->assertNull($resolved);
+        $this->assertFalse($result['executed']);
+        $this->assertSame(1, $result['exit_code']);
+        $this->assertSame('command_lock_mapping_unavailable', $result['blocked_reason']);
+        $this->assertNull($result['job_key']);
+        $this->assertNull($result['lock']);
     }
 
     public function test_direct_and_scheduler_commands_share_lock_while_dry_run_bypasses_it_and_logs_are_sanitized(): void
@@ -261,7 +365,7 @@ class IngestionSchedulerGuardrailTest extends TestCase
             '--job' => 'ai.daily',
         ]);
 
-        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, $exitCode);
         $stored = json_decode((string) DB::table('ingestion_runs')->value('payload_json'), true, 512, JSON_THROW_ON_ERROR);
         $job = $stored['result']['jobs'][0];
         $jobBudget = $job['youtube_quota_budget'];
@@ -306,6 +410,51 @@ class IngestionSchedulerGuardrailTest extends TestCase
         $this->assertSame(1000, $manual['source_refresh']['youtube_quota_budget']['remaining_units']);
         $this->assertArrayNotHasKey('_direct_lock', $manual['source_refresh']['youtube_quota_budget']);
         Http::assertNothingSent();
+    }
+
+    public function test_ingestion_run_records_effective_dry_run_mode_when_dry_run_overrides_execute(): void
+    {
+        $exitCode = Artisan::call('ingestion:run', [
+            '--execute' => true,
+            '--dry-run' => true,
+            '--record' => true,
+            '--at' => '2026-05-25 00:19:00',
+            '--job' => 'reports.live.static',
+        ]);
+
+        $this->assertSame(0, $exitCode, Artisan::output());
+        $this->assertDatabaseCount('ingestion_runs', 1);
+
+        $stored = json_decode((string) DB::table('ingestion_runs')->value('payload_json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame('dry-run', $stored['request']['mode']);
+        $this->assertSame('dry-run', $stored['result']['mode']);
+        $this->assertSame(0, $stored['result']['summary']['executed']);
+    }
+
+    public function test_ingestion_run_fails_when_an_explicit_job_key_does_not_exist(): void
+    {
+        $exitCode = Artisan::call('ingestion:run', [
+            '--execute' => true,
+            '--record' => true,
+            '--at' => '2026-05-25 00:19:00',
+            '--job' => 'missing.job',
+        ]);
+
+        $this->assertSame(1, $exitCode, Artisan::output());
+
+        $stored = json_decode((string) DB::table('ingestion_runs')->value('payload_json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame([
+            'evaluated' => 0,
+            'due' => 0,
+            'executed' => 0,
+            'skipped' => 0,
+            'failed' => 1,
+        ], $stored['result']['summary']);
+        $this->assertSame('failed:job-missing', $stored['result']['jobs'][0]['action']);
+        $this->assertTrue($stored['result']['jobs'][0]['failed']);
+        $this->assertSame(1, $stored['result']['jobs'][0]['exit_code']);
     }
 
     public function test_composite_missing_youtube_credential_keeps_the_original_failure_action(): void
@@ -381,6 +530,7 @@ class IngestionSchedulerGuardrailTest extends TestCase
 
         $this->assertSame('executed:quota-accounting-failed', $job['action']);
         $this->assertTrue($job['failed']);
+        $this->assertSame(1, $job['exit_code']);
         $this->assertTrue($job['quota_accounting_failed']);
         $this->assertSame('youtube.live.poll', $budget['direct_job_key']);
         $this->assertSame('direct_command', $budget['accounting_owner']);
@@ -825,6 +975,7 @@ class IngestionSchedulerGuardrailTest extends TestCase
         $this->assertTrue($job['failed']);
         $this->assertTrue($job['quota_accounting_failed']);
         $this->assertSame('executed:quota-accounting-failed', $job['action']);
+        $this->assertSame(1, $job['exit_code']);
         $this->assertSame(['evaluated' => 1, 'due' => 1, 'executed' => 0, 'skipped' => 0, 'failed' => 1], $result['summary']);
         $this->assertFalse($job['youtube_quota_budget']['available']);
     }

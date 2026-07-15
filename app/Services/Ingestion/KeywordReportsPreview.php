@@ -189,12 +189,26 @@ class KeywordReportsPreview
             throw new \RuntimeException('tag.analysis.tw keyword sync source limit exceeded');
         }
 
-        $candidates = collect($rows)
-            ->map(fn (mixed $row): array => $this->validatedRemoteRow($row))
-            ->values();
+        $candidates = collect($rows)->values();
         [$effectiveOffset, $offsetMode] = $this->effectiveOffset($offset, $candidates->count(), $limit, $now);
         [$attemptedRows, $wrapped] = $this->wrappedBatch($candidates, $effectiveOffset, $limit);
-        $selectedTags = $attemptedRows->pluck('tag')->unique()->values();
+        $validatedRows = collect();
+        $failed = 0;
+
+        foreach ($attemptedRows as $index => $candidate) {
+            try {
+                $validatedRows->push($this->validatedRemoteRow($candidate));
+            } catch (Throwable $exception) {
+                $failed++;
+                Log::warning('Keyword sync row failed.', [
+                    'source_index' => $this->sourceIndex($effectiveOffset, (int) $index, $candidates->count()),
+                    'reason' => 'invalid_remote_row',
+                    'exception_class' => $exception::class,
+                ]);
+            }
+        }
+
+        $selectedTags = $validatedRows->pluck('tag')->unique()->values();
         $existingTags = $selectedTags->isEmpty()
             ? collect()
             : DB::table('tags')->whereIn('tag', $selectedTags->all())->pluck('tag');
@@ -205,10 +219,9 @@ class KeywordReportsPreview
         }
 
         $synced = 0;
-        $failed = 0;
         $generatedAt = $now->format('Y-m-d H:i:s');
 
-        foreach ($attemptedRows as $row) {
+        foreach ($validatedRows as $row) {
             $tag = $row['tag'];
             $values = [
                 'mtime' => $row['mtime'],
@@ -255,6 +268,11 @@ class KeywordReportsPreview
             'batch_wrapped' => $wrapped,
             'source_truncated' => $candidates->count() > $attemptedRows->count(),
         ];
+    }
+
+    private function sourceIndex(int $offset, int $batchIndex, int $total): int
+    {
+        return $total > 0 ? ($offset + $batchIndex) % $total : 0;
     }
 
     private function localSourceRows()
@@ -411,7 +429,7 @@ class KeywordReportsPreview
         return [max(0, (int) $offset) % $total, 'explicit'];
     }
 
-    /** @return array{0: Collection<int, array<string, mixed>>, 1: bool} */
+    /** @return array{0: Collection<int, mixed>, 1: bool} */
     private function wrappedBatch(Collection $rows, int $offset, int $limit): array
     {
         $selected = $rows->slice($offset, $limit)->values();

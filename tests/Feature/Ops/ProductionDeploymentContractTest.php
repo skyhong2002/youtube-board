@@ -113,6 +113,9 @@ class ProductionDeploymentContractTest extends TestCase
             'in_array($driver, self::ENGINE_BEARING_DRIVERS, true)',
             $verifier,
         );
+        $this->assertStringContainsString('private const REQUIRED_BINARY_COLLATION_COLUMNS', $verifier);
+        $this->assertStringContainsString('FROM information_schema.COLUMNS', $verifier);
+        $this->assertStringContainsString("\$collation === 'utf8mb4_bin'", $verifier);
     }
 
     public function test_ingestion_defaults_fail_closed_without_runtime_environment_values(): void
@@ -127,18 +130,28 @@ class ProductionDeploymentContractTest extends TestCase
         $this->assertStringContainsString("env('APP_ENV') === 'production' ? 'database' : null", $config);
     }
 
-    public function test_production_ingestion_locks_use_shared_database_store(): void
+    public function test_production_ingestion_locks_are_shared_across_containers(): void
     {
         $template = file_get_contents($this->projectRoot.'/deploy/dokploy-env.example');
         $migration = file_get_contents($this->projectRoot.'/database/migrations/0001_01_01_000001_create_cache_table.php');
         $lockStore = file_get_contents($this->projectRoot.'/app/Services/Ingestion/IngestionLockStore.php');
+        $aiBusinessLock = file_get_contents($this->projectRoot.'/app/Services/Ingestion/AiBusinessKeyLock.php');
+        $deployment = file_get_contents($this->projectRoot.'/docs/deployment.md');
 
         $this->assertIsString($template);
         $this->assertIsString($migration);
         $this->assertIsString($lockStore);
+        $this->assertIsString($aiBusinessLock);
+        $this->assertIsString($deployment);
+        $this->assertStringContainsString('CACHE_STORE=file', $template);
         $this->assertStringContainsString('INGESTION_LOCK_STORE=database', $template);
+        $this->assertStringContainsString('INGESTION_AI_BUSINESS_LOCK_SECONDS=900', $template);
+        $this->assertStringContainsString('INGESTION_AI_BUSINESS_LOCK_TIMEOUT_SECONDS=0', $template);
         $this->assertStringContainsString("Schema::create('cache_locks'", $migration);
         $this->assertStringContainsString('Cache::store($store)->lock($name, $seconds)', $lockStore);
+        $this->assertStringContainsString("'SELECT GET_LOCK(?, ?) AS lock_acquired'", $aiBusinessLock);
+        $this->assertStringContainsString("'SELECT RELEASE_LOCK(?) AS lock_released'", $aiBusinessLock);
+        $this->assertStringContainsString('connection-scoped `GET_LOCK`/`RELEASE_LOCK` on the write PDO', $deployment);
     }
 
     public function test_ai_provider_defaults_match_env_templates_without_credentials(): void

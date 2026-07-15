@@ -70,6 +70,27 @@ class ChannelStatisticsIngestion
         $channelIds = $rows->pluck('youtube_id')->map(fn (mixed $id): string => (string) $id)->all();
         try {
             $statisticsByChannel = $this->youtube->channelStatistics($channelIds);
+        } catch (YoutubeApiKeyPoolExhaustedException $exception) {
+            $apiSkipped = $rows->map(fn (array $row): array => [
+                'u_id' => (int) $row['u_id'],
+                'youtube_id' => (string) $row['youtube_id'],
+                'reason' => $exception->failureReason(),
+            ])->all();
+            Log::warning('Channel statistics polling paused after all YouTube API keys failed.', [
+                'reason' => $exception->failureReason(),
+                'selected_rows' => $rows->count(),
+                'exception_class' => $exception::class,
+            ]);
+
+            return $this->summary(
+                $preview,
+                [],
+                [...$skipped, ...$apiSkipped],
+                $now,
+                false,
+                $rows->count(),
+                $rows->count(),
+            );
         } catch (YoutubeQuotaWindowException $exception) {
             $quotaSkipped = $rows->map(fn (array $row): array => [
                 'u_id' => (int) $row['u_id'],
@@ -131,9 +152,7 @@ class ChannelStatisticsIngestion
                     continue;
                 }
 
-                DB::transaction(function () use ($rowUId, $statistics, $now): void {
-                    $this->upsertStatistics($rowUId, $statistics, $now);
-                });
+                $this->upsertStatistics($rowUId, $statistics, $now);
 
                 $applied[] = [
                     'u_id' => $rowUId,
@@ -177,7 +196,7 @@ class ChannelStatisticsIngestion
     }
 
     /**
-     * @param  array{viewCount: int, subscriberCount: int, hiddenSubscriberCount: bool, videoCount: int}  $statistics
+     * @param  array{viewCount: int, subscriberCount: int|null, hiddenSubscriberCount: bool, videoCount: int}  $statistics
      */
     private function upsertStatistics(int $uId, array $statistics, CarbonImmutable $now): void
     {
@@ -185,21 +204,7 @@ class ChannelStatisticsIngestion
         $month = $now->format('Y-m-01');
         $date = $now->toDateString();
 
-        $this->updateExisting('urt_channel', 'u_id', $uId, [
-            'stime' => $nowString,
-            'mtime' => $nowString,
-            'viewCount' => $statistics['viewCount'],
-            'subscriberCount' => $statistics['subscriberCount'],
-            'videoCount' => $statistics['videoCount'],
-        ]);
-
-        $this->upsertByKeys('urt_count', ['u_id' => $uId], [
-            'mtime' => $nowString,
-            'viewCount' => $statistics['viewCount'],
-            'subscriberCount' => $statistics['subscriberCount'],
-            'videoCount' => $statistics['videoCount'],
-        ]);
-
+        // Production legacy tables may be MyISAM, so validate and publish history before freshness.
         $existingLog = Schema::hasTable('urt_log')
             ? DB::table('urt_log')->where('u_id', $uId)->where('themonth', $month)->first()
             : null;
@@ -214,9 +219,12 @@ class ChannelStatisticsIngestion
         }
         $data[$date] = [
             'view' => $statistics['viewCount'],
-            'subscriber' => $statistics['subscriberCount'],
             'video' => $statistics['videoCount'],
         ];
+
+        if ($statistics['subscriberCount'] !== null) {
+            $data[$date]['subscriber'] = $statistics['subscriberCount'];
+        }
 
         if ($statistics['hiddenSubscriberCount']) {
             $data[$date]['hidden'] = true;
@@ -232,6 +240,26 @@ class ChannelStatisticsIngestion
         }
 
         $this->upsertByKeys('urt_log', ['u_id' => $uId, 'themonth' => $month], $logValues);
+
+        $countValues = [
+            'mtime' => $nowString,
+            'viewCount' => $statistics['viewCount'],
+            'videoCount' => $statistics['videoCount'],
+        ];
+        $channelValues = [
+            'stime' => $nowString,
+            'mtime' => $nowString,
+            'viewCount' => $statistics['viewCount'],
+            'videoCount' => $statistics['videoCount'],
+        ];
+
+        if ($statistics['subscriberCount'] !== null) {
+            $countValues['subscriberCount'] = $statistics['subscriberCount'];
+            $channelValues['subscriberCount'] = $statistics['subscriberCount'];
+        }
+
+        $this->upsertByKeys('urt_count', ['u_id' => $uId], $countValues);
+        $this->updateExisting('urt_channel', 'u_id', $uId, $channelValues);
     }
 
     /**
@@ -318,6 +346,8 @@ class ChannelStatisticsIngestion
             'missing_youtube_id',
             'quota_window_reset',
             'viewCount_not_positive',
+            YoutubeApiKeyPoolExhaustedException::AUTHENTICATION_FAILURE,
+            YoutubeApiKeyPoolExhaustedException::QUOTA_FAILURE,
         ])->count();
 
         return [

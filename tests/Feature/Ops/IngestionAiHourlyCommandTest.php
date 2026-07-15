@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Ops;
 
+use App\Services\Ingestion\AiBusinessKeyLock;
 use App\Services\Ingestion\AiDailyPreview;
 use App\Services\Ingestion\AiHourlyIngestion;
 use App\Services\Ingestion\IngestionRunHistory;
@@ -26,6 +27,40 @@ class IngestionAiHourlyCommandTest extends TestCase
         app()->detectEnvironment(fn () => 'testing');
 
         parent::tearDown();
+    }
+
+    public function test_ai_hourly_fails_closed_on_a_contended_business_key_without_calling_ai(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDefaultFixtures();
+        Http::fake();
+
+        $lock = app(AiBusinessKeyLock::class)->acquire('urt_ai_hour', [
+            'date_from' => '2026-05-25 09:00:00',
+            'date_to' => '2026-05-25 09:59:59',
+            'condition_type' => 'blue',
+            'data_type' => 'each',
+            'user_token' => 'cli',
+        ]);
+        $this->assertNotNull($lock);
+
+        try {
+            $exitCode = Artisan::call('ai:hourly', [
+                '--execute' => true,
+                '--condition' => 'blue',
+                '--json' => true,
+            ]);
+            $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+            $this->assertSame(1, $exitCode);
+            $this->assertSame('business_key_locked', $payload['skip_reason']);
+            $this->assertFalse($payload['ai_call_attempted']);
+            $this->assertSame(0, DB::table('urt_ai_hour')->count());
+            Http::assertNothingSent();
+        } finally {
+            $lock->release();
+        }
     }
 
     public function test_ai_hourly_previews_default_cron_window_as_ai_preview(): void
@@ -212,7 +247,7 @@ class IngestionAiHourlyCommandTest extends TestCase
         $this->assertSame(0, DB::table('urt_ai_hour')->count());
     }
 
-    public function test_ai_hourly_execute_calls_opencode_and_upserts_hour_row_idempotently(): void
+    public function test_ai_hourly_execute_updates_the_logical_hour_when_the_provider_model_changes(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
         $this->createTables();
@@ -264,6 +299,7 @@ class IngestionAiHourlyCommandTest extends TestCase
             'result_json' => '[{"事件":"測試事件","描述":"測試描述","videoId":["blue-video"]}]',
         ]);
 
+        config()->set('services.opencode_go.model', 'next-model');
         $exitCode = Artisan::call('ai:hourly', [
             '--execute' => true,
             '--condition' => 'blue',
@@ -275,6 +311,7 @@ class IngestionAiHourlyCommandTest extends TestCase
         $this->assertFalse($payload['inserted']);
         $this->assertTrue($payload['updated']);
         $this->assertSame(1, DB::table('urt_ai_hour')->count());
+        $this->assertSame('next-model', DB::table('urt_ai_hour')->value('ai_type'));
         Http::assertSentCount(2);
         Http::assertSent(function ($request): bool {
             return $request->hasHeader('Authorization', 'Bearer test-key')
@@ -797,7 +834,6 @@ SQL);
                             'playlistId' => 'UU-pipeline-'.$youtubeRequests,
                             'position' => 0,
                             'resourceId' => ['videoId' => $videoId],
-                            'liveBroadcastContent' => 'none',
                         ],
                     ]],
                 ]);

@@ -49,6 +49,32 @@ class DeploymentSchemaCheckTest extends TestCase
             'ingestion_run_jobs' => null,
         ], $payload['required_table_engines']);
         $this->assertTrue($payload['required_table_engines_valid']);
+        $this->assertSame([
+            'urt_channel' => ['youtube_id' => null, 'uploads' => null],
+            'urt_channel_history' => ['youtube_id' => null],
+            'urt_comment' => ['videoId' => null, 'channelId' => null],
+            'urt_comment_author' => ['ChannelId' => null],
+            'urt_comment_queue' => ['videoId' => null],
+            'urt_comment_queue_done' => ['videoId' => null],
+            'urt_show_video_live' => ['videoId' => null, 'channelId' => null],
+            'urt_show_video_tag' => ['videoId' => null],
+            'urt_show_video_tag_title' => ['videoId' => null],
+            'urt_show_video_time' => ['videoId' => null],
+            'urt_user_channel' => ['channel' => null],
+            'urt_user_video' => ['videoId' => null, 'channel' => null],
+            'urt_video' => ['id' => null, 'channelId' => null, 'playlistId' => null, 'videoId' => null],
+            'urt_video_details' => ['videoId' => null],
+            'urt_video_duration' => ['videoId' => null],
+            'urt_video_live' => ['videoId' => null, 'activeLiveChatId' => null],
+            'urt_video_live_log' => ['videoId' => null],
+            'urt_video_live_log_tvbs' => ['videoId' => null],
+            'urt_video_live_tvbs' => ['videoId' => null, 'activeLiveChatId' => null],
+            'urt_video_log' => ['videoId' => null],
+            'urt_video_log_history' => ['videoId' => null],
+            'urt_video_schedule' => ['videoId' => null],
+            'urt_video_schedule_myisam' => ['videoId' => null],
+        ], $payload['required_binary_collations']);
+        $this->assertTrue($payload['required_binary_collations_valid']);
     }
 
     public function test_health_route_accepts_a_complete_deployment_schema(): void

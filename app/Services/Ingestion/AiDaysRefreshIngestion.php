@@ -38,6 +38,7 @@ class AiDaysRefreshIngestion
         $now = CarbonImmutable::now($timezone);
         $range = $this->dateRange($from, $to, $now);
         $condition = $this->condition($condition);
+        $promptTypes = implode(',', $this->promptTypes($promptTypes));
 
         if ($range['blocked_reason'] !== null) {
             return $this->blockedRangeResult('ingestion-preview', $condition, $range, $now);
@@ -486,14 +487,29 @@ class AiDaysRefreshIngestion
     private function eventVerificationResult(array $result): array
     {
         $missingRows = max(0, (int) ($result['would_call_ai_requests'] ?? 0));
+        $blockedReason = $result['blocked_reason'] ?? null;
 
-        if ($missingRows === 0 && ($result['blocked_reason'] ?? null) !== null) {
+        if ($missingRows === 0 && $blockedReason !== null) {
             $missingRows = collect($result['rows'] ?? [])
                 ->where('skipped', false)
                 ->count();
         }
 
-        if ($missingRows === 0 || (int) ($result['exit_code'] ?? 0) !== 0) {
+        if ((int) ($result['exit_code'] ?? 0) !== 0) {
+            return $result;
+        }
+
+        if ($blockedReason !== null) {
+            return array_merge($result, [
+                'status' => 'failed',
+                'exit_code' => 1,
+                'failed_rows' => max(1, $missingRows),
+                'incomplete_rows' => max(1, $missingRows),
+                'would_call_ai_requests' => max(1, $missingRows),
+            ]);
+        }
+
+        if ($missingRows === 0) {
             return $result;
         }
 
@@ -526,11 +542,11 @@ class AiDaysRefreshIngestion
      */
     private function dateRange(?string $from, ?string $to, CarbonImmutable $now): array
     {
-        $fromDate = $this->dateString($from) ?? $now->subDay()->toDateString();
-        $toDate = $this->dateString($to) ?? $fromDate;
+        $fromDate = AiCommandInputValidator::date($from, '--from') ?? $now->subDay()->toDateString();
+        $toDate = AiCommandInputValidator::date($to, '--to') ?? $fromDate;
 
         if ($fromDate > $toDate) {
-            [$fromDate, $toDate] = [$toDate, $fromDate];
+            throw new \InvalidArgumentException('--from must not be after --to');
         }
 
         $cursor = CarbonImmutable::parse($fromDate, $now->getTimezone());
@@ -587,16 +603,9 @@ class AiDaysRefreshIngestion
         ];
     }
 
-    private function dateString(?string $date): ?string
-    {
-        return is_string($date) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) ? $date : null;
-    }
-
     private function condition(string $condition): string
     {
-        $condition = trim($condition) !== '' ? trim($condition) : 'all';
-
-        return preg_match('/^[A-Za-z0-9_-]{1,40}$/', $condition) ? $condition : 'all';
+        return AiCommandInputValidator::condition($condition, AiCommandInputValidator::DAILY_CONDITIONS);
     }
 
     /**
@@ -604,13 +613,6 @@ class AiDaysRefreshIngestion
      */
     private function promptTypes(string $promptTypes): array
     {
-        $types = collect(explode(',', $promptTypes))
-            ->map(fn (string $type): string => trim($type))
-            ->filter(fn (string $type): bool => in_array($type, ['summary', 'people', 'media'], true))
-            ->unique()
-            ->values()
-            ->all();
-
-        return $types === [] ? ['summary', 'people', 'media'] : $types;
+        return AiCommandInputValidator::promptTypes($promptTypes);
     }
 }

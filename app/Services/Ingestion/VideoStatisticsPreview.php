@@ -4,6 +4,7 @@ namespace App\Services\Ingestion;
 
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -31,7 +32,7 @@ class VideoStatisticsPreview
         $scheduleExpireTime = $now->subDays(210);
         $todayExpireTime = $now->subDays(7);
         $twoHoursAgo = $now->subHours(2);
-        $reserveUntil = $now->addDays(30)->format('Y-m-d H:i:s');
+        $cadencePlan = 'dynamic_after_api_statistics';
 
         [$source, $candidateQuery] = $this->candidateQuery(
             videoId: $videoId,
@@ -64,12 +65,13 @@ class VideoStatisticsPreview
             'published_before' => $twoHoursAgo->format('Y-m-d H:i:s'),
             'schedule_total' => $this->countTable('urt_video_schedule'),
             'due_schedule_rows' => $this->dueScheduleRows($scheduleExpireTime, $twoHoursAgo, $now),
-            'today_missing_rows' => $this->todayMissingRows($todayExpireTime, $twoHoursAgo),
+            'today_missing_rows' => $this->todayMissingRows($todayExpireTime, $twoHoursAgo, $now),
             'eligible_rows' => $eligibleRows,
             'selected_rows' => $rows->count(),
             'first_batch_rows' => $firstBatchCount,
             'would_call_api' => $wouldCallApi,
-            'would_reserve_until' => $wouldCallApi ? $reserveUntil : null,
+            'would_reserve_until' => null,
+            'would_recalculate_stime' => $wouldCallApi,
             'would_update_month' => $now->format('Y-m-01'),
             'would_update_date' => $now->toDateString(),
             'api_call_skipped' => 'YouTube Data API videos.list(statistics) is intentionally not called in planning mode',
@@ -81,14 +83,14 @@ class VideoStatisticsPreview
                 'urt_video statistics update',
             ],
             'rows' => $rows
-                ->map(fn (object $row): array => $this->mapRow($row, $source, $reserveUntil))
+                ->map(fn (object $row): array => $this->mapRow($row, $source, $cadencePlan))
                 ->all(),
             'writes' => [],
         ];
     }
 
     /**
-     * @return array{0: string, 1: \Illuminate\Database\Query\Builder}
+     * @return array{0: string, 1: Builder}
      */
     private function candidateQuery(
         ?string $videoId,
@@ -102,7 +104,7 @@ class VideoStatisticsPreview
             return [
                 'urt_video',
                 DB::table('urt_video')
-                    ->where('videoId', 'like', $videoId)
+                    ->where('videoId', $videoId)
                     ->orderBy('videoId'),
             ];
         }
@@ -111,6 +113,11 @@ class VideoStatisticsPreview
             return [
                 'urt_video',
                 DB::table('urt_video')
+                    ->where(function ($query) use ($now): void {
+                        $query
+                            ->where('stime', '<=', $now->format('Y-m-d H:i:s'))
+                            ->orWhereNull('stime');
+                    })
                     ->where('publishedAt', '>=', $todayExpireTime->format('Y-m-d H:i:s'))
                     ->where('publishedAt', '<', $twoHoursAgo->format('Y-m-d H:i:s'))
                     ->whereNull('viewCount')
@@ -172,13 +179,21 @@ class VideoStatisticsPreview
             ->count();
     }
 
-    private function todayMissingRows(CarbonImmutable $expireTime, CarbonImmutable $twoHoursAgo): int
-    {
+    private function todayMissingRows(
+        CarbonImmutable $expireTime,
+        CarbonImmutable $twoHoursAgo,
+        CarbonImmutable $now,
+    ): int {
         if (! Schema::hasTable('urt_video')) {
             return 0;
         }
 
         return DB::table('urt_video')
+            ->where(function ($query) use ($now): void {
+                $query
+                    ->where('stime', '<=', $now->format('Y-m-d H:i:s'))
+                    ->orWhereNull('stime');
+            })
             ->where('publishedAt', '>=', $expireTime->format('Y-m-d H:i:s'))
             ->where('publishedAt', '<', $twoHoursAgo->format('Y-m-d H:i:s'))
             ->whereNull('viewCount')
@@ -188,7 +203,7 @@ class VideoStatisticsPreview
     /**
      * @return array<string, mixed>
      */
-    private function mapRow(object $row, string $source, string $reserveUntil): array
+    private function mapRow(object $row, string $source, string $cadencePlan): array
     {
         return [
             'source' => $source,
@@ -203,7 +218,7 @@ class VideoStatisticsPreview
             'current_view_count' => $this->value($row, 'viewCount') !== null ? (int) $this->value($row, 'viewCount') : null,
             'current_like_count' => $this->value($row, 'likeCount') !== null ? (int) $this->value($row, 'likeCount') : null,
             'current_comment_count' => $this->value($row, 'commentCount') !== null ? (int) $this->value($row, 'commentCount') : null,
-            'would_set_stime' => $reserveUntil,
+            'would_set_stime' => $cadencePlan,
         ];
     }
 

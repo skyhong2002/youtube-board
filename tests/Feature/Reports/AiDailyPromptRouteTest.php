@@ -96,6 +96,42 @@ class AiDailyPromptRouteTest extends TestCase
         $response->assertSee('包裝, prompt');
     }
 
+    public function test_ai_daily_prompt_limit_counts_channels_after_deduplicating_provider_rows(): void
+    {
+        $this->createTables();
+        $this->seedPromptRows();
+        DB::table('urt_channel_ai')->insert([
+            [
+                'pk' => 103,
+                'u_id' => 10,
+                'date_from' => '2026-05-23 00:00:00',
+                'date_to' => '2026-05-23 23:59:59',
+                'data_type' => 'oneday',
+                'del_flag' => null,
+                'result_json' => json_encode([['事件' => '較新綠營事件', 'videoId' => ['new-a', 'new-b']]], JSON_UNESCAPED_UNICODE),
+            ],
+            [
+                'pk' => 104,
+                'u_id' => 10,
+                'date_from' => '2026-05-23 00:00:00',
+                'date_to' => '2026-05-23 23:59:59',
+                'data_type' => 'oneday',
+                'del_flag' => null,
+                'result_json' => json_encode([['事件' => '最新綠營事件', 'videoId' => ['latest-a', 'latest-b']]], JSON_UNESCAPED_UNICODE),
+            ],
+        ]);
+
+        $response = $this->get('/ai/days/2026-05-23/all/prompt?limit=2');
+
+        $response->assertOk();
+        $response->assertSee('媒體 2');
+        $response->assertSee('Green Channel');
+        $response->assertSee('Finance Channel');
+        $response->assertSee('最新綠營事件');
+        $response->assertDontSee('較新綠營事件');
+        $response->assertDontSee('Blue Channel');
+    }
+
     private function createTables(): void
     {
         foreach (['urt_channel_ai', 'urt_channel', 'urt_count'] as $table) {

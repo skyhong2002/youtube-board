@@ -50,22 +50,24 @@ class CommentQueuePreview
             ->values();
         $recentVideoQuery = $this->recentVideoQuery($channelIds->all(), $publishedAfter, $min);
         $recentVideoRows = (clone $recentVideoQuery)->count();
-        $commentThresholdRows = (clone $recentVideoQuery)
-            ->where('commentCount', '>=', $min)
-            ->count();
-        $candidateRows = (clone $recentVideoQuery)
-            ->where('commentCount', '>=', $min)
+        $commentThresholdQuery = (clone $recentVideoQuery)
+            ->where('commentCount', '>=', $min);
+        $commentThresholdRows = (clone $commentThresholdQuery)->count();
+        $alreadyQueuedRows = $this->existingVideoRows($commentThresholdQuery, 'urt_comment_queue');
+        $alreadyDoneRows = $this->existingVideoRows($commentThresholdQuery, 'urt_comment_queue_done');
+        $candidateQuery = $this->withoutExistingVideoRows(
+            $this->withoutExistingVideoRows(clone $commentThresholdQuery, 'urt_comment_queue'),
+            'urt_comment_queue_done',
+        );
+        $wouldInsertQueueRows = (clone $candidateQuery)->count();
+        $candidateRows = (clone $candidateQuery)
             ->orderBy('publishedAt', 'desc')
             ->orderBy('videoId')
+            ->limit($limit + 1)
             ->get($this->videoColumns())
             ->values();
-        $queuedVideoIds = $this->queuedVideoIds($candidateRows->pluck('videoId'));
-        $doneVideoIds = $this->doneVideoIds($candidateRows->pluck('videoId'));
-        $wouldInsertRows = $candidateRows
-            ->reject(fn (object $row): bool => $queuedVideoIds->has((string) $row->videoId)
-                || $doneVideoIds->has((string) $row->videoId))
-            ->values();
-        $rows = $wouldInsertRows->take($limit)->values();
+        $sourceTruncated = $wouldInsertQueueRows > $limit || $candidateRows->count() > $limit;
+        $rows = $candidateRows->take($limit)->values();
 
         return [
             'mode' => 'ingestion-preview',
@@ -83,20 +85,20 @@ class CommentQueuePreview
             'matching_channels' => $channelIds->count(),
             'recent_video_rows' => $recentVideoRows,
             'comment_threshold_rows' => $commentThresholdRows,
-            'already_queued_rows' => $candidateRows
-                ->filter(fn (object $row): bool => $queuedVideoIds->has((string) $row->videoId))
-                ->count(),
-            'already_done_rows' => $candidateRows
-                ->filter(fn (object $row): bool => $doneVideoIds->has((string) $row->videoId))
-                ->count(),
-            'would_insert_queue_rows' => $wouldInsertRows->count(),
+            'already_queued_rows' => $alreadyQueuedRows,
+            'already_done_rows' => $alreadyDoneRows,
+            'would_insert_queue_rows' => $wouldInsertQueueRows,
+            'candidate_query_limit' => $limit + 1,
+            'candidate_rows_loaded' => $candidateRows->count(),
             'displayed_rows' => $rows->count(),
+            'source_complete' => ! $sourceTruncated,
+            'source_truncated' => $sourceTruncated,
             'queue_insert_skipped' => '`urt_comment_queue` insert is intentionally skipped in planning mode',
             'writes_skipped' => [
                 'urt_comment_queue insert',
             ],
             'rows' => $rows
-                ->map(fn (object $row): array => $this->mapRow($row, $queuedVideoIds, $doneVideoIds))
+                ->map(fn (object $row): array => $this->mapRow($row))
                 ->all(),
             'writes' => [],
         ];
@@ -146,59 +148,57 @@ class CommentQueuePreview
             ->all();
     }
 
-    /**
-     * @param  Collection<int, mixed>  $videoIds
-     * @return Collection<string, true>
-     */
-    private function queuedVideoIds(Collection $videoIds): Collection
+    private function existingVideoRows(Builder $query, string $table): int
     {
-        if (! Schema::hasTable('urt_comment_queue')) {
-            return collect();
+        if (! Schema::hasTable($table)) {
+            return 0;
         }
 
-        return $this->videoIdSet('urt_comment_queue', $videoIds);
+        return $this->withExistingVideoRows(clone $query, $table)->count();
+    }
+
+    private function withExistingVideoRows(Builder $query, string $table): Builder
+    {
+        return $query->whereExists(function (Builder $existing) use ($table): void {
+            $existing
+                ->selectRaw('1')
+                ->from($table);
+            $this->whereSameVideoId($existing, $table);
+        });
+    }
+
+    private function withoutExistingVideoRows(Builder $query, string $table): Builder
+    {
+        if (! Schema::hasTable($table)) {
+            return $query;
+        }
+
+        return $query->whereNotExists(function (Builder $existing) use ($table): void {
+            $existing
+                ->selectRaw('1')
+                ->from($table);
+            $this->whereSameVideoId($existing, $table);
+        });
+    }
+
+    private function whereSameVideoId(Builder $query, string $table): void
+    {
+        if (! in_array(DB::connection()->getDriverName(), ['mysql', 'mariadb'], true)) {
+            $query->whereColumn($table.'.videoId', 'urt_video.videoId');
+
+            return;
+        }
+
+        $grammar = DB::connection()->getQueryGrammar();
+        $existingVideoId = $grammar->wrap($table.'.videoId');
+        $candidateVideoId = $grammar->wrap('urt_video.videoId');
+        $query->whereRaw("BINARY {$existingVideoId} = BINARY {$candidateVideoId}");
     }
 
     /**
-     * @param  Collection<int, mixed>  $videoIds
-     * @return Collection<string, true>
-     */
-    private function doneVideoIds(Collection $videoIds): Collection
-    {
-        if (! Schema::hasTable('urt_comment_queue_done')) {
-            return collect();
-        }
-
-        return $this->videoIdSet('urt_comment_queue_done', $videoIds);
-    }
-
-    /**
-     * @param  Collection<int, mixed>  $videoIds
-     * @return Collection<string, true>
-     */
-    private function videoIdSet(string $table, Collection $videoIds): Collection
-    {
-        $ids = $videoIds
-            ->filter(fn (mixed $id): bool => is_string($id) && $id !== '')
-            ->unique()
-            ->values();
-
-        if ($ids->isEmpty()) {
-            return collect();
-        }
-
-        return DB::table($table)
-            ->whereIn('videoId', $ids->all())
-            ->pluck('videoId')
-            ->mapWithKeys(fn (string $videoId): array => [$videoId => true]);
-    }
-
-    /**
-     * @param  Collection<string, true>  $queuedVideoIds
-     * @param  Collection<string, true>  $doneVideoIds
      * @return array<string, mixed>
      */
-    private function mapRow(object $row, Collection $queuedVideoIds, Collection $doneVideoIds): array
+    private function mapRow(object $row): array
     {
         $videoId = (string) $this->value($row, 'videoId');
 
@@ -211,9 +211,9 @@ class CommentQueuePreview
             'channel_title' => $this->value($row, 'channelTitle') !== null ? (string) $this->value($row, 'channelTitle') : null,
             'view_count' => $this->value($row, 'viewCount') !== null ? (int) $this->value($row, 'viewCount') : null,
             'comment_count' => $this->value($row, 'commentCount') !== null ? (int) $this->value($row, 'commentCount') : null,
-            'already_queued' => $queuedVideoIds->has($videoId),
-            'already_done' => $doneVideoIds->has($videoId),
-            'would_insert_queue' => ! $queuedVideoIds->has($videoId) && ! $doneVideoIds->has($videoId),
+            'already_queued' => false,
+            'already_done' => false,
+            'would_insert_queue' => true,
         ];
     }
 

@@ -4,6 +4,7 @@ namespace App\Services\Ingestion;
 
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -30,7 +31,6 @@ class ChannelVideosDiscoveryPreview
         $force = max(1, min(20, $force));
         $limit = max(1, min(81, $limit));
         $live = in_array($live, [1, 2], true) ? $live : null;
-        $oneHourLater = $now->addHour()->format('Y-m-d H:i:s');
         $weekStart = $now->subDays(7);
 
         [$source, $query, $taggedChannelCount, $liveTagId] = $this->candidateQuery(
@@ -70,13 +70,15 @@ class ChannelVideosDiscoveryPreview
             'would_call_api' => $channels->isNotEmpty(),
             'playlist_api_skipped' => 'YouTube Data API playlistItems.list(snippet) is intentionally not called in planning mode',
             'would_fetch_per_channel' => 50,
-            'would_set_initial_vtime' => $channels->isNotEmpty() ? $oneHourLater : null,
+            'initial_vtime_reservation' => false,
+            'success_vtime_update_order' => 'after_video_schedule_live_writes',
+            'database_failure_retry_minutes' => ChannelVideosDiscoveryIngestion::DATABASE_FAILURE_RETRY_MINUTES,
             'writes_skipped' => [
-                'urt_channel.vtime initial reserve update',
                 'urt_video insert for playlist items',
                 'urt_video_schedule insert for playlist items',
                 'urt_video_live insert for live/upcoming items',
-                'urt_channel.vtime final next-check update',
+                'urt_channel.vtime final next-check update after all item writes',
+                'urt_channel.vtime short retry cooldown after a database item failure',
             ],
             'rows' => $channels
                 ->map(fn (object $row): array => $this->mapRow($row, $videoStats, $liveStats, $now, $weekStart))
@@ -86,7 +88,7 @@ class ChannelVideosDiscoveryPreview
     }
 
     /**
-     * @return array{0: string, 1: \Illuminate\Database\Query\Builder, 2: int|null, 3: int|null}
+     * @return array{0: string, 1: Builder, 2: int|null, 3: int|null}
      */
     private function candidateQuery(?int $uId, ?int $live, bool $rescan, CarbonImmutable $now): array
     {

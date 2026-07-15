@@ -15,6 +15,7 @@ class AiHourlyIngestion
         private readonly AiHourlyPreview $preview,
         private readonly OpenCodeChatClient $client,
         private readonly AiJsonPayloadValidator $jsonValidator,
+        private readonly AiBusinessKeyLock $businessKeyLock,
     ) {}
 
     /**
@@ -96,114 +97,130 @@ class AiHourlyIngestion
             ];
         }
 
-        try {
-            $completion = $this->client->complete((string) $payload['prompt']);
-        } catch (Throwable $exception) {
-            $this->logFailure($payload, 'completion', [], $exception);
-
-            return $this->failedPayload(
-                payload: $payload,
-                reason: SensitiveTextRedactor::exception($exception, 240),
-            );
-        }
-
-        $validated = $this->jsonValidator->validateEventList((string) $completion['content'], 'hourly');
-
-        if (! $validated['valid']) {
-            $this->logFailure($payload, 'validation', [
-                'model' => $completion['model'],
-                'provider' => $completion['provider'],
-                'failure_reason' => $validated['failure_reason'],
-                'content_chars' => mb_strlen((string) $completion['content'], 'UTF-8'),
-            ]);
-
-            return $this->failedPayload(
-                payload: $payload,
-                reason: (string) $validated['failure_reason'],
-                completion: $completion,
-            );
-        }
-
-        $now = CarbonImmutable::now((string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei')))
-            ->format('Y-m-d H:i:s');
         $attributes = [
             'date_from' => $payload['date_from'],
             'date_to' => $payload['date_to'],
             'condition_type' => $payload['condition_type'],
-            'ai_type' => $completion['model'],
             'data_type' => $payload['data_type'],
             'user_token' => $userToken,
         ];
-        $values = [
-            'mtime' => $now,
-            'del_flag' => null,
-            'result_json' => $validated['json'],
-        ];
+        $lock = $this->businessKeyLock->acquire('urt_ai_hour', $attributes);
 
-        try {
-            $existingPk = DB::table('urt_ai_hour')
-                ->where($attributes)
-                ->value('pk');
-
-            if ($existingPk === null) {
-                DB::table('urt_ai_hour')->insert($attributes + $values + [
-                    'ctime' => $now,
-                ]);
-            } else {
-                DB::table('urt_ai_hour')
-                    ->where('pk', $existingPk)
-                    ->update($values);
-            }
-        } catch (Throwable $exception) {
-            $this->logFailure($payload, 'write', [
-                'model' => $completion['model'],
-                'provider' => $completion['provider'],
-            ], $exception);
-
+        if ($lock === null) {
             return $this->failedPayload(
                 payload: $payload,
-                reason: SensitiveTextRedactor::exception($exception, 240),
-                completion: $completion,
+                reason: 'business_key_locked',
+                aiCallAttempted: false,
             );
         }
 
-        return [
-            'mode' => 'execute',
-            'status' => 'success',
-            'exit_code' => 0,
-            'failed_rows' => 0,
-            'source' => $payload['source'],
-            'date_from' => $payload['date_from'],
-            'date_to' => $payload['date_to'],
-            'condition_type' => $payload['condition_type'],
-            'prompt_video_rows' => $payload['prompt_video_rows'],
-            'prompt_chars' => $payload['prompt_chars'],
-            ...$this->sourceMeta($payload),
-            'model' => $completion['model'],
-            'provider' => $completion['provider'],
-            'provider_failures' => $completion['provider_failures'],
-            'usage' => $completion['usage'],
-            'write_targets' => [
-                'urt_ai_hour.ctime',
-                'urt_ai_hour.mtime',
-                'urt_ai_hour.date_from',
-                'urt_ai_hour.date_to',
-                'urt_ai_hour.condition_type',
-                'urt_ai_hour.ai_type',
-                'urt_ai_hour.data_type',
-                'urt_ai_hour.user_token',
-                'urt_ai_hour.del_flag',
-                'urt_ai_hour.result_json',
-            ],
-            'upserted' => true,
-            'inserted' => $existingPk === null,
-            'updated' => $existingPk !== null,
-            'ai_call_attempted' => true,
-            'skipped' => false,
-            'failed' => false,
-            'skip_reason' => null,
-            'secrets' => 'not_printed',
-        ];
+        try {
+            try {
+                $completion = $this->client->complete((string) $payload['prompt']);
+            } catch (Throwable $exception) {
+                $this->logFailure($payload, 'completion', [], $exception);
+
+                return $this->failedPayload(
+                    payload: $payload,
+                    reason: SensitiveTextRedactor::exception($exception, 240),
+                );
+            }
+
+            $validated = $this->jsonValidator->validateEventList((string) $completion['content'], 'hourly');
+
+            if (! $validated['valid']) {
+                $this->logFailure($payload, 'validation', [
+                    'model' => $completion['model'],
+                    'provider' => $completion['provider'],
+                    'failure_reason' => $validated['failure_reason'],
+                    'content_chars' => mb_strlen((string) $completion['content'], 'UTF-8'),
+                ]);
+
+                return $this->failedPayload(
+                    payload: $payload,
+                    reason: (string) $validated['failure_reason'],
+                    completion: $completion,
+                );
+            }
+
+            $now = CarbonImmutable::now((string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei')))
+                ->format('Y-m-d H:i:s');
+            $values = [
+                'mtime' => $now,
+                'ai_type' => $completion['model'],
+                'del_flag' => null,
+                'result_json' => $validated['json'],
+            ];
+
+            try {
+                $existingPk = DB::table('urt_ai_hour')
+                    ->where($attributes)
+                    ->whereNull('del_flag')
+                    ->orderByDesc('pk')
+                    ->value('pk');
+
+                if ($existingPk === null) {
+                    DB::table('urt_ai_hour')->insert($attributes + $values + [
+                        'ctime' => $now,
+                    ]);
+                } else {
+                    DB::table('urt_ai_hour')
+                        ->where('pk', $existingPk)
+                        ->update($values);
+                }
+            } catch (Throwable $exception) {
+                $this->logFailure($payload, 'write', [
+                    'model' => $completion['model'],
+                    'provider' => $completion['provider'],
+                ], $exception);
+
+                return $this->failedPayload(
+                    payload: $payload,
+                    reason: SensitiveTextRedactor::exception($exception, 240),
+                    completion: $completion,
+                );
+            }
+
+            return [
+                'mode' => 'execute',
+                'status' => 'success',
+                'exit_code' => 0,
+                'failed_rows' => 0,
+                'source' => $payload['source'],
+                'date_from' => $payload['date_from'],
+                'date_to' => $payload['date_to'],
+                'condition_type' => $payload['condition_type'],
+                'prompt_video_rows' => $payload['prompt_video_rows'],
+                'prompt_chars' => $payload['prompt_chars'],
+                ...$this->sourceMeta($payload),
+                'model' => $completion['model'],
+                'provider' => $completion['provider'],
+                'provider_failures' => $completion['provider_failures'],
+                'usage' => $completion['usage'],
+                'write_targets' => [
+                    'urt_ai_hour.ctime',
+                    'urt_ai_hour.mtime',
+                    'urt_ai_hour.date_from',
+                    'urt_ai_hour.date_to',
+                    'urt_ai_hour.condition_type',
+                    'urt_ai_hour.ai_type',
+                    'urt_ai_hour.data_type',
+                    'urt_ai_hour.user_token',
+                    'urt_ai_hour.del_flag',
+                    'urt_ai_hour.result_json',
+                ],
+                'upserted' => true,
+                'inserted' => $existingPk === null,
+                'updated' => $existingPk !== null,
+                'ai_call_attempted' => true,
+                'skipped' => false,
+                'failed' => false,
+                'skip_reason' => null,
+                'secrets' => 'not_printed',
+            ];
+        } finally {
+            $lock->release();
+        }
     }
 
     /**
@@ -211,7 +228,7 @@ class AiHourlyIngestion
      * @param  array<string, mixed>|null  $completion
      * @return array<string, mixed>
      */
-    private function failedPayload(array $payload, string $reason, ?array $completion = null): array
+    private function failedPayload(array $payload, string $reason, ?array $completion = null, bool $aiCallAttempted = true): array
     {
         return [
             'mode' => 'execute',
@@ -233,7 +250,7 @@ class AiHourlyIngestion
             'upserted' => false,
             'inserted' => false,
             'updated' => false,
-            'ai_call_attempted' => true,
+            'ai_call_attempted' => $aiCallAttempted,
             'skipped' => true,
             'failed' => true,
             'skip_reason' => $reason,

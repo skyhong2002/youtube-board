@@ -53,6 +53,18 @@ class TvbsLivePollingIngestion
             $detailsByVideo = $this->youtube->videoLiveStreamingDetails(
                 $rows->pluck('video_id')->map(fn (mixed $id): string => (string) $id)->all(),
             );
+        } catch (YoutubeApiKeyPoolExhaustedException $exception) {
+            $skipped = $rows->map(fn (array $row): array => [
+                'videoId' => (string) $row['video_id'],
+                'reason' => $exception->failureReason(),
+            ])->all();
+            Log::warning('TVBS live polling paused after all YouTube API keys failed.', [
+                'reason' => $exception->failureReason(),
+                'selected_rows' => $rows->count(),
+                'exception_class' => $exception::class,
+            ]);
+
+            return $this->summary($preview, [], $skipped, $now, false, $rows->count());
         } catch (YoutubeQuotaWindowException $exception) {
             $skipped = $rows->map(fn (array $row): array => [
                 'videoId' => (string) $row['video_id'],
@@ -84,9 +96,7 @@ class TvbsLivePollingIngestion
                     continue;
                 }
 
-                DB::transaction(function () use ($row, $details, $now): void {
-                    $this->updateLiveRowAndLog($row, $details, $now);
-                });
+                $this->updateLiveRowAndLog($row, $details, $now);
 
                 $applied[] = [
                     'videoId' => $rowVideoId,
@@ -142,11 +152,8 @@ class TvbsLivePollingIngestion
             }
         }
 
-        DB::table('urt_video_live_tvbs')
-            ->where('videoId', $videoId)
-            ->update($this->onlyExistingColumns('urt_video_live_tvbs', collect($liveValues)->filter(fn (mixed $value): bool => $value !== null)->all()));
-
         if (isset($details['concurrentViewers'])) {
+            // Keep the source row due if a later write fails on non-transactional production tables.
             $this->upsertLogPoint(
                 videoId: $videoId,
                 uId: $row['u_id'] !== null ? (int) $row['u_id'] : null,
@@ -154,6 +161,10 @@ class TvbsLivePollingIngestion
                 now: $now,
             );
         }
+
+        DB::table('urt_video_live_tvbs')
+            ->where('videoId', $videoId)
+            ->update($this->onlyExistingColumns('urt_video_live_tvbs', collect($liveValues)->filter(fn (mixed $value): bool => $value !== null)->all()));
     }
 
     private function upsertLogPoint(string $videoId, ?int $uId, int $concurrentViewers, CarbonImmutable $now): void
@@ -240,6 +251,8 @@ class TvbsLivePollingIngestion
             'api_item_missing',
             'item_processing_failed',
             'quota_window_reset',
+            YoutubeApiKeyPoolExhaustedException::AUTHENTICATION_FAILURE,
+            YoutubeApiKeyPoolExhaustedException::QUOTA_FAILURE,
         ])->count();
 
         return [

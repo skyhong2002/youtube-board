@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Support\LegacyDashboardSchema;
+use App\Support\YoutubeIdentifierSchema;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
@@ -171,6 +172,14 @@ class DeploymentSchemaVerifier
     ];
 
     /**
+     * YouTube resource IDs are case-sensitive. These collations protect both
+     * lookup semantics and the legacy unique indexes that own those IDs.
+     *
+     * @var array<string, array<string, array{length: int, nullable: bool}>>
+     */
+    private const REQUIRED_BINARY_COLLATION_COLUMNS = YoutubeIdentifierSchema::COLUMNS;
+
+    /**
      * @return array<string, mixed>
      */
     public function inspect(): array
@@ -178,12 +187,10 @@ class DeploymentSchemaVerifier
         try {
             $requirements = $this->requirements();
             $requiredTables = array_keys($requirements['columns']);
-            $existingTables = array_map(
-                fn (string $table): string => str_contains($table, '.')
-                    ? substr($table, (int) strrpos($table, '.') + 1)
-                    : $table,
+            $existingTables = array_values(array_unique(array_map(
+                $this->logicalTableName(...),
                 Schema::getTableListing(),
-            );
+            )));
             $missingTables = array_values(array_diff($requiredTables, $existingTables));
             $missingColumns = [];
             $missingIndexes = [];
@@ -245,6 +252,11 @@ class DeploymentSchemaVerifier
                 || collect($requiredTableEngines)->every(
                     fn (?string $engine): bool => $engine === 'InnoDB',
                 );
+            $requiredBinaryCollations = $this->requiredBinaryCollations($driver, $existingTables);
+            $requiredBinaryCollationsValid = ! $this->hasTableEngines($driver)
+                || collect($requiredBinaryCollations)
+                    ->flatten()
+                    ->every(fn (?string $collation): bool => $collation === 'utf8mb4_bin');
             $quotaEngine = $requiredTableEngines['ingestion_youtube_quota_daily'];
             $quotaEngineValid = ! $this->hasTableEngines($driver) || $quotaEngine === 'InnoDB';
             $ready = $missingTables === []
@@ -252,7 +264,8 @@ class DeploymentSchemaVerifier
                 && $missingIndexes === []
                 && $missingForeignKeys === []
                 && $quotaUnique
-                && $requiredTableEnginesValid;
+                && $requiredTableEnginesValid
+                && $requiredBinaryCollationsValid;
 
             return [
                 'status' => $ready ? 'ready' : 'failed',
@@ -269,6 +282,8 @@ class DeploymentSchemaVerifier
                 'quota_engine_valid' => $quotaEngineValid,
                 'required_table_engines' => $requiredTableEngines,
                 'required_table_engines_valid' => $requiredTableEnginesValid,
+                'required_binary_collations' => $requiredBinaryCollations,
+                'required_binary_collations_valid' => $requiredBinaryCollationsValid,
                 'secrets' => 'not_printed',
             ];
         } catch (Throwable) {
@@ -418,7 +433,9 @@ class DeploymentSchemaVerifier
         foreach ($existingForeignKeys as $foreignKey) {
             $columns = array_map('strtolower', array_values($foreignKey['columns'] ?? []));
             $foreignColumns = array_map('strtolower', array_values($foreignKey['foreign_columns'] ?? []));
-            $foreignTable = strtolower((string) ($foreignKey['foreign_table'] ?? ''));
+            $foreignTable = strtolower($this->logicalTableName(
+                (string) ($foreignKey['foreign_table'] ?? ''),
+            ));
             $onDelete = strtolower((string) ($foreignKey['on_delete'] ?? ''));
 
             if (
@@ -476,16 +493,90 @@ class DeploymentSchemaVerifier
             return $engines;
         }
 
-        $storedEngines = DB::table('information_schema.TABLES')
-            ->where('TABLE_SCHEMA', DB::connection()->getDatabaseName())
-            ->whereIn('TABLE_NAME', $tables)
-            ->pluck('ENGINE', 'TABLE_NAME');
+        $prefix = DB::connection()->getTablePrefix();
+        $physicalTables = array_map(
+            fn (string $table): string => $prefix.$table,
+            $tables,
+        );
+        $placeholders = implode(', ', array_fill(0, count($physicalTables), '?'));
+        $storedEngines = collect(DB::select(
+            'SELECT TABLE_NAME AS table_name, ENGINE AS engine '
+            .'FROM information_schema.TABLES '
+            .'WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN ('.$placeholders.')',
+            [DB::connection()->getDatabaseName(), ...$physicalTables],
+        ))->pluck('engine', 'table_name');
 
         foreach ($tables as $table) {
-            $engine = $storedEngines->get($table);
+            $engine = $storedEngines->get($prefix.$table);
             $engines[$table] = is_string($engine) ? $engine : null;
         }
 
         return $engines;
+    }
+
+    /**
+     * @param  list<string>  $existingTables
+     * @return array<string, array<string, string|null>>
+     */
+    private function requiredBinaryCollations(string $driver, array $existingTables): array
+    {
+        $collations = [];
+
+        foreach (self::REQUIRED_BINARY_COLLATION_COLUMNS as $table => $columns) {
+            foreach (array_keys($columns) as $column) {
+                $collations[$table][$column] = null;
+            }
+        }
+
+        if (! $this->hasTableEngines($driver)) {
+            return $collations;
+        }
+
+        $tables = array_values(array_intersect(
+            array_keys(self::REQUIRED_BINARY_COLLATION_COLUMNS),
+            $existingTables,
+        ));
+
+        if ($tables === []) {
+            return $collations;
+        }
+
+        $prefix = DB::connection()->getTablePrefix();
+        $physicalTables = array_map(
+            fn (string $table): string => $prefix.$table,
+            $tables,
+        );
+        $placeholders = implode(', ', array_fill(0, count($physicalTables), '?'));
+        $rows = DB::select(
+            'SELECT TABLE_NAME AS table_name, COLUMN_NAME AS column_name, '
+            .'COLLATION_NAME AS collation_name FROM information_schema.COLUMNS '
+            .'WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN ('.$placeholders.')',
+            [DB::connection()->getDatabaseName(), ...$physicalTables],
+        );
+
+        foreach ($rows as $row) {
+            $table = $this->logicalTableName((string) ($row->table_name ?? ''));
+            $column = (string) ($row->column_name ?? '');
+
+            if (array_key_exists($column, $collations[$table] ?? [])) {
+                $collation = $row->collation_name ?? null;
+                $collations[$table][$column] = is_string($collation) ? $collation : null;
+            }
+        }
+
+        return $collations;
+    }
+
+    private function logicalTableName(string $table): string
+    {
+        if (str_contains($table, '.')) {
+            $table = substr($table, (int) strrpos($table, '.') + 1);
+        }
+
+        $prefix = DB::connection()->getTablePrefix();
+
+        return $prefix !== '' && str_starts_with($table, $prefix)
+            ? substr($table, strlen($prefix))
+            : $table;
     }
 }

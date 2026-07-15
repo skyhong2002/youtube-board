@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Ops;
 
+use App\Services\Ingestion\AiBusinessKeyLock;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -10,6 +11,43 @@ use Tests\TestCase;
 
 class IngestionAiEventCommandTest extends TestCase
 {
+    public function test_ai_event_fails_only_the_contended_prompt_business_key_without_calling_ai(): void
+    {
+        $this->createTables();
+        $this->seedDailyTopicRows();
+        Http::fake();
+
+        $lock = app(AiBusinessKeyLock::class)->acquire('urt_ai_event', [
+            'aipk' => 10,
+            'event_name' => '黃仁勳的高人氣與活動',
+            'prompt_type' => 'summary',
+            'condition_type' => 'all',
+        ]);
+        $this->assertNotNull($lock);
+
+        try {
+            $exitCode = Artisan::call('ai:event', [
+                '--execute' => true,
+                '--date' => '2026-06-03',
+                '--condition' => 'all',
+                '--prompt-types' => 'summary',
+                '--limit' => 1,
+                '--json' => true,
+            ]);
+            $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+            $this->assertSame(1, $exitCode);
+            $this->assertSame(1, $payload['failed_rows']);
+            $this->assertSame('business_key_locked', $payload['event_ai']['rows'][0]['skip_reason']);
+            $this->assertFalse($payload['event_ai']['rows'][0]['ai_call_attempted']);
+            $this->assertSame(0, $payload['ai_call_guard']['used']);
+            $this->assertSame(0, DB::table('urt_ai_event')->count());
+            Http::assertNothingSent();
+        } finally {
+            $lock->release();
+        }
+    }
+
     public function test_ai_event_execute_generates_summary_people_and_media_rows_for_daily_topics(): void
     {
         $this->createTables();
@@ -87,6 +125,37 @@ class IngestionAiEventCommandTest extends TestCase
         $this->assertSame(1, $payload['topics']);
         $this->assertSame(3, $payload['would_call_ai_requests']);
         $this->assertSame(['summary', 'people', 'media'], $payload['prompt_types']);
+        $this->assertSame(0, DB::table('urt_ai_event')->count());
+        Http::assertNothingSent();
+    }
+
+    public function test_ai_event_call_cap_exhaustion_fails_eligible_prompt_rows(): void
+    {
+        $this->createTables();
+        $this->seedDailyTopicRows();
+        Http::fake();
+
+        $exitCode = Artisan::call('ai:event', [
+            '--execute' => true,
+            '--aipk' => 10,
+            '--event' => '黃仁勳的高人氣與活動',
+            '--prompt-types' => 'summary,people,media',
+            '--ai-call-limit' => 0,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('partial_failure', $payload['status']);
+        $this->assertSame(3, $payload['failed_rows']);
+        $this->assertSame(3, $payload['event_ai']['skipped']);
+        $this->assertSame(3, $payload['event_ai']['failed']);
+        $this->assertTrue(collect($payload['event_ai']['rows'])->every(
+            fn (array $row): bool => $row['skip_reason'] === 'ai_call_guard_exhausted'
+                && $row['failed'] === true
+                && $row['ai_call_attempted'] === false,
+        ));
+        $this->assertSame(['limit' => 0, 'used' => 0, 'remaining' => 0], $payload['ai_call_guard']);
         $this->assertSame(0, DB::table('urt_ai_event')->count());
         Http::assertNothingSent();
     }

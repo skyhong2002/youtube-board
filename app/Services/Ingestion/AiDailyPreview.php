@@ -15,7 +15,7 @@ class AiDailyPreview
     /**
      * @var list<string>
      */
-    private const SHELL_CONDITIONS = ['all', 'green', 'blue', 'neutral', 'finance', 'world'];
+    private const SHELL_CONDITIONS = AiCommandInputValidator::DAILY_CONDITIONS;
 
     /**
      * Legacy `maint/make_channel_ai.php` hard-coded channel refresh list.
@@ -101,6 +101,8 @@ class AiDailyPreview
 
     private function date(?string $date, CarbonImmutable $now): string
     {
+        $date = AiCommandInputValidator::date($date, '--date', ['today', 'yesterday']);
+
         if ($date === 'today') {
             return $now->toDateString();
         }
@@ -118,7 +120,7 @@ class AiDailyPreview
 
     private function dataType(string $dataType): string
     {
-        return in_array($dataType, ['oneday', 'todate', 'week'], true) ? $dataType : 'oneday';
+        return AiCommandInputValidator::type($dataType, AiCommandInputValidator::DAILY_DATA_TYPES);
     }
 
     /**
@@ -126,13 +128,11 @@ class AiDailyPreview
      */
     private function conditions(?string $condition): array
     {
-        if (! is_string($condition) || trim($condition) === '') {
+        if ($condition === null) {
             return self::SHELL_CONDITIONS;
         }
 
-        $condition = trim($condition);
-
-        return in_array($condition, self::SHELL_CONDITIONS, true) ? [$condition] : ['all'];
+        return [AiCommandInputValidator::condition($condition, self::SHELL_CONDITIONS)];
     }
 
     /**
@@ -242,11 +242,30 @@ class AiDailyPreview
      */
     private function channelAiQuery(array $period, string $dataType, ?array $matchingUIds, array $filters): Builder
     {
-        $query = DB::table('urt_channel_ai as ai');
+        $latestRows = DB::table('urt_channel_ai as candidate');
 
         if (! Schema::hasTable('urt_channel_ai')) {
-            return $query->whereRaw('1 = 0');
+            return $latestRows->whereRaw('1 = 0');
         }
+
+        $latestRows
+            ->where('candidate.date_from', $period['from'])
+            ->where('candidate.date_to', $period['to'])
+            ->where('candidate.data_type', $dataType)
+            ->whereNull('candidate.del_flag');
+
+        if ($matchingUIds !== null && $matchingUIds !== []) {
+            $latestRows->whereIn('candidate.u_id', $matchingUIds);
+        } elseif ($matchingUIds === [] && ($filters['or'] !== [] || $filters['tagid'] !== [] || $filters['not'] !== [])) {
+            $latestRows->whereRaw('1 = 0');
+        }
+
+        $latestRows
+            ->selectRaw('MAX(candidate.pk) as pk')
+            ->groupBy('candidate.u_id');
+        $query = DB::query()
+            ->fromSub($latestRows, 'latest')
+            ->join('urt_channel_ai as ai', 'ai.pk', '=', 'latest.pk');
 
         if (Schema::hasTable('urt_channel')) {
             $query->leftJoin('urt_channel as c', 'ai.u_id', '=', 'c.u_id')
@@ -255,20 +274,7 @@ class AiDailyPreview
             $query->select(['ai.pk', 'ai.u_id', 'ai.result_json', DB::raw('NULL as title')]);
         }
 
-        $query
-            ->where('ai.date_from', $period['from'])
-            ->where('ai.date_to', $period['to'])
-            ->where('ai.data_type', $dataType)
-            ->whereNull('ai.del_flag')
-            ->orderByDesc('ai.pk');
-
-        if ($matchingUIds !== null && $matchingUIds !== []) {
-            $query->whereIn('ai.u_id', $matchingUIds);
-        } elseif ($matchingUIds === [] && ($filters['or'] !== [] || $filters['tagid'] !== [] || $filters['not'] !== [])) {
-            $query->whereRaw('1 = 0');
-        }
-
-        return $query;
+        return $query->orderByDesc('ai.pk');
     }
 
     /**
