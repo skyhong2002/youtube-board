@@ -1,6 +1,7 @@
 .git
 .DS_Store
 .env
+.env.testing
 bootstrap/cache/*.php
 database/*.sqlite*
 node_modules

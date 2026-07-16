@@ -70,6 +70,30 @@ class ProductionDeploymentContractTest extends TestCase
         $this->assertStringContainsString('reviewed local imports or ingestion commands', $seeder);
     }
 
+    public function test_phpunit_can_boot_without_a_runtime_dotenv_file(): void
+    {
+        $configuration = simplexml_load_file($this->projectRoot.'/phpunit.xml');
+        $testingEnvironment = parse_ini_file(
+            $this->projectRoot.'/.env.testing',
+            false,
+            INI_SCANNER_RAW,
+        );
+        $dockerIgnore = file($this->projectRoot.'/.dockerignore', FILE_IGNORE_NEW_LINES);
+
+        $this->assertNotFalse($configuration);
+        $this->assertIsArray($testingEnvironment);
+        $this->assertIsArray($dockerIgnore);
+        $this->assertSame([], $configuration->xpath('/phpunit/php/env[@name="APP_KEY"]'));
+        $this->assertSame(['APP_KEY'], array_keys($testingEnvironment));
+
+        $encodedKey = $testingEnvironment['APP_KEY'];
+
+        $this->assertSame('base64:eW91dHViZS1ib2FyZC1sb2NhbC1jb21wb3NlLWtleSE=', $encodedKey);
+        $this->assertStringStartsWith('base64:', $encodedKey);
+        $this->assertSame(32, strlen((string) base64_decode(substr($encodedKey, 7), true)));
+        $this->assertContains('.env.testing', $dockerIgnore);
+    }
+
     public function test_quota_ledger_migration_is_adoption_safe_and_explicitly_innodb(): void
     {
         $migration = file_get_contents(
