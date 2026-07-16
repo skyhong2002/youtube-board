@@ -252,6 +252,103 @@ class LegacyTagChannelApiTest extends TestCase
         $this->assertSame('政治', $response->json('13'));
     }
 
+    public function test_api_tag_log_aggregates_filtered_channel_log_series_by_date(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-10 12:00:00', 'Asia/Taipei'));
+        $this->createChannelTables();
+        $this->createUrtLogTable();
+        DB::table('urt_count')->insert([
+            ['u_id' => 10, 'tags' => '[1][2]'],
+            ['u_id' => 20, 'tags' => '[1][3]'],
+            ['u_id' => 30, 'tags' => '[1][9]'],
+            ['u_id' => 40, 'tags' => '[2]'],
+        ]);
+        DB::table('urt_log')->insert([
+            [
+                'pk' => 1,
+                'u_id' => 10,
+                'ctime' => '2026-03-12 00:00:00',
+                'mtime' => '2026-05-10 00:00:00',
+                'themonth' => '2026-03-01',
+                'thedata' => json_encode($this->dailyLogSeries('2026-03-12', 60, 100), JSON_UNESCAPED_UNICODE),
+            ],
+            [
+                'pk' => 2,
+                'u_id' => 20,
+                'ctime' => '2026-03-12 00:00:00',
+                'mtime' => '2026-05-10 00:00:00',
+                'themonth' => '2026-03-01',
+                'thedata' => json_encode($this->dailyLogSeries('2026-03-12', 60, 250), JSON_UNESCAPED_UNICODE),
+            ],
+            [
+                'pk' => 3,
+                'u_id' => 30,
+                'ctime' => '2026-03-12 00:00:00',
+                'mtime' => '2026-05-10 00:00:00',
+                'themonth' => '2026-03-01',
+                'thedata' => json_encode($this->dailyLogSeries('2026-03-12', 60, 900), JSON_UNESCAPED_UNICODE),
+            ],
+        ]);
+
+        $andFiltered = $this->getJson('/api/api_tag_log.php?tagid=1&not=9&limit=2');
+
+        $andFiltered->assertOk();
+        $andFiltered->assertJsonPath('meta.source', 'urt_count.tags + urt_log.thedata');
+        $andFiltered->assertJsonPath('meta.count_channels', 2);
+        $andFiltered->assertJsonPath('meta.filters.tagid.0', 1);
+        $andFiltered->assertJsonPath('meta.filters.not.0', 9);
+        $this->assertCount(3, $andFiltered->json('result'));
+        $this->assertSame(2, $andFiltered->json('result.2026-05-10.count'));
+        $this->assertSame(2, $andFiltered->json('result.2026-05-10.videos'));
+        $this->assertSame(350, $andFiltered->json('result.2026-05-10.orig'));
+        $this->assertSame(350, $andFiltered->json('result.2026-05-10.pred'));
+        $this->assertSame(350, $andFiltered->json('result.2026-05-10.moving'));
+
+        $orFiltered = $this->getJson('/api/api_tag_log.php?or=2,9&not=3&limit=2');
+
+        $orFiltered->assertOk();
+        $orFiltered->assertJsonPath('meta.count_channels', 3);
+        $orFiltered->assertJsonPath('meta.filters.or.0', 2);
+        $orFiltered->assertJsonPath('meta.filters.or.1', 9);
+        $orFiltered->assertJsonPath('meta.filters.not.0', 3);
+        $this->assertSame(3, $orFiltered->json('result.2026-05-10.count'));
+        $this->assertSame(2, $orFiltered->json('result.2026-05-10.videos'));
+        $this->assertSame(1000, $orFiltered->json('result.2026-05-10.orig'));
+        $this->assertSame(1000, $orFiltered->json('result.2026-05-10.pred'));
+        $this->assertSame(1000, $orFiltered->json('result.2026-05-10.moving'));
+        $this->assertSame(4, DB::table('urt_count')->count());
+        $this->assertSame(3, DB::table('urt_log')->count());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_api_tag_log_without_tag_filters_selects_no_channels(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-10 12:00:00', 'Asia/Taipei'));
+        $this->createChannelTables();
+        $this->createUrtLogTable();
+        DB::table('urt_count')->insert(['u_id' => 10, 'tags' => '[1][2]']);
+        DB::table('urt_log')->insert([
+            'pk' => 1,
+            'u_id' => 10,
+            'ctime' => '2026-03-12 00:00:00',
+            'mtime' => '2026-05-10 00:00:00',
+            'themonth' => '2026-03-01',
+            'thedata' => json_encode($this->dailyLogSeries('2026-03-12', 60, 100), JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->getJson('/api/api_tag_log.php?tag=ignored-by-channel-selector&limit=2');
+
+        $response->assertOk();
+        $response->assertJsonPath('meta.available', false);
+        $response->assertJsonPath('meta.count_channels', 0);
+        $this->assertSame([], $response->json('result'));
+        $this->assertSame(1, DB::table('urt_count')->count());
+        $this->assertSame(1, DB::table('urt_log')->count());
+
+        Carbon::setTestNow();
+    }
+
     public function test_tag_cloud_cache_apis_ingestion_and_report_misses(): void
     {
         $this->createTagCloudTable();
@@ -529,6 +626,36 @@ class LegacyTagChannelApiTest extends TestCase
         Schema::create('urt_tag', function ($table): void {
             $table->integer('tag_id');
             $table->string('tag_name');
+        });
+    }
+
+    /**
+     * @return array<string, array{view: int, video: int}>
+     */
+    private function dailyLogSeries(string $startDate, int $days, int $viewStep): array
+    {
+        $series = [];
+        $start = Carbon::parse($startDate, 'Asia/Taipei');
+
+        for ($i = 0; $i < $days; $i++) {
+            $series[$start->copy()->addDays($i)->toDateString()] = [
+                'view' => 1000 + ($i * $viewStep),
+                'video' => 100 + $i,
+            ];
+        }
+
+        return $series;
+    }
+
+    private function createUrtLogTable(): void
+    {
+        Schema::create('urt_log', function ($table): void {
+            $table->integer('pk');
+            $table->integer('u_id');
+            $table->dateTime('ctime');
+            $table->dateTime('mtime')->nullable();
+            $table->date('themonth');
+            $table->longText('thedata')->nullable();
         });
     }
 
