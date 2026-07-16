@@ -60,6 +60,11 @@ class IngestionTelemetry
         $this->aiRequests[] = $this->withCommonFields($event);
     }
 
+    public function aiRequestCount(): int
+    {
+        return count($this->aiRequests);
+    }
+
     /**
      * @return array<string, mixed>
      */

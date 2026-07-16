@@ -2,6 +2,8 @@
 
 namespace App\Services\Ingestion;
 
+use App\Support\AiChannelContract;
+use App\Support\AiDailyContract;
 use App\Support\SensitiveTextRedactor;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -18,6 +20,7 @@ class AiDailyIngestion
         private readonly AiDailyPreview $preview,
         private readonly OpenCodeChatClient $client,
         private readonly AiJsonPayloadValidator $jsonValidator,
+        private readonly IngestionTelemetry $telemetry,
     ) {}
 
     /**
@@ -51,6 +54,9 @@ class AiDailyIngestion
             'from' => $date.' 00:00:00',
             'to' => $date.' 23:59:59',
         ];
+        $providerRequestsStarted = $this->telemetry->aiRequestCount();
+        $providerAttemptsPerChainLimit = $this->client->providerAttemptCapPerCompletion();
+        $providerRequestLimit = $aiCallLimit * $providerAttemptsPerChainLimit;
         $aiCallsUsed = 0;
         $channelRows = $this->refreshChannelAi(
             period: $period,
@@ -72,9 +78,26 @@ class AiDailyIngestion
             includePrompts: true,
         );
         $dailyRows = [];
+        $channelBlockers = $channelRows->filter(
+            fn (array $row): bool => (bool) ($row['failed'] ?? false)
+                || ((int) ($row['video_rows'] ?? 0) >= 10
+                    && (bool) ($row['skipped'] ?? false)
+                    && ($row['skip_reason'] ?? null) !== 'fewer_than_10_videos'),
+        );
 
         foreach ($dailyPlan['condition_rows'] as $row) {
             $prompt = (string) ($row['prompt'] ?? '');
+
+            if ($channelBlockers->isNotEmpty()) {
+                $dailyRows[] = $this->skippedDailyRow(
+                    $row,
+                    'channel_ai_incomplete',
+                    $prompt,
+                    failed: true,
+                );
+
+                continue;
+            }
 
             if ((int) $row['prompt_event_rows'] <= 0 || trim($prompt) === '') {
                 $dailyRows[] = $this->skippedDailyRow($row, 'no_source_events');
@@ -83,25 +106,52 @@ class AiDailyIngestion
             }
 
             if ($aiCallsUsed >= $aiCallLimit) {
-                $dailyRows[] = $this->skippedDailyRow($row, 'ai_call_guard_exhausted', $prompt);
+                $dailyRows[] = $this->skippedDailyRow($row, 'ai_call_guard_exhausted', $prompt, failed: true);
 
                 continue;
             }
 
+            $bounds = AiDailyContract::bounds((string) $row['condition']);
+            $providerValidation = null;
+            $providerValidationAttempts = 0;
+
             try {
                 $aiCallsUsed++;
-                $completion = $this->client->complete($prompt);
+                $completion = $this->client->completeValidated(
+                    $prompt,
+                    function (string $content) use (&$providerValidation, &$providerValidationAttempts, $bounds): array {
+                        $providerValidationAttempts++;
+                        $providerValidation = null;
+
+                        return $providerValidation = $this->jsonValidator->validateEventList(
+                            $content,
+                            'daily',
+                            expectedMinItems: $bounds['min'],
+                            expectedMaxItems: $bounds['max'],
+                        );
+                    },
+                );
             } catch (Throwable $exception) {
-                $dailyRows[] = $this->skippedDailyRow($row, $this->sanitizedFailure($exception), $prompt, true);
-                $this->logFailure('daily_completion', [
+                $validationReason = $this->exclusiveValidationFailureReason(
+                    $providerValidation,
+                    $providerValidationAttempts,
+                    $exception,
+                );
+                $reason = $validationReason ?? $this->sanitizedFailure($exception);
+                $dailyRows[] = $this->skippedDailyRow($row, $reason, $prompt, true);
+                $this->logFailure($validationReason !== null ? 'daily_validation' : 'daily_completion', [
                     'condition' => $row['condition'],
                     'date' => $date,
+                    'failure_reason' => $reason,
+                    'item_count' => $validationReason !== null ? ($providerValidation['item_count'] ?? null) : null,
+                    'expected_min_items' => $bounds['min'],
+                    'expected_max_items' => $bounds['max'],
                 ], $exception);
 
                 continue;
             }
 
-            $validated = $this->jsonValidator->validateEventList((string) $completion['content'], 'daily');
+            $validated = $completion['validation'];
 
             if (! $validated['valid']) {
                 $dailyRows[] = $this->skippedDailyRow(
@@ -116,6 +166,9 @@ class AiDailyIngestion
                     'model' => $completion['model'],
                     'provider' => $completion['provider'],
                     'failure_reason' => $validated['failure_reason'],
+                    'item_count' => $validated['item_count'],
+                    'expected_min_items' => $bounds['min'] ?? null,
+                    'expected_max_items' => $bounds['max'] ?? null,
                     'content_chars' => mb_strlen((string) $completion['content'], 'UTF-8'),
                 ]);
 
@@ -128,12 +181,13 @@ class AiDailyIngestion
                     ->where('date_to', $period['to'])
                     ->where('data_type', $dataType)
                     ->where('condition_type', $row['condition'])
-                    ->where('ai_type', $completion['model'])
                     ->where('user_token', $userToken)
                     ->whereNull('del_flag')
+                    ->orderByDesc('pk')
                     ->value('pk');
                 $values = [
                     'mtime' => $now->format('Y-m-d H:i:s'),
+                    'ai_type' => $completion['model'],
                     'channel_id' => (string) ($row['channel_id_json'] ?? '{}'),
                     'result_json' => $validated['json'],
                 ];
@@ -143,7 +197,6 @@ class AiDailyIngestion
                         'ctime' => $now->format('Y-m-d H:i:s'),
                         'date_from' => $period['from'],
                         'date_to' => $period['to'],
-                        'ai_type' => $completion['model'],
                         'data_type' => $dataType,
                         'condition_type' => $row['condition'],
                         'user_token' => $userToken,
@@ -187,6 +240,7 @@ class AiDailyIngestion
         $channelFailed = $channelRows->where('failed', true)->count();
         $dailyFailed = collect($dailyRows)->where('failed', true)->count();
         $failedRows = $channelFailed + $dailyFailed;
+        $providerRequestsUsed = max(0, $this->telemetry->aiRequestCount() - $providerRequestsStarted);
 
         return [
             'mode' => 'execute',
@@ -233,6 +287,11 @@ class AiDailyIngestion
                 'limit' => $aiCallLimit,
                 'used' => $aiCallsUsed,
                 'remaining' => max(0, $aiCallLimit - $aiCallsUsed),
+                'unit' => 'logical_completion_chain',
+                'provider_attempts_per_chain_limit' => $providerAttemptsPerChainLimit,
+                'provider_request_limit' => $providerRequestLimit,
+                'provider_requests_used' => $providerRequestsUsed,
+                'provider_requests_remaining' => max(0, $providerRequestLimit - $providerRequestsUsed),
             ],
             'secrets' => 'not_printed',
             'generated_at' => $now->format('Y-m-d H:i:s'),
@@ -316,17 +375,40 @@ class AiDailyIngestion
                     'prompt_truncated' => $videoRows > $videos->count(),
                     'prompt_omitted_video_rows' => max(0, $videoRows - $videos->count()),
                 ];
+                $bounds = AiChannelContract::boundsForVideoCount($videos->count());
 
-                $prompt = $this->channelPrompt($videos);
+                $prompt = $this->channelPrompt($videos, $bounds);
+                $providerValidation = null;
+                $providerValidationAttempts = 0;
                 try {
                     $aiCallsUsed++;
-                    $completion = $this->client->complete($prompt);
+                    $completion = $this->client->completeValidated(
+                        $prompt,
+                        function (string $content) use (&$providerValidation, &$providerValidationAttempts, $bounds): array {
+                            $providerValidationAttempts++;
+                            $providerValidation = null;
+
+                            return $providerValidation = $this->jsonValidator->validateEventList(
+                                $content,
+                                'channel',
+                                expectedMinItems: $bounds['min'],
+                                expectedMaxItems: $bounds['max'],
+                            );
+                        },
+                    );
                 } catch (Throwable $exception) {
+                    $validationReason = $this->exclusiveValidationFailureReason(
+                        $providerValidation,
+                        $providerValidationAttempts,
+                        $exception,
+                    );
+                    $reason = $validationReason ?? $this->sanitizedFailure($exception);
                     $rows->push([
                         'u_id' => $uId,
                         'batch' => $batchIndex + 1,
                         'video_rows' => $videoRows,
                         'prompt_video_rows' => $videos->count(),
+                        'prompt_bounds' => $bounds,
                         ...$promptMeta,
                         'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
                         'ai_call_attempted' => true,
@@ -334,18 +416,22 @@ class AiDailyIngestion
                         'updated' => false,
                         'skipped' => true,
                         'failed' => true,
-                        'skip_reason' => $this->sanitizedFailure($exception),
+                        'skip_reason' => $reason,
                     ]);
-                    $this->logFailure('channel_completion', [
+                    $this->logFailure($validationReason !== null ? 'channel_validation' : 'channel_completion', [
                         'u_id' => $uId,
                         'date_from' => $period['from'],
                         'date_to' => $period['to'],
+                        'failure_reason' => $reason,
+                        'item_count' => $validationReason !== null ? ($providerValidation['item_count'] ?? null) : null,
+                        'expected_min_items' => $bounds['min'],
+                        'expected_max_items' => $bounds['max'],
                     ], $exception);
 
                     continue;
                 }
 
-                $validated = $this->jsonValidator->validateEventList((string) $completion['content'], 'channel');
+                $validated = $completion['validation'];
 
                 if (! $validated['valid']) {
                     $rows->push([
@@ -353,6 +439,7 @@ class AiDailyIngestion
                         'batch' => $batchIndex + 1,
                         'video_rows' => $videoRows,
                         'prompt_video_rows' => $videos->count(),
+                        'prompt_bounds' => $bounds,
                         ...$promptMeta,
                         'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
                         'model' => $completion['model'],
@@ -374,6 +461,9 @@ class AiDailyIngestion
                         'model' => $completion['model'],
                         'provider' => $completion['provider'],
                         'failure_reason' => $validated['failure_reason'],
+                        'item_count' => $validated['item_count'],
+                        'expected_min_items' => $bounds['min'],
+                        'expected_max_items' => $bounds['max'],
                         'content_chars' => mb_strlen((string) $completion['content'], 'UTF-8'),
                     ]);
 
@@ -385,16 +475,17 @@ class AiDailyIngestion
                         'u_id' => $uId,
                         'date_from' => $period['from'],
                         'date_to' => $period['to'],
-                        'ai_type' => $completion['model'],
                         'data_type' => $dataType,
                         'user_token' => $userToken,
                     ];
                     $existingPk = DB::table('urt_channel_ai')
                         ->where($attributes)
                         ->whereNull('del_flag')
+                        ->orderByDesc('pk')
                         ->value('pk');
                     $values = [
                         'mtime' => $now->format('Y-m-d H:i:s'),
+                        'ai_type' => $completion['model'],
                         'result_json' => $validated['json'],
                     ];
 
@@ -414,6 +505,7 @@ class AiDailyIngestion
                         'batch' => $batchIndex + 1,
                         'video_rows' => $videoRows,
                         'prompt_video_rows' => $videos->count(),
+                        'prompt_bounds' => $bounds,
                         ...$promptMeta,
                         'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
                         'model' => $completion['model'],
@@ -444,6 +536,7 @@ class AiDailyIngestion
                     'batch' => $batchIndex + 1,
                     'video_rows' => $videoRows,
                     'prompt_video_rows' => $videos->count(),
+                    'prompt_bounds' => $bounds,
                     ...$promptMeta,
                     'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
                     'model' => $completion['model'],
@@ -498,13 +591,13 @@ class AiDailyIngestion
             ->all();
     }
 
-    private function channelPrompt(Collection $videos): string
+    /**
+     * @param  array{min: int, max: int}  $bounds
+     */
+    private function channelPrompt(Collection $videos, array $bounds): string
     {
-        $count = $videos->count();
-        $min = 3 + (int) floor($count / 31);
-        $max = 6 + (int) ceil($count / 29);
         $lines = [
-            "請把下面的新聞列表，整理成 {$min} ~ {$max} 個重要事件，讓每個事件新聞數較多且觀看數均勻分布，列出描述，並列出每個事件的關鍵字與人物與地名，加上一個欄位判斷出這事件論述的角度是比較偏台灣或是中國出發，也加上一個欄位判斷出這觀點立場是比較偏國民黨或民進黨陣營思考，以及新聞的分類（類型：政治、地方、國際、財經、娛樂、體育、氣象、生活、兩岸、健康、科技、文化)，跟分出來的 videoId (最前面的序號) 列表，後用 JSON 列出元素包含：事件、描述、角度、陣營、分類，以及關鍵字、人物、地名、類型、videoId 這幾個 Array，請用繁體中文回應，且只要 JSON 就好：",
+            "請把下面的新聞列表，整理成 {$bounds['min']} ~ {$bounds['max']} 個重要事件，讓每個事件新聞數較多且觀看數均勻分布，列出描述，並列出每個事件的關鍵字與人物與地名，加上一個欄位判斷出這事件論述的角度是比較偏台灣或是中國出發，也加上一個欄位判斷出這觀點立場是比較偏國民黨或民進黨陣營思考，以及新聞的分類（類型：政治、地方、國際、財經、娛樂、體育、氣象、生活、兩岸、健康、科技、文化)，跟分出來的 videoId (最前面的序號) 列表，後用 JSON 列出元素包含：事件、描述、角度、陣營、分類，以及關鍵字、人物、地名、類型、videoId 這幾個 Array，請用繁體中文回應，且只要 JSON 就好：",
         ];
 
         foreach ($videos as $video) {
@@ -518,8 +611,13 @@ class AiDailyIngestion
      * @param  array<string, mixed>  $row
      * @return array<string, mixed>
      */
-    private function skippedDailyRow(array $row, string $reason, ?string $prompt = null, bool $aiCallAttempted = false): array
-    {
+    private function skippedDailyRow(
+        array $row,
+        string $reason,
+        ?string $prompt = null,
+        bool $aiCallAttempted = false,
+        ?bool $failed = null,
+    ): array {
         return [
             'condition' => $row['condition'],
             'prompt_event_rows' => $row['prompt_event_rows'],
@@ -532,7 +630,7 @@ class AiDailyIngestion
             'inserted' => false,
             'updated' => false,
             'skipped' => true,
-            'failed' => $aiCallAttempted,
+            'failed' => $failed ?? $aiCallAttempted,
             'skip_reason' => $reason,
         ];
     }
@@ -576,5 +674,28 @@ class AiDailyIngestion
     private function sanitizedFailure(Throwable $exception): string
     {
         return SensitiveTextRedactor::exception($exception, 240);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $validation
+     */
+    private function exclusiveValidationFailureReason(
+        ?array $validation,
+        int $validationAttempts,
+        Throwable $exception,
+    ): ?string {
+        if (! is_array($validation) || ($validation['valid'] ?? false) || $validationAttempts <= 0) {
+            return null;
+        }
+
+        if (preg_match('/failed after (\d+) provider\(s\):/', $exception->getMessage(), $matches) !== 1) {
+            return null;
+        }
+
+        if ((int) $matches[1] !== $validationAttempts) {
+            return null;
+        }
+
+        return (string) ($validation['failure_reason'] ?? 'invalid_ai_payload');
     }
 }

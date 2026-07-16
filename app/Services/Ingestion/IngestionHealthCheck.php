@@ -3,6 +3,7 @@
 namespace App\Services\Ingestion;
 
 use App\Services\Legacy\MayorReport;
+use App\Support\AiDailyContract;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
@@ -299,7 +300,7 @@ class IngestionHealthCheck
                 return $this->unknownAiDaily($date, 'urt_ai_date table is missing');
             }
 
-            $aiDateColumns = ['condition_type'];
+            $aiDateColumns = ['pk', 'condition_type'];
 
             if (Schema::hasColumn('urt_ai_date', 'mtime')) {
                 $aiDateColumns[] = 'mtime';
@@ -316,14 +317,26 @@ class IngestionHealthCheck
                 ->where('date_from', $date.' 00:00:00')
                 ->where('date_to', $date.' 23:59:59')
                 ->when(Schema::hasColumn('urt_ai_date', 'data_type'), fn ($query) => $query->where('data_type', 'oneday'))
-                ->get($aiDateColumns);
+                ->orderByDesc('pk')
+                ->get($aiDateColumns)
+                ->unique(fn (object $row): string => $this->normalizeCondition($row->condition_type ?? null))
+                ->values();
         } catch (Throwable) {
             return $this->unknownAiDaily($date, 'database unavailable while checking AI daily completeness');
         }
 
         $validRows = $hasResultJson
-            ? $rows->filter(fn (object $row): bool => $this->jsonValidator
-                ->validateEventList((string) ($row->result_json ?? ''), 'daily')['valid'])
+            ? $rows->filter(function (object $row): bool {
+                $condition = $this->normalizeCondition($row->condition_type ?? null);
+                $bounds = AiDailyContract::bounds($condition);
+
+                return $this->jsonValidator->validateEventList(
+                    (string) ($row->result_json ?? ''),
+                    'daily',
+                    expectedMinItems: $bounds['min'],
+                    expectedMaxItems: $bounds['max'],
+                )['valid'];
+            })
             : $rows;
         $completed = $validRows
             ->map(fn (object $row): string => $this->normalizeCondition($row->condition_type ?? null))
@@ -408,9 +421,7 @@ class IngestionHealthCheck
 
     private function normalizeCondition(mixed $condition): string
     {
-        $condition = is_string($condition) && trim($condition) !== '' ? trim($condition) : 'all';
-
-        return in_array($condition, self::DAILY_CONDITIONS, true) ? $condition : 'all';
+        return is_string($condition) && trim($condition) !== '' ? trim($condition) : 'all';
     }
 
     /**
@@ -423,7 +434,7 @@ class IngestionHealthCheck
                 return null;
             }
 
-            $columns = ['u_id'];
+            $columns = ['pk', 'u_id'];
             $hasResultJson = Schema::hasColumn('urt_channel_ai', 'result_json');
 
             if ($hasResultJson) {
@@ -437,13 +448,15 @@ class IngestionHealthCheck
                 ->when(Schema::hasColumn('urt_channel_ai', 'data_type'), function ($query): void {
                     $query->whereIn('data_type', ['oneday', 'todate']);
                 })
-                ->get($columns);
-            $total = $rows->unique('u_id')->count();
+                ->orderByDesc('pk')
+                ->get($columns)
+                ->unique('u_id')
+                ->values();
+            $total = $rows->count();
             $valid = $hasResultJson
                 ? $rows
                     ->filter(fn (object $row): bool => $this->jsonValidator
                         ->validateEventList((string) ($row->result_json ?? ''), 'channel')['valid'])
-                    ->unique('u_id')
                     ->count()
                 : $total;
 

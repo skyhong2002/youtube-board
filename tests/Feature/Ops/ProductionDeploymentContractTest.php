@@ -24,6 +24,7 @@ class ProductionDeploymentContractTest extends TestCase
         $this->assertIsString($entrypoint);
         $this->assertStringContainsString('CMD ["sh", "docker/production-start.sh"]', $dockerfile);
         $this->assertStringContainsString('chmod -R a+rX /var/www/html', $dockerfile);
+        $this->assertStringContainsString('docker-php-ext-install bcmath intl pcntl', $dockerfile);
 
         $wait = strpos($entrypoint, 'php artisan db:show --no-interaction');
         $clearConfig = strpos($entrypoint, 'rm -f bootstrap/cache/config.php');

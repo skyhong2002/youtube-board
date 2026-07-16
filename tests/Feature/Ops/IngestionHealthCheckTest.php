@@ -339,7 +339,7 @@ class IngestionHealthCheckTest extends TestCase
         }
     }
 
-    public function test_ingestion_health_excludes_invalid_ai_json_from_daily_completeness(): void
+    public function test_ingestion_health_excludes_incomplete_ai_payloads_from_daily_completeness(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:00:00', 'Asia/Taipei'));
         $this->createAiTables();
@@ -347,7 +347,7 @@ class IngestionHealthCheckTest extends TestCase
 
         DB::table('urt_ai_date')
             ->where('condition_type', 'world')
-            ->update(['result_json' => 'not-json']);
+            ->update(['result_json' => $this->dailyResultJson('world', 7)]);
         DB::table('urt_channel_ai')
             ->where('u_id', AiDailyPreview::channelAiUids()[0])
             ->update(['result_json' => '{"events":[]}']);
@@ -364,6 +364,63 @@ class IngestionHealthCheckTest extends TestCase
         $this->assertSame(6, $target['condition_rows']);
         $this->assertSame(5, $target['valid_condition_rows']);
         $this->assertSame(1, $target['invalid_condition_rows']);
+        $this->assertSame(39, $target['channel_rows_total']);
+        $this->assertSame(38, $target['channel_rows']);
+        $this->assertSame(1, $target['invalid_channel_rows']);
+    }
+
+    public function test_ingestion_health_validates_latest_active_row_for_each_public_condition(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:00:00', 'Asia/Taipei'));
+        $this->createAiTables();
+        $this->seedCompleteDailyRows('2026-05-24');
+        DB::table('urt_ai_date')->insert([
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
+            'data_type' => 'oneday',
+            'condition_type' => null,
+            'mtime' => '2026-05-25 09:59:00',
+            'del_flag' => null,
+            'result_json' => $this->dailyResultJson('all latest incomplete', 14),
+        ]);
+
+        Artisan::call('ingestion:health', [
+            '--date' => '2026-05-24',
+            '--json' => true,
+        ]);
+        $payload = json_decode(Artisan::output(), true, 512, JSON_THROW_ON_ERROR);
+        $target = $payload['targets']['ai_daily'];
+
+        $this->assertSame('fail', $target['status']);
+        $this->assertContains('all', $target['missing_conditions']);
+        $this->assertSame(6, $target['condition_rows']);
+        $this->assertSame(5, $target['valid_condition_rows']);
+        $this->assertSame(1, $target['invalid_condition_rows']);
+    }
+
+    public function test_ingestion_health_validates_latest_active_channel_row_before_payload_validity(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:00:00', 'Asia/Taipei'));
+        $this->createAiTables();
+        $this->seedCompleteDailyRows('2026-05-24');
+        DB::table('urt_channel_ai')->insert([
+            'u_id' => AiDailyPreview::channelAiUids()[0],
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
+            'data_type' => 'oneday',
+            'mtime' => '2026-05-25 09:59:00',
+            'del_flag' => null,
+            'result_json' => '{"events":[]}',
+        ]);
+
+        Artisan::call('ingestion:health', [
+            '--date' => '2026-05-24',
+            '--json' => true,
+        ]);
+        $payload = json_decode(Artisan::output(), true, 512, JSON_THROW_ON_ERROR);
+        $target = $payload['targets']['ai_daily'];
+
+        $this->assertSame('warn', $target['status']);
         $this->assertSame(39, $target['channel_rows_total']);
         $this->assertSame(38, $target['channel_rows']);
         $this->assertSame(1, $target['invalid_channel_rows']);
@@ -413,7 +470,7 @@ class IngestionHealthCheckTest extends TestCase
                 'condition_type' => $condition,
                 'mtime' => '2026-05-25 09:50:00',
                 'del_flag' => null,
-                'result_json' => '[{"標題":"每日事件","媒體事件":{"News Channel":["頻道事件"]}}]',
+                'result_json' => $this->dailyResultJson($condition),
             ]);
         }
 
@@ -438,5 +495,18 @@ class IngestionHealthCheckTest extends TestCase
                 'del_flag' => null,
             ]);
         }
+    }
+
+    private function dailyResultJson(string $condition, ?int $count = null): string
+    {
+        $count ??= $condition === 'all' ? 15 : 8;
+
+        return json_encode(collect(range(1, $count))->map(fn (int $index): array => [
+            '標題' => $condition.' 每日事件 '.$index,
+            '媒體事件' => [
+                'News Channel A' => ['頻道事件 A '.$index],
+                'News Channel B' => ['頻道事件 B '.$index],
+            ],
+        ])->all(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
     }
 }

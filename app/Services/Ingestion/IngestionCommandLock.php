@@ -11,6 +11,7 @@ class IngestionCommandLock
     public function __construct(
         private readonly IngestionJobRegistry $registry,
         private readonly IngestionCommandLockContext $context,
+        private readonly IngestionCommandDeadline $deadline,
     ) {}
 
     public static function name(string $jobKey): string
@@ -67,7 +68,8 @@ class IngestionCommandLock
         }
 
         if ($this->context->owns($jobKey)) {
-            $exitCode = $this->executeAndLog($commandName, $jobKey, $callback);
+            $lockSeconds = $this->lockSeconds();
+            $exitCode = $this->executeAndLog($commandName, $jobKey, $lockSeconds, $callback);
 
             return [
                 'executed' => true,
@@ -76,13 +78,13 @@ class IngestionCommandLock
                 'job_key' => $jobKey,
                 'lock' => [
                     'name' => self::name($jobKey),
-                    'ttl_seconds' => max(60, min(86400, (int) config('ingestion.job_lock_seconds', 14400))),
+                    'ttl_seconds' => $lockSeconds,
                     'acquired' => true,
                 ],
             ];
         }
 
-        $lockSeconds = max(60, min(86400, (int) config('ingestion.job_lock_seconds', 14400)));
+        $lockSeconds = $this->lockSeconds();
         $lock = IngestionLockStore::lock(self::name($jobKey), $lockSeconds);
 
         if (! $lock->get()) {
@@ -110,7 +112,7 @@ class IngestionCommandLock
         try {
             $exitCode = $this->context->withOwnership(
                 $jobKey,
-                fn (): int => $this->executeAndLog($commandName, $jobKey, $callback),
+                fn (): int => $this->executeAndLog($commandName, $jobKey, $lockSeconds, $callback),
             );
 
             return [
@@ -136,12 +138,12 @@ class IngestionCommandLock
     /**
      * @param  Closure(): int  $callback
      */
-    private function executeAndLog(string $commandName, string $jobKey, Closure $callback): int
+    private function executeAndLog(string $commandName, string $jobKey, int $lockSeconds, Closure $callback): int
     {
         $startedNs = hrtime(true);
 
         try {
-            $exitCode = $callback();
+            $exitCode = $this->deadline->run($lockSeconds, $callback);
             Log::info('Ingestion command execution completed.', [
                 'command' => $commandName,
                 'job_key' => $jobKey,
@@ -163,5 +165,10 @@ class IngestionCommandLock
 
             throw $exception;
         }
+    }
+
+    private function lockSeconds(): int
+    {
+        return max(60, min(86400, (int) config('ingestion.job_lock_seconds', 14400)));
     }
 }

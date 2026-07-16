@@ -3,6 +3,7 @@
 namespace App\Services\Ingestion;
 
 use App\Services\Legacy\LegacyTagFilter;
+use App\Support\AiDailyContract;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Query\Builder;
@@ -49,6 +50,11 @@ class AiDailyPreview
         int $limit = 1000,
         ?CarbonInterface $now = null,
         bool $includePrompts = false,
+        int $channelLimit = 39,
+        int $channelBatchSize = 0,
+        int $aiCallLimit = 45,
+        int $channelVideoLimit = 120,
+        int $channelOffset = 0,
     ): array {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
         $now = $now === null
@@ -57,17 +63,40 @@ class AiDailyPreview
         $date = $this->date($date, $now);
         $dataType = $this->dataType($dataType);
         $limit = max(1, min(1000, $limit));
+        $channelLimit = max(0, $channelLimit);
+        $channelOffset = max(0, $channelOffset);
+        $channelBatchSize = max(0, $channelBatchSize);
+        $aiCallLimit = max(0, $aiCallLimit);
+        $channelVideoLimit = $channelVideoLimit <= 0
+            ? AiDailyIngestion::MAX_CHANNEL_VIDEO_LIMIT
+            : min(AiDailyIngestion::MAX_CHANNEL_VIDEO_LIMIT, $channelVideoLimit);
         $conditions = $this->conditions($condition);
         $period = [
             'from' => $date.' 00:00:00',
             'to' => $date.' 23:59:59',
         ];
 
-        $conditionRows = collect($conditions)
+        $channelRefresh = $this->channelAiRefreshPreview(
+            period: $period,
+            now: $now,
+            channelLimit: $channelLimit,
+            channelOffset: $channelOffset,
+            channelBatchSize: $channelBatchSize,
+            aiCallLimit: $aiCallLimit,
+            channelVideoLimit: $channelVideoLimit,
+        );
+        $channelAiCalls = (int) $channelRefresh['would_call_channel_ai_requests'];
+        $channelAiIncomplete = (int) $channelRefresh['would_skip_ai_call_guard'] > 0;
+        $dailyAiCallBudget = $channelAiIncomplete ? 0 : max(0, $aiCallLimit - $channelAiCalls);
+        $conditionRows = $this->applyDailyAiCallCap(collect($conditions)
             ->map(fn (string $condition): array => $this->conditionPreview($condition, $period, $dataType, $limit, $includePrompts))
-            ->values();
-        $channelRefresh = $this->channelAiRefreshPreview($period, $now);
+            ->values(), $dailyAiCallBudget, $channelAiIncomplete);
         $eligibleConditionRows = $conditionRows->where('would_call_ai', true)->count();
+        $wouldUseAiCalls = $channelAiCalls + $eligibleConditionRows;
+        $maximumPostRefreshDailyCalls = $channelAiIncomplete
+            ? 0
+            : min(count($conditions), max(0, $aiCallLimit - $channelAiCalls));
+        $maximumPostRefreshAiCalls = $channelAiCalls + $maximumPostRefreshDailyCalls;
 
         return [
             'mode' => 'ingestion-preview',
@@ -88,6 +117,22 @@ class AiDailyPreview
             'would_insert_channel_ai_rows' => $channelRefresh['would_insert_channel_ai_candidates'],
             'would_call_ai_requests' => $eligibleConditionRows,
             'would_insert_ai_date_rows' => $eligibleConditionRows,
+            'would_call_total_ai_requests' => $wouldUseAiCalls,
+            'confirmed_current_daily_ai_requests' => $eligibleConditionRows,
+            'confirmed_current_total_ai_requests' => $wouldUseAiCalls,
+            'maximum_post_refresh_daily_ai_requests' => $maximumPostRefreshDailyCalls,
+            'maximum_post_refresh_total_ai_requests' => $maximumPostRefreshAiCalls,
+            'ai_call_guard' => [
+                'limit' => $aiCallLimit,
+                'would_use' => $wouldUseAiCalls,
+                'remaining' => max(0, $aiCallLimit - $wouldUseAiCalls),
+                'maximum_post_refresh_would_use' => $maximumPostRefreshAiCalls,
+                'maximum_post_refresh_remaining' => max(0, $aiCallLimit - $maximumPostRefreshAiCalls),
+                'channel_ai_would_use' => $channelAiCalls,
+                'daily_ai_would_use' => $eligibleConditionRows,
+                'maximum_post_refresh_daily_ai_would_use' => $maximumPostRefreshDailyCalls,
+                'unit' => 'logical_completion_chain',
+            ],
             'api_call_skipped' => 'AI chat completions are intentionally skipped in planning mode',
             'writes_skipped' => [
                 'OpenAI/OpenCode chat completion for channel AI',
@@ -97,6 +142,34 @@ class AiDailyPreview
             ],
             'writes' => [],
         ];
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $rows
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function applyDailyAiCallCap(Collection $rows, int $callBudget, bool $channelAiIncomplete): Collection
+    {
+        return $rows->map(function (array $row) use (&$callBudget, $channelAiIncomplete): array {
+            $eligible = (bool) $row['would_call_ai'];
+            $wouldCall = $eligible && ! $channelAiIncomplete && $callBudget > 0;
+
+            if ($wouldCall) {
+                $callBudget--;
+            }
+
+            $row['eligible_for_ai'] = $eligible;
+            $row['would_call_ai'] = $wouldCall;
+            $row['would_insert_ai_date'] = $wouldCall;
+            $row['ai_call_skip_reason'] = match (true) {
+                ! $eligible => 'no_source_events',
+                $channelAiIncomplete => 'channel_ai_incomplete',
+                ! $wouldCall => 'ai_call_guard_exhausted',
+                default => null,
+            };
+
+            return $row;
+        });
     }
 
     private function date(?string $date, CarbonImmutable $now): string
@@ -147,7 +220,7 @@ class AiDailyPreview
         $sourceRows = (clone $query)->count();
         $rawRows = (clone $query)->limit($limit)->get();
         $rows = $this->dedupeAndMapChannelAiRows($rawRows, $condition);
-        $bounds = $this->promptBounds($condition);
+        $bounds = AiDailyContract::bounds($condition);
         $prompt = $this->prompt($rows, $bounds, $condition);
         $promptEventRows = collect($rows)->sum(fn (array $row): int => count($row['events']));
         $hasEligibleSource = $promptEventRows > 0;
@@ -408,14 +481,6 @@ class AiDailyPreview
     }
 
     /**
-     * @return array{min: int, max: int}
-     */
-    private function promptBounds(string $condition): array
-    {
-        return $condition === 'all' ? ['min' => 8, 'max' => 10] : ['min' => 5, 'max' => 8];
-    }
-
-    /**
      * @param  list<array<string, mixed>>  $rows
      * @param  array{min: int, max: int}  $bounds
      */
@@ -424,7 +489,7 @@ class AiDailyPreview
         $lines = [
             '下面是多個媒體的事件列表，其中包含事件、描述、新聞數與關鍵字。請用 legacy ai_day.php 的方式，把不同媒體其實在講同一件事的事件合併成 '.$bounds['min'].' 到 '.$bounds['max'].' 個每日主要事件。',
             '這不是逐媒體逐事件清單。請合併同一人物、事故、展會、戰爭、政策、股市或國際局勢，即使各媒體的事件名稱不同也要放在同一個大事件。',
-            '優先挑選跨媒體、新聞數多、公共影響較大的事件，排序依媒體數與新聞數由高到低。每個輸出事件至少要包含 2 個媒體；若來源不足，可以少於指定數量，不要硬湊。',
+            '優先挑選跨媒體、新聞數多、公共影響較大的事件，排序依媒體數與新聞數由高到低。每個輸出事件至少要包含 2 個媒體，總數不得少於 '.$bounds['min'].' 個或多於 '.$bounds['max'].' 個；不要用單一媒體事件硬湊數量。',
             '標題請寫成整體事件標題，例如「鄭麗文訪美及兩岸關係」「T-34墜機事故」「台股行情與AI影響」這種層級，不要只複製單一媒體的小事件名稱。',
             '輸出資料要包含事件整體標題，以及屬於這個分類的媒體與事件列表，格式用',
             '[',
@@ -485,30 +550,69 @@ class AiDailyPreview
      * @param  array{from: string, to: string}  $period
      * @return array<string, mixed>
      */
-    private function channelAiRefreshPreview(array $period, CarbonImmutable $now): array
-    {
+    private function channelAiRefreshPreview(
+        array $period,
+        CarbonImmutable $now,
+        int $channelLimit,
+        int $channelOffset,
+        int $channelBatchSize,
+        int $aiCallLimit,
+        int $channelVideoLimit,
+    ): array {
         $date = substr($period['from'], 0, 10);
         $legacyDataType = $date === $now->toDateString() ? 'todate' : 'oneday';
         $existingChannels = $this->existingConfiguredChannels();
-        $candidateRows = $this->channelRefreshCandidates($period);
+        $allCandidateRows = $this->channelRefreshCandidates($period, $channelVideoLimit);
+        $configuredChannelCount = count(self::CHANNEL_AI_UIDS);
+        $selectedChannelIds = $channelOffset <= 0 && $channelLimit >= $configuredChannelCount
+            ? self::CHANNEL_AI_UIDS
+            : $allCandidateRows
+                ->slice($channelOffset)
+                ->take($channelLimit)
+                ->pluck('u_id')
+                ->map(fn (mixed $uId): int => (int) $uId)
+                ->all();
+        $candidateRows = $allCandidateRows
+            ->whereIn('u_id', $selectedChannelIds)
+            ->values();
+        $callRows = $candidateRows->take($aiCallLimit)->values();
+        $attemptedChannels = count($selectedChannelIds);
+        $effectiveBatchSize = $channelBatchSize > 0
+            ? $channelBatchSize
+            : max(1, $attemptedChannels);
 
         return [
             'source' => 'legacy_make_channel_ai',
             'date' => $date,
             'data_type' => $legacyDataType,
-            'configured_channels' => count(self::CHANNEL_AI_UIDS),
+            'configured_channels' => $configuredChannelCount,
             'existing_channels' => $existingChannels,
-            'would_attempt_channel_ai_refresh' => count(self::CHANNEL_AI_UIDS),
-            'would_call_channel_ai_requests' => $candidateRows->count(),
-            'would_insert_channel_ai_candidates' => $candidateRows->count(),
+            'limit' => $channelLimit,
+            'offset' => $channelOffset,
+            'selected_channel_ids' => $selectedChannelIds,
+            'batch_size' => $channelBatchSize,
+            'effective_batch_size' => $effectiveBatchSize,
+            'batches' => $attemptedChannels === 0 ? 0 : (int) ceil($attemptedChannels / $effectiveBatchSize),
+            'video_limit' => $channelVideoLimit,
+            'would_attempt_channel_ai_refresh' => $attemptedChannels,
+            'eligible_channel_ai_candidates' => $candidateRows->count(),
+            'would_call_channel_ai_requests' => $callRows->count(),
+            'would_insert_channel_ai_candidates' => $callRows->count(),
+            'would_skip_fewer_than_10_videos' => $attemptedChannels - $candidateRows->count(),
+            'would_skip_ai_call_guard' => $candidateRows->count() - $callRows->count(),
+            'prompt_truncated_channels' => $callRows->where('prompt_truncated', true)->count(),
+            'prompt_omitted_video_rows' => $callRows->sum('prompt_omitted_video_rows'),
             'existing_channel_ai_rows' => $this->existingChannelAiRows($period, $legacyDataType),
             'minimum_video_rows_per_channel' => 10,
-            'sample_channels' => $candidateRows
+            'sample_channels' => $callRows
                 ->take(5)
                 ->map(fn (object $row): array => [
                     'u_id' => (int) $row->u_id,
                     'title' => is_string($row->title ?? null) && $row->title !== '' ? $row->title : (is_string($row->channel_title ?? null) ? $row->channel_title : 'Unknown channel'),
                     'video_rows' => (int) $row->video_rows,
+                    'prompt_video_rows' => (int) $row->prompt_video_rows,
+                    'prompt_truncated' => (bool) $row->prompt_truncated,
+                    'prompt_omitted_video_rows' => (int) $row->prompt_omitted_video_rows,
                 ])
                 ->values()
                 ->all(),
@@ -530,7 +634,7 @@ class AiDailyPreview
      * @param  array{from: string, to: string}  $period
      * @return Collection<int, object>
      */
-    private function channelRefreshCandidates(array $period): Collection
+    private function channelRefreshCandidates(array $period, int $channelVideoLimit): Collection
     {
         if (! Schema::hasTable('urt_video')) {
             return collect();
@@ -541,8 +645,7 @@ class AiDailyPreview
             ->where('v.publishedAt', '>=', $period['from'])
             ->where('v.publishedAt', '<=', $period['to'])
             ->groupBy('v.u_id')
-            ->havingRaw('COUNT(*) >= 10')
-            ->orderByDesc('video_rows');
+            ->havingRaw('COUNT(*) >= 10');
 
         if (Schema::hasTable('urt_channel')) {
             $query->leftJoin('urt_channel as c', 'v.u_id', '=', 'c.u_id')
@@ -551,7 +654,25 @@ class AiDailyPreview
             $query->select(['v.u_id', DB::raw('COUNT(*) as video_rows'), DB::raw('NULL as title'), DB::raw('MAX(v.channelTitle) as channel_title')]);
         }
 
-        return $query->get();
+        $rowsByChannel = $query->get()->keyBy(fn (object $row): int => (int) $row->u_id);
+
+        return collect(self::CHANNEL_AI_UIDS)
+            ->map(function (int $uId) use ($rowsByChannel, $channelVideoLimit): ?object {
+                $row = $rowsByChannel->get($uId);
+
+                if (! is_object($row)) {
+                    return null;
+                }
+
+                $videoRows = (int) $row->video_rows;
+                $row->prompt_video_rows = min($videoRows, $channelVideoLimit);
+                $row->prompt_truncated = $videoRows > $row->prompt_video_rows;
+                $row->prompt_omitted_video_rows = max(0, $videoRows - $row->prompt_video_rows);
+
+                return $row;
+            })
+            ->filter()
+            ->values();
     }
 
     /**

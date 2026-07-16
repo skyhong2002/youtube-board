@@ -2,6 +2,7 @@
 
 namespace App\Services\Legacy;
 
+use App\Support\AiDailyContract;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -51,17 +52,9 @@ class AiDailyReport
             $resolvedCondition = (string) ($row->condition_type ?: $condition);
 
             if ($this->shouldRegroupDailyTopics($topics, $resolvedCondition)) {
-                $regroupedTopics = $this->topicsFromChannelRows($channelMap, $channelAi, $channelTags);
-
-                if ($regroupedTopics !== []) {
-                    $topics = $regroupedTopics;
-                }
-            }
-
-            if ($topics === []) {
                 $fallback = $this->channelAiFallback($request, $resolvedCondition, $date, $row);
 
-                if ($fallback !== null && $fallback['topics'] !== []) {
+                if ($fallback !== null && $this->shouldPreferFallback($topics, $fallback['topics'], $resolvedCondition)) {
                     return $fallback;
                 }
             }
@@ -156,7 +149,7 @@ class AiDailyReport
             ->all();
         $channelTags = $this->channelTags(array_keys($channelMap));
         $syntheticRow = (object) [
-            'result_json' => json_encode($this->dailyTopicsFromChannelRows($channelMap, $channelAi), JSON_UNESCAPED_UNICODE),
+            'result_json' => json_encode($this->dailyTopicsFromChannelRows($channelMap, $channelAi, $condition), JSON_UNESCAPED_UNICODE),
         ];
         $topics = $this->topics($syntheticRow, $channelMap, $channelAi, $channelTags);
 
@@ -218,7 +211,7 @@ class AiDailyReport
      * @param  array<int, list<array<string, mixed>>>  $channelAi
      * @return list<array<string, mixed>>
      */
-    private function dailyTopicsFromChannelRows(array $channelMap, array $channelAi): array
+    private function dailyTopicsFromChannelRows(array $channelMap, array $channelAi, string $condition): array
     {
         $entries = [];
 
@@ -259,7 +252,7 @@ class AiDailyReport
         return collect($clusters)
             ->filter(fn (array $cluster): bool => count($cluster['media_events']) >= 2 || $cluster['video_count'] >= 2)
             ->sortByDesc(fn (array $cluster): int => $cluster['video_count'] + count($cluster['media_events']) * 3)
-            ->take(10)
+            ->take(AiDailyContract::maxTopics($condition))
             ->map(fn (array $cluster): array => [
                 '標題' => $cluster['title'],
                 '媒體事件' => $cluster['media_events'],
@@ -273,42 +266,80 @@ class AiDailyReport
      */
     private function shouldRegroupDailyTopics(array $topics, string $condition): bool
     {
-        $maxTopics = $condition === 'all' ? 10 : 8;
+        $bounds = AiDailyContract::bounds($condition);
+        $topicCount = count($topics);
 
-        if (count($topics) > $maxTopics) {
+        if ($topicCount < $bounds['min'] || $topicCount > $bounds['max']) {
             return true;
-        }
-
-        if (count($topics) < 6) {
-            return false;
         }
 
         $singleMediaTopics = collect($topics)
             ->filter(fn (array $topic): bool => (int) ($topic['media_count'] ?? 0) <= 1)
             ->count();
 
-        return $singleMediaTopics > (int) floor(count($topics) / 2);
+        return $singleMediaTopics > (int) floor($topicCount / 2);
     }
 
     /**
-     * @param  array<int, string>  $channelMap
-     * @param  array<int, list<array<string, mixed>>>  $channelAi
-     * @param  array<int, list<int>>  $channelTags
-     * @return list<array<string, mixed>>
+     * Prefer a request-time rebuild when it fixes an undersized cache, or when the
+     * cached payload exceeds the contract or is dominated by single-media topics.
+     *
+     * @param  list<array<string, mixed>>  $topics
+     * @param  list<array<string, mixed>>  $fallbackTopics
      */
-    private function topicsFromChannelRows(array $channelMap, array $channelAi, array $channelTags): array
+    private function shouldPreferFallback(array $topics, array $fallbackTopics, string $condition): bool
     {
-        $summaryTopics = $this->dailyTopicsFromChannelRows($channelMap, $channelAi);
-
-        if ($summaryTopics === []) {
-            return [];
+        if ($fallbackTopics === []) {
+            return false;
         }
 
-        $syntheticRow = (object) [
-            'result_json' => json_encode($summaryTopics, JSON_UNESCAPED_UNICODE),
-        ];
+        $minimumTopics = AiDailyContract::minTopics($condition);
 
-        return $this->topics($syntheticRow, $channelMap, $channelAi, $channelTags);
+        if (count($fallbackTopics) < $minimumTopics && count($fallbackTopics) < count($topics)) {
+            return false;
+        }
+
+        $currentQuality = $this->topicSetQuality($topics, $condition);
+        $fallbackQuality = $this->topicSetQuality($fallbackTopics, $condition);
+
+        foreach ($currentQuality as $index => $currentValue) {
+            if ($fallbackQuality[$index] === $currentValue) {
+                continue;
+            }
+
+            return $fallbackQuality[$index] > $currentValue;
+        }
+
+        return false;
+    }
+
+    /**
+     * Contract-valid sets win first. For two incomplete sets, preserve the one
+     * with a valid count before comparing cross-media evidence and distance.
+     *
+     * @param  list<array<string, mixed>>  $topics
+     * @return array{int, int, int, int, int}
+     */
+    private function topicSetQuality(array $topics, string $condition): array
+    {
+        $bounds = AiDailyContract::bounds($condition);
+        $topicCount = count($topics);
+        $withinBounds = $topicCount >= $bounds['min'] && $topicCount <= $bounds['max'];
+        $multiMediaTopics = collect($topics)
+            ->filter(fn (array $topic): bool => (int) ($topic['media_count'] ?? 0) >= 2)
+            ->count();
+        $majorityCrossMedia = $multiMediaTopics >= (int) ceil($topicCount / 2);
+        $distance = $topicCount < $bounds['min']
+            ? $bounds['min'] - $topicCount
+            : max(0, $topicCount - $bounds['max']);
+
+        return [
+            (int) ($withinBounds && $majorityCrossMedia),
+            (int) $withinBounds,
+            $multiMediaTopics,
+            -$distance,
+            $topicCount,
+        ];
     }
 
     /**
@@ -778,9 +809,11 @@ class AiDailyReport
         }
 
         return collect($value)
-            ->filter(fn (mixed $events, mixed $channel): bool => is_scalar($channel) && is_array($events))
-            ->mapWithKeys(fn (array $events, mixed $channel): array => [
-                trim((string) $channel) => collect($events)
+            ->filter(fn (mixed $events, mixed $channel): bool => is_string($channel)
+                && trim($channel) !== ''
+                && is_array($events))
+            ->mapWithKeys(fn (array $events, string $channel): array => [
+                trim($channel) => collect($events)
                     ->filter(fn (mixed $event): bool => is_scalar($event) && trim((string) $event) !== '')
                     ->map(fn (mixed $event): string => trim((string) $event))
                     ->values()

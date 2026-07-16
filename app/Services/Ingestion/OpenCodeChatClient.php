@@ -4,6 +4,7 @@ namespace App\Services\Ingestion;
 
 use App\Support\SensitiveTextRedactor;
 use Illuminate\Http\Client\Factory as HttpFactory;
+use Illuminate\Http\Client\Response;
 use RuntimeException;
 use Throwable;
 
@@ -19,6 +20,29 @@ class OpenCodeChatClient
      */
     public function complete(string $prompt): array
     {
+        return $this->completeInternal($prompt);
+    }
+
+    /**
+     * @param  callable(string): array{valid: bool}  $validator
+     * @return array{content: string, model: string, configured_model: string, provider: string, provider_failures: list<string>, usage: array<string, mixed>|null, latency_ms: int, validation: array<string, mixed>}
+     */
+    public function completeValidated(string $prompt, callable $validator): array
+    {
+        return $this->completeInternal($prompt, $validator);
+    }
+
+    public function providerAttemptCapPerCompletion(): int
+    {
+        return count($this->providers()) * $this->attemptsPerProvider();
+    }
+
+    /**
+     * @param  (callable(string): array{valid: bool})|null  $validator
+     * @return array<string, mixed>
+     */
+    private function completeInternal(string $prompt, ?callable $validator = null): array
+    {
         $providers = $this->providers();
         $failures = [];
 
@@ -28,12 +52,12 @@ class OpenCodeChatClient
 
         foreach ($providers as $provider) {
             try {
-                return $this->completeWithProvider($prompt, $provider) + [
+                return $this->completeWithProvider($prompt, $provider, validator: $validator) + [
                     'provider' => $provider['name'],
                     'provider_failures' => $failures,
                 ];
             } catch (Throwable $exception) {
-                $failures[] = $provider['name'].': '.$this->sanitizedError($exception->getMessage());
+                $failures[] = $provider['name'].': '.$this->sanitizedError($exception->getMessage(), $prompt);
             }
         }
 
@@ -71,10 +95,15 @@ class OpenCodeChatClient
 
     /**
      * @param  array{name: string, api_key: string, base_url: string, model: string, endpoint_style: string, timeout: int, max_tokens: int}  $provider
-     * @return array{content: string, model: string, configured_model: string, usage: array<string, mixed>|null, latency_ms: int}
+     * @param  (callable(string): array{valid: bool})|null  $validator
+     * @return array<string, mixed>
      */
-    private function completeWithProvider(string $prompt, array $provider, ?int $maxTokensOverride = null): array
-    {
+    private function completeWithProvider(
+        string $prompt,
+        array $provider,
+        ?int $maxTokensOverride = null,
+        ?callable $validator = null,
+    ): array {
         $apiKey = $provider['api_key'];
         $baseUrl = $provider['base_url'];
         $model = $provider['model'];
@@ -98,102 +127,179 @@ class OpenCodeChatClient
         $body[$messagesStyle || ! $this->usesCompletionTokenLimit($model)
             ? 'max_tokens'
             : 'max_completion_tokens'] = $maxTokens;
-        $started = hrtime(true);
+        $providerStarted = hrtime(true);
+        $maxAttempts = $this->attemptsPerProvider();
 
-        try {
-            $response = $this->http
-                ->withToken($apiKey)
-                ->acceptJson()
-                ->asJson()
-                ->timeout($timeout)
-                ->post($baseUrl.$path, $body);
-        } catch (Throwable $exception) {
-            $this->telemetry->recordAiRequest($this->requestTelemetry(
-                provider: $provider,
-                endpointStyle: $messagesStyle ? 'messages' : 'chat',
-                prompt: $prompt,
-                latencyMs: $this->elapsedMs($started),
-                ok: false,
-                status: null,
-                usage: null,
-                content: null,
-                error: $this->sanitizedError($exception->getMessage()),
-            ));
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            $attemptStarted = hrtime(true);
 
-            throw new RuntimeException(
-                'AI provider connection failed: '.$this->sanitizedError($exception->getMessage()),
-            );
-        }
+            try {
+                $response = $this->http
+                    ->withToken($apiKey)
+                    ->acceptJson()
+                    ->asJson()
+                    ->timeout($timeout)
+                    ->post($baseUrl.$path, $body);
+            } catch (Throwable $exception) {
+                $error = $this->sanitizedError($exception->getMessage(), $prompt);
+                $this->telemetry->recordAiRequest($this->requestTelemetry(
+                    provider: $provider,
+                    endpointStyle: $messagesStyle ? 'messages' : 'chat',
+                    prompt: $prompt,
+                    latencyMs: $this->elapsedMs($attemptStarted),
+                    ok: false,
+                    status: null,
+                    usage: null,
+                    content: null,
+                    error: $error,
+                    attempt: $attempt,
+                ));
 
-        $latencyMs = $this->elapsedMs($started);
-
-        if (! $response->successful()) {
-            $message = 'status='.$response->status().' endpoint_style='.($messagesStyle ? 'messages' : 'chat');
-            $error = $this->responseErrorMessage($response->json());
-
-            if ($error !== null) {
-                $message .= ' error='.$error;
+                throw new RuntimeException('AI provider connection failed: '.$error);
             }
 
+            $latencyMs = $this->elapsedMs($attemptStarted);
+            $decoded = $response->json();
+            $payload = is_array($decoded) ? $decoded : [];
+            $usage = $this->sanitizedUsage(data_get($payload, 'usage'));
+
+            if (! $response->successful()) {
+                $message = 'status='.$response->status().' endpoint_style='.($messagesStyle ? 'messages' : 'chat');
+                $transientRetry = $this->isTransientFailure($response) && $attempt < $maxAttempts;
+                $retryDelayMs = $transientRetry ? $this->retryDelayMs($response) : null;
+                $this->telemetry->recordAiRequest($this->requestTelemetry(
+                    provider: $provider,
+                    endpointStyle: $messagesStyle ? 'messages' : 'chat',
+                    prompt: $prompt,
+                    latencyMs: $latencyMs,
+                    ok: false,
+                    status: $response->status(),
+                    usage: $usage,
+                    content: null,
+                    error: $message,
+                    attempt: $attempt,
+                    transientRetry: $transientRetry,
+                    retryDelayMs: $retryDelayMs,
+                ));
+
+                if ($transientRetry) {
+                    $this->retryDelay($retryDelayMs ?? 0);
+
+                    continue;
+                }
+
+                throw new RuntimeException($message);
+            }
+
+            $terminationReason = $this->terminationReason($payload, $messagesStyle);
+
+            if ($this->isTruncationReason($terminationReason)) {
+                $reasonField = $messagesStyle ? 'stop_reason' : 'finish_reason';
+                $message = 'truncated_response endpoint_style='.
+                    ($messagesStyle ? 'messages' : 'chat').' '.$reasonField.'='.$terminationReason;
+                $this->telemetry->recordAiRequest($this->requestTelemetry(
+                    provider: $provider,
+                    endpointStyle: $messagesStyle ? 'messages' : 'chat',
+                    prompt: $prompt,
+                    latencyMs: $latencyMs,
+                    ok: false,
+                    status: $response->status(),
+                    usage: $usage,
+                    content: null,
+                    error: $message,
+                    attempt: $attempt,
+                    terminationReason: $terminationReason,
+                ));
+
+                throw new RuntimeException($message);
+            }
+
+            $content = $messagesStyle
+                ? $this->extractMessagesContent($payload)
+                : $this->extractChatContent($payload);
+
+            if (! is_string($content) || trim($content) === '') {
+                $this->telemetry->recordAiRequest($this->requestTelemetry(
+                    provider: $provider,
+                    endpointStyle: $messagesStyle ? 'messages' : 'chat',
+                    prompt: $prompt,
+                    latencyMs: $latencyMs,
+                    ok: false,
+                    status: $response->status(),
+                    usage: $usage,
+                    content: null,
+                    error: 'empty_message endpoint_style='.($messagesStyle ? 'messages' : 'chat'),
+                    attempt: $attempt,
+                    terminationReason: $terminationReason,
+                ));
+
+                throw new RuntimeException('empty_message endpoint_style='.($messagesStyle ? 'messages' : 'chat'));
+            }
+
+            $validation = null;
+
+            if ($validator !== null) {
+                try {
+                    $candidateValidation = $validator($content);
+                } catch (Throwable) {
+                    $candidateValidation = null;
+                }
+
+                if (! is_array($candidateValidation) || ($candidateValidation['valid'] ?? false) !== true) {
+                    $this->telemetry->recordAiRequest($this->requestTelemetry(
+                        provider: $provider,
+                        endpointStyle: $messagesStyle ? 'messages' : 'chat',
+                        prompt: $prompt,
+                        latencyMs: $latencyMs,
+                        ok: false,
+                        status: $response->status(),
+                        usage: $usage,
+                        content: null,
+                        error: 'validation_rejected',
+                        attempt: $attempt,
+                        terminationReason: $terminationReason,
+                        completionChars: mb_strlen($content, 'UTF-8'),
+                    ));
+
+                    throw new RuntimeException('validation_rejected');
+                }
+
+                $validation = $candidateValidation;
+            }
+
+            $responseModel = is_string($payload['model'] ?? null) && trim((string) $payload['model']) !== ''
+                ? trim((string) $payload['model'])
+                : $model;
             $this->telemetry->recordAiRequest($this->requestTelemetry(
                 provider: $provider,
                 endpointStyle: $messagesStyle ? 'messages' : 'chat',
                 prompt: $prompt,
                 latencyMs: $latencyMs,
-                ok: false,
+                ok: true,
                 status: $response->status(),
-                usage: is_array(data_get($response->json(), 'usage')) ? data_get($response->json(), 'usage') : null,
-                content: null,
-                error: $this->sanitizedError($message),
+                usage: $usage,
+                content: $content,
+                error: null,
+                attempt: $attempt,
+                terminationReason: $terminationReason,
             ));
 
-            throw new RuntimeException($this->sanitizedError($message));
+            $completion = [
+                'content' => $content,
+                'model' => $responseModel,
+                'configured_model' => $model,
+                'usage' => $usage,
+                'latency_ms' => $this->elapsedMs($providerStarted),
+            ];
+
+            if ($validation !== null) {
+                $completion['validation'] = $validation;
+            }
+
+            return $completion;
         }
 
-        $payload = $response->json();
-        $content = $messagesStyle
-            ? $this->extractMessagesContent($payload)
-            : $this->extractChatContent($payload);
-
-        if (! is_string($content) || trim($content) === '') {
-            $this->telemetry->recordAiRequest($this->requestTelemetry(
-                provider: $provider,
-                endpointStyle: $messagesStyle ? 'messages' : 'chat',
-                prompt: $prompt,
-                latencyMs: $latencyMs,
-                ok: false,
-                status: $response->status(),
-                usage: is_array(data_get($payload, 'usage')) ? data_get($payload, 'usage') : null,
-                content: null,
-                error: 'empty_message endpoint_style='.($messagesStyle ? 'messages' : 'chat'),
-            ));
-
-            throw new RuntimeException('empty_message endpoint_style='.($messagesStyle ? 'messages' : 'chat'));
-        }
-
-        $usage = is_array(data_get($payload, 'usage')) ? data_get($payload, 'usage') : null;
-        $responseModel = is_string($payload['model'] ?? null) && trim((string) $payload['model']) !== ''
-            ? trim((string) $payload['model'])
-            : $model;
-        $this->telemetry->recordAiRequest($this->requestTelemetry(
-            provider: $provider,
-            endpointStyle: $messagesStyle ? 'messages' : 'chat',
-            prompt: $prompt,
-            latencyMs: $latencyMs,
-            ok: true,
-            status: $response->status(),
-            usage: $usage,
-            content: $content,
-            error: null,
-        ));
-
-        return [
-            'content' => $content,
-            'model' => $responseModel,
-            'configured_model' => $model,
-            'usage' => $usage,
-            'latency_ms' => $latencyMs,
-        ];
+        throw new RuntimeException('AI provider failed without a response.');
     }
 
     /**
@@ -209,7 +315,7 @@ class OpenCodeChatClient
             model: config('services.opencode_go.model', 'qwen3.6-plus'),
             endpointStyle: config('services.opencode_go.endpoint_style', 'auto'),
             timeout: config('services.opencode_go.timeout', 180),
-            maxTokens: config('services.opencode_go.max_tokens', 1200),
+            maxTokens: config('services.opencode_go.max_tokens', 4096),
         );
 
         if ($primary !== null) {
@@ -223,7 +329,7 @@ class OpenCodeChatClient
             model: config('services.opencode_go.fallback_model'),
             endpointStyle: config('services.opencode_go.fallback_endpoint_style', 'auto'),
             timeout: config('services.opencode_go.fallback_timeout', config('services.opencode_go.timeout', 180)),
-            maxTokens: config('services.opencode_go.fallback_max_tokens', config('services.opencode_go.max_tokens', 1200)),
+            maxTokens: config('services.opencode_go.fallback_max_tokens', config('services.opencode_go.max_tokens', 4096)),
         );
 
         if ($fallback !== null) {
@@ -291,6 +397,124 @@ class OpenCodeChatClient
     /**
      * @param  array<string, mixed>  $payload
      */
+    private function terminationReason(array $payload, bool $messagesStyle): ?string
+    {
+        $candidates = $messagesStyle
+            ? [
+                data_get($payload, 'stop_reason'),
+                data_get($payload, 'choices.0.stop_reason'),
+                data_get($payload, 'choices.0.finish_reason'),
+            ]
+            : [
+                data_get($payload, 'choices.0.finish_reason'),
+                data_get($payload, 'choices.0.stop_reason'),
+                data_get($payload, 'choices.0.finish_details.type'),
+                data_get($payload, 'choices.0.finish_details.reason'),
+                data_get($payload, 'incomplete_details.reason'),
+                data_get($payload, 'stop_reason'),
+            ];
+
+        foreach ($candidates as $candidate) {
+            if (! is_string($candidate) || trim($candidate) === '') {
+                continue;
+            }
+
+            $reason = preg_replace('/[^a-z0-9._-]+/', '_', strtolower(trim($candidate))) ?? '';
+
+            return in_array($reason, [
+                'stop',
+                'length',
+                'content_filter',
+                'tool_calls',
+                'function_call',
+                'end_turn',
+                'stop_sequence',
+                'tool_use',
+                'pause_turn',
+                'refusal',
+                'max_tokens',
+                'max_output_tokens',
+                'max_completion_tokens',
+                'token_limit',
+                'token_limit_reached',
+                'max_token_limit',
+                'max_length',
+                'limit',
+            ], true) ? $reason : 'other';
+        }
+
+        return null;
+    }
+
+    private function isTruncationReason(?string $reason): bool
+    {
+        return in_array($reason, [
+            'length',
+            'max_tokens',
+            'max_output_tokens',
+            'max_completion_tokens',
+            'token_limit',
+            'token_limit_reached',
+            'max_token_limit',
+            'max_length',
+            'limit',
+        ], true);
+    }
+
+    private function isTransientFailure(Response $response): bool
+    {
+        return $response->status() === 429 || $response->serverError();
+    }
+
+    private function attemptsPerProvider(): int
+    {
+        return 1 + max(0, min(3, (int) config('services.opencode_go.transient_retries', 1)));
+    }
+
+    private function retryDelayMs(Response $response): int
+    {
+        $maximum = max(0, min(10_000, (int) config('services.opencode_go.retry_after_max_ms', 2000)));
+        $fallback = max(0, min($maximum, (int) config('services.opencode_go.retry_delay_ms', 250)));
+        $retryAfter = $response->header('Retry-After');
+
+        if (is_string($retryAfter) && trim($retryAfter) !== '') {
+            $milliseconds = $this->retryAfterMilliseconds(trim($retryAfter));
+
+            if ($milliseconds !== null) {
+                return min($maximum, $milliseconds);
+            }
+        }
+
+        $retryAfterMilliseconds = $response->header('Retry-After-Ms');
+
+        if (is_string($retryAfterMilliseconds) && is_numeric(trim($retryAfterMilliseconds))) {
+            return min($maximum, max(0, (int) ceil((float) trim($retryAfterMilliseconds))));
+        }
+
+        return $fallback;
+    }
+
+    private function retryAfterMilliseconds(string $value): ?int
+    {
+        if (is_numeric($value)) {
+            return max(0, (int) ceil((float) $value * 1000));
+        }
+
+        $timestamp = strtotime($value);
+
+        return $timestamp === false ? null : max(0, ($timestamp - time()) * 1000);
+    }
+
+    private function retryDelay(int $milliseconds): void
+    {
+        if ($milliseconds > 0) {
+            usleep($milliseconds * 1000);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
     private function extractChatContent(array $payload): ?string
     {
         $content = data_get($payload, 'choices.0.message.content');
@@ -311,25 +535,46 @@ class OpenCodeChatClient
         return $this->stringifyContent(data_get($payload, 'content'));
     }
 
-    private function responseErrorMessage(mixed $payload): ?string
+    /**
+     * @return array<string|int, mixed>|null
+     */
+    private function sanitizedUsage(mixed $usage): ?array
     {
-        if (! is_array($payload)) {
+        if (! is_array($usage)) {
             return null;
         }
 
-        $message = data_get($payload, 'error.message') ?? data_get($payload, 'message');
+        $sanitized = [];
 
-        if (! is_string($message) || trim($message) === '') {
-            return null;
+        foreach ($usage as $key => $value) {
+            $safeKey = is_int($key)
+                ? $key
+                : mb_strimwidth(
+                    preg_replace('/[^a-z0-9._-]+/', '_', strtolower((string) $key)) ?? '',
+                    0,
+                    64,
+                    '',
+                    'UTF-8',
+                );
+
+            if ($safeKey === '') {
+                continue;
+            }
+
+            if (is_int($value) || is_float($value)) {
+                $sanitized[$safeKey] = $value;
+
+                continue;
+            }
+
+            $nested = $this->sanitizedUsage($value);
+
+            if ($nested !== null) {
+                $sanitized[$safeKey] = $nested;
+            }
         }
 
-        return mb_strimwidth(
-            preg_replace('/\s+/', ' ', trim($message)) ?? trim($message),
-            0,
-            160,
-            '...',
-            'UTF-8',
-        );
+        return $sanitized === [] ? null : $sanitized;
     }
 
     private function stringifyContent(mixed $content): ?string
@@ -374,6 +619,11 @@ class OpenCodeChatClient
         ?array $usage,
         ?string $content,
         ?string $error,
+        int $attempt = 1,
+        bool $transientRetry = false,
+        ?int $retryDelayMs = null,
+        ?string $terminationReason = null,
+        ?int $completionChars = null,
     ): array {
         return [
             'api' => 'openai_compatible_chat',
@@ -381,12 +631,18 @@ class OpenCodeChatClient
             'model' => $provider['model'],
             'endpoint_style' => $endpointStyle,
             'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
-            'completion_chars' => is_string($content) ? mb_strlen($content, 'UTF-8') : 0,
+            'completion_chars' => $completionChars ?? (is_string($content) ? mb_strlen($content, 'UTF-8') : 0),
             'usage' => $usage,
             'latency_ms' => $latencyMs,
             'status' => $status,
             'ok' => $ok,
             'error' => $error,
+            'attempt' => $attempt,
+            'transient_retry' => $transientRetry,
+            'retry_delay_ms' => $retryDelayMs,
+            'termination_reason' => $terminationReason,
+            'finish_reason' => $endpointStyle === 'chat' ? $terminationReason : null,
+            'stop_reason' => $endpointStyle === 'messages' ? $terminationReason : null,
             'secrets' => 'not_printed',
         ];
     }
@@ -396,8 +652,8 @@ class OpenCodeChatClient
         return (int) round((hrtime(true) - $started) / 1_000_000);
     }
 
-    private function sanitizedError(string $message): string
+    private function sanitizedError(string $message, ?string $prompt = null): string
     {
-        return SensitiveTextRedactor::redact($message, 240);
+        return SensitiveTextRedactor::redact($message, 240, [$prompt]);
     }
 }

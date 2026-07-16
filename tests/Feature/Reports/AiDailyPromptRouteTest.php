@@ -8,6 +8,19 @@ use Tests\TestCase;
 
 class AiDailyPromptRouteTest extends TestCase
 {
+    public function test_ai_daily_prompt_empty_state_uses_shared_bounds_without_source_tables(): void
+    {
+        foreach (['urt_channel_ai', 'urt_channel', 'urt_count'] as $table) {
+            Schema::dropIfExists($table);
+        }
+
+        $response = $this->get('/ai/days/prompt');
+
+        $response->assertOk();
+        $response->assertSee('事件數 15 - 20');
+        $response->assertSee('本機尚未匯入 `urt_channel_ai`');
+    }
+
     public function test_ai_daily_prompt_preview_builds_ingestion_legacy_prompt(): void
     {
         $this->createTables();
@@ -18,7 +31,8 @@ class AiDailyPromptRouteTest extends TestCase
         $response->assertOk();
         $response->assertSee('2026-05-23 all AI daily prompt preview');
         $response->assertSee('媒體 3');
-        $response->assertSee('事件數 8 - 10');
+        $response->assertSee('事件數 15 - 20');
+        $response->assertSee('總數不得少於 15 個或多於 20 個');
         $response->assertSee('Green Channel');
         $response->assertSee('Blue Channel');
         $response->assertSee('Finance Channel');
@@ -54,7 +68,7 @@ class AiDailyPromptRouteTest extends TestCase
         $response->assertOk();
         $response->assertSee('condition=green');
         $response->assertSee('tagid=4');
-        $response->assertSee('事件數 5 - 8');
+        $response->assertSee('事件數 8 - 12');
         $response->assertSee('Green Channel');
         $response->assertSee('毒駕事件');
         $response->assertSee('單一事件');

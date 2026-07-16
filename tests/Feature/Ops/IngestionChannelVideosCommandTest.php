@@ -21,6 +21,13 @@ use Tests\TestCase;
 
 class IngestionChannelVideosCommandTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config()->set('ingestion.lock_store', null);
+    }
+
     protected function tearDown(): void
     {
         Carbon::setTestNow();
@@ -654,6 +661,8 @@ class IngestionChannelVideosCommandTest extends TestCase
     {
         Carbon::setTestNow(Carbon::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('services.youtube.api_keys', null);
         $this->createTables();
 
         DB::table('urt_channel')->insert([
@@ -694,7 +703,11 @@ SQL);
         $payload = app(ChannelVideosDiscoveryIngestion::class)->execute(limit: 2, maxResults: 1);
 
         $this->assertSame(1, $payload['exit_code']);
-        $this->assertSame(1, $payload['failed_channels']);
+        $this->assertSame(
+            1,
+            $payload['failed_channels'],
+            json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+        );
         $this->assertSame(1, $payload['updated_channels']);
         $this->assertSame('item_processing_failed', $payload['skipped'][0]['reason']);
         $this->assertStringNotContainsString('super-secret', json_encode($payload, JSON_THROW_ON_ERROR));

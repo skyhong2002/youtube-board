@@ -57,10 +57,153 @@ class IngestionAiDaysRefreshCommandTest extends TestCase
         $this->assertSame(2, $payload['summary']['daily_jobs']);
         $this->assertSame(2, collect($payload['jobs'])->where('type', 'event-preview')->count());
         $this->assertSame(1, $payload['summary']['period_jobs']);
+        $this->assertSame([
+            'daily_limit' => 1000,
+            'daily_channel_limit' => 0,
+            'daily_channel_offset' => 0,
+            'daily_channel_batch_size' => 0,
+            'daily_ai_call_limit' => 2,
+            'daily_channel_video_limit' => 120,
+            'daily_channel_video_limit_requested' => 120,
+            'daily_channel_video_limit_clamped' => false,
+            'event_limit' => 100,
+            'event_ai_call_limit' => 60,
+            'period_limit' => 20,
+            'period_ai_call_limit' => 1,
+        ], $payload['execution_caps']);
+        $this->assertSame(60, $payload['ai_call_guard']['event_limit']);
+        $this->assertSame(2, $payload['ai_call_guard']['daily_limit_per_day']);
+        $this->assertSame(1, $payload['ai_call_guard']['period_limit_per_pair']);
+        $daily = collect($payload['jobs'])->firstWhere('type', 'daily')['result'];
+        $this->assertSame(0, $daily['channel_ai_refresh']['limit']);
+        $this->assertSame(0, $daily['channel_ai_refresh']['offset']);
+        $this->assertSame(0, $daily['channel_ai_refresh']['batch_size']);
+        $this->assertSame(120, $daily['channel_ai_refresh']['video_limit']);
+        $this->assertSame(2, $daily['ai_call_guard']['limit']);
         $this->assertSame([], $payload['write_targets']);
         $this->assertSame(0, DB::table('urt_ai_date')->count());
         $this->assertSame(0, DB::table('urt_ai_event')->count());
         $this->assertSame(0, DB::table('urt_ai_period')->count());
+        Http::assertNothingSent();
+    }
+
+    public function test_ai_days_refresh_preview_applies_explicit_daily_event_and_period_caps_without_writes(): void
+    {
+        $this->createTables();
+        $this->seedChannelAiRows();
+
+        foreach ([76, 405, 39] as $uId) {
+            DB::table('urt_channel')->insert([
+                'u_id' => $uId,
+                'title' => 'Configured Channel '.$uId,
+            ]);
+
+            foreach (['2026-06-02', '2026-06-03'] as $date) {
+                foreach (range(1, 12) as $index) {
+                    DB::table('urt_video')->insert([
+                        'u_id' => $uId,
+                        'videoId' => sprintf('preview-%s-%d-%d', $date, $uId, $index),
+                        'publishedAt' => $date.' 12:00:00',
+                        'title' => sprintf('Preview %d Video %d', $uId, $index),
+                        'channelTitle' => 'Configured Channel '.$uId,
+                        'viewCount' => 100 - $index,
+                    ]);
+                }
+            }
+        }
+
+        foreach (['2026-06-02', '2026-06-03'] as $date) {
+            DB::table('urt_ai_date')->insert([
+                'date_from' => $date.' 00:00:00',
+                'date_to' => $date.' 23:59:59',
+                'data_type' => 'oneday',
+                'condition_type' => 'all',
+                'del_flag' => null,
+                'channel_id' => '{}',
+                'result_json' => json_encode(
+                    $this->dailyTopics('Daily '.$date, 'Source '.$date),
+                    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR,
+                ),
+            ]);
+        }
+
+        $before = [
+            'daily' => DB::table('urt_ai_date')->count(),
+            'channel' => DB::table('urt_channel_ai')->count(),
+            'event' => DB::table('urt_ai_event')->count(),
+            'period' => DB::table('urt_ai_period')->count(),
+        ];
+        Http::fake();
+
+        $exitCode = Artisan::call('ai:days:refresh', [
+            '--dry-run' => true,
+            '--from' => '2026-06-02',
+            '--to' => '2026-06-03',
+            '--condition' => 'all',
+            '--daily-limit' => 7,
+            '--daily-channel-limit' => 2,
+            '--daily-channel-offset' => 1,
+            '--daily-channel-batch-size' => 1,
+            '--daily-ai-call-limit' => 1,
+            '--daily-channel-video-limit' => 11,
+            '--event-limit' => 1,
+            '--event-ai-call-limit' => 1,
+            '--period-limit' => 9,
+            '--period-ai-call-limit' => 0,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(7, $payload['execution_caps']['daily_limit']);
+        $this->assertSame(2, $payload['execution_caps']['daily_channel_limit']);
+        $this->assertSame(1, $payload['execution_caps']['daily_channel_offset']);
+        $this->assertSame(1, $payload['execution_caps']['daily_channel_batch_size']);
+        $this->assertSame(1, $payload['execution_caps']['daily_ai_call_limit']);
+        $this->assertSame(11, $payload['execution_caps']['daily_channel_video_limit']);
+        $this->assertSame(1, $payload['execution_caps']['event_limit']);
+        $this->assertSame(1, $payload['execution_caps']['event_ai_call_limit']);
+        $this->assertSame(9, $payload['execution_caps']['period_limit']);
+        $this->assertSame(0, $payload['execution_caps']['period_ai_call_limit']);
+
+        $dailyJobs = collect($payload['jobs'])->where('type', 'daily')->values();
+        $this->assertCount(2, $dailyJobs);
+
+        foreach ($dailyJobs as $job) {
+            $refresh = $job['result']['channel_ai_refresh'];
+            $this->assertSame(2, $refresh['limit']);
+            $this->assertSame(1, $refresh['offset']);
+            $this->assertSame([405, 39], $refresh['selected_channel_ids']);
+            $this->assertSame(1, $refresh['batch_size']);
+            $this->assertSame(11, $refresh['video_limit']);
+            $this->assertSame(1, $refresh['would_call_channel_ai_requests']);
+            $this->assertSame(1, $refresh['would_skip_ai_call_guard']);
+            $this->assertSame(1, $job['result']['ai_call_guard']['limit']);
+        }
+
+        $eventJobs = collect($payload['jobs'])->where('type', 'event-preview')->values();
+        $this->assertSame(1, $eventJobs[0]['result']['would_call_ai_requests']);
+        $this->assertSame(0, $eventJobs[1]['result']['would_call_ai_requests']);
+        $this->assertSame(1, $payload['ai_call_guard']['event_would_use']);
+        $this->assertSame(0, $payload['ai_call_guard']['event_remaining']);
+        $this->assertSame(
+            2,
+            collect($eventJobs[0]['result']['rows'])->where('skip_reason', 'event_ai_call_guard_exhausted')->count(),
+        );
+        $this->assertSame(
+            3,
+            collect($eventJobs[1]['result']['rows'])->where('skip_reason', 'event_ai_call_guard_exhausted')->count(),
+        );
+
+        $period = collect($payload['jobs'])->firstWhere('type', 'period')['result'];
+        $this->assertSame(0, $period['would_call_ai_requests']);
+        $this->assertSame('ai_call_guard_exhausted', $period['ai_call_skip_reason']);
+        $this->assertSame(0, $period['ai_call_guard']['limit']);
+        $this->assertSame([], $payload['write_targets']);
+        $this->assertSame($before['daily'], DB::table('urt_ai_date')->count());
+        $this->assertSame($before['channel'], DB::table('urt_channel_ai')->count());
+        $this->assertSame($before['event'], DB::table('urt_ai_event')->count());
+        $this->assertSame($before['period'], DB::table('urt_ai_period')->count());
         Http::assertNothingSent();
     }
 
@@ -77,6 +220,7 @@ class IngestionAiDaysRefreshCommandTest extends TestCase
             '--condition' => 'all',
             '--daily-channel-limit' => 0,
             '--daily-ai-call-limit' => 1,
+            '--event-limit' => 1,
             '--event-ai-call-limit' => 6,
             '--period-ai-call-limit' => 1,
             '--json' => true,
@@ -205,14 +349,8 @@ class IngestionAiDaysRefreshCommandTest extends TestCase
         config()->set('services.opencode_go.model', 'qwen-test');
         Http::fake([
             'https://opencode.test/v1/chat/completions' => Http::sequence()
-                ->push($this->chatPayload([[
-                    '標題' => '第一天事件',
-                    '媒體事件' => ['新聞頻道' => ['第一天']],
-                ]]))
-                ->push($this->chatPayload([[
-                    '標題' => '第二天事件',
-                    '媒體事件' => ['新聞頻道' => ['第二天']],
-                ]])),
+                ->push($this->chatPayload($this->dailyTopics('第一天事件', '第一天')))
+                ->push($this->chatPayload($this->dailyTopics('第二天事件', '第二天'))),
         ]);
 
         $exitCode = Artisan::call('ai:days:refresh', [
@@ -373,18 +511,8 @@ class IngestionAiDaysRefreshCommandTest extends TestCase
 
         Http::fake([
             'https://opencode.test/v1/chat/completions' => Http::sequence()
-                ->push($this->chatPayload([
-                    [
-                        '標題' => '黃仁勳參加COMPUTEX',
-                        '媒體事件' => ['新聞頻道' => ['黃仁勳COMPUTEX']],
-                    ],
-                ]))
-                ->push($this->chatPayload([
-                    [
-                        '標題' => '黃仁勳的高人氣與活動',
-                        '媒體事件' => ['新聞頻道' => ['黃仁勳高人氣']],
-                    ],
-                ]))
+                ->push($this->chatPayload($this->dailyTopics('黃仁勳參加COMPUTEX', '黃仁勳COMPUTEX')))
+                ->push($this->chatPayload($this->dailyTopics('黃仁勳的高人氣與活動', '黃仁勳高人氣')))
                 ->push($this->summaryPayload('黃仁勳參加COMPUTEX'))
                 ->push($this->peoplePayload())
                 ->push($this->mediaPayload())
@@ -415,6 +543,22 @@ class IngestionAiDaysRefreshCommandTest extends TestCase
             ],
             'usage' => ['prompt_tokens' => 100, 'completion_tokens' => 30, 'total_tokens' => 130],
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function dailyTopics(string $mainTitle, string $mainEvent): array
+    {
+        return collect(range(1, 15))
+            ->map(fn (int $index): array => [
+                '標題' => $index === 1 ? $mainTitle : '補充事件 '.$index,
+                '媒體事件' => [
+                    '新聞頻道 A' => [$index === 1 ? $mainEvent : '補充來源 A '.$index],
+                    '新聞頻道 B' => [$index === 1 ? $mainEvent.' 延伸' : '補充來源 B '.$index],
+                ],
+            ])
+            ->all();
     }
 
     /**

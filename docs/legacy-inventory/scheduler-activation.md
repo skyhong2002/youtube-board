@@ -36,12 +36,12 @@ Level `3` is implemented for local one-shot/scheduler execution but is fail-clos
 | `YOUTUBE_API_KEY` | unset | manual execute commands | Required for YouTube `channels.list`, `playlistItems.list`, `videos.list`, `commentThreads.list`, and `comments.list`; diagnostics must print only configured/missing state, never the key. |
 | `OPENAI_API_KEY` / OpenAI-compatible key | unset | AI adapters | Required for explicit AI execute modes; diagnostics print only present/missing state and sanitized failures. |
 | `OPENAI_TIMEOUT` | `180` | AI adapters | Chat completion timeout in seconds. |
-| `OPENAI_MAX_TOKENS` | `1200` | AI adapters | Output cap for primary OpenAI-compatible completions; the client sends the provider/model-appropriate token-limit field. |
+| `OPENAI_MAX_TOKENS` | `4096` | AI adapters | Output cap for primary OpenAI-compatible completions; `gpt-5.4-mini` receives `max_completion_tokens`, while compatible fallback chat providers receive `max_tokens`. |
 | `OPENAI_FALLBACK_BASE_URL` / `OPENAI_FALLBACK_MODEL` / `OPENAI_FALLBACK_API_KEY` | unset | AI adapters | Optional secondary provider. Used only after the primary `OPENAI_*` provider fails; keys must stay in Dokploy secrets/env. |
 | `INGESTION_LOCAL_POLLING_ENABLED` | `false` | local scheduler writes | Must be explicitly true before local scheduled writes are eligible. |
 | `INGESTION_SCHEDULED_WRITE_ALLOWLIST` | `off` | scheduler writes | An exact comma-separated job list is required. `off`/`false`/`none`, empty, and missing values block all scheduled writes; `*` is supported only as an explicit broad operator choice. |
 | `INGESTION_PRODUCTION_POLLING_ENABLED` | `false` | production scheduler writes | Must be explicitly true in Dokploy before Production scheduled writes are eligible. |
-| `INGESTION_JOB_LOCK_SECONDS` | `14400` | runner execute jobs | Expiring per-job cache lock TTL. It must cover the longest reviewed AI job while still recovering after a crashed worker. |
+| `INGESTION_JOB_LOCK_SECONDS` | `14400` | runner execute jobs | Expiring per-job cache lock TTL. A PCNTL wall-clock deadline hard-exits the worker before lease expiry, so broad per-item exception handlers cannot let retries continue after another runner could acquire the job. |
 | `INGESTION_YOUTUBE_DAILY_QUOTA_BUDGET` | `9000` | scheduled and direct YouTube API jobs | Maximum projected YouTube units per Pacific Time quota day. A missing, invalid, or non-positive value fails closed for YouTube API jobs. |
 | `INGESTION_COMMENT_CLAIM_MINUTES` | `30` | comment queue drain | Active `urt_comment_queue.stime` claim lease. Expired claims are eligible for recovery; active claims are excluded. |
 
@@ -107,8 +107,8 @@ The scheduler now enforces a Pacific Time daily quota budget before starting You
 - `videos.list`: live polling uses at most 50 videos per scheduled run in the current capped scheduler command.
 - comment ingestion: at most 5 queued videos, 1 thread page and 20 shared full-reply pages per video in the reviewed scheduled command; the quota preflight includes both page caps.
 - AI hourly: capped scheduler command `ai:hourly:pipeline --execute --limit=20 --source-max-results=50` runs at minute 10 each hour. It refreshes all 39 AI channels first and requires the returned uploads window to reach the previous complete hour. Any failed refresh or 50-item page cap that does not cover the window returns nonzero without an AI call. Command-level `--at` supports reviewed backfills of a specific evaluation time.
-- AI daily: at 00:00 the scheduler runs `ai:daily:pipeline --execute --date=yesterday --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000`. It first performs the paginated tag 102 uploads crawl for the closed day, requires `crawl_complete=true`, and proves that every configured daily-AI channel ID is in the successful crawl set. Only then does it attempt configured channel summaries and six daily condition summaries; a channel with fewer than 10 videos is a valid skip, so 39 channel rows are not guaranteed. The daily index can render channel fallback rows while the AI stage continues. The standalone tag 102 backfill no longer runs again at 00:17; its remaining cadence starts at 03:17.
-- AI provider fallback: legacy `make_channel_ai.php`, `get_ai_day.php`, and `ai_hour_prompt.php` call OpenAI `chat/completions` with `gpt-4o-mini`. Current Production tries OpenAI `gpt-5.4-mini` first, using `max_completion_tokens`, then makes one attempt against the configured OpenCode Go `qwen3.6-plus` fallback with `max_tokens`. Both keys stay in Dokploy secrets/env. The fallback was configured but externally quota-limited with HTTP 429 on 2026-07-15.
+- AI daily: at 00:00 the scheduler runs `ai:daily:pipeline --execute --date=yesterday --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000`. It first performs the paginated tag 102 uploads crawl for the closed day, requires `crawl_complete=true`, and proves that every configured daily-AI channel ID is in the successful crawl set. Only then does it attempt configured channel summaries and six daily condition summaries; a channel with fewer than 10 videos is a valid skip, so 39 channel rows are not guaranteed. An eligible channel failure blocks all six daily writes. Daily results must contain 15-20 topics for `all` or 8-12 for another condition, with at least two media sources per topic; undersized, oversized, single-media, or truncated responses fail without replacing the prior cache. The daily index can render up to 20 request-time channel fallback topics while the AI stage continues. The standalone tag 102 backfill no longer runs again at 00:17; its remaining cadence starts at 03:17.
+- AI provider fallback: legacy `make_channel_ai.php`, `get_ai_day.php`, and `ai_hour_prompt.php` call OpenAI `chat/completions` with `gpt-4o-mini`. Current Production tries OpenAI `gpt-5.4-mini` first, using `max_completion_tokens`, then the configured OpenCode Go `qwen3.6-plus` fallback with `max_tokens`. Each provider has bounded HTTP 429/5xx retries controlled by `OPENAI_TRANSIENT_RETRIES`; a provider failure, truncated completion, or invalid payload advances to fallback without publishing the incomplete output. `--ai-call-limit` is a logical-chain cap, while execute output separately reports the provider-attempt cap, whole-run HTTP request limit, and actual provider requests. Both keys stay in Dokploy secrets/env. The fallback was configured but externally quota-limited with HTTP 429 on 2026-07-15.
 
 ## Locks
 
@@ -116,7 +116,7 @@ Current locks:
 
 - Laravel scheduler uses `withoutOverlapping(10)` around `ingestion:run --execute --record`.
 - `IngestionSchedulerRunner` also acquires an expiring cache lock per job key before every execute-mode command. A competing runner returns `skip:job-locked` with a sanitized summary and does not call the command.
-- `INGESTION_JOB_LOCK_SECONDS` defaults to four hours so the lock covers the reviewed daily AI batch; crashed workers recover after the TTL.
+- `INGESTION_JOB_LOCK_SECONDS` defaults to four hours. The command wrapper terminates the PHP worker with exit code 124 five minutes before that lease expires, leaves the lock until TTL recovery, and therefore prevents a worst-case AI/provider retry chain from overlapping a later runner even when callback code catches `Throwable`. This hard exit can leave the active `ingestion:run --record` without a terminal history row; use the Docker stderr deadline message and retained lock as the immediate evidence. The scheduler shell remains alive and evaluates due work again on the next minute.
 - Row reservation columns (`stime`, `mtime`, `vtime`) remain the next layer for per-row fetchers and must be claimed atomically where concurrent row processing is possible.
 
 ## Retries And Failure Recovery
@@ -147,7 +147,7 @@ Required before scheduled write polling:
 - Keep per-job runtime and external-call latency telemetry in run history so slow YouTube/API/AI bottlenecks can be separated from local DB/cache processing time.
 - Distinguish quota/config failures from parse/schema failures.
 - Retry only transient HTTP failures, with low retry count and backoff.
-- Do not retry quota exhaustion in the same run.
+- Do not retry YouTube quota exhaustion with the same key in the same run; AI HTTP 429 responses follow the bounded `OPENAI_TRANSIENT_RETRIES` policy before provider fallback.
 - Keep partial row failures isolated so one bad API item does not poison the whole batch.
 - Queue drain commands must leave rows in queue when the API/update transaction fails before `queue_done` copy.
 

@@ -123,6 +123,183 @@ class AiReportsTest extends TestCase
         $response->assertSee('https://www.youtube.com/embed/abc123', false);
     }
 
+    public function test_ai_daily_page_renders_a_complete_fifteen_topic_cache(): void
+    {
+        $this->createAiDailyTables();
+
+        DB::table('urt_ai_date')->insert([
+            'pk' => 109,
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
+            'condition_type' => 'all',
+            'data_type' => 'oneday',
+            'del_flag' => null,
+            'channel_id' => '{}',
+            'result_json' => json_encode(collect(range(1, 15))
+                ->map(fn (int $index): array => [
+                    '標題' => '完整每日議題'.str_pad((string) $index, 2, '0', STR_PAD_LEFT),
+                    '媒體事件' => [
+                        '媒體甲' => ['甲事件'.$index],
+                        '媒體乙' => ['乙事件'.$index],
+                    ],
+                ])
+                ->all(), JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->get('/ai/days/2026-05-24/all');
+
+        $response->assertOk();
+        $response->assertSee('15 topics');
+        $response->assertSee('完整每日議題01');
+        $response->assertSee('完整每日議題15');
+    }
+
+    public function test_ai_daily_page_rebuilds_an_undersized_cache_with_more_than_ten_channel_topics(): void
+    {
+        $this->createAiDailyTables();
+
+        DB::table('urt_channel')->insert(['u_id' => 15, 'title' => 'Fallback Channel']);
+        DB::table('urt_ai_date')->insert([
+            'pk' => 110,
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
+            'condition_type' => 'all',
+            'data_type' => 'oneday',
+            'del_flag' => null,
+            'channel_id' => json_encode([15 => 'Fallback Channel'], JSON_UNESCAPED_UNICODE),
+            'result_json' => json_encode([
+                [
+                    '標題' => '不完整快取唯一事件',
+                    '媒體事件' => ['Fallback Channel' => ['舊事件']],
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+        DB::table('urt_channel_ai')->insert([
+            'pk' => 1100,
+            'u_id' => 15,
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
+            'del_flag' => null,
+            'result_json' => json_encode(collect(range(1, 15))
+                ->map(fn (int $index): array => [
+                    '事件' => '頻道完整議題第'.str_pad((string) $index, 2, '0', STR_PAD_LEFT).'號',
+                    '關鍵字' => ['獨立訊號'.str_pad((string) $index, 2, '0', STR_PAD_LEFT)],
+                    'videoId' => ['fallback-'.$index.'-a', 'fallback-'.$index.'-b'],
+                ])
+                ->all(), JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->get('/ai/days/2026-05-24/all');
+
+        $response->assertOk();
+        $response->assertSee('15 topics');
+        $response->assertSee('頻道完整議題第01號');
+        $response->assertSee('頻道完整議題第15號');
+        $response->assertDontSee('不完整快取唯一事件');
+    }
+
+    public function test_ai_daily_page_does_not_reduce_an_oversized_single_media_cache_to_one_fallback_topic(): void
+    {
+        $this->createAiDailyTables();
+
+        DB::table('urt_channel')->insert([
+            ['u_id' => 15, 'title' => 'Fallback Channel A'],
+            ['u_id' => 16, 'title' => 'Fallback Channel B'],
+        ]);
+        DB::table('urt_ai_date')->insert([
+            'pk' => 111,
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
+            'condition_type' => 'all',
+            'data_type' => 'oneday',
+            'del_flag' => null,
+            'channel_id' => json_encode([
+                15 => 'Fallback Channel A',
+                16 => 'Fallback Channel B',
+            ], JSON_UNESCAPED_UNICODE),
+            'result_json' => json_encode(collect(range(1, 21))
+                ->map(fn (int $index): array => [
+                    '標題' => '保留的單媒體快取'.str_pad((string) $index, 2, '0', STR_PAD_LEFT),
+                    '媒體事件' => [
+                        '媒體甲' => ['甲事件'.$index],
+                    ],
+                ])
+                ->all(), JSON_UNESCAPED_UNICODE),
+        ]);
+        DB::table('urt_channel_ai')->insert(collect([15, 16])
+            ->map(fn (int $uId): array => [
+                'pk' => 1110 + $uId,
+                'u_id' => $uId,
+                'date_from' => '2026-05-24 00:00:00',
+                'date_to' => '2026-05-24 23:59:59',
+                'del_flag' => null,
+                'result_json' => json_encode([[
+                    '事件' => '不應取代的單一 fallback',
+                    '關鍵字' => ['shared-fallback'],
+                    'videoId' => ['fallback-'.$uId.'-a', 'fallback-'.$uId.'-b'],
+                ]], JSON_UNESCAPED_UNICODE),
+            ])
+            ->all());
+
+        $response = $this->get('/ai/days/2026-05-24/all');
+
+        $response->assertOk();
+        $response->assertSee('21 topics');
+        $response->assertSee('保留的單媒體快取01');
+        $response->assertSee('保留的單媒體快取21');
+        $response->assertDontSee('不應取代的單一 fallback');
+    }
+
+    public function test_ai_daily_page_does_not_reduce_an_eight_topic_cache_to_one_fallback_topic(): void
+    {
+        $this->createAiDailyTables();
+
+        DB::table('urt_channel')->insert([
+            ['u_id' => 17, 'title' => 'Fallback Channel C'],
+            ['u_id' => 18, 'title' => 'Fallback Channel D'],
+        ]);
+        DB::table('urt_ai_date')->insert([
+            'pk' => 112,
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
+            'condition_type' => 'all',
+            'data_type' => 'oneday',
+            'del_flag' => null,
+            'channel_id' => json_encode([
+                17 => 'Fallback Channel C',
+                18 => 'Fallback Channel D',
+            ], JSON_UNESCAPED_UNICODE),
+            'result_json' => json_encode(collect(range(1, 8))
+                ->map(fn (int $index): array => [
+                    '標題' => '保留的八題快取'.str_pad((string) $index, 2, '0', STR_PAD_LEFT),
+                    '媒體事件' => ['媒體甲' => ['甲事件'.$index]],
+                ])
+                ->all(), JSON_UNESCAPED_UNICODE),
+        ]);
+        DB::table('urt_channel_ai')->insert(collect([17, 18])
+            ->map(fn (int $uId): array => [
+                'pk' => 1120 + $uId,
+                'u_id' => $uId,
+                'date_from' => '2026-05-24 00:00:00',
+                'date_to' => '2026-05-24 23:59:59',
+                'del_flag' => null,
+                'result_json' => json_encode([[
+                    '事件' => '不應取代八題的 fallback',
+                    '關鍵字' => ['shared-fallback'],
+                    'videoId' => ['fallback-'.$uId.'-a', 'fallback-'.$uId.'-b'],
+                ]], JSON_UNESCAPED_UNICODE),
+            ])
+            ->all());
+
+        $response = $this->get('/ai/days/2026-05-24/all');
+
+        $response->assertOk();
+        $response->assertSee('8 topics');
+        $response->assertSee('保留的八題快取01');
+        $response->assertSee('保留的八題快取08');
+        $response->assertDontSee('不應取代八題的 fallback');
+    }
+
     public function test_ai_daily_page_expands_wrapped_legacy_topic_payloads(): void
     {
         $this->createAiDailyTables();
@@ -185,7 +362,6 @@ class AiReportsTest extends TestCase
         DB::table('urt_channel')->insert([
             ['u_id' => 15, 'title' => '頭條開講'],
             ['u_id' => 20, 'title' => '政論頻道'],
-            ['u_id' => 30, 'title' => '社會頻道'],
         ]);
 
         DB::table('urt_ai_date')->insert([
@@ -198,9 +374,8 @@ class AiReportsTest extends TestCase
             'channel_id' => json_encode([
                 15 => '頭條開講',
                 20 => '政論頻道',
-                30 => '社會頻道',
             ], JSON_UNESCAPED_UNICODE),
-            'result_json' => json_encode(collect(range(1, 11))
+            'result_json' => json_encode(collect(range(1, 21))
                 ->map(fn (int $index): array => [
                     '標題' => '碎片議題'.$index,
                     '媒體事件' => [
@@ -210,76 +385,45 @@ class AiReportsTest extends TestCase
                 ->all(), JSON_UNESCAPED_UNICODE),
         ]);
 
-        DB::table('urt_channel_ai')->insert([
-            [
-                'pk' => 1190,
-                'u_id' => 15,
-                'date_from' => '2026-05-24 00:00:00',
-                'date_to' => '2026-05-24 23:59:59',
-                'del_flag' => null,
-                'result_json' => json_encode([
-                    [
-                        '事件' => '毒駕事故後續',
-                        '角度' => '台灣',
-                        '陣營' => '民進黨',
-                        '關鍵字' => ['毒駕', '交通'],
-                        '人物' => ['行政院'],
-                        'videoId' => ['regroup-a', 'regroup-b'],
+        DB::table('urt_channel_ai')->insert(collect([
+            15 => '頭條事件',
+            20 => '政論事件',
+        ])->map(fn (string $prefix, int $uId): array => [
+            'pk' => 1190 + $uId,
+            'u_id' => $uId,
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
+            'del_flag' => null,
+            'result_json' => json_encode(collect(range(1, 15))
+                ->map(fn (int $index): array => [
+                    '事件' => $prefix.str_pad((string) $index, 2, '0', STR_PAD_LEFT),
+                    '角度' => '台灣',
+                    '陣營' => $uId === 15 ? '民進黨' : '國民黨',
+                    '關鍵字' => ['共同議題'.str_pad((string) $index, 2, '0', STR_PAD_LEFT)],
+                    '人物' => ['人物'.str_pad((string) $index, 2, '0', STR_PAD_LEFT)],
+                    'videoId' => [
+                        'regroup-'.$uId.'-'.$index.'-a',
+                        'regroup-'.$uId.'-'.$index.'-b',
                     ],
-                ], JSON_UNESCAPED_UNICODE),
-            ],
-            [
-                'pk' => 1191,
-                'u_id' => 20,
-                'date_from' => '2026-05-24 00:00:00',
-                'date_to' => '2026-05-24 23:59:59',
-                'del_flag' => null,
-                'result_json' => json_encode([
-                    [
-                        '事件' => '交通安全與毒駕檢討',
-                        '角度' => '台灣',
-                        '陣營' => '國民黨',
-                        '關鍵字' => ['毒駕', '交通'],
-                        '人物' => ['行政院'],
-                        'videoId' => ['regroup-c', 'regroup-d'],
-                    ],
-                ], JSON_UNESCAPED_UNICODE),
-            ],
-            [
-                'pk' => 1192,
-                'u_id' => 30,
-                'date_from' => '2026-05-24 00:00:00',
-                'date_to' => '2026-05-24 23:59:59',
-                'del_flag' => null,
-                'result_json' => json_encode([
-                    [
-                        '事件' => 'T-34墜機',
-                        '角度' => '台灣',
-                        '陣營' => '民進黨',
-                        '關鍵字' => ['T-34', '墜機'],
-                        '人物' => [],
-                        'videoId' => ['regroup-e', 'regroup-f'],
-                    ],
-                ], JSON_UNESCAPED_UNICODE),
-            ],
-        ]);
+                ])
+                ->all(), JSON_UNESCAPED_UNICODE),
+        ])->values()->all());
 
         DB::table('urt_count')->insert([
             ['u_id' => 15, 'tags' => '[4]'],
             ['u_id' => 20, 'tags' => '[3]'],
-            ['u_id' => 30, 'tags' => '[4]'],
         ]);
 
         $response = $this->get('/ai/days/2026-05-24/all');
 
         $response->assertOk();
-        $response->assertSee('毒駕事故後續');
-        $response->assertSee('交通安全與毒駕檢討');
+        $response->assertSee('15 topics');
+        $response->assertSee('頭條事件01');
+        $response->assertSee('政論事件01');
         $response->assertSee('媒體數：2 個 / 影片數：4 則');
-        $response->assertSee('T-34墜機');
-        $response->assertSee('媒體數：1 個 / 影片數：2 則');
-        $response->assertSee('regroup-a');
-        $response->assertSee('regroup-e');
+        $response->assertSee('頭條事件15');
+        $response->assertSee('regroup-15-1-a');
+        $response->assertSee('regroup-20-1-a');
         $response->assertDontSee('碎片議題1');
         $response->assertDontSee('碎片事件1');
     }

@@ -2,6 +2,7 @@
 
 namespace App\Services\Ingestion;
 
+use App\Support\AiChannelContract;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -51,7 +52,8 @@ class ChannelAiIngestion
             ->orderByRaw('coalesce(viewCount, 0) desc');
         $sourceRows = (clone $videoQuery)->count();
         $videos = $videoQuery->limit($limit)->get();
-        $prompt = $videos->isEmpty() ? '' : $this->prompt($videos);
+        $bounds = AiChannelContract::boundsForVideoCount($videos->count());
+        $prompt = $videos->isEmpty() ? '' : $this->prompt($videos, $bounds);
 
         return [
             'mode' => 'preview',
@@ -63,6 +65,7 @@ class ChannelAiIngestion
             'data_type' => $dataType,
             'source_video_rows' => $sourceRows,
             'prompt_video_rows' => $videos->count(),
+            'prompt_bounds' => $bounds,
             'video_limit' => $limit,
             'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
             'prompt' => $includePrompt ? $prompt : null,
@@ -121,24 +124,66 @@ class ChannelAiIngestion
         }
 
         try {
-            $completion = $this->client->complete($prompt);
-            $resultJson = $this->normalizedJson((string) $completion['content']);
+            $bounds = is_array($preview['prompt_bounds'] ?? null)
+                ? $preview['prompt_bounds']
+                : AiChannelContract::boundsForVideoCount((int) ($preview['prompt_video_rows'] ?? 0));
+            $providerValidation = null;
+            $providerValidationAttempts = 0;
+
+            try {
+                $completion = $this->client->completeValidated(
+                    $prompt,
+                    function (string $content) use (&$providerValidation, &$providerValidationAttempts, $bounds): array {
+                        $providerValidationAttempts++;
+                        $providerValidation = null;
+
+                        return $providerValidation = $this->validator->validateEventList(
+                            $content,
+                            'channel',
+                            expectedMinItems: $bounds['min'],
+                            expectedMaxItems: $bounds['max'],
+                        );
+                    },
+                );
+            } catch (Throwable $exception) {
+                $validationReason = $this->exclusiveValidationFailureReason(
+                    $providerValidation,
+                    $providerValidationAttempts,
+                    $exception,
+                );
+
+                if ($validationReason !== null) {
+                    throw new RuntimeException(
+                        $validationReason,
+                        previous: $exception,
+                    );
+                }
+
+                throw $exception;
+            }
+
+            $resultJson = $completion['validation']['json'] ?? null;
+
+            if (! is_string($resultJson)) {
+                throw new RuntimeException('invalid_ai_payload');
+            }
             $attributes = [
                 'u_id' => $uId,
                 'date_from' => $preview['date_from'],
                 'date_to' => $preview['date_to'],
-                'ai_type' => $completion['model'],
                 'data_type' => $preview['data_type'],
                 'user_token' => $userToken,
             ];
             $existingPk = DB::table('urt_channel_ai')
                 ->where($attributes)
                 ->whereNull('del_flag')
+                ->orderByDesc('pk')
                 ->value('pk');
             $now = CarbonImmutable::now((string) config('ingestion.timezone', 'Asia/Taipei'))
                 ->format('Y-m-d H:i:s');
             $values = [
                 'mtime' => $now,
+                'ai_type' => $completion['model'],
                 'result_json' => $resultJson,
             ];
 
@@ -262,13 +307,13 @@ class ChannelAiIngestion
         return $dataType;
     }
 
-    private function prompt(Collection $videos): string
+    /**
+     * @param  array{min: int, max: int}  $bounds
+     */
+    private function prompt(Collection $videos, array $bounds): string
     {
-        $count = $videos->count();
-        $min = max(1, 3 + (int) floor($count / 31));
-        $max = max($min, 6 + (int) ceil($count / 29));
         $lines = [
-            "請把下面的新聞列表整理成 {$min} ~ {$max} 個重要事件，列出事件、描述、角度、陣營、分類、關鍵字、人物、地名、類型與 videoId 陣列。請用繁體中文，只回應 JSON：",
+            "請把下面的新聞列表整理成 {$bounds['min']} ~ {$bounds['max']} 個重要事件，列出事件、描述、角度、陣營、分類、關鍵字、人物、地名、類型與 videoId 陣列。請用繁體中文，只回應 JSON：",
         ];
 
         foreach ($videos as $video) {
@@ -283,14 +328,26 @@ class ChannelAiIngestion
         return implode("\n", $lines);
     }
 
-    private function normalizedJson(string $content): string
-    {
-        $validation = $this->validator->validateEventList($content, 'channel');
-
-        if (! $validation['valid'] || ! is_string($validation['json'])) {
-            throw new RuntimeException((string) ($validation['failure_reason'] ?? 'invalid_ai_payload'));
+    /**
+     * @param  array<string, mixed>|null  $validation
+     */
+    private function exclusiveValidationFailureReason(
+        ?array $validation,
+        int $validationAttempts,
+        Throwable $exception,
+    ): ?string {
+        if (! is_array($validation) || ($validation['valid'] ?? false) || $validationAttempts <= 0) {
+            return null;
         }
 
-        return $validation['json'];
+        if (preg_match('/failed after (\d+) provider\(s\):/', $exception->getMessage(), $matches) !== 1) {
+            return null;
+        }
+
+        if ((int) $matches[1] !== $validationAttempts) {
+            return null;
+        }
+
+        return (string) ($validation['failure_reason'] ?? 'invalid_ai_payload');
     }
 }

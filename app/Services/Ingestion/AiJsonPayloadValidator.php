@@ -24,9 +24,15 @@ class AiJsonPayloadValidator
     /**
      * @return array{valid: bool, json: string|null, item_count: int, failure_reason: string|null}
      */
-    public function validateEventList(string $content, string $shape): array
-    {
+    public function validateEventList(
+        string $content,
+        string $shape,
+        ?int $expectedMinItems = null,
+        ?int $expectedMaxItems = null,
+    ): array {
         $decodedAnyJson = false;
+        $failureReason = null;
+        $invalidItemCount = 0;
 
         foreach ($this->jsonCandidates($content) as $candidate) {
             try {
@@ -42,6 +48,22 @@ class AiJsonPayloadValidator
                 continue;
             }
 
+            $itemCount = count($items);
+
+            if ($expectedMinItems !== null && $itemCount < max(0, $expectedMinItems)) {
+                $failureReason = 'ai_payload_item_count_below_minimum';
+                $invalidItemCount = $itemCount;
+
+                continue;
+            }
+
+            if ($expectedMaxItems !== null && $itemCount > max(0, $expectedMaxItems)) {
+                $failureReason = 'ai_payload_item_count_above_maximum';
+                $invalidItemCount = $itemCount;
+
+                continue;
+            }
+
             try {
                 $json = json_encode(
                     $items,
@@ -54,7 +76,7 @@ class AiJsonPayloadValidator
             return [
                 'valid' => true,
                 'json' => $json,
-                'item_count' => count($items),
+                'item_count' => $itemCount,
                 'failure_reason' => null,
             ];
         }
@@ -62,8 +84,8 @@ class AiJsonPayloadValidator
         return [
             'valid' => false,
             'json' => null,
-            'item_count' => 0,
-            'failure_reason' => $decodedAnyJson ? 'invalid_ai_payload_shape' : 'invalid_ai_json',
+            'item_count' => $invalidItemCount,
+            'failure_reason' => $failureReason ?? ($decodedAnyJson ? 'invalid_ai_payload_shape' : 'invalid_ai_json'),
         ];
     }
 
@@ -344,7 +366,7 @@ class AiJsonPayloadValidator
                 return false;
             }
 
-            if ($shape === 'daily' && ! $this->hasMediaEvents($item)) {
+            if ($shape === 'daily' && $this->mediaSourceCount($item) < 2) {
                 return false;
             }
 
@@ -373,25 +395,33 @@ class AiJsonPayloadValidator
     /**
      * @param  array<string, mixed>  $item
      */
-    private function hasMediaEvents(array $item): bool
+    private function mediaSourceCount(array $item): int
     {
         foreach (['媒體事件', 'media_events', 'mediaEvents'] as $key) {
             if (! isset($item[$key]) || ! is_array($item[$key])) {
                 continue;
             }
 
+            if (array_is_list($item[$key])) {
+                return 0;
+            }
+
+            $sources = [];
+
             foreach ($item[$key] as $channel => $events) {
-                if (! is_scalar($channel) || trim((string) $channel) === '' || ! is_array($events)) {
+                if (! is_string($channel) || trim($channel) === '' || ! is_array($events)) {
                     continue;
                 }
 
                 if (collect($events)->contains(fn (mixed $event): bool => is_scalar($event) && trim((string) $event) !== '')) {
-                    return true;
+                    $sources[] = trim($channel);
                 }
             }
+
+            return count(array_unique($sources));
         }
 
-        return false;
+        return 0;
     }
 
     /**

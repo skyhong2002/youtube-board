@@ -67,7 +67,7 @@ class IngestionAiDailyCommandTest extends TestCase
         $this->assertSame(1, $row['media_rows']);
         $this->assertSame(2, $row['prompt_event_rows']);
         $this->assertSame(3, $row['prompt_video_refs']);
-        $this->assertSame(['min' => 5, 'max' => 8], $row['prompt_bounds']);
+        $this->assertSame(['min' => 8, 'max' => 12], $row['prompt_bounds']);
         $this->assertSame(1, $row['existing_ai_date_rows']);
         $this->assertSame(1, DB::table('urt_ai_date')->count());
     }
@@ -166,7 +166,7 @@ class IngestionAiDailyCommandTest extends TestCase
         $this->assertSame(3, $all['media_rows']);
         $this->assertSame(3, $all['prompt_event_rows']);
         $this->assertSame(6, $all['prompt_video_refs']);
-        $this->assertSame(['min' => 8, 'max' => 10], $all['prompt_bounds']);
+        $this->assertSame(['min' => 15, 'max' => 20], $all['prompt_bounds']);
 
         $refresh = $payload['channel_ai_refresh'];
         $this->assertSame(39, $refresh['configured_channels']);
@@ -176,6 +176,65 @@ class IngestionAiDailyCommandTest extends TestCase
         $this->assertSame(76, $refresh['sample_channels'][0]['u_id']);
         $this->assertSame(10, $refresh['sample_channels'][0]['video_rows']);
         $this->assertSame(0, DB::table('urt_ai_date')->count());
+    }
+
+    public function test_ai_daily_explicit_dry_run_forwards_caps_and_offsets_eligible_channels_like_execute(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDailyAiFixtures();
+        $existingChannelAiRows = DB::table('urt_channel_ai')->count();
+        DB::table('urt_channel')->insert([
+            ['u_id' => 76, 'title' => 'First Eligible Channel'],
+            ['u_id' => 405, 'title' => 'Second Eligible Channel'],
+            ['u_id' => 39, 'title' => 'Third Eligible Channel'],
+        ]);
+
+        foreach ([76, 405, 39] as $uId) {
+            for ($index = 1; $index <= 12; $index++) {
+                DB::table('urt_video')->insert([
+                    'u_id' => $uId,
+                    'videoId' => sprintf('preview-%d-video-%d', $uId, $index),
+                    'publishedAt' => '2026-05-24 12:00:00',
+                    'title' => sprintf('Preview Channel %d Video %d', $uId, $index),
+                    'channelTitle' => 'Preview Channel '.$uId,
+                ]);
+            }
+        }
+
+        $exitCode = Artisan::call('ai:daily', [
+            '--dry-run' => true,
+            '--date' => '2026-05-24',
+            '--condition' => 'all',
+            '--channel-limit' => 2,
+            '--channel-offset' => 1,
+            '--channel-batch-size' => 1,
+            '--ai-call-limit' => 1,
+            '--channel-video-limit' => 11,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+        $refresh = $payload['channel_ai_refresh'];
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('ingestion-preview', $payload['mode']);
+        $this->assertSame(2, $refresh['limit']);
+        $this->assertSame(1, $refresh['offset']);
+        $this->assertSame([405, 39], $refresh['selected_channel_ids']);
+        $this->assertSame(1, $refresh['batch_size']);
+        $this->assertSame(1, $refresh['effective_batch_size']);
+        $this->assertSame(2, $refresh['batches']);
+        $this->assertSame(11, $refresh['video_limit']);
+        $this->assertSame(2, $refresh['would_attempt_channel_ai_refresh']);
+        $this->assertSame(2, $refresh['eligible_channel_ai_candidates']);
+        $this->assertSame(1, $refresh['would_call_channel_ai_requests']);
+        $this->assertSame(1, $refresh['would_skip_ai_call_guard']);
+        $this->assertSame(1, $refresh['prompt_truncated_channels']);
+        $this->assertSame(1, $refresh['prompt_omitted_video_rows']);
+        $this->assertSame(1, $payload['ai_call_guard']['limit']);
+        $this->assertSame(1, $payload['ai_call_guard']['would_use']);
+        $this->assertSame(0, DB::table('urt_ai_date')->count());
+        $this->assertSame($existingChannelAiRows, DB::table('urt_channel_ai')->count());
     }
 
     public function test_ai_daily_preview_accepts_wrapped_channel_ai_payloads_with_video_id_key(): void
@@ -242,6 +301,10 @@ class IngestionAiDailyCommandTest extends TestCase
         config()->set('services.opencode_go.api_key', 'test-key');
         config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
         config()->set('services.opencode_go.model', 'qwen-test');
+        config()->set('services.opencode_go.fallback_api_key', 'fallback-key');
+        config()->set('services.opencode_go.fallback_base_url', 'https://fallback.test/v1');
+        config()->set('services.opencode_go.fallback_model', 'fallback-test');
+        config()->set('services.opencode_go.transient_retries', 1);
 
         Http::fake([
             'https://opencode.test/v1/chat/completions' => Http::sequence()
@@ -249,7 +312,7 @@ class IngestionAiDailyCommandTest extends TestCase
                     'choices' => [
                         [
                             'message' => [
-                                'content' => '[{"事件":"頻道事件","描述":"頻道描述","關鍵字":["測試"],"videoId":["refresh-video-10","refresh-video-9"]}]',
+                                'content' => $this->channelCompletion('頻道事件'),
                             ],
                         ],
                     ],
@@ -259,7 +322,7 @@ class IngestionAiDailyCommandTest extends TestCase
                     'choices' => [
                         [
                             'message' => [
-                                'content' => '[{"標題":"每日事件","媒體事件":{"Configured News Channel":["頻道事件"]}}]',
+                                'content' => $this->dailyCompletion('每日事件'),
                             ],
                         ],
                     ],
@@ -269,7 +332,7 @@ class IngestionAiDailyCommandTest extends TestCase
                     'choices' => [
                         [
                             'message' => [
-                                'content' => '[{"事件":"頻道事件更新","描述":"頻道描述","關鍵字":["測試"],"videoId":["refresh-video-10","refresh-video-9"]}]',
+                                'content' => $this->channelCompletion('頻道事件更新'),
                             ],
                         ],
                     ],
@@ -279,7 +342,7 @@ class IngestionAiDailyCommandTest extends TestCase
                     'choices' => [
                         [
                             'message' => [
-                                'content' => '[{"標題":"每日事件更新","媒體事件":{"Configured News Channel":["頻道事件更新"]}}]',
+                                'content' => $this->dailyCompletion('每日事件更新'),
                             ],
                         ],
                     ],
@@ -300,6 +363,16 @@ class IngestionAiDailyCommandTest extends TestCase
         $this->assertSame('execute', $payload['mode']);
         $this->assertSame(1, $payload['channel_ai']['inserted']);
         $this->assertSame(1, $payload['daily_ai']['inserted']);
+        $this->assertSame([
+            'limit' => 45,
+            'used' => 2,
+            'remaining' => 43,
+            'unit' => 'logical_completion_chain',
+            'provider_attempts_per_chain_limit' => 4,
+            'provider_request_limit' => 180,
+            'provider_requests_used' => 2,
+            'provider_requests_remaining' => 178,
+        ], $payload['ai_call_guard']);
         $this->assertSame('not_printed', $payload['secrets']);
         $this->assertDatabaseHas('urt_channel_ai', [
             'u_id' => 76,
@@ -308,7 +381,7 @@ class IngestionAiDailyCommandTest extends TestCase
             'ai_type' => 'qwen-test',
             'data_type' => 'oneday',
             'user_token' => 'CLI',
-            'result_json' => '[{"事件":"頻道事件","描述":"頻道描述","關鍵字":["測試"],"videoId":["refresh-video-10","refresh-video-9"]}]',
+            'result_json' => $this->channelCompletion('頻道事件'),
         ]);
         $this->assertDatabaseHas('urt_ai_date', [
             'date_from' => '2026-05-24 00:00:00',
@@ -317,10 +390,25 @@ class IngestionAiDailyCommandTest extends TestCase
             'ai_type' => 'qwen-test',
             'data_type' => 'oneday',
             'user_token' => 'CLI',
-            'channel_id' => '{"76":"Configured News Channel","30":"Finance Channel","20":"Blue Channel","10":"Green Channel"}',
-            'result_json' => '[{"標題":"每日事件","媒體事件":{"Configured News Channel":["頻道事件"]}}]',
+            'result_json' => $this->dailyCompletion('每日事件'),
         ]);
+        $storedChannelMap = json_decode(
+            (string) DB::table('urt_ai_date')
+                ->where('date_from', '2026-05-24 00:00:00')
+                ->where('condition_type', 'all')
+                ->value('channel_id'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
+        $this->assertEqualsCanonicalizing([
+            76 => 'Configured News Channel',
+            30 => 'Finance Channel',
+            20 => 'Blue Channel',
+            10 => 'Green Channel',
+        ], $storedChannelMap);
 
+        config()->set('services.opencode_go.model', 'replacement-model');
         $exitCode = Artisan::call('ai:daily', [
             '--execute' => true,
             '--date' => '2026-05-24',
@@ -335,6 +423,8 @@ class IngestionAiDailyCommandTest extends TestCase
         $this->assertSame(1, $payload['daily_ai']['updated']);
         $this->assertSame(4, DB::table('urt_channel_ai')->count());
         $this->assertSame(1, DB::table('urt_ai_date')->count());
+        $this->assertSame('replacement-model', DB::table('urt_channel_ai')->where('u_id', 76)->value('ai_type'));
+        $this->assertSame('replacement-model', DB::table('urt_ai_date')->value('ai_type'));
         Http::assertSentCount(4);
     }
 
@@ -377,7 +467,7 @@ class IngestionAiDailyCommandTest extends TestCase
                     'choices' => [
                         [
                             'message' => [
-                                'content' => '[{"事件":"後段頻道事件","描述":"後段描述","關鍵字":["測試"],"videoId":["later-video-10","later-video-9"]}]',
+                                'content' => $this->channelCompletion('後段頻道事件'),
                             ],
                         ],
                     ],
@@ -387,7 +477,7 @@ class IngestionAiDailyCommandTest extends TestCase
                     'choices' => [
                         [
                             'message' => [
-                                'content' => '[{"標題":"每日事件","媒體事件":{"Eligible Later Channel":["後段頻道事件"]}}]',
+                                'content' => $this->dailyCompletion('每日事件'),
                             ],
                         ],
                     ],
@@ -445,7 +535,7 @@ class IngestionAiDailyCommandTest extends TestCase
                     'choices' => [
                         [
                             'message' => [
-                                'content' => '[{"事件":"第二批頻道事件","描述":"第二批描述","關鍵字":["測試"],"videoId":["second-video-10","second-video-9"]}]',
+                                'content' => $this->channelCompletion('第二批頻道事件'),
                             ],
                         ],
                     ],
@@ -455,7 +545,7 @@ class IngestionAiDailyCommandTest extends TestCase
                     'choices' => [
                         [
                             'message' => [
-                                'content' => '[{"標題":"每日事件","媒體事件":{"Second Eligible Channel":["第二批頻道事件"]}}]',
+                                'content' => $this->dailyCompletion('每日事件'),
                             ],
                         ],
                     ],
@@ -513,19 +603,19 @@ class IngestionAiDailyCommandTest extends TestCase
         Http::fake([
             'https://opencode.test/v1/chat/completions' => Http::sequence()
                 ->push([
-                    'choices' => [['message' => ['content' => '[{"事件":"第一頻道事件","描述":"描述","關鍵字":["測試"],"videoId":["first-video-10","first-video-9"]}]']]],
+                    'choices' => [['message' => ['content' => $this->channelCompletion('第一頻道事件')]]],
                     'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5],
                 ])
                 ->push([
-                    'choices' => [['message' => ['content' => '[{"事件":"第二頻道事件","描述":"描述","關鍵字":["測試"],"videoId":["second-video-10","second-video-9"]}]']]],
+                    'choices' => [['message' => ['content' => $this->channelCompletion('第二頻道事件')]]],
                     'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5],
                 ])
                 ->push([
-                    'choices' => [['message' => ['content' => '[{"事件":"第三頻道事件","描述":"描述","關鍵字":["測試"],"videoId":["third-video-10","third-video-9"]}]']]],
+                    'choices' => [['message' => ['content' => $this->channelCompletion('第三頻道事件')]]],
                     'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5],
                 ])
                 ->push([
-                    'choices' => [['message' => ['content' => '[{"標題":"每日事件","媒體事件":{"First Eligible Channel":["第一頻道事件"]}}]']]],
+                    'choices' => [['message' => ['content' => $this->dailyCompletion('每日事件')]]],
                     'usage' => ['prompt_tokens' => 20, 'completion_tokens' => 6],
                 ]),
         ]);
@@ -583,7 +673,7 @@ class IngestionAiDailyCommandTest extends TestCase
 
         Http::fake([
             'https://opencode.test/v1/chat/completions' => Http::response([
-                'choices' => [['message' => ['content' => '[{"事件":"第一頻道事件","描述":"描述","關鍵字":["測試"],"videoId":["first-video-10","first-video-9"]}]']]],
+                'choices' => [['message' => ['content' => $this->channelCompletion('第一頻道事件')]]],
                 'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5],
             ]),
         ]);
@@ -599,13 +689,14 @@ class IngestionAiDailyCommandTest extends TestCase
         ]);
         $payload = json_decode(trim(Artisan::output()), true);
 
-        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, $exitCode);
         $this->assertSame(1, $payload['channel_ai']['inserted']);
         $this->assertSame(1, $payload['channel_ai']['skipped']);
         $this->assertSame('ai_call_guard_exhausted', $payload['channel_ai']['rows'][1]['skip_reason']);
         $this->assertFalse($payload['channel_ai']['rows'][1]['ai_call_attempted']);
         $this->assertSame(1, $payload['daily_ai']['skipped']);
-        $this->assertSame('ai_call_guard_exhausted', $payload['daily_ai']['rows'][0]['skip_reason']);
+        $this->assertSame(1, $payload['daily_ai']['failed']);
+        $this->assertSame('channel_ai_incomplete', $payload['daily_ai']['rows'][0]['skip_reason']);
         $this->assertFalse($payload['daily_ai']['rows'][0]['ai_call_attempted']);
         $this->assertSame(1, $payload['ai_call_guard']['used']);
         Http::assertSentCount(1);
@@ -636,11 +727,11 @@ class IngestionAiDailyCommandTest extends TestCase
         Http::fake([
             'https://opencode.test/v1/chat/completions' => Http::sequence()
                 ->push([
-                    'choices' => [['message' => ['content' => '[{"事件":"頻道事件","描述":"頻道描述","關鍵字":["測試"],"videoId":["refresh-video-15","refresh-video-14"]}]']]],
+                    'choices' => [['message' => ['content' => $this->channelCompletion('頻道事件')]]],
                     'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5],
                 ])
                 ->push([
-                    'choices' => [['message' => ['content' => '[{"標題":"每日事件","媒體事件":{"Configured News Channel":["頻道事件"]}}]']]],
+                    'choices' => [['message' => ['content' => $this->dailyCompletion('每日事件')]]],
                     'usage' => ['prompt_tokens' => 20, 'completion_tokens' => 6],
                 ]),
         ]);
@@ -695,7 +786,7 @@ class IngestionAiDailyCommandTest extends TestCase
         config()->set('services.opencode_go.model', 'qwen-test');
         Http::fake([
             'https://opencode.test/v1/chat/completions' => Http::response([
-                'choices' => [['message' => ['content' => '[{"事件":"頻道事件","描述":"頻道描述","關鍵字":["測試"],"videoId":["hard-cap-video-501","hard-cap-video-500"]}]']]],
+                'choices' => [['message' => ['content' => $this->channelCompletion('頻道事件', 19)]]],
                 'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5],
             ]),
         ]);
@@ -712,7 +803,7 @@ class IngestionAiDailyCommandTest extends TestCase
         $payload = json_decode(trim(Artisan::output()), true);
         $channelRow = $payload['channel_ai']['rows'][0];
 
-        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, $exitCode);
         $this->assertSame(0, $payload['channel_ai']['video_limit_requested']);
         $this->assertSame(500, $payload['channel_ai']['video_limit']);
         $this->assertSame(500, $payload['channel_ai']['video_limit_max']);
@@ -723,6 +814,8 @@ class IngestionAiDailyCommandTest extends TestCase
         $this->assertSame(1, $channelRow['prompt_omitted_video_rows']);
         $this->assertSame(1, $payload['channel_ai']['prompt_truncated_channels']);
         $this->assertSame(1, $payload['channel_ai']['prompt_omitted_video_rows']);
+        $this->assertSame(1, $payload['daily_ai']['failed']);
+        $this->assertSame('ai_call_guard_exhausted', $payload['daily_ai']['rows'][0]['skip_reason']);
         Http::assertSentCount(1);
     }
 
@@ -744,8 +837,8 @@ class IngestionAiDailyCommandTest extends TestCase
         Http::fake(function ($request) {
             $prompt = (string) data_get($request->data(), 'messages.0.content', '');
             $content = str_contains($prompt, '多個媒體的事件列表')
-                ? '[{"標題":"排程每日事件","媒體事件":{"Configured News Channel":["排程事件"]}}]'
-                : '[{"事件":"排程事件","描述":"排程描述","關鍵字":["測試"],"videoId":["refresh-video-10","refresh-video-9"]}]';
+                ? $this->dailyCompletion('排程每日事件', $this->dailyMinimumFromPrompt($prompt))
+                : $this->channelCompletion('排程事件', $this->channelMinimumFromPrompt($prompt));
 
             return Http::response([
                 'choices' => [['message' => ['content' => $content]]],
@@ -763,7 +856,11 @@ class IngestionAiDailyCommandTest extends TestCase
         $this->assertSame('executed:local-polling', $result['jobs'][0]['action']);
         $this->assertStringContainsString('ai:daily --execute --date=yesterday --type=oneday', $result['jobs'][0]['effective_command']);
         $this->assertGreaterThanOrEqual(1, DB::table('urt_channel_ai')->count());
-        $this->assertGreaterThanOrEqual(1, DB::table('urt_ai_date')->count());
+        $this->assertGreaterThanOrEqual(
+            1,
+            DB::table('urt_ai_date')->count(),
+            json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        );
         $this->assertDatabaseHas('urt_channel_ai', [
             'date_from' => '2026-05-25 00:00:00',
             'data_type' => 'oneday',
@@ -816,8 +913,8 @@ class IngestionAiDailyCommandTest extends TestCase
                 $aiRequests++;
                 $prompt = (string) data_get($request->data(), 'messages.0.content', '');
                 $content = str_contains($prompt, '多個媒體的事件列表')
-                    ? '[{"標題":"整合每日事件","媒體事件":{"Daily Pipeline Channel 76":["整合頻道事件"]}}]'
-                    : '[{"事件":"整合頻道事件","描述":"整合描述","關鍵字":["整合"],"videoId":["daily-pipeline-video-1","daily-pipeline-video-2"]}]';
+                    ? $this->dailyCompletion('整合每日事件', $this->dailyMinimumFromPrompt($prompt))
+                    : $this->channelCompletion('整合頻道事件', $this->channelMinimumFromPrompt($prompt));
 
                 return Http::response([
                     'choices' => [['message' => ['content' => $content]]],
@@ -845,7 +942,12 @@ class IngestionAiDailyCommandTest extends TestCase
         );
         $this->assertSame(array_fill(0, 39, 'youtube'), array_slice($requestStages, 0, 39));
         $this->assertSame(array_fill(0, $aiRequests, 'ai'), array_slice($requestStages, 39));
-        $this->assertSame(3, $aiRequests);
+        $this->assertSame(3, $aiRequests, json_encode([
+            'request_stages' => $requestStages,
+            'channel_rows' => DB::table('urt_channel_ai')->get()->all(),
+            'daily_rows' => DB::table('urt_ai_date')->get()->all(),
+            'artisan_output' => Artisan::output(),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         $this->assertDatabaseCount('urt_channel_ai', 1);
         $this->assertDatabaseCount('urt_ai_date', 2);
         $this->assertDatabaseCount('ingestion_runs', 1);
@@ -942,17 +1044,23 @@ class IngestionAiDailyCommandTest extends TestCase
         $this->assertSame(1, $payload['daily_ai']['skipped']);
         $this->assertSame(1, $payload['daily_ai']['failed']);
         $this->assertStringContainsString('status=524', $payload['channel_ai']['rows'][0]['skip_reason']);
-        $this->assertStringContainsString('status=524', $payload['daily_ai']['rows'][0]['skip_reason']);
+        $this->assertSame('channel_ai_incomplete', $payload['daily_ai']['rows'][0]['skip_reason']);
+        $this->assertFalse($payload['daily_ai']['rows'][0]['ai_call_attempted']);
         $this->assertSame(0, DB::table('urt_ai_date')->count());
         $this->assertSame(3, DB::table('urt_channel_ai')->count());
     }
 
-    public function test_ai_daily_rejects_invalid_json_without_leaking_content_and_continues_daily_summary(): void
+    public function test_ai_daily_rejects_invalid_channel_json_and_blocks_daily_summary(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'));
         $this->createTables();
         $this->seedDailyAiFixtures();
         $this->seedRefreshChannelVideos();
+        $existingChannel = $this->channelCompletion('既有完整頻道事件');
+        DB::table('urt_channel_ai')->insert($this->channelAiRow(
+            76,
+            json_decode($existingChannel, true, 512, JSON_THROW_ON_ERROR),
+        ));
         config()->set('services.opencode_go.api_key', 'test-key');
         config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
         config()->set('services.opencode_go.model', 'qwen-test');
@@ -963,15 +1071,12 @@ class IngestionAiDailyCommandTest extends TestCase
                 ->push([
                     'choices' => [['message' => ['content' => 'not json token=ai-output-secret']]],
                 ])
-                ->push([
-                    'choices' => [['message' => ['content' => '```json\n[{"標題":"每日事件","媒體事件":{"Green Channel":["綠事件"]}}]\n```']]],
-                ]),
+                ->push(['choices' => [['message' => ['content' => $this->dailyCompletion('不應呼叫')]]]]),
         ]);
 
         $exitCode = Artisan::call('ai:daily', [
             '--execute' => true,
             '--date' => '2026-05-24',
-            '--condition' => 'all',
             '--channel-limit' => 1,
             '--ai-call-limit' => 2,
             '--json' => true,
@@ -981,15 +1086,22 @@ class IngestionAiDailyCommandTest extends TestCase
 
         $this->assertSame(1, $exitCode);
         $this->assertSame('partial_failure', $payload['status']);
-        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame(7, $payload['failed_rows']);
         $this->assertSame('invalid_ai_json', $payload['channel_ai']['rows'][0]['skip_reason']);
-        $this->assertSame(1, $payload['daily_ai']['inserted']);
+        $this->assertSame(0, $payload['daily_ai']['inserted']);
+        $this->assertSame(6, $payload['daily_ai']['failed']);
+        $this->assertTrue(collect($payload['daily_ai']['rows'])->every(
+            fn (array $row): bool => $row['skip_reason'] === 'channel_ai_incomplete'
+                && $row['ai_call_attempted'] === false,
+        ));
         $this->assertStringNotContainsString('ai-output-secret', $output);
-        $this->assertSame(3, DB::table('urt_channel_ai')->count());
-        $this->assertDatabaseHas('urt_ai_date', [
-            'condition_type' => 'all',
-            'result_json' => '[{"標題":"每日事件","媒體事件":{"Green Channel":["綠事件"]}}]',
-        ]);
+        $this->assertSame(4, DB::table('urt_channel_ai')->count());
+        $this->assertSame(
+            $existingChannel,
+            DB::table('urt_channel_ai')->where('u_id', 76)->value('result_json'),
+        );
+        $this->assertSame(0, DB::table('urt_ai_date')->count());
+        Http::assertSentCount(1);
         Log::shouldHaveReceived('warning')
             ->once()
             ->withArgs(function (string $message, array $context): bool {
@@ -1023,10 +1135,10 @@ SQL);
         Http::fake([
             'https://opencode.test/v1/chat/completions' => Http::sequence()
                 ->push([
-                    'choices' => [['message' => ['content' => '[{"事件":"頻道事件","videoId":["refresh-video-10"]}]']]],
+                    'choices' => [['message' => ['content' => $this->channelCompletion('頻道事件')]]],
                 ])
                 ->push([
-                    'choices' => [['message' => ['content' => '[{"標題":"每日事件","媒體事件":{"Green Channel":["綠事件"]}}]']]],
+                    'choices' => [['message' => ['content' => $this->dailyCompletion('不應呼叫')]]],
                 ]),
         ]);
 
@@ -1043,10 +1155,13 @@ SQL);
 
         $this->assertSame(1, $exitCode);
         $this->assertSame(1, $payload['channel_ai']['failed']);
-        $this->assertSame(1, $payload['daily_ai']['inserted']);
+        $this->assertSame(0, $payload['daily_ai']['inserted']);
+        $this->assertSame(1, $payload['daily_ai']['failed']);
+        $this->assertSame('channel_ai_incomplete', $payload['daily_ai']['rows'][0]['skip_reason']);
         $this->assertStringContainsString('password=<redacted>', $payload['channel_ai']['rows'][0]['skip_reason']);
         $this->assertStringNotContainsString('channel-db-secret', $output);
-        $this->assertDatabaseHas('urt_ai_date', ['condition_type' => 'all']);
+        $this->assertSame(0, DB::table('urt_ai_date')->count());
+        Http::assertSentCount(1);
         Log::shouldHaveReceived('warning')
             ->once()
             ->withArgs(function (string $message, array $context): bool {
@@ -1054,6 +1169,175 @@ SQL);
                     && $context['stage'] === 'channel_write'
                     && ! str_contains(json_encode($context, JSON_THROW_ON_ERROR), 'channel-db-secret');
             });
+    }
+
+    public function test_ai_daily_rejects_under_and_oversized_results_without_overwriting_complete_cache(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDailyAiFixtures();
+        $existing = $this->dailyCompletion('既有完整每日事件');
+        $this->insertDailyCache($existing);
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'replacement-model');
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::sequence()
+                ->push(['choices' => [['message' => ['content' => $this->dailyCompletion('過少', 14)]]]])
+                ->push(['choices' => [['message' => ['content' => $this->dailyCompletion('過多', 21)]]]]),
+        ]);
+
+        foreach ([
+            'ai_payload_item_count_below_minimum',
+            'ai_payload_item_count_above_maximum',
+        ] as $expectedReason) {
+            $exitCode = Artisan::call('ai:daily', [
+                '--execute' => true,
+                '--date' => '2026-05-24',
+                '--condition' => 'all',
+                '--channel-limit' => 0,
+                '--ai-call-limit' => 1,
+                '--json' => true,
+            ]);
+            $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+            $this->assertSame(1, $exitCode);
+            $this->assertSame($expectedReason, $payload['daily_ai']['rows'][0]['skip_reason']);
+            $this->assertSame(1, $payload['daily_ai']['failed']);
+            $this->assertSame(1, DB::table('urt_ai_date')->count());
+            $this->assertSame('existing-model', DB::table('urt_ai_date')->value('ai_type'));
+            $this->assertSame($existing, DB::table('urt_ai_date')->value('result_json'));
+        }
+    }
+
+    public function test_ai_daily_rejects_topics_with_one_media_source_without_overwriting_complete_cache(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDailyAiFixtures();
+        $existing = $this->dailyCompletion('既有完整每日事件');
+        $this->insertDailyCache($existing);
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'replacement-model');
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::response([
+                'choices' => [['message' => ['content' => $this->dailyCompletion('單一來源', 15, 1)]]],
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('ai:daily', [
+            '--execute' => true,
+            '--date' => '2026-05-24',
+            '--condition' => 'all',
+            '--channel-limit' => 0,
+            '--ai-call-limit' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('invalid_ai_payload_shape', $payload['daily_ai']['rows'][0]['skip_reason']);
+        $this->assertSame(1, DB::table('urt_ai_date')->count());
+        $this->assertSame('existing-model', DB::table('urt_ai_date')->value('ai_type'));
+        $this->assertSame($existing, DB::table('urt_ai_date')->value('result_json'));
+    }
+
+    public function test_ai_daily_preserves_mixed_provider_chain_failure_after_primary_validation_rejection(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDailyAiFixtures();
+        $existing = $this->dailyCompletion('既有完整每日事件');
+        $this->insertDailyCache($existing);
+        config()->set('services.opencode_go.api_key', 'primary-secret-key');
+        config()->set('services.opencode_go.base_url', 'https://primary.test/v1');
+        config()->set('services.opencode_go.model', 'primary-model');
+        config()->set('services.opencode_go.fallback_api_key', 'fallback-secret-key');
+        config()->set('services.opencode_go.fallback_base_url', 'https://fallback.test/v1');
+        config()->set('services.opencode_go.fallback_model', 'fallback-model');
+        config()->set('services.opencode_go.transient_retries', 0);
+        Http::fake([
+            'https://primary.test/v1/chat/completions' => Http::response([
+                'choices' => [['message' => ['content' => $this->dailyCompletion('過少', 14)]]],
+            ]),
+            'https://fallback.test/v1/chat/completions' => Http::response([
+                'error' => ['message' => 'quota token=fallback-provider-secret'],
+            ], 429),
+        ]);
+
+        $exitCode = Artisan::call('ai:daily', [
+            '--execute' => true,
+            '--date' => '2026-05-24',
+            '--condition' => 'all',
+            '--channel-limit' => 0,
+            '--ai-call-limit' => 1,
+            '--json' => true,
+        ]);
+        $output = trim(Artisan::output());
+        $payload = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+        $reason = $payload['daily_ai']['rows'][0]['skip_reason'];
+
+        $this->assertSame(1, $exitCode);
+        $this->assertStringContainsString('AI completion failed after 2 provider(s):', $reason);
+        $this->assertStringContainsString('primary: validation_rejected', $reason);
+        $this->assertStringContainsString('fallback: status=429', $reason);
+        $this->assertStringNotContainsString('fallback-provider-secret', $output);
+        $this->assertSame($existing, DB::table('urt_ai_date')->value('result_json'));
+        Http::assertSentCount(2);
+    }
+
+    private function channelCompletion(string $title, int $count = 3): string
+    {
+        return json_encode(collect(range(1, $count))->map(fn (int $index): array => [
+            '事件' => $title.' '.$index,
+            '描述' => $title.'描述 '.$index,
+            '關鍵字' => ['測試'],
+            'videoId' => ['video-'.$index.'-a', 'video-'.$index.'-b'],
+        ])->all(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+    }
+
+    private function dailyCompletion(string $title, int $count = 15, int $mediaCount = 2): string
+    {
+        return json_encode(collect(range(1, $count))->map(fn (int $index): array => [
+            '標題' => $title.' '.$index,
+            '媒體事件' => collect(range(1, max(1, $mediaCount)))
+                ->mapWithKeys(fn (int $media): array => [
+                    '測試媒體 '.$media => [$title.'來源事件 '.$index.'-'.$media],
+                ])
+                ->all(),
+        ])->all(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+    }
+
+    private function channelMinimumFromPrompt(string $prompt): int
+    {
+        return preg_match('/整理成\s+(\d+)\s*~/u', $prompt, $matches) === 1
+            ? (int) $matches[1]
+            : 3;
+    }
+
+    private function dailyMinimumFromPrompt(string $prompt): int
+    {
+        return preg_match('/合併成\s+(\d+)\s+到/u', $prompt, $matches) === 1
+            ? (int) $matches[1]
+            : 15;
+    }
+
+    private function insertDailyCache(string $resultJson): void
+    {
+        DB::table('urt_ai_date')->insert([
+            'ctime' => '2026-05-25 10:00:00',
+            'mtime' => null,
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
+            'ai_type' => 'existing-model',
+            'data_type' => 'oneday',
+            'condition_type' => 'all',
+            'user_token' => 'CLI',
+            'del_flag' => null,
+            'channel_id' => '{}',
+            'result_json' => $resultJson,
+        ]);
     }
 
     private function createTables(): void
