@@ -104,10 +104,12 @@ class IngestionChannelAiCommandTest extends TestCase
         $secondPayload = json_decode(trim(Artisan::output()), true);
 
         $this->assertSame(0, $first);
+        $this->assertSame('execute', $firstPayload['mode']);
         $this->assertSame('qwen-test-2026-07-15', $firstPayload['model']);
         $this->assertTrue($firstPayload['inserted']);
         $this->assertFalse($firstPayload['updated']);
         $this->assertSame(0, $second);
+        $this->assertSame('execute', $secondPayload['mode']);
         $this->assertSame('replacement-model-2026-07-15', $secondPayload['model']);
         $this->assertFalse($secondPayload['inserted']);
         $this->assertTrue($secondPayload['updated']);
@@ -201,6 +203,7 @@ class IngestionChannelAiCommandTest extends TestCase
             $payload = json_decode(trim(Artisan::output()), true);
 
             $this->assertSame(1, $exitCode);
+            $this->assertSame('execute', $payload['mode']);
             $this->assertTrue($payload['skipped']);
             $this->assertSame('command_locked', $payload['skip_reason']);
             $this->assertSame(0, DB::table('urt_channel_ai')->count());

@@ -89,6 +89,7 @@ class ChannelAiIngestion
         $preview = $this->preview($uId, $from, $to, $dataType, $limit, true);
         $prompt = (string) ($preview['prompt'] ?? '');
         unset($preview['prompt']);
+        $preview['mode'] = 'execute';
 
         if ($prompt === '') {
             return $this->logged($preview + [
