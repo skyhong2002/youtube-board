@@ -159,6 +159,43 @@ class LegacyChannelReportApiTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_channel_log_api_uses_legacy_precision_and_truncation_for_missing_days(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-13 12:00:00', 'Asia/Taipei'));
+        $this->createLogTable();
+        $weekdayDeltas = [1, 2, 4, 8, 16, 32, 64];
+        $view = 100_000;
+        $log = [];
+        $date = Carbon::parse('2026-01-01', 'Asia/Taipei');
+        $lastCompleteDate = Carbon::parse('2026-05-10', 'Asia/Taipei');
+
+        while ($date->lte($lastCompleteDate)) {
+            $view += $weekdayDeltas[(int) $date->format('w')];
+            $log[$date->toDateString()] = ['view' => $view, 'video' => 100];
+            $date->addDay();
+        }
+
+        $view += 500;
+        $log['2026-05-11'] = ['view' => $view, 'video' => 100];
+        DB::table('urt_log')->insert([
+            'pk' => 1,
+            'u_id' => 10,
+            'ctime' => '2026-01-01 00:00:00',
+            'mtime' => '2026-05-11 00:00:00',
+            'themonth' => '2026-01-01',
+            'thedata' => json_encode($log, JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->getJson('/api/api_channel_log.php?u_id=10&limit=100');
+
+        $response->assertOk();
+        $this->assertSame(1003, $response->json('result.2026-05-12.pred'));
+        $this->assertSame(2006, $response->json('result.2026-05-13.pred'));
+        $this->assertSame(518, $response->json('result.2026-05-13.moving'));
+
+        Carbon::setTestNow();
+    }
+
     /**
      * @return array<string, array{view: int, video: int}>
      */
