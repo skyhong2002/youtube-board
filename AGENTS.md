@@ -157,7 +157,7 @@ Production service notes:
 - Web Traefik routes redirect HTTP to HTTPS and forward HTTPS to `http://youtube-board-web-mwafzd:8000`.
 - Web service has no Dokploy basic auth, no extra exposed ports, no redirects, and no volumes configured.
 - Web service resource limits are currently 1 GB memory limit, 256 MB memory reservation, 2 CPU limit, and 1 CPU reservation.
-- Web and scheduler were operator-confirmed on the same image built from commit `acae6b9bb2ce2b8c93b8b750e12781df1dd92671` on 2026-07-16; both services were `1/1` with restart count zero after rollout.
+- Web and scheduler were operator-confirmed on the same image on 2026-07-16; both services were `1/1` with restart count zero after rollout. The application-code release in that image is commit `acae6b9bb2ce2b8c93b8b750e12781df1dd92671`; later documentation-only commits may produce a newer image SHA without changing runtime code.
 
 Database service notes:
 
@@ -207,7 +207,7 @@ Deployment operations:
 
 - Prefer Dokploy Deploy/Reload/Rebuild controls for production changes.
 - The web service Deployments tab exposes a Dokploy deploy webhook URL; do not paste the full URL into commits, issues, logs, or chat unless explicitly rotating/reconfiguring secrets.
-- Latest operator-confirmed web and scheduler application image on 2026-07-16 is commit `acae6b9bb2ce2b8c93b8b750e12781df1dd92671` (`Restrict local dump table engines`).
+- Latest operator-confirmed application-code release on 2026-07-16 is commit `acae6b9bb2ce2b8c93b8b750e12781df1dd92671` (`Restrict local dump table engines`). Use the Dokploy deployment record for the exact current image commit when documentation-only commits follow it.
 - On 2026-05-31, Dokploy env was updated through Chrome to add `youtube.tag_videos.backfill` to `INGESTION_SCHEDULED_WRITE_ALLOWLIST`, then the web application was reloaded successfully.
 - If changing resource limits, volumes, Traefik config, basic auth, or cluster settings in Dokploy, redeploy afterward for the change to apply.
 - Keep `deploy/dokploy-env.example`, `deploy/dokploy-mariadb-env.example`, and `deploy/dokploy-phpmyadmin-env.example` aligned with the production shape, but never copy production secret values into those files.
