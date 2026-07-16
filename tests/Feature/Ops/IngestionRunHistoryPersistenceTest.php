@@ -5,6 +5,7 @@ namespace Tests\Feature\Ops;
 use App\Services\Ingestion\AiProviderUsageSummary;
 use App\Services\Ingestion\IngestionRunHistory;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -243,6 +244,88 @@ class IngestionRunHistoryPersistenceTest extends TestCase
             $this->assertSame(5, $aiUsage['completion_tokens']);
             $this->assertSame(20, $aiUsage['total_tokens']);
             $this->assertSame(2, $aiUsage['record_count']);
+        } finally {
+            CarbonImmutable::setTestNow();
+        }
+    }
+
+    public function test_daily_history_windows_are_scanned_in_bounded_batches(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-07-13 12:00:00', 'America/Los_Angeles'));
+        $start = CarbonImmutable::parse('2026-07-13 17:00:00', 'UTC');
+        $rows = [];
+
+        try {
+            for ($offset = 0; $offset < 205; $offset++) {
+                $timestamp = $start->addSeconds($offset);
+                $id = $timestamp->format('Ymd-His').'-00000000-0000-4000-8000-'.str_pad((string) $offset, 12, '0', STR_PAD_LEFT);
+                $payload = [
+                    'id' => $id,
+                    'created_at' => $timestamp->toDateTimeString().' UTC',
+                    'request' => $this->artisanExecuteRequest(),
+                    'result' => [
+                        'mode' => 'execute',
+                        'jobs' => [[
+                            'key' => 'youtube.live.poll',
+                            'executed' => true,
+                            'failed' => false,
+                            'youtube_quota_estimate' => ['estimated_units' => 1],
+                            'telemetry' => $offset === 0
+                                ? ['youtube_requests' => 1, 'ai_requests' => null]
+                                : ['youtube_requests' => [], 'ai_requests' => []],
+                        ]],
+                    ],
+                ];
+                $rows[] = [
+                    'id' => $id,
+                    'recorded_at' => $timestamp->toDateTimeString(),
+                    'request_source' => 'artisan',
+                    'request_mode' => 'execute',
+                    'result_mode' => 'execute',
+                    'payload_json' => json_encode($payload, JSON_THROW_ON_ERROR),
+                    'created_at' => $timestamp->toDateTimeString(),
+                    'updated_at' => $timestamp->toDateTimeString(),
+                ];
+
+                if (count($rows) !== 50) {
+                    continue;
+                }
+
+                DB::table('ingestion_runs')->insert($rows);
+                $rows = [];
+            }
+
+            if ($rows !== []) {
+                DB::table('ingestion_runs')->insert($rows);
+            }
+
+            $windowQueries = [];
+            DB::listen(function (QueryExecuted $query) use (&$windowQueries): void {
+                if (str_contains($query->sql, 'select "id", "payload_json" from "ingestion_runs"')) {
+                    $windowQueries[] = $query->sql;
+                }
+            });
+
+            $quota = app(IngestionRunHistory::class)->youtubeQuotaDailyEstimate(
+                CarbonImmutable::parse('2026-07-13 12:00:00', 'America/Los_Angeles'),
+            );
+
+            $this->assertSame(205, $quota['estimated_units']);
+            $this->assertSame(205, $quota['record_count']);
+            $this->assertCount(3, $windowQueries);
+            $this->assertTrue(collect($windowQueries)->every(
+                fn (string $sql): bool => str_contains(strtolower($sql), 'limit 100'),
+            ));
+
+            $windowQueries = [];
+            $response = $this->get('/ops/ingestion');
+
+            $response->assertOk();
+            $response->assertSee('estimated 205 / 10,000 units');
+            $this->assertCount(6, $windowQueries);
+            $this->assertTrue(collect($windowQueries)->every(
+                fn (string $sql): bool => str_contains(strtolower($sql), 'limit 100'),
+            ));
         } finally {
             CarbonImmutable::setTestNow();
         }

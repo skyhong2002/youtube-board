@@ -38,6 +38,7 @@ class IngestionHealthCheck
         $targetDate = $this->targetDate($date, $now);
         $records = $this->history->latest(500);
         $events = $this->events($records, $now);
+        unset($records);
         $scheduler = $this->history->externalSchedulerActivity(now: $now);
         $youtube = $this->youtubeHealth($events['youtube_requests'], $now);
         $ai = $this->aiHealth($events['ai_requests'], $now);
@@ -107,21 +108,35 @@ class IngestionHealthCheck
                 'record_age_seconds' => $recordCreatedAt?->diffInSeconds($now),
             ];
 
-            foreach (($record['result']['jobs'] ?? []) as $job) {
+            $recordJobs = data_get($record, 'result.jobs');
+
+            foreach (is_array($recordJobs) ? $recordJobs : [] as $job) {
                 if (! is_array($job)) {
                     continue;
                 }
 
-                $jobKey = (string) ($job['key'] ?? 'unknown');
-                $jobs[] = $job + $recordMeta;
+                $jobKey = is_string($job['key'] ?? null) ? $job['key'] : 'unknown';
+                $jobs[] = [
+                    'key' => $jobKey,
+                    'failed' => ($job['failed'] ?? false) === true,
+                    'action' => is_string($job['action'] ?? null) ? $job['action'] : null,
+                    'exit_code' => is_numeric($job['exit_code'] ?? null) ? (int) $job['exit_code'] : null,
+                    'runtime_ms' => is_numeric($job['runtime_ms'] ?? null) ? (int) $job['runtime_ms'] : null,
+                    'started_at' => is_string($job['started_at'] ?? null) ? $job['started_at'] : null,
+                    'finished_at' => is_string($job['finished_at'] ?? null) ? $job['finished_at'] : null,
+                ] + $recordMeta;
 
-                foreach (data_get($job, 'telemetry.youtube_requests', []) as $event) {
+                $jobYoutubeRequests = data_get($job, 'telemetry.youtube_requests');
+
+                foreach (is_array($jobYoutubeRequests) ? $jobYoutubeRequests : [] as $event) {
                     if (is_array($event)) {
                         $youtubeRequests[] = ['job_key' => $jobKey] + $event + $recordMeta;
                     }
                 }
 
-                foreach (data_get($job, 'telemetry.ai_requests', []) as $event) {
+                $jobAiRequests = data_get($job, 'telemetry.ai_requests');
+
+                foreach (is_array($jobAiRequests) ? $jobAiRequests : [] as $event) {
                     if (is_array($event)) {
                         $aiRequests[] = ['job_key' => $jobKey] + $event + $recordMeta;
                     }
