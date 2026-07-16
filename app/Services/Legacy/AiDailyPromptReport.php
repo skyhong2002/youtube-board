@@ -2,6 +2,7 @@
 
 namespace App\Services\Legacy;
 
+use App\Support\AiDailyContract;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -32,7 +33,7 @@ class AiDailyPromptReport
             $filters = $this->filters($request, $condition);
             $period = $this->period($request, $date);
             $rows = $this->rows($filters, $period, $dataType, $condition);
-            $bounds = $this->promptBounds($condition);
+            $bounds = AiDailyContract::bounds($condition);
             $mediaWithoutEvents = collect($rows)
                 ->filter(fn (array $row): bool => $row['events'] === [])
                 ->pluck('title')
@@ -332,14 +333,6 @@ class AiDailyPromptReport
     }
 
     /**
-     * @return array{min: int, max: int}
-     */
-    private function promptBounds(string $condition): array
-    {
-        return $condition === 'all' ? ['min' => 8, 'max' => 10] : ['min' => 5, 'max' => 8];
-    }
-
-    /**
      * @param  list<array<string, mixed>>  $rows
      * @param  array{min: int, max: int}  $bounds
      */
@@ -348,7 +341,7 @@ class AiDailyPromptReport
         $lines = [
             '下面是多個媒體的事件列表，其中包含事件、描述、新聞數與關鍵字。請用 legacy ai_day.php 的方式，把不同媒體其實在講同一件事的事件合併成 '.$bounds['min'].' 到 '.$bounds['max'].' 個每日主要事件。',
             '這不是逐媒體逐事件清單。請合併同一人物、事故、展會、戰爭、政策、股市或國際局勢，即使各媒體的事件名稱不同也要放在同一個大事件。',
-            '優先挑選跨媒體、新聞數多、公共影響較大的事件，排序依媒體數與新聞數由高到低。每個輸出事件至少要包含 2 個媒體；若來源不足，可以少於指定數量，不要硬湊。',
+            '優先挑選跨媒體、新聞數多、公共影響較大的事件，排序依媒體數與新聞數由高到低。每個輸出事件至少要包含 2 個媒體，總數不得少於 '.$bounds['min'].' 個或多於 '.$bounds['max'].' 個；不要用單一媒體事件硬湊數量。',
             '標題請寫成整體事件標題，例如「鄭麗文訪美及兩岸關係」「T-34墜機事故」「台股行情與AI影響」這種層級，不要只複製單一媒體的小事件名稱。',
             '',
             '輸出資料要包含事件整體標題，以及屬於這個分類的媒體與事件列表，格式用',
@@ -436,7 +429,7 @@ class AiDailyPromptReport
             'rows' => [],
             'media_without_events' => [],
             'prompt' => '',
-            'prompt_bounds' => $this->promptBounds($condition),
+            'prompt_bounds' => AiDailyContract::bounds($condition),
             'filters' => ['condition' => $condition, 'type' => $dataType],
             'generated_at' => now('Asia/Taipei')->format('Y-m-d H:i:s'),
         ];

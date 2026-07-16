@@ -333,7 +333,9 @@ class IngestionAiEventCommandTest extends TestCase
         $this->assertSame(1, $payload['event_ai']['inserted']);
         $this->assertSame('people', DB::table('urt_ai_event')->value('prompt_type'));
         $this->assertStringNotContainsString('event-provider-secret', $output);
-        $this->assertStringContainsString('token=<redacted>', $payload['event_ai']['rows'][0]['skip_reason']);
+        $this->assertStringContainsString('status=500', $payload['event_ai']['rows'][0]['skip_reason']);
+        $this->assertStringContainsString('secrets=not_printed', $payload['event_ai']['rows'][0]['skip_reason']);
+        $this->assertStringNotContainsString('token=', $payload['event_ai']['rows'][0]['skip_reason']);
         Http::assertSentCount(2);
     }
 

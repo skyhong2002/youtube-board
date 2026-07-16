@@ -3385,13 +3385,13 @@ class ReportLineageProfiles
                     'condition route/query 轉為固定 tag filters；all 預設排除 finance/world tags。',
                     '未指定 date 時使用符合條件的 urt_channel_ai 最新 date_from。',
                     '依 date_from/date_to/data_type 查每個頻道 AI events，解析 result_json。',
-                    '依 promptBounds(all=8-10, others=5-8) 組出 legacy-style 合併 prompt preview。',
+                    '依 AiDailyContract bounds（all=15-20，others=8-12）組出 legacy-style 合併 prompt preview。',
                 ],
             ],
             'fixed_sources' => [
                 self::fixedSource('AI daily prompt template', 'AiDailyPromptReport::prompt', 'prompt 文案與 JSON 輸出格式寫死；隨部署更新。'),
                 self::fixedSource('Condition filter map', 'AiDailyPromptReport::conditionFilters', 'condition 到 tag filters 的 mapping 固定。'),
-                self::fixedSource('Prompt bounds', 'all=8..10, other=5..8', 'prompt 事件數 bounds 寫死在 service。'),
+                self::fixedSource('Prompt bounds', 'AiDailyContract: all=15..20, other=8..12', 'prompt、ingestion validation 與報表 completeness 共用同一組 legacy bounds。'),
             ],
             'sources' => [
                 self::source('urt_channel_ai', 'urt_channel_ai', ['mtime', 'ctime', 'date_from', 'date_to']),
@@ -3446,13 +3446,14 @@ class ReportLineageProfiles
                 'transforms' => [
                     '從 route/query 解析 date、condition、pk 與 type。',
                     '優先依 date_from/date_to/condition_type/data_type 讀 urt_ai_date。',
-                    'daily cache miss 或 summary 過度碎片化時，讀 urt_channel_ai 組成跨媒體或多影片 fallback daily topics。',
+                    'daily cache miss、事件數低於 legacy 下限或 summary 過度碎片化時，讀 urt_channel_ai 組成最多 20 筆 fallback daily topics；只有 fallback 實際改善不足的 cache 時才取代它。',
                     '合併 channel_id、urt_channel_ai result_json 與 urt_count tags，計算媒體數、影片數、關鍵字、人物、陣營與角度統計。',
                     'Blade 呈現日期/condition 切換、legacy-style 媒體事件清單、統計框與代表影片。',
                 ],
             ],
             'fixed_sources' => [
                 self::fixedSource('AI condition rules', 'AiDailyReport::channelMatchesCondition all/green/blue/neutral/finance/world', 'condition 對應 tag id 的規則寫在程式碼；隨部署更新。'),
+                self::fixedSource('AI daily topic bounds', 'AiDailyContract: all=15..20, other=8..12', 'prompt、write validation 與 request-time completeness 判斷共用 legacy daily contract。'),
                 self::fixedSource('AI channel allowlist', 'AiDailyPreview::channelAiUids()', 'channel AI 產生範圍由程式碼設定；不是頁面 request 或排程資料表動態改寫。'),
                 self::fixedSource('AI provider/model env', 'OPENAI_BASE_URL / OPENAI_MODEL', 'runtime env 控制上游模型；不要寫入 git 或頁面輸出 secret。'),
             ],

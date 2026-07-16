@@ -2892,7 +2892,7 @@ $guardedIngestionCommand('ai:channel {u_id : Channel u_id} {--from= : Required s
     }
 })->purpose('Preview or explicitly generate one channel AI cache row for a reviewed date range');
 
-$guardedIngestionCommand('ai:daily {--date= : Legacy date, today, or yesterday; defaults to yesterday in Asia/Taipei} {--condition= : Optional single legacy condition; default previews make_ai_day.sh conditions} {--type=oneday : Legacy urt_channel_ai data_type} {--limit=1000 : Max channel AI rows per condition} {--channel-limit=39 : Max configured channels to refresh in execute mode} {--channel-offset=0 : Eligible configured channels to skip before refresh} {--channel-batch-size=0 : Refresh selected channels in chunks; 0 uses one batch} {--ai-call-limit=45 : Max AI completion calls in execute mode} {--channel-video-limit=120 : Max videos in each channel prompt, hard max 500; 0 also uses 500} {--execute : Call the configured AI provider chain and upsert urt_channel_ai/urt_ai_date} {--dry-run : Force dry-run preview} {--user-token=CLI : user_token value for execute-mode upserts} {--json : Emit JSON instead of text}', function (AiDailyPreview $preview, AiDailyIngestion $ingestion) {
+$guardedIngestionCommand('ai:daily {--date= : Legacy date, today, or yesterday; defaults to yesterday in Asia/Taipei} {--condition= : Optional single legacy condition; default previews make_ai_day.sh conditions} {--type=oneday : Legacy urt_channel_ai data_type} {--limit=1000 : Max channel AI rows per condition} {--channel-limit=39 : Max configured channels to refresh in execute mode} {--channel-offset=0 : Eligible configured channels to skip before refresh} {--channel-batch-size=0 : Refresh selected channels in chunks; 0 uses one batch} {--ai-call-limit=45 : Max logical AI completion chains; provider attempts within each chain are separately bounded} {--channel-video-limit=120 : Max videos in each channel prompt, hard max 500; 0 also uses 500} {--execute : Call the configured AI provider chain and upsert urt_channel_ai/urt_ai_date} {--dry-run : Force dry-run preview} {--user-token=CLI : user_token value for execute-mode upserts} {--json : Emit JSON instead of text}', function (AiDailyPreview $preview, AiDailyIngestion $ingestion) {
     try {
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
         $limit = AiCommandInputValidator::integer($this->option('limit'), '--limit', 1);
@@ -2924,7 +2924,7 @@ $guardedIngestionCommand('ai:daily {--date= : Legacy date, today, or yesterday; 
             }
 
             $this->line(sprintf(
-                'ai:daily mode=execute source=%s date=%s type=%s conditions=%d channel_limit=%d channel_offset=%d channel_batch_size=%d channel_batches=%d channel_video_limit=%d requested_video_limit=%d video_limit_clamped=%s prompt_truncated_channels=%d omitted_video_rows=%d ai_call_limit=%d ai_calls_used=%d channel_attempted=%d channel_inserted=%d channel_updated=%d channel_skipped=%d channel_failed=%d daily_attempted=%d daily_inserted=%d daily_updated=%d daily_skipped=%d daily_failed=%d secrets=not_printed generated_at=%s',
+                'ai:daily mode=execute source=%s date=%s type=%s conditions=%d channel_limit=%d channel_offset=%d channel_batch_size=%d channel_batches=%d channel_video_limit=%d requested_video_limit=%d video_limit_clamped=%s prompt_truncated_channels=%d omitted_video_rows=%d ai_chain_limit=%d ai_chains_used=%d provider_attempts_per_chain_limit=%d provider_request_limit=%d provider_requests_used=%d channel_attempted=%d channel_inserted=%d channel_updated=%d channel_skipped=%d channel_failed=%d daily_attempted=%d daily_inserted=%d daily_updated=%d daily_skipped=%d daily_failed=%d secrets=not_printed generated_at=%s',
                 $payload['source'],
                 $payload['date'],
                 $payload['data_type'],
@@ -2940,6 +2940,9 @@ $guardedIngestionCommand('ai:daily {--date= : Legacy date, today, or yesterday; 
                 $payload['channel_ai']['prompt_omitted_video_rows'],
                 $payload['ai_call_guard']['limit'],
                 $payload['ai_call_guard']['used'],
+                $payload['ai_call_guard']['provider_attempts_per_chain_limit'],
+                $payload['ai_call_guard']['provider_request_limit'],
+                $payload['ai_call_guard']['provider_requests_used'],
                 $payload['channel_ai']['attempted'],
                 $payload['channel_ai']['inserted'],
                 $payload['channel_ai']['updated'],
@@ -2966,6 +2969,11 @@ $guardedIngestionCommand('ai:daily {--date= : Legacy date, today, or yesterday; 
             condition: is_string($this->option('condition')) ? (string) $this->option('condition') : null,
             dataType: (string) $this->option('type'),
             limit: $limit,
+            channelLimit: $channelLimit,
+            channelOffset: $channelOffset,
+            channelBatchSize: $channelBatchSize,
+            aiCallLimit: $aiCallLimit,
+            channelVideoLimit: $channelVideoLimit,
         );
 
         if ((bool) $this->option('json')) {
@@ -3028,7 +3036,7 @@ $guardedIngestionCommand('ai:daily {--date= : Legacy date, today, or yesterday; 
     }
 })->purpose('Ingestion preview of legacy daily AI summary generation; execute mode calls AI and upserts urt_channel_ai/urt_ai_date rows');
 
-$guardedIngestionCommand('ai:daily:pipeline {--date=yesterday : Date, today, or yesterday} {--limit=1000 : Max channel AI rows per condition} {--channel-limit=39 : Max configured channels to refresh} {--channel-batch-size=12 : Channel AI batch size} {--ai-call-limit=45 : Max AI completion calls} {--channel-video-limit=120 : Max videos in each channel prompt, hard max 500; 0 also uses 500} {--execute : Refresh complete YouTube sources before daily AI} {--dry-run : Preview both stages without writes} {--user-token=CLI : user_token for AI rows} {--json : Emit JSON}', function (AiScheduledPipelineIngestion $pipeline) {
+$guardedIngestionCommand('ai:daily:pipeline {--date=yesterday : Date, today, or yesterday} {--limit=1000 : Max channel AI rows per condition} {--channel-limit=39 : Max configured channels to refresh} {--channel-batch-size=12 : Channel AI batch size} {--ai-call-limit=45 : Max logical AI completion chains; provider attempts within each chain are separately bounded} {--channel-video-limit=120 : Max videos in each channel prompt, hard max 500; 0 also uses 500} {--execute : Refresh complete YouTube sources before daily AI} {--dry-run : Preview both stages without writes} {--user-token=CLI : user_token for AI rows} {--json : Emit JSON}', function (AiScheduledPipelineIngestion $pipeline) {
     try {
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
         $limit = AiCommandInputValidator::integer($this->option('limit'), '--limit', 1);
@@ -3046,7 +3054,14 @@ $guardedIngestionCommand('ai:daily:pipeline {--date=yesterday : Date, today, or 
                 limit: $limit,
                 userToken: (string) $this->option('user-token'),
             )
-            : $pipeline->previewDaily((string) $this->option('date'));
+            : $pipeline->previewDaily(
+                date: (string) $this->option('date'),
+                channelLimit: (int) $this->option('channel-limit'),
+                channelBatchSize: (int) $this->option('channel-batch-size'),
+                aiCallLimit: (int) $this->option('ai-call-limit'),
+                channelVideoLimit: (int) $this->option('channel-video-limit'),
+                limit: (int) $this->option('limit'),
+            );
 
         if ((bool) $this->option('json')) {
             $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
@@ -3055,15 +3070,19 @@ $guardedIngestionCommand('ai:daily:pipeline {--date=yesterday : Date, today, or 
         }
 
         $this->line(sprintf(
-            'ai:daily:pipeline mode=%s date=%s source_succeeded=%s source_channels=%d source_failed=%d ai_status=%s ai_calls=%d channel_video_limit=%d prompt_truncated_channels=%d omitted_video_rows=%d reason=%s secrets=not_printed',
+            'ai:daily:pipeline mode=%s date=%s source_succeeded=%s source_channels=%d source_failed=%d ai_status=%s limit=%d channel_limit=%d channel_batch_size=%d ai_call_limit=%d ai_calls=%d channel_video_limit=%d prompt_truncated_channels=%d omitted_video_rows=%d reason=%s secrets=not_printed',
             $payload['mode'],
             $payload['date'],
             data_get($payload, 'source_refresh.succeeded', false) ? 'yes' : 'no',
             (int) data_get($payload, 'source_refresh.completed_channels', 0),
             (int) data_get($payload, 'source_refresh.failed_channels', 0),
             (string) data_get($payload, 'ai.status', data_get($payload, 'ai.skip_reason', 'preview')),
+            (int) data_get($payload, 'execution_caps.limit', $this->option('limit')),
+            (int) data_get($payload, 'execution_caps.channel_limit', data_get($payload, 'ai.channel_ai.limit', $this->option('channel-limit'))),
+            (int) data_get($payload, 'execution_caps.channel_batch_size', data_get($payload, 'ai.channel_ai.batch_size', $this->option('channel-batch-size'))),
+            (int) data_get($payload, 'execution_caps.ai_call_limit', data_get($payload, 'ai.ai_call_guard.limit', $this->option('ai-call-limit'))),
             (int) data_get($payload, 'ai.ai_call_guard.used', 0),
-            (int) data_get($payload, 'ai.channel_ai.video_limit', 0),
+            (int) data_get($payload, 'execution_caps.channel_video_limit', data_get($payload, 'ai.channel_ai.video_limit', $this->option('channel-video-limit'))),
             (int) data_get($payload, 'ai.channel_ai.prompt_truncated_channels', 0),
             (int) data_get($payload, 'ai.channel_ai.prompt_omitted_video_rows', 0),
             (string) data_get($payload, 'source_refresh.failure_reason', '-'),
@@ -3425,8 +3444,15 @@ $guardedIngestionCommand('ai:days:refresh {--from= : First AI daily date to refr
             'to' => is_string($this->option('to')) ? (string) $this->option('to') : null,
             'condition' => (string) $this->option('condition'),
             'dailyLimit' => AiCommandInputValidator::integer($this->option('daily-limit'), '--daily-limit', 1),
+            'dailyChannelLimit' => $dailyChannelLimit,
+            'dailyChannelOffset' => $dailyChannelOffset,
+            'dailyChannelBatchSize' => $dailyChannelBatchSize,
+            'dailyAiCallLimit' => $dailyAiCallLimit,
+            'dailyChannelVideoLimit' => $dailyChannelVideoLimit,
             'eventLimit' => AiCommandInputValidator::integer($this->option('event-limit'), '--event-limit', 1),
+            'eventAiCallLimit' => $eventAiCallLimit,
             'periodLimit' => AiCommandInputValidator::integer($this->option('period-limit'), '--period-limit', 1),
+            'periodAiCallLimit' => $periodAiCallLimit,
             'promptTypes' => (string) $this->option('prompt-types'),
             'skipDaily' => (bool) $this->option('skip-daily'),
             'skipEvents' => (bool) $this->option('skip-events'),
@@ -3439,15 +3465,15 @@ $guardedIngestionCommand('ai:days:refresh {--from= : First AI daily date to refr
                 to: $arguments['to'],
                 condition: $arguments['condition'],
                 dailyLimit: $arguments['dailyLimit'],
-                dailyChannelLimit: $dailyChannelLimit,
-                dailyChannelOffset: $dailyChannelOffset,
-                dailyChannelBatchSize: $dailyChannelBatchSize,
-                dailyAiCallLimit: $dailyAiCallLimit,
-                dailyChannelVideoLimit: $dailyChannelVideoLimit,
+                dailyChannelLimit: $arguments['dailyChannelLimit'],
+                dailyChannelOffset: $arguments['dailyChannelOffset'],
+                dailyChannelBatchSize: $arguments['dailyChannelBatchSize'],
+                dailyAiCallLimit: $arguments['dailyAiCallLimit'],
+                dailyChannelVideoLimit: $arguments['dailyChannelVideoLimit'],
                 eventLimit: $arguments['eventLimit'],
-                eventAiCallLimit: $eventAiCallLimit,
+                eventAiCallLimit: $arguments['eventAiCallLimit'],
                 periodLimit: $arguments['periodLimit'],
-                periodAiCallLimit: $periodAiCallLimit,
+                periodAiCallLimit: $arguments['periodAiCallLimit'],
                 promptTypes: $arguments['promptTypes'],
                 userToken: (string) $this->option('user-token'),
                 maxEventPasses: $eventPasses,

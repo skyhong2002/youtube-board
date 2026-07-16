@@ -52,13 +52,16 @@ return [
         'model' => env('OPENAI_MODEL', 'gpt-5.4-mini'),
         'endpoint_style' => env('OPENAI_ENDPOINT_STYLE', 'chat'),
         'timeout' => (int) env('OPENAI_TIMEOUT', 180),
-        'max_tokens' => (int) env('OPENAI_MAX_TOKENS', 1200),
+        'max_tokens' => (int) env('OPENAI_MAX_TOKENS', 4096),
+        'transient_retries' => (int) env('OPENAI_TRANSIENT_RETRIES', 1),
+        'retry_delay_ms' => (int) env('OPENAI_RETRY_DELAY_MS', 250),
+        'retry_after_max_ms' => (int) env('OPENAI_RETRY_AFTER_MAX_MS', 2000),
         'fallback_base_url' => env('OPENAI_FALLBACK_BASE_URL', 'https://opencode.ai/zen/go/v1'),
         'fallback_api_key' => env('OPENAI_FALLBACK_API_KEY'),
         'fallback_model' => env('OPENAI_FALLBACK_MODEL', 'qwen3.6-plus'),
         'fallback_endpoint_style' => env('OPENAI_FALLBACK_ENDPOINT_STYLE', 'auto'),
         'fallback_timeout' => (int) env('OPENAI_FALLBACK_TIMEOUT', env('OPENAI_TIMEOUT', 180)),
-        'fallback_max_tokens' => (int) env('OPENAI_FALLBACK_MAX_TOKENS', env('OPENAI_MAX_TOKENS', 1200)),
+        'fallback_max_tokens' => (int) env('OPENAI_FALLBACK_MAX_TOKENS', env('OPENAI_MAX_TOKENS', 4096)),
     ],
 
     'dokploy' => [

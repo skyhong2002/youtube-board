@@ -24,6 +24,7 @@ class ProductionDeploymentContractTest extends TestCase
         $this->assertIsString($entrypoint);
         $this->assertStringContainsString('CMD ["sh", "docker/production-start.sh"]', $dockerfile);
         $this->assertStringContainsString('chmod -R a+rX /var/www/html', $dockerfile);
+        $this->assertStringContainsString('docker-php-ext-install bcmath intl pcntl', $dockerfile);
 
         $wait = strpos($entrypoint, 'php artisan db:show --no-interaction');
         $clearConfig = strpos($entrypoint, 'rm -f bootstrap/cache/config.php');
@@ -54,6 +55,7 @@ class ProductionDeploymentContractTest extends TestCase
         $this->assertStringContainsString('bootstrap/cache/*.php', $dockerIgnore);
         $this->assertStringContainsString('database/*.sqlite*', $dockerIgnore);
         $this->assertStringContainsString('public/hot', $dockerIgnore);
+        $this->assertStringContainsString('storage/app/db-dumps/*', $dockerIgnore);
         $this->assertStringContainsString('storage/app/private/dump-import-staging/*', $dockerIgnore);
         $this->assertStringContainsString('storage/app/private/dump-imports/*', $dockerIgnore);
     }

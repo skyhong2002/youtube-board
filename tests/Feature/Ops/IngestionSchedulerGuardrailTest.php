@@ -38,6 +38,7 @@ class IngestionSchedulerGuardrailTest extends TestCase
         config()->set('ingestion.production_polling_enabled', true);
         config()->set('ingestion.scheduled_write_allowlist', ['*']);
         config()->set('ingestion.job_lock_seconds', 600);
+        config()->set('ingestion.lock_store', null);
         config()->set('ingestion.youtube_daily_quota_budget', 9000);
         config()->set('services.youtube.api_key', null);
         config()->set('services.youtube.api_keys', null);

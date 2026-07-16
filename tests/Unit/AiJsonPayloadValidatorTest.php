@@ -37,20 +37,53 @@ class AiJsonPayloadValidatorTest extends TestCase
         $this->assertSame('invalid_ai_payload_shape', $invalid['failure_reason']);
     }
 
-    public function test_daily_shape_requires_a_title_and_nonempty_media_event_mapping(): void
+    public function test_daily_shape_requires_a_title_and_two_distinct_media_sources(): void
     {
         $valid = app(AiJsonPayloadValidator::class)->validateEventList(
-            '[{"標題":"每日事件","媒體事件":{"News":["事件 A"]}}]',
+            '[{"標題":"每日事件","媒體事件":{"News A":["事件 A"],"News B":["事件 B"]}}]',
             'daily',
         );
-        $invalid = app(AiJsonPayloadValidator::class)->validateEventList(
-            '[{"標題":"空摘要","媒體事件":{}}]',
+        $singleMedia = app(AiJsonPayloadValidator::class)->validateEventList(
+            '[{"標題":"單一來源摘要","媒體事件":{"News A":["事件 A"]}}]',
+            'daily',
+        );
+        $listShapedMedia = app(AiJsonPayloadValidator::class)->validateEventList(
+            '[{"標題":"錯誤來源格式","媒體事件":[["事件 A"],["事件 B"]]}]',
+            'daily',
+        );
+        $numericMediaKeys = app(AiJsonPayloadValidator::class)->validateEventList(
+            '[{"標題":"數字來源名稱","媒體事件":{"0":["事件 A"],"1":["事件 B"]}}]',
             'daily',
         );
 
         $this->assertTrue($valid['valid']);
-        $this->assertFalse($invalid['valid']);
-        $this->assertSame('invalid_ai_payload_shape', $invalid['failure_reason']);
+        $this->assertFalse($singleMedia['valid']);
+        $this->assertSame('invalid_ai_payload_shape', $singleMedia['failure_reason']);
+        $this->assertFalse($listShapedMedia['valid']);
+        $this->assertSame('invalid_ai_payload_shape', $listShapedMedia['failure_reason']);
+        $this->assertFalse($numericMediaKeys['valid']);
+        $this->assertSame('invalid_ai_payload_shape', $numericMediaKeys['failure_reason']);
+    }
+
+    public function test_event_list_enforces_expected_minimum_and_maximum_cardinality(): void
+    {
+        $validator = app(AiJsonPayloadValidator::class);
+        $events = json_encode(collect(range(1, 4))->map(fn (int $index): array => [
+            '事件' => '事件 '.$index,
+            'videoId' => ['video-'.$index],
+        ])->all(), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        $below = $validator->validateEventList($events, 'channel', expectedMinItems: 5, expectedMaxItems: 7);
+        $within = $validator->validateEventList($events, 'channel', expectedMinItems: 3, expectedMaxItems: 5);
+        $above = $validator->validateEventList($events, 'channel', expectedMinItems: 1, expectedMaxItems: 3);
+
+        $this->assertFalse($below['valid']);
+        $this->assertSame(4, $below['item_count']);
+        $this->assertSame('ai_payload_item_count_below_minimum', $below['failure_reason']);
+        $this->assertTrue($within['valid']);
+        $this->assertFalse($above['valid']);
+        $this->assertSame(4, $above['item_count']);
+        $this->assertSame('ai_payload_item_count_above_maximum', $above['failure_reason']);
     }
 
     public function test_invalid_json_has_a_fixed_failure_reason_without_echoing_content(): void

@@ -22,6 +22,13 @@ use Tests\TestCase;
 
 class IngestionChannelVideosCommandTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config()->set('ingestion.lock_store', null);
+    }
+
     protected function tearDown(): void
     {
         Carbon::setTestNow();

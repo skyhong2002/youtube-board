@@ -22,10 +22,23 @@ class AiScheduledPipelineIngestion
     /**
      * @return array<string, mixed>
      */
-    public function previewDaily(?string $date = null): array
-    {
+    public function previewDaily(
+        ?string $date = null,
+        int $channelLimit = 39,
+        int $channelBatchSize = 12,
+        int $aiCallLimit = 45,
+        int $channelVideoLimit = 120,
+        int $limit = 1000,
+    ): array {
         $now = $this->now();
         $date = $this->date($date, $now);
+        $executionCaps = $this->dailyExecutionCaps(
+            limit: $limit,
+            channelLimit: $channelLimit,
+            channelBatchSize: $channelBatchSize,
+            aiCallLimit: $aiCallLimit,
+            channelVideoLimit: $channelVideoLimit,
+        );
         $sourceRefresh = $this->tagVideoBackfill->run(
             tagIds: [102],
             from: $date,
@@ -41,8 +54,19 @@ class AiScheduledPipelineIngestion
             'mode' => 'ingestion-preview',
             'source' => 'ai_daily_source_first_pipeline',
             'date' => $date,
+            'execution_caps' => $executionCaps,
             'source_refresh' => $this->dailySourcePreview($sourceRefresh),
-            'ai' => $this->dailyPreview->preview(date: $date, dataType: 'oneday', now: $now),
+            'ai' => $this->dailyPreview->preview(
+                date: $date,
+                dataType: 'oneday',
+                limit: $executionCaps['limit'],
+                now: $now,
+                includePrompts: false,
+                channelLimit: $executionCaps['channel_limit'],
+                channelBatchSize: $executionCaps['channel_batch_size'],
+                aiCallLimit: $executionCaps['ai_call_limit'],
+                channelVideoLimit: $executionCaps['channel_video_limit'],
+            ),
             'writes' => [],
         ];
     }
@@ -359,6 +383,35 @@ class AiScheduledPipelineIngestion
             'missing_required_channel_ids' => $missingRequiredChannelIds,
             'required_channel_selection_complete' => $missingRequiredChannelIds === [],
             'required_channel_coverage_proven' => false,
+        ];
+    }
+
+    /**
+     * Normalize preview options exactly as the execute path does before reporting them.
+     *
+     * @return array{limit: int, channel_limit: int, channel_batch_size: int, ai_call_limit: int, channel_video_limit: int, channel_video_limit_requested: int, channel_video_limit_clamped: bool, channel_video_limit_max: int}
+     */
+    private function dailyExecutionCaps(
+        int $limit,
+        int $channelLimit,
+        int $channelBatchSize,
+        int $aiCallLimit,
+        int $channelVideoLimit,
+    ): array {
+        $requestedChannelVideoLimit = $channelVideoLimit;
+        $effectiveChannelVideoLimit = $channelVideoLimit <= 0
+            ? AiDailyIngestion::MAX_CHANNEL_VIDEO_LIMIT
+            : min(AiDailyIngestion::MAX_CHANNEL_VIDEO_LIMIT, $channelVideoLimit);
+
+        return [
+            'limit' => max(1, min(1000, $limit)),
+            'channel_limit' => max(0, $channelLimit),
+            'channel_batch_size' => max(0, $channelBatchSize),
+            'ai_call_limit' => max(0, $aiCallLimit),
+            'channel_video_limit' => $effectiveChannelVideoLimit,
+            'channel_video_limit_requested' => $requestedChannelVideoLimit,
+            'channel_video_limit_clamped' => $requestedChannelVideoLimit !== $effectiveChannelVideoLimit,
+            'channel_video_limit_max' => AiDailyIngestion::MAX_CHANNEL_VIDEO_LIMIT,
         ];
     }
 

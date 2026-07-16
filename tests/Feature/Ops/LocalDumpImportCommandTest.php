@@ -48,6 +48,23 @@ class LocalDumpImportCommandTest extends TestCase
         parent::tearDown();
     }
 
+    public function test_repository_provides_an_empty_ignored_dump_intake_directory(): void
+    {
+        $intakeDirectory = storage_path('app/db-dumps');
+
+        $this->assertDirectoryExists($intakeDirectory);
+        $this->assertFileExists($intakeDirectory.'/.gitignore');
+        $this->assertSame("*\n!.gitignore\n", file_get_contents($intakeDirectory.'/.gitignore'));
+        $this->assertStringContainsString(
+            '!db-dumps/',
+            (string) file_get_contents(storage_path('app/.gitignore')),
+        );
+        $this->assertStringNotContainsString(
+            '/storage/app/db-dumps/',
+            (string) file_get_contents(base_path('.gitignore')),
+        );
+    }
+
     public function test_preview_verifies_checksum_without_running_the_database_client(): void
     {
         $contents = "CREATE TABLE IF NOT EXISTS `urt_tag` (`tag_id` int NOT NULL);\n";
@@ -347,6 +364,52 @@ SQL);
         $this->assertSame(['urt_tag'], $payload['tables']);
     }
 
+    public function test_insert_values_accepts_only_literal_rows(): void
+    {
+        file_put_contents(
+            $this->dumpDirectory.'/literal-values.sql',
+            <<<'SQL'
+INSERT INTO `urt_tag` (`tag_id`, `tag`, `status`) VALUES
+  (1, NULL, 'LOAD_FILE(''/etc/passwd'')'),
+  (-2, 0x4142, _binary'bytes'),
+  (3, 1.25e-3, 'quoted');
+SQL,
+        );
+
+        $exitCode = Artisan::call('db:import-local', [
+            'file' => 'literal-values.sql',
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(['create_table' => 0, 'drop_table' => 0, 'insert' => 1], $payload['statements']);
+        $this->assertSame(['urt_tag'], $payload['tables']);
+    }
+
+    public function test_insert_values_refuses_expressions_subqueries_and_trailing_clauses(): void
+    {
+        $unsafeStatements = [
+            'load-file.sql' => "INSERT INTO `urt_tag` VALUES (1, LOAD_FILE('/etc/passwd'));\n",
+            'subquery.sql' => "INSERT INTO `urt_tag` VALUES ((SELECT MAX(tag_id) FROM urt_tag));\n",
+            'expression.sql' => "INSERT INTO `urt_tag` VALUES (1 + 1);\n",
+            'on-duplicate.sql' => "INSERT INTO `urt_tag` VALUES (1) ON DUPLICATE KEY UPDATE tag_id=2;\n",
+        ];
+
+        foreach ($unsafeStatements as $file => $statement) {
+            file_put_contents($this->dumpDirectory.'/'.$file, $statement);
+
+            $exitCode = Artisan::call('db:import-local', [
+                'file' => $file,
+                '--json' => true,
+            ]);
+            $payload = json_decode(trim(Artisan::output()), true);
+
+            $this->assertSame(1, $exitCode, $file);
+            $this->assertSame('unsafe_sql_refused', $payload['error_code'], $file);
+        }
+    }
+
     public function test_only_narrow_dump_session_set_statements_are_allowed(): void
     {
         file_put_contents($this->dumpDirectory.'/safe-set.sql', <<<'SQL'
@@ -358,6 +421,7 @@ SET NAMES utf8mb4;
 CREATE TABLE `urt_tag` (`tag_id` int);
 SQL);
         file_put_contents($this->dumpDirectory.'/global-set.sql', "SET GLOBAL FOREIGN_KEY_CHECKS=0;\n");
+        file_put_contents($this->dumpDirectory.'/unsafe-sql-mode.sql', "SET SQL_MODE='NO_BACKSLASH_ESCAPES';\n");
 
         $safeExit = Artisan::call('db:import-local', [
             'file' => 'safe-set.sql',
@@ -374,6 +438,15 @@ SQL);
         $this->assertSame(['create_table' => 1, 'drop_table' => 0, 'insert' => 0], $safe['statements']);
         $this->assertSame(1, $unsafeExit);
         $this->assertSame('unsafe_sql_refused', $unsafe['error_code']);
+
+        $unsafeModeExit = Artisan::call('db:import-local', [
+            'file' => 'unsafe-sql-mode.sql',
+            '--json' => true,
+        ]);
+        $unsafeMode = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(1, $unsafeModeExit);
+        $this->assertSame('unsafe_sql_refused', $unsafeMode['error_code']);
     }
 
     public function test_multi_table_drop_cannot_hide_a_framework_table_after_an_allowed_table(): void

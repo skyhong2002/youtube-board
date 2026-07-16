@@ -3,6 +3,8 @@
 namespace Tests\Feature\Ops;
 
 use App\Services\Ingestion\AiBusinessKeyLock;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -34,6 +36,7 @@ class IngestionChannelAiCommandTest extends TestCase
         $this->assertSame('preview', $payload['mode']);
         $this->assertSame(2, $payload['source_video_rows']);
         $this->assertSame(1, $payload['prompt_video_rows']);
+        $this->assertSame(['min' => 3, 'max' => 7], $payload['prompt_bounds']);
         $this->assertSame(1, $payload['video_limit']);
         $this->assertTrue($payload['would_call_ai']);
         $this->assertSame(['urt_channel_ai'], $payload['would_write']);
@@ -70,11 +73,11 @@ class IngestionChannelAiCommandTest extends TestCase
         Log::spy();
         Http::fake(['https://opencode.test/v1/chat/completions' => Http::sequence()
             ->push([
-                'choices' => [['message' => ['content' => '```json'."\n".'[{"事件":"第一版","videoId":["video-3"]}]'."\n".'```']]],
+                'choices' => [['message' => ['content' => '```json'."\n".$this->channelPayload('第一版')."\n".'```']]],
                 'usage' => ['prompt_tokens' => 20, 'completion_tokens' => 8],
             ])
             ->push([
-                'choices' => [['message' => ['content' => '[{"事件":"更新版","videoId":["video-3","video-2"]}]']]],
+                'choices' => [['message' => ['content' => $this->channelPayload('更新版')]]],
                 'usage' => ['prompt_tokens' => 20, 'completion_tokens' => 9],
             ])]);
 
@@ -87,7 +90,7 @@ class IngestionChannelAiCommandTest extends TestCase
             '--json' => true,
         ]);
         $firstPayload = json_decode(trim(Artisan::output()), true);
-        config()->set('services.opencode_go.model', 'next-model');
+        config()->set('services.opencode_go.model', 'replacement-model');
         $second = Artisan::call('ai:channel', [
             'u_id' => 77,
             '--from' => '2026-05-24',
@@ -105,7 +108,7 @@ class IngestionChannelAiCommandTest extends TestCase
         $this->assertFalse($secondPayload['inserted']);
         $this->assertTrue($secondPayload['updated']);
         $this->assertSame(1, DB::table('urt_channel_ai')->count());
-        $this->assertSame('next-model', DB::table('urt_channel_ai')->value('ai_type'));
+        $this->assertSame('replacement-model', DB::table('urt_channel_ai')->value('ai_type'));
         $this->assertStringContainsString('更新版', (string) DB::table('urt_channel_ai')->value('result_json'));
         Http::assertSentCount(2);
         Log::shouldHaveReceived('info')->withArgs(
@@ -164,6 +167,76 @@ class IngestionChannelAiCommandTest extends TestCase
         }
     }
 
+    public function test_channel_ai_rejects_undersized_completion_without_overwriting_existing_cache(): void
+    {
+        $this->configureProvider();
+        DB::table('urt_channel_ai')->insert([
+            'u_id' => 77,
+            'ctime' => '2026-05-26 00:00:00',
+            'mtime' => null,
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-25 23:59:59',
+            'ai_type' => 'existing-model',
+            'data_type' => 'todate',
+            'user_token' => 'CLI',
+            'del_flag' => null,
+            'result_json' => $this->channelPayload('既有完整事件'),
+        ]);
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::response([
+                'choices' => [['message' => ['content' => '[{"事件":"不完整事件","videoId":["video-3"]}]']]],
+            ]),
+        ]);
+
+        $this->artisan('ai:channel', [
+            'u_id' => 77,
+            '--from' => '2026-05-24',
+            '--to' => '2026-05-25',
+            '--type' => 'todate',
+            '--execute' => true,
+        ])->expectsOutputToContain('ai_payload_item_count_below_minimum')->assertExitCode(1);
+
+        $this->assertSame(1, DB::table('urt_channel_ai')->count());
+        $this->assertSame('existing-model', DB::table('urt_channel_ai')->value('ai_type'));
+        $this->assertSame($this->channelPayload('既有完整事件'), DB::table('urt_channel_ai')->value('result_json'));
+    }
+
+    public function test_channel_ai_preserves_mixed_provider_chain_failure_after_primary_validation_rejection(): void
+    {
+        $this->configureProvider();
+        config()->set('services.opencode_go.fallback_api_key', 'fallback-secret-key');
+        config()->set('services.opencode_go.fallback_base_url', 'https://fallback.test/v1');
+        config()->set('services.opencode_go.fallback_model', 'fallback-model');
+        config()->set('services.opencode_go.transient_retries', 0);
+        Http::fake(function (Request $request): mixed {
+            if (str_starts_with($request->url(), 'https://opencode.test/')) {
+                return Http::response([
+                    'choices' => [['message' => ['content' => '[{"事件":"不完整事件","videoId":["video-3"]}]']]],
+                ]);
+            }
+
+            throw new ConnectionException(
+                'fallback connection failed token=fallback-connection-secret',
+            );
+        });
+
+        $exitCode = Artisan::call('ai:channel', [
+            'u_id' => 77,
+            '--from' => '2026-05-24',
+            '--to' => '2026-05-25',
+            '--type' => 'todate',
+            '--execute' => true,
+        ]);
+        $output = Artisan::output();
+
+        $this->assertSame(1, $exitCode);
+        $this->assertStringContainsString('AI completion failed after 2 provider(s):', $output);
+        $this->assertStringContainsString('primary: validation_rejected', $output);
+        $this->assertStringContainsString('fallback: AI provider connection failed:', $output);
+        $this->assertStringNotContainsString('fallback-connection-secret', $output);
+        $this->assertSame(0, DB::table('urt_channel_ai')->count());
+    }
+
     private function configureProvider(): void
     {
         config()->set('services.opencode_go.api_key', 'test-key');
@@ -209,5 +282,13 @@ class IngestionChannelAiCommandTest extends TestCase
             ['u_id' => 77, 'videoId' => 'video-2', 'publishedAt' => '2026-05-24 09:00:00', 'title' => 'Video two', 'viewCount' => 300],
             ['u_id' => 77, 'videoId' => 'video-3', 'publishedAt' => '2026-05-25 10:00:00', 'title' => 'Video three', 'viewCount' => 500],
         ]);
+    }
+
+    private function channelPayload(string $prefix): string
+    {
+        return json_encode(collect(range(1, 3))->map(fn (int $index): array => [
+            '事件' => $prefix.' '.$index,
+            'videoId' => ['video-'.$index],
+        ])->all(), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     }
 }

@@ -27,8 +27,15 @@ class AiDaysRefreshIngestion
         ?string $to = null,
         string $condition = 'all',
         int $dailyLimit = 1000,
+        int $dailyChannelLimit = 0,
+        int $dailyChannelOffset = 0,
+        int $dailyChannelBatchSize = 0,
+        int $dailyAiCallLimit = 2,
+        int $dailyChannelVideoLimit = 120,
         int $eventLimit = 100,
+        int $eventAiCallLimit = 60,
         int $periodLimit = 20,
+        int $periodAiCallLimit = 1,
         string $promptTypes = 'summary,people,media',
         bool $skipDaily = false,
         bool $skipEvents = false,
@@ -39,13 +46,29 @@ class AiDaysRefreshIngestion
         $range = $this->dateRange($from, $to, $now);
         $condition = $this->condition($condition);
         $promptTypes = implode(',', $this->promptTypes($promptTypes));
+        $executionCaps = $this->previewExecutionCaps(
+            dailyLimit: $dailyLimit,
+            dailyChannelLimit: $dailyChannelLimit,
+            dailyChannelOffset: $dailyChannelOffset,
+            dailyChannelBatchSize: $dailyChannelBatchSize,
+            dailyAiCallLimit: $dailyAiCallLimit,
+            dailyChannelVideoLimit: $dailyChannelVideoLimit,
+            eventLimit: $eventLimit,
+            eventAiCallLimit: $eventAiCallLimit,
+            periodLimit: $periodLimit,
+            periodAiCallLimit: $periodAiCallLimit,
+        );
 
         if ($range['blocked_reason'] !== null) {
-            return $this->blockedRangeResult('ingestion-preview', $condition, $range, $now);
+            return $this->blockedRangeResult('ingestion-preview', $condition, $range, $now) + [
+                'execution_caps' => $executionCaps,
+                'ai_call_guard' => $this->previewAiCallGuard($executionCaps, 0),
+            ];
         }
 
         $dates = $range['dates'];
         $jobs = [];
+        $eventCallsRemaining = $executionCaps['event_ai_call_limit'];
 
         foreach ($dates as $date) {
             if (! $skipDaily) {
@@ -56,22 +79,32 @@ class AiDaysRefreshIngestion
                         date: $date,
                         condition: $condition,
                         dataType: 'oneday',
-                        limit: $dailyLimit,
+                        limit: $executionCaps['daily_limit'],
                         now: $now,
+                        channelLimit: $executionCaps['daily_channel_limit'],
+                        channelOffset: $executionCaps['daily_channel_offset'],
+                        channelBatchSize: $executionCaps['daily_channel_batch_size'],
+                        aiCallLimit: $executionCaps['daily_ai_call_limit'],
+                        channelVideoLimit: $executionCaps['daily_channel_video_limit'],
                     ),
                 );
             }
 
             if (! $skipEvents) {
+                $eventPreview = $this->eventIngestion->preview(
+                    date: $date,
+                    condition: $condition,
+                    promptTypes: $promptTypes,
+                    limit: $executionCaps['event_limit'],
+                    missingOnly: true,
+                );
                 $jobs[] = $this->job(
                     type: 'event-preview',
                     date: $date,
-                    result: $this->eventIngestion->preview(
-                        date: $date,
-                        condition: $condition,
-                        promptTypes: $promptTypes,
-                        limit: $eventLimit,
-                        missingOnly: true,
+                    result: $this->capEventPreview(
+                        $eventPreview,
+                        $executionCaps['event_ai_call_limit'],
+                        $eventCallsRemaining,
                     ),
                 );
             }
@@ -79,14 +112,18 @@ class AiDaysRefreshIngestion
 
         if (! $skipPeriod) {
             foreach ($this->adjacentPairs($dates) as $pair) {
+                $periodPreview = $this->periodIngestion->preview(
+                    from: $pair['from'],
+                    to: $pair['to'],
+                    condition: $condition,
+                    limit: $executionCaps['period_limit'],
+                );
                 $jobs[] = $this->job(
                     type: 'period',
                     date: $pair['to'],
-                    result: $this->periodIngestion->preview(
-                        from: $pair['from'],
-                        to: $pair['to'],
-                        condition: $condition,
-                        limit: $periodLimit,
+                    result: $this->capPeriodPreview(
+                        $periodPreview,
+                        $executionCaps['period_ai_call_limit'],
                     ),
                 );
             }
@@ -100,12 +137,134 @@ class AiDaysRefreshIngestion
             generatedAt: $now,
             writes: [],
         ) + [
+            'execution_caps' => $executionCaps,
+            'ai_call_guard' => $this->previewAiCallGuard(
+                $executionCaps,
+                $executionCaps['event_ai_call_limit'] - $eventCallsRemaining,
+            ),
             'api_call_skipped' => 'AI chat completions are intentionally skipped in planning mode',
             'writes_skipped' => [
                 'ai:daily aggregate refresh',
                 'ai:event missing summary/people/media rows',
                 'ai:period adjacent-day event matching',
             ],
+        ];
+    }
+
+    /**
+     * @return array{daily_limit: int, daily_channel_limit: int, daily_channel_offset: int, daily_channel_batch_size: int, daily_ai_call_limit: int, daily_channel_video_limit: int, daily_channel_video_limit_requested: int, daily_channel_video_limit_clamped: bool, event_limit: int, event_ai_call_limit: int, period_limit: int, period_ai_call_limit: int}
+     */
+    private function previewExecutionCaps(
+        int $dailyLimit,
+        int $dailyChannelLimit,
+        int $dailyChannelOffset,
+        int $dailyChannelBatchSize,
+        int $dailyAiCallLimit,
+        int $dailyChannelVideoLimit,
+        int $eventLimit,
+        int $eventAiCallLimit,
+        int $periodLimit,
+        int $periodAiCallLimit,
+    ): array {
+        $requestedChannelVideoLimit = $dailyChannelVideoLimit;
+        $effectiveChannelVideoLimit = $dailyChannelVideoLimit <= 0
+            ? AiDailyIngestion::MAX_CHANNEL_VIDEO_LIMIT
+            : min(AiDailyIngestion::MAX_CHANNEL_VIDEO_LIMIT, $dailyChannelVideoLimit);
+
+        return [
+            'daily_limit' => max(1, min(1000, $dailyLimit)),
+            'daily_channel_limit' => max(0, $dailyChannelLimit),
+            'daily_channel_offset' => max(0, $dailyChannelOffset),
+            'daily_channel_batch_size' => max(0, $dailyChannelBatchSize),
+            'daily_ai_call_limit' => max(0, $dailyAiCallLimit),
+            'daily_channel_video_limit' => $effectiveChannelVideoLimit,
+            'daily_channel_video_limit_requested' => $requestedChannelVideoLimit,
+            'daily_channel_video_limit_clamped' => $requestedChannelVideoLimit !== $effectiveChannelVideoLimit,
+            'event_limit' => max(1, min(100, $eventLimit)),
+            'event_ai_call_limit' => max(0, $eventAiCallLimit),
+            'period_limit' => max(1, min(100, $periodLimit)),
+            'period_ai_call_limit' => max(0, $periodAiCallLimit),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $result
+     * @return array<string, mixed>
+     */
+    private function capEventPreview(array $result, int $limit, int &$remaining): array
+    {
+        $remainingBefore = $remaining;
+        $requestedCalls = max(0, (int) ($result['would_call_ai_requests'] ?? 0));
+        $wouldUse = min($requestedCalls, $remaining);
+        $remaining -= $wouldUse;
+
+        if ($wouldUse < $requestedCalls) {
+            $callsLeft = $wouldUse;
+            $result['rows'] = collect($result['rows'] ?? [])
+                ->map(function (mixed $row) use (&$callsLeft): mixed {
+                    if (! is_array($row) || (bool) ($row['skipped'] ?? false)) {
+                        return $row;
+                    }
+
+                    if ($callsLeft > 0) {
+                        $callsLeft--;
+
+                        return $row;
+                    }
+
+                    return array_merge($row, [
+                        'skipped' => true,
+                        'skip_reason' => 'event_ai_call_guard_exhausted',
+                    ]);
+                })
+                ->all();
+        }
+
+        return array_merge($result, [
+            'would_call_ai_requests' => $wouldUse,
+            'would_upsert_ai_event_rows' => $wouldUse,
+            'ai_call_guard' => [
+                'limit' => $limit,
+                'remaining_before' => $remainingBefore,
+                'would_use' => $wouldUse,
+                'remaining' => $remaining,
+            ],
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $result
+     * @return array<string, mixed>
+     */
+    private function capPeriodPreview(array $result, int $limit): array
+    {
+        $requestedCalls = max(0, (int) ($result['would_call_ai_requests'] ?? 0));
+        $wouldUse = $limit > 0 ? min(1, $requestedCalls) : 0;
+
+        return array_merge($result, [
+            'would_call_ai_requests' => $wouldUse,
+            'would_insert_ai_period_rows' => $wouldUse,
+            'ai_call_skip_reason' => $requestedCalls > $wouldUse ? 'ai_call_guard_exhausted' : null,
+            'ai_call_guard' => [
+                'limit' => $limit,
+                'would_use' => $wouldUse,
+                'remaining' => max(0, $limit - $wouldUse),
+            ],
+        ]);
+    }
+
+    /**
+     * @param  array<string, int|bool>  $executionCaps
+     * @return array<string, int>
+     */
+    private function previewAiCallGuard(array $executionCaps, int $eventWouldUse): array
+    {
+        return [
+            'event_limit' => $executionCaps['event_ai_call_limit'],
+            'event_would_use' => max(0, $eventWouldUse),
+            'event_remaining' => max(0, $executionCaps['event_ai_call_limit'] - $eventWouldUse),
+            'daily_limit_per_day' => $executionCaps['daily_ai_call_limit'],
+            'period_limit_per_pair' => $executionCaps['period_ai_call_limit'],
         ];
     }
 

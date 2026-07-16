@@ -17,6 +17,7 @@ class DirectYoutubeQuotaGuard
         private readonly IngestionTelemetry $telemetry,
         private readonly YoutubeQuotaReservationContext $context,
         private readonly YoutubeApiCredentials $credentials,
+        private readonly IngestionCommandDeadline $deadline,
     ) {}
 
     /**
@@ -167,9 +168,15 @@ class DirectYoutubeQuotaGuard
         }
 
         try {
+            $lockSeconds = max(60, min(86400, (int) data_get(
+                $guard,
+                'lock.ttl_seconds',
+                config('ingestion.job_lock_seconds', 14400),
+            )));
+            $execute = fn (): array => $this->deadline->run($lockSeconds, $callback);
             $payload = ($guard['accounting_owner'] ?? null) === 'direct_command'
-                ? $this->context->withDirectReservation($jobKey, $guard, $callback)
-                : $callback();
+                ? $this->context->withDirectReservation($jobKey, $guard, $execute)
+                : $execute();
         } catch (Throwable $exception) {
             Log::warning('Direct YouTube ingestion execution failed.', $this->logContext(
                 jobKey: $jobKey,
