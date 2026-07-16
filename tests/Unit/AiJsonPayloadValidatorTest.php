@@ -198,6 +198,55 @@ class AiJsonPayloadValidatorTest extends TestCase
         $this->assertSame(1, $mediaRows['items']['properties']['事件']['maxItems']);
     }
 
+    public function test_daily_generation_discards_invalid_topics_then_enforces_final_bounds(): void
+    {
+        $validator = app(AiJsonPayloadValidator::class);
+        $validTopics = collect(range(1, 8))->map(fn (int $index): array => [
+            '標題' => '有效事件 '.$index,
+            '媒體事件' => [
+                ['媒體' => 'News A', '事件' => ['事件 A'.$index]],
+                ['媒體' => 'News B', '事件' => ['事件 B'.$index]],
+            ],
+        ])->all();
+        $invalidTopic = [
+            '標題' => '去重後只有一個媒體',
+            '媒體事件' => [
+                ['媒體' => 'News A', '事件' => ['事件 A1']],
+                ['媒體' => 'News A', '事件' => ['事件 A2']],
+            ],
+        ];
+        $withinBounds = json_encode([
+            'events' => [...$validTopics, $invalidTopic],
+        ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $belowBounds = json_encode([
+            'events' => [...array_slice($validTopics, 0, 7), $invalidTopic],
+        ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        $valid = $validator->validateEventList(
+            $withinBounds,
+            'daily',
+            expectedMinItems: 8,
+            expectedMaxItems: 12,
+            dailyMaxMediaSources: AiDailyContract::MAX_REPRESENTATIVE_MEDIA_PER_TOPIC,
+            dailyMaxEventsPerMedia: AiDailyContract::REPRESENTATIVE_EVENTS_PER_MEDIA,
+        );
+        $invalid = $validator->validateEventList(
+            $belowBounds,
+            'daily',
+            expectedMinItems: 8,
+            expectedMaxItems: 12,
+            dailyMaxMediaSources: AiDailyContract::MAX_REPRESENTATIVE_MEDIA_PER_TOPIC,
+            dailyMaxEventsPerMedia: AiDailyContract::REPRESENTATIVE_EVENTS_PER_MEDIA,
+        );
+
+        $this->assertTrue($valid['valid']);
+        $this->assertSame(8, $valid['item_count']);
+        $this->assertCount(8, json_decode((string) $valid['json'], true, 512, JSON_THROW_ON_ERROR));
+        $this->assertFalse($invalid['valid']);
+        $this->assertSame(7, $invalid['item_count']);
+        $this->assertSame('ai_payload_item_count_below_minimum', $invalid['failure_reason']);
+    }
+
     public function test_event_list_enforces_expected_minimum_and_maximum_cardinality(): void
     {
         $validator = app(AiJsonPayloadValidator::class);

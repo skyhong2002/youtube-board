@@ -87,6 +87,28 @@ class AiJsonPayloadValidator
                 $shape,
                 $dailyMaxEventsPerMedia,
             );
+            $generationDaily = $shape === 'daily'
+                && ($dailyMaxMediaSources !== null || $dailyMaxEventsPerMedia !== null);
+
+            if ($generationDaily) {
+                $items = array_values(array_filter(
+                    $items,
+                    fn (mixed $item): bool => is_array($item) && $this->validItems(
+                        [$item],
+                        $shape,
+                        $dailyMaxMediaSources,
+                        $dailyMaxEventsPerMedia,
+                    ),
+                ));
+                $itemCount = count($items);
+
+                if ($expectedMinItems !== null && $itemCount < max(0, $expectedMinItems)) {
+                    $failureReason = 'ai_payload_item_count_below_minimum';
+                    $invalidItemCount = $itemCount;
+
+                    continue;
+                }
+            }
 
             if (! $this->validItems(
                 $items,

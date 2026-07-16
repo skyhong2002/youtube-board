@@ -144,7 +144,9 @@ class AiDailyIngestion
                     },
                     jsonSchema: $this->jsonValidator->eventListJsonSchema(
                         'daily',
-                        expectedMinItems: $bounds['min'],
+                        // Generate the upper bound so invalid individual topics can be
+                        // discarded while the persisted result still meets legacy bounds.
+                        expectedMinItems: $bounds['max'],
                         expectedMaxItems: $bounds['max'],
                         dailyMaxMediaSources: AiDailyContract::MAX_REPRESENTATIVE_MEDIA_PER_TOPIC,
                         dailyMaxEventsPerMedia: AiDailyContract::REPRESENTATIVE_EVENTS_PER_MEDIA,
