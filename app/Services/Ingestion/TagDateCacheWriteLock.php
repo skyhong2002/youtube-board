@@ -74,7 +74,11 @@ final class TagDateCacheWriteLock
 
         return new TagDateCacheWriteLockHandle($name, function () use ($connection, $name): void {
             try {
-                $connection->selectOne('SELECT RELEASE_LOCK(?) AS lock_released', [$name], false);
+                $row = $connection->selectOne('SELECT RELEASE_LOCK(?) AS lock_released', [$name], false);
+
+                if ((int) data_get($row, 'lock_released', 0) !== 1) {
+                    $this->logUnavailable($name, 'mysql_release_unconfirmed');
+                }
             } catch (Throwable $exception) {
                 $this->logUnavailable($name, 'mysql_release_failed', $exception);
             }

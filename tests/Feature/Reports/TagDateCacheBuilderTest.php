@@ -63,6 +63,48 @@ class TagDateCacheBuilderTest extends TestCase
         $this->assertDatabaseCount('urt_show_tag_date', 1);
     }
 
+    public function test_failed_write_releases_the_logical_row_lock_for_retry(): void
+    {
+        $this->createTables();
+        $this->seedRawData();
+
+        DB::statement(<<<'SQL'
+CREATE TRIGGER fail_tag_date_retry
+BEFORE INSERT ON urt_show_tag_date
+WHEN NEW.the_date = '2026-06-05'
+BEGIN
+    SELECT RAISE(FAIL, 'forced write failure');
+END
+SQL);
+
+        $builder = app(TagDateCacheBuilder::class);
+        $failed = $builder->build(
+            tagIds: [1],
+            date: '2026-06-05',
+            execute: true,
+            now: CarbonImmutable::parse('2026-06-05 12:00:00', 'Asia/Taipei'),
+        );
+
+        $this->assertSame('failed', $failed['status']);
+        $this->assertSame('cache_row_processing_failed', $failed['failure_reason']);
+        $this->assertSame(1, $failed['exit_code']);
+        $this->assertDatabaseCount('urt_show_tag_date', 0);
+
+        DB::statement('DROP TRIGGER fail_tag_date_retry');
+
+        $retry = $builder->build(
+            tagIds: [1],
+            date: '2026-06-05',
+            execute: true,
+            now: CarbonImmutable::parse('2026-06-05 12:01:00', 'Asia/Taipei'),
+        );
+
+        $this->assertSame('success', $retry['status']);
+        $this->assertSame(0, $retry['exit_code']);
+        $this->assertSame(1, $retry['writes']);
+        $this->assertDatabaseCount('urt_show_tag_date', 1);
+    }
+
     public function test_failed_date_is_sanitized_and_does_not_prevent_the_next_date(): void
     {
         $this->createTables();
