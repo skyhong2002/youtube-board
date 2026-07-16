@@ -226,7 +226,9 @@ class LegacyChannelReportApiReport
             $knownDays = $weekData[$week] ?? [];
             $knownMedian = collect(array_keys($knownDays))->sum(fn (int|string $key): float => $medianRatio[(int) $key] ?? 0.0);
             $knownSum = array_sum($knownDays);
-            $pred[$date] = $knownMedian > 0 ? (int) round($knownSum / $knownMedian * ($medianRatio[$weekday] ?? 0.0)) : 0;
+            $pred[$date] = $knownMedian > 0
+                ? (int) ($knownSum / $knownMedian * ($medianRatio[$weekday] ?? 0.0))
+                : 0;
         }
 
         return $pred;
@@ -250,7 +252,10 @@ class LegacyChannelReportApiReport
             }
 
             for ($weekday = 0; $weekday <= 6; $weekday++) {
-                $series[$weekday][] = ($weekData[$week][$weekday] ?? 0) / $weekSum[$week];
+                $series[$weekday][] = (float) sprintf(
+                    '%.4f',
+                    ($weekData[$week][$weekday] ?? 0) / $weekSum[$week],
+                );
             }
         }
 
