@@ -785,14 +785,26 @@ class LocalDumpInspector
             return;
         }
 
-        if (preg_match('/\ACREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?([a-z0-9_]+)`?\s*\(/i', $statement, $match) === 1) {
-            if (preg_match('/\b(?:DATA|INDEX)\s+DIRECTORY\b|\bSELECT\b/i', $statement) === 1) {
+        if (
+            preg_match(
+                '/\ACREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?([a-z0-9_]+)`?\s*(\()/i',
+                $statement,
+                $match,
+                PREG_OFFSET_CAPTURE,
+            ) === 1
+        ) {
+            $openingParenthesis = $match[2][1];
+
+            if (
+                preg_match('/\b(?:DATA|INDEX)\s+DIRECTORY\b|\bSELECT\b/i', $statement) === 1
+                || ! $this->hasAllowedCreateTableOptions($statement, $openingParenthesis)
+            ) {
                 $unsafe[] = 'unsupported_create_table_clause';
 
                 return;
             }
 
-            $this->recordStatement('create_table', strtolower($match[1]), $allowedTables, $tables, $counts, $unsafe);
+            $this->recordStatement('create_table', strtolower($match[1][0]), $allowedTables, $tables, $counts, $unsafe);
 
             return;
         }
@@ -808,6 +820,69 @@ class LocalDumpInspector
         }
 
         $unsafe[] = $this->unsupportedStatementReason($statement);
+    }
+
+    private function hasAllowedCreateTableOptions(string $statement, int $openingParenthesis): bool
+    {
+        $length = strlen($statement);
+        $depth = 0;
+        $quote = null;
+
+        for ($index = $openingParenthesis; $index < $length; $index++) {
+            $char = $statement[$index];
+
+            if ($quote !== null) {
+                if ($quote === '`' && $char === '`' && ($statement[$index + 1] ?? '') === '`') {
+                    $index++;
+
+                    continue;
+                }
+
+                if ($char === $quote) {
+                    $quote = null;
+                }
+
+                continue;
+            }
+
+            if ($char === "'" || $char === '"' || $char === '`') {
+                $quote = $char;
+
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+
+                continue;
+            }
+
+            if ($char !== ')') {
+                continue;
+            }
+
+            $depth--;
+
+            if ($depth < 0) {
+                return false;
+            }
+
+            if ($depth !== 0) {
+                continue;
+            }
+
+            $options = trim(substr($statement, $index + 1));
+
+            return preg_match(
+                '/\AENGINE\s*=\s*(?:MyISAM|InnoDB)'.
+                    '(?:\s+AUTO_INCREMENT\s*=\s*[1-9][0-9]*)?'.
+                    '\s+DEFAULT\s+CHARSET\s*=\s*utf8mb4'.
+                    '(?:\s+COLLATE\s*=\s*utf8mb4_unicode_ci)?\z/i',
+                $options,
+            ) === 1;
+        }
+
+        return false;
     }
 
     /**

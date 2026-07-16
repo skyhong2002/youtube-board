@@ -67,7 +67,7 @@ class LocalDumpImportCommandTest extends TestCase
 
     public function test_preview_verifies_checksum_without_running_the_database_client(): void
     {
-        $contents = "CREATE TABLE IF NOT EXISTS `urt_tag` (`tag_id` int NOT NULL);\n";
+        $contents = "CREATE TABLE IF NOT EXISTS `urt_tag` (`tag_id` int NOT NULL) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;\n";
         file_put_contents($this->dumpDirectory.'/approved.sql', $contents);
         $sha256 = hash('sha256', $contents);
 
@@ -97,7 +97,7 @@ class LocalDumpImportCommandTest extends TestCase
 
     public function test_explicit_dry_run_never_invokes_the_database_client(): void
     {
-        file_put_contents($this->dumpDirectory.'/approved.sql', "CREATE TABLE `urt_tag` (`tag_id` int);\n");
+        file_put_contents($this->dumpDirectory.'/approved.sql', "CREATE TABLE `urt_tag` (`tag_id` int) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;\n");
 
         $runner = Mockery::mock(LocalDumpImportRunner::class);
         $runner->shouldReceive('assertLocalTarget')->once();
@@ -119,7 +119,7 @@ class LocalDumpImportCommandTest extends TestCase
 
     public function test_dry_run_and_execute_conflict_is_refused_before_any_write(): void
     {
-        file_put_contents($this->dumpDirectory.'/approved.sql', "CREATE TABLE `urt_tag` (`tag_id` int);\n");
+        file_put_contents($this->dumpDirectory.'/approved.sql', "CREATE TABLE `urt_tag` (`tag_id` int) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;\n");
 
         $runner = Mockery::mock(LocalDumpImportRunner::class);
         $runner->shouldNotReceive('assertLocalTarget');
@@ -143,7 +143,7 @@ class LocalDumpImportCommandTest extends TestCase
     {
         $contents = <<<'SQL'
 DROP TABLE IF EXISTS `urt_tag`;
-CREATE TABLE `urt_tag` (`tag_id` int NOT NULL);
+CREATE TABLE `urt_tag` (`tag_id` int NOT NULL) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
 SQL;
         file_put_contents($this->dumpDirectory.'/replacement.sql', $contents);
 
@@ -168,7 +168,7 @@ SQL;
     {
         $contents = <<<'SQL'
 DROP TABLE IF EXISTS `urt_tag`;
-CREATE TABLE `urt_tag` (`tag_id` int NOT NULL);
+CREATE TABLE `urt_tag` (`tag_id` int NOT NULL) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
 SQL;
         file_put_contents($this->dumpDirectory.'/replacement.sql', $contents);
 
@@ -208,7 +208,7 @@ SQL;
 
     public function test_execute_refuses_when_the_checksum_does_not_match(): void
     {
-        file_put_contents($this->dumpDirectory.'/approved.sql', "CREATE TABLE `urt_tag` (`tag_id` int);\n");
+        file_put_contents($this->dumpDirectory.'/approved.sql', "CREATE TABLE `urt_tag` (`tag_id` int) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;\n");
 
         $runner = Mockery::mock(LocalDumpImportRunner::class);
         $runner->shouldReceive('assertLocalTarget')->once();
@@ -271,7 +271,7 @@ SQL);
     {
         file_put_contents(
             $this->dumpDirectory.'/same-line.sql',
-            "CREATE TABLE `urt_tag` (`tag_id` int); DROP DATABASE `youtube_board`;\n",
+            "CREATE TABLE `urt_tag` (`tag_id` int) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4; DROP DATABASE `youtube_board`;\n",
         );
         file_put_contents(
             $this->dumpDirectory.'/executable-comment.sql',
@@ -294,7 +294,7 @@ SQL);
     {
         file_put_contents(
             $this->dumpDirectory.'/comment-hidden.sql',
-            "CREATE TABLE `urt_tag` (`tag_id` int); /* reviewed */ DROP DATABASE `youtube_board`;\n",
+            "CREATE TABLE `urt_tag` (`tag_id` int) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4; /* reviewed */ DROP DATABASE `youtube_board`;\n",
         );
         file_put_contents(
             $this->dumpDirectory.'/load-xml.sql',
@@ -410,6 +410,52 @@ SQL,
         }
     }
 
+    public function test_create_table_accepts_only_reviewed_storage_options(): void
+    {
+        file_put_contents(
+            $this->dumpDirectory.'/reviewed-create-options.sql',
+            <<<'SQL'
+CREATE TABLE `urt_tag` (`tag_id` int) ENGINE=MyISAM AUTO_INCREMENT=123 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE `urt_count` (`u_id` int) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+SQL,
+        );
+
+        $exitCode = Artisan::call('db:import-local', [
+            'file' => 'reviewed-create-options.sql',
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(['create_table' => 2, 'drop_table' => 0, 'insert' => 0], $payload['statements']);
+        $this->assertSame(['urt_tag', 'urt_count'], $payload['tables']);
+    }
+
+    public function test_create_table_refuses_unreviewed_engines_and_options(): void
+    {
+        $unsafeStatements = [
+            'missing-engine.sql' => "CREATE TABLE `urt_tag` (`tag_id` int);\n",
+            'connect-engine.sql' => "CREATE TABLE `urt_tag` (`tag_id` int) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='/etc/passwd';\n",
+            'federated-engine.sql' => "CREATE TABLE `urt_tag` (`tag_id` int) ENGINE=FEDERATED CONNECTION='mysql://example.invalid/db/table';\n",
+            'memory-engine.sql' => "CREATE TABLE `urt_tag` (`tag_id` int) ENGINE=MEMORY;\n",
+            'union-option.sql' => "CREATE TABLE `urt_tag` (`tag_id` int) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 UNION=(`urt_user`) INSERT_METHOD=LAST;\n",
+            'tablespace-option.sql' => "CREATE TABLE `urt_tag` (`tag_id` int) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 TABLESPACE=mysql;\n",
+        ];
+
+        foreach ($unsafeStatements as $file => $statement) {
+            file_put_contents($this->dumpDirectory.'/'.$file, $statement);
+
+            $exitCode = Artisan::call('db:import-local', [
+                'file' => $file,
+                '--json' => true,
+            ]);
+            $payload = json_decode(trim(Artisan::output()), true);
+
+            $this->assertSame(1, $exitCode, $file);
+            $this->assertSame('unsafe_sql_refused', $payload['error_code'], $file);
+        }
+    }
+
     public function test_only_narrow_dump_session_set_statements_are_allowed(): void
     {
         file_put_contents($this->dumpDirectory.'/safe-set.sql', <<<'SQL'
@@ -418,7 +464,7 @@ SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT;
 SET FOREIGN_KEY_CHECKS=0;
 SET SQL_MODE='NO_AUTO_VALUE_ON_ZERO';
 SET NAMES utf8mb4;
-CREATE TABLE `urt_tag` (`tag_id` int);
+CREATE TABLE `urt_tag` (`tag_id` int) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
 SQL);
         file_put_contents($this->dumpDirectory.'/global-set.sql', "SET GLOBAL FOREIGN_KEY_CHECKS=0;\n");
         file_put_contents($this->dumpDirectory.'/unsafe-sql-mode.sql', "SET SQL_MODE='NO_BACKSLASH_ESCAPES';\n");
@@ -468,7 +514,7 @@ SQL);
 
     public function test_non_local_database_host_is_refused_before_file_inspection(): void
     {
-        file_put_contents($this->dumpDirectory.'/approved.sql', "CREATE TABLE `urt_tag` (`tag_id` int);\n");
+        file_put_contents($this->dumpDirectory.'/approved.sql', "CREATE TABLE `urt_tag` (`tag_id` int) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;\n");
         config()->set('database.connections.mysql.host', 'production-db.internal');
 
         $exitCode = Artisan::call('db:import-local', [
@@ -483,7 +529,7 @@ SQL);
 
     public function test_default_allowlist_refuses_localhost_to_prevent_tunneled_production_imports(): void
     {
-        file_put_contents($this->dumpDirectory.'/approved.sql', "CREATE TABLE `urt_tag` (`tag_id` int);\n");
+        file_put_contents($this->dumpDirectory.'/approved.sql', "CREATE TABLE `urt_tag` (`tag_id` int) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;\n");
         config()->set('local_import.allowed_hosts', ['mysql', 'mariadb']);
         config()->set('database.connections.mysql.host', 'localhost');
 
@@ -500,7 +546,7 @@ SQL);
 
     public function test_production_environment_is_always_refused(): void
     {
-        file_put_contents($this->dumpDirectory.'/approved.sql', "CREATE TABLE `urt_tag` (`tag_id` int);\n");
+        file_put_contents($this->dumpDirectory.'/approved.sql', "CREATE TABLE `urt_tag` (`tag_id` int) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;\n");
         $this->app['env'] = 'production';
 
         $exitCode = Artisan::call('db:import-local', [
@@ -515,7 +561,7 @@ SQL);
 
     public function test_gzip_preview_inspects_expanded_sql_and_reports_both_size_caps(): void
     {
-        $contents = "CREATE TABLE `urt_tag` (`tag_id` int);\n";
+        $contents = "CREATE TABLE `urt_tag` (`tag_id` int) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;\n";
         file_put_contents($this->dumpDirectory.'/approved.sql.gz', gzencode($contents));
 
         $exitCode = Artisan::call('db:import-local', [
@@ -532,7 +578,7 @@ SQL);
 
     public function test_gzip_execute_imports_the_exact_expanded_bytes_and_cleans_staging(): void
     {
-        $contents = "CREATE TABLE `urt_tag` (`tag_id` int);\n";
+        $contents = "CREATE TABLE `urt_tag` (`tag_id` int) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;\n";
         $archive = gzencode($contents);
         $captured = $this->dumpDirectory.'/captured.sql';
         $client = $this->dumpDirectory.'/fake-mariadb';
@@ -557,7 +603,7 @@ SQL);
 
     public function test_existing_global_import_lock_refuses_a_different_artifact(): void
     {
-        $contents = "CREATE TABLE `urt_tag` (`tag_id` int);\n";
+        $contents = "CREATE TABLE `urt_tag` (`tag_id` int) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;\n";
         file_put_contents($this->dumpDirectory.'/approved.sql', $contents);
         $lock = Cache::lock('local-dump-import:global', 60);
         $this->assertTrue($lock->get());
@@ -587,7 +633,7 @@ SQL);
         $path = $this->dumpDirectory.'/approved.sql';
         $captured = $this->dumpDirectory.'/captured.sql';
         $client = $this->dumpDirectory.'/fake-mariadb';
-        $original = "CREATE TABLE `urt_tag` (`tag_id` int);\n";
+        $original = "CREATE TABLE `urt_tag` (`tag_id` int) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;\n";
         $replacement = "DROP DATABASE `youtube_board`;\n";
         file_put_contents($path, $original);
         file_put_contents($client, "#!/bin/sh\n/bin/cat > ".escapeshellarg($captured)."\n");
@@ -625,9 +671,9 @@ SQL);
     public function test_runner_rechecks_the_artifact_before_opening_the_database_client(): void
     {
         $path = $this->dumpDirectory.'/approved.sql';
-        file_put_contents($path, "CREATE TABLE `urt_tag` (`tag_id` int);\n");
+        file_put_contents($path, "CREATE TABLE `urt_tag` (`tag_id` int) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;\n");
         $inspection = (new LocalDumpInspector)->inspect('approved.sql', 1024, 1024);
-        file_put_contents($inspection['path'], "CREATE TABLE `urt_tag` (`tag_id` bigint);\n");
+        file_put_contents($inspection['path'], "CREATE TABLE `urt_tag` (`tag_id` bigint) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;\n");
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('dump_artifact_changed');
@@ -640,7 +686,7 @@ SQL);
         $path = $this->dumpDirectory.'/approved.sql';
         $captured = $this->dumpDirectory.'/captured.sql';
         $client = $this->dumpDirectory.'/fake-mariadb';
-        $original = "CREATE TABLE `urt_tag` (`tag_id` int);\n";
+        $original = "CREATE TABLE `urt_tag` (`tag_id` int) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;\n";
         $replacement = "DROP DATABASE `youtube_board`;\n";
         file_put_contents($path, $original);
         $inspector = new LocalDumpInspector;
@@ -669,7 +715,7 @@ SQL);
 
     public function test_repeating_a_successful_checksum_is_an_idempotent_noop(): void
     {
-        $contents = "CREATE TABLE `urt_tag` (`tag_id` int);\n";
+        $contents = "CREATE TABLE `urt_tag` (`tag_id` int) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;\n";
         file_put_contents($this->dumpDirectory.'/approved.sql', $contents);
 
         $runner = Mockery::mock(LocalDumpImportRunner::class);

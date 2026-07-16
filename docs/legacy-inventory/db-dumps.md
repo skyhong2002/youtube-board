@@ -41,6 +41,10 @@ The command:
   `DROP TABLE IF EXISTS`, literal-only `INSERT INTO ... VALUES` rows, and the
   narrow session-local charset/foreign-key/SQL-mode `SET` forms required by the
   approved dumps (SQL mode is limited to empty or `NO_AUTO_VALUE_ON_ZERO`);
+  `CREATE TABLE` options must match the reviewed dump shape: an explicit
+  `MyISAM`/`InnoDB` engine, an optional positive `AUTO_INCREMENT`, required
+  `DEFAULT CHARSET=utf8mb4`, and optional `utf8mb4_unicode_ci` collation;
+  proxy/volatile engines and every other table option are refused;
   `INSERT` expressions, subqueries, server-file functions, and trailing clauses
   are refused; every other top-level statement is also refused, including
   database switching, account/grant DDL, server file access, global settings,
