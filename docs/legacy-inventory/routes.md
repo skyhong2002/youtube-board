@@ -91,7 +91,7 @@ Compatibility coverage is guarded by `tests/Feature/LegacySurfaceInventoryTest.p
 | `/api/api_channel_log.php?u_id=...` | same URL | Real-time YouTube dashboard channel daily trend expansion from `urt_log.thedata` |
 | `/api/channel_pred.php?u_id=...` | same URL | Real-time YouTube dashboard channel prediction summary; reviewed `urt_count` prediction refresh uses manual `reports:channel-predictions:build` |
 | `/api/api_tag.php` | same URL | Legacy bare tag id/name map from `urt_tag` |
-| `/api/api_tag_log.php?tag=...` | same URL | Real-time YouTube dashboard `urt_log_tag` aggregate; local dump currently empty |
+| `/api/api_tag_log.php?tagid=...&or=...&not=...&limit=...` | same URL | Real-time YouTube dashboard tag-filtered aggregation of per-channel `urt_log.thedata` series into daily `count`, `videos`, `orig`, `pred`, and `moving` values; requests without `tagid`, `or`, or `not` preserve the legacy empty-channel selection |
 | `/api/tags_day.php?tagid=...` | same URL | Real-time YouTube dashboard `urt_show_tag_cloud` dashboard cache endpoint with map/list/wrapped keyword-weight parsing |
 | `/api/tags_video.php?tagid=...` | same URL | Real-time YouTube dashboard `urt_show_tag_cloud` dashboard cache endpoint with map/list/wrapped keyword-weight parsing |
 | `/api/tags_relation_date.php?tag=...&date=...` | same URL | Real-time YouTube dashboard `urt_show_video_tag_date` dashboard cache endpoint with map/list/wrapped `tags_json` and `videos_json` payload parsing; reviewed rebuild is manual `reports:keyword-relations:build --keywords=... --from=... --to=... --execute` |

@@ -10,9 +10,10 @@ use stdClass;
 
 class LegacyTagChannelApiReport
 {
-    public function __construct(private readonly LegacyTagFilter $tagFilter)
-    {
-    }
+    public function __construct(
+        private readonly LegacyTagFilter $tagFilter,
+        private readonly LegacyChannelReportApiReport $channelReport,
+    ) {}
 
     /**
      * @return array<string, mixed>
@@ -274,41 +275,76 @@ class LegacyTagChannelApiReport
     {
         $tag = trim((string) $request->query('tag', ''));
         $limit = max(1, min(1000, (int) $request->query('limit', 1000)));
+        $filters = $this->tagFilter->filters($request);
 
         try {
-            $query = DB::table('urt_log_tag')
-                ->orderBy('ctime')
-                ->limit($limit);
-
-            if ($tag !== '') {
-                $query->where('tag', $tag);
-            }
-
-            $rows = $query->get();
+            $hasChannelFilter = $filters['tagid'] !== [] || $filters['or'] !== [] || $filters['not'] !== [];
+            $channelIds = $hasChannelFilter
+                ? $this->tagFilter->matchingChannelTags($filters)
+                    ->pluck('u_id')
+                    ->map(fn (int|string $uId): int => (int) $uId)
+                    ->filter(fn (int $uId): bool => $uId > 0)
+                    ->unique()
+                    ->values()
+                    ->all()
+                : [];
             $result = [];
 
-            foreach ($rows as $row) {
-                $date = substr((string) $row->ctime, 0, 10);
+            foreach ($channelIds as $uId) {
+                $channelLog = $this->channelReport->channelLog(Request::create(
+                    '/api/api_channel_log.php',
+                    'GET',
+                    ['u_id' => $uId, 'limit' => $limit],
+                ));
+                $series = $channelLog['result'] instanceof stdClass
+                    ? (array) $channelLog['result']
+                    : $channelLog['result'];
 
-                if (! isset($result[$date])) {
-                    $result[$date] = ['hits' => 0, 'rows' => []];
+                if (! is_array($series)) {
+                    continue;
                 }
 
-                $result[$date]['hits'] += (int) ($row->hits ?? 0);
-                $result[$date]['rows'][] = (array) $row;
+                foreach ($series as $date => $row) {
+                    if (! is_array($row) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $date)) {
+                        continue;
+                    }
+
+                    $result[$date] ??= [
+                        'count' => 0,
+                        'videos' => 0,
+                        'orig' => 0,
+                        'pred' => 0,
+                        'moving' => 0,
+                    ];
+                    $result[$date]['count']++;
+
+                    foreach (['videos', 'orig', 'pred', 'moving'] as $metric) {
+                        $result[$date][$metric] += (int) ($row[$metric] ?? 0);
+                    }
+                }
             }
 
+            ksort($result);
+
             return [
-                'result' => $result === [] ? new stdClass() : $result,
+                'result' => $result === [] ? new stdClass : $result,
                 'meta' => [
                     'available' => $result !== [],
-                    'source' => 'urt_log_tag',
+                    'source' => 'urt_count.tags + urt_log.thedata',
                     'tag' => $tag,
+                    'filters' => $filters,
+                    'limit' => $limit,
+                    'count_channels' => count($channelIds),
                     'realtime_dashboard' => true,
                 ],
             ];
         } catch (QueryException) {
-            return $this->emptyResult('urt_log_tag', ['tag' => $tag]);
+            return $this->emptyResult('urt_count.tags + urt_log.thedata', [
+                'tag' => $tag,
+                'filters' => $filters,
+                'limit' => $limit,
+                'count_channels' => 0,
+            ]);
         }
     }
 
