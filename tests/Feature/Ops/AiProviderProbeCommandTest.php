@@ -428,6 +428,7 @@ class AiProviderProbeCommandTest extends TestCase
         config()->set('services.opencode_go.fallback_api_key', 'fallback-secret-key');
         config()->set('services.opencode_go.fallback_base_url', 'https://fallback.test/v1');
         config()->set('services.opencode_go.fallback_model', 'qwen3.6-plus');
+        config()->set('services.opencode_go.transient_retries', 1);
         $prompt = 'private validation prompt';
         $primaryContent = '[{"event":"undersized-output-secret"}]';
         $fallbackContent = '[{"event":"one"},{"event":"two"}]';
@@ -461,15 +462,17 @@ class AiProviderProbeCommandTest extends TestCase
         $this->assertSame('fallback', $result['provider']);
         $this->assertSame(['valid' => true, 'json' => $fallbackContent, 'item_count' => 2], $result['validation']);
         $this->assertSame(['primary: validation_rejected'], $result['provider_failures']);
-        $this->assertCount(2, $snapshot['ai_requests']);
+        $this->assertCount(3, $snapshot['ai_requests']);
         $this->assertFalse($snapshot['ai_requests'][0]['ok']);
         $this->assertSame(200, $snapshot['ai_requests'][0]['status']);
         $this->assertSame('validation_rejected', $snapshot['ai_requests'][0]['error']);
+        $this->assertTrue($snapshot['ai_requests'][0]['validation_retry']);
         $this->assertSame('gpt-5.4-mini', $snapshot['ai_requests'][0]['model']);
         $this->assertSame('gpt-5.4-mini-2026-07-15', $snapshot['ai_requests'][0]['response_model']);
         $this->assertSame('invalid_ai_payload', $snapshot['ai_requests'][0]['validation_failure_reason']);
-        $this->assertSame('qwen3.6-plus', $snapshot['ai_requests'][1]['model']);
-        $this->assertSame('qwen3.6-plus-2026-07-01', $snapshot['ai_requests'][1]['response_model']);
+        $this->assertFalse($snapshot['ai_requests'][1]['validation_retry']);
+        $this->assertSame('qwen3.6-plus', $snapshot['ai_requests'][2]['model']);
+        $this->assertSame('qwen3.6-plus-2026-07-01', $snapshot['ai_requests'][2]['response_model']);
         $this->assertSame(mb_strlen($primaryContent, 'UTF-8'), $snapshot['ai_requests'][0]['completion_chars']);
         $this->assertSame('other', $snapshot['ai_requests'][0]['finish_reason']);
         $this->assertStringNotContainsString($primaryContent, $encoded);
@@ -478,10 +481,10 @@ class AiProviderProbeCommandTest extends TestCase
         $this->assertStringNotContainsString($prompt, $encoded);
         $this->assertStringNotContainsString('primary-secret-key', $encoded);
         $this->assertStringNotContainsString('fallback-secret-key', $encoded);
-        Http::assertSentCount(2);
+        Http::assertSentCount(3);
     }
 
-    public function test_validated_completion_sends_strict_schema_only_to_official_primary_chat(): void
+    public function test_validated_completion_retries_official_primary_validation_with_strict_schema(): void
     {
         config()->set('services.opencode_go.api_key', 'primary-key');
         config()->set('services.opencode_go.base_url', 'https://api.openai.com/v1');
@@ -491,6 +494,7 @@ class AiProviderProbeCommandTest extends TestCase
         config()->set('services.opencode_go.fallback_base_url', 'https://api.openai.com/v1');
         config()->set('services.opencode_go.fallback_model', 'gpt-4o-mini');
         config()->set('services.opencode_go.fallback_endpoint_style', 'chat');
+        config()->set('services.opencode_go.transient_retries', 1);
         $schema = [
             'type' => 'object',
             'properties' => ['events' => ['type' => 'array', 'minItems' => 1, 'maxItems' => 2, 'items' => ['type' => 'string']]],
@@ -516,7 +520,7 @@ class AiProviderProbeCommandTest extends TestCase
         );
         $requests = Http::recorded()->map(fn (array $record): Request => $record[0])->values();
 
-        $this->assertSame('fallback', $result['provider']);
+        $this->assertSame('primary', $result['provider']);
         $this->assertSame([
             'type' => 'json_schema',
             'json_schema' => [
@@ -525,9 +529,11 @@ class AiProviderProbeCommandTest extends TestCase
                 'schema' => $schema,
             ],
         ], $requests[0]['response_format']);
-        $this->assertFalse(isset($requests[1]['response_format']));
+        $this->assertSame($requests[0]['response_format'], $requests[1]['response_format']);
         $this->assertTrue($telemetry->snapshot()['ai_requests'][0]['structured_output']);
-        $this->assertFalse($telemetry->snapshot()['ai_requests'][1]['structured_output']);
+        $this->assertTrue($telemetry->snapshot()['ai_requests'][0]['validation_retry']);
+        $this->assertTrue($telemetry->snapshot()['ai_requests'][1]['structured_output']);
+        $this->assertFalse($telemetry->snapshot()['ai_requests'][1]['validation_retry']);
     }
 
     public function test_official_structured_output_token_override_is_hard_bounded_and_does_not_raise_fallback_cap(): void
@@ -654,6 +660,7 @@ class AiProviderProbeCommandTest extends TestCase
         config()->set('services.opencode_go.fallback_api_key', 'fallback-key');
         config()->set('services.opencode_go.fallback_base_url', 'https://fallback.test/v1');
         config()->set('services.opencode_go.fallback_model', 'qwen3.6-plus');
+        config()->set('services.opencode_go.transient_retries', 1);
         $primaryContent = 'primary-model-content-secret';
 
         Http::fake([
@@ -683,7 +690,7 @@ class AiProviderProbeCommandTest extends TestCase
         $this->assertStringNotContainsString('callback-exception-secret', $encoded);
         $this->assertStringNotContainsString($primaryContent, $encoded);
         $this->assertStringNotContainsString('callback-exception-secret', json_encode($result, JSON_THROW_ON_ERROR));
-        Http::assertSentCount(2);
+        Http::assertSentCount(3);
     }
 
     public function test_all_provider_failures_use_a_generic_sanitized_error(): void

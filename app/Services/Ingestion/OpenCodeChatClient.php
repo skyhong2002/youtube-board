@@ -320,6 +320,7 @@ class OpenCodeChatClient
 
                 if (! is_array($candidateValidation) || ($candidateValidation['valid'] ?? false) !== true) {
                     $validationFailureReason = $this->safeValidationFailureReason($candidateValidation);
+                    $validationRetry = $attempt < $maxAttempts;
                     $this->telemetry->recordAiRequest($this->requestTelemetry(
                         provider: $provider,
                         endpointStyle: $messagesStyle ? 'messages' : 'chat',
@@ -335,8 +336,13 @@ class OpenCodeChatClient
                         completionChars: mb_strlen($content, 'UTF-8'),
                         structuredOutput: $structuredOutput,
                         validationFailureReason: $validationFailureReason,
+                        validationRetry: $validationRetry,
                         responseModel: $responseModelSnapshot,
                     ));
+
+                    if ($validationRetry) {
+                        continue;
+                    }
 
                     throw new AiPayloadValidationException($validationFailureReason);
                 }
@@ -760,6 +766,7 @@ class OpenCodeChatClient
         ?int $completionChars = null,
         bool $structuredOutput = false,
         ?string $validationFailureReason = null,
+        bool $validationRetry = false,
         ?string $responseModel = null,
     ): array {
         return [
@@ -781,6 +788,7 @@ class OpenCodeChatClient
             'termination_reason' => $terminationReason,
             'structured_output' => $structuredOutput,
             'validation_failure_reason' => $validationFailureReason,
+            'validation_retry' => $validationRetry,
             'finish_reason' => $endpointStyle === 'chat' ? $terminationReason : null,
             'stop_reason' => $endpointStyle === 'messages' ? $terminationReason : null,
             'secrets' => 'not_printed',
