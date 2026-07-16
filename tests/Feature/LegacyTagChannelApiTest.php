@@ -349,6 +349,50 @@ class LegacyTagChannelApiTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_api_tag_log_preserves_signed_channel_delta_aggregation(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-10 12:00:00', 'Asia/Taipei'));
+        $this->createChannelTables();
+        $this->createUrtLogTable();
+        DB::table('urt_count')->insert([
+            ['u_id' => 10, 'tags' => '[1]'],
+            ['u_id' => 20, 'tags' => '[1]'],
+        ]);
+        DB::table('urt_log')->insert([
+            [
+                'pk' => 1,
+                'u_id' => 10,
+                'ctime' => '2026-05-01 00:00:00',
+                'mtime' => '2026-05-10 00:00:00',
+                'themonth' => '2026-05-01',
+                'thedata' => json_encode([
+                    '2026-05-09' => ['view' => 1000, 'video' => 10],
+                    '2026-05-10' => ['view' => 900, 'video' => 8],
+                ], JSON_UNESCAPED_UNICODE),
+            ],
+            [
+                'pk' => 2,
+                'u_id' => 20,
+                'ctime' => '2026-05-01 00:00:00',
+                'mtime' => '2026-05-10 00:00:00',
+                'themonth' => '2026-05-01',
+                'thedata' => json_encode([
+                    '2026-05-09' => ['view' => 500, 'video' => 5],
+                    '2026-05-10' => ['view' => 450, 'video' => 4],
+                ], JSON_UNESCAPED_UNICODE),
+            ],
+        ]);
+
+        $response = $this->getJson('/api/api_tag_log.php?tagid=1&limit=1');
+
+        $response->assertOk();
+        $this->assertSame(2, $response->json('result.2026-05-10.count'));
+        $this->assertSame(-150, $response->json('result.2026-05-10.orig'));
+        $this->assertSame(-3, $response->json('result.2026-05-10.videos'));
+
+        Carbon::setTestNow();
+    }
+
     public function test_tag_cloud_cache_apis_ingestion_and_report_misses(): void
     {
         $this->createTagCloudTable();

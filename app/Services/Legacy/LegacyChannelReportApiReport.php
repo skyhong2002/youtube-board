@@ -125,8 +125,12 @@ class LegacyChannelReportApiReport
             foreach ($decoded as $date => $value) {
                 if (is_array($value) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $date)) {
                     $dates[(string) $date] = [
-                        'view' => (int) ($value['view'] ?? $value['total_views'] ?? 0),
-                        'video' => (int) ($value['video'] ?? $value['videos'] ?? 0),
+                        'view' => isset($value['view']) || isset($value['total_views'])
+                            ? (int) ($value['view'] ?? $value['total_views'])
+                            : null,
+                        'video' => isset($value['video']) || isset($value['videos'])
+                            ? (int) ($value['video'] ?? $value['videos'])
+                            : null,
                     ];
                 }
             }
@@ -142,8 +146,12 @@ class LegacyChannelReportApiReport
             $date = $today->subDays($i)->toDateString();
             $yesterday = $today->subDays($i + 1)->toDateString();
             $result[$date] = [
-                'videos' => max(0, ($dates[$date]['video'] ?? 0) - ($dates[$yesterday]['video'] ?? 0)),
-                'orig' => max(0, ($dates[$date]['view'] ?? 0) - ($dates[$yesterday]['view'] ?? 0)),
+                'videos' => isset($dates[$date]['video'], $dates[$yesterday]['video'])
+                    ? $dates[$date]['video'] - $dates[$yesterday]['video']
+                    : 0,
+                'orig' => isset($dates[$date]['view'], $dates[$yesterday]['view'])
+                    ? $dates[$date]['view'] - $dates[$yesterday]['view']
+                    : 0,
                 'pred' => (int) ($pred[$date] ?? 0),
                 'moving' => (int) ($moving[$date] ?? 0),
             ];
@@ -158,7 +166,7 @@ class LegacyChannelReportApiReport
     }
 
     /**
-     * @param  array<string, array{view: int, video: int}>  $dates
+     * @param  array<string, array{view: int|null, video: int|null}>  $dates
      * @return array<string, int>
      */
     private function dailyPredictions(array $dates, CarbonImmutable $today, int $limit): array
