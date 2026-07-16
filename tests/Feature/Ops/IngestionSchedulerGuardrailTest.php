@@ -65,6 +65,14 @@ class IngestionSchedulerGuardrailTest extends TestCase
         ], $registry->scheduledWriteProfile($job));
     }
 
+    public function test_tag_backfill_scheduler_uses_the_complete_dictionary_cap(): void
+    {
+        $job = app(IngestionJobRegistry::class)->find('youtube.tag_videos.backfill');
+
+        $this->assertNotNull($job);
+        $this->assertStringContainsString('--keyword-limit=100000', $job['scheduled_execute_command']);
+    }
+
     public function test_every_execute_capable_command_exposes_an_explicit_dry_run_override(): void
     {
         $writeCommands = collect(Artisan::all())

@@ -6,6 +6,7 @@ use App\Services\Ingestion\ChannelVideosDiscoveryIngestion;
 use App\Services\Ingestion\ChannelVideosDiscoveryPreview;
 use App\Services\Ingestion\IngestionSchedulerRunner;
 use App\Services\Ingestion\TagDateCacheBuilder;
+use App\Services\Ingestion\TagVideoBackfillIngestion;
 use App\Services\Ingestion\YoutubeDataApiClient;
 use App\Services\Ingestion\YoutubeQuotaWindowException;
 use Carbon\CarbonImmutable;
@@ -995,7 +996,15 @@ SQL);
         $this->seedTagChannel();
 
         $builder = Mockery::mock(TagDateCacheBuilder::class);
-        $builder->shouldReceive('build')->once()->andReturn([
+        $builder->shouldReceive('completeDictionarySourceState')->once()->andReturn([
+            'keyword_limit' => TagVideoBackfillIngestion::TAG_DATE_KEYWORD_LIMIT,
+            'keyword_rows_scanned' => 1,
+            'keywords_selected' => 1,
+            'keyword_source_truncated' => false,
+        ]);
+        $builder->shouldReceive('buildCompleteDictionary')->once()->withArgs(
+            fn (...$arguments): bool => ($arguments[4] ?? null) === TagVideoBackfillIngestion::TAG_DATE_KEYWORD_LIMIT,
+        )->andReturn([
             'date' => '2026-05-26',
             'status' => 'failed',
             'channels_matched' => 1,
@@ -1032,6 +1041,51 @@ SQL);
         $this->assertSame('tag_date_cache_rebuild_failed', $payload['tag_date_rebuild_skipped_reason']);
         $this->assertSame(1, $payload['tag_date_rows'][0]['exit_code']);
         $this->assertTrue(DB::table('urt_video')->where('videoId', 'video-a')->exists());
+    }
+
+    public function test_youtube_tag_videos_backfill_blocks_truncated_keyword_source_before_api_calls(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-26 18:00:00', 'Asia/Taipei'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-26 18:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('services.youtube.api_keys', null);
+        config()->set('ingestion.youtube_daily_quota_budget', 9000);
+        $this->createTables();
+        $this->createTagDateTables();
+        $this->seedTagChannel();
+        Http::preventStrayRequests();
+
+        $builder = Mockery::mock(TagDateCacheBuilder::class);
+        $builder->shouldReceive('completeDictionarySourceState')->once()->andReturn([
+            'keyword_limit' => TagVideoBackfillIngestion::TAG_DATE_KEYWORD_LIMIT,
+            'keyword_rows_scanned' => TagVideoBackfillIngestion::TAG_DATE_KEYWORD_LIMIT,
+            'keywords_selected' => TagVideoBackfillIngestion::TAG_DATE_KEYWORD_LIMIT,
+            'keyword_source_truncated' => true,
+        ]);
+        $builder->shouldNotReceive('buildCompleteDictionary');
+        $this->app->instance(TagDateCacheBuilder::class, $builder);
+
+        $exitCode = Artisan::call('youtube:tag-videos:backfill', [
+            '--tagid' => 102,
+            '--from' => '2026-05-26',
+            '--to' => '2026-05-26',
+            '--execute' => true,
+            '--limit' => 1,
+            '--max-pages' => 1,
+            '--max-results' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('blocked', $payload['status']);
+        $this->assertSame('keyword_scan_limit_exceeded', $payload['preflight_blocked_reason']);
+        $this->assertFalse($payload['keyword_source_complete']);
+        $this->assertSame(0, $payload['api_pages']);
+        $this->assertSame(0, $payload['updated_channels']);
+        $this->assertSame([], $payload['write_targets']);
+        $this->assertDatabaseCount('urt_video', 0);
+        Http::assertNothingSent();
     }
 
     public function test_youtube_tag_videos_backfill_does_not_publish_partial_cache_after_channel_failure(): void

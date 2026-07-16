@@ -105,6 +105,86 @@ SQL);
         $this->assertDatabaseCount('urt_show_tag_date', 1);
     }
 
+    public function test_keyword_containment_is_resolved_only_within_the_video_matches(): void
+    {
+        $this->createTables();
+        DB::table('tags')->insert([
+            ['tag' => '新聞', 'max_count' => 10, 'hours_count' => 5, 'max_hours' => '2026-06-05 12:00:00', 'no_tag' => null],
+            ['tag' => '台灣新聞', 'max_count' => 10, 'hours_count' => 5, 'max_hours' => '2026-06-05 12:00:00', 'no_tag' => null],
+            ['tag' => '未命中關鍵字', 'max_count' => 10, 'hours_count' => 5, 'max_hours' => '2026-06-05 12:00:00', 'no_tag' => null],
+        ]);
+        DB::table('urt_count')->insert(['u_id' => 10, 'tags' => '[1]']);
+        DB::table('urt_video')->insert([
+            'u_id' => 10,
+            'videoId' => 'matched-keywords',
+            'publishedAt' => '2026-06-05 10:00:00',
+            'title' => '台灣新聞',
+            'description' => '',
+            'viewCount' => 100,
+        ]);
+
+        $payload = app(TagDateCacheBuilder::class)->build(
+            tagIds: [1],
+            date: '2026-06-05',
+            keywordLimit: 10,
+            execute: false,
+            now: CarbonImmutable::parse('2026-06-05 12:00:00', 'Asia/Taipei'),
+        );
+
+        $this->assertSame('success', $payload['status']);
+        $this->assertSame(['台灣新聞'], array_keys($payload['tags_result']));
+        $this->assertSame(['台灣新聞' => 1], $payload['tags_video']);
+        $this->assertSame(2, $payload['count_tags']);
+    }
+
+    public function test_complete_dictionary_build_has_a_separate_bounded_keyword_cap(): void
+    {
+        $this->createTables();
+        collect(range(1, 20001))
+            ->chunk(500)
+            ->each(function ($indexes): void {
+                DB::table('tags')->insert($indexes->map(fn (int $index): array => [
+                    'tag' => sprintf('term%05d', $index),
+                    'max_count' => 10,
+                    'hours_count' => 5,
+                    'max_hours' => '2026-06-05 12:00:00',
+                    'no_tag' => null,
+                ])->all());
+            });
+        DB::table('urt_count')->insert(['u_id' => 10, 'tags' => '[1]']);
+        DB::table('urt_video')->insert([
+            'u_id' => 10,
+            'videoId' => 'complete-dictionary',
+            'publishedAt' => '2026-06-05 10:00:00',
+            'title' => 'term00001',
+            'description' => '',
+            'viewCount' => 100,
+        ]);
+        $builder = app(TagDateCacheBuilder::class);
+        $now = CarbonImmutable::parse('2026-06-05 12:00:00', 'Asia/Taipei');
+
+        $ordinary = $builder->build(
+            tagIds: [1],
+            date: '2026-06-05',
+            keywordLimit: 100000,
+            now: $now,
+        );
+        $complete = $builder->buildCompleteDictionary(
+            tagIds: [1],
+            date: '2026-06-05',
+            keywordLimit: 100000,
+            now: $now,
+        );
+
+        $this->assertSame('blocked', $ordinary['status']);
+        $this->assertSame(20000, $ordinary['keyword_limit']);
+        $this->assertSame('keyword_scan_limit_exceeded', $ordinary['blocked_reason']);
+        $this->assertSame('success', $complete['status']);
+        $this->assertSame(100000, $complete['keyword_limit']);
+        $this->assertSame(20001, $complete['keyword_rows_scanned']);
+        $this->assertFalse($complete['source_truncated']);
+    }
+
     public function test_failed_date_is_sanitized_and_does_not_prevent_the_next_date(): void
     {
         $this->createTables();

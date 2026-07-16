@@ -182,9 +182,91 @@ class TagDateCacheBuilder
         bool $execute = false,
         ?CarbonImmutable $now = null,
     ): array {
+        return $this->buildWithKeywordLimitMaximum(
+            tagIds: $tagIds,
+            date: $date,
+            orTagIds: $orTagIds,
+            notTagIds: $notTagIds,
+            keywordLimit: $keywordLimit,
+            onlyKeywords: $onlyKeywords,
+            channelLimit: $channelLimit,
+            videoLimit: $videoLimit,
+            execute: $execute,
+            now: $now,
+            keywordLimitMaximum: ReportCacheBuildGuardrails::KEYWORD_SCAN_LIMIT_MAX,
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function buildCompleteDictionary(
+        array $tagIds,
+        string $date,
+        array $orTagIds = [],
+        array $notTagIds = [],
+        int $keywordLimit = ReportCacheBuildGuardrails::TAG_DATE_KEYWORD_SCAN_LIMIT_MAX,
+        int $channelLimit = 1000,
+        int $videoLimit = 10000,
+        bool $execute = false,
+        ?CarbonImmutable $now = null,
+    ): array {
+        return $this->buildWithKeywordLimitMaximum(
+            tagIds: $tagIds,
+            date: $date,
+            orTagIds: $orTagIds,
+            notTagIds: $notTagIds,
+            keywordLimit: $keywordLimit,
+            onlyKeywords: [],
+            channelLimit: $channelLimit,
+            videoLimit: $videoLimit,
+            execute: $execute,
+            now: $now,
+            keywordLimitMaximum: ReportCacheBuildGuardrails::TAG_DATE_KEYWORD_SCAN_LIMIT_MAX,
+        );
+    }
+
+    /**
+     * @return array{keyword_limit: int, keyword_rows_scanned: int, keywords_selected: int, keyword_source_truncated: bool}
+     */
+    public function completeDictionarySourceState(
+        int $keywordLimit = ReportCacheBuildGuardrails::TAG_DATE_KEYWORD_SCAN_LIMIT_MAX,
+        ?CarbonImmutable $now = null,
+    ): array {
+        $now ??= CarbonImmutable::now('Asia/Taipei');
+        $keywordLimit = ReportCacheBuildGuardrails::bounded(
+            $keywordLimit,
+            ReportCacheBuildGuardrails::TAG_DATE_KEYWORD_SCAN_LIMIT_MAX,
+        );
+        $selection = $this->keywords($keywordLimit, $now);
+
+        return [
+            'keyword_limit' => $keywordLimit,
+            'keyword_rows_scanned' => (int) $selection['scanned'],
+            'keywords_selected' => count($selection['rows']),
+            'keyword_source_truncated' => (bool) $selection['truncated'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildWithKeywordLimitMaximum(
+        array $tagIds,
+        string $date,
+        array $orTagIds,
+        array $notTagIds,
+        int $keywordLimit,
+        array $onlyKeywords,
+        int $channelLimit,
+        int $videoLimit,
+        bool $execute,
+        ?CarbonImmutable $now,
+        int $keywordLimitMaximum,
+    ): array {
         $now ??= CarbonImmutable::now('Asia/Taipei');
         $date = preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) ? $date : $now->toDateString();
-        $keywordLimit = ReportCacheBuildGuardrails::bounded($keywordLimit, ReportCacheBuildGuardrails::KEYWORD_SCAN_LIMIT_MAX);
+        $keywordLimit = ReportCacheBuildGuardrails::bounded($keywordLimit, $keywordLimitMaximum);
         $channelLimit = ReportCacheBuildGuardrails::bounded($channelLimit, ReportCacheBuildGuardrails::CHANNEL_SCAN_LIMIT_MAX);
         $videoLimit = ReportCacheBuildGuardrails::bounded($videoLimit, ReportCacheBuildGuardrails::VIDEO_SCAN_LIMIT_MAX);
         $tagIds = ReportCacheBuildGuardrails::ids($tagIds);
@@ -733,8 +815,6 @@ class TagDateCacheBuilder
             $keywordLengths[$tag] = mb_strlen($tag, 'UTF-8');
         }
 
-        arsort($keywordLengths);
-        $orderedKeywords = array_keys($keywordLengths);
         $rawCounts = [];
         $keywordVideo = [];
         $keywordViews = [];
@@ -746,12 +826,14 @@ class TagDateCacheBuilder
             $views = max(0, (int) ($video->viewCount ?? 0));
             $totalViews += $views;
             $counts = [];
+            $matchedKeywordLengths = [];
 
             foreach ($keywordTags as $tag) {
                 $count = substr_count($text, $tag);
 
                 if ($count > 0) {
                     $counts[$tag] = $count;
+                    $matchedKeywordLengths[$tag] = $keywordLengths[$tag];
                 }
             }
 
@@ -759,17 +841,17 @@ class TagDateCacheBuilder
                 continue;
             }
 
-            for ($i = 0; $i < count($orderedKeywords); $i++) {
-                $longer = $orderedKeywords[$i];
+            arsort($matchedKeywordLengths);
+            $matchedKeywords = array_keys($matchedKeywordLengths);
+            $matchedKeywordCount = count($matchedKeywords);
 
-                if (! isset($counts[$longer])) {
-                    continue;
-                }
+            for ($i = 0; $i < $matchedKeywordCount; $i++) {
+                $longer = $matchedKeywords[$i];
 
-                for ($j = $i + 1; $j < count($orderedKeywords); $j++) {
-                    $shorter = $orderedKeywords[$j];
+                for ($j = $i + 1; $j < $matchedKeywordCount; $j++) {
+                    $shorter = $matchedKeywords[$j];
 
-                    if (isset($counts[$shorter]) && str_contains($longer, $shorter)) {
+                    if (str_contains($longer, $shorter)) {
                         $counts[$shorter] -= $counts[$longer];
                     }
                 }

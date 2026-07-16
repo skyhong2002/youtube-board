@@ -431,7 +431,7 @@ Artisan::command('youtube:channels:stats {--u_id= : Optional channel u_id to pre
     }
 })->purpose('Dry-run preview of channel statistics polling, with explicit local-only --execute support');
 
-Artisan::command('youtube:tag-videos:backfill {--tagid=102 : Comma-separated required channel tag ids} {--or= : Comma-separated OR channel tag ids} {--not= : Comma-separated excluded channel tag ids} {--from= : Start date YYYY-MM-DD} {--to= : End date YYYY-MM-DD} {--days=2 : Relative day count when --from is omitted} {--limit=100 : Channel cap} {--max-pages=20 : Playlist pages per channel, max 200} {--max-results=50 : Playlist items per page, max 50} {--keyword-limit=5000 : Keywords scanned when rebuilding tag-date cache} {--no-rebuild : Skip urt_show_tag_date rebuild after video crawl} {--execute : Call YouTube and write local video/cache rows} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (TagVideoBackfillIngestion $backfill, DirectYoutubeQuotaGuard $quotaGuard) {
+Artisan::command('youtube:tag-videos:backfill {--tagid=102 : Comma-separated required channel tag ids} {--or= : Comma-separated OR channel tag ids} {--not= : Comma-separated excluded channel tag ids} {--from= : Start date YYYY-MM-DD} {--to= : End date YYYY-MM-DD} {--days=2 : Relative day count when --from is omitted} {--limit=100 : Channel cap} {--max-pages=20 : Playlist pages per channel, max 200} {--max-results=50 : Playlist items per page, max 50} {--keyword-limit=100000 : Keywords scanned when rebuilding tag-date cache, max 100000} {--no-rebuild : Skip urt_show_tag_date rebuild after video crawl} {--execute : Call YouTube and write local video/cache rows} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (TagVideoBackfillIngestion $backfill, DirectYoutubeQuotaGuard $quotaGuard) {
     $ids = fn (string $option): array => collect(explode(',', (string) $this->option($option)))
         ->map(fn (string $id): int => (int) trim($id))
         ->filter(fn (int $id): bool => $id > 0)
@@ -449,6 +449,7 @@ Artisan::command('youtube:tag-videos:backfill {--tagid=102 : Comma-separated req
     $limit = max(1, min(500, (int) $this->option('limit')));
     $maxPages = max(1, min(200, (int) $this->option('max-pages')));
     $maxResults = max(1, min(50, (int) $this->option('max-results')));
+    $keywordLimit = max(1, min(TagVideoBackfillIngestion::TAG_DATE_KEYWORD_LIMIT, (int) $this->option('keyword-limit')));
 
     try {
         $backfillCall = fn (): array => $backfill->run(
@@ -461,7 +462,7 @@ Artisan::command('youtube:tag-videos:backfill {--tagid=102 : Comma-separated req
             limit: $limit,
             maxPages: $maxPages,
             maxResults: $maxResults,
-            keywordLimit: (int) $this->option('keyword-limit'),
+            keywordLimit: $keywordLimit,
             rebuildTagDate: ! (bool) $this->option('no-rebuild'),
             execute: $execute,
         );
@@ -470,10 +471,11 @@ Artisan::command('youtube:tag-videos:backfill {--tagid=102 : Comma-separated req
             $quotaRun = $quotaGuard->run(
                 jobKey: 'youtube.tag_videos.backfill',
                 effectiveCommand: sprintf(
-                    'youtube:tag-videos:backfill --execute --limit=%d --max-pages=%d --max-results=%d',
+                    'youtube:tag-videos:backfill --execute --limit=%d --max-pages=%d --max-results=%d --keyword-limit=%d',
                     $limit,
                     $maxPages,
                     $maxResults,
+                    $keywordLimit,
                 ),
                 callback: $backfillCall,
             );
