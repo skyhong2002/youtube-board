@@ -78,6 +78,12 @@ class LegacyChannelReportApiTest extends TestCase
         $response->assertOk();
         $response->assertJsonPath('meta.available', false);
         $response->assertJsonPath('meta.blocked_reason', 'local urt_log has no rows for this channel');
+        $response->assertJsonPath('meta.log_rows', 0);
+        $response->assertJsonPath('meta.invalid_log_rows', 0);
+        $response->assertJsonPath('meta.unusable_log_rows', 0);
+        $response->assertJsonPath('meta.valid_points', 0);
+        $response->assertJsonPath('meta.view_points', 0);
+        $response->assertJsonPath('meta.video_points', 0);
         $this->assertSame(3, count($response->json('result')));
         $this->assertSame(0, $response->json('result.2026-05-10.orig'));
         $this->assertSame(0, DB::table('urt_log')->count());
@@ -153,8 +159,82 @@ class LegacyChannelReportApiTest extends TestCase
         $response = $this->getJson('/api/api_channel_log.php?u_id=10&limit=1');
 
         $response->assertOk();
+        $response->assertJsonPath('meta.invalid_log_rows', 0);
+        $response->assertJsonPath('meta.unusable_log_rows', 0);
+        $response->assertJsonPath('meta.valid_points', 2);
+        $response->assertJsonPath('meta.view_points', 2);
+        $response->assertJsonPath('meta.video_points', 1);
         $this->assertSame(-100, $response->json('result.2026-05-10.orig'));
         $this->assertSame(0, $response->json('result.2026-05-10.videos'));
+
+        Carbon::setTestNow();
+    }
+
+    public function test_channel_log_api_reports_mixed_payload_quality_counters(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-10 12:00:00', 'Asia/Taipei'));
+        $this->createLogTable();
+        DB::table('urt_log')->insert([
+            $this->logRow(1, '{bad-json'),
+            $this->logRow(2, 'null'),
+            $this->logRow(3, '[]'),
+            $this->logRow(4, json_encode('scalar', JSON_THROW_ON_ERROR)),
+            $this->logRow(5, json_encode([
+                '2026-05-08' => ['view' => 'not-numeric', 'video' => null],
+            ], JSON_THROW_ON_ERROR)),
+            $this->logRow(6, json_encode([
+                '2026-05-09' => ['total_views' => '1000'],
+            ], JSON_THROW_ON_ERROR)),
+            $this->logRow(7, json_encode([
+                '2026-05-10' => ['videos' => 8],
+            ], JSON_THROW_ON_ERROR)),
+            $this->logRow(8, null),
+            $this->logRow(9, '   '),
+        ]);
+
+        $response = $this->getJson('/api/api_channel_log.php?u_id=10&limit=2');
+
+        $response->assertOk();
+        $response->assertJsonPath('meta.available', true);
+        $response->assertJsonPath('meta.blocked_reason', null);
+        $response->assertJsonPath('meta.log_rows', 9);
+        $response->assertJsonPath('meta.invalid_log_rows', 1);
+        $response->assertJsonPath('meta.unusable_log_rows', 6);
+        $response->assertJsonPath('meta.valid_points', 3);
+        $response->assertJsonPath('meta.view_points', 1);
+        $response->assertJsonPath('meta.video_points', 1);
+        $this->assertCount(3, $response->json('result'));
+
+        Carbon::setTestNow();
+    }
+
+    public function test_channel_prediction_requires_view_points_while_channel_log_accepts_video_points(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-10 12:00:00', 'Asia/Taipei'));
+        $this->createLogTable();
+        DB::table('urt_log')->insert($this->logRow(1, json_encode([
+            '2026-05-09' => ['video' => 10],
+            '2026-05-10' => ['videos' => '12'],
+        ], JSON_THROW_ON_ERROR)));
+
+        $channelLog = $this->getJson('/api/api_channel_log.php?u_id=10&limit=1');
+        $prediction = $this->getJson('/api/channel_pred.php?u_id=10&limit=1');
+
+        $channelLog->assertOk();
+        $channelLog->assertJsonPath('meta.available', true);
+        $channelLog->assertJsonPath('meta.blocked_reason', null);
+        $channelLog->assertJsonPath('meta.valid_points', 2);
+        $channelLog->assertJsonPath('meta.view_points', 0);
+        $channelLog->assertJsonPath('meta.video_points', 2);
+        $this->assertSame(2, $channelLog->json('result.2026-05-10.videos'));
+
+        $prediction->assertOk();
+        $prediction->assertJsonPath('meta.available', false);
+        $prediction->assertJsonPath('meta.blocked_reason', 'local urt_log has no usable rows for this channel');
+        $prediction->assertJsonPath('meta.valid_points', 2);
+        $prediction->assertJsonPath('meta.view_points', 0);
+        $prediction->assertJsonPath('meta.video_points', 2);
+        $this->assertCount(2, $prediction->json('result'));
 
         Carbon::setTestNow();
     }
@@ -213,6 +293,21 @@ class LegacyChannelReportApiTest extends TestCase
         }
 
         return $rows;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function logRow(int $pk, ?string $thedata): array
+    {
+        return [
+            'pk' => $pk,
+            'u_id' => 10,
+            'ctime' => '2026-05-01 00:00:00',
+            'mtime' => '2026-05-10 00:00:00',
+            'themonth' => '2026-05-01',
+            'thedata' => $thedata,
+        ];
     }
 
     private function createChannelTable(): void

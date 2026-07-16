@@ -6,6 +6,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use JsonException;
 use stdClass;
 
 class LegacyChannelReportApiReport
@@ -18,18 +19,28 @@ class LegacyChannelReportApiReport
         $uId = max(1, (int) $request->query('u_id', 2));
         $limit = max(1, min(1095, (int) $request->query('limit', 365)));
         $series = $this->buildSeries($uId, $limit, monthsLimit: null);
+        $available = $series['view_points'] > 0 || $series['video_points'] > 0;
 
         return [
             'result' => $series['result'] === [] ? new stdClass : $series['result'],
             'meta' => [
-                'available' => $series['log_rows'] > 0,
+                'available' => $available,
                 'source' => 'urt_log.thedata',
                 'u_id' => $uId,
                 'limit' => $limit,
                 'log_rows' => $series['log_rows'],
+                'invalid_log_rows' => $series['invalid_log_rows'],
+                'unusable_log_rows' => $series['unusable_log_rows'],
+                'valid_points' => $series['valid_points'],
+                'view_points' => $series['view_points'],
+                'video_points' => $series['video_points'],
                 'channel' => $this->channel($uId),
                 'realtime_dashboard' => true,
-                'blocked_reason' => $series['log_rows'] === 0 ? 'local urt_log has no rows for this channel' : null,
+                'blocked_reason' => match (true) {
+                    $available => null,
+                    $series['log_rows'] === 0 => 'local urt_log has no rows for this channel',
+                    default => 'local urt_log has no usable rows for this channel',
+                },
             ],
         ];
     }
@@ -42,22 +53,27 @@ class LegacyChannelReportApiReport
         $uId = max(1, (int) $request->query('u_id', 2));
         $limit = max(1, min(365, (int) $request->query('limit', 60)));
         $prediction = $this->predictionForChannel($uId, $limit);
+        $available = $prediction['view_points'] >= 2;
 
         return [
             'result' => $prediction['result'] === [] ? new stdClass : $prediction['result'],
             'summary' => $prediction['summary'],
             'meta' => [
-                'available' => $prediction['valid_points'] > 0,
+                'available' => $available,
                 'source' => 'urt_log.thedata',
                 'u_id' => $uId,
                 'limit' => $limit,
                 'months_limit' => $prediction['months_limit'],
                 'log_rows' => $prediction['log_rows'],
                 'invalid_log_rows' => $prediction['invalid_log_rows'],
+                'unusable_log_rows' => $prediction['unusable_log_rows'],
+                'valid_points' => $prediction['valid_points'],
+                'view_points' => $prediction['view_points'],
+                'video_points' => $prediction['video_points'],
                 'channel' => $this->channel($uId),
                 'realtime_dashboard' => true,
                 'writeback_skipped' => 'run reports:channel-predictions:build --execute for reviewed urt_count prediction writeback',
-                'blocked_reason' => $prediction['valid_points'] === 0 ? 'local urt_log has no usable rows for this channel' : null,
+                'blocked_reason' => $available ? null : 'local urt_log has no usable rows for this channel',
             ],
         ];
     }
@@ -68,7 +84,10 @@ class LegacyChannelReportApiReport
      *     summary: array{views_pred_week: int, views_pred_month: int},
      *     log_rows: int,
      *     invalid_log_rows: int,
+     *     unusable_log_rows: int,
      *     valid_points: int,
+     *     view_points: int,
+     *     video_points: int,
      *     months_limit: int
      * }
      */
@@ -90,7 +109,10 @@ class LegacyChannelReportApiReport
      *     result: array<string, array{videos: int, orig: int, pred: int, moving: int}>,
      *     log_rows: int,
      *     invalid_log_rows: int,
-     *     valid_points: int
+     *     unusable_log_rows: int,
+     *     valid_points: int,
+     *     view_points: int,
+     *     video_points: int
      * }
      */
     private function buildSeries(int $uId, int $limit, ?int $monthsLimit): array
@@ -106,37 +128,71 @@ class LegacyChannelReportApiReport
 
             $rows = $query->get();
         } catch (QueryException) {
-            return ['result' => [], 'log_rows' => 0, 'invalid_log_rows' => 0, 'valid_points' => 0];
+            return [
+                'result' => [],
+                'log_rows' => 0,
+                'invalid_log_rows' => 0,
+                'unusable_log_rows' => 0,
+                'valid_points' => 0,
+                'view_points' => 0,
+                'video_points' => 0,
+            ];
         }
 
         $dates = [];
         $invalidLogRows = 0;
+        $unusableLogRows = 0;
 
         foreach ($rows as $row) {
             $raw = $row->thedata ?? null;
-            $decoded = $this->decodeMap($raw);
 
-            if ($decoded === [] && is_string($raw) && trim($raw) !== '' && trim($raw) !== 'null' && json_last_error() !== JSON_ERROR_NONE) {
+            if (! is_string($raw) || trim($raw) === '') {
+                $unusableLogRows++;
+
+                continue;
+            }
+
+            try {
+                $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+            } catch (JsonException) {
                 $invalidLogRows++;
 
                 continue;
             }
 
-            foreach ($decoded as $date => $value) {
-                if (is_array($value) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $date)) {
+            $rowHasUsablePoint = false;
+
+            if (is_array($decoded)) {
+                foreach ($decoded as $date => $value) {
+                    if (! is_array($value) || preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $date) !== 1) {
+                        continue;
+                    }
+
+                    $view = $this->metricValue($value, ['view', 'total_views']);
+                    $video = $this->metricValue($value, ['video', 'videos']);
                     $dates[(string) $date] = [
-                        'view' => isset($value['view']) || isset($value['total_views'])
-                            ? (int) ($value['view'] ?? $value['total_views'])
-                            : null,
-                        'video' => isset($value['video']) || isset($value['videos'])
-                            ? (int) ($value['video'] ?? $value['videos'])
-                            : null,
+                        'view' => $view,
+                        'video' => $video,
                     ];
+
+                    $rowHasUsablePoint = $rowHasUsablePoint || $view !== null || $video !== null;
                 }
+            }
+
+            if (! $rowHasUsablePoint) {
+                $unusableLogRows++;
             }
         }
 
         ksort($dates);
+        $viewPoints = 0;
+        $videoPoints = 0;
+
+        foreach ($dates as $point) {
+            $viewPoints += $point['view'] !== null ? 1 : 0;
+            $videoPoints += $point['video'] !== null ? 1 : 0;
+        }
+
         $today = CarbonImmutable::now('Asia/Taipei')->startOfDay();
         $pred = $this->dailyPredictions($dates, $today, $limit);
         $moving = $this->movingAverage($pred, $today, $limit);
@@ -161,7 +217,10 @@ class LegacyChannelReportApiReport
             'result' => $result,
             'log_rows' => $rows->count(),
             'invalid_log_rows' => $invalidLogRows,
+            'unusable_log_rows' => $unusableLogRows,
             'valid_points' => count($dates),
+            'view_points' => $viewPoints,
+            'video_points' => $videoPoints,
         ];
     }
 
@@ -357,16 +416,17 @@ class LegacyChannelReportApiReport
     }
 
     /**
-     * @return array<string, mixed>
+     * @param  array<string, mixed>  $point
+     * @param  list<string>  $keys
      */
-    private function decodeMap(mixed $json): array
+    private function metricValue(array $point, array $keys): ?int
     {
-        if (! is_string($json) || trim($json) === '' || trim($json) === 'null') {
-            return [];
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $point) && is_numeric($point[$key])) {
+                return (int) $point[$key];
+            }
         }
 
-        $decoded = json_decode($json, true);
-
-        return is_array($decoded) ? $decoded : [];
+        return null;
     }
 }

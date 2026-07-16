@@ -28,10 +28,16 @@ class ChannelTrendsReport
         $meta = $payload['meta'] ?? [];
         $channel = $this->channel($uId, $meta['channel'] ?? null);
         $rows = $this->rows(is_array($result) ? $result : [], $mode);
+        $available = $mode === 'videos'
+            ? (int) ($meta['video_points'] ?? 0) > 0
+            : (int) ($meta['view_points'] ?? 0) > 0;
+        $blockedReason = $available
+            ? null
+            : ($meta['blocked_reason'] ?? 'local urt_log has no usable rows for this channel');
 
         return [
-            'available' => (bool) ($meta['available'] ?? false),
-            'data_available' => $rows !== [] && (bool) ($meta['available'] ?? false),
+            'available' => $available,
+            'data_available' => $rows !== [] && $available,
             'channel' => $channel,
             'title' => ($channel['title'] ?? '頻道').' 在 '.$limit.' 天的折線圖',
             'rows' => $rows,
@@ -44,7 +50,7 @@ class ChannelTrendsReport
                 'videos' => $request->query('videos') !== null ? 1 : 0,
             ],
             'dependencies' => [$this->dependency($uId)],
-            'blocked_reason' => $meta['blocked_reason'] ?? null,
+            'blocked_reason' => $blockedReason,
             'generated_at' => now('Asia/Taipei')->format('Y-m-d H:i:s'),
             'legacy_file' => 'channel_line.php + api/api_channel_log.php',
         ];

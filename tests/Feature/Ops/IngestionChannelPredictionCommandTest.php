@@ -156,6 +156,35 @@ class IngestionChannelPredictionCommandTest extends TestCase
         $this->assertSame(0, DB::table('urt_count')->where('u_id', 10)->value('views_pred_week'));
     }
 
+    public function test_channel_predictions_do_not_write_video_only_history(): void
+    {
+        $this->setPredictionTestTime();
+        $this->createTables();
+        $this->seedChannel(10);
+        DB::table('urt_log')->where('u_id', 10)->update([
+            'thedata' => json_encode([
+                '2026-05-24' => ['video' => 10],
+                '2026-05-25' => ['videos' => 12],
+            ], JSON_THROW_ON_ERROR),
+        ]);
+
+        $exitCode = Artisan::call('reports:channel-predictions:build', [
+            '--u_id' => 10,
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, $payload['skipped']);
+        $this->assertSame(0, $payload['failed']);
+        $this->assertSame('skipped', $payload['rows'][0]['status']);
+        $this->assertSame('insufficient_log_history', $payload['rows'][0]['reason']);
+        $this->assertSame(2, $payload['rows'][0]['valid_points']);
+        $this->assertSame(0, DB::table('urt_count')->where('u_id', 10)->value('views_pred_week'));
+        $this->assertSame(0, DB::table('urt_count')->where('u_id', 10)->value('views_pred_month'));
+    }
+
     public function test_channel_predictions_handles_missing_schema_without_sql_details(): void
     {
         $this->setPredictionTestTime();
