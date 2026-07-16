@@ -85,6 +85,80 @@ class LegacyChannelReportApiTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_channel_log_api_preserves_signed_deltas(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-10 12:00:00', 'Asia/Taipei'));
+        $this->createLogTable();
+        DB::table('urt_log')->insert([
+            'pk' => 1,
+            'u_id' => 10,
+            'ctime' => '2026-05-01 00:00:00',
+            'mtime' => '2026-05-10 00:00:00',
+            'themonth' => '2026-05-01',
+            'thedata' => json_encode([
+                '2026-05-09' => ['view' => 1000, 'video' => 10],
+                '2026-05-10' => ['view' => 900, 'video' => 8],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->getJson('/api/api_channel_log.php?u_id=10&limit=1');
+
+        $response->assertOk();
+        $this->assertSame(-100, $response->json('result.2026-05-10.orig'));
+        $this->assertSame(-2, $response->json('result.2026-05-10.videos'));
+
+        Carbon::setTestNow();
+    }
+
+    public function test_channel_log_api_returns_zero_when_previous_date_is_missing(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-10 12:00:00', 'Asia/Taipei'));
+        $this->createLogTable();
+        DB::table('urt_log')->insert([
+            'pk' => 1,
+            'u_id' => 10,
+            'ctime' => '2026-05-01 00:00:00',
+            'mtime' => '2026-05-10 00:00:00',
+            'themonth' => '2026-05-01',
+            'thedata' => json_encode([
+                '2026-05-10' => ['view' => 900, 'video' => 8],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->getJson('/api/api_channel_log.php?u_id=10&limit=1');
+
+        $response->assertOk();
+        $this->assertSame(0, $response->json('result.2026-05-10.orig'));
+        $this->assertSame(0, $response->json('result.2026-05-10.videos'));
+
+        Carbon::setTestNow();
+    }
+
+    public function test_channel_log_api_tracks_alias_metric_presence_independently(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-10 12:00:00', 'Asia/Taipei'));
+        $this->createLogTable();
+        DB::table('urt_log')->insert([
+            'pk' => 1,
+            'u_id' => 10,
+            'ctime' => '2026-05-01 00:00:00',
+            'mtime' => '2026-05-10 00:00:00',
+            'themonth' => '2026-05-01',
+            'thedata' => json_encode([
+                '2026-05-09' => ['total_views' => 1000],
+                '2026-05-10' => ['total_views' => 900, 'videos' => 8],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->getJson('/api/api_channel_log.php?u_id=10&limit=1');
+
+        $response->assertOk();
+        $this->assertSame(-100, $response->json('result.2026-05-10.orig'));
+        $this->assertSame(0, $response->json('result.2026-05-10.videos'));
+
+        Carbon::setTestNow();
+    }
+
     /**
      * @return array<string, array{view: int, video: int}>
      */
