@@ -3,6 +3,7 @@
 namespace Tests\Feature\Reports;
 
 use App\Services\Ingestion\TagDateCacheBuilder;
+use App\Services\Ingestion\TagDateCacheWriteLock;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -12,6 +13,57 @@ use Tests\TestCase;
 
 class TagDateCacheBuilderTest extends TestCase
 {
+    public function test_logical_row_lock_name_canonicalizes_filter_ids(): void
+    {
+        $locks = app(TagDateCacheWriteLock::class);
+        $name = $locks->name([102, 1, 102], [4, 3], [9, 9], '2026-07-15');
+
+        $this->assertSame($name, $locks->name([1, 102], [3, 4], [9], '2026-07-15'));
+        $this->assertNotSame($name, $locks->name([1, 102], [3, 4], [9], '2026-07-14'));
+        $this->assertLessThanOrEqual(64, strlen($name));
+        $this->assertMatchesRegularExpression('/^ytb:tag-date:[a-f0-9]{51}$/', $name);
+    }
+
+    public function test_all_execute_callers_share_the_same_logical_row_lock(): void
+    {
+        $this->createTables();
+        $this->seedRawData();
+        $locks = app(TagDateCacheWriteLock::class);
+        $held = $locks->acquire([1], [], [], '2026-06-05');
+        $this->assertNotNull($held);
+
+        try {
+            $blocked = app(TagDateCacheBuilder::class)->build(
+                tagIds: [1],
+                date: '2026-06-05',
+                onlyKeywords: ['選舉'],
+                execute: true,
+                now: CarbonImmutable::parse('2026-06-05 12:00:00', 'Asia/Taipei'),
+            );
+        } finally {
+            $held->release();
+        }
+
+        $this->assertSame('blocked', $blocked['status']);
+        $this->assertSame('cache_build_locked', $blocked['blocked_reason']);
+        $this->assertSame(1, $blocked['exit_code']);
+        $this->assertSame(0, $blocked['writes']);
+        $this->assertDatabaseCount('urt_show_tag_date', 0);
+
+        $retry = app(TagDateCacheBuilder::class)->build(
+            tagIds: [1],
+            date: '2026-06-05',
+            onlyKeywords: ['選舉'],
+            execute: true,
+            now: CarbonImmutable::parse('2026-06-05 12:01:00', 'Asia/Taipei'),
+        );
+
+        $this->assertSame('success', $retry['status']);
+        $this->assertSame(0, $retry['exit_code']);
+        $this->assertSame(1, $retry['writes']);
+        $this->assertDatabaseCount('urt_show_tag_date', 1);
+    }
+
     public function test_invalid_calendar_dates_fail_closed_without_normalizing_or_writing_another_date(): void
     {
         $this->createTables();

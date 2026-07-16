@@ -17,6 +17,10 @@ class TagDateCacheBuilder
      */
     private array $keywordCache = [];
 
+    public function __construct(
+        private readonly TagDateCacheWriteLock $writeLock,
+    ) {}
+
     /**
      * @return array<string, mixed>
      */
@@ -273,7 +277,32 @@ class TagDateCacheBuilder
             $metrics = $this->metrics($keywords, $videos);
 
             if ($execute) {
-                $this->upsertCache($tagIds, $orTagIds, $notTagIds, $date, $metrics, count($channelIds), $generatedAt, $onlyKeywords !== []);
+                $lock = $this->writeLock->acquire($tagIds, $orTagIds, $notTagIds, $date);
+
+                if ($lock === null) {
+                    return $this->blockedRowPayload(
+                        $tagIds,
+                        $orTagIds,
+                        $notTagIds,
+                        $date,
+                        $onlyKeywords,
+                        true,
+                        $generatedAt,
+                        $caps,
+                        $lists,
+                        'cache_build_locked',
+                        keywordRowsScanned: $keywordSelection['scanned'],
+                        keywordsSelected: count($keywords),
+                        channelsMatched: count($channelIds),
+                        videosScanned: count($videos),
+                    );
+                }
+
+                try {
+                    $this->upsertCache($tagIds, $orTagIds, $notTagIds, $date, $metrics, count($channelIds), $generatedAt, $onlyKeywords !== []);
+                } finally {
+                    $lock->release();
+                }
             }
 
             $payload = [
