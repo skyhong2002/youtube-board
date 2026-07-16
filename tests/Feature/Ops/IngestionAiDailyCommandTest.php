@@ -129,6 +129,64 @@ class IngestionAiDailyCommandTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_ai_daily_execute_fails_when_required_all_condition_has_only_nonmergeable_source_events(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+        DB::table('urt_channel')->insert(['u_id' => 10, 'title' => 'Single Video Event Channel']);
+        DB::table('urt_count')->insert(['u_id' => 10, 'tags' => '']);
+        DB::table('urt_channel_ai')->insert($this->channelAiRow(10, [[
+            '事件' => '只有單支影片的來源事件',
+            'videoId' => ['single-video'],
+        ]]));
+        Http::preventStrayRequests();
+
+        $exitCode = Artisan::call('ai:daily', [
+            '--execute' => true,
+            '--date' => '2026-05-24',
+            '--condition' => 'all',
+            '--channel-limit' => 0,
+            '--ai-call-limit' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('partial_failure', $payload['status']);
+        $this->assertSame(1, $payload['failed_rows']);
+        $this->assertSame(1, $payload['daily_ai']['failed']);
+        $this->assertSame('no_source_events', $payload['daily_ai']['rows'][0]['skip_reason']);
+        $this->assertFalse($payload['daily_ai']['rows'][0]['ai_call_attempted']);
+        $this->assertSame(0, DB::table('urt_ai_date')->count());
+        Http::assertNothingSent();
+    }
+
+    public function test_ai_daily_execute_fails_when_raw_source_is_eligible_but_channel_refresh_is_disabled(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedRefreshChannelVideos();
+        Http::preventStrayRequests();
+
+        $exitCode = Artisan::call('ai:daily', [
+            '--execute' => true,
+            '--date' => '2026-05-24',
+            '--condition' => 'all',
+            '--channel-limit' => 0,
+            '--ai-call-limit' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame(0, $payload['channel_ai']['attempted']);
+        $this->assertSame(1, $payload['daily_ai']['failed']);
+        $this->assertSame('no_source_events', $payload['daily_ai']['rows'][0]['skip_reason']);
+        $this->assertSame(0, DB::table('urt_channel_ai')->count());
+        $this->assertSame(0, DB::table('urt_ai_date')->count());
+        Http::assertNothingSent();
+    }
+
     public function test_ai_daily_previews_make_ai_day_shell_conditions_and_channel_ai_refresh(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 12:00:00', 'Asia/Taipei'));

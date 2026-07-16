@@ -596,6 +596,7 @@ class AiDailyPreview
             'video_limit' => $channelVideoLimit,
             'would_attempt_channel_ai_refresh' => $attemptedChannels,
             'eligible_channel_ai_candidates' => $candidateRows->count(),
+            'available_channel_ai_candidates' => $allCandidateRows->count(),
             'would_call_channel_ai_requests' => $callRows->count(),
             'would_insert_channel_ai_candidates' => $callRows->count(),
             'would_skip_fewer_than_10_videos' => $attemptedChannels - $candidateRows->count(),

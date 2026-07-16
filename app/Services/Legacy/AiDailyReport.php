@@ -779,7 +779,7 @@ class AiDailyReport
                 $stats = $this->topicStats($mediaEvents, $titleToUId, $channelAi, $channelTags);
 
                 return [
-                    'title' => $this->text($topic, ['標題', '議題', 'title', 'topic']),
+                    'title' => $this->text($topic, ['事件', '議題', '標題', 'event', 'topic', 'title']),
                     'media_events' => $mediaEvents,
                     'media_event_rows' => $this->mediaEventRows($mediaEvents, $titleToUId, $stats['event_video_counts']),
                     'media_count' => count($mediaEvents),
@@ -1010,7 +1010,11 @@ class AiDailyReport
     {
         foreach ($keys as $key) {
             if (isset($item[$key]) && is_scalar($item[$key])) {
-                return trim((string) $item[$key]);
+                $value = trim((string) $item[$key]);
+
+                if ($value !== '') {
+                    return $value;
+                }
             }
         }
 

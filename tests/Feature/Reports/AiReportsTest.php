@@ -154,6 +154,43 @@ class AiReportsTest extends TestCase
         $response->assertSee('完整每日議題15');
     }
 
+    public function test_ai_daily_page_renders_valid_event_title_aliases_accepted_by_ingestion(): void
+    {
+        $this->createAiDailyTables();
+
+        DB::table('urt_ai_date')->insert([
+            'pk' => 109,
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => '2026-05-24 23:59:59',
+            'condition_type' => 'all',
+            'data_type' => 'oneday',
+            'del_flag' => null,
+            'channel_id' => '{}',
+            'result_json' => json_encode(collect(range(1, 15))
+                ->map(fn (int $index): array => [
+                    '事件' => $index % 2 === 0
+                        ? ''
+                        : '混合欄位每日議題'.str_pad((string) $index, 2, '0', STR_PAD_LEFT),
+                    '標題' => $index % 2 === 0
+                        ? '混合欄位每日議題'.str_pad((string) $index, 2, '0', STR_PAD_LEFT)
+                        : '',
+                    '媒體事件' => [
+                        '媒體甲' => ['甲事件'.$index],
+                        '媒體乙' => ['乙事件'.$index],
+                    ],
+                ])
+                ->all(), JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->get('/ai/days/2026-05-24/all');
+
+        $response->assertOk();
+        $response->assertSee('15 topics');
+        $response->assertSee('混合欄位每日議題01');
+        $response->assertSee('混合欄位每日議題02');
+        $response->assertSee('混合欄位每日議題15');
+    }
+
     public function test_ai_daily_page_rebuilds_an_undersized_cache_with_more_than_ten_channel_topics(): void
     {
         $this->createAiDailyTables();

@@ -331,6 +331,43 @@ class AiScheduledPipelineIngestionTest extends TestCase
         $this->assertSame('success', $result['ai']['status']);
     }
 
+    public function test_daily_pipeline_propagates_required_daily_source_failure(): void
+    {
+        $pipeline = $this->pipeline(
+            quotaPayload: [
+                'exit_code' => 0,
+                'crawl_complete' => true,
+                'selected_channels' => 39,
+                'updated_channels' => 39,
+                'failed_channels' => 0,
+                'completed_channel_ids' => AiDailyPreview::channelAiUids(),
+            ],
+            daily: function (MockInterface $mock): void {
+                $mock->shouldReceive('execute')->once()->andReturn([
+                    'status' => 'partial_failure',
+                    'exit_code' => 1,
+                    'failed_rows' => 1,
+                    'daily_ai' => [
+                        'failed' => 1,
+                        'rows' => [[
+                            'condition' => 'all',
+                            'skip_reason' => 'no_source_events',
+                            'failed' => true,
+                        ]],
+                    ],
+                    'write_targets' => ['urt_channel_ai', 'urt_ai_date'],
+                ]);
+            },
+        );
+
+        $result = $pipeline->executeDaily(date: '2026-07-14');
+
+        $this->assertSame('partial_failure', $result['status']);
+        $this->assertSame(1, $result['exit_code']);
+        $this->assertSame(1, $result['failed_rows']);
+        $this->assertSame('no_source_events', $result['ai']['daily_ai']['rows'][0]['skip_reason']);
+    }
+
     public function test_daily_pipeline_does_not_trust_complete_counts_when_a_required_channel_was_not_crawled(): void
     {
         $requiredChannelIds = AiDailyPreview::channelAiUids();

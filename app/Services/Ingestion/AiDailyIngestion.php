@@ -58,6 +58,7 @@ class AiDailyIngestion
         $providerAttemptsPerChainLimit = $this->client->providerAttemptCapPerCompletion();
         $providerRequestLimit = $aiCallLimit * $providerAttemptsPerChainLimit;
         $aiCallsUsed = 0;
+        $singleConditionRequested = is_string($condition) && trim($condition) !== '';
         $channelRows = $this->refreshChannelAi(
             period: $period,
             now: $now,
@@ -100,7 +101,15 @@ class AiDailyIngestion
             }
 
             if ((int) $row['prompt_event_rows'] <= 0 || trim($prompt) === '') {
-                $dailyRows[] = $this->skippedDailyRow($row, 'no_source_events');
+                $hasExpectedSourceEvents = (int) ($row['source_rows'] ?? 0) > 0
+                    || $channelRows->contains(fn (array $channelRow): bool => (int) ($channelRow['video_rows'] ?? 0) >= 10)
+                    || (int) data_get($dailyPlan, 'channel_ai_refresh.available_channel_ai_candidates', 0) > 0;
+                $dailyRows[] = $this->skippedDailyRow(
+                    $row,
+                    'no_source_events',
+                    failed: $hasExpectedSourceEvents
+                        && ($singleConditionRequested || ($row['condition'] ?? null) === 'all'),
+                );
 
                 continue;
             }
