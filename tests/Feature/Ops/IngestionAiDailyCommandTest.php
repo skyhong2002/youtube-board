@@ -367,6 +367,7 @@ class IngestionAiDailyCommandTest extends TestCase
         Http::fake([
             'https://opencode.test/v1/chat/completions' => Http::sequence()
                 ->push([
+                    'model' => 'qwen-test-2026-07-15',
                     'choices' => [
                         [
                             'message' => [
@@ -377,6 +378,7 @@ class IngestionAiDailyCommandTest extends TestCase
                     'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5],
                 ])
                 ->push([
+                    'model' => 'qwen-test-2026-07-15',
                     'choices' => [
                         [
                             'message' => [
@@ -387,6 +389,7 @@ class IngestionAiDailyCommandTest extends TestCase
                     'usage' => ['prompt_tokens' => 20, 'completion_tokens' => 6],
                 ])
                 ->push([
+                    'model' => 'replacement-model-2026-07-15',
                     'choices' => [
                         [
                             'message' => [
@@ -397,6 +400,7 @@ class IngestionAiDailyCommandTest extends TestCase
                     'usage' => ['prompt_tokens' => 11, 'completion_tokens' => 5],
                 ])
                 ->push([
+                    'model' => 'replacement-model-2026-07-15',
                     'choices' => [
                         [
                             'message' => [
@@ -421,6 +425,8 @@ class IngestionAiDailyCommandTest extends TestCase
         $this->assertSame('execute', $payload['mode']);
         $this->assertSame(1, $payload['channel_ai']['inserted']);
         $this->assertSame(1, $payload['daily_ai']['inserted']);
+        $this->assertSame('qwen-test-2026-07-15', $payload['channel_ai']['rows'][0]['model']);
+        $this->assertSame('qwen-test-2026-07-15', $payload['daily_ai']['rows'][0]['model']);
         $this->assertSame([
             'limit' => 45,
             'used' => 2,
@@ -479,11 +485,78 @@ class IngestionAiDailyCommandTest extends TestCase
         $this->assertSame(0, $exitCode);
         $this->assertSame(1, $payload['channel_ai']['updated']);
         $this->assertSame(1, $payload['daily_ai']['updated']);
+        $this->assertSame('replacement-model-2026-07-15', $payload['channel_ai']['rows'][0]['model']);
+        $this->assertSame('replacement-model-2026-07-15', $payload['daily_ai']['rows'][0]['model']);
         $this->assertSame(4, DB::table('urt_channel_ai')->count());
         $this->assertSame(1, DB::table('urt_ai_date')->count());
         $this->assertSame('replacement-model', DB::table('urt_channel_ai')->where('u_id', 76)->value('ai_type'));
         $this->assertSame('replacement-model', DB::table('urt_ai_date')->value('ai_type'));
         Http::assertSentCount(4);
+    }
+
+    public function test_ai_daily_normalizes_official_structured_media_rows_and_stores_configured_model_alias(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDailyAiFixtures();
+        config()->set('services.opencode_go.api_key', 'official-key');
+        config()->set('services.opencode_go.base_url', 'https://api.openai.com/v1');
+        config()->set('services.opencode_go.model', 'gpt-5.4-mini');
+        config()->set('services.opencode_go.endpoint_style', 'chat');
+        config()->set('services.opencode_go.fallback_api_key', null);
+        $structuredEvents = collect(range(1, 15))->map(fn (int $index): array => [
+            '標題' => '結構化每日事件 '.$index,
+            '媒體事件' => [
+                ['媒體' => 'Green Channel', '事件' => ['Green Multi']],
+                ['媒體' => 'Blue Channel', '事件' => ['Blue Multi']],
+            ],
+        ])->all();
+
+        Http::fake([
+            'https://api.openai.com/v1/chat/completions' => Http::response([
+                'model' => 'gpt-5.4-mini-2026-07-15',
+                'choices' => [['message' => ['content' => json_encode([
+                    'events' => $structuredEvents,
+                ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)]]],
+            ]),
+        ]);
+        Http::preventStrayRequests();
+
+        $exitCode = Artisan::call('ai:daily', [
+            '--execute' => true,
+            '--date' => '2026-05-24',
+            '--condition' => 'all',
+            '--channel-limit' => 0,
+            '--ai-call-limit' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+        $stored = json_decode(
+            (string) DB::table('urt_ai_date')->value('result_json'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('gpt-5.4-mini-2026-07-15', $payload['daily_ai']['rows'][0]['model']);
+        $this->assertSame('gpt-5.4-mini', DB::table('urt_ai_date')->value('ai_type'));
+        $this->assertSame([
+            'Green Channel' => ['Green Multi'],
+            'Blue Channel' => ['Blue Multi'],
+        ], $stored[0]['媒體事件']);
+        Http::assertSent(function (Request $request): bool {
+            $format = $request['response_format'] ?? [];
+            $events = $format['json_schema']['schema']['properties']['events'] ?? [];
+            $mediaRows = $events['items']['properties']['媒體事件'] ?? [];
+
+            return ($format['type'] ?? null) === 'json_schema'
+                && ($format['json_schema']['strict'] ?? null) === true
+                && ($events['minItems'] ?? null) === 15
+                && ($events['maxItems'] ?? null) === 20
+                && ($mediaRows['minItems'] ?? null) === 2
+                && str_contains((string) data_get($request->data(), 'messages.0.content'), '"媒體事件": [');
+        });
     }
 
     public function test_ai_daily_execute_channel_limit_uses_eligible_legacy_channels(): void
@@ -1216,7 +1289,7 @@ SQL);
         $this->assertSame(0, $payload['daily_ai']['inserted']);
         $this->assertSame(1, $payload['daily_ai']['failed']);
         $this->assertSame('channel_ai_incomplete', $payload['daily_ai']['rows'][0]['skip_reason']);
-        $this->assertStringContainsString('password=<redacted>', $payload['channel_ai']['rows'][0]['skip_reason']);
+        $this->assertSame('database_write_failed', $payload['channel_ai']['rows'][0]['skip_reason']);
         $this->assertStringNotContainsString('channel-db-secret', $output);
         $this->assertSame(0, DB::table('urt_ai_date')->count());
         Http::assertSentCount(1);
@@ -1301,7 +1374,7 @@ SQL);
         $this->assertSame($existing, DB::table('urt_ai_date')->value('result_json'));
     }
 
-    public function test_ai_daily_preserves_mixed_provider_chain_failure_after_primary_validation_rejection(): void
+    public function test_ai_daily_propagates_safe_validation_reason_before_fallback_http_failure(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'));
         $this->createTables();
@@ -1337,9 +1410,7 @@ SQL);
         $reason = $payload['daily_ai']['rows'][0]['skip_reason'];
 
         $this->assertSame(1, $exitCode);
-        $this->assertStringContainsString('AI completion failed after 2 provider(s):', $reason);
-        $this->assertStringContainsString('primary: validation_rejected', $reason);
-        $this->assertStringContainsString('fallback: status=429', $reason);
+        $this->assertSame('ai_payload_item_count_below_minimum', $reason);
         $this->assertStringNotContainsString('fallback-provider-secret', $output);
         $this->assertSame($existing, DB::table('urt_ai_date')->value('result_json'));
         Http::assertSentCount(2);

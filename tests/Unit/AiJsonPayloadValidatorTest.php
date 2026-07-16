@@ -65,6 +65,53 @@ class AiJsonPayloadValidatorTest extends TestCase
         $this->assertSame('invalid_ai_payload_shape', $numericMediaKeys['failure_reason']);
     }
 
+    public function test_daily_structured_media_rows_are_normalized_to_the_legacy_media_map(): void
+    {
+        $result = app(AiJsonPayloadValidator::class)->validateEventList(json_encode([
+            'events' => [[
+                '標題' => '每日事件',
+                '媒體事件' => [
+                    ['媒體' => 'News A', '事件' => ['事件 A']],
+                    ['媒體' => 'News B', '事件' => ['事件 B']],
+                    ['媒體' => 'News A', '事件' => ['事件 A2']],
+                ],
+            ]],
+        ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), 'daily');
+
+        $this->assertTrue($result['valid']);
+        $this->assertSame([[
+            '標題' => '每日事件',
+            '媒體事件' => [
+                'News A' => ['事件 A', '事件 A2'],
+                'News B' => ['事件 B'],
+            ],
+        ]], json_decode((string) $result['json'], true, 512, JSON_THROW_ON_ERROR));
+    }
+
+    public function test_event_list_schema_is_strict_and_carries_runtime_bounds(): void
+    {
+        $validator = app(AiJsonPayloadValidator::class);
+        $channel = $validator->eventListJsonSchema('channel', 3, 7);
+        $daily = $validator->eventListJsonSchema('daily', 15, 20);
+
+        $this->assertSame('object', $channel['type']);
+        $this->assertFalse($channel['additionalProperties']);
+        $this->assertSame(['events'], $channel['required']);
+        $this->assertSame(3, $channel['properties']['events']['minItems']);
+        $this->assertSame(7, $channel['properties']['events']['maxItems']);
+        $this->assertFalse($channel['properties']['events']['items']['additionalProperties']);
+        $this->assertContains('videoId', $channel['properties']['events']['items']['required']);
+        $this->assertSame(['type' => 'string'], $channel['properties']['events']['items']['properties']['事件']);
+        $this->assertSame(1, $channel['properties']['events']['items']['properties']['videoId']['minItems']);
+
+        $mediaRows = $daily['properties']['events']['items']['properties']['媒體事件'];
+        $this->assertSame(15, $daily['properties']['events']['minItems']);
+        $this->assertSame(20, $daily['properties']['events']['maxItems']);
+        $this->assertSame(2, $mediaRows['minItems']);
+        $this->assertFalse($mediaRows['items']['additionalProperties']);
+        $this->assertSame(['媒體', '事件'], $mediaRows['items']['required']);
+    }
+
     public function test_event_list_enforces_expected_minimum_and_maximum_cardinality(): void
     {
         $validator = app(AiJsonPayloadValidator::class);

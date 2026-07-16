@@ -126,7 +126,7 @@ class MayorPersonAiIngestion
                 $values = [
                     'mtime' => $now->format('Y-m-d H:i:s'),
                     'city_label' => $city['label'],
-                    'ai_type' => $completion['model'],
+                    'ai_type' => $completion['configured_model'],
                     'provider' => $completion['provider'],
                     'prompt_json' => json_encode(['version' => 1, 'prompt' => $prompt], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
                     'source_json' => json_encode($source, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),

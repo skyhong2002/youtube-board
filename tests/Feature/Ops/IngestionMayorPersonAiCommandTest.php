@@ -45,6 +45,7 @@ class IngestionMayorPersonAiCommandTest extends TestCase
         Http::fake([
             'https://opencode.test/v1/chat/completions' => Http::sequence()
                 ->push([
+                    'model' => 'qwen-test-2026-07-15',
                     'choices' => [[
                         'message' => [
                             'content' => json_encode([
@@ -60,6 +61,7 @@ class IngestionMayorPersonAiCommandTest extends TestCase
                     'usage' => ['prompt_tokens' => 100, 'completion_tokens' => 30],
                 ])
                 ->push([
+                    'model' => 'qwen-test-2026-07-15',
                     'choices' => [[
                         'message' => [
                             'content' => json_encode([
@@ -91,6 +93,7 @@ class IngestionMayorPersonAiCommandTest extends TestCase
         $this->assertSame(2, $payload['inserted']);
         $this->assertSame(0, $payload['skipped']);
         $this->assertSame(2, $payload['ai_call_guard']['used']);
+        $this->assertSame('qwen-test-2026-07-15', $payload['rows'][0]['model']);
         $this->assertDatabaseHas('urt_mayor_person_ai', [
             'city_key' => 'taipei',
             'person' => '蔣萬安',

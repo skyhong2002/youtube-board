@@ -34,7 +34,6 @@ class AiProviderProbeCommandTest extends TestCase
             ]),
         ]);
         Http::preventStrayRequests();
-
         $exitCode = Artisan::call('ai:provider:probe', [
             '--provider' => 'fallback',
             '--json' => true,
@@ -73,6 +72,8 @@ class AiProviderProbeCommandTest extends TestCase
             ]),
         ]);
         Http::preventStrayRequests();
+        $telemetry = app(IngestionTelemetry::class);
+        $telemetry->reset();
 
         $exitCode = Artisan::call('ai:provider:probe', [
             '--provider' => 'primary',
@@ -80,6 +81,7 @@ class AiProviderProbeCommandTest extends TestCase
         ]);
 
         $this->assertSame(0, $exitCode);
+        $this->assertNull($telemetry->snapshot()['ai_requests'][0]['response_model']);
         Http::assertSent(function ($request): bool {
             return $request->url() === 'https://api.openai.test/v1/chat/completions'
                 && $request['model'] === 'gpt-5.4-mini'
@@ -101,6 +103,8 @@ class AiProviderProbeCommandTest extends TestCase
                 'choices' => [['message' => ['content' => 'OK']]],
             ]),
         ]);
+        $telemetry = app(IngestionTelemetry::class);
+        $telemetry->reset();
 
         $exitCode = Artisan::call('ai:provider:probe', [
             '--provider' => 'primary',
@@ -111,6 +115,8 @@ class AiProviderProbeCommandTest extends TestCase
         $this->assertSame(0, $exitCode);
         $this->assertSame('gpt-5.4-mini-2026-06-15', $payload['providers'][0]['model']);
         $this->assertSame('gpt-5.4-mini', $payload['providers'][0]['configured_model']);
+        $this->assertSame('gpt-5.4-mini', $telemetry->snapshot()['ai_requests'][0]['model']);
+        $this->assertSame('gpt-5.4-mini-2026-06-15', $telemetry->snapshot()['ai_requests'][0]['response_model']);
     }
 
     public function test_openai_provider_alias_probes_the_primary_endpoint_and_model(): void
@@ -206,6 +212,7 @@ class AiProviderProbeCommandTest extends TestCase
 
         Http::fake([
             'https://primary.test/v1/chat/completions' => Http::response([
+                'model' => 'gpt-5.4-mini-2026-07-15',
                 'choices' => [[
                     'finish_reason' => 'length',
                     'message' => ['content' => '{"partial":"private prompt content must not appear"}'],
@@ -427,12 +434,14 @@ class AiProviderProbeCommandTest extends TestCase
 
         Http::fake([
             'https://primary.test/v1/chat/completions' => Http::response([
+                'model' => 'gpt-5.4-mini-2026-07-15',
                 'choices' => [[
                     'finish_reason' => 'provider-controlled-private-reason',
                     'message' => ['content' => $primaryContent],
                 ]],
             ]),
             'https://fallback.test/v1/chat/completions' => Http::response([
+                'model' => 'qwen3.6-plus-2026-07-01',
                 'choices' => [['finish_reason' => 'stop', 'message' => ['content' => $fallbackContent]]],
             ]),
         ]);
@@ -456,6 +465,11 @@ class AiProviderProbeCommandTest extends TestCase
         $this->assertFalse($snapshot['ai_requests'][0]['ok']);
         $this->assertSame(200, $snapshot['ai_requests'][0]['status']);
         $this->assertSame('validation_rejected', $snapshot['ai_requests'][0]['error']);
+        $this->assertSame('gpt-5.4-mini', $snapshot['ai_requests'][0]['model']);
+        $this->assertSame('gpt-5.4-mini-2026-07-15', $snapshot['ai_requests'][0]['response_model']);
+        $this->assertSame('invalid_ai_payload', $snapshot['ai_requests'][0]['validation_failure_reason']);
+        $this->assertSame('qwen3.6-plus', $snapshot['ai_requests'][1]['model']);
+        $this->assertSame('qwen3.6-plus-2026-07-01', $snapshot['ai_requests'][1]['response_model']);
         $this->assertSame(mb_strlen($primaryContent, 'UTF-8'), $snapshot['ai_requests'][0]['completion_chars']);
         $this->assertSame('other', $snapshot['ai_requests'][0]['finish_reason']);
         $this->assertStringNotContainsString($primaryContent, $encoded);
@@ -465,6 +479,122 @@ class AiProviderProbeCommandTest extends TestCase
         $this->assertStringNotContainsString('primary-secret-key', $encoded);
         $this->assertStringNotContainsString('fallback-secret-key', $encoded);
         Http::assertSentCount(2);
+    }
+
+    public function test_validated_completion_sends_strict_schema_only_to_official_primary_chat(): void
+    {
+        config()->set('services.opencode_go.api_key', 'primary-key');
+        config()->set('services.opencode_go.base_url', 'https://api.openai.com/v1');
+        config()->set('services.opencode_go.model', 'gpt-5.4-mini');
+        config()->set('services.opencode_go.endpoint_style', 'chat');
+        config()->set('services.opencode_go.fallback_api_key', 'fallback-key');
+        config()->set('services.opencode_go.fallback_base_url', 'https://api.openai.com/v1');
+        config()->set('services.opencode_go.fallback_model', 'gpt-4o-mini');
+        config()->set('services.opencode_go.fallback_endpoint_style', 'chat');
+        $schema = [
+            'type' => 'object',
+            'properties' => ['events' => ['type' => 'array', 'minItems' => 1, 'maxItems' => 2, 'items' => ['type' => 'string']]],
+            'required' => ['events'],
+            'additionalProperties' => false,
+        ];
+
+        Http::fake([
+            'https://api.openai.com/v1/chat/completions' => Http::sequence()
+                ->push(['choices' => [['message' => ['content' => '{"events":[]}']]]])
+                ->push(['choices' => [['message' => ['content' => '{"events":["ok"]}']]]]),
+        ]);
+        Http::preventStrayRequests();
+
+        $telemetry = app(IngestionTelemetry::class);
+        $telemetry->reset();
+        $result = app(OpenCodeChatClient::class)->completeValidated(
+            'Return an event list as JSON.',
+            fn (string $content): array => str_contains($content, '"ok"')
+                ? ['valid' => true, 'json' => $content]
+                : ['valid' => false, 'failure_reason' => 'invalid_ai_payload_shape'],
+            jsonSchema: $schema,
+        );
+        $requests = Http::recorded()->map(fn (array $record): Request => $record[0])->values();
+
+        $this->assertSame('fallback', $result['provider']);
+        $this->assertSame([
+            'type' => 'json_schema',
+            'json_schema' => [
+                'name' => 'validated_event_list',
+                'strict' => true,
+                'schema' => $schema,
+            ],
+        ], $requests[0]['response_format']);
+        $this->assertFalse(isset($requests[1]['response_format']));
+        $this->assertTrue($telemetry->snapshot()['ai_requests'][0]['structured_output']);
+        $this->assertFalse($telemetry->snapshot()['ai_requests'][1]['structured_output']);
+    }
+
+    public function test_validated_messages_completion_never_sends_chat_response_format(): void
+    {
+        config()->set('services.opencode_go.api_key', 'primary-key');
+        config()->set('services.opencode_go.base_url', 'https://api.openai.com/v1');
+        config()->set('services.opencode_go.model', 'minimax-m2.7');
+        config()->set('services.opencode_go.endpoint_style', 'messages');
+        config()->set('services.opencode_go.fallback_api_key', null);
+
+        Http::fake([
+            'https://api.openai.com/v1/messages' => Http::response([
+                'content' => [['type' => 'text', 'text' => '{"events":["ok"]}']],
+            ]),
+        ]);
+        Http::preventStrayRequests();
+
+        app(OpenCodeChatClient::class)->completeValidated(
+            'Return JSON.',
+            fn (string $content): array => ['valid' => true, 'json' => $content],
+            jsonSchema: ['type' => 'object'],
+        );
+
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.openai.com/v1/messages'
+            && ! isset($request['response_format']));
+    }
+
+    public function test_safe_validation_reason_survives_a_later_fallback_http_failure(): void
+    {
+        config()->set('services.opencode_go.api_key', 'primary-key');
+        config()->set('services.opencode_go.base_url', 'https://primary.test/v1');
+        config()->set('services.opencode_go.model', 'primary-model');
+        config()->set('services.opencode_go.fallback_api_key', 'fallback-key');
+        config()->set('services.opencode_go.fallback_base_url', 'https://fallback.test/v1');
+        config()->set('services.opencode_go.fallback_model', 'fallback-model');
+        config()->set('services.opencode_go.transient_retries', 0);
+        $privateContent = '{"events":["primary-output-secret"]}';
+
+        Http::fake([
+            'https://primary.test/v1/chat/completions' => Http::response([
+                'choices' => [['message' => ['content' => $privateContent]]],
+            ]),
+            'https://fallback.test/v1/chat/completions' => Http::response([
+                'error' => ['message' => 'quota token=fallback-body-secret'],
+            ], 429),
+        ]);
+        Http::preventStrayRequests();
+
+        try {
+            app(OpenCodeChatClient::class)->completeValidated(
+                'Return enough events.',
+                fn (): array => [
+                    'valid' => false,
+                    'failure_reason' => 'ai_payload_item_count_below_minimum',
+                ],
+            );
+            $this->fail('Expected the provider chain to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString(
+                'validation_failure_reason=ai_payload_item_count_below_minimum',
+                $exception->getMessage(),
+            );
+            $this->assertStringContainsString('primary: validation_rejected', $exception->getMessage());
+            $this->assertStringContainsString('fallback: status=429', $exception->getMessage());
+            $this->assertStringNotContainsString('primary-output-secret', $exception->getMessage());
+            $this->assertStringNotContainsString('fallback-body-secret', $exception->getMessage());
+        }
     }
 
     public function test_validated_completion_sanitizes_callback_exception_before_fallback(): void
