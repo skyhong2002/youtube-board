@@ -908,6 +908,103 @@ SQL);
         Http::assertSentCount(40);
     }
 
+    public function test_recorded_scheduler_pipeline_persists_sanitized_ai_failure_telemetry(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
+        Storage::fake('local');
+        $this->createTables();
+        $this->createScheduledPipelineSourceTables();
+        $this->seedScheduledPipelineChannels();
+        config()->set('ingestion.scheduler_enabled', true);
+        config()->set('ingestion.local_polling_enabled', true);
+        config()->set('ingestion.scheduled_write_allowlist', ['ai.hourly']);
+        config()->set('ingestion.youtube_daily_quota_budget', 9000);
+        config()->set('services.youtube.api_key', 'test-youtube-key');
+        config()->set('services.youtube.api_keys', null);
+        config()->set('services.youtube.transient_retries', 0);
+        config()->set('services.opencode_go.api_key', 'primary-telemetry-secret-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        config()->set('services.opencode_go.endpoint_style', 'chat');
+        config()->set('services.opencode_go.transient_retries', 0);
+        config()->set('services.opencode_go.fallback_api_key', null);
+        $youtubeRequests = 0;
+
+        Http::fake(function (Request $request) use (&$youtubeRequests) {
+            if (str_starts_with($request->url(), 'https://www.googleapis.com/youtube/v3/playlistItems')) {
+                $youtubeRequests++;
+                $videoId = 'failed-ai-pipeline-video-'.$youtubeRequests;
+
+                return Http::response([
+                    'items' => [[
+                        'id' => 'failed-ai-pipeline-item-'.$youtubeRequests,
+                        'snippet' => [
+                            'publishedAt' => '2026-05-25T01:30:00Z',
+                            'channelId' => 'UC-failed-ai-pipeline-'.$youtubeRequests,
+                            'title' => 'Failed AI Pipeline Video '.$youtubeRequests,
+                            'description' => '',
+                            'thumbnails' => ['default' => ['url' => 'https://img.test/'.$videoId.'.jpg']],
+                            'channelTitle' => 'Failed AI Pipeline Channel '.$youtubeRequests,
+                            'playlistId' => 'UU-pipeline-'.$youtubeRequests,
+                            'position' => 0,
+                            'resourceId' => ['videoId' => $videoId],
+                        ],
+                    ]],
+                ]);
+            }
+
+            if ($request->url() === 'https://opencode.test/v1/chat/completions') {
+                return Http::response([
+                    'error' => ['message' => 'quota token=provider-body-secret'],
+                ], 429);
+            }
+
+            return Http::response(['error' => ['message' => 'unexpected test request']], 500);
+        });
+        Http::preventStrayRequests();
+
+        $exitCode = Artisan::call('ingestion:run', [
+            '--execute' => true,
+            '--record' => true,
+            '--at' => '2026-05-25 10:10:00',
+            '--job' => 'ai.hourly',
+        ]);
+
+        $this->assertSame(1, $exitCode, Artisan::output());
+        $this->assertSame(39, $youtubeRequests);
+        $this->assertDatabaseCount('urt_ai_hour', 0);
+        $this->assertDatabaseCount('ingestion_runs', 1);
+        $this->assertDatabaseHas('ingestion_run_jobs', [
+            'job_key' => 'ai.hourly',
+            'succeeded' => 0,
+            'failed' => 1,
+            'exit_code' => 1,
+        ]);
+
+        $payloadJson = (string) DB::table('ingestion_runs')->value('payload_json');
+        $stored = json_decode($payloadJson, true, 512, JSON_THROW_ON_ERROR);
+        $job = $stored['result']['jobs'][0];
+        $aiRequests = $job['telemetry']['ai_requests'];
+
+        $this->assertSame('failed', $job['action']);
+        $this->assertTrue($job['failed']);
+        $this->assertSame(1, $job['exit_code']);
+        $this->assertCount(39, $job['telemetry']['youtube_requests']);
+        $this->assertCount(1, $aiRequests);
+        $this->assertSame('ai.hourly', $aiRequests[0]['job_key']);
+        $this->assertSame(['ai.hourly'], $aiRequests[0]['job_path']);
+        $this->assertSame('primary', $aiRequests[0]['provider']);
+        $this->assertSame('qwen-test', $aiRequests[0]['model']);
+        $this->assertSame(429, $aiRequests[0]['status']);
+        $this->assertFalse($aiRequests[0]['ok']);
+        $this->assertSame('status=429 endpoint_style=chat', $aiRequests[0]['error']);
+        $this->assertSame('not_printed', $aiRequests[0]['secrets']);
+        $this->assertSame(1, $stored['result']['telemetry']['ai_requests']);
+        $this->assertStringNotContainsString('primary-telemetry-secret-key', $payloadJson);
+        $this->assertStringNotContainsString('provider-body-secret', $payloadJson);
+        Http::assertSentCount(40);
+    }
+
     private function useDirectHourlyScheduledCommand(): void
     {
         config()->set('ingestion.jobs', collect(config('ingestion.jobs', []))
