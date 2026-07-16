@@ -18,8 +18,9 @@ legacy dashboard tables that are missing. The asset contains no source comments,
 rows, or source auto-increment counters. `urt_mayor_person_ai` remains owned by its
 separate Laravel migration.
 
-Approved data artifacts stay under `storage/app/db-dumps/` and out of git. Preview
-an artifact before importing it:
+Fresh checkouts include an empty `storage/app/db-dumps/` intake directory. Approved
+data artifacts placed there stay ignored and out of git. Preview an artifact before
+importing it:
 
 ```bash
 docker compose exec app php artisan db:import-local \
