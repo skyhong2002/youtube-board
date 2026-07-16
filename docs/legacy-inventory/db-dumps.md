@@ -38,12 +38,14 @@ The command:
 - can require an exact SHA-256 and enforces compressed/expanded-size plus runtime
   caps;
 - permits only the 50 baseline table names, `CREATE TABLE`, single-table
-  `DROP TABLE IF EXISTS`, `INSERT INTO ... VALUES`, and the narrow session-local
-  charset/foreign-key/SQL-mode `SET` forms required by the approved dumps;
-  every other top-level statement is refused, including database switching,
-  account/grant DDL, server file access, global settings, and unsupported data
-  mutations, triggers/routines/events/views, lock-table directives, prepared
-  statements, or server component installation;
+  `DROP TABLE IF EXISTS`, literal-only `INSERT INTO ... VALUES` rows, and the
+  narrow session-local charset/foreign-key/SQL-mode `SET` forms required by the
+  approved dumps (SQL mode is limited to empty or `NO_AUTO_VALUE_ON_ZERO`);
+  `INSERT` expressions, subqueries, server-file functions, and trailing clauses
+  are refused; every other top-level statement is also refused, including
+  database switching, account/grant DDL, server file access, global settings,
+  unsupported data mutations, triggers/routines/events/views, lock-table
+  directives, prepared statements, or server component installation;
 - refuses Production, hosts outside the exact
   `LOCAL_DUMP_IMPORT_ALLOWED_HOSTS` allowlist, non-MySQL connections, and any
   database name other than the Compose-local `youtube_board`; the default allows
