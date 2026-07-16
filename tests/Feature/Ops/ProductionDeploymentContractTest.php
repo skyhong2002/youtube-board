@@ -55,6 +55,7 @@ class ProductionDeploymentContractTest extends TestCase
         $this->assertStringContainsString('bootstrap/cache/*.php', $dockerIgnore);
         $this->assertStringContainsString('database/*.sqlite*', $dockerIgnore);
         $this->assertStringContainsString('public/hot', $dockerIgnore);
+        $this->assertStringContainsString('storage/app/db-dumps/*', $dockerIgnore);
         $this->assertStringContainsString('storage/app/private/dump-import-staging/*', $dockerIgnore);
         $this->assertStringContainsString('storage/app/private/dump-imports/*', $dockerIgnore);
     }

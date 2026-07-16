@@ -21,7 +21,6 @@ docker-compose.prod-db.yml
 /public/hot
 /public/storage
 /storage/*.key
-/storage/app/db-dumps/
 /storage/pail
 /vendor
 _ide_helper.php
