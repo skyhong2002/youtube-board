@@ -571,7 +571,7 @@ class AiProviderProbeCommandTest extends TestCase
         $requests = Http::recorded()->map(fn (array $record): Request => $record[0])->values();
 
         $this->assertSame('fallback', $result['provider']);
-        $this->assertSame(8192, $requests[0]['max_completion_tokens']);
+        $this->assertSame(12_288, $requests[0]['max_completion_tokens']);
         $this->assertFalse(isset($requests[0]['max_tokens']));
         $this->assertSame('json_schema', $requests[0]['response_format']['type']);
         $this->assertSame(1200, $requests[1]['max_tokens']);

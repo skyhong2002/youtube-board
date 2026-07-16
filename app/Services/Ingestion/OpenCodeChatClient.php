@@ -2,6 +2,7 @@
 
 namespace App\Services\Ingestion;
 
+use App\Support\AiDailyContract;
 use App\Support\SensitiveTextRedactor;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Client\Response;
@@ -10,7 +11,7 @@ use Throwable;
 
 class OpenCodeChatClient
 {
-    public const MAX_OFFICIAL_STRUCTURED_OUTPUT_TOKENS = 8192;
+    public const MAX_OFFICIAL_STRUCTURED_OUTPUT_TOKENS = AiDailyContract::OFFICIAL_ALL_MAX_TOKENS;
 
     public function __construct(
         private readonly HttpFactory $http,

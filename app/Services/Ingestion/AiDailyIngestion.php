@@ -138,15 +138,22 @@ class AiDailyIngestion
                             'daily',
                             expectedMinItems: $bounds['min'],
                             expectedMaxItems: $bounds['max'],
+                            dailyMaxMediaSources: AiDailyContract::MAX_REPRESENTATIVE_MEDIA_PER_TOPIC,
+                            dailyMaxEventsPerMedia: AiDailyContract::REPRESENTATIVE_EVENTS_PER_MEDIA,
                         );
                     },
                     jsonSchema: $this->jsonValidator->eventListJsonSchema(
                         'daily',
                         expectedMinItems: $bounds['min'],
                         expectedMaxItems: $bounds['max'],
+                        dailyMaxMediaSources: AiDailyContract::MAX_REPRESENTATIVE_MEDIA_PER_TOPIC,
+                        dailyMaxEventsPerMedia: AiDailyContract::REPRESENTATIVE_EVENTS_PER_MEDIA,
                     ),
                     officialStructuredOutputMaxTokens: ($row['condition'] ?? null) === 'all'
-                        ? (int) config('services.opencode_go.daily_max_tokens', 8192)
+                        ? (int) config(
+                            'services.opencode_go.daily_max_tokens',
+                            AiDailyContract::OFFICIAL_ALL_MAX_TOKENS,
+                        )
                         : null,
                 );
             } catch (Throwable $exception) {

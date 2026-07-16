@@ -504,7 +504,7 @@ class IngestionAiDailyCommandTest extends TestCase
         config()->set('services.opencode_go.model', 'gpt-5.4-mini');
         config()->set('services.opencode_go.endpoint_style', 'chat');
         config()->set('services.opencode_go.max_tokens', 4096);
-        config()->set('services.opencode_go.daily_max_tokens', 8192);
+        config()->set('services.opencode_go.daily_max_tokens', 12_288);
         config()->set('services.opencode_go.fallback_api_key', null);
         $structuredEvents = collect(range(1, 15))->map(fn (int $index): array => [
             '標題' => '結構化每日事件 '.$index,
@@ -551,15 +551,22 @@ class IngestionAiDailyCommandTest extends TestCase
             $format = $request['response_format'] ?? [];
             $events = $format['json_schema']['schema']['properties']['events'] ?? [];
             $mediaRows = $events['items']['properties']['媒體事件'] ?? [];
+            $mediaEvents = $mediaRows['items']['properties']['事件'] ?? [];
+            $prompt = (string) data_get($request->data(), 'messages.0.content');
 
             return ($format['type'] ?? null) === 'json_schema'
                 && ($format['json_schema']['strict'] ?? null) === true
-                && ($request['max_completion_tokens'] ?? null) === 8192
+                && ($request['max_completion_tokens'] ?? null) === 12_288
                 && ! isset($request['max_tokens'])
                 && ($events['minItems'] ?? null) === 15
                 && ($events['maxItems'] ?? null) === 20
                 && ($mediaRows['minItems'] ?? null) === 2
-                && str_contains((string) data_get($request->data(), 'messages.0.content'), '"媒體事件": [');
+                && ($mediaRows['maxItems'] ?? null) === 6
+                && ($mediaEvents['minItems'] ?? null) === 1
+                && ($mediaEvents['maxItems'] ?? null) === 1
+                && str_contains($prompt, '"媒體事件": [')
+                && str_contains($prompt, '2 到 6 個最具代表性的媒體')
+                && str_contains($prompt, '正好保留 1 個最具代表性的輸入事件');
         });
     }
 
@@ -573,7 +580,7 @@ class IngestionAiDailyCommandTest extends TestCase
         config()->set('services.opencode_go.model', 'gpt-5.4-mini');
         config()->set('services.opencode_go.endpoint_style', 'chat');
         config()->set('services.opencode_go.max_tokens', 4096);
-        config()->set('services.opencode_go.daily_max_tokens', 8192);
+        config()->set('services.opencode_go.daily_max_tokens', 12_288);
         config()->set('services.opencode_go.fallback_api_key', null);
         $structuredEvents = collect(range(1, 8))->map(fn (int $index): array => [
             '標題' => '綠營每日事件 '.$index,
@@ -1424,6 +1431,71 @@ SQL);
         $this->assertSame($existing, DB::table('urt_ai_date')->value('result_json'));
     }
 
+    public function test_ai_daily_rejects_fallback_payloads_exceeding_generation_representation_caps_without_write(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDailyAiFixtures();
+        $existing = $this->dailyCompletion('既有完整每日事件');
+        $this->insertDailyCache($existing);
+        config()->set('services.opencode_go.api_key', 'primary-key');
+        config()->set('services.opencode_go.base_url', 'https://api.openai.com/v1');
+        config()->set('services.opencode_go.model', 'gpt-5.4-mini');
+        config()->set('services.opencode_go.endpoint_style', 'chat');
+        config()->set('services.opencode_go.max_tokens', 4096);
+        config()->set('services.opencode_go.daily_max_tokens', 12_288);
+        config()->set('services.opencode_go.fallback_api_key', 'fallback-key');
+        config()->set('services.opencode_go.fallback_base_url', 'https://fallback.test/v1');
+        config()->set('services.opencode_go.fallback_model', 'qwen3.6-plus');
+        config()->set('services.opencode_go.fallback_endpoint_style', 'chat');
+        config()->set('services.opencode_go.fallback_max_tokens', 1200);
+        config()->set('services.opencode_go.transient_retries', 0);
+        Http::fake([
+            'https://api.openai.com/v1/chat/completions' => Http::sequence()
+                ->push(['error' => ['message' => 'primary unavailable']], 400)
+                ->push(['error' => ['message' => 'primary unavailable']], 400),
+            'https://fallback.test/v1/chat/completions' => Http::sequence()
+                ->push(['choices' => [['message' => ['content' => $this->dailyCompletion('過多代表媒體', 15, 7)]]]])
+                ->push(['choices' => [['message' => ['content' => $this->dailyCompletion('單一媒體多事件', 15, 2, 2)]]]]),
+        ]);
+        Http::preventStrayRequests();
+
+        foreach (range(1, 2) as $_attempt) {
+            $exitCode = Artisan::call('ai:daily', [
+                '--execute' => true,
+                '--date' => '2026-05-24',
+                '--condition' => 'all',
+                '--channel-limit' => 0,
+                '--ai-call-limit' => 1,
+                '--json' => true,
+            ]);
+            $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+            $this->assertSame(1, $exitCode);
+            $this->assertSame('invalid_ai_payload_shape', $payload['daily_ai']['rows'][0]['skip_reason']);
+            $this->assertSame(1, $payload['daily_ai']['failed']);
+            $this->assertSame(1, DB::table('urt_ai_date')->count());
+            $this->assertSame('existing-model', DB::table('urt_ai_date')->value('ai_type'));
+            $this->assertSame($existing, DB::table('urt_ai_date')->value('result_json'));
+        }
+
+        $requests = Http::recorded()->map(fn (array $record): Request => $record[0]);
+        $primaryRequests = $requests->filter(
+            fn (Request $request): bool => $request->url() === 'https://api.openai.com/v1/chat/completions',
+        );
+        $fallbackRequests = $requests->filter(
+            fn (Request $request): bool => $request->url() === 'https://fallback.test/v1/chat/completions',
+        );
+
+        $this->assertCount(2, $primaryRequests);
+        $this->assertCount(2, $fallbackRequests);
+        $this->assertTrue($primaryRequests->every(fn (Request $request): bool => ($request['max_completion_tokens'] ?? null) === 12_288
+            && ($request['response_format']['type'] ?? null) === 'json_schema'));
+        $this->assertTrue($fallbackRequests->every(fn (Request $request): bool => ($request['max_tokens'] ?? null) === 1200
+            && ! isset($request['max_completion_tokens'])
+            && ! isset($request['response_format'])));
+    }
+
     public function test_ai_daily_propagates_safe_validation_reason_before_fallback_http_failure(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'));
@@ -1476,13 +1548,20 @@ SQL);
         ])->all(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
     }
 
-    private function dailyCompletion(string $title, int $count = 15, int $mediaCount = 2): string
-    {
+    private function dailyCompletion(
+        string $title,
+        int $count = 15,
+        int $mediaCount = 2,
+        int $eventsPerMedia = 1,
+    ): string {
         return json_encode(collect(range(1, $count))->map(fn (int $index): array => [
             '標題' => $title.' '.$index,
             '媒體事件' => collect(range(1, max(1, $mediaCount)))
                 ->mapWithKeys(fn (int $media): array => [
-                    '測試媒體 '.$media => [$title.'來源事件 '.$index.'-'.$media],
+                    '測試媒體 '.$media => collect(range(1, max(1, $eventsPerMedia)))
+                        ->map(fn (int $event): string => $title.'來源事件 '.$index.'-'.$media.
+                            ($eventsPerMedia > 1 ? '-'.$event : ''))
+                        ->all(),
                 ])
                 ->all(),
         ])->all(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);

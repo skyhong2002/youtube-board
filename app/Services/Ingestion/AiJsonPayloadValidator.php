@@ -2,6 +2,7 @@
 
 namespace App\Services\Ingestion;
 
+use App\Support\AiDailyContract;
 use InvalidArgumentException;
 use JsonException;
 
@@ -31,6 +32,8 @@ class AiJsonPayloadValidator
         string $shape,
         ?int $expectedMinItems = null,
         ?int $expectedMaxItems = null,
+        ?int $dailyMaxMediaSources = null,
+        ?int $dailyMaxEventsPerMedia = null,
     ): array {
         if (! in_array($shape, ['channel', 'daily', 'hourly'], true)) {
             throw new InvalidArgumentException('Unsupported AI event-list shape.');
@@ -47,7 +50,7 @@ class AiJsonPayloadValidator
                     'minItems' => $minimum,
                     'maxItems' => $maximum,
                     'items' => $shape === 'daily'
-                        ? $this->dailyEventSchema()
+                        ? $this->dailyEventSchema($dailyMaxMediaSources, $dailyMaxEventsPerMedia)
                         : $this->channelEventSchema(),
                 ],
             ],
@@ -64,6 +67,8 @@ class AiJsonPayloadValidator
         string $shape,
         ?int $expectedMinItems = null,
         ?int $expectedMaxItems = null,
+        ?int $dailyMaxMediaSources = null,
+        ?int $dailyMaxEventsPerMedia = null,
     ): array {
         $decodedAnyJson = false;
         $failureReason = null;
@@ -79,7 +84,12 @@ class AiJsonPayloadValidator
             $decodedAnyJson = true;
             $items = $this->normalizeEventItems($this->items($decoded), $shape);
 
-            if (! $this->validItems($items, $shape)) {
+            if (! $this->validItems(
+                $items,
+                $shape,
+                $dailyMaxMediaSources,
+                $dailyMaxEventsPerMedia,
+            )) {
                 continue;
             }
 
@@ -390,8 +400,12 @@ class AiJsonPayloadValidator
     /**
      * @param  list<mixed>  $items
      */
-    private function validItems(array $items, string $shape): bool
-    {
+    private function validItems(
+        array $items,
+        string $shape,
+        ?int $dailyMaxMediaSources = null,
+        ?int $dailyMaxEventsPerMedia = null,
+    ): bool {
         if ($items === [] || ! in_array($shape, ['channel', 'daily', 'hourly'], true)) {
             return false;
         }
@@ -401,8 +415,18 @@ class AiJsonPayloadValidator
                 return false;
             }
 
-            if ($shape === 'daily' && $this->mediaSourceCount($item) < 2) {
-                return false;
+            if ($shape === 'daily') {
+                if ($this->mediaSourceCount($item) < AiDailyContract::MIN_MEDIA_PER_TOPIC) {
+                    return false;
+                }
+
+                if (! $this->validDailyRepresentation(
+                    $item,
+                    $dailyMaxMediaSources,
+                    $dailyMaxEventsPerMedia,
+                )) {
+                    return false;
+                }
             }
 
             if (in_array($shape, ['channel', 'hourly'], true) && $this->videoIds($item) === []) {
@@ -505,21 +529,29 @@ class AiJsonPayloadValidator
     /**
      * @return array<string, mixed>
      */
-    private function dailyEventSchema(): array
-    {
+    private function dailyEventSchema(
+        ?int $maxMediaSources = null,
+        ?int $maxEventsPerMedia = null,
+    ): array {
+        $maxMediaSources = max(
+            AiDailyContract::MIN_MEDIA_PER_TOPIC,
+            $maxMediaSources ?? 100,
+        );
+        $maxEventsPerMedia = max(1, $maxEventsPerMedia ?? 100);
+
         return [
             'type' => 'object',
             'properties' => [
                 '標題' => $this->stringSchema(),
                 '媒體事件' => [
                     'type' => 'array',
-                    'minItems' => 2,
-                    'maxItems' => 100,
+                    'minItems' => AiDailyContract::MIN_MEDIA_PER_TOPIC,
+                    'maxItems' => $maxMediaSources,
                     'items' => [
                         'type' => 'object',
                         'properties' => [
                             '媒體' => $this->stringSchema(),
-                            '事件' => $this->stringListSchema(100, minimum: 1),
+                            '事件' => $this->stringListSchema($maxEventsPerMedia, minimum: 1),
                         ],
                         'required' => ['媒體', '事件'],
                         'additionalProperties' => false,
@@ -600,6 +632,55 @@ class AiJsonPayloadValidator
         }
 
         return 0;
+    }
+
+    /**
+     * Generation-only representation limits are optional so historical cache
+     * payloads keep their existing validation behavior.
+     *
+     * @param  array<string, mixed>  $item
+     */
+    private function validDailyRepresentation(
+        array $item,
+        ?int $maxMediaSources,
+        ?int $maxEventsPerMedia,
+    ): bool {
+        if ($maxMediaSources === null && $maxEventsPerMedia === null) {
+            return true;
+        }
+
+        foreach (['媒體事件', 'media_events', 'mediaEvents'] as $key) {
+            $mediaEvents = $item[$key] ?? null;
+
+            if (! is_array($mediaEvents) || array_is_list($mediaEvents)) {
+                continue;
+            }
+
+            if ($maxMediaSources !== null && count($mediaEvents) > max(1, $maxMediaSources)) {
+                return false;
+            }
+
+            foreach ($mediaEvents as $media => $events) {
+                if (! is_string($media) || trim($media) === '' || ! is_array($events) || ! array_is_list($events)) {
+                    return false;
+                }
+
+                $validEvents = collect($events)
+                    ->filter(fn (mixed $event): bool => is_string($event) && trim($event) !== '');
+
+                if (
+                    $validEvents->count() !== count($events)
+                    || $validEvents->isEmpty()
+                    || ($maxEventsPerMedia !== null && $validEvents->count() > max(1, $maxEventsPerMedia))
+                ) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     /**
