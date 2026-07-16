@@ -310,7 +310,7 @@ class LocalDumpInspector
 
     /**
      * @param  resource  $staged
-     * @param  array{mode: string, statement: string, insert_table: ?string, overflow: bool}  $parser
+     * @param  array{mode: string, statement: string, sql_mode_value: ?string, insert_table: ?string, insert_phase: ?string, insert_token: string, insert_token_separated: bool, insert_rows: int, insert_invalid: bool, overflow: bool}  $parser
      * @param  array<string, bool>  $allowedTables
      * @param  array<string, bool>  $tables
      * @param  array{create_table: int, drop_table: int, insert: int}  $counts
@@ -372,20 +372,26 @@ class LocalDumpInspector
     }
 
     /**
-     * @return array{mode: string, statement: string, insert_table: ?string, overflow: bool}
+     * @return array{mode: string, statement: string, sql_mode_value: ?string, insert_table: ?string, insert_phase: ?string, insert_token: string, insert_token_separated: bool, insert_rows: int, insert_invalid: bool, overflow: bool}
      */
     private function newParserState(): array
     {
         return [
             'mode' => 'normal',
             'statement' => '',
+            'sql_mode_value' => null,
             'insert_table' => null,
+            'insert_phase' => null,
+            'insert_token' => '',
+            'insert_token_separated' => false,
+            'insert_rows' => 0,
+            'insert_invalid' => false,
             'overflow' => false,
         ];
     }
 
     /**
-     * @param  array{mode: string, statement: string, insert_table: ?string, overflow: bool}  $state
+     * @param  array{mode: string, statement: string, sql_mode_value: ?string, insert_table: ?string, insert_phase: ?string, insert_token: string, insert_token_separated: bool, insert_rows: int, insert_invalid: bool, overflow: bool}  $state
      * @param  array<string, bool>  $allowedTables
      * @param  array<string, bool>  $tables
      * @param  array{create_table: int, drop_table: int, insert: int}  $counts
@@ -435,13 +441,29 @@ class LocalDumpInspector
                 $quote = $state['mode'] === 'single_quote' ? "'" : '"';
 
                 if ($char === '\\') {
+                    if ($state['sql_mode_value'] !== null) {
+                        $state['sql_mode_value'] = '__invalid__';
+                    }
                     $index += $next === '' ? 1 : 2;
                 } elseif ($char === $quote && $next === $quote) {
+                    if ($state['sql_mode_value'] !== null) {
+                        $state['sql_mode_value'] = '__invalid__';
+                    }
                     $index += 2;
                 } elseif ($char === $quote) {
                     $state['mode'] = 'normal';
                     $index++;
                 } else {
+                    if ($state['sql_mode_value'] !== null) {
+                        if (
+                            strlen($state['sql_mode_value']) >= 64
+                            || preg_match('/[A-Z0-9_,]/i', $char) !== 1
+                        ) {
+                            $state['sql_mode_value'] = '__invalid__';
+                        } else {
+                            $state['sql_mode_value'] .= $char;
+                        }
+                    }
                     $index++;
                 }
 
@@ -449,10 +471,14 @@ class LocalDumpInspector
             }
 
             if ($state['mode'] === 'backtick') {
-                $this->appendStatement($state, $char, $unsafe);
+                if ($state['insert_table'] === null) {
+                    $this->appendStatement($state, $char, $unsafe);
+                }
 
                 if ($char === '`' && $next === '`') {
-                    $this->appendStatement($state, $next, $unsafe);
+                    if ($state['insert_table'] === null) {
+                        $this->appendStatement($state, $next, $unsafe);
+                    }
                     $index += 2;
                 } elseif ($char === '`') {
                     $state['mode'] = 'normal';
@@ -469,6 +495,10 @@ class LocalDumpInspector
                     $unsafe[] = 'mysql_executable_comment_refused';
                 }
 
+                if ($state['insert_table'] !== null) {
+                    $this->refuseInsertSyntax($state, $unsafe);
+                }
+
                 $state['mode'] = 'block_comment';
                 $this->appendStatement($state, ' ', $unsafe);
                 $index += 2;
@@ -477,6 +507,10 @@ class LocalDumpInspector
             }
 
             if (($char === '-' && $next === '-') || $char === '#') {
+                if ($state['insert_table'] !== null) {
+                    $this->refuseInsertSyntax($state, $unsafe);
+                }
+
                 $state['mode'] = 'line_comment';
                 $this->appendStatement($state, ' ', $unsafe);
                 $index += $char === '#' ? 1 : 2;
@@ -486,7 +520,16 @@ class LocalDumpInspector
 
             if ($char === "'" || $char === '"') {
                 $state['mode'] = $char === "'" ? 'single_quote' : 'double_quote';
-                $this->appendStatement($state, "''", $unsafe);
+
+                if ($state['insert_table'] !== null) {
+                    $this->beginInsertQuotedLiteral($state, $char, $unsafe);
+                } else {
+                    $state['sql_mode_value'] = $char === "'"
+                        && preg_match('/\A\s*SET\s+SQL_MODE\s*=\s*\z/i', $state['statement']) === 1
+                            ? ''
+                            : null;
+                    $this->appendStatement($state, "''", $unsafe);
+                }
                 $index++;
 
                 continue;
@@ -494,7 +537,12 @@ class LocalDumpInspector
 
             if ($char === '`') {
                 $state['mode'] = 'backtick';
-                $this->appendStatement($state, $char, $unsafe);
+
+                if ($state['insert_table'] !== null) {
+                    $this->refuseInsertSyntax($state, $unsafe);
+                } else {
+                    $this->appendStatement($state, $char, $unsafe);
+                }
                 $index++;
 
                 continue;
@@ -516,12 +564,18 @@ class LocalDumpInspector
     }
 
     /**
-     * @param  array{mode: string, statement: string, insert_table: ?string, overflow: bool}  $state
+     * @param  array{mode: string, statement: string, sql_mode_value: ?string, insert_table: ?string, insert_phase: ?string, insert_token: string, insert_token_separated: bool, insert_rows: int, insert_invalid: bool, overflow: bool}  $state
      * @param  list<string>  $unsafe
      */
     private function appendStatement(array &$state, string $contents, array &$unsafe): void
     {
-        if ($state['insert_table'] !== null || $state['overflow']) {
+        if ($state['insert_table'] !== null) {
+            $this->consumeInsertSyntax($state, $contents, $unsafe);
+
+            return;
+        }
+
+        if ($state['overflow']) {
             return;
         }
 
@@ -544,17 +598,150 @@ class LocalDumpInspector
 
         if (
             preg_match(
-                '/\A\s*INSERT\s+INTO\s+`?([a-z0-9_]+)`?(?:\s*\([^;]*\))?\s+VALUES?\b/i',
+                '/\A\s*INSERT\s+INTO\s+`?([a-z0-9_]+)`?(?:\s*\(\s*`?[a-z0-9_]+`?(?:\s*,\s*`?[a-z0-9_]+`?)*\s*\))?\s+VALUES\b/i',
                 $state['statement'],
                 $match,
             ) === 1
         ) {
             $state['insert_table'] = strtolower($match[1]);
+            $state['insert_phase'] = 'expect_row';
         }
     }
 
     /**
-     * @param  array{mode: string, statement: string, insert_table: ?string, overflow: bool}  $state
+     * @param  array{mode: string, statement: string, sql_mode_value: ?string, insert_table: ?string, insert_phase: ?string, insert_token: string, insert_token_separated: bool, insert_rows: int, insert_invalid: bool, overflow: bool}  $state
+     * @param  list<string>  $unsafe
+     */
+    private function consumeInsertSyntax(array &$state, string $contents, array &$unsafe): void
+    {
+        foreach (str_split($contents) as $char) {
+            if (ctype_space($char)) {
+                if ($state['insert_phase'] === 'expect_value' && $state['insert_token'] !== '') {
+                    $state['insert_token_separated'] = true;
+                }
+
+                continue;
+            }
+
+            if ($state['insert_invalid']) {
+                continue;
+            }
+
+            if ($state['insert_phase'] === 'expect_row') {
+                if ($char === '(') {
+                    $state['insert_phase'] = 'expect_value';
+
+                    continue;
+                }
+
+                $this->refuseInsertSyntax($state, $unsafe);
+
+                continue;
+            }
+
+            if ($state['insert_phase'] === 'after_row') {
+                if ($char === ',') {
+                    $state['insert_phase'] = 'expect_row';
+
+                    continue;
+                }
+
+                $this->refuseInsertSyntax($state, $unsafe);
+
+                continue;
+            }
+
+            if ($state['insert_phase'] !== 'expect_value') {
+                $this->refuseInsertSyntax($state, $unsafe);
+
+                continue;
+            }
+
+            if ($char === ',' || $char === ')') {
+                if (! $this->isAllowedInsertLiteral($state['insert_token'])) {
+                    $this->refuseInsertSyntax($state, $unsafe);
+
+                    continue;
+                }
+
+                $state['insert_token'] = '';
+                $state['insert_token_separated'] = false;
+
+                if ($char === ')') {
+                    $state['insert_rows']++;
+                    $state['insert_phase'] = 'after_row';
+                }
+
+                continue;
+            }
+
+            if ($char === '(' || $state['insert_token_separated']) {
+                $this->refuseInsertSyntax($state, $unsafe);
+
+                continue;
+            }
+
+            if (preg_match('/[a-z0-9_.+\-]/i', $char) !== 1 || strlen($state['insert_token']) >= 256) {
+                $this->refuseInsertSyntax($state, $unsafe);
+
+                continue;
+            }
+
+            $state['insert_token'] .= $char;
+        }
+    }
+
+    /**
+     * @param  array{mode: string, statement: string, sql_mode_value: ?string, insert_table: ?string, insert_phase: ?string, insert_token: string, insert_token_separated: bool, insert_rows: int, insert_invalid: bool, overflow: bool}  $state
+     * @param  list<string>  $unsafe
+     */
+    private function beginInsertQuotedLiteral(array &$state, string $quote, array &$unsafe): void
+    {
+        $prefix = $state['insert_token'];
+
+        if (
+            $state['insert_phase'] !== 'expect_value'
+            || $quote !== "'"
+            || $state['insert_token_separated']
+            || ($prefix !== '' && preg_match('/\A(?:N|[XB]|_[a-z0-9]+)\z/i', $prefix) !== 1)
+        ) {
+            $this->refuseInsertSyntax($state, $unsafe);
+
+            return;
+        }
+
+        $state['insert_token'] = '__quoted_literal__';
+        $state['insert_token_separated'] = false;
+    }
+
+    private function isAllowedInsertLiteral(string $token): bool
+    {
+        if ($token === '__quoted_literal__' || preg_match('/\A(?:NULL|TRUE|FALSE)\z/i', $token) === 1) {
+            return true;
+        }
+
+        if (preg_match('/\A0x[0-9a-f]+\z/i', $token) === 1 || preg_match('/\A0b[01]+\z/i', $token) === 1) {
+            return true;
+        }
+
+        return preg_match('/\A[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?\z/i', $token) === 1;
+    }
+
+    /**
+     * @param  array{insert_invalid: bool}  $state
+     * @param  list<string>  $unsafe
+     */
+    private function refuseInsertSyntax(array &$state, array &$unsafe): void
+    {
+        if (! $state['insert_invalid']) {
+            $unsafe[] = 'unsupported_insert_values_syntax';
+        }
+
+        $state['insert_invalid'] = true;
+    }
+
+    /**
+     * @param  array{mode: string, statement: string, sql_mode_value: ?string, insert_table: ?string, insert_phase: ?string, insert_token: string, insert_token_separated: bool, insert_rows: int, insert_invalid: bool, overflow: bool}  $state
      * @param  array<string, bool>  $allowedTables
      * @param  array<string, bool>  $tables
      * @param  array{create_table: int, drop_table: int, insert: int}  $counts
@@ -580,6 +767,19 @@ class LocalDumpInspector
         }
 
         if ($state['insert_table'] !== null) {
+            if (
+                $state['insert_invalid']
+                || $state['insert_phase'] !== 'after_row'
+                || $state['insert_token'] !== ''
+                || $state['insert_rows'] < 1
+            ) {
+                if (! $state['insert_invalid']) {
+                    $unsafe[] = 'unsupported_insert_values_syntax';
+                }
+
+                return;
+            }
+
             $this->recordStatement('insert', $state['insert_table'], $allowedTables, $tables, $counts, $unsafe);
 
             return;
@@ -603,7 +803,7 @@ class LocalDumpInspector
             return;
         }
 
-        if ($this->isAllowedSessionSet($statement)) {
+        if ($this->isAllowedSessionSet($statement, $state['sql_mode_value'])) {
             return;
         }
 
@@ -646,7 +846,7 @@ class LocalDumpInspector
         return 'unsupported_statement_'.implode('_', $parts);
     }
 
-    private function isAllowedSessionSet(string $statement): bool
+    private function isAllowedSessionSet(string $statement, ?string $sqlModeValue): bool
     {
         if (preg_match('/\ASET\s+NAMES\s+utf8mb4\z/i', $statement) === 1) {
             return true;
@@ -666,11 +866,12 @@ class LocalDumpInspector
             return true;
         }
 
-        return preg_match('/\ASET\s+SQL_MODE\s*=\s*\'\'\z/i', $statement) === 1;
+        return preg_match('/\ASET\s+SQL_MODE\s*=\s*\'\'\z/i', $statement) === 1
+            && in_array(strtoupper((string) $sqlModeValue), ['', 'NO_AUTO_VALUE_ON_ZERO'], true);
     }
 
     /**
-     * @param  array{mode: string, statement: string, insert_table: ?string, overflow: bool}  $state
+     * @param  array{mode: string, statement: string, sql_mode_value: ?string, insert_table: ?string, insert_phase: ?string, insert_token: string, insert_token_separated: bool, insert_rows: int, insert_invalid: bool, overflow: bool}  $state
      * @param  list<string>  $unsafe
      */
     private function finishSql(array $state, array &$unsafe): void
