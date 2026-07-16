@@ -3,7 +3,6 @@
 namespace Tests\Feature\Ops;
 
 use App\Services\Ingestion\IngestionTelemetry;
-use App\Services\Ingestion\YoutubeApiKeyPoolExhaustedException;
 use App\Services\Ingestion\YoutubeDataApiClient;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
@@ -177,39 +176,46 @@ class YoutubeDataApiClientTest extends TestCase
         Http::assertSentCount(2);
     }
 
-    public function test_youtube_client_classifies_canonical_expired_reason_when_key_pool_is_exhausted(): void
+    public function test_youtube_client_classifies_canonical_expired_reason_and_uses_fallback(): void
     {
-        config()->set('services.youtube.api_key', 'expired-only-key');
-        config()->set('services.youtube.api_keys', null);
+        config()->set('services.youtube.api_key', 'expired-primary-key');
+        config()->set('services.youtube.api_keys', 'working-fallback-key');
+        $requestedKeys = [];
 
-        Http::fake([
-            'www.googleapis.com/*' => Http::response([
-                'error' => [
-                    'message' => 'Credential rejected.',
-                    'errors' => [['reason' => 'API_KEY_EXPIRED']],
-                ],
-            ], 400),
-        ]);
+        Http::fake(function (Request $request) use (&$requestedKeys) {
+            $requestedKeys[] = $request['key'];
 
-        try {
-            app(YoutubeDataApiClient::class)->videoLiveStreamingDetails(['video-1']);
-            $this->fail('Expected the expired YouTube key pool to fail closed.');
-        } catch (YoutubeApiKeyPoolExhaustedException $exception) {
-            $this->assertSame(
-                YoutubeApiKeyPoolExhaustedException::AUTHENTICATION_FAILURE,
-                $exception->failureReason(),
-            );
-        }
+            if ($request['key'] === 'expired-primary-key') {
+                return Http::response([
+                    'error' => [
+                        'message' => 'Credential rejected.',
+                        'errors' => [['reason' => 'API_KEY_EXPIRED']],
+                    ],
+                ], 400);
+            }
+
+            return Http::response([
+                'items' => [[
+                    'id' => 'video-1',
+                    'liveStreamingDetails' => ['concurrentViewers' => '987'],
+                ]],
+            ]);
+        });
+
+        $details = app(YoutubeDataApiClient::class)->videoLiveStreamingDetails(['video-1']);
 
         $events = app(IngestionTelemetry::class)->snapshot()['youtube_requests'];
 
-        $this->assertCount(1, $events);
+        $this->assertSame(['expired-primary-key', 'working-fallback-key'], $requestedKeys);
+        $this->assertSame('987', $details['video-1']['concurrentViewers']);
+        $this->assertCount(2, $events);
         $this->assertSame(400, $events[0]['status']);
         $this->assertTrue($events[0]['api_key_fallback']);
         $this->assertFalse($events[0]['quota_or_rate_limit_retry']);
         $this->assertFalse($events[0]['transient_retry']);
         $this->assertSame(1, $events[0]['api_key_attempt']);
-        Http::assertSentCount(1);
+        $this->assertTrue($events[1]['ok']);
+        Http::assertSentCount(2);
     }
 
     public function test_youtube_client_retries_one_transient_server_failure_with_the_same_key(): void
