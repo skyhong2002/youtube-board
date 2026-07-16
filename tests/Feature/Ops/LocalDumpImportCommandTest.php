@@ -48,6 +48,23 @@ class LocalDumpImportCommandTest extends TestCase
         parent::tearDown();
     }
 
+    public function test_repository_provides_an_empty_ignored_dump_intake_directory(): void
+    {
+        $intakeDirectory = storage_path('app/db-dumps');
+
+        $this->assertDirectoryExists($intakeDirectory);
+        $this->assertFileExists($intakeDirectory.'/.gitignore');
+        $this->assertSame("*\n!.gitignore\n", file_get_contents($intakeDirectory.'/.gitignore'));
+        $this->assertStringContainsString(
+            '!db-dumps/',
+            (string) file_get_contents(storage_path('app/.gitignore')),
+        );
+        $this->assertStringNotContainsString(
+            '/storage/app/db-dumps/',
+            (string) file_get_contents(base_path('.gitignore')),
+        );
+    }
+
     public function test_preview_verifies_checksum_without_running_the_database_client(): void
     {
         $contents = "CREATE TABLE IF NOT EXISTS `urt_tag` (`tag_id` int NOT NULL);\n";
