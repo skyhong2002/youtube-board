@@ -503,6 +503,8 @@ class IngestionAiDailyCommandTest extends TestCase
         config()->set('services.opencode_go.base_url', 'https://api.openai.com/v1');
         config()->set('services.opencode_go.model', 'gpt-5.4-mini');
         config()->set('services.opencode_go.endpoint_style', 'chat');
+        config()->set('services.opencode_go.max_tokens', 4096);
+        config()->set('services.opencode_go.daily_max_tokens', 8192);
         config()->set('services.opencode_go.fallback_api_key', null);
         $structuredEvents = collect(range(1, 15))->map(fn (int $index): array => [
             '標題' => '結構化每日事件 '.$index,
@@ -552,11 +554,59 @@ class IngestionAiDailyCommandTest extends TestCase
 
             return ($format['type'] ?? null) === 'json_schema'
                 && ($format['json_schema']['strict'] ?? null) === true
+                && ($request['max_completion_tokens'] ?? null) === 8192
+                && ! isset($request['max_tokens'])
                 && ($events['minItems'] ?? null) === 15
                 && ($events['maxItems'] ?? null) === 20
                 && ($mediaRows['minItems'] ?? null) === 2
                 && str_contains((string) data_get($request->data(), 'messages.0.content'), '"媒體事件": [');
         });
+    }
+
+    public function test_ai_daily_other_condition_keeps_primary_provider_token_cap(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDailyAiFixtures();
+        config()->set('services.opencode_go.api_key', 'official-key');
+        config()->set('services.opencode_go.base_url', 'https://api.openai.com/v1');
+        config()->set('services.opencode_go.model', 'gpt-5.4-mini');
+        config()->set('services.opencode_go.endpoint_style', 'chat');
+        config()->set('services.opencode_go.max_tokens', 4096);
+        config()->set('services.opencode_go.daily_max_tokens', 8192);
+        config()->set('services.opencode_go.fallback_api_key', null);
+        $structuredEvents = collect(range(1, 8))->map(fn (int $index): array => [
+            '標題' => '綠營每日事件 '.$index,
+            '媒體事件' => [
+                ['媒體' => 'Green Channel', '事件' => ['Green Multi']],
+                ['媒體' => 'Second Channel', '事件' => ['Related event']],
+            ],
+        ])->all();
+
+        Http::fake([
+            'https://api.openai.com/v1/chat/completions' => Http::response([
+                'model' => 'gpt-5.4-mini-2026-07-15',
+                'choices' => [['message' => ['content' => json_encode([
+                    'events' => $structuredEvents,
+                ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)]]],
+            ]),
+        ]);
+        Http::preventStrayRequests();
+
+        $exitCode = Artisan::call('ai:daily', [
+            '--execute' => true,
+            '--date' => '2026-05-24',
+            '--condition' => 'green',
+            '--channel-limit' => 0,
+            '--ai-call-limit' => 1,
+            '--json' => true,
+        ]);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('green', DB::table('urt_ai_date')->value('condition_type'));
+        Http::assertSent(fn (Request $request): bool => ($request['max_completion_tokens'] ?? null) === 4096
+            && ! isset($request['max_tokens'])
+            && ($request['response_format']['type'] ?? null) === 'json_schema');
     }
 
     public function test_ai_daily_execute_channel_limit_uses_eligible_legacy_channels(): void

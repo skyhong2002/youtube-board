@@ -10,6 +10,8 @@ use Throwable;
 
 class OpenCodeChatClient
 {
+    public const MAX_OFFICIAL_STRUCTURED_OUTPUT_TOKENS = 8192;
+
     public function __construct(
         private readonly HttpFactory $http,
         private readonly IngestionTelemetry $telemetry,
@@ -32,8 +34,14 @@ class OpenCodeChatClient
         string $prompt,
         callable $validator,
         ?array $jsonSchema = null,
+        ?int $officialStructuredOutputMaxTokens = null,
     ): array {
-        return $this->completeInternal($prompt, $validator, $jsonSchema);
+        return $this->completeInternal(
+            $prompt,
+            $validator,
+            $jsonSchema,
+            $officialStructuredOutputMaxTokens,
+        );
     }
 
     public function providerAttemptCapPerCompletion(): int
@@ -50,6 +58,7 @@ class OpenCodeChatClient
         string $prompt,
         ?callable $validator = null,
         ?array $jsonSchema = null,
+        ?int $officialStructuredOutputMaxTokens = null,
     ): array {
         $providers = $this->providers();
         $failures = [];
@@ -66,6 +75,7 @@ class OpenCodeChatClient
                     $provider,
                     validator: $validator,
                     jsonSchema: $jsonSchema,
+                    officialStructuredOutputMaxTokens: $officialStructuredOutputMaxTokens,
                 ) + [
                     'provider' => $provider['name'],
                     'provider_failures' => $failures,
@@ -133,16 +143,30 @@ class OpenCodeChatClient
         ?int $maxTokensOverride = null,
         ?callable $validator = null,
         ?array $jsonSchema = null,
+        ?int $officialStructuredOutputMaxTokens = null,
     ): array {
         $apiKey = $provider['api_key'];
         $baseUrl = $provider['base_url'];
         $model = $provider['model'];
         $endpointStyle = $provider['endpoint_style'];
         $timeout = $provider['timeout'];
+        $messagesStyle = $this->usesMessagesEndpoint($model, $endpointStyle);
+        $structuredOutput = $this->usesOfficialOpenAiStructuredOutput(
+            $provider,
+            $messagesStyle,
+            $jsonSchema,
+        );
         $maxTokens = $maxTokensOverride === null
             ? $provider['max_tokens']
             : max(1, min($provider['max_tokens'], $maxTokensOverride));
-        $messagesStyle = $this->usesMessagesEndpoint($model, $endpointStyle);
+
+        if ($structuredOutput && $officialStructuredOutputMaxTokens !== null) {
+            $maxTokens = max(128, min(
+                self::MAX_OFFICIAL_STRUCTURED_OUTPUT_TOKENS,
+                $officialStructuredOutputMaxTokens,
+            ));
+        }
+
         $path = $messagesStyle ? '/messages' : '/chat/completions';
         $body = [
             'model' => $model,
@@ -157,12 +181,6 @@ class OpenCodeChatClient
         $body[$messagesStyle || ! $this->usesCompletionTokenLimit($model)
             ? 'max_tokens'
             : 'max_completion_tokens'] = $maxTokens;
-        $structuredOutput = $this->usesOfficialOpenAiStructuredOutput(
-            $provider,
-            $messagesStyle,
-            $jsonSchema,
-        );
-
         if ($structuredOutput) {
             $body['response_format'] = [
                 'type' => 'json_schema',

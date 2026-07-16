@@ -530,6 +530,55 @@ class AiProviderProbeCommandTest extends TestCase
         $this->assertFalse($telemetry->snapshot()['ai_requests'][1]['structured_output']);
     }
 
+    public function test_official_structured_output_token_override_is_hard_bounded_and_does_not_raise_fallback_cap(): void
+    {
+        config()->set('services.opencode_go.api_key', 'primary-key');
+        config()->set('services.opencode_go.base_url', 'https://api.openai.com/v1');
+        config()->set('services.opencode_go.model', 'gpt-5.4-mini');
+        config()->set('services.opencode_go.endpoint_style', 'chat');
+        config()->set('services.opencode_go.max_tokens', 4096);
+        config()->set('services.opencode_go.fallback_api_key', 'fallback-key');
+        config()->set('services.opencode_go.fallback_base_url', 'https://fallback.test/v1');
+        config()->set('services.opencode_go.fallback_model', 'qwen3.6-plus');
+        config()->set('services.opencode_go.fallback_endpoint_style', 'chat');
+        config()->set('services.opencode_go.fallback_max_tokens', 1200);
+        config()->set('services.opencode_go.transient_retries', 0);
+        $schema = [
+            'type' => 'object',
+            'properties' => ['events' => ['type' => 'array', 'items' => ['type' => 'string']]],
+            'required' => ['events'],
+            'additionalProperties' => false,
+        ];
+
+        Http::fake([
+            'https://api.openai.com/v1/chat/completions' => Http::response([
+                'choices' => [['message' => ['content' => '{"events":[]}']]],
+            ]),
+            'https://fallback.test/v1/chat/completions' => Http::response([
+                'choices' => [['message' => ['content' => '{"events":["ok"]}']]],
+            ]),
+        ]);
+        Http::preventStrayRequests();
+
+        $result = app(OpenCodeChatClient::class)->completeValidated(
+            'Return an event list as JSON.',
+            fn (string $content): array => str_contains($content, '"ok"')
+                ? ['valid' => true, 'json' => $content]
+                : ['valid' => false, 'failure_reason' => 'invalid_ai_payload_shape'],
+            jsonSchema: $schema,
+            officialStructuredOutputMaxTokens: 100_000,
+        );
+        $requests = Http::recorded()->map(fn (array $record): Request => $record[0])->values();
+
+        $this->assertSame('fallback', $result['provider']);
+        $this->assertSame(8192, $requests[0]['max_completion_tokens']);
+        $this->assertFalse(isset($requests[0]['max_tokens']));
+        $this->assertSame('json_schema', $requests[0]['response_format']['type']);
+        $this->assertSame(1200, $requests[1]['max_tokens']);
+        $this->assertFalse(isset($requests[1]['max_completion_tokens']));
+        $this->assertFalse(isset($requests[1]['response_format']));
+    }
+
     public function test_validated_messages_completion_never_sends_chat_response_format(): void
     {
         config()->set('services.opencode_go.api_key', 'primary-key');

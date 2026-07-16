@@ -145,6 +145,9 @@ class AiDailyIngestion
                         expectedMinItems: $bounds['min'],
                         expectedMaxItems: $bounds['max'],
                     ),
+                    officialStructuredOutputMaxTokens: ($row['condition'] ?? null) === 'all'
+                        ? (int) config('services.opencode_go.daily_max_tokens', 8192)
+                        : null,
                 );
             } catch (Throwable $exception) {
                 $validationReason = $this->exclusiveValidationFailureReason(

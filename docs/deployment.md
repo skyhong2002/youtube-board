@@ -120,6 +120,7 @@ OPENAI_MODEL=gpt-5.4-mini
 OPENAI_ENDPOINT_STYLE=chat
 OPENAI_TIMEOUT=180
 OPENAI_MAX_TOKENS=4096
+OPENAI_DAILY_MAX_TOKENS=8192
 OPENAI_TRANSIENT_RETRIES=1
 OPENAI_RETRY_DELAY_MS=250
 OPENAI_RETRY_AFTER_MAX_MS=2000
@@ -128,7 +129,7 @@ OPENAI_FALLBACK_BASE_URL=https://opencode.ai/zen/go/v1
 OPENAI_FALLBACK_MODEL=qwen3.6-plus
 OPENAI_FALLBACK_ENDPOINT_STYLE=auto
 OPENAI_FALLBACK_TIMEOUT=300
-OPENAI_FALLBACK_MAX_TOKENS=4096
+OPENAI_FALLBACK_MAX_TOKENS=1200
 ```
 
 For `/live/current` parity, these are candidate job keys for a separately reviewed exact allowlist. Listing them here is not authorization to add them:
@@ -147,7 +148,7 @@ The current Production-approved AI job keys are `ai.hourly` and `ai.daily`; both
 
 This approval does not cover any additional job key or schedule/allowlist change. Every new Production write/API job still requires exact dry-run evidence, backup and rollback planning, and explicit operator approval.
 
-The AI client tries the primary OpenAI `gpt-5.4-mini` provider first, then the OpenCode Go fallback when configured. GPT-5 requests use `max_completion_tokens`; other chat and Messages providers keep their compatible `max_tokens` field. Validated channel, daily, and hourly event-list requests to the official OpenAI Chat Completions endpoint use strict `json_schema` Structured Outputs with the same application validator retained as a second check; compatible fallback providers keep the prompt-and-validator path without receiving OpenAI-specific request fields. Cache `ai_type` columns store the stable configured model alias while sanitized telemetry reports the response model snapshot. Each provider retries HTTP 429 and 5xx responses up to `OPENAI_TRANSIENT_RETRIES`; `Retry-After` is honored within `OPENAI_RETRY_AFTER_MAX_MS`, while other 4xx responses are not retried. Token-limit termination, incomplete JSON, and contract-invalid payloads are rejected and advance to the fallback instead of being stored as complete output. `--ai-call-limit` caps logical completion chains; `ai_call_guard` separately reports the configured provider-attempt cap, the resulting whole-run HTTP request limit, and actual provider requests used. The legacy daily AI path used OpenAI `chat/completions`; runtime keys remain in Dokploy rather than git.
+The AI client tries the primary OpenAI `gpt-5.4-mini` provider first, then the OpenCode Go fallback when configured. GPT-5 requests use `max_completion_tokens`; other chat and Messages providers keep their compatible `max_tokens` field. Validated channel, daily, and hourly event-list requests to the official OpenAI Chat Completions endpoint use strict `json_schema` Structured Outputs with the same application validator retained as a second check; compatible fallback providers keep the prompt-and-validator path without receiving OpenAI-specific request fields. Only the official primary Structured Output request for daily `condition=all` may use `OPENAI_DAILY_MAX_TOKENS`, which defaults to and is hard-capped at `8192`. Official primary channel AI, hourly AI, and other daily conditions retain `OPENAI_MAX_TOKENS`; unofficial and Messages endpoints retain their provider cap; probes retain their separate bounded request limit. Fallback requests always retain their own `OPENAI_FALLBACK_MAX_TOKENS` cap (currently `1200` in Production), so the larger daily primary budget cannot expand fallback usage. The bounded default applies without a Production env change; setting the env is optional when an operator wants a lower reviewed cap. Cache `ai_type` columns store the stable configured model alias while sanitized telemetry reports the response model snapshot. Each provider retries HTTP 429 and 5xx responses up to `OPENAI_TRANSIENT_RETRIES`; `Retry-After` is honored within `OPENAI_RETRY_AFTER_MAX_MS`, while other 4xx responses are not retried. Token-limit termination, incomplete JSON, and contract-invalid payloads are rejected and advance to the fallback instead of being stored as complete output. `--ai-call-limit` caps logical completion chains; `ai_call_guard` separately reports the configured provider-attempt cap, the resulting whole-run HTTP request limit, and actual provider requests used. The legacy daily AI path used OpenAI `chat/completions`; runtime keys remain in Dokploy rather than git.
 
 For derived report freshness, candidate keys are:
 
