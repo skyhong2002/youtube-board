@@ -262,7 +262,7 @@ class IngestionSchedulerGuardrailTest extends TestCase
             '--job' => 'ai.daily',
         ]);
 
-        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, $exitCode);
         $stored = json_decode((string) DB::table('ingestion_runs')->value('payload_json'), true, 512, JSON_THROW_ON_ERROR);
         $job = $stored['result']['jobs'][0];
         $jobBudget = $job['youtube_quota_budget'];

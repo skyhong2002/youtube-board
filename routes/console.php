@@ -242,6 +242,8 @@ Artisan::command('ingestion:run {--execute : Execute active due jobs instead of 
 
         $this->line(sprintf('recorded=%s path=%s', $record['id'], $record['path']));
     }
+
+    return (int) ($result['summary']['failed'] ?? 0) > 0 ? 1 : 0;
 })->purpose('Evaluate or execute due ingestion jobs from the legacy cron registry');
 
 Artisan::command('ingestion:health {--date= : Daily report target date, defaults to yesterday in Asia/Taipei} {--json : Emit JSON instead of text}', function (IngestionHealthCheck $health) {
