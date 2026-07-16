@@ -82,7 +82,11 @@ class AiJsonPayloadValidator
             }
 
             $decodedAnyJson = true;
-            $items = $this->normalizeEventItems($this->items($decoded), $shape);
+            $items = $this->normalizeEventItems(
+                $this->items($decoded),
+                $shape,
+                $dailyMaxEventsPerMedia,
+            );
 
             if (! $this->validItems(
                 $items,
@@ -444,13 +448,16 @@ class AiJsonPayloadValidator
      * @param  list<mixed>  $items
      * @return list<mixed>
      */
-    private function normalizeEventItems(array $items, string $shape): array
-    {
+    private function normalizeEventItems(
+        array $items,
+        string $shape,
+        ?int $dailyMaxEventsPerMedia = null,
+    ): array {
         if ($shape !== 'daily') {
             return $items;
         }
 
-        return array_map(function (mixed $item): mixed {
+        return array_map(function (mixed $item) use ($dailyMaxEventsPerMedia): mixed {
             if (! is_array($item) || array_is_list($item)) {
                 return $item;
             }
@@ -466,6 +473,10 @@ class AiJsonPayloadValidator
 
                 foreach ($mediaRows as $mediaRow) {
                     if (! is_array($mediaRow) || array_is_list($mediaRow)) {
+                        if ($dailyMaxEventsPerMedia !== null) {
+                            continue;
+                        }
+
                         return $item;
                     }
 
@@ -473,6 +484,10 @@ class AiJsonPayloadValidator
                     $events = $mediaRow['事件'] ?? $mediaRow['events'] ?? null;
 
                     if (! is_string($media) || trim($media) === '' || ! is_array($events) || ! array_is_list($events)) {
+                        if ($dailyMaxEventsPerMedia !== null) {
+                            continue;
+                        }
+
                         return $item;
                     }
 
@@ -483,14 +498,21 @@ class AiJsonPayloadValidator
                         ->all();
 
                     if ($normalizedEvents === []) {
+                        if ($dailyMaxEventsPerMedia !== null) {
+                            continue;
+                        }
+
                         return $item;
                     }
 
                     $media = trim($media);
-                    $mediaMap[$media] = array_values(array_unique([
+                    $mergedEvents = array_values(array_unique([
                         ...($mediaMap[$media] ?? []),
                         ...$normalizedEvents,
                     ]));
+                    $mediaMap[$media] = $dailyMaxEventsPerMedia === null
+                        ? $mergedEvents
+                        : array_slice($mergedEvents, 0, max(1, $dailyMaxEventsPerMedia));
                 }
 
                 $item[$key] = $mediaMap;

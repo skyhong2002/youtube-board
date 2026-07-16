@@ -119,6 +119,13 @@ class AiJsonPayloadValidatorTest extends TestCase
                 ['媒體' => 'News B', '事件' => ['事件 B1']],
             ],
         ]]], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $singleDistinctStructuredMedia = json_encode(['events' => [[
+            '標題' => '去重後只有一個媒體的結構化事件',
+            '媒體事件' => [
+                ['媒體' => 'News A', '事件' => ['事件 A1']],
+                ['媒體' => 'News A', '事件' => ['事件 A2']],
+            ],
+        ]]], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 
         $this->assertTrue($validator->validateEventList($tooManyMedia, 'daily')['valid']);
         $this->assertTrue($validator->validateEventList($tooManyEvents, 'daily')['valid']);
@@ -129,8 +136,23 @@ class AiJsonPayloadValidatorTest extends TestCase
             dailyMaxMediaSources: AiDailyContract::MAX_REPRESENTATIVE_MEDIA_PER_TOPIC,
             dailyMaxEventsPerMedia: AiDailyContract::REPRESENTATIVE_EVENTS_PER_MEDIA,
         )['valid']);
+        $normalizedDuplicate = $validator->validateEventList(
+            $duplicateStructuredMedia,
+            'daily',
+            dailyMaxMediaSources: AiDailyContract::MAX_REPRESENTATIVE_MEDIA_PER_TOPIC,
+            dailyMaxEventsPerMedia: AiDailyContract::REPRESENTATIVE_EVENTS_PER_MEDIA,
+        );
 
-        foreach ([$tooManyMedia, $tooManyEvents, $duplicateStructuredMedia] as $content) {
+        $this->assertTrue($normalizedDuplicate['valid']);
+        $this->assertSame([[
+            '標題' => '重複媒體的結構化事件',
+            '媒體事件' => [
+                'News A' => ['事件 A1'],
+                'News B' => ['事件 B1'],
+            ],
+        ]], json_decode((string) $normalizedDuplicate['json'], true, 512, JSON_THROW_ON_ERROR));
+
+        foreach ([$tooManyMedia, $tooManyEvents, $singleDistinctStructuredMedia] as $content) {
             $result = $validator->validateEventList(
                 $content,
                 'daily',

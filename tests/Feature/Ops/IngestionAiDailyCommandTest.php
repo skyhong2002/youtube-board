@@ -506,13 +506,22 @@ class IngestionAiDailyCommandTest extends TestCase
         config()->set('services.opencode_go.max_tokens', 4096);
         config()->set('services.opencode_go.daily_max_tokens', 12_288);
         config()->set('services.opencode_go.fallback_api_key', null);
-        $structuredEvents = collect(range(1, 15))->map(fn (int $index): array => [
-            '標題' => '結構化每日事件 '.$index,
-            '媒體事件' => [
+        $structuredEvents = collect(range(1, 15))->map(function (int $index): array {
+            $mediaRows = [
                 ['媒體' => 'Green Channel', '事件' => ['Green Multi']],
                 ['媒體' => 'Blue Channel', '事件' => ['Blue Multi']],
-            ],
-        ])->all();
+            ];
+
+            if ($index === 1) {
+                $mediaRows[] = ['媒體' => 'Green Channel', '事件' => ['Green Duplicate']];
+                $mediaRows[] = ['媒體' => ' ', '事件' => ['']];
+            }
+
+            return [
+                '標題' => '結構化每日事件 '.$index,
+                '媒體事件' => $mediaRows,
+            ];
+        })->all();
 
         Http::fake([
             'https://api.openai.com/v1/chat/completions' => Http::response([
@@ -566,7 +575,8 @@ class IngestionAiDailyCommandTest extends TestCase
                 && ($mediaEvents['maxItems'] ?? null) === 1
                 && str_contains($prompt, '"媒體事件": [')
                 && str_contains($prompt, '2 到 6 個最具代表性的媒體')
-                && str_contains($prompt, '正好保留 1 個最具代表性的輸入事件');
+                && str_contains($prompt, '正好保留 1 個最具代表性的輸入事件')
+                && str_contains($prompt, '不得重複媒體名稱');
         });
     }
 
