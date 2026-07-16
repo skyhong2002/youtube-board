@@ -57,6 +57,45 @@ class ChannelTrendsRouteTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_channel_trends_availability_follows_the_requested_metric(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-10 12:00:00', 'Asia/Taipei'));
+        $this->createTables();
+        DB::table('urt_channel')->insert([
+            'u_id' => 10,
+            'youtube_id' => 'UC10',
+            'title' => 'Test Channel',
+            'thumbnails' => 'https://example.test/channel.jpg',
+        ]);
+        DB::table('urt_log')->insert([
+            'pk' => 1,
+            'u_id' => 10,
+            'ctime' => '2026-05-01 00:00:00',
+            'mtime' => '2026-05-10 00:00:00',
+            'themonth' => '2026-05-01',
+            'thedata' => json_encode([
+                '2026-05-09' => ['video' => 10],
+                '2026-05-10' => ['videos' => 12],
+            ], JSON_THROW_ON_ERROR),
+        ]);
+
+        $moving = $this->get('/channels/10/trends?limit=1');
+        $videos = $this->get('/channels/10/trends?limit=1&videos=1');
+
+        $moving->assertOk();
+        $this->assertFalse($moving->viewData('available'));
+        $this->assertFalse($moving->viewData('data_available'));
+        $this->assertSame('local urt_log has no usable rows for this channel', $moving->viewData('blocked_reason'));
+
+        $videos->assertOk();
+        $this->assertTrue($videos->viewData('available'));
+        $this->assertTrue($videos->viewData('data_available'));
+        $this->assertNull($videos->viewData('blocked_reason'));
+        $this->assertSame(2, $videos->viewData('rows')[1]['value']);
+
+        Carbon::setTestNow();
+    }
+
     private function createTables(): void
     {
         foreach (['urt_channel', 'urt_log'] as $table) {

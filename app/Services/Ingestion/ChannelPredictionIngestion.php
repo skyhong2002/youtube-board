@@ -144,7 +144,7 @@ class ChannelPredictionIngestion
 
                 $prediction = $this->report->predictionForChannel($candidateId, limit: 29, monthsLimit: 4);
 
-                if ((int) $prediction['valid_points'] < 2) {
+                if ((int) $prediction['view_points'] < 2) {
                     if ((int) $prediction['invalid_log_rows'] > 0) {
                         $failed++;
                         $rows[] = $this->failedRow(
