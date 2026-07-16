@@ -160,7 +160,7 @@ Execute commands must treat API quota as a first-class runtime constraint:
 - Check key presence before any call.
 - Do not print keys, request URLs containing keys, or raw response bodies that may contain sensitive request data.
 - On quota or auth failures, return a sanitized non-zero summary.
-- YouTube 5xx and connection failures use the configured bounded transient retry (`YOUTUBE_API_TRANSIENT_RETRIES`, default 1); quota/auth failures are never retried with the same key. A configured fallback key may be tried after quota exhaustion or a key-specific authentication failure.
+- YouTube 5xx and connection failures use the configured bounded transient retry (`YOUTUBE_API_TRANSIENT_RETRIES`, default 1); quota/auth failures are never retried with the same key. A configured fallback key may be tried after quota exhaustion or a key-specific authentication failure, including invalid, expired, not-found, and explicit revoked-key responses. Canonical reason codes are normalized before classification, and exhausting every configured key fails closed.
 - For scheduled polling, maintain a local quota budget per API method and stop before exceeding it.
 - Prefer small batches and explicit selectors until local evidence proves the parse/upsert/report path.
 - Before a scheduled YouTube command starts, the runner atomically reserves the command's capped worst-case request estimate in the Laravel-owned `ingestion_youtube_quota_daily` row for the current Pacific Time day. It returns `skip:youtube-quota-budget` without calling Artisan when the conditional reservation would exceed `INGESTION_YOUTUBE_DAILY_QUOTA_BUDGET`; a missing/unavailable ledger fails closed.

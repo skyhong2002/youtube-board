@@ -694,11 +694,18 @@ class YoutubeDataApiClient
             return false;
         }
 
-        $reason = strtolower((string) ($response->json('error.errors.0.reason') ?? ''));
+        $reason = preg_replace(
+            '/[^a-z0-9]+/',
+            '',
+            strtolower((string) ($response->json('error.errors.0.reason') ?? '')),
+        ) ?? '';
         $message = strtolower((string) ($response->json('error.message') ?? ''));
 
         return collect([
             'keyinvalid',
+            'keyexpired',
+            'keynotfound',
+            'keyrevoked',
             'accessnotconfigured',
             'iprefererblocked',
             'autherror',
@@ -706,6 +713,11 @@ class YoutubeDataApiClient
             || collect([
                 'api key not valid',
                 'invalid api key',
+                'api key expired',
+                'api key has expired',
+                'api key not found',
+                'api key was revoked',
+                'api key has been revoked',
                 'authentication credential',
                 'access not configured',
             ])->contains(fn (string $needle): bool => str_contains($message, $needle));
