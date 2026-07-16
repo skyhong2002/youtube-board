@@ -21,6 +21,8 @@ class IngestionRunHistory
 
     private const PRUNE_BATCH_SIZE = 1000;
 
+    private const WINDOW_READ_CHUNK_SIZE = 100;
+
     private const ID_PATTERN = '/^\d{8}-\d{6}-[0-9a-f-]{36}$/';
 
     private ?bool $databaseTablesAvailable = null;
@@ -672,37 +674,50 @@ class IngestionRunHistory
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * @return iterable<array<string, mixed>>
      */
-    private function recordsInWindow(CarbonImmutable $start, CarbonImmutable $end, string $timezone): array
+    private function recordsInWindow(CarbonImmutable $start, CarbonImmutable $end, string $timezone): iterable
     {
-        $records = [];
+        $knownIds = [];
 
         try {
             if ($this->databaseTablesAvailable()) {
-                $records = DB::table('ingestion_runs')
+                $rows = DB::table('ingestion_runs')
+                    ->select(['id', 'payload_json'])
                     ->whereBetween('recorded_at', [
                         $start->utc()->toDateTimeString(),
                         $end->utc()->toDateTimeString(),
                     ])
-                    ->orderBy('recorded_at')
-                    ->orderBy('id')
-                    ->get()
-                    ->map(fn (object $row): ?array => $this->decodeDatabaseRow($row))
-                    ->filter()
-                    ->values()
-                    ->all();
+                    ->lazyById(self::WINDOW_READ_CHUNK_SIZE, 'id');
+
+                foreach ($rows as $row) {
+                    $record = $this->decodeDatabaseRow($row);
+                    $id = $record['id'] ?? null;
+
+                    if (! is_string($id)) {
+                        continue;
+                    }
+
+                    $knownIds[$id] = true;
+
+                    yield $record;
+                }
             }
         } catch (Throwable $exception) {
             $this->logDatabaseFallback('window-read', null, $exception);
         }
 
-        $knownIds = array_fill_keys(array_column($records, 'id'), true);
         $pathScanStart = $start->setTimezone($timezone)->subDay();
         $pathScanEnd = $end->setTimezone($timezone)->addDay();
 
         foreach ($this->undatedFilePaths() as $path) {
-            $this->mergeWindowFileRecord($records, $knownIds, $path, $start, $end, $timezone);
+            $record = $this->fileRecordInWindow($path, $knownIds, $start, $end, $timezone);
+
+            if ($record !== null) {
+                $knownIds[$record['id']] = true;
+
+                yield $record;
+            }
         }
 
         foreach ($this->datedFilePaths() as $path) {
@@ -717,10 +732,14 @@ class IngestionRunHistory
                 continue;
             }
 
-            $this->mergeWindowFileRecord($records, $knownIds, $path, $start, $end, $timezone);
-        }
+            $record = $this->fileRecordInWindow($path, $knownIds, $start, $end, $timezone);
 
-        return $records;
+            if ($record !== null) {
+                $knownIds[$record['id']] = true;
+
+                yield $record;
+            }
+        }
     }
 
     /**
@@ -821,31 +840,29 @@ class IngestionRunHistory
     }
 
     /**
-     * @param  list<array<string, mixed>>  $records
      * @param  array<string, bool>  $knownIds
+     * @return array<string, mixed>|null
      */
-    private function mergeWindowFileRecord(
-        array &$records,
-        array &$knownIds,
+    private function fileRecordInWindow(
         string $path,
+        array $knownIds,
         CarbonImmutable $start,
         CarbonImmutable $end,
         string $timezone,
-    ): void {
+    ): ?array {
         $record = $this->readFileRecord($path);
         $id = $record['id'] ?? null;
         $createdAt = $record !== null ? $this->createdAt($record, $timezone) : null;
 
         if (! is_string($id) || isset($knownIds[$id]) || $createdAt === null) {
-            return;
+            return null;
         }
 
         if ($createdAt->lessThan($start) || $createdAt->greaterThan($end)) {
-            return;
+            return null;
         }
 
-        $records[] = $record;
-        $knownIds[$id] = true;
+        return $record;
     }
 
     /**
