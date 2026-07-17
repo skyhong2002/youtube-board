@@ -76,6 +76,7 @@ class LivePollingIngestion
                     $skipped[] = [
                         'videoId' => $rowVideoId,
                         'reason' => 'api_item_missing',
+                        'unlisted' => $this->unlistMissingVideo($rowVideoId, $now),
                     ];
 
                     continue;
@@ -108,6 +109,50 @@ class LivePollingIngestion
         }
 
         return $this->summary($preview, $applied, $skipped, $now);
+    }
+
+    /**
+     * A successful videos.list response that omits a selected id means the
+     * video no longer exists on YouTube. Leaving the row due would reselect
+     * it on every scheduled minute until cleanup, so mark it unlisted the
+     * same way youtube:live:cleanup retires stale live rows.
+     */
+    private function unlistMissingVideo(string $videoId, CarbonImmutable $now): bool
+    {
+        try {
+            if (! Schema::hasTable('urt_video_live')
+                || ! Schema::hasColumn('urt_video_live', 'del_flag')) {
+                Log::warning('Live polling cannot unlist missing video.', [
+                    'video_id' => $videoId,
+                    'reason' => 'api_item_missing',
+                    'unlist_blocked_reason' => 'missing_del_flag_column',
+                ]);
+
+                return false;
+            }
+
+            DB::table('urt_video_live')
+                ->where('videoId', $videoId)
+                ->update($this->onlyExistingColumns('urt_video_live', [
+                    'del_flag' => 1,
+                    'mtime' => $now->format('Y-m-d H:i:s'),
+                ]));
+            Log::warning('Live polling unlisted a video missing from the API response.', [
+                'video_id' => $videoId,
+                'reason' => 'api_item_missing',
+                'write' => 'urt_video_live.del_flag=1',
+            ]);
+
+            return true;
+        } catch (Throwable $exception) {
+            Log::warning('Live polling failed to unlist a missing video.', [
+                'video_id' => $videoId,
+                'reason' => 'api_item_missing',
+                'exception_class' => $exception::class,
+            ]);
+
+            return false;
+        }
     }
 
     /**
@@ -248,10 +293,12 @@ class LivePollingIngestion
             'updated_videos' => count($applied),
             'skipped_videos' => count($skipped),
             'failed_videos' => $failedVideos,
+            'unlisted_videos' => collect($skipped)->where('unlisted', true)->count(),
             'quota_window_reset' => $quotaWindowReset,
             'remaining_retry_rows' => $remainingRetryRows,
             'exit_code' => $failedVideos > 0 || $quotaWindowReset ? 1 : 0,
             'write_targets' => [
+                'urt_video_live.del_flag',
                 'urt_video_live.mtime',
                 'urt_video_live.actualStartTime',
                 'urt_video_live.actualEndTime',

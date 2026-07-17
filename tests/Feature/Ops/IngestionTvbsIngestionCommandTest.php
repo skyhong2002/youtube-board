@@ -506,7 +506,7 @@ SQL);
         Http::assertSentCount(2);
     }
 
-    public function test_youtube_tvbs_live_poll_does_not_refresh_a_video_missing_live_streaming_details(): void
+    public function test_youtube_tvbs_live_poll_unlists_a_video_missing_live_streaming_details(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 20:00:00', 'Asia/Taipei'));
         config()->set('services.youtube.api_key', 'test-key');
@@ -537,11 +537,53 @@ SQL);
 
         $this->assertSame(1, $exitCode);
         $this->assertSame(1, $payload['failed_videos']);
+        $this->assertSame(1, $payload['unlisted_videos']);
         $this->assertSame(0, $payload['updated_videos']);
-        $this->assertSame(['videoId' => 'ghost-tvbs-live', 'reason' => 'api_item_missing'], $payload['skipped'][0]);
-        $this->assertSame('2026-05-25 19:00:00', DB::table('urt_video_live_tvbs')->where('videoId', 'ghost-tvbs-live')->value('mtime'));
+        $this->assertSame(['videoId' => 'ghost-tvbs-live', 'reason' => 'api_item_missing', 'unlisted' => true], $payload['skipped'][0]);
+        $this->assertSame(1, (int) DB::table('urt_video_live_tvbs')->where('videoId', 'ghost-tvbs-live')->value('del_flag'));
+        $this->assertSame('2026-05-25 20:00:00', DB::table('urt_video_live_tvbs')->where('videoId', 'ghost-tvbs-live')->value('mtime'));
         $this->assertSame(100, DB::table('urt_video_live_tvbs')->where('videoId', 'ghost-tvbs-live')->value('concurrentViewers'));
         $this->assertSame(0, DB::table('urt_video_live_log_tvbs')->count());
+        Http::assertSentCount(1);
+    }
+
+    public function test_youtube_tvbs_live_poll_does_not_reselect_an_unlisted_missing_video(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 20:00:00', 'Asia/Taipei'));
+        config()->set('services.youtube.api_key', 'test-key');
+        config()->set('services.youtube.api_keys', null);
+        config()->set('services.youtube.transient_retries', 0);
+        $this->createLivePollingTables();
+        DB::table('urt_video_live_tvbs')->insert($this->tvbsLiveRow(
+            videoId: 'deleted-tvbs-live',
+            uId: 29,
+            mtime: '2026-05-25 19:00:00',
+            scheduledStartTime: '2026-05-25 19:30:00',
+        ));
+        Http::fake([
+            'www.googleapis.com/youtube/v3/videos*' => Http::response(['items' => []], 200),
+        ]);
+
+        $firstExit = Artisan::call('youtube:tvbs:live:poll', [
+            '--execute' => true,
+            '--limit' => 20,
+            '--json' => true,
+        ]);
+
+        $this->assertSame(1, $firstExit);
+        $this->assertSame(1, (int) DB::table('urt_video_live_tvbs')->where('videoId', 'deleted-tvbs-live')->value('del_flag'));
+        Http::assertSentCount(1);
+
+        $secondExit = Artisan::call('youtube:tvbs:live:poll', [
+            '--execute' => true,
+            '--limit' => 20,
+            '--json' => true,
+        ]);
+        $secondPayload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $secondExit);
+        $this->assertSame(0, $secondPayload['selected_rows']);
+        $this->assertSame(0, $secondPayload['failed_videos']);
         Http::assertSentCount(1);
     }
 

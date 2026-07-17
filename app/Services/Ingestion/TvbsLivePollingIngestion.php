@@ -79,6 +79,7 @@ class TvbsLivePollingIngestion
                     $skipped[] = [
                         'videoId' => $rowVideoId,
                         'reason' => 'api_item_missing',
+                        'unlisted' => $this->unlistMissingVideo($rowVideoId, $now),
                     ];
 
                     continue;
@@ -117,6 +118,50 @@ class TvbsLivePollingIngestion
      * @param  array<string, mixed>  $row
      * @param  array<string, mixed>  $details
      */
+    /**
+     * A successful videos.list response that omits a selected id means the
+     * video no longer exists on YouTube. Leaving the row due would reselect
+     * it on every scheduled minute forever, so mark it unlisted the same way
+     * youtube:live:cleanup retires stale live rows.
+     */
+    private function unlistMissingVideo(string $videoId, CarbonImmutable $now): bool
+    {
+        try {
+            if (! Schema::hasTable('urt_video_live_tvbs')
+                || ! Schema::hasColumn('urt_video_live_tvbs', 'del_flag')) {
+                Log::warning('TVBS live polling cannot unlist missing video.', [
+                    'video_id' => $videoId,
+                    'reason' => 'api_item_missing',
+                    'unlist_blocked_reason' => 'missing_del_flag_column',
+                ]);
+
+                return false;
+            }
+
+            DB::table('urt_video_live_tvbs')
+                ->where('videoId', $videoId)
+                ->update($this->onlyExistingColumns('urt_video_live_tvbs', [
+                    'del_flag' => 1,
+                    'mtime' => $now->format('Y-m-d H:i:s'),
+                ]));
+            Log::warning('TVBS live polling unlisted a video missing from the API response.', [
+                'video_id' => $videoId,
+                'reason' => 'api_item_missing',
+                'write' => 'urt_video_live_tvbs.del_flag=1',
+            ]);
+
+            return true;
+        } catch (Throwable $exception) {
+            Log::warning('TVBS live polling failed to unlist a missing video.', [
+                'video_id' => $videoId,
+                'reason' => 'api_item_missing',
+                'exception_class' => $exception::class,
+            ]);
+
+            return false;
+        }
+    }
+
     private function updateLiveRowAndLog(array $row, array $details, CarbonImmutable $now): void
     {
         if (! Schema::hasTable('urt_video_live_tvbs')) {
@@ -251,10 +296,12 @@ class TvbsLivePollingIngestion
             'updated_videos' => count($applied),
             'skipped_videos' => count($skipped),
             'failed_videos' => $failedVideos,
+            'unlisted_videos' => collect($skipped)->where('unlisted', true)->count(),
             'quota_window_reset' => $quotaWindowReset,
             'remaining_retry_rows' => $remainingRetryRows,
             'exit_code' => $failedVideos > 0 || $quotaWindowReset ? 1 : 0,
             'write_targets' => [
+                'urt_video_live_tvbs.del_flag',
                 'urt_video_live_tvbs.mtime',
                 'urt_video_live_tvbs.actualStartTime',
                 'urt_video_live_tvbs.actualEndTime',
