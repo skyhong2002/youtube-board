@@ -4,7 +4,7 @@ namespace App\Support;
 
 final class AiDailyContract
 {
-    public const OFFICIAL_ALL_MAX_TOKENS = 12_288;
+    public const OFFICIAL_DAILY_MAX_TOKENS = 12_288;
 
     public const MIN_MEDIA_PER_TOPIC = 2;
 

@@ -580,7 +580,7 @@ class IngestionAiDailyCommandTest extends TestCase
         });
     }
 
-    public function test_ai_daily_other_condition_keeps_primary_provider_token_cap(): void
+    public function test_ai_daily_other_condition_uses_bounded_daily_primary_token_cap(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'));
         $this->createTables();
@@ -621,7 +621,7 @@ class IngestionAiDailyCommandTest extends TestCase
 
         $this->assertSame(0, $exitCode);
         $this->assertSame('green', DB::table('urt_ai_date')->value('condition_type'));
-        Http::assertSent(fn (Request $request): bool => ($request['max_completion_tokens'] ?? null) === 4096
+        Http::assertSent(fn (Request $request): bool => ($request['max_completion_tokens'] ?? null) === 12_288
             && ! isset($request['max_tokens'])
             && ($request['response_format']['type'] ?? null) === 'json_schema'
             && ($request['response_format']['json_schema']['schema']['properties']['events']['minItems'] ?? null) === 12

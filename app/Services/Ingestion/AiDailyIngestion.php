@@ -151,12 +151,10 @@ class AiDailyIngestion
                         dailyMaxMediaSources: AiDailyContract::MAX_REPRESENTATIVE_MEDIA_PER_TOPIC,
                         dailyMaxEventsPerMedia: AiDailyContract::REPRESENTATIVE_EVENTS_PER_MEDIA,
                     ),
-                    officialStructuredOutputMaxTokens: ($row['condition'] ?? null) === 'all'
-                        ? (int) config(
-                            'services.opencode_go.daily_max_tokens',
-                            AiDailyContract::OFFICIAL_ALL_MAX_TOKENS,
-                        )
-                        : null,
+                    officialStructuredOutputMaxTokens: (int) config(
+                        'services.opencode_go.daily_max_tokens',
+                        AiDailyContract::OFFICIAL_DAILY_MAX_TOKENS,
+                    ),
                 );
             } catch (Throwable $exception) {
                 $validationReason = $this->exclusiveValidationFailureReason(

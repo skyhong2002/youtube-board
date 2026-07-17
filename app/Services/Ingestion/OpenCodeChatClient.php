@@ -11,7 +11,7 @@ use Throwable;
 
 class OpenCodeChatClient
 {
-    public const MAX_OFFICIAL_STRUCTURED_OUTPUT_TOKENS = AiDailyContract::OFFICIAL_ALL_MAX_TOKENS;
+    public const MAX_OFFICIAL_STRUCTURED_OUTPUT_TOKENS = AiDailyContract::OFFICIAL_DAILY_MAX_TOKENS;
 
     public function __construct(
         private readonly HttpFactory $http,
