@@ -158,7 +158,7 @@ return [
             'group' => 'Video discovery',
             'priority' => 2,
             'modern_command' => 'youtube:tag-videos:backfill',
-            'scheduled_execute_command' => 'youtube:tag-videos:backfill --tagid=102 --days=2 --execute --limit=100 --max-pages=20 --max-results=50',
+            'scheduled_execute_command' => 'youtube:tag-videos:backfill --tagid=102 --days=2 --execute --limit=100 --max-pages=20 --max-results=50 --keyword-limit=100000',
             'legacy_command' => '/usr/bin/php /home/urtube/maint/get_video.php tagid=102 plus make_tag_date.php',
             'schedule' => '17 3,6,9,12,15,18,21 * * *',
             'cadence' => '每日 7 次；00:00 的 tag 102 完整 crawl 改由 ai.daily pipeline 執行',

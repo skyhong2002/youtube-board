@@ -15,6 +15,8 @@ use Throwable;
 
 class TagVideoBackfillIngestion
 {
+    public const TAG_DATE_KEYWORD_LIMIT = ReportCacheBuildGuardrails::TAG_DATE_KEYWORD_SCAN_LIMIT_MAX;
+
     public function __construct(
         private readonly YoutubeDataApiClient $youtube,
         private readonly TagDateCacheBuilder $tagDateCacheBuilder,
@@ -33,7 +35,7 @@ class TagVideoBackfillIngestion
         int $limit = 100,
         int $maxPages = 20,
         int $maxResults = 50,
-        int $keywordLimit = 5000,
+        int $keywordLimit = self::TAG_DATE_KEYWORD_LIMIT,
         bool $rebuildTagDate = true,
         bool $execute = false,
         ?CarbonInterface $now = null,
@@ -49,6 +51,7 @@ class TagVideoBackfillIngestion
         $limit = max(1, min(500, $limit));
         $maxPages = max(1, min(200, $maxPages));
         $maxResults = max(1, min(50, $maxResults));
+        $keywordLimit = ReportCacheBuildGuardrails::bounded($keywordLimit, self::TAG_DATE_KEYWORD_LIMIT);
 
         $toDate = $this->dateString($to, $now->toDateString());
         $fromDate = $this->dateString($from, CarbonImmutable::parse($toDate, $timezone)->subDays($days - 1)->toDateString());
@@ -60,10 +63,21 @@ class TagVideoBackfillIngestion
         $selection = $this->channels($tagIds, $orTagIds, $notTagIds, $limit);
         $channels = $selection['rows'];
         $selectionTruncated = $selection['truncated'];
+        $keywordSource = $rebuildTagDate
+            ? $this->tagDateCacheBuilder->completeDictionarySourceState($keywordLimit, $now)
+            : [
+                'keyword_limit' => $keywordLimit,
+                'keyword_rows_scanned' => 0,
+                'keywords_selected' => 0,
+                'keyword_source_truncated' => false,
+            ];
+        $keywordSourceComplete = ! (bool) $keywordSource['keyword_source_truncated'];
 
         if (! $execute) {
             return [
                 'mode' => 'dry-run',
+                'status' => $keywordSourceComplete ? 'success' : 'blocked',
+                'exit_code' => $keywordSourceComplete ? 0 : 1,
                 'generated_at' => $now->format('Y-m-d H:i:s'),
                 'from' => $fromDate,
                 'to' => $toDate,
@@ -74,12 +88,59 @@ class TagVideoBackfillIngestion
                 'selected_channel_ids' => $this->channelIds($channels),
                 'channel_limit' => $limit,
                 'channel_selection_truncated' => $selectionTruncated,
-                'would_call_api' => count($channels) > 0,
+                'would_call_api' => count($channels) > 0 && $keywordSourceComplete,
                 'api_max_pages_per_channel' => $maxPages,
                 'api_max_results_per_page' => $maxResults,
+                ...$keywordSource,
+                'source_preflight_complete' => $keywordSourceComplete,
+                'keyword_source_complete' => $keywordSourceComplete,
+                'blocked_reason' => $keywordSourceComplete ? null : 'keyword_scan_limit_exceeded',
                 'rebuild_tag_date' => $rebuildTagDate,
                 'rows' => $this->previewRows($channels, $fromDate, $toDate),
                 'writes' => [],
+            ];
+        }
+
+        if (! $keywordSourceComplete) {
+            return [
+                'mode' => 'execute',
+                'status' => 'blocked',
+                'generated_at' => $now->format('Y-m-d H:i:s'),
+                'from' => $fromDate,
+                'to' => $toDate,
+                'tagid' => implode(',', $tagIds),
+                'or' => implode(',', $orTagIds),
+                'not' => implode(',', $notTagIds),
+                'selected_channels' => count($channels),
+                'selected_channel_ids' => $this->channelIds($channels),
+                'channel_limit' => $limit,
+                'channel_selection_truncated' => $selectionTruncated,
+                'updated_channels' => 0,
+                'completed_channel_ids' => [],
+                'skipped_channels' => 0,
+                'failed_channel_ids' => [],
+                'failed_channels' => 0,
+                'crawl_complete' => false,
+                'source_preflight_complete' => false,
+                'preflight_blocked_reason' => 'keyword_scan_limit_exceeded',
+                ...$keywordSource,
+                'keyword_source_complete' => false,
+                'exit_code' => 1,
+                'api_pages' => 0,
+                'api_items' => 0,
+                'videos_in_range' => 0,
+                'video_upserts' => 0,
+                'schedule_upserts' => 0,
+                'live_upserts' => 0,
+                'tag_date_writes' => 0,
+                'tag_date_failed_rows' => 1,
+                'tag_date_rows' => [],
+                'tag_date_rebuild_skipped_reason' => 'keyword_scan_limit_exceeded',
+                'applied' => [],
+                'skipped' => [],
+                'write_targets' => [],
+                'external_calls' => [],
+                'secrets' => 'not printed',
             ];
         }
 
@@ -141,7 +202,7 @@ class TagVideoBackfillIngestion
             $end = CarbonImmutable::parse($toDate, $timezone);
 
             while ($cursor <= $end) {
-                $row = $this->tagDateCacheBuilder->build(
+                $row = $this->tagDateCacheBuilder->buildCompleteDictionary(
                     tagIds: $tagIds,
                     date: $cursor->toDateString(),
                     orTagIds: $orTagIds,
@@ -198,6 +259,9 @@ class TagVideoBackfillIngestion
             'failed_channel_ids' => $this->rowChannelIds($skipped),
             'failed_channels' => count($skipped),
             'crawl_complete' => $crawlComplete,
+            ...$keywordSource,
+            'source_preflight_complete' => true,
+            'keyword_source_complete' => true,
             'exit_code' => $exitCode,
             ...$totals,
             'tag_date_writes' => $tagDateWrites,

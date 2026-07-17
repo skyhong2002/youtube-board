@@ -2,6 +2,8 @@
 
 namespace App\Services\Ingestion;
 
+use App\Support\AiDailyContract;
+use InvalidArgumentException;
 use JsonException;
 
 class AiJsonPayloadValidator
@@ -22,6 +24,42 @@ class AiJsonPayloadValidator
     ];
 
     /**
+     * Build the strict root-object schema required by OpenAI Structured Outputs.
+     *
+     * @return array<string, mixed>
+     */
+    public function eventListJsonSchema(
+        string $shape,
+        ?int $expectedMinItems = null,
+        ?int $expectedMaxItems = null,
+        ?int $dailyMaxMediaSources = null,
+        ?int $dailyMaxEventsPerMedia = null,
+    ): array {
+        if (! in_array($shape, ['channel', 'daily', 'hourly'], true)) {
+            throw new InvalidArgumentException('Unsupported AI event-list shape.');
+        }
+
+        $minimum = max(1, $expectedMinItems ?? 1);
+        $maximum = max($minimum, $expectedMaxItems ?? 100);
+
+        return [
+            'type' => 'object',
+            'properties' => [
+                'events' => [
+                    'type' => 'array',
+                    'minItems' => $minimum,
+                    'maxItems' => $maximum,
+                    'items' => $shape === 'daily'
+                        ? $this->dailyEventSchema($dailyMaxMediaSources, $dailyMaxEventsPerMedia)
+                        : $this->channelEventSchema(),
+                ],
+            ],
+            'required' => ['events'],
+            'additionalProperties' => false,
+        ];
+    }
+
+    /**
      * @return array{valid: bool, json: string|null, item_count: int, failure_reason: string|null}
      */
     public function validateEventList(
@@ -29,6 +67,8 @@ class AiJsonPayloadValidator
         string $shape,
         ?int $expectedMinItems = null,
         ?int $expectedMaxItems = null,
+        ?int $dailyMaxMediaSources = null,
+        ?int $dailyMaxEventsPerMedia = null,
     ): array {
         $decodedAnyJson = false;
         $failureReason = null;
@@ -42,9 +82,40 @@ class AiJsonPayloadValidator
             }
 
             $decodedAnyJson = true;
-            $items = $this->items($decoded);
+            $items = $this->normalizeEventItems(
+                $this->items($decoded),
+                $shape,
+                $dailyMaxEventsPerMedia,
+            );
+            $generationDaily = $shape === 'daily'
+                && ($dailyMaxMediaSources !== null || $dailyMaxEventsPerMedia !== null);
 
-            if (! $this->validItems($items, $shape)) {
+            if ($generationDaily) {
+                $items = array_values(array_filter(
+                    $items,
+                    fn (mixed $item): bool => is_array($item) && $this->validItems(
+                        [$item],
+                        $shape,
+                        $dailyMaxMediaSources,
+                        $dailyMaxEventsPerMedia,
+                    ),
+                ));
+                $itemCount = count($items);
+
+                if ($expectedMinItems !== null && $itemCount < max(0, $expectedMinItems)) {
+                    $failureReason = 'ai_payload_item_count_below_minimum';
+                    $invalidItemCount = $itemCount;
+
+                    continue;
+                }
+            }
+
+            if (! $this->validItems(
+                $items,
+                $shape,
+                $dailyMaxMediaSources,
+                $dailyMaxEventsPerMedia,
+            )) {
                 continue;
             }
 
@@ -355,8 +426,12 @@ class AiJsonPayloadValidator
     /**
      * @param  list<mixed>  $items
      */
-    private function validItems(array $items, string $shape): bool
-    {
+    private function validItems(
+        array $items,
+        string $shape,
+        ?int $dailyMaxMediaSources = null,
+        ?int $dailyMaxEventsPerMedia = null,
+    ): bool {
         if ($items === [] || ! in_array($shape, ['channel', 'daily', 'hourly'], true)) {
             return false;
         }
@@ -366,8 +441,18 @@ class AiJsonPayloadValidator
                 return false;
             }
 
-            if ($shape === 'daily' && $this->mediaSourceCount($item) < 2) {
-                return false;
+            if ($shape === 'daily') {
+                if ($this->mediaSourceCount($item) < AiDailyContract::MIN_MEDIA_PER_TOPIC) {
+                    return false;
+                }
+
+                if (! $this->validDailyRepresentation(
+                    $item,
+                    $dailyMaxMediaSources,
+                    $dailyMaxEventsPerMedia,
+                )) {
+                    return false;
+                }
             }
 
             if (in_array($shape, ['channel', 'hourly'], true) && $this->videoIds($item) === []) {
@@ -376,6 +461,175 @@ class AiJsonPayloadValidator
         }
 
         return true;
+    }
+
+    /**
+     * Structured Outputs cannot represent the legacy dynamic media-name keys.
+     * Convert its fixed list shape back before validation and persistence.
+     *
+     * @param  list<mixed>  $items
+     * @return list<mixed>
+     */
+    private function normalizeEventItems(
+        array $items,
+        string $shape,
+        ?int $dailyMaxEventsPerMedia = null,
+    ): array {
+        if ($shape !== 'daily') {
+            return $items;
+        }
+
+        return array_map(function (mixed $item) use ($dailyMaxEventsPerMedia): mixed {
+            if (! is_array($item) || array_is_list($item)) {
+                return $item;
+            }
+
+            foreach (['媒體事件', 'media_events', 'mediaEvents'] as $key) {
+                $mediaRows = $item[$key] ?? null;
+
+                if (! is_array($mediaRows) || ! array_is_list($mediaRows)) {
+                    continue;
+                }
+
+                $mediaMap = [];
+
+                foreach ($mediaRows as $mediaRow) {
+                    if (! is_array($mediaRow) || array_is_list($mediaRow)) {
+                        if ($dailyMaxEventsPerMedia !== null) {
+                            continue;
+                        }
+
+                        return $item;
+                    }
+
+                    $media = $mediaRow['媒體'] ?? $mediaRow['media'] ?? null;
+                    $events = $mediaRow['事件'] ?? $mediaRow['events'] ?? null;
+
+                    if (! is_string($media) || trim($media) === '' || ! is_array($events) || ! array_is_list($events)) {
+                        if ($dailyMaxEventsPerMedia !== null) {
+                            continue;
+                        }
+
+                        return $item;
+                    }
+
+                    $normalizedEvents = collect($events)
+                        ->filter(fn (mixed $event): bool => is_string($event) && trim($event) !== '')
+                        ->map(fn (string $event): string => trim($event))
+                        ->values()
+                        ->all();
+
+                    if ($normalizedEvents === []) {
+                        if ($dailyMaxEventsPerMedia !== null) {
+                            continue;
+                        }
+
+                        return $item;
+                    }
+
+                    $media = trim($media);
+                    $mergedEvents = array_values(array_unique([
+                        ...($mediaMap[$media] ?? []),
+                        ...$normalizedEvents,
+                    ]));
+                    $mediaMap[$media] = $dailyMaxEventsPerMedia === null
+                        ? $mergedEvents
+                        : array_slice($mergedEvents, 0, max(1, $dailyMaxEventsPerMedia));
+                }
+
+                $item[$key] = $mediaMap;
+
+                return $item;
+            }
+
+            return $item;
+        }, $items);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function channelEventSchema(): array
+    {
+        return [
+            'type' => 'object',
+            'properties' => [
+                '事件' => $this->stringSchema(),
+                '描述' => $this->stringSchema(),
+                '角度' => $this->stringSchema(),
+                '陣營' => $this->stringSchema(),
+                '分類' => $this->stringSchema(),
+                '關鍵字' => $this->stringListSchema(30),
+                '人物' => $this->stringListSchema(30),
+                '地名' => $this->stringListSchema(30),
+                '類型' => $this->stringListSchema(20),
+                'videoId' => $this->stringListSchema(500, minimum: 1),
+            ],
+            'required' => ['事件', '描述', '角度', '陣營', '分類', '關鍵字', '人物', '地名', '類型', 'videoId'],
+            'additionalProperties' => false,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function dailyEventSchema(
+        ?int $maxMediaSources = null,
+        ?int $maxEventsPerMedia = null,
+    ): array {
+        $maxMediaSources = max(
+            AiDailyContract::MIN_MEDIA_PER_TOPIC,
+            $maxMediaSources ?? 100,
+        );
+        $maxEventsPerMedia = max(1, $maxEventsPerMedia ?? 100);
+
+        return [
+            'type' => 'object',
+            'properties' => [
+                '標題' => $this->stringSchema(),
+                '媒體事件' => [
+                    'type' => 'array',
+                    'minItems' => AiDailyContract::MIN_MEDIA_PER_TOPIC,
+                    'maxItems' => $maxMediaSources,
+                    'items' => [
+                        'type' => 'object',
+                        'properties' => [
+                            '媒體' => $this->stringSchema(),
+                            '事件' => $this->stringListSchema($maxEventsPerMedia, minimum: 1),
+                        ],
+                        'required' => ['媒體', '事件'],
+                        'additionalProperties' => false,
+                    ],
+                ],
+            ],
+            'required' => ['標題', '媒體事件'],
+            'additionalProperties' => false,
+        ];
+    }
+
+    /**
+     * @return array{type: string}
+     */
+    private function stringSchema(): array
+    {
+        return [
+            'type' => 'string',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function stringListSchema(
+        int $maximum,
+        int $minimum = 0,
+    ): array {
+        return [
+            'type' => 'array',
+            'minItems' => $minimum,
+            'maxItems' => $maximum,
+            'items' => $this->stringSchema(),
+        ];
     }
 
     /**
@@ -422,6 +676,55 @@ class AiJsonPayloadValidator
         }
 
         return 0;
+    }
+
+    /**
+     * Generation-only representation limits are optional so historical cache
+     * payloads keep their existing validation behavior.
+     *
+     * @param  array<string, mixed>  $item
+     */
+    private function validDailyRepresentation(
+        array $item,
+        ?int $maxMediaSources,
+        ?int $maxEventsPerMedia,
+    ): bool {
+        if ($maxMediaSources === null && $maxEventsPerMedia === null) {
+            return true;
+        }
+
+        foreach (['媒體事件', 'media_events', 'mediaEvents'] as $key) {
+            $mediaEvents = $item[$key] ?? null;
+
+            if (! is_array($mediaEvents) || array_is_list($mediaEvents)) {
+                continue;
+            }
+
+            if ($maxMediaSources !== null && count($mediaEvents) > max(1, $maxMediaSources)) {
+                return false;
+            }
+
+            foreach ($mediaEvents as $media => $events) {
+                if (! is_string($media) || trim($media) === '' || ! is_array($events) || ! array_is_list($events)) {
+                    return false;
+                }
+
+                $validEvents = collect($events)
+                    ->filter(fn (mixed $event): bool => is_string($event) && trim($event) !== '');
+
+                if (
+                    $validEvents->count() !== count($events)
+                    || $validEvents->isEmpty()
+                    || ($maxEventsPerMedia !== null && $validEvents->count() > max(1, $maxEventsPerMedia))
+                ) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     /**

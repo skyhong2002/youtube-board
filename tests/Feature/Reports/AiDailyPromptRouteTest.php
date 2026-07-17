@@ -33,6 +33,9 @@ class AiDailyPromptRouteTest extends TestCase
         $response->assertSee('媒體 3');
         $response->assertSee('事件數 15 - 20');
         $response->assertSee('總數不得少於 15 個或多於 20 個');
+        $response->assertSee('2 到 6 個最具代表性的媒體');
+        $response->assertSee('正好保留 1 個最具代表性的輸入事件');
+        $response->assertSee('不得重複媒體名稱');
         $response->assertSee('Green Channel');
         $response->assertSee('Blue Channel');
         $response->assertSee('Finance Channel');

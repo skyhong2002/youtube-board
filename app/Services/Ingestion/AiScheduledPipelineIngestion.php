@@ -46,16 +46,43 @@ class AiScheduledPipelineIngestion
             limit: 100,
             maxPages: 20,
             maxResults: 50,
+            keywordLimit: TagVideoBackfillIngestion::TAG_DATE_KEYWORD_LIMIT,
             execute: false,
             now: $now,
         );
+        $source = $this->dailySourcePreview($sourceRefresh);
+        $sourceExitCode = (int) ($sourceRefresh['exit_code'] ?? 0);
+
+        if ($sourceExitCode !== 0) {
+            $reason = (string) ($sourceRefresh['blocked_reason']
+                ?? $sourceRefresh['preflight_blocked_reason']
+                ?? 'source_preflight_not_complete');
+
+            return [
+                'mode' => 'ingestion-preview',
+                'status' => 'blocked',
+                'exit_code' => $sourceExitCode,
+                'source' => 'ai_daily_source_first_pipeline',
+                'date' => $date,
+                'execution_caps' => $executionCaps,
+                'source_refresh' => $source,
+                'ai' => [
+                    'status' => 'skipped',
+                    'skipped' => true,
+                    'skip_reason' => $reason,
+                    'ai_call_attempted' => false,
+                    'writes' => [],
+                ],
+                'writes' => [],
+            ];
+        }
 
         return [
             'mode' => 'ingestion-preview',
             'source' => 'ai_daily_source_first_pipeline',
             'date' => $date,
             'execution_caps' => $executionCaps,
-            'source_refresh' => $this->dailySourcePreview($sourceRefresh),
+            'source_refresh' => $source,
             'ai' => $this->dailyPreview->preview(
                 date: $date,
                 dataType: 'oneday',
@@ -87,7 +114,10 @@ class AiScheduledPipelineIngestion
         $date = $this->date($date, $now);
         $sourceRun = $this->quotaGuard->run(
             jobKey: 'youtube.tag_videos.backfill',
-            effectiveCommand: 'youtube:tag-videos:backfill --execute --limit=100 --max-pages=20 --max-results=50',
+            effectiveCommand: sprintf(
+                'youtube:tag-videos:backfill --execute --limit=100 --max-pages=20 --max-results=50 --keyword-limit=%d',
+                TagVideoBackfillIngestion::TAG_DATE_KEYWORD_LIMIT,
+            ),
             callback: fn (): array => $this->tagVideoBackfill->run(
                 tagIds: [102],
                 from: $date,
@@ -95,6 +125,7 @@ class AiScheduledPipelineIngestion
                 limit: 100,
                 maxPages: 20,
                 maxResults: 50,
+                keywordLimit: TagVideoBackfillIngestion::TAG_DATE_KEYWORD_LIMIT,
                 execute: true,
                 now: $now,
             ),
@@ -318,7 +349,8 @@ class AiScheduledPipelineIngestion
         $payload = is_array($run['payload'] ?? null) ? $run['payload'] : [];
         $allowed = (bool) ($run['allowed'] ?? false);
         $exitCode = $allowed ? (int) ($payload['exit_code'] ?? 1) : 1;
-        $crawlComplete = $stage !== 'daily_uploads_backfill' || (bool) ($payload['crawl_complete'] ?? false);
+        $dailyBackfill = $stage === 'daily_uploads_backfill';
+        $crawlComplete = ! $dailyBackfill || (bool) ($payload['crawl_complete'] ?? false);
         $requiredChannelIds = $this->normalizedChannelIds($requiredChannelIds);
         $completedChannelIds = $this->completedChannelIds($payload);
         $coveredRequiredChannelIds = array_values(array_intersect($requiredChannelIds, $completedChannelIds));
@@ -339,9 +371,10 @@ class AiScheduledPipelineIngestion
                 ? null
                 : match (true) {
                     ! $allowed => (string) data_get($run, 'guard.reason', 'source_refresh_blocked'),
+                    is_string($payload['preflight_blocked_reason'] ?? null) => $payload['preflight_blocked_reason'],
                     ! $crawlComplete => 'incomplete_channel_crawl',
                     ! $requiredChannelCoverageComplete => 'required_channel_crawl_incomplete',
-                    default => 'source_refresh_failed',
+                    default => (string) ($payload['tag_date_rebuild_skipped_reason'] ?? 'source_refresh_failed'),
                 },
             'selected_channels' => (int) ($payload['selected_channels'] ?? $payload['configured_channels'] ?? 0),
             'completed_channels' => (int) ($payload['updated_channels'] ?? $payload['completed_channels'] ?? 0),
@@ -354,6 +387,17 @@ class AiScheduledPipelineIngestion
             'required_channel_coverage_complete' => $requiredChannelCoverageComplete,
             'api_pages' => (int) ($payload['api_pages'] ?? 0),
             'videos_in_range' => (int) ($payload['videos_in_range'] ?? 0),
+            ...($dailyBackfill ? [
+                'source_preflight_complete' => (bool) ($payload['source_preflight_complete'] ?? false),
+                'keyword_limit' => (int) ($payload['keyword_limit'] ?? 0),
+                'keyword_rows_scanned' => (int) ($payload['keyword_rows_scanned'] ?? 0),
+                'keywords_selected' => (int) ($payload['keywords_selected'] ?? 0),
+                'keyword_source_complete' => (bool) ($payload['keyword_source_complete'] ?? false),
+                'tag_date_writes' => (int) ($payload['tag_date_writes'] ?? 0),
+                'tag_date_failed_rows' => (int) ($payload['tag_date_failed_rows'] ?? 0),
+                'tag_date_rebuild_skipped_reason' => $payload['tag_date_rebuild_skipped_reason'] ?? null,
+                'tag_date_rows' => is_array($payload['tag_date_rows'] ?? null) ? $payload['tag_date_rows'] : [],
+            ] : []),
             'write_targets' => is_array($payload['write_targets'] ?? null) ? $payload['write_targets'] : [],
             'youtube_quota_budget' => is_array($payload['youtube_quota_budget'] ?? null)
                 ? $payload['youtube_quota_budget']

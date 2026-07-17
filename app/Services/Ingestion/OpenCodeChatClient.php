@@ -2,6 +2,7 @@
 
 namespace App\Services\Ingestion;
 
+use App\Support\AiDailyContract;
 use App\Support\SensitiveTextRedactor;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Client\Response;
@@ -10,6 +11,8 @@ use Throwable;
 
 class OpenCodeChatClient
 {
+    public const MAX_OFFICIAL_STRUCTURED_OUTPUT_TOKENS = AiDailyContract::OFFICIAL_DAILY_MAX_TOKENS;
+
     public function __construct(
         private readonly HttpFactory $http,
         private readonly IngestionTelemetry $telemetry,
@@ -25,11 +28,21 @@ class OpenCodeChatClient
 
     /**
      * @param  callable(string): array{valid: bool}  $validator
+     * @param  array<string, mixed>|null  $jsonSchema
      * @return array{content: string, model: string, configured_model: string, provider: string, provider_failures: list<string>, usage: array<string, mixed>|null, latency_ms: int, validation: array<string, mixed>}
      */
-    public function completeValidated(string $prompt, callable $validator): array
-    {
-        return $this->completeInternal($prompt, $validator);
+    public function completeValidated(
+        string $prompt,
+        callable $validator,
+        ?array $jsonSchema = null,
+        ?int $officialStructuredOutputMaxTokens = null,
+    ): array {
+        return $this->completeInternal(
+            $prompt,
+            $validator,
+            $jsonSchema,
+            $officialStructuredOutputMaxTokens,
+        );
     }
 
     public function providerAttemptCapPerCompletion(): int
@@ -39,12 +52,18 @@ class OpenCodeChatClient
 
     /**
      * @param  (callable(string): array{valid: bool})|null  $validator
+     * @param  array<string, mixed>|null  $jsonSchema
      * @return array<string, mixed>
      */
-    private function completeInternal(string $prompt, ?callable $validator = null): array
-    {
+    private function completeInternal(
+        string $prompt,
+        ?callable $validator = null,
+        ?array $jsonSchema = null,
+        ?int $officialStructuredOutputMaxTokens = null,
+    ): array {
         $providers = $this->providers();
         $failures = [];
+        $validationFailureReasons = [];
 
         if ($providers === []) {
             throw new RuntimeException('OPENAI_API_KEY is missing; secrets=not_printed');
@@ -52,17 +71,38 @@ class OpenCodeChatClient
 
         foreach ($providers as $provider) {
             try {
-                return $this->completeWithProvider($prompt, $provider, validator: $validator) + [
+                return $this->completeWithProvider(
+                    $prompt,
+                    $provider,
+                    validator: $validator,
+                    jsonSchema: $jsonSchema,
+                    officialStructuredOutputMaxTokens: $officialStructuredOutputMaxTokens,
+                ) + [
                     'provider' => $provider['name'],
                     'provider_failures' => $failures,
                 ];
             } catch (Throwable $exception) {
                 $failures[] = $provider['name'].': '.$this->sanitizedError($exception->getMessage(), $prompt);
+                $validationFailureReasons[] = $exception instanceof AiPayloadValidationException
+                    ? $exception->failureReason
+                    : null;
             }
         }
 
+        $validationFailurePrefix = '';
+        $reasons = array_values(array_unique(array_filter(
+            $validationFailureReasons,
+            fn (mixed $reason): bool => is_string($reason) && $reason !== '',
+        )));
+
+        if ($reasons !== []) {
+            $validationFailurePrefix = 'validation_failure_reason='.
+                (count($reasons) === 1 ? $reasons[0] : 'invalid_ai_payload').' | ';
+        }
+
         throw new RuntimeException(mb_strimwidth(
-            'AI completion failed after '.count($failures).' provider(s): '.implode(' | ', $failures).' secrets=not_printed',
+            'AI completion failed after '.count($failures).' provider(s): '.$validationFailurePrefix.
+                implode(' | ', $failures).' secrets=not_printed',
             0,
             240,
             '...',
@@ -103,16 +143,31 @@ class OpenCodeChatClient
         array $provider,
         ?int $maxTokensOverride = null,
         ?callable $validator = null,
+        ?array $jsonSchema = null,
+        ?int $officialStructuredOutputMaxTokens = null,
     ): array {
         $apiKey = $provider['api_key'];
         $baseUrl = $provider['base_url'];
         $model = $provider['model'];
         $endpointStyle = $provider['endpoint_style'];
         $timeout = $provider['timeout'];
+        $messagesStyle = $this->usesMessagesEndpoint($model, $endpointStyle);
+        $structuredOutput = $this->usesOfficialOpenAiStructuredOutput(
+            $provider,
+            $messagesStyle,
+            $jsonSchema,
+        );
         $maxTokens = $maxTokensOverride === null
             ? $provider['max_tokens']
             : max(1, min($provider['max_tokens'], $maxTokensOverride));
-        $messagesStyle = $this->usesMessagesEndpoint($model, $endpointStyle);
+
+        if ($structuredOutput && $officialStructuredOutputMaxTokens !== null) {
+            $maxTokens = max(128, min(
+                self::MAX_OFFICIAL_STRUCTURED_OUTPUT_TOKENS,
+                $officialStructuredOutputMaxTokens,
+            ));
+        }
+
         $path = $messagesStyle ? '/messages' : '/chat/completions';
         $body = [
             'model' => $model,
@@ -127,6 +182,16 @@ class OpenCodeChatClient
         $body[$messagesStyle || ! $this->usesCompletionTokenLimit($model)
             ? 'max_tokens'
             : 'max_completion_tokens'] = $maxTokens;
+        if ($structuredOutput) {
+            $body['response_format'] = [
+                'type' => 'json_schema',
+                'json_schema' => [
+                    'name' => 'validated_event_list',
+                    'strict' => true,
+                    'schema' => $jsonSchema,
+                ],
+            ];
+        }
         $providerStarted = hrtime(true);
         $maxAttempts = $this->attemptsPerProvider();
 
@@ -153,6 +218,7 @@ class OpenCodeChatClient
                     content: null,
                     error: $error,
                     attempt: $attempt,
+                    structuredOutput: $structuredOutput,
                 ));
 
                 throw new RuntimeException('AI provider connection failed: '.$error);
@@ -162,6 +228,7 @@ class OpenCodeChatClient
             $decoded = $response->json();
             $payload = is_array($decoded) ? $decoded : [];
             $usage = $this->sanitizedUsage(data_get($payload, 'usage'));
+            $responseModelSnapshot = $this->sanitizedResponseModel($payload['model'] ?? null);
 
             if (! $response->successful()) {
                 $message = 'status='.$response->status().' endpoint_style='.($messagesStyle ? 'messages' : 'chat');
@@ -180,6 +247,8 @@ class OpenCodeChatClient
                     attempt: $attempt,
                     transientRetry: $transientRetry,
                     retryDelayMs: $retryDelayMs,
+                    structuredOutput: $structuredOutput,
+                    responseModel: $responseModelSnapshot,
                 ));
 
                 if ($transientRetry) {
@@ -209,6 +278,8 @@ class OpenCodeChatClient
                     error: $message,
                     attempt: $attempt,
                     terminationReason: $terminationReason,
+                    structuredOutput: $structuredOutput,
+                    responseModel: $responseModelSnapshot,
                 ));
 
                 throw new RuntimeException($message);
@@ -231,6 +302,8 @@ class OpenCodeChatClient
                     error: 'empty_message endpoint_style='.($messagesStyle ? 'messages' : 'chat'),
                     attempt: $attempt,
                     terminationReason: $terminationReason,
+                    structuredOutput: $structuredOutput,
+                    responseModel: $responseModelSnapshot,
                 ));
 
                 throw new RuntimeException('empty_message endpoint_style='.($messagesStyle ? 'messages' : 'chat'));
@@ -246,6 +319,8 @@ class OpenCodeChatClient
                 }
 
                 if (! is_array($candidateValidation) || ($candidateValidation['valid'] ?? false) !== true) {
+                    $validationFailureReason = $this->safeValidationFailureReason($candidateValidation);
+                    $validationRetry = $attempt < $maxAttempts;
                     $this->telemetry->recordAiRequest($this->requestTelemetry(
                         provider: $provider,
                         endpointStyle: $messagesStyle ? 'messages' : 'chat',
@@ -259,9 +334,17 @@ class OpenCodeChatClient
                         attempt: $attempt,
                         terminationReason: $terminationReason,
                         completionChars: mb_strlen($content, 'UTF-8'),
+                        structuredOutput: $structuredOutput,
+                        validationFailureReason: $validationFailureReason,
+                        validationRetry: $validationRetry,
+                        responseModel: $responseModelSnapshot,
                     ));
 
-                    throw new RuntimeException('validation_rejected');
+                    if ($validationRetry) {
+                        continue;
+                    }
+
+                    throw new AiPayloadValidationException($validationFailureReason);
                 }
 
                 $validation = $candidateValidation;
@@ -282,6 +365,8 @@ class OpenCodeChatClient
                 error: null,
                 attempt: $attempt,
                 terminationReason: $terminationReason,
+                structuredOutput: $structuredOutput,
+                responseModel: $responseModelSnapshot,
             ));
 
             $completion = [
@@ -392,6 +477,61 @@ class OpenCodeChatClient
     private function usesCompletionTokenLimit(string $model): bool
     {
         return str_starts_with(strtolower($model), 'gpt-5');
+    }
+
+    /**
+     * @param  array{name: string, api_key: string, base_url: string, model: string, endpoint_style: string, timeout: int, max_tokens: int}  $provider
+     * @param  array<string, mixed>|null  $jsonSchema
+     */
+    private function usesOfficialOpenAiStructuredOutput(
+        array $provider,
+        bool $messagesStyle,
+        ?array $jsonSchema,
+    ): bool {
+        if ($jsonSchema === null || $messagesStyle || $provider['name'] !== 'primary') {
+            return false;
+        }
+
+        $scheme = parse_url($provider['base_url'], PHP_URL_SCHEME);
+        $host = parse_url($provider['base_url'], PHP_URL_HOST);
+        $port = parse_url($provider['base_url'], PHP_URL_PORT);
+
+        return is_string($scheme)
+            && strtolower($scheme) === 'https'
+            && is_string($host)
+            && strtolower($host) === 'api.openai.com'
+            && ($port === null || $port === 443);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $validation
+     */
+    private function safeValidationFailureReason(?array $validation): string
+    {
+        $reason = is_string($validation['failure_reason'] ?? null)
+            ? $validation['failure_reason']
+            : '';
+
+        return in_array($reason, [
+            'invalid_ai_json',
+            'invalid_ai_payload',
+            'invalid_ai_payload_shape',
+            'ai_payload_item_count_below_minimum',
+            'ai_payload_item_count_above_maximum',
+        ], true) ? $reason : 'invalid_ai_payload';
+    }
+
+    private function sanitizedResponseModel(mixed $model): ?string
+    {
+        if (! is_string($model) || trim($model) === '') {
+            return null;
+        }
+
+        $model = trim($model);
+
+        return preg_match('/^[a-zA-Z0-9][a-zA-Z0-9._:\/-]{0,127}$/', $model) === 1
+            ? $model
+            : null;
     }
 
     /**
@@ -624,11 +764,16 @@ class OpenCodeChatClient
         ?int $retryDelayMs = null,
         ?string $terminationReason = null,
         ?int $completionChars = null,
+        bool $structuredOutput = false,
+        ?string $validationFailureReason = null,
+        bool $validationRetry = false,
+        ?string $responseModel = null,
     ): array {
         return [
             'api' => 'openai_compatible_chat',
             'provider' => $provider['name'],
             'model' => $provider['model'],
+            'response_model' => $responseModel,
             'endpoint_style' => $endpointStyle,
             'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
             'completion_chars' => $completionChars ?? (is_string($content) ? mb_strlen($content, 'UTF-8') : 0),
@@ -641,6 +786,9 @@ class OpenCodeChatClient
             'transient_retry' => $transientRetry,
             'retry_delay_ms' => $retryDelayMs,
             'termination_reason' => $terminationReason,
+            'structured_output' => $structuredOutput,
+            'validation_failure_reason' => $validationFailureReason,
+            'validation_retry' => $validationRetry,
             'finish_reason' => $endpointStyle === 'chat' ? $terminationReason : null,
             'stop_reason' => $endpointStyle === 'messages' ? $terminationReason : null,
             'secrets' => 'not_printed',
@@ -655,5 +803,13 @@ class OpenCodeChatClient
     private function sanitizedError(string $message, ?string $prompt = null): string
     {
         return SensitiveTextRedactor::redact($message, 240, [$prompt]);
+    }
+}
+
+final class AiPayloadValidationException extends RuntimeException
+{
+    public function __construct(public readonly string $failureReason)
+    {
+        parent::__construct('validation_rejected');
     }
 }

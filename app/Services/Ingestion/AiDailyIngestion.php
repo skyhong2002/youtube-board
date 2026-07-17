@@ -7,6 +7,7 @@ use App\Support\AiDailyContract;
 use App\Support\SensitiveTextRedactor;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -157,8 +158,23 @@ class AiDailyIngestion
                                 'daily',
                                 expectedMinItems: $bounds['min'],
                                 expectedMaxItems: $bounds['max'],
+                                dailyMaxMediaSources: AiDailyContract::MAX_REPRESENTATIVE_MEDIA_PER_TOPIC,
+                                dailyMaxEventsPerMedia: AiDailyContract::REPRESENTATIVE_EVENTS_PER_MEDIA,
                             );
                         },
+                        jsonSchema: $this->jsonValidator->eventListJsonSchema(
+                            'daily',
+                            // Generate the upper bound so invalid individual topics can be
+                            // discarded while the persisted result still meets legacy bounds.
+                            expectedMinItems: $bounds['max'],
+                            expectedMaxItems: $bounds['max'],
+                            dailyMaxMediaSources: AiDailyContract::MAX_REPRESENTATIVE_MEDIA_PER_TOPIC,
+                            dailyMaxEventsPerMedia: AiDailyContract::REPRESENTATIVE_EVENTS_PER_MEDIA,
+                        ),
+                        officialStructuredOutputMaxTokens: (int) config(
+                            'services.opencode_go.daily_max_tokens',
+                            AiDailyContract::OFFICIAL_DAILY_MAX_TOKENS,
+                        ),
                     );
                 } catch (Throwable $exception) {
                     $validationReason = $this->exclusiveValidationFailureReason(
@@ -216,7 +232,7 @@ class AiDailyIngestion
                         ->value('pk');
                     $values = [
                         'mtime' => $now->format('Y-m-d H:i:s'),
-                        'ai_type' => $completion['model'],
+                        'ai_type' => (string) ($completion['configured_model'] ?? $completion['model']),
                         'channel_id' => (string) ($row['channel_id_json'] ?? '{}'),
                         'result_json' => $validated['json'],
                     ];
@@ -226,7 +242,6 @@ class AiDailyIngestion
                             'ctime' => $now->format('Y-m-d H:i:s'),
                             'date_from' => $period['from'],
                             'date_to' => $period['to'],
-                            'ai_type' => $completion['model'],
                             'data_type' => $dataType,
                             'condition_type' => $row['condition'],
                             'user_token' => $userToken,
@@ -238,7 +253,7 @@ class AiDailyIngestion
                             ->update($values);
                     }
                 } catch (Throwable $exception) {
-                    $dailyRows[] = $this->skippedDailyRow($row, $this->sanitizedFailure($exception), $prompt, true);
+                    $dailyRows[] = $this->skippedDailyRow($row, $this->writeFailureReason($exception), $prompt, true);
                     $this->logFailure('daily_write', [
                         'condition' => $row['condition'],
                         'date' => $date,
@@ -459,6 +474,11 @@ class AiDailyIngestion
                                     expectedMaxItems: $bounds['max'],
                                 );
                             },
+                            jsonSchema: $this->jsonValidator->eventListJsonSchema(
+                                'channel',
+                                expectedMinItems: $bounds['min'],
+                                expectedMaxItems: $bounds['max'],
+                            ),
                         );
                     } catch (Throwable $exception) {
                         $validationReason = $this->exclusiveValidationFailureReason(
@@ -542,7 +562,7 @@ class AiDailyIngestion
                             ->value('pk');
                         $values = [
                             'mtime' => $now->format('Y-m-d H:i:s'),
-                            'ai_type' => $completion['model'],
+                            'ai_type' => (string) ($completion['configured_model'] ?? $completion['model']),
                             'result_json' => $validated['json'],
                         ];
 
@@ -575,7 +595,7 @@ class AiDailyIngestion
                             'updated' => false,
                             'skipped' => true,
                             'failed' => true,
-                            'skip_reason' => $this->sanitizedFailure($exception),
+                            'skip_reason' => $this->writeFailureReason($exception),
                         ]);
                         $this->logFailure('channel_write', [
                             'u_id' => $uId,
@@ -657,7 +677,7 @@ class AiDailyIngestion
     private function channelPrompt(Collection $videos, array $bounds): string
     {
         $lines = [
-            "請把下面的新聞列表，整理成 {$bounds['min']} ~ {$bounds['max']} 個重要事件，讓每個事件新聞數較多且觀看數均勻分布，列出描述，並列出每個事件的關鍵字與人物與地名，加上一個欄位判斷出這事件論述的角度是比較偏台灣或是中國出發，也加上一個欄位判斷出這觀點立場是比較偏國民黨或民進黨陣營思考，以及新聞的分類（類型：政治、地方、國際、財經、娛樂、體育、氣象、生活、兩岸、健康、科技、文化)，跟分出來的 videoId (最前面的序號) 列表，後用 JSON 列出元素包含：事件、描述、角度、陣營、分類，以及關鍵字、人物、地名、類型、videoId 這幾個 Array，請用繁體中文回應，且只要 JSON 就好：",
+            "請把下面的新聞列表，整理成 {$bounds['min']} ~ {$bounds['max']} 個重要事件，讓每個事件新聞數較多且觀看數均勻分布，列出描述，並列出每個事件的關鍵字與人物與地名，加上一個欄位判斷出這事件論述的角度是比較偏台灣或是中國出發，也加上一個欄位判斷出這觀點立場是比較偏國民黨或民進黨陣營思考，以及新聞的分類（類型：政治、地方、國際、財經、娛樂、體育、氣象、生活、兩岸、健康、科技、文化)，跟分出來的 videoId (最前面的序號) 列表。用 JSON 列出事件、描述、角度、陣營、分類，以及關鍵字、人物、地名、類型、videoId，並以 {\"events\":[...]} 根物件包住事件陣列。請用繁體中文回應，且只要 JSON 就好：",
         ];
 
         foreach ($videos as $video) {
@@ -737,6 +757,13 @@ class AiDailyIngestion
         return SensitiveTextRedactor::exception($exception, 240);
     }
 
+    private function writeFailureReason(Throwable $exception): string
+    {
+        return $exception instanceof QueryException
+            ? 'database_write_failed'
+            : $this->sanitizedFailure($exception);
+    }
+
     /**
      * @param  array<string, mixed>|null  $validation
      */
@@ -745,6 +772,10 @@ class AiDailyIngestion
         int $validationAttempts,
         Throwable $exception,
     ): ?string {
+        if (preg_match('/validation_failure_reason=([a-z0-9_]+)/', $exception->getMessage(), $matches) === 1) {
+            return $matches[1];
+        }
+
         if (! is_array($validation) || ($validation['valid'] ?? false) || $validationAttempts <= 0) {
             return null;
         }

@@ -56,6 +56,7 @@ class IngestionAiPeriodCommandTest extends TestCase
 
         Http::fake([
             'https://opencode.test/v1/chat/completions' => Http::response([
+                'model' => 'qwen-test-2026-07-15',
                 'choices' => [
                     [
                         'message' => [
@@ -102,8 +103,10 @@ class IngestionAiPeriodCommandTest extends TestCase
         $this->assertSame('2026-06-02 00:00:00', $row->date_from);
         $this->assertSame('2026-06-03 23:59:59', $row->date_to);
         $this->assertSame('all', $row->condition_type);
+        $this->assertSame('qwen-test', $row->ai_type);
         $this->assertSame('["1","2"]', $row->data_json);
         $this->assertSame('[{"2026-06-03":["鄭麗文訪美及兩岸關係"],"2026-06-02":["鄭麗文訪美"]}]', $row->result_json);
+        $this->assertSame('qwen-test-2026-07-15', $payload['period_ai']['rows'][0]['model']);
 
         $response = $this->getJson('/api/api_event.php?pk=2&event='.urlencode('鄭麗文訪美及兩岸關係'));
 

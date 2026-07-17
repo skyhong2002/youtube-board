@@ -73,10 +73,12 @@ class IngestionChannelAiCommandTest extends TestCase
         Log::spy();
         Http::fake(['https://opencode.test/v1/chat/completions' => Http::sequence()
             ->push([
+                'model' => 'qwen-test-2026-07-15',
                 'choices' => [['message' => ['content' => '```json'."\n".$this->channelPayload('第一版')."\n".'```']]],
                 'usage' => ['prompt_tokens' => 20, 'completion_tokens' => 8],
             ])
             ->push([
+                'model' => 'replacement-model-2026-07-15',
                 'choices' => [['message' => ['content' => $this->channelPayload('更新版')]]],
                 'usage' => ['prompt_tokens' => 20, 'completion_tokens' => 9],
             ])]);
@@ -102,9 +104,13 @@ class IngestionChannelAiCommandTest extends TestCase
         $secondPayload = json_decode(trim(Artisan::output()), true);
 
         $this->assertSame(0, $first);
+        $this->assertSame('execute', $firstPayload['mode']);
+        $this->assertSame('qwen-test-2026-07-15', $firstPayload['model']);
         $this->assertTrue($firstPayload['inserted']);
         $this->assertFalse($firstPayload['updated']);
         $this->assertSame(0, $second);
+        $this->assertSame('execute', $secondPayload['mode']);
+        $this->assertSame('replacement-model-2026-07-15', $secondPayload['model']);
         $this->assertFalse($secondPayload['inserted']);
         $this->assertTrue($secondPayload['updated']);
         $this->assertSame(1, DB::table('urt_channel_ai')->count());
@@ -115,6 +121,51 @@ class IngestionChannelAiCommandTest extends TestCase
             fn (string $message, array $context): bool => $message === 'Channel AI generation completed.'
                 && $context['u_id'] === 77,
         )->twice();
+    }
+
+    public function test_channel_ai_uses_official_structured_output_and_stores_configured_model_alias(): void
+    {
+        config()->set('services.opencode_go.api_key', 'official-key');
+        config()->set('services.opencode_go.base_url', 'https://api.openai.com/v1');
+        config()->set('services.opencode_go.model', 'gpt-5.4-mini');
+        config()->set('services.opencode_go.endpoint_style', 'chat');
+        config()->set('services.opencode_go.fallback_api_key', null);
+        $events = json_decode($this->structuredChannelPayload('結構化事件'), true, 512, JSON_THROW_ON_ERROR);
+
+        Http::fake([
+            'https://api.openai.com/v1/chat/completions' => Http::response([
+                'model' => 'gpt-5.4-mini-2026-07-15',
+                'choices' => [['message' => ['content' => json_encode([
+                    'events' => $events,
+                ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)]]],
+            ]),
+        ]);
+        Http::preventStrayRequests();
+
+        $exitCode = Artisan::call('ai:channel', [
+            'u_id' => 77,
+            '--from' => '2026-05-24',
+            '--to' => '2026-05-25',
+            '--type' => 'todate',
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('gpt-5.4-mini-2026-07-15', $payload['model']);
+        $this->assertSame('gpt-5.4-mini', DB::table('urt_channel_ai')->value('ai_type'));
+        Http::assertSent(function (Request $request): bool {
+            $format = $request['response_format'] ?? [];
+            $events = $format['json_schema']['schema']['properties']['events'] ?? [];
+
+            return $request->url() === 'https://api.openai.com/v1/chat/completions'
+                && ($format['type'] ?? null) === 'json_schema'
+                && ($format['json_schema']['strict'] ?? null) === true
+                && ($events['minItems'] ?? null) === 3
+                && ($events['maxItems'] ?? null) === 7
+                && str_contains((string) data_get($request->data(), 'messages.0.content'), '{"events":[...]}');
+        });
     }
 
     public function test_channel_ai_invalid_or_wrong_shape_json_and_existing_lock_do_not_write(): void
@@ -158,6 +209,7 @@ class IngestionChannelAiCommandTest extends TestCase
             $payload = json_decode(trim(Artisan::output()), true);
 
             $this->assertSame(1, $exitCode);
+            $this->assertSame('execute', $payload['mode']);
             $this->assertTrue($payload['skipped']);
             $this->assertSame('business_key_locked', $payload['skip_reason']);
             $this->assertSame(0, DB::table('urt_channel_ai')->count());
@@ -201,7 +253,7 @@ class IngestionChannelAiCommandTest extends TestCase
         $this->assertSame($this->channelPayload('既有完整事件'), DB::table('urt_channel_ai')->value('result_json'));
     }
 
-    public function test_channel_ai_preserves_mixed_provider_chain_failure_after_primary_validation_rejection(): void
+    public function test_channel_ai_propagates_safe_validation_reason_before_fallback_connection_failure(): void
     {
         $this->configureProvider();
         config()->set('services.opencode_go.fallback_api_key', 'fallback-secret-key');
@@ -230,9 +282,7 @@ class IngestionChannelAiCommandTest extends TestCase
         $output = Artisan::output();
 
         $this->assertSame(1, $exitCode);
-        $this->assertStringContainsString('AI completion failed after 2 provider(s):', $output);
-        $this->assertStringContainsString('primary: validation_rejected', $output);
-        $this->assertStringContainsString('fallback: AI provider connection failed:', $output);
+        $this->assertStringContainsString('ai_payload_item_count_below_minimum', $output);
         $this->assertStringNotContainsString('fallback-connection-secret', $output);
         $this->assertSame(0, DB::table('urt_channel_ai')->count());
     }
@@ -288,6 +338,22 @@ class IngestionChannelAiCommandTest extends TestCase
     {
         return json_encode(collect(range(1, 3))->map(fn (int $index): array => [
             '事件' => $prefix.' '.$index,
+            'videoId' => ['video-'.$index],
+        ])->all(), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    }
+
+    private function structuredChannelPayload(string $prefix): string
+    {
+        return json_encode(collect(range(1, 3))->map(fn (int $index): array => [
+            '事件' => $prefix.' '.$index,
+            '描述' => $prefix.'描述 '.$index,
+            '角度' => '台灣',
+            '陣營' => '中立',
+            '分類' => '政治',
+            '關鍵字' => ['測試'],
+            '人物' => [],
+            '地名' => [],
+            '類型' => ['政治'],
             'videoId' => ['video-'.$index],
         ])->all(), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     }

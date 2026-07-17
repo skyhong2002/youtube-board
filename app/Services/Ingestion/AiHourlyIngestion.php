@@ -114,19 +114,51 @@ class AiHourlyIngestion
             );
         }
 
+        $bounds = is_array($payload['prompt_bounds'] ?? null)
+            ? $payload['prompt_bounds']
+            : ['min' => 1, 'max' => 100];
+        $minimum = max(1, (int) ($bounds['min'] ?? 1));
+        $maximum = max($minimum, (int) ($bounds['max'] ?? 100));
+
         try {
             try {
-                $completion = $this->client->complete((string) $payload['prompt']);
+                $completion = $this->client->completeValidated(
+                    (string) $payload['prompt'],
+                    fn (string $content): array => $this->jsonValidator->validateEventList(
+                        $content,
+                        'hourly',
+                        expectedMinItems: $minimum,
+                        expectedMaxItems: $maximum,
+                    ),
+                    jsonSchema: $this->jsonValidator->eventListJsonSchema(
+                        'hourly',
+                        expectedMinItems: $minimum,
+                        expectedMaxItems: $maximum,
+                    ),
+                );
             } catch (Throwable $exception) {
-                $this->logFailure($payload, 'completion', [], $exception);
+                $validationReason = $this->validationFailureReason($exception);
+                $reason = $validationReason ?? SensitiveTextRedactor::exception($exception, 240);
+                $this->logFailure($payload, $validationReason === null ? 'completion' : 'validation', [
+                    'failure_reason' => $reason,
+                    'expected_min_items' => $minimum,
+                    'expected_max_items' => $maximum,
+                ], $exception);
 
                 return $this->failedPayload(
                     payload: $payload,
-                    reason: SensitiveTextRedactor::exception($exception, 240),
+                    reason: $reason,
                 );
             }
 
-            $validated = $this->jsonValidator->validateEventList((string) $completion['content'], 'hourly');
+            $validated = is_array($completion['validation'] ?? null)
+                ? $completion['validation']
+                : $this->jsonValidator->validateEventList(
+                    (string) $completion['content'],
+                    'hourly',
+                    expectedMinItems: $minimum,
+                    expectedMaxItems: $maximum,
+                );
 
             if (! $validated['valid']) {
                 $this->logFailure($payload, 'validation', [
@@ -147,7 +179,7 @@ class AiHourlyIngestion
                 ->format('Y-m-d H:i:s');
             $values = [
                 'mtime' => $now,
-                'ai_type' => $completion['model'],
+                'ai_type' => (string) ($completion['configured_model'] ?? $completion['model']),
                 'del_flag' => null,
                 'result_json' => $validated['json'],
             ];
@@ -292,5 +324,12 @@ class AiHourlyIngestion
             'date_from' => $payload['date_from'],
             'date_to' => $payload['date_to'],
         ] + $context);
+    }
+
+    private function validationFailureReason(Throwable $exception): ?string
+    {
+        return preg_match('/validation_failure_reason=([a-z0-9_]+)/', $exception->getMessage(), $matches) === 1
+            ? $matches[1]
+            : null;
     }
 }

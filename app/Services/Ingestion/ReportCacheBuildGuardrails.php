@@ -18,6 +18,8 @@ final class ReportCacheBuildGuardrails
 
     public const KEYWORD_SCAN_LIMIT_MAX = 20000;
 
+    public const TAG_DATE_KEYWORD_SCAN_LIMIT_MAX = 100000;
+
     public const VIDEO_SCAN_LIMIT_MAX = 100000;
 
     /**

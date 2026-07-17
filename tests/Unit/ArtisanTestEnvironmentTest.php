@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Process\Process;
 
 final class ArtisanTestEnvironmentTest extends TestCase
@@ -33,6 +34,11 @@ PHP);
         $this->assertNotFalse($written);
 
         try {
+            $this->assertSame(
+                'test',
+                (new ArgvInput(['artisan', '--no-ansi', 'test', $probe]))->getFirstArgument(),
+            );
+
             $test = new Process(
                 [PHP_BINARY, $projectRoot.'/artisan', 'test', $probe, '--no-ansi'],
                 $projectRoot,

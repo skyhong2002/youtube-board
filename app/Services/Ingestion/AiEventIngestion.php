@@ -182,7 +182,7 @@ class AiEventIngestion
                         $fallbackReason = 'invalid_json_response';
                     }
 
-                    $upsert = $this->upsertEvent($day, $topic, $promptType, $resultJson, $completion['model'], $userToken, $now);
+                    $upsert = $this->upsertEvent($day, $topic, $promptType, $resultJson, $completion['configured_model'], $userToken, $now);
                     $rows[] = $baseRow + [
                         'ai_call_attempted' => true,
                         'inserted' => $upsert['inserted'],

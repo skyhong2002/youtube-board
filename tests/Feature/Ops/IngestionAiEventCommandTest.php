@@ -83,6 +83,7 @@ class IngestionAiEventCommandTest extends TestCase
         $this->assertSame('2026-06-03 23:59:59', $summaryRow->date_to);
         $this->assertSame('all', $summaryRow->condition_type);
         $this->assertSame('qwen-test', $summaryRow->ai_type);
+        $this->assertSame('qwen-test-2026-07-15', $payload['event_ai']['rows'][0]['model']);
         $this->assertSame('CLI', $summaryRow->user_token);
         $this->assertStringContainsString('黃仁勳COMPUTEX演講', $summaryRow->result_json);
 
@@ -597,6 +598,7 @@ class IngestionAiEventCommandTest extends TestCase
     private function chatPayload(array $content): array
     {
         return [
+            'model' => 'qwen-test-2026-07-15',
             'choices' => [
                 [
                     'message' => [

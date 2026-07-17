@@ -7,6 +7,7 @@ use App\Services\Ingestion\AiDailyPreview;
 use App\Services\Ingestion\AiHourlyIngestion;
 use App\Services\Ingestion\IngestionRunHistory;
 use App\Services\Ingestion\IngestionSchedulerRunner;
+use App\Services\Ingestion\IngestionTelemetry;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -258,10 +259,11 @@ class IngestionAiHourlyCommandTest extends TestCase
 
         Http::fake([
             'https://opencode.test/v1/chat/completions' => Http::response([
+                'model' => 'qwen-test-2026-07-15',
                 'choices' => [
                     [
                         'message' => [
-                            'content' => '[{"事件":"測試事件","描述":"測試描述","videoId":["blue-video"]}]',
+                            'content' => $this->hourlyCompletion('測試事件', 'blue-video'),
                         ],
                     ],
                 ],
@@ -282,7 +284,7 @@ class IngestionAiHourlyCommandTest extends TestCase
         $this->assertSame(0, $exitCode);
         $this->assertSame('execute', $payload['mode']);
         $this->assertSame('blue', $payload['condition_type']);
-        $this->assertSame('qwen-test', $payload['model']);
+        $this->assertSame('qwen-test-2026-07-15', $payload['model']);
         $this->assertSame('primary', $payload['provider']);
         $this->assertSame([], $payload['provider_failures']);
         $this->assertTrue($payload['inserted']);
@@ -296,7 +298,7 @@ class IngestionAiHourlyCommandTest extends TestCase
             'ai_type' => 'qwen-test',
             'data_type' => 'each',
             'user_token' => 'cli',
-            'result_json' => '[{"事件":"測試事件","描述":"測試描述","videoId":["blue-video"]}]',
+            'result_json' => $this->hourlyCompletion('測試事件', 'blue-video'),
         ]);
 
         config()->set('services.opencode_go.model', 'next-model');
@@ -320,6 +322,95 @@ class IngestionAiHourlyCommandTest extends TestCase
         });
     }
 
+    public function test_ai_hourly_official_chat_uses_bounded_schema_and_stores_configured_model_alias(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDefaultFixtures();
+        config()->set('services.opencode_go.api_key', 'official-key');
+        config()->set('services.opencode_go.base_url', 'https://api.openai.com/v1');
+        config()->set('services.opencode_go.model', 'gpt-5.4-mini');
+        config()->set('services.opencode_go.endpoint_style', 'chat');
+        config()->set('services.opencode_go.fallback_api_key', null);
+        $telemetry = app(IngestionTelemetry::class);
+        $telemetry->reset();
+
+        Http::fake([
+            'https://api.openai.com/v1/chat/completions' => Http::response([
+                'model' => 'gpt-5.4-mini-2026-07-15',
+                'choices' => [['message' => ['content' => json_encode([
+                    'events' => json_decode(
+                        $this->hourlyCompletion('每小時事件', 'blue-video'),
+                        true,
+                        512,
+                        JSON_THROW_ON_ERROR,
+                    ),
+                ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)]]],
+            ]),
+        ]);
+        Http::preventStrayRequests();
+
+        $exitCode = Artisan::call('ai:hourly', [
+            '--execute' => true,
+            '--condition' => 'blue',
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('gpt-5.4-mini-2026-07-15', $payload['model']);
+        $this->assertSame('gpt-5.4-mini', DB::table('urt_ai_hour')->value('ai_type'));
+        $this->assertSame('gpt-5.4-mini', $telemetry->snapshot()['ai_requests'][0]['model']);
+        $this->assertSame('gpt-5.4-mini-2026-07-15', $telemetry->snapshot()['ai_requests'][0]['response_model']);
+        Http::assertSent(function (Request $request): bool {
+            $format = $request['response_format'] ?? [];
+            $events = $format['json_schema']['schema']['properties']['events'] ?? [];
+
+            return ($format['type'] ?? null) === 'json_schema'
+                && ($format['json_schema']['strict'] ?? null) === true
+                && ($events['minItems'] ?? null) === 3
+                && ($events['maxItems'] ?? null) === 7
+                && str_contains((string) data_get($request->data(), 'messages.0.content'), '{"events":[...]}');
+        });
+    }
+
+    public function test_ai_hourly_official_response_below_prompt_minimum_is_rejected(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDefaultFixtures();
+        config()->set('services.opencode_go.api_key', 'official-key');
+        config()->set('services.opencode_go.base_url', 'https://api.openai.com/v1');
+        config()->set('services.opencode_go.model', 'gpt-5.4-mini');
+        config()->set('services.opencode_go.endpoint_style', 'chat');
+        config()->set('services.opencode_go.fallback_api_key', null);
+
+        Http::fake([
+            'https://api.openai.com/v1/chat/completions' => Http::response([
+                'model' => 'gpt-5.4-mini-2026-07-15',
+                'choices' => [['message' => ['content' => json_encode([
+                    'events' => json_decode(
+                        $this->hourlyCompletion('過少事件', 'blue-video', 1),
+                        true,
+                        512,
+                        JSON_THROW_ON_ERROR,
+                    ),
+                ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)]]],
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('ai:hourly', [
+            '--execute' => true,
+            '--condition' => 'blue',
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('ai_payload_item_count_below_minimum', $payload['skip_reason']);
+        $this->assertDatabaseCount('urt_ai_hour', 0);
+    }
+
     public function test_ai_hourly_execute_supports_opencode_messages_endpoint_models(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
@@ -335,7 +426,7 @@ class IngestionAiHourlyCommandTest extends TestCase
                 'content' => [
                     [
                         'type' => 'text',
-                        'text' => '[{"事件":"messages endpoint","videoId":["blue-video"]}]',
+                        'text' => $this->hourlyCompletion('messages endpoint', 'blue-video'),
                     ],
                 ],
                 'usage' => [
@@ -360,7 +451,7 @@ class IngestionAiHourlyCommandTest extends TestCase
             'date_to' => '2026-05-25 09:59:59',
             'condition_type' => 'blue',
             'ai_type' => 'minimax-m2.7',
-            'result_json' => '[{"事件":"messages endpoint","videoId":["blue-video"]}]',
+            'result_json' => $this->hourlyCompletion('messages endpoint', 'blue-video'),
         ]);
         Http::assertSent(function ($request): bool {
             return (string) $request->url() === 'https://opencode.test/v1/messages'
@@ -388,7 +479,7 @@ class IngestionAiHourlyCommandTest extends TestCase
                 'choices' => [
                     [
                         'message' => [
-                            'content' => '[{"事件":"fallback ok","videoId":["blue-video"]}]',
+                            'content' => $this->hourlyCompletion('fallback ok', 'blue-video'),
                         ],
                     ],
                 ],
@@ -412,7 +503,7 @@ class IngestionAiHourlyCommandTest extends TestCase
             'date_to' => '2026-05-25 09:59:59',
             'condition_type' => 'blue',
             'ai_type' => 'gpt-4o-mini',
-            'result_json' => '[{"事件":"fallback ok","videoId":["blue-video"]}]',
+            'result_json' => $this->hourlyCompletion('fallback ok', 'blue-video'),
         ]);
         Http::assertSentCount(2);
         Http::assertSent(function ($request): bool {
@@ -420,6 +511,42 @@ class IngestionAiHourlyCommandTest extends TestCase
                 && $request->hasHeader('Authorization', 'Bearer fallback-key')
                 && $request['model'] === 'gpt-4o-mini';
         });
+    }
+
+    public function test_ai_hourly_rejects_undersized_fallback_completion(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 10:10:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDefaultFixtures();
+        config()->set('services.opencode_go.api_key', 'primary-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        config()->set('services.opencode_go.fallback_api_key', 'fallback-key');
+        config()->set('services.opencode_go.fallback_base_url', 'https://api.openai.test/v1');
+        config()->set('services.opencode_go.fallback_model', 'gpt-4o-mini');
+        config()->set('services.opencode_go.fallback_endpoint_style', 'chat');
+
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::response([], 524),
+            'https://api.openai.test/v1/chat/completions' => Http::response([
+                'model' => 'gpt-4o-mini-2026-07-15',
+                'choices' => [['message' => [
+                    'content' => $this->hourlyCompletion('fallback too small', 'blue-video', 1),
+                ]]],
+            ]),
+        ]);
+
+        $exitCode = Artisan::call('ai:hourly', [
+            '--execute' => true,
+            '--condition' => 'blue',
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('ai_payload_item_count_below_minimum', $payload['skip_reason']);
+        $this->assertDatabaseCount('urt_ai_hour', 0);
+        Http::assertSentCount(2);
     }
 
     public function test_ai_hourly_execute_accepts_chat_content_arrays_and_reasoning_fallback(): void
@@ -439,7 +566,7 @@ class IngestionAiHourlyCommandTest extends TestCase
                             'content' => [
                                 [
                                     'type' => 'text',
-                                    'text' => '[{"事件":"array content","videoId":["blue-video"]}]',
+                                    'text' => $this->hourlyCompletion('array content', 'blue-video'),
                                 ],
                             ],
                         ],
@@ -457,7 +584,7 @@ class IngestionAiHourlyCommandTest extends TestCase
         $this->assertSame(0, $exitCode);
         $this->assertDatabaseHas('urt_ai_hour', [
             'ai_type' => 'deepseek-v4-flash',
-            'result_json' => '[{"事件":"array content","videoId":["blue-video"]}]',
+            'result_json' => $this->hourlyCompletion('array content', 'blue-video'),
         ]);
 
     }
@@ -477,7 +604,7 @@ class IngestionAiHourlyCommandTest extends TestCase
                     [
                         'message' => [
                             'content' => '',
-                            'reasoning_content' => '[{"事件":"reasoning fallback","videoId":["blue-video"]}]',
+                            'reasoning_content' => $this->hourlyCompletion('reasoning fallback', 'blue-video'),
                         ],
                     ],
                 ],
@@ -493,7 +620,7 @@ class IngestionAiHourlyCommandTest extends TestCase
         $this->assertSame(0, $exitCode);
         $this->assertDatabaseHas('urt_ai_hour', [
             'ai_type' => 'deepseek-v4-pro',
-            'result_json' => '[{"事件":"reasoning fallback","videoId":["blue-video"]}]',
+            'result_json' => $this->hourlyCompletion('reasoning fallback', 'blue-video'),
         ]);
     }
 
@@ -507,7 +634,7 @@ class IngestionAiHourlyCommandTest extends TestCase
                 'choices' => [
                     [
                         'message' => [
-                            'content' => '[{"事件":"production gate","videoId":["include-default"]}]',
+                            'content' => $this->hourlyCompletion('production gate', 'include-default'),
                         ],
                     ],
                 ],
@@ -516,7 +643,7 @@ class IngestionAiHourlyCommandTest extends TestCase
                 'choices' => [
                     [
                         'message' => [
-                            'content' => '[{"事件":"production gate","videoId":["include-default"]}]',
+                            'content' => $this->hourlyCompletion('production gate', 'include-default'),
                         ],
                     ],
                 ],
@@ -545,7 +672,7 @@ class IngestionAiHourlyCommandTest extends TestCase
                 'choices' => [
                     [
                         'message' => [
-                            'content' => '[{"事件":"production gate","videoId":["include-default"]}]',
+                            'content' => $this->hourlyCompletion('production gate', 'include-default'),
                         ],
                     ],
                 ],
@@ -637,7 +764,7 @@ SQL);
             'https://opencode.test/v1/chat/completions' => Http::response([
                 'choices' => [[
                     'message' => [
-                        'content' => '[{"事件":"測試事件","videoId":["blue-video"]}]',
+                        'content' => $this->hourlyCompletion('測試事件', 'blue-video'),
                     ],
                 ]],
             ]),
@@ -678,7 +805,7 @@ SQL);
                 'choices' => [
                     [
                         'message' => [
-                            'content' => '[{"事件":"排程事件","videoId":["include-default"]}]',
+                            'content' => $this->hourlyCompletion('排程事件', 'include-default'),
                         ],
                     ],
                 ],
@@ -717,7 +844,7 @@ SQL);
                 'choices' => [
                     [
                         'message' => [
-                            'content' => '[{"事件":"晚間排程事件","videoId":["evening-default"]}]',
+                            'content' => $this->hourlyCompletion('晚間排程事件', 'evening-default'),
                         ],
                     ],
                 ],
@@ -736,7 +863,7 @@ SQL);
             'date_from' => '2026-05-25 21:00:00',
             'date_to' => '2026-05-25 21:59:59',
             'condition_type' => 'all',
-            'result_json' => '[{"事件":"晚間排程事件","videoId":["evening-default"]}]',
+            'result_json' => $this->hourlyCompletion('晚間排程事件', 'evening-default'),
         ]);
         Http::assertSentCount(1);
     }
@@ -761,7 +888,7 @@ SQL);
                 'choices' => [
                     [
                         'message' => [
-                            'content' => '[{"事件":"production gate","videoId":["include-default"]}]',
+                            'content' => $this->hourlyCompletion('production gate', 'include-default'),
                         ],
                     ],
                 ],
@@ -841,7 +968,7 @@ SQL);
 
             if ($request->url() === 'https://opencode.test/v1/chat/completions') {
                 return Http::response([
-                    'choices' => [['message' => ['content' => '[{"事件":"排程小時事件","描述":"排程摘要","videoId":["pipeline-video-1","pipeline-video-2"]}]']]],
+                    'choices' => [['message' => ['content' => $this->hourlyCompletion('排程小時事件', 'pipeline-video-1', 4)]]],
                     'usage' => ['prompt_tokens' => 30, 'completion_tokens' => 8, 'total_tokens' => 38],
                 ]);
             }
@@ -995,6 +1122,7 @@ SQL);
         $this->assertSame(['ai.hourly'], $aiRequests[0]['job_path']);
         $this->assertSame('primary', $aiRequests[0]['provider']);
         $this->assertSame('qwen-test', $aiRequests[0]['model']);
+        $this->assertNull($aiRequests[0]['response_model']);
         $this->assertSame(429, $aiRequests[0]['status']);
         $this->assertFalse($aiRequests[0]['ok']);
         $this->assertSame('status=429 endpoint_style=chat', $aiRequests[0]['error']);
@@ -1128,6 +1256,22 @@ SQL);
             $this->videoRow(1, 'too-old', '2026-05-25 08:59:59', 900, 'Too Old'),
             $this->videoRow(1, 'too-new', '2026-05-25 10:00:00', 900, 'Too New'),
         ]);
+    }
+
+    private function hourlyCompletion(string $title, string $videoId, int $count = 3): string
+    {
+        return json_encode(collect(range(1, $count))->map(fn (int $index): array => [
+            '事件' => $title.' '.$index,
+            '描述' => $title.'描述 '.$index,
+            '角度' => '台灣',
+            '陣營' => '中立',
+            '分類' => '政治',
+            '關鍵字' => ['測試'],
+            '人物' => [],
+            '地名' => [],
+            '類型' => ['政治'],
+            'videoId' => [$videoId],
+        ])->all(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
     }
 
     /**

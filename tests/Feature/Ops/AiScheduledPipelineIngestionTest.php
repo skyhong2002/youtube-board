@@ -76,6 +76,7 @@ class AiScheduledPipelineIngestionTest extends TestCase
             'channel_video_limit_max' => 500,
         ], $result['execution_caps']);
         $this->assertSame([], $result['source_refresh']['writes']);
+        $this->assertSame(TagVideoBackfillIngestion::TAG_DATE_KEYWORD_LIMIT, $result['source_refresh']['keyword_limit']);
         $this->assertSame([], $result['ai']['writes']);
         $this->assertSame([], $result['writes']);
         Http::assertNothingSent();
@@ -220,6 +221,45 @@ class AiScheduledPipelineIngestionTest extends TestCase
             $payload['execution_caps']['ai_call_limit'],
             $payload['ai']['ai_call_guard']['would_use'],
         );
+        Http::assertNothingSent();
+    }
+
+    public function test_daily_pipeline_command_propagates_blocked_source_preflight(): void
+    {
+        Http::preventStrayRequests();
+        $dailyPreview = Mockery::mock(AiDailyPreview::class);
+        $dailyPreview->shouldNotReceive('preview');
+        $this->app->instance(AiScheduledPipelineIngestion::class, $this->dailyPreviewPipelineUsing(
+            sourcePayload: [
+                'mode' => 'dry-run',
+                'status' => 'blocked',
+                'exit_code' => 1,
+                'selected_channels' => count(AiDailyPreview::channelAiUids()),
+                'selected_channel_ids' => AiDailyPreview::channelAiUids(),
+                'keyword_source_complete' => false,
+                'blocked_reason' => 'keyword_scan_limit_exceeded',
+                'writes' => [],
+            ],
+            dailyPreview: $dailyPreview,
+        ));
+
+        $exitCode = Artisan::call('ai:daily:pipeline', [
+            '--date' => '2026-07-14',
+            '--dry-run' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('blocked', $payload['status']);
+        $this->assertSame(1, $payload['exit_code']);
+        $this->assertSame('keyword_scan_limit_exceeded', $payload['source_refresh']['blocked_reason']);
+        $this->assertFalse($payload['source_refresh']['keyword_source_complete']);
+        $this->assertSame('skipped', $payload['ai']['status']);
+        $this->assertTrue($payload['ai']['skipped']);
+        $this->assertSame('keyword_scan_limit_exceeded', $payload['ai']['skip_reason']);
+        $this->assertFalse($payload['ai']['ai_call_attempted']);
+        $this->assertSame([], $payload['writes']);
         Http::assertNothingSent();
     }
 
@@ -499,7 +539,10 @@ class AiScheduledPipelineIngestionTest extends TestCase
         $hourlyIngestion = Mockery::mock(AiHourlyIngestion::class);
         $quotaGuard->shouldReceive('publicState')->once()->with([])->andReturn([]);
 
-        $quotaGuard->shouldReceive('run')->once()->andReturn([
+        $quotaGuard->shouldReceive('run')->once()->withArgs(
+            fn (string $jobKey, string $effectiveCommand): bool => $jobKey === 'youtube.tag_videos.backfill'
+                && str_contains($effectiveCommand, '--keyword-limit='.TagVideoBackfillIngestion::TAG_DATE_KEYWORD_LIMIT),
+        )->andReturn([
             'allowed' => true,
             'guard' => [],
             'payload' => $quotaPayload,
@@ -556,9 +599,12 @@ class AiScheduledPipelineIngestionTest extends TestCase
             ->withArgs(fn (...$arguments): bool => ($arguments[0] ?? null) === [102]
                 && ($arguments[3] ?? null) === '2026-07-14'
                 && ($arguments[4] ?? null) === '2026-07-14'
+                && ($arguments[9] ?? null) === TagVideoBackfillIngestion::TAG_DATE_KEYWORD_LIMIT
                 && ($arguments[11] ?? null) === false
                 && ($arguments[12] ?? null) instanceof CarbonInterface)
-            ->andReturn($sourcePayload);
+            ->andReturn($sourcePayload + [
+                'keyword_limit' => TagVideoBackfillIngestion::TAG_DATE_KEYWORD_LIMIT,
+            ]);
         $channelVideos = Mockery::mock(ChannelVideosDiscoveryIngestion::class);
         $quotaGuard = Mockery::mock(DirectYoutubeQuotaGuard::class);
         $dailyIngestion = Mockery::mock(AiDailyIngestion::class);

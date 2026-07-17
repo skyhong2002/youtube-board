@@ -89,6 +89,7 @@ class ChannelAiIngestion
         $preview = $this->preview($uId, $from, $to, $dataType, $limit, true);
         $prompt = (string) ($preview['prompt'] ?? '');
         unset($preview['prompt']);
+        $preview['mode'] = 'execute';
 
         if ($prompt === '') {
             return $this->logged($preview + [
@@ -148,6 +149,11 @@ class ChannelAiIngestion
                             expectedMaxItems: $bounds['max'],
                         );
                     },
+                    jsonSchema: $this->validator->eventListJsonSchema(
+                        'channel',
+                        expectedMinItems: $bounds['min'],
+                        expectedMaxItems: $bounds['max'],
+                    ),
                 );
             } catch (Throwable $exception) {
                 $validationReason = $this->exclusiveValidationFailureReason(
@@ -181,7 +187,7 @@ class ChannelAiIngestion
                 ->format('Y-m-d H:i:s');
             $values = [
                 'mtime' => $now,
-                'ai_type' => $completion['model'],
+                'ai_type' => (string) ($completion['configured_model'] ?? $completion['model']),
                 'result_json' => $resultJson,
             ];
 
@@ -312,7 +318,7 @@ class ChannelAiIngestion
     private function prompt(Collection $videos, array $bounds): string
     {
         $lines = [
-            "請把下面的新聞列表整理成 {$bounds['min']} ~ {$bounds['max']} 個重要事件，列出事件、描述、角度、陣營、分類、關鍵字、人物、地名、類型與 videoId 陣列。請用繁體中文，只回應 JSON：",
+            "請把下面的新聞列表整理成 {$bounds['min']} ~ {$bounds['max']} 個重要事件，列出事件、描述、角度、陣營、分類、關鍵字、人物、地名、類型與 videoId，並以 {\"events\":[...]} 根物件包住事件陣列。請用繁體中文，只回應 JSON：",
         ];
 
         foreach ($videos as $video) {
@@ -335,6 +341,10 @@ class ChannelAiIngestion
         int $validationAttempts,
         Throwable $exception,
     ): ?string {
+        if (preg_match('/validation_failure_reason=([a-z0-9_]+)/', $exception->getMessage(), $matches) === 1) {
+            return $matches[1];
+        }
+
         if (! is_array($validation) || ($validation['valid'] ?? false) || $validationAttempts <= 0) {
             return null;
         }

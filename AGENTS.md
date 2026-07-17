@@ -133,9 +133,9 @@ Current production is managed in Dokploy:
 http://skyhong-blog.tailf76d1d.ts.net:3000/dashboard/project/93GHkfiDfvqUbbw7ya-8J/environment/b7C5wXwWGQJDwReDQHGkG
 ```
 
-Dokploy platform and service layout was first observed on 2026-05-31. The current application, scheduler, and AI provider state below was operator-confirmed on 2026-07-15:
+Dokploy platform and service layout was first observed on 2026-05-31. The current application, scheduler, and AI provider state below was operator-confirmed on 2026-07-16:
 
-- Dokploy version: `v0.29.5`.
+- Dokploy version: `v0.29.10`.
 - Project: `YouTube Board`.
 - Environment: `production`.
 - Server: `Dokploy Server`.
@@ -157,7 +157,7 @@ Production service notes:
 - Web Traefik routes redirect HTTP to HTTPS and forward HTTPS to `http://youtube-board-web-mwafzd:8000`.
 - Web service has no Dokploy basic auth, no extra exposed ports, no redirects, and no volumes configured.
 - Web service resource limits are currently 1 GB memory limit, 256 MB memory reservation, 2 CPU limit, and 1 CPU reservation.
-- Web and scheduler were operator-confirmed on the image built from commit `1e47fc8a9553dc905bd455d4cb9f50d832fed443` on 2026-07-15.
+- Web and scheduler were operator-confirmed on the same image on 2026-07-16; both services were `1/1` with restart count zero after rollout. The application-code release in that image is commit `acae6b9bb2ce2b8c93b8b750e12781df1dd92671`; later documentation-only commits may produce a newer image SHA without changing runtime code.
 
 Database service notes:
 
@@ -185,9 +185,11 @@ Production app environment:
 
 - Runtime env is configured in Dokploy, not in git.
 - Current non-secret AI values are `OPENAI_BASE_URL=https://api.openai.com/v1`, `OPENAI_MODEL=gpt-5.4-mini`, `OPENAI_FALLBACK_BASE_URL=https://opencode.ai/zen/go/v1`, and `OPENAI_FALLBACK_MODEL=qwen3.6-plus`. Web and scheduler must keep the same provider configuration.
-- Other current non-secret values include `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL=https://youtube.observe.tw`, `APP_LOCALE=zh_TW`, `APP_FALLBACK_LOCALE=en`, `LOG_CHANNEL=stderr`, `LOG_LEVEL=info`, `CACHE_STORE=file`, `QUEUE_CONNECTION=sync`, `SESSION_DRIVER=file`, `SESSION_SECURE_COOKIE=true`, `FILESYSTEM_DISK=local`, `DB_CONNECTION=mysql`, `DB_HOST=youtube-board-db-qcja1i`, `DB_PORT=3306`, `DB_DATABASE=youtube_board`, `DB_USERNAME=youtube_board`, `LEGACY_PUBLIC_SITE_URL=https://youtube.board.tw`, `INGESTION_SCHEDULER_ENABLED=true`, `INGESTION_LOCAL_POLLING_ENABLED=true`, `INGESTION_PRODUCTION_POLLING_ENABLED=true`, `INGESTION_TIMEZONE=Asia/Taipei`, and `PORT=8000`.
+- Other current shared non-secret values include `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL=https://youtube.observe.tw`, `APP_LOCALE=zh_TW`, `APP_FALLBACK_LOCALE=en`, `LOG_CHANNEL=stderr`, `LOG_LEVEL=info`, `CACHE_STORE=file`, `QUEUE_CONNECTION=sync`, `SESSION_DRIVER=file`, `SESSION_SECURE_COOKIE=true`, `FILESYSTEM_DISK=local`, `DB_CONNECTION=mysql`, `DB_HOST=youtube-board-db-qcja1i`, `DB_PORT=3306`, `DB_DATABASE=youtube_board`, `DB_USERNAME=youtube_board`, `LEGACY_PUBLIC_SITE_URL=https://youtube.board.tw`, `INGESTION_TIMEZONE=Asia/Taipei`, and `PORT=8000`.
 - Current secret-bearing values are configured in Dokploy and must stay redacted in git: `APP_KEY`, `DB_PASSWORD`, `YOUTUBE_API_KEY`, `OPENAI_API_KEY`, `OPENAI_FALLBACK_API_KEY`, `DOKPLOY_DEPLOY_WEBHOOK_URL`, and `DOKPLOY_DEPLOY_RELAY_SECRET`.
 - During the 2026-07-15 provider switch, omitted `DB_CONNECTION`, `DB_PORT`, and `DB_PASSWORD` values briefly caused a web 502. They were restored from the healthy scheduler configuration, the persistent Dokploy env was repaired, and a protected out-of-repository Production env backup was created. Never copy that backup or its values into git or logs.
+- After the 2026-07-16 rollout, `DB_CONNECTION`, `DB_PORT`, and `DB_PASSWORD` were reverified as present in the persistent Web env and exactly equal in the running Web and scheduler containers without printing their values.
+- The Web and scheduler currently have different non-empty `YOUTUBE_API_KEY` values. The scheduler credential returns sanitized expired-key failures, so YouTube-backed source polling and downstream AI remain fail-closed. Rotating or synchronizing either credential still requires explicit operator approval; never inspect or print either value.
 - The primary OpenAI probe succeeded with `gpt-5.4-mini`. The OpenCode Go fallback is configured but returned HTTP 429 because of its monthly quota as of 2026-07-15; treat it as temporarily unavailable until the external quota recovers.
 - `DOKPLOY_DEPLOY_WEBHOOK_URL` points at the Dokploy deploy endpoint for `YouTube Board Web`; never commit the full webhook token URL.
 - `DOKPLOY_DEPLOY_RELAY_SECRET` is configured for the app-side deploy relay; never print or commit it.
@@ -197,7 +199,7 @@ Production app environment:
 Production scheduler status:
 
 - `INGESTION_SCHEDULER_ENABLED=true`, `INGESTION_LOCAL_POLLING_ENABLED=true`, and `INGESTION_PRODUCTION_POLLING_ENABLED=true` remain enabled, and the dedicated scheduler evaluates Laravel due jobs every minute.
-- `INGESTION_SCHEDULED_WRITE_ALLOWLIST` is configured in Dokploy and includes `ai.daily` and `ai.hourly` as of 2026-07-15. Do not print the full env block because it also contains secrets.
+- `INGESTION_SCHEDULED_WRITE_ALLOWLIST` is configured in Dokploy and includes `ai.daily` and `ai.hourly` as of 2026-07-16. Do not print the full env block because it also contains secrets.
 - Production ingestion/polling is controlled by scheduler and polling env gates plus the allowlist. New write/API jobs must still be explicitly allowlisted before scheduled execute mode can run.
 - To adjust production polling, follow `docs/deployment.md` and `docs/legacy-inventory/scheduler-activation.md`; require an exact `INGESTION_SCHEDULED_WRITE_ALLOWLIST`, a rollback plan, and explicit operator approval before adding new write/API jobs.
 
@@ -205,7 +207,7 @@ Deployment operations:
 
 - Prefer Dokploy Deploy/Reload/Rebuild controls for production changes.
 - The web service Deployments tab exposes a Dokploy deploy webhook URL; do not paste the full URL into commits, issues, logs, or chat unless explicitly rotating/reconfiguring secrets.
-- Latest operator-confirmed web and scheduler application image on 2026-07-15 is commit `1e47fc8a9553dc905bd455d4cb9f50d832fed443` (`Use GPT-5.4 mini for production AI`).
+- Latest operator-confirmed application-code release on 2026-07-16 is commit `acae6b9bb2ce2b8c93b8b750e12781df1dd92671` (`Restrict local dump table engines`). Use the Dokploy deployment record for the exact current image commit when documentation-only commits follow it.
 - On 2026-05-31, Dokploy env was updated through Chrome to add `youtube.tag_videos.backfill` to `INGESTION_SCHEDULED_WRITE_ALLOWLIST`, then the web application was reloaded successfully.
 - If changing resource limits, volumes, Traefik config, basic auth, or cluster settings in Dokploy, redeploy afterward for the change to apply.
 - Keep `deploy/dokploy-env.example`, `deploy/dokploy-mariadb-env.example`, and `deploy/dokploy-phpmyadmin-env.example` aligned with the production shape, but never copy production secret values into those files.

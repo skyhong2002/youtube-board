@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Services\Ingestion\AiJsonPayloadValidator;
+use App\Support\AiDailyContract;
 use Tests\TestCase;
 
 class AiJsonPayloadValidatorTest extends TestCase
@@ -63,6 +64,187 @@ class AiJsonPayloadValidatorTest extends TestCase
         $this->assertSame('invalid_ai_payload_shape', $listShapedMedia['failure_reason']);
         $this->assertFalse($numericMediaKeys['valid']);
         $this->assertSame('invalid_ai_payload_shape', $numericMediaKeys['failure_reason']);
+    }
+
+    public function test_daily_structured_media_rows_are_normalized_to_the_legacy_media_map(): void
+    {
+        $result = app(AiJsonPayloadValidator::class)->validateEventList(json_encode([
+            'events' => [[
+                '標題' => '每日事件',
+                '媒體事件' => [
+                    ['媒體' => 'News A', '事件' => ['事件 A']],
+                    ['媒體' => 'News B', '事件' => ['事件 B']],
+                    ['媒體' => 'News A', '事件' => ['事件 A2']],
+                ],
+            ]],
+        ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), 'daily');
+
+        $this->assertTrue($result['valid']);
+        $this->assertSame([[
+            '標題' => '每日事件',
+            '媒體事件' => [
+                'News A' => ['事件 A', '事件 A2'],
+                'News B' => ['事件 B'],
+            ],
+        ]], json_decode((string) $result['json'], true, 512, JSON_THROW_ON_ERROR));
+    }
+
+    public function test_daily_generation_representation_caps_are_optional_for_historical_payloads(): void
+    {
+        $validator = app(AiJsonPayloadValidator::class);
+        $atMediaCap = json_encode([[
+            '標題' => '六個代表媒體的生成事件',
+            '媒體事件' => collect(range(1, 6))->mapWithKeys(fn (int $index): array => [
+                'News '.$index => ['事件 '.$index],
+            ])->all(),
+        ]], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $tooManyMedia = json_encode([[
+            '標題' => '七個媒體的歷史事件',
+            '媒體事件' => collect(range(1, 7))->mapWithKeys(fn (int $index): array => [
+                'News '.$index => ['事件 '.$index],
+            ])->all(),
+        ]], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $tooManyEvents = json_encode([[
+            '標題' => '每個媒體多個歷史事件',
+            '媒體事件' => [
+                'News A' => ['事件 A1', '事件 A2'],
+                'News B' => ['事件 B1', '事件 B2'],
+            ],
+        ]], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $duplicateStructuredMedia = json_encode(['events' => [[
+            '標題' => '重複媒體的結構化事件',
+            '媒體事件' => [
+                ['媒體' => 'News A', '事件' => ['事件 A1']],
+                ['媒體' => 'News A', '事件' => ['事件 A2']],
+                ['媒體' => 'News B', '事件' => ['事件 B1']],
+            ],
+        ]]], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $singleDistinctStructuredMedia = json_encode(['events' => [[
+            '標題' => '去重後只有一個媒體的結構化事件',
+            '媒體事件' => [
+                ['媒體' => 'News A', '事件' => ['事件 A1']],
+                ['媒體' => 'News A', '事件' => ['事件 A2']],
+            ],
+        ]]], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        $this->assertTrue($validator->validateEventList($tooManyMedia, 'daily')['valid']);
+        $this->assertTrue($validator->validateEventList($tooManyEvents, 'daily')['valid']);
+        $this->assertTrue($validator->validateEventList($duplicateStructuredMedia, 'daily')['valid']);
+        $this->assertTrue($validator->validateEventList(
+            $atMediaCap,
+            'daily',
+            dailyMaxMediaSources: AiDailyContract::MAX_REPRESENTATIVE_MEDIA_PER_TOPIC,
+            dailyMaxEventsPerMedia: AiDailyContract::REPRESENTATIVE_EVENTS_PER_MEDIA,
+        )['valid']);
+        $normalizedDuplicate = $validator->validateEventList(
+            $duplicateStructuredMedia,
+            'daily',
+            dailyMaxMediaSources: AiDailyContract::MAX_REPRESENTATIVE_MEDIA_PER_TOPIC,
+            dailyMaxEventsPerMedia: AiDailyContract::REPRESENTATIVE_EVENTS_PER_MEDIA,
+        );
+
+        $this->assertTrue($normalizedDuplicate['valid']);
+        $this->assertSame([[
+            '標題' => '重複媒體的結構化事件',
+            '媒體事件' => [
+                'News A' => ['事件 A1'],
+                'News B' => ['事件 B1'],
+            ],
+        ]], json_decode((string) $normalizedDuplicate['json'], true, 512, JSON_THROW_ON_ERROR));
+
+        foreach ([$tooManyMedia, $tooManyEvents, $singleDistinctStructuredMedia] as $content) {
+            $result = $validator->validateEventList(
+                $content,
+                'daily',
+                dailyMaxMediaSources: AiDailyContract::MAX_REPRESENTATIVE_MEDIA_PER_TOPIC,
+                dailyMaxEventsPerMedia: AiDailyContract::REPRESENTATIVE_EVENTS_PER_MEDIA,
+            );
+
+            $this->assertFalse($result['valid']);
+            $this->assertSame('invalid_ai_payload_shape', $result['failure_reason']);
+        }
+    }
+
+    public function test_event_list_schema_is_strict_and_carries_runtime_bounds(): void
+    {
+        $validator = app(AiJsonPayloadValidator::class);
+        $channel = $validator->eventListJsonSchema('channel', 3, 7);
+        $daily = $validator->eventListJsonSchema(
+            'daily',
+            15,
+            20,
+            dailyMaxMediaSources: AiDailyContract::MAX_REPRESENTATIVE_MEDIA_PER_TOPIC,
+            dailyMaxEventsPerMedia: AiDailyContract::REPRESENTATIVE_EVENTS_PER_MEDIA,
+        );
+
+        $this->assertSame('object', $channel['type']);
+        $this->assertFalse($channel['additionalProperties']);
+        $this->assertSame(['events'], $channel['required']);
+        $this->assertSame(3, $channel['properties']['events']['minItems']);
+        $this->assertSame(7, $channel['properties']['events']['maxItems']);
+        $this->assertFalse($channel['properties']['events']['items']['additionalProperties']);
+        $this->assertContains('videoId', $channel['properties']['events']['items']['required']);
+        $this->assertSame(['type' => 'string'], $channel['properties']['events']['items']['properties']['事件']);
+        $this->assertSame(1, $channel['properties']['events']['items']['properties']['videoId']['minItems']);
+
+        $mediaRows = $daily['properties']['events']['items']['properties']['媒體事件'];
+        $this->assertSame(15, $daily['properties']['events']['minItems']);
+        $this->assertSame(20, $daily['properties']['events']['maxItems']);
+        $this->assertSame(2, $mediaRows['minItems']);
+        $this->assertSame(6, $mediaRows['maxItems']);
+        $this->assertFalse($mediaRows['items']['additionalProperties']);
+        $this->assertSame(['媒體', '事件'], $mediaRows['items']['required']);
+        $this->assertSame(1, $mediaRows['items']['properties']['事件']['minItems']);
+        $this->assertSame(1, $mediaRows['items']['properties']['事件']['maxItems']);
+    }
+
+    public function test_daily_generation_discards_invalid_topics_then_enforces_final_bounds(): void
+    {
+        $validator = app(AiJsonPayloadValidator::class);
+        $validTopics = collect(range(1, 8))->map(fn (int $index): array => [
+            '標題' => '有效事件 '.$index,
+            '媒體事件' => [
+                ['媒體' => 'News A', '事件' => ['事件 A'.$index]],
+                ['媒體' => 'News B', '事件' => ['事件 B'.$index]],
+            ],
+        ])->all();
+        $invalidTopic = [
+            '標題' => '去重後只有一個媒體',
+            '媒體事件' => [
+                ['媒體' => 'News A', '事件' => ['事件 A1']],
+                ['媒體' => 'News A', '事件' => ['事件 A2']],
+            ],
+        ];
+        $withinBounds = json_encode([
+            'events' => [...$validTopics, $invalidTopic],
+        ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $belowBounds = json_encode([
+            'events' => [...array_slice($validTopics, 0, 7), $invalidTopic],
+        ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        $valid = $validator->validateEventList(
+            $withinBounds,
+            'daily',
+            expectedMinItems: 8,
+            expectedMaxItems: 12,
+            dailyMaxMediaSources: AiDailyContract::MAX_REPRESENTATIVE_MEDIA_PER_TOPIC,
+            dailyMaxEventsPerMedia: AiDailyContract::REPRESENTATIVE_EVENTS_PER_MEDIA,
+        );
+        $invalid = $validator->validateEventList(
+            $belowBounds,
+            'daily',
+            expectedMinItems: 8,
+            expectedMaxItems: 12,
+            dailyMaxMediaSources: AiDailyContract::MAX_REPRESENTATIVE_MEDIA_PER_TOPIC,
+            dailyMaxEventsPerMedia: AiDailyContract::REPRESENTATIVE_EVENTS_PER_MEDIA,
+        );
+
+        $this->assertTrue($valid['valid']);
+        $this->assertSame(8, $valid['item_count']);
+        $this->assertCount(8, json_decode((string) $valid['json'], true, 512, JSON_THROW_ON_ERROR));
+        $this->assertFalse($invalid['valid']);
+        $this->assertSame(7, $invalid['item_count']);
+        $this->assertSame('ai_payload_item_count_below_minimum', $invalid['failure_reason']);
     }
 
     public function test_event_list_enforces_expected_minimum_and_maximum_cardinality(): void

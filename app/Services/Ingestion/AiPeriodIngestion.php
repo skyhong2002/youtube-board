@@ -161,7 +161,7 @@ class AiPeriodIngestion
                 $range['from_date'],
                 $range['to_date'],
             );
-            $upsert = $this->upsertPeriod($range, $condition, (string) $fromDay['pk'], (string) $toDay['pk'], $matches, $completion['model'], $userToken, $now);
+            $upsert = $this->upsertPeriod($range, $condition, (string) $fromDay['pk'], (string) $toDay['pk'], $matches, $completion['configured_model'], $userToken, $now);
 
             return $this->executeResult($range, $condition, $fromDay, $toDay, $now, $aiCallLimit, [
                 'ai_call_attempted' => true,

@@ -1,5 +1,7 @@
 <?php
 
+use App\Support\AiDailyContract;
+
 return [
 
     /*
@@ -53,6 +55,10 @@ return [
         'endpoint_style' => env('OPENAI_ENDPOINT_STYLE', 'chat'),
         'timeout' => (int) env('OPENAI_TIMEOUT', 180),
         'max_tokens' => (int) env('OPENAI_MAX_TOKENS', 4096),
+        'daily_max_tokens' => max(128, min(
+            AiDailyContract::OFFICIAL_DAILY_MAX_TOKENS,
+            (int) env('OPENAI_DAILY_MAX_TOKENS', AiDailyContract::OFFICIAL_DAILY_MAX_TOKENS),
+        )),
         'transient_retries' => (int) env('OPENAI_TRANSIENT_RETRIES', 1),
         'retry_delay_ms' => (int) env('OPENAI_RETRY_DELAY_MS', 250),
         'retry_after_max_ms' => (int) env('OPENAI_RETRY_AFTER_MAX_MS', 2000),
