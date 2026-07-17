@@ -1053,6 +1053,7 @@ SQL);
         config()->set('services.youtube.api_keys', null);
         config()->set('ingestion.youtube_daily_quota_budget', 9000);
         $this->createTables();
+        $this->createTagDateTables();
         Http::preventStrayRequests();
 
         $exitCode = Artisan::call('youtube:tag-videos:backfill', [

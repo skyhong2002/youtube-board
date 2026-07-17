@@ -73,8 +73,8 @@ class LegacyAiApiReport
 
             return [
                 'result' => [
-                    'video' => $usedCache ? $cachedVideo : new stdClass(),
-                    'topic' => $topic === [] ? new stdClass() : $topic,
+                    'video' => $usedCache ? $cachedVideo : new stdClass,
+                    'topic' => $topic === [] ? new stdClass : $topic,
                     'channel_id' => $channelId,
                     'raw' => $raw,
                 ],
@@ -88,6 +88,8 @@ class LegacyAiApiReport
                     'type' => $dataType,
                     'realtime_dashboard' => true,
                     'cache_writeback_skipped' => ! $usedCache,
+                    'cache_available' => $cachedVideo !== [] && $cachedTopic !== [],
+                    'cache_builder' => 'reports:ai-topic:build',
                 ],
             ];
         } catch (QueryException) {
@@ -115,30 +117,42 @@ class LegacyAiApiReport
                 ? ['match' => [], 'pk' => [$date => (string) $row->pk], 'period_rows' => $this->periodRowsCount(), 'blocked_reason' => 'missing event name']
                 : $this->periodHistory($row, $event);
             $result = [
-                'match' => $history['match'] === [] ? new stdClass() : $history['match'],
+                'match' => $history['match'] === [] ? new stdClass : $history['match'],
                 'pk' => $history['pk'],
             ];
 
-            if ($request->query->has('prefetch')) {
+            $prefetch = $request->query->has('prefetch');
+
+            if ($prefetch) {
                 $result['keyword'] = [
-                    'date' => new stdClass(),
-                    'meta' => new stdClass(),
+                    'date' => new stdClass,
+                    'meta' => new stdClass,
+                ];
+            }
+
+            $meta = [
+                'available' => $event !== '',
+                'source' => 'urt_ai_date'.($history['period_rows'] > 0 ? ' + urt_ai_period' : ''),
+                'pk' => (int) $row->pk,
+                'event' => $event,
+                'condition' => $row->condition_type ?: $condition,
+                'history_available' => $history['period_rows'] > 0,
+                'period_rows' => $history['period_rows'],
+                'realtime_dashboard' => true,
+                'blocked_reason' => $history['blocked_reason'],
+            ];
+
+            if ($prefetch) {
+                $meta['prefetch'] = [
+                    'keyword_shells' => 'empty',
+                    'topic_cache_source' => 'urt_ai_date.data_json/video_json',
+                    'topic_cache_builder' => 'reports:ai-topic:build',
                 ];
             }
 
             return [
                 'result' => $result,
-                'meta' => [
-                    'available' => $event !== '',
-                    'source' => 'urt_ai_date'.($history['period_rows'] > 0 ? ' + urt_ai_period' : ''),
-                    'pk' => (int) $row->pk,
-                    'event' => $event,
-                    'condition' => $row->condition_type ?: $condition,
-                    'history_available' => $history['period_rows'] > 0,
-                    'period_rows' => $history['period_rows'],
-                    'realtime_dashboard' => true,
-                    'blocked_reason' => $history['blocked_reason'],
-                ],
+                'meta' => $meta,
             ];
         } catch (QueryException) {
             return $this->emptyPayload('urt_ai_date event', ['condition' => $condition]);
@@ -243,7 +257,7 @@ class LegacyAiApiReport
     }
 
     /**
-     * @param array<int, string> $channelId
+     * @param  array<int, string>  $channelId
      * @return array<int, mixed>
      */
     private function channelAiRows(array $channelId, string $dateFrom, string $dateTo, ?string $dataType): array
@@ -270,7 +284,6 @@ class LegacyAiApiReport
     }
 
     /**
-     * @param mixed $raw
      * @return array<string, array<string, mixed>>
      */
     private function deriveTopicStats(mixed $raw): array
@@ -291,11 +304,11 @@ class LegacyAiApiReport
                 return $title === '' ? [] : [$title => [
                     '媒體數' => $mediaCount,
                     '影片數' => $eventCount,
-                    'videos' => new stdClass(),
-                    '關鍵字' => new stdClass(),
-                    '關鍵字次數' => new stdClass(),
-                    '人物' => new stdClass(),
-                    '標籤' => new stdClass(),
+                    'videos' => new stdClass,
+                    '關鍵字' => new stdClass,
+                    '關鍵字次數' => new stdClass,
+                    '人物' => new stdClass,
+                    '標籤' => new stdClass,
                 ]];
             })
             ->all();
@@ -404,7 +417,7 @@ class LegacyAiApiReport
     }
 
     /**
-     * @param list<string> $lastEvents
+     * @param  list<string>  $lastEvents
      * @return list<string>
      */
     private function periodMatches(mixed $json, string $from, string $to, array $lastEvents): array
@@ -476,7 +489,7 @@ class LegacyAiApiReport
     }
 
     /**
-     * @param list<string> $keys
+     * @param  list<string>  $keys
      */
     private function text(array $row, array $keys): string
     {
@@ -492,12 +505,12 @@ class LegacyAiApiReport
     private function decodeJson(mixed $json): mixed
     {
         if (! is_string($json) || trim($json) === '' || trim($json) === 'null') {
-            return new stdClass();
+            return new stdClass;
         }
 
         $decoded = json_decode($json, true);
 
-        return is_array($decoded) ? $decoded : new stdClass();
+        return is_array($decoded) ? $decoded : new stdClass;
     }
 
     /**
@@ -511,13 +524,13 @@ class LegacyAiApiReport
     }
 
     /**
-     * @param array<string, mixed> $meta
+     * @param  array<string, mixed>  $meta
      * @return array<string, mixed>
      */
     private function emptyPayload(string $source, array $meta = []): array
     {
         return [
-            'result' => new stdClass(),
+            'result' => new stdClass,
             'meta' => $meta + [
                 'available' => false,
                 'source' => $source,
