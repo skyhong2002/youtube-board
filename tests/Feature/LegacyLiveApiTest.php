@@ -42,7 +42,7 @@ class LegacyLiveApiTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_legacy_live_date_api_uses_cache_or_derives_in_preview_mode(): void
+    public function test_legacy_live_date_api_uses_imported_cache_only_when_logs_are_absent(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-25 02:00:00', 'Asia/Taipei'));
         $this->createLiveDateTables();
@@ -64,6 +64,7 @@ class LegacyLiveApiTest extends TestCase
         $cached = $this->getJson('/api/api_live_date.php?date=2026-05-24');
         $cached->assertOk();
         $cached->assertJsonPath('meta.source', 'urt_show_live_date.return_json');
+        $cached->assertJsonPath('meta.cache_role', 'imported_historical_fallback');
         $cached->assertJsonPath('result.video.0.videoId', 'cached-live');
 
         DB::table('urt_count')->insert([
@@ -98,7 +99,166 @@ class LegacyLiveApiTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_legacy_live_hour_api_expands_log_json_hourly_peaks(): void
+    public function test_legacy_live_date_api_prefers_logs_to_stale_cache_without_writing_cache(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 02:00:00', 'Asia/Taipei'));
+        $this->createLiveDateTables();
+        $cachedJson = json_encode([
+            'result' => [
+                'tag' => ['max' => ['1' => 100], 'count' => ['1' => 1]],
+                'video' => [['videoId' => 'stale-live', 'title' => 'Stale Live']],
+                'hour' => ['10' => ['stale-live' => 100]],
+            ],
+        ], JSON_UNESCAPED_UNICODE);
+
+        DB::table('urt_show_live_date')->insert([
+            'pk' => 1,
+            'ctime' => '2026-05-24 00:00:00',
+            'mtime' => '2026-05-24 01:00:00',
+            'the_date' => '2026-05-24',
+            'return_json' => $cachedJson,
+        ]);
+        DB::table('urt_count')->insert(['u_id' => 10, 'tags' => '[1][13]']);
+        DB::table('urt_show_video_live')->insert([
+            'videoId' => 'fresh-live',
+            'u_id' => 10,
+            'channelTitle' => 'Fresh Channel',
+            'title' => 'Fresh Live',
+            'thumbnails' => 'https://example.test/fresh.jpg',
+            'publishedAt' => '2026-05-24 10:00:00',
+        ]);
+        DB::table('urt_video_live_log')->insert([
+            'videoId' => 'fresh-live',
+            'u_id' => 10,
+            'the_date' => '2026-05-24',
+            'max_current' => 700,
+            'log_json' => json_encode(['10:00' => 300, '10:30' => 700]),
+        ]);
+
+        $response = $this->getJson('/api/api_live_date.php?date=2026-05-24');
+
+        $response->assertOk();
+        $response->assertJsonPath('meta.source', 'urt_video_live_log derived real-time YouTube dashboard');
+        $response->assertJsonPath('result.video.0.videoId', 'fresh-live');
+        $response->assertJsonMissing(['videoId' => 'stale-live']);
+        $this->assertSame(700, $response->json('result')['tag']['max'][1]);
+        $this->assertDatabaseHas('urt_show_live_date', [
+            'pk' => 1,
+            'mtime' => '2026-05-24 01:00:00',
+            'return_json' => $cachedJson,
+        ]);
+        $this->assertSame(1, DB::table('urt_show_live_date')->count());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_legacy_live_date_api_derives_without_optional_cache_table(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 02:00:00', 'Asia/Taipei'));
+        $this->createLiveDateTables();
+        Schema::drop('urt_show_live_date');
+        DB::table('urt_count')->insert(['u_id' => 10, 'tags' => '[1]']);
+        DB::table('urt_video_live_log')->insert([
+            'videoId' => 'log-only-live',
+            'u_id' => 10,
+            'the_date' => '2026-05-24',
+            'max_current' => 450,
+            'log_json' => json_encode(['10:00' => 450]),
+        ]);
+
+        $response = $this->getJson('/api/api_live_date.php?date=2026-05-24');
+
+        $response->assertOk();
+        $response->assertJsonPath('meta.available', true);
+        $response->assertJsonPath('meta.source', 'urt_video_live_log derived real-time YouTube dashboard');
+        $response->assertJsonPath('result.video.0.videoId', 'log-only-live');
+        $this->assertSame(450, $response->json('result')['tag']['max'][1]);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_legacy_live_date_api_uses_single_date_cache_when_source_tables_are_unavailable(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 02:00:00', 'Asia/Taipei'));
+        $this->createLiveDateTables();
+        Schema::drop('urt_video_live_log');
+        $cachedJson = json_encode([
+            'result' => [
+                'tag' => ['max' => ['1' => 600], 'count' => ['1' => 1]],
+                'video' => [['videoId' => 'historical-live']],
+                'hour' => ['10' => ['historical-live' => 600]],
+            ],
+        ], JSON_UNESCAPED_UNICODE);
+        DB::table('urt_show_live_date')->insert([
+            'pk' => 1,
+            'ctime' => '2026-05-24 00:00:00',
+            'mtime' => '2026-05-24 01:00:00',
+            'the_date' => '2026-05-24',
+            'return_json' => $cachedJson,
+        ]);
+
+        $fallback = $this->getJson('/api/api_live_date.php?date=2026-05-24');
+
+        $fallback->assertOk();
+        $fallback->assertJsonPath('meta.available', true);
+        $fallback->assertJsonPath('meta.source', 'urt_show_live_date.return_json');
+        $fallback->assertJsonPath('meta.cache_role', 'imported_historical_fallback');
+        $fallback->assertJsonPath('result.video.0.videoId', 'historical-live');
+
+        $forced = $this->getJson('/api/api_live_date.php?date=2026-05-24&force=1');
+        $forced->assertOk();
+        $forced->assertJsonPath('meta.available', false);
+        $forced->assertJsonPath('meta.source', 'urt_video_live_log');
+
+        $range = $this->getJson('/api/api_live_date.php?from=2026-05-24&to=2026-05-24');
+        $range->assertOk();
+        $range->assertJsonPath('meta.available', false);
+        $range->assertJsonPath('meta.source', 'urt_video_live_log');
+
+        $this->assertDatabaseHas('urt_show_live_date', [
+            'pk' => 1,
+            'mtime' => '2026-05-24 01:00:00',
+            'return_json' => $cachedJson,
+        ]);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_legacy_live_date_force_bypasses_imported_cache_without_writing(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 02:00:00', 'Asia/Taipei'));
+        $this->createLiveDateTables();
+        $cachedJson = json_encode([
+            'result' => [
+                'tag' => ['max' => ['1' => 900], 'count' => ['1' => 1]],
+                'video' => [['videoId' => 'cached-live']],
+                'hour' => ['10' => ['cached-live' => 900]],
+            ],
+        ], JSON_UNESCAPED_UNICODE);
+        DB::table('urt_show_live_date')->insert([
+            'pk' => 1,
+            'ctime' => '2026-05-24 00:00:00',
+            'mtime' => '2026-05-24 01:00:00',
+            'the_date' => '2026-05-24',
+            'return_json' => $cachedJson,
+        ]);
+
+        $response = $this->getJson('/api/api_live_date.php?date=2026-05-24&force=1');
+
+        $response->assertOk();
+        $response->assertJsonPath('meta.available', false);
+        $response->assertJsonPath('meta.source', 'urt_video_live_log derived real-time YouTube dashboard');
+        $this->assertSame([], $response->json('result.video'));
+        $this->assertDatabaseHas('urt_show_live_date', [
+            'pk' => 1,
+            'mtime' => '2026-05-24 01:00:00',
+            'return_json' => $cachedJson,
+        ]);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_legacy_live_hour_api_expands_valid_cross_date_hourly_peaks_without_cache_table(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-25 02:00:00', 'Asia/Taipei'));
         $this->createLiveLogTable();
@@ -107,9 +267,28 @@ class LegacyLiveApiTest extends TestCase
             [
                 'videoId' => 'hour-a',
                 'u_id' => 10,
-                'the_date' => '2026-05-24',
+                'the_date' => '2026-05-23',
                 'max_current' => 900,
-                'log_json' => json_encode(['10:00' => 100, '10:30' => 500, '11:00' => 900]),
+                'log_json' => json_encode([
+                    '10:00' => 100,
+                    '10:30:59' => '500',
+                    '11:00' => 900,
+                    '24:00' => 2400,
+                    '99:00' => 9900,
+                    '12:60' => 1200,
+                    '13:00:60' => 1300,
+                    '14garbage' => 1400,
+                    '15:00' => 'not-numeric',
+                    '16:00' => ['views' => 1600],
+                    '17:00' => '1e9999',
+                ]),
+            ],
+            [
+                'videoId' => 'hour-a',
+                'u_id' => 10,
+                'the_date' => '2026-05-23',
+                'max_current' => 700,
+                'log_json' => json_encode(['10:45' => 700]),
             ],
             [
                 'videoId' => 'hour-b',
@@ -120,13 +299,52 @@ class LegacyLiveApiTest extends TestCase
             ],
         ]);
 
-        $response = $this->getJson('/api/api_live_hour.php?date=2026-05-24');
+        $response = $this->getJson('/api/api_live_hour.php?from=2026-05-23&to=2026-05-24');
 
         $response->assertOk();
         $response->assertJsonPath('meta.available', true);
-        $this->assertSame(500, $response->json('result')['2026-05-24 10']['hour-a']);
+        $this->assertSame(700, $response->json('result')['2026-05-23 10']['hour-a']);
+        $this->assertSame(900, $response->json('result')['2026-05-23 11']['hour-a']);
         $this->assertSame(300, $response->json('result')['2026-05-24 10']['hour-b']);
-        $this->assertSame(900, $response->json('result')['2026-05-24 11']['hour-a']);
+        $this->assertArrayNotHasKey('2026-05-23 24', $response->json('result'));
+        $this->assertArrayNotHasKey('2026-05-23 99', $response->json('result'));
+        $this->assertArrayNotHasKey('2026-05-23 12', $response->json('result'));
+        $this->assertArrayNotHasKey('2026-05-23 13', $response->json('result'));
+        $this->assertArrayNotHasKey('2026-05-23 14', $response->json('result'));
+        $this->assertArrayNotHasKey('2026-05-23 15', $response->json('result'));
+        $this->assertArrayNotHasKey('2026-05-23 16', $response->json('result'));
+        $this->assertArrayNotHasKey('2026-05-23 17', $response->json('result'));
+        $this->assertFalse(Schema::hasTable('urt_show_live_hour'));
+
+        Carbon::setTestNow();
+    }
+
+    public function test_legacy_live_hour_api_is_unavailable_when_rows_have_no_valid_samples(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 02:00:00', 'Asia/Taipei'));
+        $this->createLiveLogTable();
+        DB::table('urt_video_live_log')->insert([
+            'videoId' => 'invalid-hour-live',
+            'u_id' => 10,
+            'the_date' => '2026-05-24',
+            'max_current' => 900,
+            'log_json' => json_encode([
+                '10garbage' => 900,
+                '24:00' => 800,
+                '11:60' => 700,
+                '12:00:60' => 600,
+                '13:00' => 'unknown',
+                '14:00' => ['views' => 500],
+                '15:00' => '1e9999',
+            ]),
+        ]);
+
+        $response = $this->getJson('/api/api_live_hour.php?date=2026-05-24');
+
+        $response->assertOk();
+        $response->assertJsonPath('meta.available', false);
+        $response->assertJsonPath('meta.source', 'urt_video_live_log derived real-time YouTube dashboard');
+        $this->assertSame([], $response->json('result'));
 
         Carbon::setTestNow();
     }

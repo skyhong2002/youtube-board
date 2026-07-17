@@ -57,9 +57,20 @@ class LegacyLiveApiReport
     public function liveDate(Request $request): array
     {
         $period = $this->singleOrRangePeriod($request, '2022-11-19');
+        $derived = null;
 
         try {
-            if (! $period['is_range']) {
+            $derived = $this->deriveLiveDate($period);
+        } catch (QueryException) {
+            // A single-date imported cache may still serve when source tables are unavailable.
+        }
+
+        if ($derived !== null && ($derived['result']['video'] !== [] || $period['is_range'] || $request->boolean('force'))) {
+            return $this->derivedLiveDateResponse($derived, $period);
+        }
+
+        if (! $period['is_range'] && ! $request->boolean('force')) {
+            try {
                 $cache = DB::table('urt_show_live_date')
                     ->where('the_date', $period['date'])
                     ->first();
@@ -72,26 +83,20 @@ class LegacyLiveApiReport
                         'source' => 'urt_show_live_date.return_json',
                         'period' => $period,
                         'mtime' => $cache->mtime ?? null,
+                        'cache_role' => 'imported_historical_fallback',
                         'realtime_dashboard' => true,
                     ];
 
                     return $cached;
                 }
+            } catch (QueryException) {
+                // The optional imported cache must not make live-log derivation unavailable.
             }
-
-            $derived = $this->deriveLiveDate($period);
-
-            return $derived + [
-                'meta' => [
-                    'available' => $derived['result']['video'] !== [],
-                    'source' => 'urt_video_live_log derived real-time YouTube dashboard',
-                    'period' => $period,
-                    'realtime_dashboard' => true,
-                ],
-            ];
-        } catch (QueryException) {
-            return $this->unavailable('urt_show_live_date/urt_video_live_log', ['period' => $period]);
         }
+
+        return $derived === null
+            ? $this->unavailable('urt_video_live_log', ['period' => $period])
+            : $this->derivedLiveDateResponse($derived, $period);
     }
 
     /**
@@ -125,7 +130,7 @@ class LegacyLiveApiReport
             return [
                 'result' => $hourly === [] ? new stdClass() : $hourly,
                 'meta' => [
-                    'available' => $rows->isNotEmpty(),
+                    'available' => $hourly !== [],
                     'source' => 'urt_video_live_log derived real-time YouTube dashboard',
                     'period' => $period,
                     'realtime_dashboard' => true,
@@ -398,7 +403,18 @@ class LegacyLiveApiReport
         $displayRows = $videoIds === []
             ? collect()
             : DB::table('urt_show_video_live')->whereIn('videoId', $videoIds)->get()->keyBy('videoId');
-        $countRows = DB::table('urt_count')->select(['u_id', 'tags'])->get()->keyBy('u_id');
+        $channelIds = collect($byVideo)
+            ->pluck('u_id')
+            ->filter(fn (int $uId): bool => $uId > 0)
+            ->unique()
+            ->values();
+        $countRows = $channelIds->isEmpty()
+            ? collect()
+            : DB::table('urt_count')
+                ->select(['u_id', 'tags'])
+                ->whereIn('u_id', $channelIds->all())
+                ->get()
+                ->keyBy('u_id');
 
         $tagMax = [];
         $tagCount = [];
@@ -435,6 +451,23 @@ class LegacyLiveApiReport
                 ],
                 'video' => $videos,
                 'hour' => $hour,
+            ],
+        ];
+    }
+
+    /**
+     * @param array{result: array{tag: array{max: array<int, int>, count: array<int, int>}, video: list<array<string, mixed>>, hour: array<string, array<string, int>>}} $derived
+     * @param array{date: string, from: string|null, to: string|null, is_range: bool} $period
+     * @return array<string, mixed>
+     */
+    private function derivedLiveDateResponse(array $derived, array $period): array
+    {
+        return $derived + [
+            'meta' => [
+                'available' => $derived['result']['video'] !== [],
+                'source' => 'urt_video_live_log derived real-time YouTube dashboard',
+                'period' => $period,
+                'realtime_dashboard' => true,
             ],
         ];
     }
@@ -627,13 +660,32 @@ class LegacyLiveApiReport
         $hours = [];
 
         foreach ($decoded as $time => $views) {
-            $hour = substr((string) $time, 0, 2);
-
-            if (! preg_match('/^\d{2}$/', $hour)) {
+            if (preg_match('/^(?<hour>\d{2}):(?<minute>\d{2})(?::(?<second>\d{2}))?$/D', (string) $time, $matches) !== 1) {
                 continue;
             }
 
-            $hours[$hour] = max($hours[$hour] ?? 0, (int) $views);
+            $hour = (string) $matches['hour'];
+            $hourNumber = (int) $hour;
+            $minuteNumber = (int) $matches['minute'];
+            $secondNumber = isset($matches['second']) && $matches['second'] !== ''
+                ? (int) $matches['second']
+                : null;
+
+            if ($hourNumber > 23 || $minuteNumber > 59 || ($secondNumber !== null && $secondNumber > 59)) {
+                continue;
+            }
+
+            if ((! is_int($views) && ! is_float($views) && ! is_string($views)) || ! is_numeric($views)) {
+                continue;
+            }
+
+            $numericViews = (float) $views;
+
+            if (! is_finite($numericViews)) {
+                continue;
+            }
+
+            $hours[$hour] = max($hours[$hour] ?? 0, (int) $numericViews);
         }
 
         return $hours;
