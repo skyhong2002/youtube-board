@@ -187,7 +187,7 @@ class IngestionLivePollingCommandTest extends TestCase
         Http::assertSentCount(2);
     }
 
-    public function test_youtube_live_poll_does_not_refresh_a_video_missing_live_streaming_details(): void
+    public function test_youtube_live_poll_unlists_a_video_missing_live_streaming_details(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 20:00:00', 'Asia/Taipei'));
         config()->set('services.youtube.api_key', 'test-key');
@@ -218,9 +218,11 @@ class IngestionLivePollingCommandTest extends TestCase
 
         $this->assertSame(1, $exitCode);
         $this->assertSame(1, $payload['failed_videos']);
+        $this->assertSame(1, $payload['unlisted_videos']);
         $this->assertSame(0, $payload['updated_videos']);
-        $this->assertSame(['videoId' => 'ghost-live', 'reason' => 'api_item_missing'], $payload['skipped'][0]);
-        $this->assertSame('2026-05-25 19:00:00', DB::table('urt_video_live')->where('videoId', 'ghost-live')->value('mtime'));
+        $this->assertSame(['videoId' => 'ghost-live', 'reason' => 'api_item_missing', 'unlisted' => true], $payload['skipped'][0]);
+        $this->assertSame(1, (int) DB::table('urt_video_live')->where('videoId', 'ghost-live')->value('del_flag'));
+        $this->assertSame('2026-05-25 20:00:00', DB::table('urt_video_live')->where('videoId', 'ghost-live')->value('mtime'));
         $this->assertSame(100, DB::table('urt_video_live')->where('videoId', 'ghost-live')->value('concurrentViewers'));
         $this->assertSame(0, DB::table('urt_video_live_log')->count());
         Http::assertSentCount(1);

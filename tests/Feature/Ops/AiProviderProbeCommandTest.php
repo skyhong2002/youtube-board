@@ -252,6 +252,54 @@ class AiProviderProbeCommandTest extends TestCase
         Http::assertSentCount(2);
     }
 
+    public function test_truncated_chat_completion_retries_the_same_provider_before_fallback(): void
+    {
+        config()->set('services.opencode_go.api_key', 'primary-secret-key');
+        config()->set('services.opencode_go.base_url', 'https://primary.test/v1');
+        config()->set('services.opencode_go.model', 'gpt-5.4-mini');
+        config()->set('services.opencode_go.endpoint_style', 'chat');
+        config()->set('services.opencode_go.transient_retries', 1);
+        config()->set('services.opencode_go.retry_delay_ms', 0);
+        config()->set('services.opencode_go.fallback_api_key', 'fallback-secret-key');
+        config()->set('services.opencode_go.fallback_base_url', 'https://fallback.test/v1');
+        config()->set('services.opencode_go.fallback_model', 'qwen3.6-plus');
+        config()->set('services.opencode_go.fallback_endpoint_style', 'chat');
+
+        Http::fakeSequence('https://primary.test/v1/chat/completions')
+            ->push([
+                'model' => 'gpt-5.4-mini-2026-07-15',
+                'choices' => [[
+                    'finish_reason' => 'length',
+                    'message' => ['content' => '{"partial":true}'],
+                ]],
+                'usage' => ['completion_tokens' => 12288],
+            ])
+            ->push([
+                'model' => 'gpt-5.4-mini-2026-07-15',
+                'choices' => [[
+                    'finish_reason' => 'stop',
+                    'message' => ['content' => '{"complete":true}'],
+                ]],
+                'usage' => ['completion_tokens' => 1200],
+            ]);
+        Http::preventStrayRequests();
+
+        $telemetry = app(IngestionTelemetry::class);
+        $telemetry->reset();
+        $result = app(OpenCodeChatClient::class)->complete('Reply with complete JSON.');
+        $snapshot = $telemetry->snapshot();
+
+        $this->assertSame('primary', $result['provider']);
+        $this->assertSame('{"complete":true}', $result['content']);
+        $this->assertSame([], $result['provider_failures']);
+        $this->assertCount(2, $snapshot['ai_requests']);
+        $this->assertFalse($snapshot['ai_requests'][0]['ok']);
+        $this->assertSame('length', $snapshot['ai_requests'][0]['termination_reason']);
+        $this->assertTrue($snapshot['ai_requests'][0]['validation_retry']);
+        $this->assertTrue($snapshot['ai_requests'][1]['ok']);
+        Http::assertSentCount(2);
+    }
+
     public function test_messages_max_tokens_stop_reason_is_rejected_and_falls_back(): void
     {
         config()->set('services.opencode_go.api_key', 'primary-key');
