@@ -12,7 +12,12 @@ use Illuminate\Support\Facades\Schema;
  */
 final class GroupViewProjector
 {
-    public const MAX_TAGS = 50;
+    /**
+     * Per-tag work is a map lookup against rows already loaded once per group
+     * filter, so the cap only bounds payload size. Production tag_group
+     * memberships such as 政治人物 exceed 500 keywords.
+     */
+    public const MAX_TAGS = 600;
 
     public const MAX_DAYS = 90;
 

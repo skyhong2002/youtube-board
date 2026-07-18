@@ -1879,7 +1879,7 @@ $guardedIngestionCommand('reports:ai-topic:build {--from= : Start date in YYYY-M
     return $exitCode;
 })->purpose('Project legacy api_topic.php topic/video statistics from urt_ai_date.result_json into the data_json/video_json cache; preview by default and manual only');
 
-$guardedIngestionCommand('reports:group-view:build {--group=六都市長候選人 : Legacy group name, a tag_group group_name or a tags_* configured set} {--view=politician : Legacy comparison view name} {--days=30 : Aggregation day count, max 90} {--tags= : Optional explicit comma-separated keyword override, max 50} {--tag-limit=50 : Keyword cap, max 50} {--execute : Write the urt_show_group.the_result cache row} {--dry-run : Force preview mode; this is the default} {--json : Emit JSON instead of text}', function (GroupViewCacheBuilder $builder) {
+$guardedIngestionCommand('reports:group-view:build {--group=六都市長候選人 : Legacy group name, a tag_group group_name or a tags_* configured set} {--view=politician : Legacy comparison view name} {--days=30 : Aggregation day count, max 90} {--tags= : Optional explicit comma-separated keyword override, max 600} {--tag-limit=600 : Keyword cap, max 600} {--execute : Write the urt_show_group.the_result cache row} {--dry-run : Force preview mode; this is the default} {--json : Emit JSON instead of text}', function (GroupViewCacheBuilder $builder) {
     $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
     $tags = collect(explode(',', (string) $this->option('tags')))
         ->map(fn (string $tag): string => trim($tag))
