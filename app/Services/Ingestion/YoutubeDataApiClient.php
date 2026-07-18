@@ -373,6 +373,11 @@ class YoutubeDataApiClient
 
         $this->throwIfFailed($response, 'YouTube videos.list request failed.');
 
+        // An id absent from this map (including a response item without any
+        // usable live detail) identifies a video that is not a live stream or
+        // no longer exists. A present id mapped to null carries live keys with
+        // malformed values, so callers keep that row due instead of retiring
+        // it like a deleted video.
         return collect($response->json('items', []))
             ->mapWithKeys(function (mixed $item): array {
                 if (! is_array($item)) {
@@ -380,21 +385,39 @@ class YoutubeDataApiClient
                 }
 
                 $id = isset($item['id']) && is_string($item['id']) ? trim($item['id']) : '';
+
+                if ($id === '') {
+                    return [];
+                }
+
                 $details = $item['liveStreamingDetails'] ?? null;
 
-                if ($id === '' || ! is_array($details)) {
+                if (! is_array($details)) {
+                    return [];
+                }
+
+                $hasUsableKey = false;
+
+                foreach (['actualStartTime', 'actualEndTime', 'scheduledStartTime', 'concurrentViewers', 'activeLiveChatId'] as $key) {
+                    if (array_key_exists($key, $details)) {
+                        $hasUsableKey = true;
+                        break;
+                    }
+                }
+
+                if (! $hasUsableKey) {
                     return [];
                 }
 
                 if (array_key_exists('concurrentViewers', $details)) {
                     if ($this->unsignedInteger($details['concurrentViewers']) === null) {
-                        return [];
+                        return [$id => null];
                     }
                 }
 
                 foreach (['actualStartTime', 'actualEndTime', 'scheduledStartTime'] as $key) {
                     if (array_key_exists($key, $details) && ! $this->isRfc3339DateTime($details[$key])) {
-                        return [];
+                        return [$id => null];
                     }
                 }
 
@@ -402,23 +425,10 @@ class YoutubeDataApiClient
                     array_key_exists('activeLiveChatId', $details)
                     && (! is_string($details['activeLiveChatId']) || trim($details['activeLiveChatId']) === '')
                 ) {
-                    return [];
+                    return [$id => null];
                 }
 
                 return [$id => $details];
-            })
-            ->filter(function (array $details, string $id): bool {
-                if ($id === '') {
-                    return false;
-                }
-
-                foreach (['actualStartTime', 'actualEndTime', 'scheduledStartTime', 'concurrentViewers', 'activeLiveChatId'] as $key) {
-                    if (array_key_exists($key, $details)) {
-                        return true;
-                    }
-                }
-
-                return false;
             })
             ->all();
     }

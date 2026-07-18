@@ -265,7 +265,7 @@ class IngestionLivePollingCommandTest extends TestCase
         $this->assertSame(1, $payload['exit_code']);
         $this->assertSame(1, $payload['failed_videos']);
         $this->assertSame(1, $payload['updated_videos']);
-        $this->assertSame(['videoId' => 'a-malformed', 'reason' => 'api_item_missing'], $payload['skipped'][0]);
+        $this->assertSame(['videoId' => 'a-malformed', 'reason' => 'api_item_invalid', 'unlisted' => false], $payload['skipped'][0]);
         $this->assertSame('2026-05-25 11:00:00', DB::table('urt_video_live')->where('videoId', 'a-malformed')->value('mtime'));
         $this->assertSame(100, DB::table('urt_video_live')->where('videoId', 'a-malformed')->value('concurrentViewers'));
         $this->assertSame(333, DB::table('urt_video_live')->where('videoId', 'b-valid')->value('concurrentViewers'));
@@ -330,7 +330,7 @@ class IngestionLivePollingCommandTest extends TestCase
             ['a-bad-start', 'b-bad-end', 'c-bad-scheduled', 'd-bad-chat', 'e-bad-calendar'],
             collect($payload['skipped'])->pluck('videoId')->all(),
         );
-        $this->assertSame(['api_item_missing'], collect($payload['skipped'])->pluck('reason')->unique()->values()->all());
+        $this->assertSame(['api_item_invalid'], collect($payload['skipped'])->pluck('reason')->unique()->values()->all());
 
         foreach (array_slice($videoIds, 0, 5) as $videoId) {
             $this->assertSame('2026-05-25 11:00:00', DB::table('urt_video_live')->where('videoId', $videoId)->value('mtime'));

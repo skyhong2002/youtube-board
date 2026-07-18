@@ -85,10 +85,14 @@ class LivePollingIngestion
                 $details = $detailsByVideo[$rowVideoId] ?? null;
 
                 if ($details === null) {
+                    // A present-but-unusable item stays due for retry; only an
+                    // id absent from the successful response means the video
+                    // no longer exists and can be retired.
+                    $present = array_key_exists($rowVideoId, $detailsByVideo);
                     $skipped[] = [
                         'videoId' => $rowVideoId,
-                        'reason' => 'api_item_missing',
-                        'unlisted' => $this->unlistMissingVideo($rowVideoId, $now),
+                        'reason' => $present ? 'api_item_invalid' : 'api_item_missing',
+                        'unlisted' => $present ? false : $this->unlistMissingVideo($rowVideoId, $now),
                     ];
 
                     continue;
@@ -291,6 +295,7 @@ class LivePollingIngestion
     ): array {
         $failedVideos = collect($skipped)->whereIn('reason', [
             'api_item_missing',
+            'api_item_invalid',
             'item_processing_failed',
             'quota_window_reset',
             YoutubeApiKeyPoolExhaustedException::AUTHENTICATION_FAILURE,
