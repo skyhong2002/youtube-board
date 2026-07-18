@@ -94,6 +94,7 @@ class IngestionSchedulerGuardrailTest extends TestCase
     {
         $quotaOwned = [
             'youtube:channels:stats',
+            'youtube:channels:retire',
             'youtube:channels:videos',
             'youtube:tvbs:videos',
             'youtube:tag-videos:backfill',

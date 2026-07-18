@@ -49,6 +49,7 @@ class YoutubeQuotaEstimator
 
         return match (true) {
             $key === 'youtube.channels.stats' => $this->batchedListEstimate($counters, 'api_requested_rows', 'channels.list'),
+            $key === 'youtube.channels.retire' => $this->batchedListEstimate($counters, 'api_requested_rows', 'channels.list'),
             in_array($key, ['youtube.live.poll', 'youtube.tvbs.live.poll'], true) => $this->batchedListEstimate($counters, 'api_requested_videos', 'videos.list(liveStreamingDetails)'),
             in_array($key, ['youtube.videos.stats', 'youtube.videos.duration'], true) => $this->batchedListEstimate($counters, 'api_requested_videos', 'videos.list'),
             str_starts_with($key, 'youtube.channels.videos.') => $this->playlistDiscoveryEstimate($counters),
@@ -76,6 +77,7 @@ class YoutubeQuotaEstimator
 
         $baseUnits = match (true) {
             $key === 'youtube.channels.stats' => (int) ceil($this->intOption($command, 'limit', 20) / 50),
+            $key === 'youtube.channels.retire' => (int) ceil($this->intOption($command, 'limit', 50) / 50),
             in_array($key, ['youtube.live.poll', 'youtube.tvbs.live.poll'], true) => (int) ceil($this->intOption($command, 'limit', 20) / 50),
             in_array($key, ['youtube.videos.stats', 'youtube.videos.duration'], true) => (int) ceil($this->intOption($command, 'limit', 50) / 50)
                 * $this->intOption($command, 'loops', 1),
@@ -266,6 +268,7 @@ class YoutubeQuotaEstimator
     {
         return match (true) {
             $key === 'youtube.channels.stats' => 'channels.list',
+            $key === 'youtube.channels.retire' => 'channels.list',
             in_array($key, ['youtube.live.poll', 'youtube.tvbs.live.poll'], true) => 'videos.list(liveStreamingDetails)',
             str_starts_with($key, 'youtube.channels.videos.') || $key === 'youtube.tvbs.videos' || $key === 'youtube.tag_videos.backfill' => 'playlistItems.list',
             in_array($key, ['youtube.videos.stats', 'youtube.videos.duration'], true) => 'videos.list',

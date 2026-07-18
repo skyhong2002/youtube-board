@@ -17,6 +17,44 @@ class YoutubeDataApiClient
     ) {}
 
     /**
+     * Which of the requested channel ids exist on YouTube right now. Uses
+     * part=id so statistics validation cannot hide an existing channel, which
+     * matters when deciding whether a channel may be retired.
+     *
+     * @param  list<string>  $channelIds
+     * @return list<string>
+     */
+    public function channelPresence(array $channelIds): array
+    {
+        $channelIds = collect($channelIds)
+            ->map(fn (string $id): string => trim($id))
+            ->filter()
+            ->unique()
+            ->take(50)
+            ->values()
+            ->all();
+
+        if ($channelIds === []) {
+            return [];
+        }
+
+        $response = $this->get('https://www.googleapis.com/youtube/v3/channels', [
+            'part' => 'id',
+            'id' => implode(',', $channelIds),
+            'maxResults' => 50,
+        ], 15, 'YouTube channels.list request failed.');
+
+        $this->throwIfFailed($response, 'YouTube channels.list request failed.');
+
+        return collect($response->json('items', []))
+            ->map(fn (mixed $item): string => is_array($item) && is_string($item['id'] ?? null) ? trim($item['id']) : '')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
      * @param  list<string>  $channelIds
      * @return array<string, array{viewCount: int, subscriberCount: int|null, hiddenSubscriberCount: bool, videoCount: int}>
      */
