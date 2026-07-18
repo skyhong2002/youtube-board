@@ -35,7 +35,7 @@ class DeploymentSchemaCheckTest extends TestCase
 
         $this->assertSame(0, $exitCode, (string) json_encode($payload, JSON_UNESCAPED_SLASHES));
         $this->assertTrue($payload['ready']);
-        $this->assertSame(63, $payload['required_table_count']);
+        $this->assertSame(64, $payload['required_table_count']);
         $this->assertSame([], $payload['missing_tables']);
         $this->assertSame([], $payload['missing_columns']);
         $this->assertSame([], $payload['missing_indexes']);
@@ -213,6 +213,9 @@ class DeploymentSchemaCheckTest extends TestCase
             'urt_mayor_person_ai' => [[
                 'pk', 'ctime', 'mtime', 'city_key', 'city_label', 'person', 'the_date', 'ai_type', 'provider',
                 'user_token', 'prompt_json', 'source_json', 'result_json', 'del_flag',
+            ], ['pk'], []],
+            'urt_show_group' => [[
+                'pk', 'ctime', 'stime', 'mtime', 'the_group', 'the_view', 'the_result',
             ], ['pk'], []],
             'ingestion_runs' => [[
                 'id', 'recorded_at', 'request_source', 'request_mode', 'result_mode', 'payload_json',

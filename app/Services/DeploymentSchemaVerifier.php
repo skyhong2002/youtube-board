@@ -51,6 +51,15 @@ class DeploymentSchemaVerifier
             'result_json',
             'del_flag',
         ],
+        'urt_show_group' => [
+            'pk',
+            'ctime',
+            'stime',
+            'mtime',
+            'the_group',
+            'the_view',
+            'the_result',
+        ],
         'ingestion_youtube_quota_daily' => [
             'id',
             'provider',
@@ -123,6 +132,9 @@ class DeploymentSchemaVerifier
             ['kind' => 'unique', 'columns' => ['uuid']],
         ],
         'urt_mayor_person_ai' => [
+            ['kind' => 'primary', 'columns' => ['pk']],
+        ],
+        'urt_show_group' => [
             ['kind' => 'primary', 'columns' => ['pk']],
         ],
         'ingestion_youtube_quota_daily' => [

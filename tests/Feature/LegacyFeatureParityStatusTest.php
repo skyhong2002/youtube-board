@@ -34,7 +34,7 @@ class LegacyFeatureParityStatusTest extends TestCase
             }
         }
 
-        $this->assertCount(101, $statuses);
+        $this->assertCount(103, $statuses);
         $this->assertSame(
             [],
             array_values(array_filter(
