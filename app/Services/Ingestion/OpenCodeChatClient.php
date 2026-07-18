@@ -266,6 +266,10 @@ class OpenCodeChatClient
                 $reasonField = $messagesStyle ? 'stop_reason' : 'finish_reason';
                 $message = 'truncated_response endpoint_style='.
                     ($messagesStyle ? 'messages' : 'chat').' '.$reasonField.'='.$terminationReason;
+                // A fresh sample usually stays within the token budget, so a
+                // runaway completion shares the same bounded retry budget as
+                // validation-rejected responses before advancing to fallback.
+                $truncationRetry = $attempt < $maxAttempts;
                 $this->telemetry->recordAiRequest($this->requestTelemetry(
                     provider: $provider,
                     endpointStyle: $messagesStyle ? 'messages' : 'chat',
@@ -279,8 +283,13 @@ class OpenCodeChatClient
                     attempt: $attempt,
                     terminationReason: $terminationReason,
                     structuredOutput: $structuredOutput,
+                    validationRetry: $truncationRetry,
                     responseModel: $responseModelSnapshot,
                 ));
+
+                if ($truncationRetry) {
+                    continue;
+                }
 
                 throw new RuntimeException($message);
             }
