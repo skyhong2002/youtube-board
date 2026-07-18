@@ -437,11 +437,12 @@ Artisan::command('youtube:channels:stats {--u_id= : Optional channel u_id to pre
     }
 })->purpose('Dry-run preview of channel statistics polling, with explicit local-only --execute support');
 
-Artisan::command('youtube:channels:retire {--u_id= : Explicit channel u_id instead of the stale-statistics candidate scan} {--stale-days=14 : Days without a successful statistics publication before a channel is a candidate, min 7} {--limit=50 : Candidate cap per run, max 50 (one channels.list request)} {--restore : With --u_id, clear flag_del after confirming the channel exists again} {--execute : Confirm absence with YouTube channels.list(part=id) and write urt_channel.flag_del} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (ChannelRetirementIngestion $ingestion, DirectYoutubeQuotaGuard $quotaGuard) {
+Artisan::command('youtube:channels:retire {--u_id= : Explicit channel u_id instead of the stale-statistics candidate scan} {--stale-days=14 : Days without a successful statistics publication before a channel is a candidate, min 7} {--limit=50 : Candidate cap per run, max 50 (one channels.list request)} {--offset=0 : Skip this many ordered candidates so still_on_youtube rows cannot clog the batch head} {--restore : With --u_id, clear flag_del after confirming the channel exists again} {--execute : Confirm absence with YouTube channels.list(part=id) and write urt_channel.flag_del} {--dry-run : Force dry-run preview; this is the default} {--json : Emit JSON instead of text}', function (ChannelRetirementIngestion $ingestion, DirectYoutubeQuotaGuard $quotaGuard) {
     $uIdOption = $this->option('u_id');
     $uId = $uIdOption !== null && trim((string) $uIdOption) !== '' ? max(1, (int) $uIdOption) : null;
     $staleDays = max(ChannelRetirementIngestion::MIN_STALE_DAYS, min(ChannelRetirementIngestion::MAX_STALE_DAYS, (int) $this->option('stale-days')));
     $limit = max(1, min(ChannelRetirementIngestion::MAX_LIMIT, (int) $this->option('limit')));
+    $offset = max(0, (int) $this->option('offset'));
     $restore = (bool) $this->option('restore');
     $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
 
@@ -501,7 +502,7 @@ Artisan::command('youtube:channels:retire {--u_id= : Explicit channel u_id inste
             $quotaRun = $quotaGuard->run(
                 jobKey: 'youtube.channels.retire',
                 effectiveCommand: sprintf('youtube:channels:retire --execute --limit=%d', $limit),
-                callback: fn (): array => $ingestion->execute(uId: $uId, staleDays: $staleDays, limit: $limit),
+                callback: fn (): array => $ingestion->execute(uId: $uId, staleDays: $staleDays, limit: $limit, offset: $offset),
             );
 
             if (! $quotaRun['allowed']) {
@@ -544,7 +545,7 @@ Artisan::command('youtube:channels:retire {--u_id= : Explicit channel u_id inste
             return (int) ($payload['exit_code'] ?? 0);
         }
 
-        $payload = $ingestion->preview(uId: $uId, staleDays: $staleDays, limit: $limit);
+        $payload = $ingestion->preview(uId: $uId, staleDays: $staleDays, limit: $limit, offset: $offset);
 
         if ((bool) $this->option('json')) {
             $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));

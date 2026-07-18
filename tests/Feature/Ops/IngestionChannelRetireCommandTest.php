@@ -107,6 +107,19 @@ class IngestionChannelRetireCommandTest extends TestCase
         $this->assertNotContains('', $ids);
     }
 
+    public function test_offset_skips_the_ordered_candidate_head(): void
+    {
+        config()->set('services.youtube.api_key', 'test-key');
+        $this->seedChannels();
+        Http::fake();
+
+        Artisan::call('youtube:channels:retire', ['--offset' => 1, '--json' => true]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $payload['offset']);
+        $this->assertSame(['dead-stale'], collect($payload['rows'])->pluck('youtube_id')->all());
+    }
+
     public function test_stale_days_floor_and_limit_cap_are_enforced(): void
     {
         config()->set('services.youtube.api_key', 'test-key');

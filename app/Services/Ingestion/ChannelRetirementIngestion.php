@@ -36,18 +36,20 @@ final class ChannelRetirementIngestion
         ?int $uId = null,
         int $staleDays = 14,
         int $limit = self::MAX_LIMIT,
+        int $offset = 0,
         ?CarbonInterface $now = null,
     ): array {
         $now = $this->now($now);
         $staleDays = $this->staleDays($staleDays);
         $limit = $this->limit($limit);
-        $base = $this->basePayload('ingestion-preview', $uId, $staleDays, $limit, $now);
+        $offset = max(0, $offset);
+        $base = $this->basePayload('ingestion-preview', $uId, $staleDays, $limit, $now) + ['offset' => $offset];
 
         if ($schemaBlock = $this->schemaBlock()) {
             return $base + ['blocked_reason' => $schemaBlock, 'exit_code' => 1, 'rows' => []];
         }
 
-        $rows = $this->candidates($uId, $staleDays, $limit, $now);
+        $rows = $this->candidates($uId, $staleDays, $limit, $offset, $now);
 
         return $base + [
             'blocked_reason' => null,
@@ -67,18 +69,20 @@ final class ChannelRetirementIngestion
         ?int $uId = null,
         int $staleDays = 14,
         int $limit = self::MAX_LIMIT,
+        int $offset = 0,
         ?CarbonInterface $now = null,
     ): array {
         $now = $this->now($now);
         $staleDays = $this->staleDays($staleDays);
         $limit = $this->limit($limit);
-        $base = $this->basePayload('local-execute', $uId, $staleDays, $limit, $now);
+        $offset = max(0, $offset);
+        $base = $this->basePayload('local-execute', $uId, $staleDays, $limit, $now) + ['offset' => $offset];
 
         if ($schemaBlock = $this->schemaBlock()) {
             return $base + ['blocked_reason' => $schemaBlock, 'exit_code' => 1, 'retired' => [], 'skipped' => []];
         }
 
-        $rows = $this->candidates($uId, $staleDays, $limit, $now);
+        $rows = $this->candidates($uId, $staleDays, $limit, $offset, $now);
 
         if ($rows === []) {
             return $base + [
@@ -227,7 +231,7 @@ final class ChannelRetirementIngestion
      *
      * @return list<array{u_id: int, youtube_id: string, title: string, mtime: string|null, stime: string|null}>
      */
-    private function candidates(?int $uId, int $staleDays, int $limit, CarbonImmutable $now): array
+    private function candidates(?int $uId, int $staleDays, int $limit, int $offset, CarbonImmutable $now): array
     {
         $cutoff = $now->subDays($staleDays)->format('Y-m-d H:i:s');
         $query = DB::table('urt_channel')
@@ -250,6 +254,7 @@ final class ChannelRetirementIngestion
         return $query
             ->orderBy('mtime')
             ->orderBy('u_id')
+            ->skip($uId === null ? $offset : 0)
             ->limit($limit)
             ->get(['u_id', 'youtube_id', 'title', 'mtime', 'stime'])
             ->map(fn (object $row): array => [
