@@ -108,6 +108,16 @@ class AiPeriodRouteTest extends TestCase
         }
     }
 
+    public function test_ai_period_page_degrades_gracefully_for_calendar_invalid_dates(): void
+    {
+        $this->createTable();
+
+        foreach (['2026-13-45', '2026-02-30', '2026-00-10'] as $bad) {
+            $this->get('/ai/periods?from='.$bad.'&to=2026-05-23')->assertOk();
+            $this->get('/ai/periods?from=2026-05-22&to='.$bad)->assertOk();
+        }
+    }
+
     public function test_ai_period_page_derives_wrapped_legacy_topic_payloads(): void
     {
         $this->createTable();

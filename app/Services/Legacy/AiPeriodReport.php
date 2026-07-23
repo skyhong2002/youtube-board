@@ -98,7 +98,11 @@ class AiPeriodReport
 
     private function dateString(mixed $value, string $fallback): string
     {
-        return is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) ? $value : $fallback;
+        if (! is_string($value) || ! preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $parts)) {
+            return $fallback;
+        }
+
+        return checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1]) ? $value : $fallback;
     }
 
     /**
