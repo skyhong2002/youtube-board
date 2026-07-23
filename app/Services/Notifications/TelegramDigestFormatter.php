@@ -3,11 +3,13 @@
 namespace App\Services\Notifications;
 
 /**
- * Renders a normalized AI event digest into a Telegram message (HTML parse mode).
+ * Renders a single AI event into one Telegram post (HTML parse mode), modelled
+ * on the @hn_best_cht style: bold headline, a short news-brief paragraph, then a
+ * compact facet/footer line with a link back to the dashboard.
  *
  * Pure and side-effect free so the exact copy/format is unit-testable without a
- * bot token. The broadcaster is responsible for mapping report output into the
- * `$digest` shape documented on {@see format()}.
+ * bot token or LLM. The broadcaster maps report data + the LLM summary into the
+ * `$post` shape documented on {@see format()}.
  */
 class TelegramDigestFormatter
 {
@@ -16,82 +18,92 @@ class TelegramDigestFormatter
 
     /**
      * @param  array{
-     *     period: 'daily'|'hourly',
-     *     label: string,
-     *     url: string,
-     *     events: list<array{title: string, keywords: list<string>, people: list<string>, video_count: int, media_count: int}>
-     * }  $digest
+     *     title: string,
+     *     summary: string,
+     *     keywords?: list<string>,
+     *     people?: list<string>,
+     *     video_count?: int,
+     *     media_count?: int,
+     *     url?: string,
+     *     label?: string,
+     *     breaking?: bool
+     * }  $post
      */
-    public function format(array $digest, int $maxEvents): string
+    public function format(array $post): string
     {
-        $isDaily = ($digest['period'] ?? 'daily') === 'daily';
-        $heading = $isDaily ? '📊 YouTube 輿情整理・每日精華' : '⚡️ YouTube 輿情・即時重大事件';
-        $clock = $isDaily ? '🗓' : '🕚';
+        $title = trim((string) ($post['title'] ?? ''));
+        $title = $title !== '' ? $title : '未命名事件';
+        $prefix = ($post['breaking'] ?? false) ? '🔴 ' : '';
 
-        $lines = [
-            '<b>'.$this->e($heading).'</b>',
-            $clock.' '.$this->e((string) ($digest['label'] ?? '')),
-            '',
+        $blocks = [
+            '<b>'.$this->e($prefix.$title).'</b>',
         ];
 
-        $events = array_values($digest['events'] ?? []);
-        $shown = array_slice($events, 0, max(1, $maxEvents));
-
-        foreach ($shown as $index => $event) {
-            $lines[] = $this->renderEvent($index + 1, $event);
+        $summary = trim((string) ($post['summary'] ?? ''));
+        if ($summary !== '') {
+            $blocks[] = $this->e($summary);
         }
 
-        $remaining = count($events) - count($shown);
-        if ($remaining > 0) {
-            $lines[] = '';
-            $lines[] = '⋯ 另有 '.$remaining.' 則事件';
+        $facet = $this->facetLine($post);
+        if ($facet !== '') {
+            $blocks[] = $facet;
         }
 
-        $url = (string) ($digest['url'] ?? '');
-        if ($url !== '') {
-            $lines[] = '';
-            $lines[] = '🔗 <a href="'.$this->e($url).'">完整整理</a>';
-        }
+        $blocks[] = $this->footer($post);
 
-        return $this->fit(implode("\n", $lines), $url);
+        return $this->clamp(implode("\n\n", array_filter($blocks, static fn (string $b): bool => $b !== '')), $post);
     }
 
     /**
-     * @param  array{title: string, keywords: list<string>, people: list<string>, video_count: int, media_count: int}  $event
+     * @param  array<string, mixed>  $post
      */
-    private function renderEvent(int $rank, array $event): string
+    private function facetLine(array $post): string
     {
-        $title = trim((string) ($event['title'] ?? ''));
-        $header = '<b>'.$rank.'.</b> '.$this->e($title !== '' ? $title : '（未命名事件）');
-
-        $facets = [];
-
-        $keywords = $this->take($event['keywords'] ?? [], 3);
-        if ($keywords !== []) {
-            $facets[] = '🔑 '.$this->e(implode('、', $keywords));
-        }
-
-        $people = $this->take($event['people'] ?? [], 3);
-        if ($people !== []) {
-            $facets[] = '👤 '.$this->e(implode('、', $people));
-        }
+        $parts = [];
 
         $counts = [];
-        $videoCount = (int) ($event['video_count'] ?? 0);
-        if ($videoCount > 0) {
-            $counts[] = $videoCount.' 部影片';
+        $videos = (int) ($post['video_count'] ?? 0);
+        if ($videos > 0) {
+            $counts[] = $videos.' 部影片';
         }
-        $mediaCount = (int) ($event['media_count'] ?? 0);
-        if ($mediaCount > 0) {
-            $counts[] = $mediaCount.' 家媒體';
+        $media = (int) ($post['media_count'] ?? 0);
+        if ($media > 0) {
+            $counts[] = $media.' 家媒體';
         }
         if ($counts !== []) {
-            $facets[] = '🎬 '.$this->e(implode('・', $counts));
+            $parts[] = '🎬 '.$this->e(implode('・', $counts));
         }
 
-        return $facets === []
-            ? $header
-            : $header."\n".'   '.implode('　', $facets);
+        $keywords = $this->take($post['keywords'] ?? [], 4);
+        if ($keywords !== []) {
+            $parts[] = '🔑 '.$this->e(implode('・', $keywords));
+        }
+
+        $people = $this->take($post['people'] ?? [], 3);
+        if ($people !== []) {
+            $parts[] = '👤 '.$this->e(implode('、', $people));
+        }
+
+        return implode('　', $parts);
+    }
+
+    /**
+     * @param  array<string, mixed>  $post
+     */
+    private function footer(array $post): string
+    {
+        $url = trim((string) ($post['url'] ?? ''));
+        $label = trim((string) ($post['label'] ?? ''));
+
+        $link = $url !== ''
+            ? '🔗 <a href="'.$this->e($url).'">相關影片整理</a>'
+            : '';
+
+        if ($link !== '' && $label !== '') {
+            return $link.' · '.$this->e($label);
+        }
+
+        return $link !== '' ? $link : ($label !== '' ? '🕘 '.$this->e($label) : '');
     }
 
     /**
@@ -115,38 +127,33 @@ class TelegramDigestFormatter
     }
 
     /**
-     * Ensure the message stays within Telegram's length limit, dropping whole
-     * trailing lines (never mid-tag) and preserving the footer link.
+     * Keep the post within Telegram's limit by trimming the summary block only
+     * (never the headline or footer, never mid-tag).
+     *
+     * @param  array<string, mixed>  $post
      */
-    private function fit(string $message, string $url): string
+    private function clamp(string $message, array $post): string
     {
         if ($this->length($message) <= self::MAX_LENGTH) {
             return $message;
         }
 
-        $footer = $url !== '' ? "\n\n".'🔗 <a href="'.$this->e($url).'">完整整理</a>' : '';
-        $budget = self::MAX_LENGTH - $this->length($footer);
-
-        $lines = explode("\n", $message);
-        $kept = [];
-        foreach ($lines as $line) {
-            if ($url !== '' && str_contains($line, 'href="'.$this->e($url).'"')) {
-                continue; // re-appended as footer
-            }
-            $candidate = implode("\n", [...$kept, $line]);
-            if ($this->length($candidate) > $budget) {
-                break;
-            }
-            $kept[] = $line;
+        $summary = trim((string) ($post['summary'] ?? ''));
+        if ($summary === '') {
+            return mb_substr($message, 0, self::MAX_LENGTH, 'UTF-8');
         }
 
-        return rtrim(implode("\n", $kept))."\n".$footer;
+        $overflow = $this->length($message) - self::MAX_LENGTH;
+        $keep = max(0, $this->length($summary) - $overflow - 1);
+        $trimmed = rtrim(mb_substr($summary, 0, $keep, 'UTF-8')).'…';
+
+        return str_replace($this->e($summary), $this->e($trimmed), $message);
     }
 
     private function length(string $value): int
     {
-        // Telegram counts UTF-16 code units; approximate with mb character count,
-        // which is safely conservative for CJK + BMP emoji content.
+        // Telegram counts UTF-16 code units; mb character count is safely
+        // conservative for CJK + BMP emoji content.
         return mb_strlen($value, 'UTF-8');
     }
 

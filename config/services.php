@@ -39,11 +39,21 @@ return [
         'api_base_url' => rtrim((string) env('TELEGRAM_API_BASE_URL', 'https://api.telegram.org'), '/'),
         'dashboard_url' => rtrim((string) env('TELEGRAM_DASHBOARD_URL', env('APP_URL', 'https://youtube.observe.tw')), '/'),
         'timeout' => (int) env('TELEGRAM_TIMEOUT', 15),
-        // Cap events per message (Telegram hard limit is 4096 chars).
-        'max_events' => (int) env('TELEGRAM_DIGEST_MAX_EVENTS', 8),
-        // Hourly pushes fire only when an hour clears BOTH floors ("重大事件").
-        'hourly_min_events' => (int) env('TELEGRAM_HOURLY_MIN_EVENTS', 3),
+        // One event per message (hn_best_cht style). Caps posts per run.
+        'daily_max_posts' => (int) env('TELEGRAM_DAILY_MAX_POSTS', 5),
+        'hourly_max_posts' => (int) env('TELEGRAM_HOURLY_MAX_POSTS', 3),
+        // Hourly posts fire only when an event clears BOTH floors ("重大事件").
         'hourly_min_videos' => (int) env('TELEGRAM_HOURLY_MIN_VIDEOS', 8),
+        'hourly_min_media' => (int) env('TELEGRAM_HOURLY_MIN_MEDIA', 3),
+        // News-brief writer: reuses the prod direct OpenAI key by default but on
+        // the full gpt-5.4 model, via a path independent of the ingestion client.
+        'ai' => [
+            'base_url' => rtrim((string) env('TELEGRAM_OPENAI_BASE_URL', 'https://api.openai.com/v1'), '/'),
+            'api_key' => env('TELEGRAM_OPENAI_API_KEY', env('OPENAI_API_KEY')),
+            'model' => env('TELEGRAM_OPENAI_MODEL', 'gpt-5.4'),
+            'timeout' => (int) env('TELEGRAM_OPENAI_TIMEOUT', 60),
+            'max_output_tokens' => (int) env('TELEGRAM_OPENAI_MAX_TOKENS', 900),
+        ],
     ],
 
     'youtube' => [
