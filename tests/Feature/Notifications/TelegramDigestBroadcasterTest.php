@@ -22,6 +22,7 @@ class TelegramDigestBroadcasterTest extends TestCase
         config()->set('services.telegram.hourly_min_videos', 8);
         config()->set('services.telegram.daily_max_posts', 5);
         config()->set('services.telegram.hourly_max_posts', 3);
+        config()->set('services.telegram.dedup_store', 'array');
         config()->set('services.telegram.ai', [
             'base_url' => 'https://api.openai.test/v1',
             'api_key' => 'sk-test',

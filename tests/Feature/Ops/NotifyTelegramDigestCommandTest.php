@@ -15,6 +15,7 @@ class NotifyTelegramDigestCommandTest extends TestCase
         config()->set('services.telegram.bot_token', 'BOT');
         config()->set('services.telegram.channel_id', '@chan');
         config()->set('services.telegram.api_base_url', 'https://api.telegram.test');
+        config()->set('services.telegram.dedup_store', 'array');
         config()->set('services.telegram.ai', [
             'base_url' => 'https://api.openai.test/v1', 'api_key' => 'sk-test',
             'model' => 'gpt-5.4', 'timeout' => 30, 'max_output_tokens' => 900,

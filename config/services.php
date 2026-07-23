@@ -45,6 +45,9 @@ return [
         // Hourly posts fire only when an event clears BOTH floors ("重大事件").
         'hourly_min_videos' => (int) env('TELEGRAM_HOURLY_MIN_VIDEOS', 8),
         'hourly_min_media' => (int) env('TELEGRAM_HOURLY_MIN_MEDIA', 3),
+        // Dedup store must be SHARED across the web + scheduler containers (which
+        // have separate file caches), so it defaults to the database cache store.
+        'dedup_store' => env('TELEGRAM_DEDUP_STORE', 'database'),
         // News-brief writer: reuses the prod direct OpenAI key by default but on
         // the full gpt-5.4 model, via a path independent of the ingestion client.
         'ai' => [

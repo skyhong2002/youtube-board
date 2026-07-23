@@ -41,7 +41,7 @@ class TelegramDigestBroadcaster
         $fresh = [];
         $skippedSeen = 0;
         foreach ($events as $event) {
-            if (! $force && Cache::has($this->seenKey($period, $context['key'], $event['title']))) {
+            if (! $force && $this->alreadyPosted($this->seenKey($period, $context['key'], $event['title']))) {
                 $skippedSeen++;
 
                 continue;
@@ -60,7 +60,7 @@ class TelegramDigestBroadcaster
             $dryRun = $dryRun || $result['dry_run'];
 
             if ($result['sent']) {
-                Cache::put($this->seenKey($period, $context['key'], $post['title']), true, now()->addDays(3));
+                $this->markPosted($this->seenKey($period, $context['key'], $post['title']));
                 $posted++;
             }
         }
@@ -320,6 +320,36 @@ class TelegramDigestBroadcaster
     private function seenKey(string $period, string $contextKey, string $title): string
     {
         return 'tg:digest:'.$period.':'.$contextKey.':'.md5($title);
+    }
+
+    /**
+     * Dedup lives in a store SHARED by the web + scheduler containers (default:
+     * the database cache), so a post from one container is not re-sent by the
+     * other. A store failure fails open (allow the post) rather than crash.
+     */
+    private function alreadyPosted(string $key): bool
+    {
+        try {
+            return $this->dedupStore()->has($key);
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    private function markPosted(string $key): void
+    {
+        try {
+            $this->dedupStore()->put($key, true, now()->addDays(3));
+        } catch (\Throwable) {
+            // best-effort; a missed mark only risks a later duplicate, never a crash
+        }
+    }
+
+    private function dedupStore(): \Illuminate\Contracts\Cache\Repository
+    {
+        $store = (string) config('services.telegram.dedup_store', 'database');
+
+        return Cache::store($store !== '' ? $store : null);
     }
 
     private function dashboard(string $path): string
