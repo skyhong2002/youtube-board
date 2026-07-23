@@ -30,6 +30,22 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'telegram' => [
+        // Live pushes require enabled=true AND a bot token; otherwise the
+        // broadcaster stays in dry-run (formats + logs, sends nothing).
+        'enabled' => (bool) env('TELEGRAM_DIGEST_ENABLED', false),
+        'bot_token' => env('TELEGRAM_BOT_TOKEN'),
+        'channel_id' => env('TELEGRAM_CHANNEL_ID'),
+        'api_base_url' => rtrim((string) env('TELEGRAM_API_BASE_URL', 'https://api.telegram.org'), '/'),
+        'dashboard_url' => rtrim((string) env('TELEGRAM_DASHBOARD_URL', env('APP_URL', 'https://youtube.observe.tw')), '/'),
+        'timeout' => (int) env('TELEGRAM_TIMEOUT', 15),
+        // Cap events per message (Telegram hard limit is 4096 chars).
+        'max_events' => (int) env('TELEGRAM_DIGEST_MAX_EVENTS', 8),
+        // Hourly pushes fire only when an hour clears BOTH floors ("重大事件").
+        'hourly_min_events' => (int) env('TELEGRAM_HOURLY_MIN_EVENTS', 3),
+        'hourly_min_videos' => (int) env('TELEGRAM_HOURLY_MIN_VIDEOS', 8),
+    ],
+
     'youtube' => [
         'api_key' => env('YOUTUBE_API_KEY'),
         'api_keys' => env('YOUTUBE_API_KEYS'),
