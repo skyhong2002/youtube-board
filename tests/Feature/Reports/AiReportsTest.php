@@ -1184,6 +1184,23 @@ class AiReportsTest extends TestCase
         $response->assertDontSee('2026-05-24 17時');
     }
 
+    public function test_ai_hourly_page_degrades_gracefully_for_calendar_invalid_date(): void
+    {
+        $this->createAiHourTable();
+
+        $this->get('/ai/hours?date=2026-13-45')->assertOk();
+        $this->get('/ai/hours?date=2026-02-30')->assertOk();
+    }
+
+    public function test_ai_daily_page_degrades_gracefully_for_calendar_invalid_date(): void
+    {
+        $this->createAiDailyTables();
+
+        $this->get('/ai/days?date=2026-13-45')->assertOk();
+        $this->get('/ai/days/2026-13-45')->assertOk();
+        $this->get('/ai/days/2026-02-30')->assertOk();
+    }
+
     private function createAiHourTable(): void
     {
         Schema::dropIfExists('urt_ai_hour');

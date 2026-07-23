@@ -21,6 +21,16 @@ class AiDailyPromptRouteTest extends TestCase
         $response->assertSee('本機尚未匯入 `urt_channel_ai`');
     }
 
+    public function test_ai_daily_prompt_degrades_gracefully_for_calendar_invalid_date(): void
+    {
+        foreach (['urt_channel_ai', 'urt_channel', 'urt_count'] as $table) {
+            Schema::dropIfExists($table);
+        }
+
+        $this->get('/ai/days/2026-13-45/prompt')->assertOk();
+        $this->get('/ai/days/2026-02-30/all/prompt')->assertOk();
+    }
+
     public function test_ai_daily_prompt_preview_builds_ingestion_legacy_prompt(): void
     {
         $this->createTables();

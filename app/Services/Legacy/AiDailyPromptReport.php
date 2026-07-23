@@ -59,11 +59,17 @@ class AiDailyPromptReport
         }
     }
 
+    private function isCalendarDate(string $value): bool
+    {
+        return preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $parts) === 1
+            && checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1]);
+    }
+
     private function date(Request $request): ?string
     {
         $date = $request->route('date') ?? $request->query('date');
 
-        return is_string($date) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) ? $date : null;
+        return is_string($date) && $this->isCalendarDate($date) ? $date : null;
     }
 
     private function condition(mixed $value): string

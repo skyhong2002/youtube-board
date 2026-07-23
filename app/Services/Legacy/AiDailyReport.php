@@ -562,17 +562,24 @@ class AiDailyReport
         return is_string($latest) && $latest !== '' ? substr($latest, 0, 10) : null;
     }
 
+    private function isCalendarDate(string $value): bool
+    {
+        return preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $parts) === 1
+            && checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1]);
+    }
+
     private function routeDate(Request $request): ?string
     {
         $date = $request->route('date') ?? $request->query('date');
 
-        if (is_string($date) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        if (is_string($date) && $this->isCalendarDate($date)) {
             return $date;
         }
 
         $source = $request->path().' '.$request->getRequestUri().' '.$request->fullUrl();
 
         return preg_match('#(?:^|/)ai/days/(?P<date>\d{4}-\d{2}-\d{2})(?:/|$|\?)#', $source, $matches)
+            && $this->isCalendarDate($matches['date'])
             ? $matches['date']
             : null;
     }

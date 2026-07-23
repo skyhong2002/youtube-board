@@ -104,11 +104,17 @@ class AiHourlyReport
         return preg_match('/^[a-zA-Z0-9_-]{1,40}$/', $condition) ? $condition : 'all';
     }
 
+    private function isCalendarDate(string $value): bool
+    {
+        return preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $parts) === 1
+            && checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1]);
+    }
+
     private function date(Request $request, string $condition): ?string
     {
         $date = $request->query('date');
 
-        if (is_string($date) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        if (is_string($date) && $this->isCalendarDate($date)) {
             return $date;
         }
 
