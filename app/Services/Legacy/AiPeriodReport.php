@@ -68,7 +68,7 @@ class AiPeriodReport
     {
         $month = $request->query('month');
 
-        if (is_string($month) && preg_match('/^\d{4}-\d{2}$/', $month)) {
+        if (is_string($month) && preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month)) {
             $cursor = Carbon::parse($month.'-01', 'Asia/Taipei');
             $from = $cursor->firstOfMonth()->toDateString();
             $to = Carbon::parse($month.'-01', 'Asia/Taipei')->lastOfMonth()->toDateString();

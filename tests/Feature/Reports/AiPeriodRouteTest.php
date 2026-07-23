@@ -96,6 +96,18 @@ class AiPeriodRouteTest extends TestCase
         $response->assertSee('to=2026-05-31');
     }
 
+    public function test_ai_period_page_degrades_gracefully_for_out_of_range_month(): void
+    {
+        $this->createTable();
+
+        foreach (['2026-99', '2026-13', '2026-00'] as $month) {
+            $response = $this->get('/ai/periods?month='.$month);
+
+            $response->assertOk();
+            $response->assertDontSee($month.'月');
+        }
+    }
+
     public function test_ai_period_page_derives_wrapped_legacy_topic_payloads(): void
     {
         $this->createTable();
