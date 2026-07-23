@@ -1,0 +1,49 @@
+<?php
+
+namespace App\Services\Notifications;
+
+use Illuminate\Support\Facades\Http;
+
+/**
+ * Sends a formatted post to the configured Telegram channel.
+ *
+ * Fails safe to dry-run: unless `services.telegram.enabled` is true AND a bot
+ * token and channel id are configured, nothing is sent (the caller logs the
+ * rendered message instead). This keeps the feature inert until the operator
+ * explicitly turns it on.
+ */
+class TelegramClient
+{
+    /**
+     * @return array{sent: bool, dry_run: bool, ok: bool, error: string|null}
+     */
+    public function send(string $html): array
+    {
+        $config = (array) config('services.telegram', []);
+        $token = trim((string) ($config['bot_token'] ?? ''));
+        $channel = trim((string) ($config['channel_id'] ?? ''));
+
+        if (! ($config['enabled'] ?? false) || $token === '' || $channel === '') {
+            return ['sent' => false, 'dry_run' => true, 'ok' => false, 'error' => null];
+        }
+
+        $response = Http::baseUrl((string) ($config['api_base_url'] ?? 'https://api.telegram.org'))
+            ->timeout((int) ($config['timeout'] ?? 15))
+            ->asJson()
+            ->post('/bot'.$token.'/sendMessage', [
+                'chat_id' => $channel,
+                'text' => $html,
+                'parse_mode' => 'HTML',
+                'link_preview_options' => ['is_disabled' => true],
+            ]);
+
+        $ok = $response->successful() && (bool) data_get($response->json(), 'ok', false);
+
+        return [
+            'sent' => $ok,
+            'dry_run' => false,
+            'ok' => $ok,
+            'error' => $ok ? null : (string) data_get($response->json(), 'description', 'telegram sendMessage failed'),
+        ];
+    }
+}
