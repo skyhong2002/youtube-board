@@ -4,6 +4,7 @@ namespace App\Services\Legacy;
 
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class VideoDetailReport
@@ -248,8 +249,9 @@ class VideoDetailReport
         $timestamp = strtotime($publishedAt);
 
         if ($timestamp > 0) {
-            $hour = date('Y-m-d H:00:00', $timestamp);
-            $date = date('Y-m-d', $timestamp);
+            $moment = Carbon::createFromTimestamp($timestamp, 'Asia/Taipei');
+            $hour = $moment->format('Y-m-d H:00:00');
+            $date = $moment->format('Y-m-d');
             $hourly[$hour] = ($hourly[$hour] ?? 0) + 1;
             $daily[$date] = ($daily[$date] ?? 0) + 1;
         }

@@ -4,6 +4,7 @@ namespace App\Services\Legacy;
 
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -202,7 +203,7 @@ class AuthorCommentsReport
         $timestamp = strtotime($publishedAt);
 
         if ($timestamp > 0) {
-            $hour = date('H', $timestamp);
+            $hour = Carbon::createFromTimestamp($timestamp, 'Asia/Taipei')->format('H');
             $hourlyCounts[$hour] = ($hourlyCounts[$hour] ?? 0) + 1;
         }
 

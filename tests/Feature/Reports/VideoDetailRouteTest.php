@@ -41,6 +41,9 @@ class VideoDetailRouteTest extends TestCase
         $response->assertSee('第一則留言');
         $response->assertSee('回覆留言');
         $response->assertSee('2026-05-21');
+        // Comments published 12:00Z/12:30Z bucket into the Asia/Taipei hour (20:00),
+        // not the UTC hour (12:00). Locks the timezone-correct comment bucketing.
+        $response->assertSee('05-21 20');
         $response->assertDontSee('/maint/get_comment.php');
     }
 
