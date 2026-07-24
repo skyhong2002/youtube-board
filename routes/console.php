@@ -4346,10 +4346,12 @@ Artisan::command('notify:telegram:digest {--period=daily : daily or hourly} {--f
 if (config('services.telegram.enabled', false)) {
     Schedule::command('notify:telegram:digest --period=hourly')
         ->hourlyAt(25)
-        ->withoutOverlapping(15);
+        ->withoutOverlapping(15)
+        ->appendOutputTo(storage_path('logs/telegram-digest.log'));
 
     Schedule::command('notify:telegram:digest --period=daily')
         ->dailyAt('09:00')
         ->timezone('Asia/Taipei')
-        ->withoutOverlapping(15);
+        ->withoutOverlapping(15)
+        ->appendOutputTo(storage_path('logs/telegram-digest.log'));
 }
