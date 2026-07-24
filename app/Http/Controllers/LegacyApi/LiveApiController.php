@@ -52,7 +52,13 @@ class LiveApiController extends Controller
 
     public function csvLiveLine(Request $request): Response
     {
-        $videoId = trim((string) $request->query('videoId', 'quwqlazU-c8')) ?: 'quwqlazU-c8';
+        // The download filename must stay within the YouTube ID charset —
+        // anything else would malform the Content-Disposition header.
+        $videoId = preg_replace(
+            '/[^A-Za-z0-9_-]/',
+            '',
+            trim((string) $request->query('videoId', 'quwqlazU-c8'))
+        ) ?: 'quwqlazU-c8';
 
         return response($this->report->liveLineCsv($request), 200)
             ->header('Content-Type', 'text/csv; charset=UTF-8')

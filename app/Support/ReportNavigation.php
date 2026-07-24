@@ -268,7 +268,7 @@ class ReportNavigation
                 self::item('文字雲', 'tags.cloud', $routeName === 'tags.cloud', ['tagId' => $tagId] + $query),
                 self::item('逐日', 'tags.days', $routeName === 'tags.days', ['tagId' => $tagId] + $query),
                 self::item('趨勢', 'tags.trends', $routeName === 'tags.trends', ['tagId' => $tagId] + $query),
-                self::item('比較', 'tags.compare', $routeName === 'tags.compare', $query),
+                self::item('比較', 'tags.compare', $routeName === 'tags.compare', ['tagid' => $tagId] + $query),
             ];
         }
 

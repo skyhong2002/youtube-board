@@ -524,8 +524,14 @@ class LegacyLiveApiTest extends TestCase
         $csv = $this->get('/api/csv_live_line.php?videoId=spark-live&limit=1');
         $csv->assertOk();
         $csv->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+        $csv->assertHeader('Content-Disposition', 'attachment;filename=spark-live.csv');
         $this->assertStringContainsString('"2026-05-24 10:00:00",500', $csv->getContent());
         $this->assertStringContainsString('"2026-05-24 11:00:00",900', $csv->getContent());
+
+        // The download filename must not carry header-unsafe characters.
+        $hostile = $this->get('/api/csv_live_line.php?videoId=abc%3Bfilename%3Devil&limit=1');
+        $hostile->assertOk();
+        $hostile->assertHeader('Content-Disposition', 'attachment;filename=abcfilenameevil.csv');
 
         Carbon::setTestNow();
     }

@@ -222,6 +222,8 @@ class TagCategoryReportsTest extends TestCase
         $response->assertDontSee('Excluded Video');
         $response->assertDontSee('Old Video');
         $response->assertDontSee('Low View Video');
+        // The 比較 section link must carry the current tag into the comparison.
+        $response->assertSee('/tags/compare?tagid=1');
 
         Carbon::setTestNow();
     }
