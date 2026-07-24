@@ -161,6 +161,8 @@ class TelegramDigestBroadcasterTest extends TestCase
         $this->assertSame(1, $first['posted']);
         $this->assertSame(0, $second['posted']);
         $this->assertSame(1, $second['skipped_seen']);
+        // A live no-op is not a dry run — the summary must say so.
+        $this->assertFalse($second['dry_run']);
     }
 
     public function test_dry_run_when_disabled_posts_nothing_and_does_not_mark_seen(): void

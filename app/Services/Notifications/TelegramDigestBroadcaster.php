@@ -33,7 +33,7 @@ class TelegramDigestBroadcaster
         $context = $period === 'hourly' ? $this->latestHourly() : $this->latestDaily();
 
         if ($context === null) {
-            return $this->summary($period, 0, 0, 0, 0, true);
+            return $this->summary($period, 0, 0, 0, 0, ! $this->telegram->isLive());
         }
 
         [$events, $considered, $eligible] = $this->select($period, $context['events']);
@@ -50,7 +50,7 @@ class TelegramDigestBroadcaster
         }
 
         if ($fresh === []) {
-            return $this->summary($period, $considered, $eligible, 0, $skippedSeen, true);
+            return $this->summary($period, $considered, $eligible, 0, $skippedSeen, ! $this->telegram->isLive());
         }
 
         $posted = 0;

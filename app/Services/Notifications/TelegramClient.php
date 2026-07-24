@@ -15,6 +15,18 @@ use Illuminate\Support\Facades\Http;
 class TelegramClient
 {
     /**
+     * True when a real send would happen (enabled with bot token + channel).
+     */
+    public function isLive(): bool
+    {
+        $config = (array) config('services.telegram', []);
+
+        return (bool) ($config['enabled'] ?? false)
+            && trim((string) ($config['bot_token'] ?? '')) !== ''
+            && trim((string) ($config['channel_id'] ?? '')) !== '';
+    }
+
+    /**
      * @return array{sent: bool, dry_run: bool, ok: bool, error: string|null}
      */
     public function send(string $html): array
