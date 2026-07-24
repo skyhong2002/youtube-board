@@ -87,6 +87,29 @@ class VideoDetailRouteTest extends TestCase
             ]));
     }
 
+    public function test_video_detail_treats_statistics_history_as_local_data(): void
+    {
+        $this->createTables();
+
+        // Only the monthly statistics history exists — no urt_video metadata row.
+        DB::table('urt_video_log')->insert([
+            'pk' => 1,
+            'ctime' => '2026-05-21 00:00:00',
+            'videoId' => 'history-only',
+            'themonth' => '2026-05-01',
+            'thedata' => json_encode([
+                '2026-05-20' => ['view' => 900, 'like' => 20, 'comment' => 1],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response = $this->get('/videos/history-only');
+
+        $response->assertOk();
+        $response->assertSee('本機有其他影片相關資料');
+        $response->assertDontSee('找不到這支影片的本機 legacy 資料');
+        $response->assertSee('影片統計歷史');
+    }
+
     public function test_video_analytics_counts_reflect_totals_not_the_display_limit_when_aggregates_missing(): void
     {
         $this->createTables();

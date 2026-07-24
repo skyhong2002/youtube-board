@@ -40,7 +40,7 @@ class VideoDetailReport
 
             return [
                 'available' => true,
-                'data_available' => $video !== null || $live['log_rows'] > 0 || $comment !== null,
+                'data_available' => $video !== null || $live['log_rows'] > 0 || $history['log_rows'] > 0 || $comment !== null,
                 'video' => $video ? $this->video($video, $duration) : null,
                 'video_id' => $videoId,
                 'live' => $live,
