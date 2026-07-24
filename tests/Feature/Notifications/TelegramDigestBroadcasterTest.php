@@ -165,6 +165,106 @@ class TelegramDigestBroadcasterTest extends TestCase
         $this->assertFalse($second['dry_run']);
     }
 
+    public function test_daily_selection_ignores_week_and_period_rows(): void
+    {
+        $this->createDailyTable();
+        $this->createVideoTable();
+
+        DB::table('urt_ai_date')->insert([
+            [
+                'pk' => 1, 'date_from' => '2026-05-23 00:00:00', 'date_to' => '2026-05-23 23:59:59',
+                'condition_type' => 'all', 'data_type' => 'oneday',
+                'result_json' => json_encode([['標題' => '毒駕事件', 'videoId' => ['v1']]], JSON_UNESCAPED_UNICODE),
+            ],
+            [
+                // Newer aggregate row that must NOT be published as the daily digest.
+                'pk' => 2, 'date_from' => '2026-05-24 00:00:00', 'date_to' => '2026-05-30 23:59:59',
+                'condition_type' => 'all', 'data_type' => 'week',
+                'result_json' => json_encode([['標題' => '週報事件', 'videoId' => ['v1']]], JSON_UNESCAPED_UNICODE),
+            ],
+        ]);
+
+        $result = app(TelegramDigestBroadcaster::class)->run('daily');
+
+        $this->assertSame(1, $result['posted']);
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'sendMessage') && str_contains($r['text'], '毒駕事件'));
+        Http::assertNotSent(fn ($r) => str_contains($r->url(), 'sendMessage') && str_contains($r['text'], '週報事件'));
+    }
+
+    public function test_duplicate_titles_within_one_batch_post_once(): void
+    {
+        $this->createDailyTable();
+        $this->createVideoTable();
+        DB::table('urt_ai_date')->insert([
+            'pk' => 1, 'date_from' => '2026-05-24 00:00:00', 'date_to' => '2026-05-24 23:59:59',
+            'condition_type' => 'all', 'data_type' => 'oneday',
+            'result_json' => json_encode([
+                ['標題' => '毒駕事件', 'videoId' => ['v1', 'v2']],
+                ['標題' => '毒駕事件', 'videoId' => ['v1']],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $result = app(TelegramDigestBroadcaster::class)->run('daily');
+
+        $this->assertSame(1, $result['posted']);
+        $this->assertSame(1, $result['skipped_seen']);
+    }
+
+    public function test_zero_post_cap_disables_the_period(): void
+    {
+        config()->set('services.telegram.daily_max_posts', 0);
+        $this->createDailyTable();
+        $this->createVideoTable();
+        DB::table('urt_ai_date')->insert([
+            'pk' => 1, 'date_from' => '2026-05-24 00:00:00', 'date_to' => '2026-05-24 23:59:59',
+            'condition_type' => 'all', 'data_type' => 'oneday',
+            'result_json' => json_encode([['標題' => '毒駕事件', 'videoId' => ['v1']]], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $result = app(TelegramDigestBroadcaster::class)->run('daily');
+
+        $this->assertSame(0, $result['posted']);
+        Http::assertNotSent(fn ($r) => str_contains($r->url(), 'sendMessage'));
+    }
+
+    public function test_a_send_failure_does_not_abort_the_rest_of_the_batch(): void
+    {
+        $this->createDailyTable();
+        $this->createVideoTable();
+        DB::table('urt_ai_date')->insert([
+            'pk' => 1, 'date_from' => '2026-05-24 00:00:00', 'date_to' => '2026-05-24 23:59:59',
+            'condition_type' => 'all', 'data_type' => 'oneday',
+            'result_json' => json_encode([
+                ['標題' => '毒駕事件', 'videoId' => ['v1', 'v2']],
+                ['標題' => '颱風動態', 'videoId' => ['v1']],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $calls = 0;
+        Http::fake([
+            'api.openai.test/*' => Http::response([
+                'choices' => [['message' => ['content' => json_encode(['items' => [
+                    ['title' => '毒駕事件', 'summary' => '摘要一'],
+                    ['title' => '颱風動態', 'summary' => '摘要二'],
+                ]], JSON_UNESCAPED_UNICODE)]]],
+            ]),
+            'api.telegram.test/*' => function () use (&$calls) {
+                $calls++;
+                if ($calls === 1) {
+                    throw new \Illuminate\Http\Client\ConnectionException('timeout');
+                }
+
+                return Http::response(['ok' => true, 'result' => ['message_id' => 1]]);
+            },
+        ]);
+
+        $result = app(TelegramDigestBroadcaster::class)->run('daily');
+
+        // First send times out; the second event must still be attempted and posted.
+        $this->assertSame(1, $result['posted']);
+        $this->assertSame(2, $calls);
+    }
+
     public function test_dry_run_when_disabled_posts_nothing_and_does_not_mark_seen(): void
     {
         config()->set('services.telegram.enabled', false);

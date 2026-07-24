@@ -39,15 +39,26 @@ class TelegramClient
             return ['sent' => false, 'dry_run' => true, 'ok' => false, 'error' => null];
         }
 
-        $response = Http::baseUrl((string) ($config['api_base_url'] ?? 'https://api.telegram.org'))
-            ->timeout((int) ($config['timeout'] ?? 15))
-            ->asJson()
-            ->post('/bot'.$token.'/sendMessage', [
-                'chat_id' => $channel,
-                'text' => $html,
-                'parse_mode' => 'HTML',
-                'link_preview_options' => ['is_disabled' => true],
-            ]);
+        try {
+            $response = Http::baseUrl((string) ($config['api_base_url'] ?? 'https://api.telegram.org'))
+                ->timeout((int) ($config['timeout'] ?? 15))
+                ->asJson()
+                ->post('/bot'.$token.'/sendMessage', [
+                    'chat_id' => $channel,
+                    'text' => $html,
+                    'parse_mode' => 'HTML',
+                    'link_preview_options' => ['is_disabled' => true],
+                ]);
+        } catch (\Throwable $exception) {
+            // A timeout on one post must not abort the rest of the digest batch;
+            // the unmarked post is retried naturally on the next scheduled run.
+            return [
+                'sent' => false,
+                'dry_run' => false,
+                'ok' => false,
+                'error' => 'telegram send failed: '.$exception::class,
+            ];
+        }
 
         $ok = $response->successful() && (bool) data_get($response->json(), 'ok', false);
 

@@ -42,9 +42,10 @@ return [
         // One event per message (hn_best_cht style). Caps posts per run.
         'daily_max_posts' => (int) env('TELEGRAM_DAILY_MAX_POSTS', 5),
         'hourly_max_posts' => (int) env('TELEGRAM_HOURLY_MAX_POSTS', 3),
-        // Hourly posts fire only when an event clears BOTH floors ("重大事件").
+        // Hourly posts fire only for events clearing the video floor ("重大事件").
+        // No media floor: hourly AI rows structurally omit 媒體事件, so a media
+        // requirement would silence hourly posts entirely.
         'hourly_min_videos' => (int) env('TELEGRAM_HOURLY_MIN_VIDEOS', 8),
-        'hourly_min_media' => (int) env('TELEGRAM_HOURLY_MIN_MEDIA', 3),
         // Dedup store must be SHARED across the web + scheduler containers (which
         // have separate file caches), so it defaults to the database cache store.
         'dedup_store' => env('TELEGRAM_DEDUP_STORE', 'database'),

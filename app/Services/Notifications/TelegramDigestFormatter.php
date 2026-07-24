@@ -143,18 +143,29 @@ class TelegramDigestFormatter
             return mb_substr($message, 0, self::MAX_LENGTH, 'UTF-8');
         }
 
-        $overflow = $this->length($message) - self::MAX_LENGTH;
-        $keep = max(0, $this->length($summary) - $overflow - 1);
-        $trimmed = rtrim(mb_substr($summary, 0, $keep, 'UTF-8')).'…';
+        // Trim in character steps but measure in UTF-16 units: a character can
+        // be two units, so cutting `overflow` characters always over-trims and
+        // the loop converges; the keep=0 guard still emits a fitted message.
+        $keep = max(0, mb_strlen($summary, 'UTF-8') - 1);
+        while (true) {
+            $trimmed = rtrim(mb_substr($summary, 0, $keep, 'UTF-8')).'…';
+            $candidate = str_replace($this->e($summary), $this->e($trimmed), $message);
+            $overflow = $this->length($candidate) - self::MAX_LENGTH;
 
-        return str_replace($this->e($summary), $this->e($trimmed), $message);
+            if ($overflow <= 0 || $keep === 0) {
+                return $candidate;
+            }
+
+            $keep = max(0, $keep - max(1, $overflow));
+        }
     }
 
     private function length(string $value): int
     {
-        // Telegram counts UTF-16 code units; mb character count is safely
-        // conservative for CJK + BMP emoji content.
-        return mb_strlen($value, 'UTF-8');
+        // Telegram counts UTF-16 code units. Non-BMP characters (e.g. 📊) are
+        // two units but a single mb character, so mb_strlen undercounts near
+        // the limit; count real UTF-16 units instead.
+        return intdiv(strlen(mb_convert_encoding($value, 'UTF-16LE', 'UTF-8')), 2);
     }
 
     private function e(string $value): string

@@ -67,15 +67,32 @@ class TelegramDigestFormatterTest extends TestCase
         $this->assertStringNotContainsString('<live>', $message);
     }
 
+    private function utf16Length(string $value): int
+    {
+        return intdiv(strlen(mb_convert_encoding($value, 'UTF-16LE', 'UTF-8')), 2);
+    }
+
     public function test_long_summary_is_trimmed_under_the_limit(): void
     {
         $message = (new TelegramDigestFormatter)->format($this->post([
             'summary' => str_repeat('長句子。', 2000),
         ]));
 
-        $this->assertLessThanOrEqual(TelegramDigestFormatter::MAX_LENGTH, mb_strlen($message, 'UTF-8'));
+        $this->assertLessThanOrEqual(TelegramDigestFormatter::MAX_LENGTH, $this->utf16Length($message));
         $this->assertStringContainsString('<b>毒駕致死案引發修法討論</b>', $message);
         $this->assertStringContainsString('相關影片整理', $message);
         $this->assertStringContainsString('…', $message);
+    }
+
+    public function test_limit_is_enforced_in_utf16_units_for_non_bmp_content(): void
+    {
+        // 📊 is outside the BMP: one mb character but TWO UTF-16 code units, so
+        // a character-based count undercounts by half for this content.
+        $message = (new TelegramDigestFormatter)->format($this->post([
+            'summary' => str_repeat('📊', 4000),
+        ]));
+
+        $this->assertLessThanOrEqual(TelegramDigestFormatter::MAX_LENGTH, $this->utf16Length($message));
+        $this->assertStringContainsString('相關影片整理', $message);
     }
 }

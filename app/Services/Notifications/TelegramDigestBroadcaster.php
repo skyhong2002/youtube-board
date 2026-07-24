@@ -40,12 +40,19 @@ class TelegramDigestBroadcaster
 
         $fresh = [];
         $skippedSeen = 0;
+        $batchSeen = [];
         foreach ($events as $event) {
-            if (! $force && $this->alreadyPosted($this->seenKey($period, $context['key'], $event['title']))) {
+            $key = $this->seenKey($period, $context['key'], $event['title']);
+
+            // Guard against duplicate titles within one batch too — the cache
+            // is only marked after a successful send, so two same-titled events
+            // would otherwise both pass the freshness check.
+            if (isset($batchSeen[$key]) || (! $force && $this->alreadyPosted($key))) {
                 $skippedSeen++;
 
                 continue;
             }
+            $batchSeen[$key] = true;
             $fresh[] = $event;
         }
 
@@ -112,8 +119,9 @@ class TelegramDigestBroadcaster
         usort($events, static fn (array $a, array $b): int => ($b['video_count'] <=> $a['video_count'])
             ?: ($b['media_count'] <=> $a['media_count']));
 
+        // A non-positive cap disables posting for the period entirely.
         $cap = (int) config('services.telegram.'.($period === 'hourly' ? 'hourly_max_posts' : 'daily_max_posts'), 5);
-        $events = array_slice($events, 0, max(1, $cap));
+        $events = array_slice($events, 0, max(0, $cap));
 
         return [$events, $considered, count($events)];
     }
@@ -165,6 +173,9 @@ class TelegramDigestBroadcaster
         try {
             $row = DB::table('urt_ai_date')
                 ->whereNull('del_flag')
+                // urt_ai_date also stores week/period aggregates; the daily
+                // digest must only ever publish a daily-shaped row.
+                ->whereIn('data_type', ['oneday', 'todate'])
                 ->where(function ($q): void {
                     $q->whereNull('condition_type')->orWhere('condition_type', 'all');
                 })
