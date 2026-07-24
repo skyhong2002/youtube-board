@@ -105,6 +105,19 @@ class LiveCurrentReport
                 $countRow = $channelTagsById->get($liveRow->u_id);
                 $trend = $this->trendValues($logRow->log_json ?? null);
 
+                // Every row here is actively live (no end time, positive viewers,
+                // polled within the hour). A stream whose same-day log row has not
+                // been written yet must not vanish behind the today_peak filter:
+                // fall back from the stored aggregate to the log history, then to
+                // the currently observed viewers (a true floor for today's peak).
+                $todayPeak = $logRow?->max_current !== null ? (int) $logRow->max_current : 0;
+                if ($todayPeak <= 0) {
+                    $todayPeak = $this->peakFromLog($logRow->log_json ?? null);
+                }
+                if ($todayPeak <= 0) {
+                    $todayPeak = (int) $liveRow->concurrentViewers;
+                }
+
                 return [
                     'rank' => $index + 1,
                     'video_id' => $liveRow->videoId,
@@ -114,7 +127,7 @@ class LiveCurrentReport
                     'published_at' => $displayRow->publishedAt ?? $liveRow->publishedAt,
                     'title' => $displayRow->title ?? $liveRow->videoId,
                     'current_viewers' => (int) $liveRow->concurrentViewers,
-                    'today_peak' => $logRow?->max_current !== null ? (int) $logRow->max_current : null,
+                    'today_peak' => $todayPeak > 0 ? $todayPeak : null,
                     'all_time_peak' => $liveRow->max_current !== null ? (int) $liveRow->max_current : null,
                     'tags' => $this->tagFilter->visibleTags($countRow->tags ?? '', $tagNames),
                     'trend_values' => $trend,
@@ -125,6 +138,23 @@ class LiveCurrentReport
             ->filter(fn (array $row): bool => ($row['today_peak'] ?? 0) > 0)
             ->values()
             ->all();
+    }
+
+    private function peakFromLog(?string $json): int
+    {
+        if (! is_string($json) || $json === '') {
+            return 0;
+        }
+
+        $decoded = json_decode($json, true);
+
+        if (! is_array($decoded) || $decoded === []) {
+            return 0;
+        }
+
+        return (int) collect($decoded)
+            ->map(fn ($value): int => (int) $value)
+            ->max();
     }
 
     /**

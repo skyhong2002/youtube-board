@@ -89,6 +89,46 @@ class LiveCurrentRouteTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_live_current_page_keeps_active_stream_without_a_same_day_log_row(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        $this->createLegacyLiveTables();
+
+        DB::table('urt_tag')->insert(['tag_id' => 1, 'tag_name' => '社論']);
+        DB::table('urt_count')->insert(['u_id' => 10, 'tags' => '[1]']);
+        // Newly discovered stream: actively live with viewers, but polling has
+        // not written today's urt_video_live_log row yet.
+        DB::table('urt_video_live')->insert([
+            'videoId' => 'fresh99',
+            'u_id' => 10,
+            'publishedAt' => '2026-05-24 17:40:00',
+            'actualStartTime' => '2026-05-24 17:45:00',
+            'scheduledStartTime' => null,
+            'actualEndTime' => null,
+            'concurrentViewers' => 500,
+            'mtime' => '2026-05-24 17:55:00',
+            'max_current' => null,
+        ]);
+        DB::table('urt_show_video_live')->insert([
+            'pk_live' => 1,
+            'videoId' => 'fresh99',
+            'u_id' => 10,
+            'publishedAt' => '2026-05-24 17:40:00',
+            'channelTitle' => 'Fresh Channel',
+            'title' => 'Fresh Live Title',
+            'thumbnails' => 'https://example.test/fresh.jpg',
+        ]);
+
+        $response = $this->get('/live/current?or=1');
+
+        $response->assertOk();
+        $response->assertSee('Fresh Channel');
+        $response->assertSee('Fresh Live Title');
+        $response->assertSee('500');
+
+        Carbon::setTestNow();
+    }
+
     private function createLegacyLiveTables(): void
     {
         Schema::create('urt_tag', function ($table): void {
