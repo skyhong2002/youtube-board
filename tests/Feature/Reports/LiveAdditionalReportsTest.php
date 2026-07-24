@@ -147,6 +147,28 @@ class LiveAdditionalReportsTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_live_day_page_derives_peak_from_log_when_aggregate_is_missing(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));
+        $this->createLegacyLiveTables();
+        $this->seedBaseRows('day123', 10);
+        DB::table('urt_video_live_log')->insert([
+            'videoId' => 'day123',
+            'u_id' => 10,
+            'the_date' => '2026-05-23',
+            'max_current' => null,
+            'log_json' => json_encode(['12:00' => 300, '12:30' => 654]),
+        ]);
+
+        $response = $this->get('/live/days/2026-05-23?or=1');
+
+        $response->assertOk();
+        $response->assertSee('Example Live Title');
+        $response->assertSee('654');
+
+        Carbon::setTestNow();
+    }
+
     public function test_live_daily_trend_page_renders_group_series_and_summary(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-24 18:00:00', 'Asia/Taipei'));

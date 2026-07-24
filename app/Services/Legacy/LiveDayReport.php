@@ -126,6 +126,13 @@ class LiveDayReport
             $videoId = (string) $log->videoId;
             $maxCurrent = (int) ($log->max_current ?? 0);
 
+            // Legacy-imported rows may carry a null/zero aggregate while the
+            // log itself holds real viewer history; derive the peak so the
+            // stream is ranked instead of silently dropped by the > 0 filter.
+            if ($maxCurrent <= 0) {
+                $maxCurrent = $this->peakFromLog($log->log_json);
+            }
+
             if (! isset($byVideo[$videoId]) || $maxCurrent > $byVideo[$videoId]['max_current']) {
                 $byVideo[$videoId] = [
                     'video_id' => $videoId,
@@ -177,6 +184,23 @@ class LiveDayReport
                 return $row;
             })
             ->all();
+    }
+
+    private function peakFromLog(?string $json): int
+    {
+        if (! is_string($json) || $json === '') {
+            return 0;
+        }
+
+        $decoded = json_decode($json, true);
+
+        if (! is_array($decoded) || $decoded === []) {
+            return 0;
+        }
+
+        return (int) collect($decoded)
+            ->map(fn ($value): int => (int) $value)
+            ->max();
     }
 
     /**
