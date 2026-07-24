@@ -4344,14 +4344,22 @@ Artisan::command('notify:telegram:digest {--period=daily : daily or hourly} {--f
 // Scheduled only when the channel push is explicitly enabled, so the digest
 // never spends AI quota while disabled. Manual runs remain available anytime.
 if (config('services.telegram.enabled', false)) {
+    // The production scheduler is a `while true; schedule:run; sleep 60` loop,
+    // so each cycle drifts by the previous run's duration and exact-minute
+    // schedules (hourlyAt/dailyAt) silently skip when their minute falls in a
+    // gap. Run the digest frequently instead: posted events dedup to no-ops, so
+    // a missed minute only delays a post by one interval instead of losing it.
     Schedule::command('notify:telegram:digest --period=hourly')
-        ->hourlyAt(25)
+        ->everyTenMinutes()
         ->withoutOverlapping(15)
+        ->runInBackground()
         ->appendOutputTo(storage_path('logs/telegram-digest.log'));
 
     Schedule::command('notify:telegram:digest --period=daily')
-        ->dailyAt('09:00')
+        ->everyThirtyMinutes()
         ->timezone('Asia/Taipei')
+        ->between('9:00', '21:00')
         ->withoutOverlapping(15)
+        ->runInBackground()
         ->appendOutputTo(storage_path('logs/telegram-digest.log'));
 }
