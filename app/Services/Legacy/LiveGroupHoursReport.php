@@ -72,11 +72,17 @@ class LiveGroupHoursReport
         }
     }
 
+    private function isCalendarDate(string $value): bool
+    {
+        return preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $parts) === 1
+            && checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1]);
+    }
+
     private function requestedDate(Request $request): string
     {
         $requested = (string) $request->query('date', '');
 
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $requested)) {
+        if ($this->isCalendarDate($requested)) {
             return $requested;
         }
 
@@ -90,7 +96,7 @@ class LiveGroupHoursReport
     {
         $requested = (string) $request->query('date', '');
 
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $requested)) {
+        if ($this->isCalendarDate($requested)) {
             return $requested;
         }
 

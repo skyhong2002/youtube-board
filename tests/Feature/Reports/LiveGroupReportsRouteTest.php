@@ -76,6 +76,14 @@ class LiveGroupReportsRouteTest extends TestCase
             ]));
     }
 
+    public function test_live_group_hours_page_degrades_gracefully_for_calendar_invalid_date(): void
+    {
+        $this->createLiveTagCacheTable();
+
+        $this->get('/live/groups/position/hours?date=2026-13-45')->assertOk();
+        $this->get('/live/groups/position/hours?date=2026-02-30')->assertOk();
+    }
+
     private function createLiveTagCacheTable(): void
     {
         Schema::dropIfExists('urt_show_live_tag_date');

@@ -116,14 +116,20 @@ class MayorPersonDailyReport
         return array_key_exists($type, self::TYPES) ? $type : 'tags_views';
     }
 
+    private function isCalendarDate(string $value): bool
+    {
+        return preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $parts) === 1
+            && checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1]);
+    }
+
     private function date(Request $request, ?string $routeDate, string $cityKey, string $person, string $type): string
     {
-        if (is_string($routeDate) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $routeDate)) {
+        if (is_string($routeDate) && $this->isCalendarDate($routeDate)) {
             return $routeDate;
         }
 
         $queryDate = $request->query('date');
-        if (is_string($queryDate) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $queryDate)) {
+        if (is_string($queryDate) && $this->isCalendarDate($queryDate)) {
             return $queryDate;
         }
 

@@ -58,6 +58,14 @@ class ChannelPromptRouteTest extends TestCase
         $response->assertDontSee('/redir/channel_ai.php');
     }
 
+    public function test_channel_prompt_page_degrades_gracefully_for_calendar_invalid_date(): void
+    {
+        $this->createTables();
+
+        $this->get('/channels/10/prompt?date=2026-13-45')->assertOk();
+        $this->get('/channels/10/prompt?date=2026-02-30')->assertOk();
+    }
+
     private function createTables(): void
     {
         foreach (['urt_video', 'urt_channel'] as $table) {

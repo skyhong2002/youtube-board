@@ -81,6 +81,14 @@ class MayorPersonDailyRouteTest extends TestCase
         $response->assertDontSee('run-history', false);
     }
 
+    public function test_mayor_person_daily_page_degrades_gracefully_for_calendar_invalid_date(): void
+    {
+        $this->createTables();
+
+        $this->get('/mayor/cities/taipei/people/%E8%94%A3%E8%90%AC%E5%AE%89/days/2026-13-45')->assertOk();
+        $this->get('/mayor/cities/taipei/people/%E8%94%A3%E8%90%AC%E5%AE%89/days/2026-02-30')->assertOk();
+    }
+
     private function createTables(): void
     {
         foreach (['urt_mayor_person_ai', 'urt_show_video_tag_date', 'urt_show_tag_date', 'urt_video', 'urt_tag'] as $table) {

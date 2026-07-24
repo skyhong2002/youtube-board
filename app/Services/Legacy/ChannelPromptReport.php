@@ -96,13 +96,15 @@ class ChannelPromptReport
         return is_string($date) ? substr($date, 0, 10) : now('Asia/Taipei')->toDateString();
     }
 
+    private function isCalendarDate(string $value): bool
+    {
+        return preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $parts) === 1
+            && checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1]);
+    }
+
     private function date(string $date, string $fallback): string
     {
-        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
-            return $fallback;
-        }
-
-        return $date;
+        return $this->isCalendarDate($date) ? $date : $fallback;
     }
 
     /**
