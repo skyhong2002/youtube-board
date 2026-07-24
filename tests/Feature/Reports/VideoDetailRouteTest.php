@@ -87,6 +87,38 @@ class VideoDetailRouteTest extends TestCase
             ]));
     }
 
+    public function test_video_analytics_counts_reflect_totals_not_the_display_limit_when_aggregates_missing(): void
+    {
+        $this->createTables();
+        $this->insertVideoFixture();
+
+        // Legacy row without stored aggregates: 5 comments from 3 authors.
+        DB::table('urt_comment')->where('videoId', 'video-a')->update([
+            'comments_count' => null,
+            'authors_count' => null,
+            'authors_json' => json_encode([
+                'author-a' => ['DisplayName' => 'Alice'],
+                'author-b' => ['DisplayName' => 'Bob'],
+                'author-c' => ['DisplayName' => 'Carol'],
+            ], JSON_UNESCAPED_UNICODE),
+            'comments_json' => json_encode([
+                'c1' => ['publishedAt' => '2026-05-21T12:00:00Z', 'authorChannelId' => 'author-a', 'textDisplay' => 'a1', 'likeCount' => 5],
+                'c2' => ['publishedAt' => '2026-05-21T12:01:00Z', 'authorChannelId' => 'author-a', 'textDisplay' => 'a2', 'likeCount' => 4],
+                'c3' => ['publishedAt' => '2026-05-21T12:02:00Z', 'authorChannelId' => 'author-b', 'textDisplay' => 'b1', 'likeCount' => 3],
+                'c4' => ['publishedAt' => '2026-05-21T12:03:00Z', 'authorChannelId' => 'author-b', 'textDisplay' => 'b2', 'likeCount' => 2],
+                'c5' => ['publishedAt' => '2026-05-21T12:04:00Z', 'authorChannelId' => 'author-c', 'textDisplay' => 'c1', 'likeCount' => 1],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        // limit=2 truncates the displayed lists, but the fallback counts must
+        // reflect the true totals (5 comments / 3 authors), not the limit.
+        $response = $this->get('/videos/video-a/analytics?limit=2');
+
+        $response->assertOk();
+        $response->assertSee('留言 5');
+        $response->assertSee('留言者 3');
+    }
+
     private function insertVideoFixture(): void
     {
         DB::table('urt_video')->insert([

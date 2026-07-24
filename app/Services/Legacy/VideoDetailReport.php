@@ -207,6 +207,9 @@ class VideoDetailReport
         ksort($hourly);
         ksort($daily);
 
+        $authorsTotal = count($authorRows);
+        $commentsTotal = count($commentRows);
+
         $authorsRanked = collect($authorRows)
             ->sortByDesc('total')
             ->take($limit)
@@ -222,8 +225,8 @@ class VideoDetailReport
         return [
             'available' => true,
             'row' => [
-                'comments_count' => $comment->comments_count !== null ? (int) $comment->comments_count : count($commentRows),
-                'authors_count' => $comment->authors_count !== null ? (int) $comment->authors_count : count($authorsRanked),
+                'comments_count' => $comment->comments_count !== null ? (int) $comment->comments_count : $commentsTotal,
+                'authors_count' => $comment->authors_count !== null ? (int) $comment->authors_count : $authorsTotal,
                 'threads_count' => $comment->threads_count !== null ? (int) $comment->threads_count : null,
                 'replies_count' => $comment->replies_count !== null ? (int) $comment->replies_count : null,
                 'likes_count' => $comment->likes_count !== null ? (int) $comment->likes_count : null,
