@@ -108,6 +108,59 @@ class AiTopicCacheBuilderTest extends TestCase
         )['Topic A']['影片數']);
     }
 
+    public function test_unmatched_aggregate_event_is_omitted_without_guessing_when_topic_has_exact_sources(): void
+    {
+        $this->createTables();
+        $this->seedCompleteDailyRow([
+            'result_json' => json_encode([
+                ['標題' => 'Topic A', '媒體事件' => ['News A' => ['事件A', '改寫後但不存在的事件']]],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $exitCode = Artisan::call('reports:ai-topic:build', [
+            '--from' => '2026-05-23',
+            '--condition' => 'world',
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+        $topic = json_decode(
+            (string) DB::table('urt_ai_date')->value('data_json'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        )['Topic A'];
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, $payload['updated']);
+        $this->assertSame(1, $topic['媒體數']);
+        $this->assertSame(2, $topic['影片數']);
+        $this->assertCount(1, $topic['媒體明細']);
+        $this->assertSame('事件A', $topic['媒體明細'][0]['事件']);
+    }
+
+    public function test_topic_with_no_exact_channel_event_remains_fail_closed(): void
+    {
+        $this->createTables();
+        $this->seedCompleteDailyRow([
+            'result_json' => json_encode([
+                ['標題' => 'Topic A', '媒體事件' => ['News A' => ['改寫後但不存在的事件']]],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $exitCode = Artisan::call('reports:ai-topic:build', [
+            '--from' => '2026-05-23',
+            '--condition' => 'world',
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('missing_channel_event', $payload['rows'][0]['blocked_reason']);
+        $this->assertNull(DB::table('urt_ai_date')->value('data_json'));
+    }
+
     public function test_api_topic_route_serves_the_built_cache(): void
     {
         $this->createTables();

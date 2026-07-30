@@ -98,18 +98,19 @@ final class AiTopicProjector
             ];
 
             foreach ($mediaEvents as $channelTitle => $eventNames) {
-                $topicData[$title]['媒體數']++;
                 $uId = $titleToUId[$channelTitle] ?? null;
 
                 if ($uId === null || ! isset($channelAi[$uId]) || ! array_key_exists($uId, $channelTags)) {
                     return $this->blocked($raw, $channelMap, 'incomplete_channel_source', false, count($topics));
                 }
 
+                $matchedChannel = false;
+
                 foreach ($eventNames as $eventName) {
                     $matches = $this->matchingEvents($channelAi[$uId], $eventName);
 
                     if ($matches === []) {
-                        return $this->blocked($raw, $channelMap, 'missing_channel_event', false, count($topics));
+                        continue;
                     }
 
                     foreach ($matches as $event) {
@@ -119,6 +120,7 @@ final class AiTopicProjector
                             return $this->blocked($raw, $channelMap, 'missing_event_videos', false, count($topics));
                         }
 
+                        $matchedChannel = true;
                         $videoCount = count($eventVideoIds);
                         $topicData[$title]['videos'][$uId] = array_values(array_unique(array_merge(
                             $topicData[$title]['videos'][$uId] ?? [],
@@ -162,7 +164,19 @@ final class AiTopicProjector
                         ];
                     }
                 }
+
+                if ($matchedChannel) {
+                    $topicData[$title]['媒體數']++;
+                }
             }
+
+            if ($topicData[$title]['媒體數'] === 0) {
+                unset($topicData[$title]);
+            }
+        }
+
+        if ($topicData === []) {
+            return $this->blocked($raw, $channelMap, 'missing_channel_event', false, count($topics));
         }
 
         $videoIds = array_values(array_unique($videoIds));
