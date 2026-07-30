@@ -10,8 +10,8 @@ use Throwable;
  *
  * The prompt is grounded strictly in the supplied data (event title, keywords,
  * people, media, related video titles) and forbids inventing facts, so the
- * public channel does not publish hallucinated "news". If the model call or
- * parsing fails, callers get an empty map and fall back to no summary.
+ * public channel does not publish hallucinated "news". If the model call,
+ * parsing, or named-source validation fails, grounded extractive copy remains.
  */
 class EventNewsWriter
 {
@@ -44,6 +44,12 @@ class EventNewsWriter
             return [];
         }
 
+        $fallbacks = collect($events)
+            ->mapWithKeys(fn (array $event): array => [
+                (string) $event['title'] => $this->fallback($event),
+            ])
+            ->filter(fn (string $summary): bool => $summary !== '')
+            ->all();
         $user = json_encode(['events' => $events], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
 
         try {
@@ -51,10 +57,116 @@ class EventNewsWriter
                 'response_format' => ['type' => 'json_object'],
             ]);
         } catch (Throwable) {
-            return [];
+            return $fallbacks;
         }
 
-        return $this->parse($result['content']);
+        $generated = $this->parse($result['content']);
+
+        foreach ($events as $event) {
+            $title = (string) $event['title'];
+            $summary = $generated[$title] ?? null;
+
+            if ($summary !== null && $this->namesRequiredMedia($summary, $event)) {
+                $fallbacks[$title] = $summary;
+            }
+        }
+
+        return $fallbacks;
+    }
+
+    /**
+     * Build a grounded summary when the editorial model is unavailable. Every
+     * sentence is copied or composed from named source descriptions/titles.
+     *
+     * @param  array<string, mixed>  $event
+     */
+    private function fallback(array $event): string
+    {
+        $sentences = [];
+        $description = trim((string) ($event['description'] ?? ''));
+        if ($description !== '') {
+            $sentences[] = $this->sentence($description);
+        }
+
+        $seenChannels = [];
+        foreach ((array) ($event['media_reports'] ?? []) as $report) {
+            if (! is_array($report)) {
+                continue;
+            }
+            $channel = trim((string) ($report['channel'] ?? $report['媒體'] ?? ''));
+            $detail = trim((string) ($report['description'] ?? $report['描述'] ?? ''));
+            if ($channel === '' || $detail === '' || isset($seenChannels[$channel])) {
+                continue;
+            }
+
+            $sentences[] = $channel.'：'.$this->sentence($detail);
+            $seenChannels[$channel] = true;
+            if (count($seenChannels) >= 2) {
+                break;
+            }
+        }
+
+        if (count($seenChannels) < 2) {
+            foreach ((array) ($event['videos'] ?? []) as $video) {
+                if (! is_array($video)) {
+                    continue;
+                }
+                $channel = trim((string) ($video['channel'] ?? ''));
+                $title = trim((string) ($video['title'] ?? ''));
+                if ($channel === '' || $title === '' || isset($seenChannels[$channel])) {
+                    continue;
+                }
+
+                $sentences[] = $channel.'報導〈'.$title.'〉。';
+                $seenChannels[$channel] = true;
+                if (count($seenChannels) >= 2) {
+                    break;
+                }
+            }
+        }
+
+        return implode('', array_slice(array_values(array_unique($sentences)), 0, 3));
+    }
+
+    private function sentence(string $value): string
+    {
+        $value = trim($value);
+
+        return preg_match('/[。！？!?]$/u', $value) === 1 ? $value : $value.'。';
+    }
+
+    /**
+     * AI copy may replace the grounded fallback only when it preserves the
+     * required named-source attribution.
+     *
+     * @param  array<string, mixed>  $event
+     */
+    private function namesRequiredMedia(string $summary, array $event): bool
+    {
+        $channels = collect((array) ($event['media_reports'] ?? []))
+            ->filter(fn (mixed $report): bool => is_array($report))
+            ->map(fn (array $report): string => trim((string) ($report['channel'] ?? $report['媒體'] ?? '')))
+            ->filter(fn (string $channel): bool => $channel !== '')
+            ->unique()
+            ->values();
+
+        if ($channels->count() < 2) {
+            $channels = $channels
+                ->merge(collect((array) ($event['videos'] ?? []))
+                    ->filter(fn (mixed $video): bool => is_array($video))
+                    ->map(fn (array $video): string => trim((string) ($video['channel'] ?? '')))
+                    ->filter(fn (string $channel): bool => $channel !== ''))
+                ->unique()
+                ->values();
+        }
+
+        if ($channels->count() < 2) {
+            return true;
+        }
+
+        return $channels
+            ->filter(fn (string $channel): bool => str_contains($summary, $channel))
+            ->count() >= 2;
     }
 
     /**

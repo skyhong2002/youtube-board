@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Throwable;
 
-final class AiTopicCacheBuilder
+class AiTopicCacheBuilder
 {
     public const MAX_ROWS = 62;
 

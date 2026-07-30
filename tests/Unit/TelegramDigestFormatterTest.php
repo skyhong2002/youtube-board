@@ -114,6 +114,7 @@ class TelegramDigestFormatterTest extends TestCase
         $this->assertLessThanOrEqual(TelegramDigestFormatter::MAX_LENGTH, $this->visibleUtf16Length($message));
         $this->assertStringContainsString('<blockquote expandable>', $message);
         $this->assertStringContainsString('https://www.youtube.com/watch?v=green1', $message);
+        $this->assertStringContainsString('https://www.youtube.com/watch?v=blue1', $message);
         $this->assertStringContainsString('完整整理', $message);
         $this->assertStringContainsString('…', $message);
     }
@@ -126,6 +127,7 @@ class TelegramDigestFormatterTest extends TestCase
 
         $this->assertLessThanOrEqual(TelegramDigestFormatter::MAX_LENGTH, $this->visibleUtf16Length($message));
         $this->assertStringContainsString('https://www.youtube.com/watch?v=green1', $message);
+        $this->assertStringContainsString('https://www.youtube.com/watch?v=blue1', $message);
     }
 
     public function test_includes_as_many_video_links_as_fit_and_reports_the_remainder(): void

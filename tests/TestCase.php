@@ -88,5 +88,20 @@ abstract class TestCase extends BaseTestCase
             $table->index('last_seen_at');
             $table->index('last_posted_at');
         });
+
+        Schema::create('telegram_digest_dispatches', function (Blueprint $table): void {
+            $table->id();
+            $table->string('dispatch_key', 64)->unique();
+            $table->string('period', 16);
+            $table->string('context_key', 191);
+            $table->unsignedBigInteger('story_id')->nullable();
+            $table->string('status', 16);
+            $table->string('message_hash', 64)->nullable();
+            $table->dateTime('attempted_at');
+            $table->dateTime('sent_at')->nullable();
+            $table->timestamps();
+            $table->index(['period', 'context_key']);
+            $table->index('story_id');
+        });
     }
 }

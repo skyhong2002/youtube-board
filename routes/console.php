@@ -4329,12 +4329,13 @@ Artisan::command('notify:telegram:digest {--period=daily : daily or hourly} {--f
     $result = $broadcaster->run($period, (bool) $this->option('force'));
 
     $this->info(sprintf(
-        'notify:telegram:digest period=%s considered=%d eligible=%d posted=%d skipped_seen=%d dry_run=%s',
+        'notify:telegram:digest period=%s considered=%d eligible=%d posted=%d skipped_seen=%d skipped_incomplete=%d dry_run=%s',
         $result['period'],
         $result['considered'],
         $result['eligible'],
         $result['posted'],
         $result['skipped_seen'],
+        $result['skipped_incomplete'],
         $result['dry_run'] ? 'yes' : 'no',
     ));
 

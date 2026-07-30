@@ -30,7 +30,7 @@ Use the MariaDB service's **General -> Internal Credentials -> Internal Host** v
 
 ## Production Release Migrations
 
-The production image owns schema upgrades. `docker/production-start.sh` waits for a bounded database readiness window, runs `php artisan migrate --force --no-interaction`, verifies `php artisan migrate:status` plus `php artisan deployment:schema-check`, and only then builds Laravel caches and binds the web port. The same schema verifier backs Laravel `/up`, including the required 65-table set, critical quota/mayor/run-history/Telegram-story columns, quota unique index, run-history and Telegram-story indexes, run-history foreign key, and MariaDB InnoDB engines. A connection, migration, or verification failure exits nonzero, so a new container cannot report a healthy web process with stale schema. `DB_STARTUP_WAIT_ATTEMPTS` and `DB_STARTUP_WAIT_SECONDS` may tune only the readiness window; they do not make migration failures graceful.
+The production image owns schema upgrades. `docker/production-start.sh` waits for a bounded database readiness window, runs `php artisan migrate --force --no-interaction`, verifies `php artisan migrate:status` plus `php artisan deployment:schema-check`, and only then builds Laravel caches and binds the web port. The same schema verifier backs Laravel `/up`, including the required 66-table set, critical quota/mayor/run-history/Telegram story/dispatch columns, quota unique index, run-history and Telegram indexes, run-history foreign key, and MariaDB InnoDB engines. A connection, migration, or verification failure exits nonzero, so a new container cannot report a healthy web process with stale schema. `DB_STARTUP_WAIT_ATTEMPTS` and `DB_STARTUP_WAIT_SECONDS` may tune only the readiness window; they do not make migration failures graceful.
 
 All create migrations retain an existing table instead of replacing it. The startup schema verifier must still match every adopted baseline/framework/mayor column plus critical primary/unique indexes before the container becomes healthy; a same-named but incompatible table is not considered ready. The legacy baseline migration never drops adopted tables on rollback.
 
@@ -90,7 +90,35 @@ docker image rm youtube-board-production-preflight
 
 An adoption preflight must use a separately disposable database populated from the reviewed schema shape being adopted; do not point these commands at Production. Never copy migration rows or run one-off schema SQL in Production.
 
-Normal rollback is a code rollback followed by redeploy. Do not use `migrate:rollback` for this release: the identifier migration deliberately leaves binary collations in place because reverting them could merge distinct IDs or violate a unique index; the run-history migration also has an intentionally non-destructive `down()`, and rolling back farther would drop `ingestion_youtube_quota_daily` and erase fail-safe quota reservations for the current Pacific Time day. If the identifier migration stops between tables, no migration row is recorded; a later reviewed redeploy safely skips columns already converted and continues the remaining graph. Restore the pre-deploy backup only when a forward retry and code rollback cannot recover service. Before any future destructive migration, first configure and verify a restorable database backup in Dokploy. The retained binary schema remains compatible with a code rollback.
+Normal rollback is a code rollback followed by redeploy. Do not use `migrate:rollback` for this release: the identifier migration deliberately leaves binary collations in place because reverting them could merge distinct IDs or violate a unique index; the run-history and Telegram dispatch migrations have intentionally non-destructive `down()` methods, and rolling back farther would drop `ingestion_youtube_quota_daily` and erase fail-safe quota reservations for the current Pacific Time day. If the identifier migration stops between tables, no migration row is recorded; a later reviewed redeploy safely skips columns already converted and continues the remaining graph. Restore the pre-deploy backup only when a forward retry and code rollback cannot recover service. Before any future destructive migration, first configure and verify a restorable database backup in Dokploy. The retained schema remains compatible with a code rollback.
+
+## Telegram Digest Release
+
+Hourly and daily notifications share `telegram_digest_stories`, so a daily aggregate cannot resend a story already published by the hourly path. The daily path only fills one previously unreported story for a date; it never publishes follow-up updates. Its durable date claim is stored in `telegram_digest_dispatches`. A confirmed Telegram rejection releases the claim for a later retry, while a timeout or other uncertain result leaves a pending claim and fails closed.
+
+Daily evaluation runs every 30 minutes from 09:00 through 21:00 Asia/Taipei and can complete at most one send. Incomplete candidates do not consume the date claim. Hourly evaluation remains every ten minutes and owns the 24-hour update, burst, and 72-hour resurfacing rules. Both paths require at least three resolved videos, two distinct named channels, two ranked recommendations, a nonempty summary, and a valid YouTube preview URL; daily also requires two named media reports.
+
+After successful `ai:daily:pipeline --execute`, the pipeline builds the same date's `condition=all`, `type=oneday` topic cache in `urt_ai_date.data_json` and `video_json` without another external request. After deployment, backfill the latest closed daily row through the reviewed builder:
+
+```bash
+php artisan reports:ai-topic:build \
+  --from=<latest-closed-date> \
+  --to=<latest-closed-date> \
+  --condition=all \
+  --type=oneday \
+  --row-limit=1 \
+  --execute \
+  --json
+```
+
+Before allowing the live scheduler to continue, run both notification previews:
+
+```bash
+php artisan notify:telegram:digest --period=daily --dry-run
+php artisan notify:telegram:digest --period=hourly --dry-run
+```
+
+The daily preview must contain a grounded summary naming at least two media, at least two `先看` links, channel tags, an expandable blockquote, and a YouTube link preview candidate. A blank or skeletal preview is a deployment blocker. During rollout, an existing exact daily dedup key is adopted into the durable dispatch table so the deployed version does not repost a date already sent by the previous implementation.
 
 Production polling is controlled by Dokploy runtime values, not by the committed template. `INGESTION_SCHEDULER_ENABLED` stops scheduler registration, `INGESTION_LOCAL_POLLING_ENABLED` blocks scheduled writes, and `INGESTION_PRODUCTION_POLLING_ENABLED` blocks scheduled writes only in production. Production must use an exact reviewed `INGESTION_SCHEDULED_WRITE_ALLOWLIST`; do not change that list without dry-run evidence, backup/rollback planning, and explicit operator approval. The rate-limited web `/ops/ingestion/run` route is dry-run-only in Production, returns 403 for execute requests, and does not persist public web previews to durable run history.
 

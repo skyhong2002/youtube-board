@@ -43,7 +43,10 @@ class TelegramDigestFormatter
             $summary = trim($summary.($summary !== '' && $description !== '' ? "\n\n" : '').$description);
         }
 
-        $coverage = $this->coverageBlocks((array) ($post['videos'] ?? []));
+        $coverage = $this->coverageBlocks(
+            (array) ($post['videos'] ?? []),
+            (array) ($post['recommendations'] ?? []),
+        );
         $expanded = $this->expandedWithinBudget($header, $meta, $summary, $coverage, $footer);
         $blocks = array_values(array_filter([
             $header,
@@ -116,29 +119,37 @@ class TelegramDigestFormatter
      * @param  list<array<string, mixed>>  $videos
      * @return list<array{html: string, video: bool}>
      */
-    private function coverageBlocks(array $videos): array
+    private function coverageBlocks(array $videos, array $recommendations): array
     {
         $videos = array_values(array_filter($videos, static fn (mixed $video): bool => is_array($video)
             && trim((string) ($video['title'] ?? '')) !== ''
             && trim((string) ($video['url'] ?? '')) !== ''));
         $pickIndexes = [];
-        $pickedGroups = [];
-        foreach ($videos as $index => $video) {
-            $group = trim((string) ($video['group'] ?? '')) ?: '其他';
-            if (isset($pickedGroups[$group])) {
+
+        foreach ($recommendations as $recommendation) {
+            if (! is_array($recommendation)) {
                 continue;
             }
 
-            $pickIndexes[] = $index;
-            $pickedGroups[$group] = true;
+            $recommendationKey = $this->videoKey($recommendation);
+            foreach ($videos as $index => $video) {
+                if (! in_array($index, $pickIndexes, true) && $this->videoKey($video) === $recommendationKey) {
+                    $pickIndexes[] = $index;
+                    break;
+                }
+            }
             if (count($pickIndexes) >= 3) {
                 break;
             }
         }
-        if (count($pickIndexes) < min(3, count($videos))) {
-            foreach (array_keys($videos) as $index) {
-                if (! in_array($index, $pickIndexes, true)) {
+
+        if ($pickIndexes === [] && $recommendations === []) {
+            $pickedGroups = [];
+            foreach ($videos as $index => $video) {
+                $group = trim((string) ($video['group'] ?? '')) ?: '其他';
+                if (! isset($pickedGroups[$group])) {
                     $pickIndexes[] = $index;
+                    $pickedGroups[$group] = true;
                 }
                 if (count($pickIndexes) >= 3) {
                     break;
@@ -185,6 +196,16 @@ class TelegramDigestFormatter
     /**
      * @param  array<string, mixed>  $video
      */
+    private function videoKey(array $video): string
+    {
+        $videoId = trim((string) ($video['video_id'] ?? ''));
+
+        return $videoId !== '' ? 'id:'.$videoId : 'url:'.trim((string) ($video['url'] ?? ''));
+    }
+
+    /**
+     * @param  array<string, mixed>  $video
+     */
     private function videoLine(array $video): string
     {
         $channel = trim((string) ($video['channel'] ?? '')) ?: '未知頻道';
@@ -205,28 +226,72 @@ class TelegramDigestFormatter
         array $coverage,
         string $footer,
     ): string {
-        $summaryHtml = $summary !== '' ? nl2br($this->e($summary), false) : '';
-        $included = [];
         $videoCount = count(array_filter($coverage, static fn (array $row): bool => $row['video']));
+        $requiredVideos = min(2, $videoCount);
+        $included = [];
         $includedVideos = 0;
+        $optionalOffset = count($coverage);
 
-        foreach ($coverage as $row) {
-            $candidate = array_merge($included, [$row['html']]);
-            $remaining = max(0, $videoCount - ($includedVideos + ($row['video'] ? 1 : 0)));
-            $more = $remaining > 0 ? '其餘'.$remaining.'支見完整整理' : '';
+        foreach ($coverage as $index => $row) {
+            $included[] = $row['html'];
+            $includedVideos += (int) $row['video'];
+            if ($includedVideos >= $requiredVideos) {
+                $optionalOffset = $index + 1;
+                break;
+            }
+        }
+
+        $build = function (string $summaryHtml, array $rows, int $videos) use (
+            $header,
+            $meta,
+            $footer,
+            $videoCount,
+        ): string {
+            $remaining = max(0, $videoCount - $videos);
             $expanded = implode("\n", array_filter([
                 $summaryHtml,
-                $candidate !== [] ? implode("\n", $candidate) : '',
-                $more,
+                $rows !== [] ? implode("\n", $rows) : '',
+                $remaining > 0 ? '其餘'.$remaining.'支見完整整理' : '',
             ]));
-            $message = implode("\n\n", array_filter([
+
+            return implode("\n\n", array_filter([
                 $header,
                 ...$meta,
                 '<blockquote expandable>'.$expanded.'</blockquote>',
                 $footer,
             ]));
+        };
 
-            if ($this->visibleLength($message) > self::MAX_LENGTH) {
+        $summaryHtml = $summary !== '' ? nl2br($this->e($summary), false) : '';
+        if ($this->visibleLength($build($summaryHtml, $included, $includedVideos)) > self::MAX_LENGTH) {
+            $summaryLength = mb_strlen($summary, 'UTF-8');
+            $low = 0;
+            $high = $summaryLength;
+            $best = '';
+
+            while ($low <= $high) {
+                $middle = intdiv($low + $high, 2);
+                $trimmed = rtrim(mb_substr($summary, 0, $middle, 'UTF-8'));
+                $candidate = $trimmed !== ''
+                    ? nl2br($this->e($trimmed).($middle < $summaryLength ? '…' : ''), false)
+                    : '';
+
+                if ($this->visibleLength($build($candidate, $included, $includedVideos)) <= self::MAX_LENGTH) {
+                    $best = $candidate;
+                    $low = $middle + 1;
+                } else {
+                    $high = $middle - 1;
+                }
+            }
+
+            $summaryHtml = $best;
+        }
+
+        foreach (array_slice($coverage, $optionalOffset) as $row) {
+            $candidate = [...$included, $row['html']];
+            $candidateVideos = $includedVideos + (int) $row['video'];
+
+            if ($this->visibleLength($build($summaryHtml, $candidate, $candidateVideos)) > self::MAX_LENGTH) {
                 break;
             }
 
@@ -257,14 +322,21 @@ class TelegramDigestFormatter
         string $footer,
     ): string {
         $priorityCoverage = [];
+        $priorityVideos = 0;
         foreach ($coverage as $row) {
             $priorityCoverage[] = $row['html'];
             if ($row['video']) {
+                $priorityVideos++;
+            }
+            if ($priorityVideos >= min(2, count(array_filter(
+                $coverage,
+                static fn (array $candidate): bool => $candidate['video'],
+            )))) {
                 break;
             }
         }
         $videoCount = count(array_filter($coverage, static fn (array $row): bool => $row['video']));
-        $includedVideos = $priorityCoverage === [] ? 0 : 1;
+        $includedVideos = $priorityVideos;
         $remaining = max(0, $videoCount - $includedVideos);
 
         $build = function (string $trimmed, bool $wasTrimmed) use (

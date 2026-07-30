@@ -27,7 +27,7 @@ class TelegramClient
     }
 
     /**
-     * @return array{sent: bool, dry_run: bool, ok: bool, error: string|null}
+     * @return array{sent: bool, dry_run: bool, ok: bool, uncertain: bool, error: string|null}
      */
     public function send(string $html, ?string $previewUrl = null): array
     {
@@ -36,7 +36,7 @@ class TelegramClient
         $channel = trim((string) ($config['channel_id'] ?? ''));
 
         if (! ($config['enabled'] ?? false) || $token === '' || $channel === '') {
-            return ['sent' => false, 'dry_run' => true, 'ok' => false, 'error' => null];
+            return ['sent' => false, 'dry_run' => true, 'ok' => false, 'uncertain' => false, 'error' => null];
         }
 
         try {
@@ -59,12 +59,13 @@ class TelegramClient
                     'link_preview_options' => $linkPreview,
                 ]);
         } catch (\Throwable $exception) {
-            // A timeout on one post must not abort the rest of the digest batch;
-            // the unmarked post is retried naturally on the next scheduled run.
+            // Delivery may have succeeded before the timeout. The caller keeps
+            // a durable pending claim and fails closed instead of retrying.
             return [
                 'sent' => false,
                 'dry_run' => false,
                 'ok' => false,
+                'uncertain' => true,
                 'error' => 'telegram send failed: '.$exception::class,
             ];
         }
@@ -75,6 +76,7 @@ class TelegramClient
             'sent' => $ok,
             'dry_run' => false,
             'ok' => $ok,
+            'uncertain' => false,
             'error' => $ok ? null : (string) data_get($response->json(), 'description', 'telegram sendMessage failed'),
         ];
     }

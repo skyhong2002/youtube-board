@@ -93,7 +93,9 @@ final class AiTopicProjector
                 '關鍵字' => [],
                 '關鍵字次數' => [],
                 '人物' => [],
+                '地名' => [],
                 '標籤' => [],
+                '媒體明細' => [],
             ];
 
             foreach ($mediaEvents as $channelTitle => $eventNames) {
@@ -119,7 +121,10 @@ final class AiTopicProjector
                         }
 
                         $videoCount = count($eventVideoIds);
-                        $topicData[$title]['videos'][$uId] = $eventVideoIds;
+                        $topicData[$title]['videos'][$uId] = array_values(array_unique(array_merge(
+                            $topicData[$title]['videos'][$uId] ?? [],
+                            $eventVideoIds,
+                        )));
                         $topicData[$title]['影片數'] += $videoCount;
                         array_push($videoIds, ...$eventVideoIds);
                         $this->weightedText($topicData[$title]['角度'], $this->text($event, ['角度', 'angle']), ['台灣', '中國'], $videoCount);
@@ -134,9 +139,28 @@ final class AiTopicProjector
                             $topicData[$title]['人物'][$person] = ($topicData[$title]['人物'][$person] ?? 0) + 1;
                         }
 
+                        foreach ($this->stringList($event, ['地名', 'places']) as $place) {
+                            $topicData[$title]['地名'][$place] = ($topicData[$title]['地名'][$place] ?? 0) + 1;
+                        }
+
                         foreach ($channelTags[$uId] as $tag) {
                             $topicData[$title]['標籤'][$tag] = ($topicData[$title]['標籤'][$tag] ?? 0) + $videoCount;
                         }
+
+                        $topicData[$title]['媒體明細'][] = [
+                            'u_id' => $uId,
+                            '媒體' => $channelTitle,
+                            '事件' => $this->text($event, ['事件', '議題', '標題', 'event', 'topic', 'title']) ?: $eventName,
+                            '描述' => $this->text($event, ['描述', '說明', 'description', 'content']),
+                            '分類' => $this->text($event, ['分類', 'category', 'type'])
+                                ?: implode('、', $this->stringList($event, ['類型', 'types'])),
+                            '角度' => $this->text($event, ['角度', 'angle']),
+                            '陣營' => $this->text($event, ['陣營', 'camp', 'stance']),
+                            '關鍵字' => $this->stringList($event, ['關鍵字', 'keywords']),
+                            '人物' => $this->stringList($event, ['人物', 'people']),
+                            '地名' => $this->stringList($event, ['地名', 'places']),
+                            'videoId' => $eventVideoIds,
+                        ];
                     }
                 }
             }

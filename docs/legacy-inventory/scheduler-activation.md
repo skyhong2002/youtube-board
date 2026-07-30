@@ -14,6 +14,9 @@ This document defines how legacy ingestion parity can move from manual local smo
 - Manual operator execute commands remain local-only, limited, idempotent, and explicit. Production execution is owned by reviewed scheduler/CLI paths; the web dashboard never executes writes in Production.
 - `/ops/ingestion` separates web request gates from external scheduler activity and shows the effective explicit env state. External scheduler activity is detected separately from recent MariaDB-backed `ingestion:run --execute --record` records, with legacy JSON records retained as a read fallback.
 - External scheduler activity is considered active when the latest artisan execute run-history record is no more than three minutes old. If no recent external record exists, the dashboard reports `external scheduler not observed` and lists likely causes without reading secrets, calling Dokploy, or SSHing production.
+- Telegram notification schedules are registered separately when `TELEGRAM_DIGEST_ENABLED=true`. Hourly evaluates every ten minutes. Daily evaluates every 30 minutes from 09:00 through 21:00 Asia/Taipei, with a durable one-successful-send-per-date claim.
+
+Telegram delivery does not use `INGESTION_SCHEDULED_WRITE_ALLOWLIST`. It is gated by the Telegram enabled/token/channel configuration, the shared story/dispatch tables, and strict content completeness. Hourly and daily share the same 72-hour story matcher; daily only fills an unreported story and hourly alone owns later updates.
 
 ## Activation Levels
 
@@ -45,6 +48,9 @@ Level `3` is implemented for local one-shot/scheduler execution but is fail-clos
 | `INGESTION_JOB_LOCK_SECONDS` | `14400` | runner execute jobs | Expiring per-job cache lock TTL. A PCNTL wall-clock deadline hard-exits the worker before lease expiry, so broad per-item exception handlers cannot let retries continue after another runner could acquire the job. |
 | `INGESTION_YOUTUBE_DAILY_QUOTA_BUDGET` | `9000` | scheduled and direct YouTube API jobs | Maximum projected YouTube units per Pacific Time quota day. A missing, invalid, or non-positive value fails closed for YouTube API jobs. |
 | `INGESTION_COMMENT_CLAIM_MINUTES` | `30` | comment queue drain | Active `urt_comment_queue.stime` claim lease. Expired claims are eligible for recovery; active claims are excluded. |
+| `TELEGRAM_DIGEST_ENABLED` | `false` | notification scheduler | Registers live hourly/daily delivery only when the bot token and channel are also configured. |
+| `TELEGRAM_DAILY_MAX_POSTS` | `1` | daily notification | Hard-capped by the broadcaster to one successful daily fill even if a larger runtime value is supplied. |
+| `TELEGRAM_DEDUP_STORE` | `database` | notification compatibility | Shared exact-key compatibility cache used while durable story and daily dispatch state own cross-period deduplication. |
 
 The code defaults are fail-closed. Production behavior is determined by Dokploy runtime gates and the exact allowlist. In `APP_ENV=production`, scheduled writes are blocked unless `INGESTION_PRODUCTION_POLLING_ENABLED=true`, and web execute requests return 403 regardless of that scheduler gate.
 
@@ -86,7 +92,7 @@ Every write-capable command must keep these properties before it can be consider
 - Imported legacy tables may be MyISAM. Commands use idempotent writes plus explicit ordering: validate first, write history/derived rows next, and write the source freshness or public publication marker last. They do not claim rollback protection that the storage engine cannot provide.
 - Re-running the same limited command must not duplicate dirty rows.
 - Explicit dates, AI conditions/types, prompt types, and similar operator selectors fail closed before external calls or DB writes instead of silently falling back to defaults.
-- AI generation has both prompt preview and explicit execute paths. Manual `ai:hourly --execute` and `ai:daily --execute` remain available; scheduled `ai:hourly:pipeline` and `ai:daily:pipeline` add a required YouTube source-refresh stage before the same idempotent AI writes. Provider/model is result metadata, not logical identity; switching providers updates the latest active logical row and its `ai_type`.
+- AI generation has both prompt preview and explicit execute paths. Manual `ai:hourly --execute` and `ai:daily --execute` remain available; scheduled `ai:hourly:pipeline` and `ai:daily:pipeline` add a required YouTube source-refresh stage before the same idempotent AI writes. A successful daily pipeline then builds the `condition=all` topic/video cache locally with no additional external call. Provider/model is result metadata, not logical identity; switching providers updates the latest active logical row and its `ai_type`.
 
 ## Rate Limits
 

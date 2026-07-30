@@ -54,6 +54,20 @@ class AiTopicCacheBuilderTest extends TestCase
         $this->assertSame(['video-1', 'video-2'], $topic['Topic A']['videos']['10']);
         $this->assertSame(['川普' => 1], $topic['Topic A']['關鍵字']);
         $this->assertSame(['拜登' => 1], $topic['Topic A']['人物']);
+        $this->assertSame(['華盛頓' => 1], $topic['Topic A']['地名']);
+        $this->assertSame([
+            'u_id' => 10,
+            '媒體' => 'News A',
+            '事件' => '事件A',
+            '描述' => 'News A 追蹤外交政策進展。',
+            '分類' => '國際',
+            '角度' => '台灣',
+            '陣營' => '民進黨',
+            '關鍵字' => ['川普'],
+            '人物' => ['拜登'],
+            '地名' => ['華盛頓'],
+            'videoId' => ['video-1', 'video-2'],
+        ], $topic['Topic A']['媒體明細'][0]);
         $this->assertSame('Video 1', $video['video-1']['title']);
         $this->assertSame(120, $video['video-1']['duration']);
 
@@ -342,6 +356,9 @@ class AiTopicCacheBuilderTest extends TestCase
                     'videoId' => ['video-1', 'video-2'],
                     '關鍵字' => ['川普'],
                     '人物' => ['拜登'],
+                    '地名' => ['華盛頓'],
+                    '描述' => 'News A 追蹤外交政策進展。',
+                    '分類' => '國際',
                     '角度' => '台灣',
                     '陣營' => '民進黨',
                 ],

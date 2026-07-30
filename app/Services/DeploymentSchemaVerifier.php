@@ -110,6 +110,19 @@ class DeploymentSchemaVerifier
             'created_at',
             'updated_at',
         ],
+        'telegram_digest_dispatches' => [
+            'id',
+            'dispatch_key',
+            'period',
+            'context_key',
+            'story_id',
+            'status',
+            'message_hash',
+            'attempted_at',
+            'sent_at',
+            'created_at',
+            'updated_at',
+        ],
     ];
 
     /**
@@ -177,6 +190,12 @@ class DeploymentSchemaVerifier
             ['kind' => 'index', 'columns' => ['last_seen_at']],
             ['kind' => 'index', 'columns' => ['last_posted_at']],
         ],
+        'telegram_digest_dispatches' => [
+            ['kind' => 'primary', 'columns' => ['id']],
+            ['kind' => 'unique', 'columns' => ['dispatch_key']],
+            ['kind' => 'index', 'columns' => ['period', 'context_key']],
+            ['kind' => 'index', 'columns' => ['story_id']],
+        ],
     ];
 
     /**
@@ -205,6 +224,7 @@ class DeploymentSchemaVerifier
         'ingestion_runs',
         'ingestion_run_jobs',
         'telegram_digest_stories',
+        'telegram_digest_dispatches',
     ];
 
     /**

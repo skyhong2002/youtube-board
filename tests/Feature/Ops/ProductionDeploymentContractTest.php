@@ -126,6 +126,26 @@ class ProductionDeploymentContractTest extends TestCase
         );
     }
 
+    public function test_telegram_daily_dispatch_migration_is_adoption_safe_and_explicitly_innodb(): void
+    {
+        $migration = file_get_contents(
+            $this->projectRoot.'/database/migrations/2026_07_30_010000_create_telegram_digest_dispatches_table.php',
+        );
+
+        $this->assertIsString($migration);
+        $this->assertStringContainsString("Schema::hasTable('telegram_digest_dispatches')", $migration);
+        $this->assertStringContainsString("\$table->engine = 'InnoDB';", $migration);
+        $this->assertStringContainsString(
+            "\$table->unique('dispatch_key', 'tg_dispatches_key_unique');",
+            $migration,
+        );
+        $this->assertStringNotContainsString('Schema::drop', $migration);
+        $this->assertStringContainsString(
+            'Durable notification history must survive application rollbacks.',
+            $migration,
+        );
+    }
+
     public function test_deployment_schema_verifier_statically_handles_mariadb_engines(): void
     {
         $verifier = file_get_contents($this->projectRoot.'/app/Services/DeploymentSchemaVerifier.php');

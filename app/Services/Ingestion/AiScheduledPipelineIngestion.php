@@ -15,6 +15,7 @@ class AiScheduledPipelineIngestion
         private readonly DirectYoutubeQuotaGuard $quotaGuard,
         private readonly AiDailyPreview $dailyPreview,
         private readonly AiDailyIngestion $dailyIngestion,
+        private readonly AiTopicCacheBuilder $topicCacheBuilder,
         private readonly AiHourlyPreview $hourlyPreview,
         private readonly AiHourlyIngestion $hourlyIngestion,
     ) {}
@@ -150,23 +151,48 @@ class AiScheduledPipelineIngestion
             channelVideoLimit: $channelVideoLimit,
             userToken: $userToken,
         );
-        $exitCode = (int) ($ai['exit_code'] ?? 1);
+        $aiExitCode = (int) ($ai['exit_code'] ?? 1);
+        $topicCache = $aiExitCode === 0
+            ? $this->topicCacheBuilder->build(
+                from: $date,
+                to: $date,
+                condition: 'all',
+                dataType: 'oneday',
+                rowLimit: 1,
+                topicLimit: 100,
+                channelLimit: 100,
+                videoLimit: 5000,
+                missingOnly: false,
+                execute: true,
+                now: $now,
+            )
+            : [
+                'status' => 'skipped',
+                'exit_code' => 0,
+                'blocked_reason' => 'daily_ai_failed',
+                'write_targets' => [],
+            ];
+        $cacheExitCode = (int) ($topicCache['exit_code'] ?? 1);
+        $exitCode = max($aiExitCode, $cacheExitCode);
 
         return [
             'mode' => 'execute',
             'status' => $exitCode === 0 ? 'success' : 'partial_failure',
             'exit_code' => $exitCode,
-            'failed_rows' => (int) ($ai['failed_rows'] ?? ($exitCode === 0 ? 0 : 1)),
+            'failed_rows' => (int) ($ai['failed_rows'] ?? ($aiExitCode === 0 ? 0 : 1))
+                + (int) ($topicCache['failed_rows'] ?? ($cacheExitCode === 0 ? 0 : 1)),
             'source' => 'ai_daily_source_first_pipeline',
             'date' => $date,
             'source_refresh' => $source,
             'ai' => $ai,
+            'topic_cache' => $topicCache,
             'write_targets' => array_values(array_unique([
                 'urt_video',
                 'urt_video_schedule',
                 'urt_video_live',
                 'urt_show_tag_date',
                 ...($ai['write_targets'] ?? []),
+                ...($cacheExitCode === 0 ? ['urt_ai_date.data_json', 'urt_ai_date.video_json'] : []),
             ])),
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'secrets' => 'not_printed',

@@ -17,14 +17,14 @@ class TelegramStoryTracker
      * @param  array<string, mixed>  $context
      * @return array<string, mixed>
      */
-    public function evaluate(array $event, array $context, bool $eligible): array
+    public function evaluate(array $event, array $context, bool $eligible, string $period = 'hourly'): array
     {
         if (! Schema::hasTable('telegram_digest_stories')) {
-            return $this->fallback($event);
+            return $this->fallback($event, $period);
         }
 
         try {
-            return DB::transaction(function () use ($event, $context, $eligible): array {
+            return DB::transaction(function () use ($event, $context, $eligible, $period): array {
                 $now = now();
                 $fingerprint = $this->fingerprint($event);
                 $videoIds = $this->videoIds($event);
@@ -65,19 +65,23 @@ class TelegramStoryTracker
                     $this->decodeMap($story->fingerprint_json ?? null),
                     $fingerprint,
                 );
-                $observations = $this->observations(
-                    $this->decodeList($story->observations_json ?? null),
-                    $context,
-                    count($videoIds),
-                    $this->mediaCount($videoChannels),
-                );
+                $observations = $period === 'hourly'
+                    ? $this->observations(
+                        $this->decodeList($story->observations_json ?? null),
+                        $context,
+                        count($videoIds),
+                        $this->mediaCount($videoChannels),
+                    )
+                    : $this->decodeList($story->observations_json ?? null);
                 $postedVideoIds = $this->decodeList($story->last_posted_video_ids_json ?? null);
                 $postedChannelIds = $this->decodeList($story->last_posted_channel_ids_json ?? null);
                 $deltaVideoIds = array_values(array_diff($allVideoIds, $postedVideoIds));
                 $deltaChannels = $this->channelsForVideos($deltaVideoIds, $allVideoChannels);
                 $currentChannels = array_values(array_unique(array_values($videoChannels)));
                 $newChannels = array_values(array_diff($deltaChannels, $postedChannelIds));
-                $burst = $this->burst($observations, count($videoIds), count($currentChannels));
+                $burst = $period === 'hourly'
+                    ? $this->burst($observations, count($videoIds), count($currentChannels))
+                    : ['is_burst' => false, 'ratio' => null, 'baseline_hours' => 0];
                 $lastPostedAt = $story->last_posted_at ? Carbon::parse((string) $story->last_posted_at) : null;
                 $hoursSince = $lastPostedAt?->diffInHours($now, true);
                 $decision = $this->decision(
@@ -87,6 +91,7 @@ class TelegramStoryTracker
                     deltaVideos: count($deltaVideoIds),
                     deltaMedia: count($deltaChannels),
                     burst: $burst,
+                    period: $period,
                 );
 
                 DB::table('telegram_digest_stories')->where('id', $story->id)->update([
@@ -110,6 +115,7 @@ class TelegramStoryTracker
                         count($deltaVideoIds),
                         count($deltaChannels),
                         $hoursSince,
+                        $period,
                     ),
                     'burst_line' => $burst['is_burst']
                         ? sprintf(
@@ -127,7 +133,7 @@ class TelegramStoryTracker
                 ];
             }, 3);
         } catch (Throwable) {
-            return $this->fallback($event);
+            return $this->fallback($event, $period);
         }
     }
 
@@ -203,7 +209,7 @@ class TelegramStoryTracker
      * @param  array<string, mixed>  $event
      * @return array<string, mixed>
      */
-    private function fallback(array $event): array
+    private function fallback(array $event, string $period): array
     {
         return [
             'story_id' => 0,
@@ -212,7 +218,7 @@ class TelegramStoryTracker
             'should_post' => false,
             'trigger' => 'tracker_unavailable',
             'metric_line' => sprintf(
-                '近1小時　影片%d、媒體%d',
+                $period === 'daily' ? '昨日整理　影片%d、媒體%d' : '近1小時　影片%d、媒體%d',
                 (int) ($event['video_count'] ?? 0),
                 (int) ($event['media_count'] ?? 0),
             ),
@@ -231,7 +237,17 @@ class TelegramStoryTracker
         int $deltaVideos,
         int $deltaMedia,
         array $burst,
+        string $period,
     ): array {
+        if ($period === 'daily') {
+            return $lastPostedAt === null
+                ? [
+                    'should_post' => $firstPostEligible,
+                    'trigger' => $firstPostEligible ? 'daily' : 'below_threshold',
+                ]
+                : ['should_post' => false, 'trigger' => 'covered'];
+        }
+
         if ($lastPostedAt === null) {
             return [
                 'should_post' => $firstPostEligible,
@@ -268,7 +284,12 @@ class TelegramStoryTracker
         int $deltaVideos,
         int $deltaMedia,
         ?float $hoursSince,
+        string $period,
     ): string {
+        if ($period === 'daily') {
+            return sprintf('昨日整理　影片%d、媒體%d', $currentVideos, $currentMedia);
+        }
+
         return match ($trigger) {
             'update', 'burst' => sprintf('上次推播後　影片%d、媒體%d', $deltaVideos, $deltaMedia),
             'resurfaced' => sprintf(

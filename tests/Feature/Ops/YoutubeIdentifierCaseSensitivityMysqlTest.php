@@ -128,7 +128,7 @@ class YoutubeIdentifierCaseSensitivityMysqlTest extends TestCase
 
             $this->assertSame(0, $migratedSchemaExitCode, (string) json_encode($migratedSchema));
             $this->assertTrue($migratedSchema['ready']);
-            $this->assertSame(65, $migratedSchema['required_table_count']);
+            $this->assertSame(66, $migratedSchema['required_table_count']);
             $this->assertSame([], $migratedSchema['missing_tables']);
             $this->assertSame([], $migratedSchema['missing_columns']);
             $this->assertSame([], $migratedSchema['missing_indexes']);
@@ -272,6 +272,7 @@ class YoutubeIdentifierCaseSensitivityMysqlTest extends TestCase
                 'ingestion_runs',
                 'ingestion_youtube_quota_daily',
                 'telegram_digest_stories',
+                'telegram_digest_dispatches',
                 'urt_show_group',
                 'urt_mayor_person_ai',
                 'failed_jobs',
@@ -333,6 +334,7 @@ class YoutubeIdentifierCaseSensitivityMysqlTest extends TestCase
             '2026_07_13_000000_create_ingestion_youtube_quota_daily_table.php',
             '2026_07_18_000000_create_urt_show_group_table.php',
             '2026_07_30_000000_create_telegram_digest_stories_table.php',
+            '2026_07_30_010000_create_telegram_digest_dispatches_table.php',
         ] as $migrationFile) {
             $migration = require database_path('migrations/'.$migrationFile);
             $migration->up();

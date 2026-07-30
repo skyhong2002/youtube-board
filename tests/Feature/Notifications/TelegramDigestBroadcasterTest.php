@@ -4,6 +4,7 @@ namespace Tests\Feature\Notifications;
 
 use App\Services\Notifications\TelegramDigestBroadcaster;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -81,6 +82,7 @@ class TelegramDigestBroadcasterTest extends TestCase
             $t->text('channel_id')->nullable();
             $t->text('result_json')->nullable();
             $t->text('data_json')->nullable();
+            $t->text('video_json')->nullable();
         });
     }
 
@@ -126,6 +128,8 @@ class TelegramDigestBroadcasterTest extends TestCase
             $t->integer('u_id')->nullable();
             $t->string('channelTitle')->nullable();
             $t->integer('viewCount')->nullable();
+            $t->integer('likeCount')->nullable();
+            $t->integer('commentCount')->nullable();
             $t->dateTime('publishedAt')->nullable();
             $t->text('thumbnails')->nullable();
         });
@@ -172,6 +176,8 @@ class TelegramDigestBroadcasterTest extends TestCase
                 'u_id' => $uId,
                 'channelTitle' => $channels[$uId][0],
                 'viewCount' => 100000 - $index,
+                'likeCount' => 1000 - $index,
+                'commentCount' => 100 - $index,
                 'publishedAt' => '2026-05-24 10:00:00',
                 'thumbnails' => null,
             ];
@@ -191,31 +197,229 @@ class TelegramDigestBroadcasterTest extends TestCase
         ]);
     }
 
-    public function test_daily_run_posts_one_message_per_event_with_summary(): void
+    /**
+     * @param  list<array<string, mixed>>|null  $topics
+     */
+    private function seedCachedDaily(?array $topics = null, string $dataType = 'oneday'): void
+    {
+        $topics ??= [[
+            '標題' => '毒駕事件',
+            '媒體事件' => [
+                '三立新聞' => ['三立毒駕追蹤'],
+                'TVBS NEWS' => ['TVBS修法追蹤'],
+            ],
+        ]];
+        $topicCache = [];
+        foreach ($topics as $topicIndex => $topic) {
+            $title = (string) ($topic['標題'] ?? '');
+            $offset = $topicIndex * 3;
+            $topicCache[$title] = [
+                '媒體數' => 2,
+                '影片數' => 3,
+                'videos' => [
+                    1 => ['v'.($offset + 1), 'v'.($offset + 3)],
+                    2 => ['v'.($offset + 2)],
+                ],
+                '角度' => ['台灣' => 3],
+                '陣營' => ['民進黨' => 2, '國民黨' => 1],
+                '關鍵字' => ['毒駕' => 2, '修法' => 1],
+                '關鍵字次數' => ['毒駕' => 3, '修法' => 1],
+                '人物' => ['卓榮泰' => 2],
+                '地名' => ['台北' => 1],
+                '標籤' => ['1' => 2, '2' => 1],
+                '媒體明細' => [
+                    [
+                        'u_id' => 1,
+                        '媒體' => '三立新聞',
+                        '事件' => '三立毒駕追蹤',
+                        '描述' => '三立整理事故責任與受害者家屬訴求。',
+                        '分類' => '公共安全',
+                        '角度' => '台灣',
+                        '陣營' => '民進黨',
+                        '關鍵字' => ['毒駕'],
+                        '人物' => ['卓榮泰'],
+                        '地名' => ['台北'],
+                        'videoId' => ['v'.($offset + 1), 'v'.($offset + 3)],
+                    ],
+                    [
+                        'u_id' => 2,
+                        '媒體' => 'TVBS NEWS',
+                        '事件' => 'TVBS修法追蹤',
+                        '描述' => 'TVBS追蹤行政院與立法院修法進度。',
+                        '分類' => '公共安全',
+                        '角度' => '台灣',
+                        '陣營' => '國民黨',
+                        '關鍵字' => ['修法'],
+                        '人物' => ['卓榮泰'],
+                        '地名' => ['台北'],
+                        'videoId' => ['v'.($offset + 2)],
+                    ],
+                ],
+            ];
+        }
+
+        DB::table('urt_ai_date')->insert([
+            'pk' => $dataType === 'oneday' ? 1 : 2,
+            'date_from' => '2026-05-24 00:00:00',
+            'date_to' => $dataType === 'oneday' ? '2026-05-24 23:59:59' : '2026-05-30 23:59:59',
+            'condition_type' => 'all',
+            'data_type' => $dataType,
+            'channel_id' => json_encode(['1' => '三立新聞', '2' => 'TVBS NEWS'], JSON_UNESCAPED_UNICODE),
+            'result_json' => json_encode($topics, JSON_UNESCAPED_UNICODE),
+            'data_json' => json_encode($topicCache, JSON_UNESCAPED_UNICODE),
+            'video_json' => json_encode(['v1' => ['title' => 'cached']], JSON_UNESCAPED_UNICODE),
+        ]);
+    }
+
+    public function test_daily_run_posts_only_the_top_complete_event_with_summary(): void
     {
         $this->createDailyTable();
-        $this->createVideoTable();
+        $this->createTaggedVideoTables();
+        $this->seedCachedDaily();
 
+        $result = app(TelegramDigestBroadcaster::class)->run('daily');
+
+        $this->assertSame(1, $result['posted']);
+        $this->assertFalse($result['dry_run']);
+
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/botBOT/sendMessage')
+            && str_contains($r['text'], '毒駕事件')
+            && str_contains($r['text'], '三立新聞：三立整理事故責任與受害者家屬訴求。')
+            && str_contains($r['text'], 'TVBS NEWS：TVBS追蹤行政院與立法院修法進度。')
+            && str_contains($r['text'], '昨日整理　影片3、媒體3')
+            && str_contains($r['text'], '<b>先看</b>'));
+    }
+
+    public function test_daily_projects_production_shaped_sources_when_cache_is_missing(): void
+    {
+        $this->createDailyTable();
+        $this->createTaggedVideoTables();
+        Schema::create('urt_channel_ai', function ($t): void {
+            $t->integer('pk');
+            $t->integer('u_id');
+            $t->dateTime('date_from');
+            $t->dateTime('date_to');
+            $t->string('data_type');
+            $t->integer('del_flag')->nullable();
+            $t->text('result_json');
+        });
+        DB::table('urt_channel_ai')->insert([
+            [
+                'pk' => 1,
+                'u_id' => 1,
+                'date_from' => '2026-05-24 00:00:00',
+                'date_to' => '2026-05-24 23:59:59',
+                'data_type' => 'oneday',
+                'result_json' => json_encode([[
+                    '事件' => '三立救援追蹤',
+                    '描述' => '三立新聞整理救援進度與餘震影響。',
+                    '分類' => '國際',
+                    '角度' => '台灣',
+                    '陣營' => '民進黨',
+                    '關鍵字' => ['熊本強震', '救援'],
+                    '人物' => ['高市早苗'],
+                    '地名' => ['熊本'],
+                    'videoId' => ['v1', 'v7'],
+                ]], JSON_UNESCAPED_UNICODE),
+            ],
+            [
+                'pk' => 2,
+                'u_id' => 2,
+                'date_from' => '2026-05-24 00:00:00',
+                'date_to' => '2026-05-24 23:59:59',
+                'data_type' => 'oneday',
+                'result_json' => json_encode([[
+                    '事件' => 'TVBS餘震追蹤',
+                    '描述' => 'TVBS NEWS追蹤餘震與交通恢復情形。',
+                    '分類' => '國際',
+                    '角度' => '中國',
+                    '陣營' => '國民黨',
+                    '關鍵字' => ['熊本強震', '餘震'],
+                    '人物' => ['高市早苗'],
+                    '地名' => ['熊本'],
+                    'videoId' => ['v2'],
+                ]], JSON_UNESCAPED_UNICODE),
+            ],
+        ]);
         DB::table('urt_ai_date')->insert([
             'pk' => 1,
             'date_from' => '2026-05-24 00:00:00',
             'date_to' => '2026-05-24 23:59:59',
             'condition_type' => 'all',
             'data_type' => 'oneday',
-            'result_json' => json_encode([
-                ['標題' => '毒駕事件', '關鍵字' => ['毒駕'], '人物' => ['卓榮泰'], 'videoId' => ['v1', 'v2'], '媒體事件' => ['三立' => ['a'], 'TVBS' => ['b']]],
-                ['標題' => '颱風動態', '關鍵字' => ['颱風'], 'videoId' => ['v1'], '媒體事件' => ['東森' => ['c']]],
-            ], JSON_UNESCAPED_UNICODE),
+            'channel_id' => json_encode([1 => '三立新聞', 2 => 'TVBS NEWS'], JSON_UNESCAPED_UNICODE),
+            'result_json' => json_encode([[
+                '標題' => '熊本強震救援進展',
+                '媒體事件' => [
+                    '三立新聞' => ['三立救援追蹤'],
+                    'TVBS NEWS' => ['TVBS餘震追蹤'],
+                ],
+            ]], JSON_UNESCAPED_UNICODE),
             'data_json' => null,
+            'video_json' => null,
         ]);
 
         $result = app(TelegramDigestBroadcaster::class)->run('daily');
 
-        $this->assertSame(2, $result['posted']);
-        $this->assertFalse($result['dry_run']);
+        $this->assertSame(1, $result['posted']);
+        Http::assertSent(fn ($request): bool => str_contains($request->url(), 'sendMessage')
+            && str_contains($request['text'], '熊本強震救援進展')
+            && str_contains($request['text'], '三立新聞：三立新聞整理救援進度與餘震影響。')
+            && str_contains($request['text'], 'TVBS NEWS：TVBS NEWS追蹤餘震與交通恢復情形。')
+            && str_contains($request['text'], '人物　高市早苗')
+            && str_contains($request['text'], '地名　熊本')
+            && str_contains($request['text'], '<b>先看</b>'));
+        $this->assertNull(DB::table('urt_ai_date')->value('data_json'));
+        $this->assertNull(DB::table('urt_ai_date')->value('video_json'));
+    }
 
-        Http::assertSent(fn ($r) => str_contains($r->url(), '/botBOT/sendMessage')
-            && str_contains($r['text'], '毒駕事件') && str_contains($r['text'], '毒駕摘要'));
+    public function test_daily_skips_story_already_posted_by_hourly(): void
+    {
+        $this->createHourlyTable();
+        $this->createDailyTable();
+        $this->createTaggedVideoTables();
+        Carbon::setTestNow('2026-05-24 12:05:00');
+        $this->insertHourly(1, '2026-05-24 12:00:00', [[
+            '事件' => '毒駕事件',
+            '關鍵字' => ['毒駕', '修法'],
+            '人物' => ['卓榮泰'],
+            'videoId' => array_map(fn (int $index): string => 'v'.$index, range(1, 8)),
+        ]]);
+        $this->assertSame(1, app(TelegramDigestBroadcaster::class)->run('hourly')['posted']);
+        $this->seedCachedDaily();
+
+        $daily = app(TelegramDigestBroadcaster::class)->run('daily');
+
+        $this->assertSame(0, $daily['posted']);
+        $this->assertSame(1, $daily['skipped_seen']);
+        $this->assertSame(1, DB::table('telegram_digest_stories')->count());
+        Http::assertSentCount(2);
+    }
+
+    public function test_daily_falls_through_when_top_ranked_candidate_is_incomplete(): void
+    {
+        $this->createDailyTable();
+        $this->createTaggedVideoTables();
+        $this->seedCachedDaily([
+            ['標題' => '第一事件', '媒體事件' => ['三立新聞' => ['a'], 'TVBS NEWS' => ['b']]],
+            ['標題' => '第二事件', '媒體事件' => ['三立新聞' => ['c'], 'TVBS NEWS' => ['d']]],
+        ]);
+        $cache = json_decode((string) DB::table('urt_ai_date')->value('data_json'), true, 512, JSON_THROW_ON_ERROR);
+        $cache['第二事件']['關鍵字'] = ['颱風' => 1];
+        $cache['第二事件']['人物'] = ['氣象署' => 1];
+        DB::table('urt_ai_date')->update([
+            'data_json' => json_encode($cache, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+        ]);
+        DB::table('urt_video')->where('videoId', 'v3')->delete();
+
+        $result = app(TelegramDigestBroadcaster::class)->run('daily');
+
+        $this->assertSame(1, $result['posted']);
+        $this->assertSame(1, $result['skipped_incomplete']);
+        Http::assertSent(fn ($request): bool => str_contains($request->url(), 'sendMessage')
+            && str_contains($request['text'], '第二事件'));
+        Http::assertNotSent(fn ($request): bool => str_contains($request->url(), 'sendMessage')
+            && str_contains($request['text'], '第一事件'));
     }
 
     public function test_hourly_run_only_posts_events_over_video_threshold(): void
@@ -238,8 +442,9 @@ class TelegramDigestBroadcasterTest extends TestCase
 
         $this->assertSame(2, $result['considered']);
         $this->assertSame(1, $result['eligible']);
-        $this->assertSame(1, $result['posted']);
-        Http::assertSentCount(2); // 1 OpenAI + 1 Telegram
+        $this->assertSame(0, $result['posted']);
+        $this->assertSame(1, $result['skipped_incomplete']);
+        Http::assertNotSent(fn ($request): bool => str_contains($request->url(), 'sendMessage'));
     }
 
     public function test_hourly_run_fails_closed_when_durable_story_state_is_unavailable(): void
@@ -261,12 +466,8 @@ class TelegramDigestBroadcasterTest extends TestCase
     public function test_second_run_deduplicates_already_posted_events(): void
     {
         $this->createDailyTable();
-        $this->createVideoTable();
-        DB::table('urt_ai_date')->insert([
-            'pk' => 1, 'date_from' => '2026-05-24 00:00:00', 'date_to' => '2026-05-24 23:59:59',
-            'condition_type' => 'all', 'data_type' => 'oneday',
-            'result_json' => json_encode([['標題' => '毒駕事件', 'videoId' => ['v1']]], JSON_UNESCAPED_UNICODE),
-        ]);
+        $this->createTaggedVideoTables();
+        $this->seedCachedDaily();
 
         $first = app(TelegramDigestBroadcaster::class)->run('daily');
         $second = app(TelegramDigestBroadcaster::class)->run('daily');
@@ -281,21 +482,12 @@ class TelegramDigestBroadcasterTest extends TestCase
     public function test_daily_selection_ignores_week_and_period_rows(): void
     {
         $this->createDailyTable();
-        $this->createVideoTable();
-
-        DB::table('urt_ai_date')->insert([
-            [
-                'pk' => 1, 'date_from' => '2026-05-23 00:00:00', 'date_to' => '2026-05-23 23:59:59',
-                'condition_type' => 'all', 'data_type' => 'oneday',
-                'result_json' => json_encode([['標題' => '毒駕事件', 'videoId' => ['v1']]], JSON_UNESCAPED_UNICODE),
-            ],
-            [
-                // Newer aggregate row that must NOT be published as the daily digest.
-                'pk' => 2, 'date_from' => '2026-05-24 00:00:00', 'date_to' => '2026-05-30 23:59:59',
-                'condition_type' => 'all', 'data_type' => 'week',
-                'result_json' => json_encode([['標題' => '週報事件', 'videoId' => ['v1']]], JSON_UNESCAPED_UNICODE),
-            ],
-        ]);
+        $this->createTaggedVideoTables();
+        $this->seedCachedDaily();
+        $this->seedCachedDaily([[
+            '標題' => '週報事件',
+            '媒體事件' => ['三立新聞' => ['a'], 'TVBS NEWS' => ['b']],
+        ]], 'week');
 
         $result = app(TelegramDigestBroadcaster::class)->run('daily');
 
@@ -307,14 +499,10 @@ class TelegramDigestBroadcasterTest extends TestCase
     public function test_duplicate_titles_within_one_batch_post_once(): void
     {
         $this->createDailyTable();
-        $this->createVideoTable();
-        DB::table('urt_ai_date')->insert([
-            'pk' => 1, 'date_from' => '2026-05-24 00:00:00', 'date_to' => '2026-05-24 23:59:59',
-            'condition_type' => 'all', 'data_type' => 'oneday',
-            'result_json' => json_encode([
-                ['標題' => '毒駕事件', 'videoId' => ['v1', 'v2']],
-                ['標題' => '毒駕事件', 'videoId' => ['v1']],
-            ], JSON_UNESCAPED_UNICODE),
+        $this->createTaggedVideoTables();
+        $this->seedCachedDaily([
+            ['標題' => '毒駕事件', '媒體事件' => ['三立新聞' => ['a'], 'TVBS NEWS' => ['b']]],
+            ['標題' => '毒駕事件', '媒體事件' => ['三立新聞' => ['a'], 'TVBS NEWS' => ['b']]],
         ]);
 
         $result = app(TelegramDigestBroadcaster::class)->run('daily');
@@ -327,12 +515,8 @@ class TelegramDigestBroadcasterTest extends TestCase
     {
         config()->set('services.telegram.daily_max_posts', 0);
         $this->createDailyTable();
-        $this->createVideoTable();
-        DB::table('urt_ai_date')->insert([
-            'pk' => 1, 'date_from' => '2026-05-24 00:00:00', 'date_to' => '2026-05-24 23:59:59',
-            'condition_type' => 'all', 'data_type' => 'oneday',
-            'result_json' => json_encode([['標題' => '毒駕事件', 'videoId' => ['v1']]], JSON_UNESCAPED_UNICODE),
-        ]);
+        $this->createTaggedVideoTables();
+        $this->seedCachedDaily();
 
         $result = app(TelegramDigestBroadcaster::class)->run('daily');
 
@@ -340,18 +524,11 @@ class TelegramDigestBroadcasterTest extends TestCase
         Http::assertNotSent(fn ($r) => str_contains($r->url(), 'sendMessage'));
     }
 
-    public function test_a_send_failure_does_not_abort_the_rest_of_the_batch(): void
+    public function test_uncertain_daily_send_failure_keeps_claim_fail_closed(): void
     {
         $this->createDailyTable();
-        $this->createVideoTable();
-        DB::table('urt_ai_date')->insert([
-            'pk' => 1, 'date_from' => '2026-05-24 00:00:00', 'date_to' => '2026-05-24 23:59:59',
-            'condition_type' => 'all', 'data_type' => 'oneday',
-            'result_json' => json_encode([
-                ['標題' => '毒駕事件', 'videoId' => ['v1', 'v2']],
-                ['標題' => '颱風動態', 'videoId' => ['v1']],
-            ], JSON_UNESCAPED_UNICODE),
-        ]);
+        $this->createTaggedVideoTables();
+        $this->seedCachedDaily();
 
         $calls = 0;
         Http::fake([
@@ -363,31 +540,104 @@ class TelegramDigestBroadcasterTest extends TestCase
             ]),
             'api.telegram.test/*' => function () use (&$calls) {
                 $calls++;
-                if ($calls === 1) {
-                    throw new ConnectionException('timeout');
-                }
-
-                return Http::response(['ok' => true, 'result' => ['message_id' => 1]]);
+                throw new ConnectionException('timeout');
             },
+        ]);
+
+        $first = app(TelegramDigestBroadcaster::class)->run('daily');
+        $second = app(TelegramDigestBroadcaster::class)->run('daily');
+
+        $this->assertSame(0, $first['posted']);
+        $this->assertSame(0, $second['posted']);
+        $this->assertSame(1, $calls);
+        $this->assertDatabaseHas('telegram_digest_dispatches', [
+            'context_key' => 'd:2026-05-24',
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_explicit_daily_send_failure_releases_claim_for_retry(): void
+    {
+        $this->createDailyTable();
+        $this->createTaggedVideoTables();
+        $this->seedCachedDaily();
+        Http::swap(new Factory);
+        Http::fake([
+            'api.openai.test/*' => Http::response([
+                'choices' => [['message' => ['content' => '{"items":[]}']]],
+            ]),
+            'api.telegram.test/*' => Http::response(['ok' => false, 'description' => 'Bad Request'], 400),
+        ]);
+
+        $first = app(TelegramDigestBroadcaster::class)->run('daily');
+        $this->assertSame(0, $first['posted']);
+        $this->assertDatabaseMissing('telegram_digest_dispatches', [
+            'context_key' => 'd:2026-05-24',
+        ]);
+
+        Http::swap(new Factory);
+        Http::fake([
+            'api.openai.test/*' => Http::response([
+                'choices' => [['message' => ['content' => '{"items":[]}']]],
+            ]),
+            'api.telegram.test/*' => Http::response(['ok' => true, 'result' => ['message_id' => 2]]),
+        ]);
+        $second = app(TelegramDigestBroadcaster::class)->run('daily');
+
+        $this->assertSame(1, $second['posted']);
+        $this->assertDatabaseHas('telegram_digest_dispatches', [
+            'context_key' => 'd:2026-05-24',
+            'status' => 'sent',
+        ]);
+    }
+
+    public function test_existing_daily_exact_cache_is_adopted_without_reposting(): void
+    {
+        $this->createDailyTable();
+        $this->createTaggedVideoTables();
+        $this->seedCachedDaily();
+        Cache::store('array')->put(
+            'tg:digest:daily:d:2026-05-24:'.md5('毒駕事件'),
+            true,
+            now()->addDays(3),
+        );
+
+        $result = app(TelegramDigestBroadcaster::class)->run('daily');
+
+        $this->assertSame(0, $result['posted']);
+        $this->assertSame(1, $result['skipped_seen']);
+        $this->assertDatabaseHas('telegram_digest_dispatches', [
+            'context_key' => 'd:2026-05-24',
+            'status' => 'adopted',
+        ]);
+        Http::assertNothingSent();
+    }
+
+    public function test_ai_failure_uses_two_named_media_descriptions_instead_of_skeleton_copy(): void
+    {
+        $this->createDailyTable();
+        $this->createTaggedVideoTables();
+        $this->seedCachedDaily();
+        Http::fake([
+            'api.openai.test/*' => Http::response(['error' => ['message' => 'unavailable']], 503),
+            'api.telegram.test/*' => Http::response(['ok' => true, 'result' => ['message_id' => 1]]),
         ]);
 
         $result = app(TelegramDigestBroadcaster::class)->run('daily');
 
-        // First send times out; the second event must still be attempted and posted.
         $this->assertSame(1, $result['posted']);
-        $this->assertSame(2, $calls);
+        Http::assertSent(fn ($request): bool => str_contains($request->url(), 'sendMessage')
+            && str_contains($request['text'], '三立新聞：三立整理事故責任與受害者家屬訴求。')
+            && str_contains($request['text'], 'TVBS NEWS：TVBS追蹤行政院與立法院修法進度。')
+            && str_contains($request['text'], '<blockquote expandable>'));
     }
 
     public function test_dry_run_when_disabled_posts_nothing_and_does_not_mark_seen(): void
     {
         config()->set('services.telegram.enabled', false);
         $this->createDailyTable();
-        $this->createVideoTable();
-        DB::table('urt_ai_date')->insert([
-            'pk' => 1, 'date_from' => '2026-05-24 00:00:00', 'date_to' => '2026-05-24 23:59:59',
-            'condition_type' => 'all', 'data_type' => 'oneday',
-            'result_json' => json_encode([['標題' => '毒駕事件', 'videoId' => ['v1']]], JSON_UNESCAPED_UNICODE),
-        ]);
+        $this->createTaggedVideoTables();
+        $this->seedCachedDaily();
 
         $result = app(TelegramDigestBroadcaster::class)->run('daily');
 

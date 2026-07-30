@@ -39,8 +39,8 @@ return [
         'api_base_url' => rtrim((string) env('TELEGRAM_API_BASE_URL', 'https://api.telegram.org'), '/'),
         'dashboard_url' => rtrim((string) env('TELEGRAM_DASHBOARD_URL', env('APP_URL', 'https://youtube.observe.tw')), '/'),
         'timeout' => (int) env('TELEGRAM_TIMEOUT', 15),
-        // One event per message (hn_best_cht style). Caps posts per run.
-        'daily_max_posts' => (int) env('TELEGRAM_DAILY_MAX_POSTS', 5),
+        // Daily fills at most one previously unreported story for the date.
+        'daily_max_posts' => (int) env('TELEGRAM_DAILY_MAX_POSTS', 1),
         'hourly_max_posts' => (int) env('TELEGRAM_HOURLY_MAX_POSTS', 3),
         // Hourly posts fire only for events clearing the video floor ("重大事件").
         // First reports use the source event size. Follow-ups use newly observed

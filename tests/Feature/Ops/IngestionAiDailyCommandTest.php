@@ -4,6 +4,7 @@ namespace Tests\Feature\Ops;
 
 use App\Services\Ingestion\AiBusinessKeyLock;
 use App\Services\Ingestion\AiDailyPreview;
+use App\Services\Ingestion\AiTopicCacheBuilder;
 use App\Services\Ingestion\IngestionSchedulerRunner;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request;
@@ -1092,6 +1093,16 @@ class IngestionAiDailyCommandTest extends TestCase
         config()->set('services.opencode_go.model', 'qwen-test');
         config()->set('services.opencode_go.endpoint_style', 'chat');
         config()->set('services.opencode_go.fallback_api_key', null);
+        $topicCacheBuilder = \Mockery::mock(AiTopicCacheBuilder::class);
+        $topicCacheBuilder->shouldReceive('build')
+            ->once()
+            ->andReturn([
+                'status' => 'success',
+                'exit_code' => 0,
+                'failed_rows' => 0,
+                'write_targets' => ['urt_ai_date.data_json', 'urt_ai_date.video_json'],
+            ]);
+        app()->instance(AiTopicCacheBuilder::class, $topicCacheBuilder);
         $requestStages = [];
         $youtubePlaylists = [];
         $aiRequests = 0;

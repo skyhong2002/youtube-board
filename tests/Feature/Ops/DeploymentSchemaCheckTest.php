@@ -35,7 +35,7 @@ class DeploymentSchemaCheckTest extends TestCase
 
         $this->assertSame(0, $exitCode, (string) json_encode($payload, JSON_UNESCAPED_SLASHES));
         $this->assertTrue($payload['ready']);
-        $this->assertSame(65, $payload['required_table_count']);
+        $this->assertSame(66, $payload['required_table_count']);
         $this->assertSame([], $payload['missing_tables']);
         $this->assertSame([], $payload['missing_columns']);
         $this->assertSame([], $payload['missing_indexes']);
@@ -48,6 +48,7 @@ class DeploymentSchemaCheckTest extends TestCase
             'ingestion_runs' => null,
             'ingestion_run_jobs' => null,
             'telegram_digest_stories' => null,
+            'telegram_digest_dispatches' => null,
         ], $payload['required_table_engines']);
         $this->assertTrue($payload['required_table_engines_valid']);
         $this->assertSame([
@@ -93,6 +94,7 @@ class DeploymentSchemaCheckTest extends TestCase
             'urt_mayor_person_ai' => ['city_label'],
             'ingestion_runs' => ['payload_json'],
             'ingestion_run_jobs' => ['finished_at'],
+            'telegram_digest_dispatches' => ['status'],
         ]);
 
         $exitCode = Artisan::call('deployment:schema-check', ['--json' => true]);
@@ -105,6 +107,7 @@ class DeploymentSchemaCheckTest extends TestCase
         $this->assertSame(['city_label'], $payload['missing_columns']['urt_mayor_person_ai']);
         $this->assertSame(['payload_json'], $payload['missing_columns']['ingestion_runs']);
         $this->assertSame(['finished_at'], $payload['missing_columns']['ingestion_run_jobs']);
+        $this->assertSame(['status'], $payload['missing_columns']['telegram_digest_dispatches']);
     }
 
     public function test_deployment_schema_check_rejects_missing_critical_indexes(): void
@@ -122,6 +125,11 @@ class DeploymentSchemaCheckTest extends TestCase
                 'primary(run_id,job_key)',
                 'index(job_key,attempted,recorded_at)',
                 'index(job_key,succeeded,recorded_at)',
+            ],
+            'telegram_digest_dispatches' => [
+                'unique(dispatch_key)',
+                'index(period,context_key)',
+                'index(story_id)',
             ],
         ]);
 
@@ -143,6 +151,11 @@ class DeploymentSchemaCheckTest extends TestCase
             'index(job_key,attempted,recorded_at)',
             'index(job_key,succeeded,recorded_at)',
         ], $payload['missing_indexes']['ingestion_run_jobs']);
+        $this->assertSame([
+            'unique(dispatch_key)',
+            'index(period,context_key)',
+            'index(story_id)',
+        ], $payload['missing_indexes']['telegram_digest_dispatches']);
     }
 
     public function test_deployment_schema_check_rejects_missing_ingestion_run_cascade_foreign_key(): void
@@ -232,6 +245,10 @@ class DeploymentSchemaCheckTest extends TestCase
                 'last_posted_at', 'last_posted_video_ids_json', 'last_posted_channel_ids_json',
                 'post_count', 'created_at', 'updated_at',
             ], ['id'], [['story_key']]],
+            'telegram_digest_dispatches' => [[
+                'id', 'dispatch_key', 'period', 'context_key', 'story_id', 'status', 'message_hash',
+                'attempted_at', 'sent_at', 'created_at', 'updated_at',
+            ], ['id'], [['dispatch_key']]],
         ];
         $secondaryIndexes = [
             'ingestion_runs' => [
@@ -246,6 +263,10 @@ class DeploymentSchemaCheckTest extends TestCase
                 ['last_seen_at'],
                 ['last_posted_at'],
             ],
+            'telegram_digest_dispatches' => [
+                ['period', 'context_key'],
+                ['story_id'],
+            ],
         ];
         $foreignKeys = [
             'ingestion_run_jobs' => [[
@@ -256,16 +277,20 @@ class DeploymentSchemaCheckTest extends TestCase
             ]],
         ];
 
-        $historyOverrides = array_intersect(
+        $schemaOverrides = array_intersect(
             [
                 ...array_keys($omittedColumns),
                 ...array_keys($omittedIndexes),
                 ...array_keys($omittedForeignKeys),
             ],
-            ['ingestion_runs', 'ingestion_run_jobs'],
+            ['ingestion_runs', 'ingestion_run_jobs', 'telegram_digest_dispatches'],
         );
 
-        if ($historyOverrides !== []) {
+        if (in_array('telegram_digest_dispatches', $schemaOverrides, true)) {
+            Schema::dropIfExists('telegram_digest_dispatches');
+        }
+
+        if (array_intersect($schemaOverrides, ['ingestion_runs', 'ingestion_run_jobs']) !== []) {
             Schema::dropIfExists('ingestion_run_jobs');
             Schema::dropIfExists('ingestion_runs');
         }

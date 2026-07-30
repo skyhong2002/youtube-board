@@ -7,6 +7,7 @@ use App\Services\Ingestion\AiDailyPreview;
 use App\Services\Ingestion\AiHourlyIngestion;
 use App\Services\Ingestion\AiHourlyPreview;
 use App\Services\Ingestion\AiScheduledPipelineIngestion;
+use App\Services\Ingestion\AiTopicCacheBuilder;
 use App\Services\Ingestion\ChannelVideosDiscoveryIngestion;
 use App\Services\Ingestion\DirectYoutubeQuotaGuard;
 use App\Services\Ingestion\TagVideoBackfillIngestion;
@@ -357,6 +358,23 @@ class AiScheduledPipelineIngestionTest extends TestCase
                     'write_targets' => ['urt_channel_ai', 'urt_ai_date'],
                 ]);
             },
+            topicCache: function (MockInterface $mock): void {
+                $mock->shouldReceive('build')
+                    ->once()
+                    ->withArgs(fn (...$arguments): bool => ($arguments[0] ?? null) === '2026-07-14'
+                        && ($arguments[1] ?? null) === '2026-07-14'
+                        && ($arguments[2] ?? null) === 'all'
+                        && ($arguments[3] ?? null) === 'oneday'
+                        && ($arguments[5] ?? null) === 1
+                        && ($arguments[10] ?? null) === true
+                        && ($arguments[11] ?? null) instanceof CarbonInterface)
+                    ->andReturn([
+                        'status' => 'success',
+                        'exit_code' => 0,
+                        'failed_rows' => 0,
+                        'write_targets' => ['urt_ai_date.data_json', 'urt_ai_date.video_json'],
+                    ]);
+            },
         );
 
         $result = $pipeline->executeDaily(date: '2026-07-14');
@@ -369,6 +387,9 @@ class AiScheduledPipelineIngestionTest extends TestCase
         $this->assertSame([], $result['source_refresh']['missing_required_channel_ids']);
         $this->assertSame(0, $result['source_refresh']['videos_in_range']);
         $this->assertSame('success', $result['ai']['status']);
+        $this->assertSame('success', $result['topic_cache']['status']);
+        $this->assertContains('urt_ai_date.data_json', $result['write_targets']);
+        $this->assertContains('urt_ai_date.video_json', $result['write_targets']);
     }
 
     public function test_daily_pipeline_propagates_required_daily_source_failure(): void
@@ -527,14 +548,23 @@ class AiScheduledPipelineIngestionTest extends TestCase
     /**
      * @param  array<string, mixed>  $quotaPayload
      */
-    private function pipeline(array $quotaPayload, Closure $daily): AiScheduledPipelineIngestion
-    {
+    private function pipeline(
+        array $quotaPayload,
+        Closure $daily,
+        ?Closure $topicCache = null,
+    ): AiScheduledPipelineIngestion {
         $tagBackfill = Mockery::mock(TagVideoBackfillIngestion::class);
         $channelVideos = Mockery::mock(ChannelVideosDiscoveryIngestion::class);
         $quotaGuard = Mockery::mock(DirectYoutubeQuotaGuard::class);
         $dailyPreview = Mockery::mock(AiDailyPreview::class);
         $dailyIngestion = Mockery::mock(AiDailyIngestion::class);
         $daily($dailyIngestion);
+        $topicCacheBuilder = Mockery::mock(AiTopicCacheBuilder::class);
+        if ($topicCache === null) {
+            $topicCacheBuilder->shouldNotReceive('build');
+        } else {
+            $topicCache($topicCacheBuilder);
+        }
         $hourlyPreview = Mockery::mock(AiHourlyPreview::class);
         $hourlyIngestion = Mockery::mock(AiHourlyIngestion::class);
         $quotaGuard->shouldReceive('publicState')->once()->with([])->andReturn([]);
@@ -554,6 +584,7 @@ class AiScheduledPipelineIngestionTest extends TestCase
             $quotaGuard,
             $dailyPreview,
             $dailyIngestion,
+            $topicCacheBuilder,
             $hourlyPreview,
             $hourlyIngestion,
         );
@@ -608,6 +639,8 @@ class AiScheduledPipelineIngestionTest extends TestCase
         $channelVideos = Mockery::mock(ChannelVideosDiscoveryIngestion::class);
         $quotaGuard = Mockery::mock(DirectYoutubeQuotaGuard::class);
         $dailyIngestion = Mockery::mock(AiDailyIngestion::class);
+        $topicCacheBuilder = Mockery::mock(AiTopicCacheBuilder::class);
+        $topicCacheBuilder->shouldNotReceive('build');
         $hourlyPreview = Mockery::mock(AiHourlyPreview::class);
         $hourlyIngestion = Mockery::mock(AiHourlyIngestion::class);
 
@@ -617,6 +650,7 @@ class AiScheduledPipelineIngestionTest extends TestCase
             $quotaGuard,
             $dailyPreview,
             $dailyIngestion,
+            $topicCacheBuilder,
             $hourlyPreview,
             $hourlyIngestion,
         );
@@ -725,6 +759,8 @@ class AiScheduledPipelineIngestionTest extends TestCase
         $quotaGuard = Mockery::mock(DirectYoutubeQuotaGuard::class);
         $dailyPreview = Mockery::mock(AiDailyPreview::class);
         $dailyIngestion = Mockery::mock(AiDailyIngestion::class);
+        $topicCacheBuilder = Mockery::mock(AiTopicCacheBuilder::class);
+        $topicCacheBuilder->shouldNotReceive('build');
         $hourlyPreview = Mockery::mock(AiHourlyPreview::class);
         $hourlyIngestion = Mockery::mock(AiHourlyIngestion::class);
         $hourly($hourlyIngestion);
@@ -753,6 +789,7 @@ class AiScheduledPipelineIngestionTest extends TestCase
             $quotaGuard,
             $dailyPreview,
             $dailyIngestion,
+            $topicCacheBuilder,
             $hourlyPreview,
             $hourlyIngestion,
         );
