@@ -29,7 +29,7 @@ class TelegramClient
     /**
      * @return array{sent: bool, dry_run: bool, ok: bool, error: string|null}
      */
-    public function send(string $html): array
+    public function send(string $html, ?string $previewUrl = null): array
     {
         $config = (array) config('services.telegram', []);
         $token = trim((string) ($config['bot_token'] ?? ''));
@@ -40,6 +40,15 @@ class TelegramClient
         }
 
         try {
+            $linkPreview = $previewUrl !== null && str_starts_with($previewUrl, 'https://')
+                ? [
+                    'is_disabled' => false,
+                    'url' => $previewUrl,
+                    'prefer_large_media' => true,
+                    'show_above_text' => false,
+                ]
+                : ['is_disabled' => true];
+
             $response = Http::baseUrl((string) ($config['api_base_url'] ?? 'https://api.telegram.org'))
                 ->timeout((int) ($config['timeout'] ?? 15))
                 ->asJson()
@@ -47,7 +56,7 @@ class TelegramClient
                     'chat_id' => $channel,
                     'text' => $html,
                     'parse_mode' => 'HTML',
-                    'link_preview_options' => ['is_disabled' => true],
+                    'link_preview_options' => $linkPreview,
                 ]);
         } catch (\Throwable $exception) {
             // A timeout on one post must not abort the rest of the digest batch;

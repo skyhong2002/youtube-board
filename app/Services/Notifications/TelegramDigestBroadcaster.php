@@ -2,8 +2,8 @@
 
 namespace App\Services\Notifications;
 
+use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Database\QueryException;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -22,6 +22,8 @@ class TelegramDigestBroadcaster
         private EventNewsWriter $writer,
         private TelegramClient $telegram,
         private TelegramDigestFormatter $formatter,
+        private TelegramEventEnricher $enricher,
+        private TelegramStoryTracker $stories,
     ) {}
 
     /**
@@ -36,25 +38,64 @@ class TelegramDigestBroadcaster
             return $this->summary($period, 0, 0, 0, 0, ! $this->telegram->isLive());
         }
 
-        [$events, $considered, $eligible] = $this->select($period, $context['events']);
+        [$events, $considered, $eligible] = $this->prepare($period, $context['events']);
 
         $fresh = [];
         $skippedSeen = 0;
         $batchSeen = [];
+        $batchStories = [];
         foreach ($events as $event) {
+            $eventEligible = $period !== 'hourly'
+                || $event['video_count'] >= (int) config('services.telegram.hourly_min_videos', 8);
             $key = $this->seenKey($period, $context['key'], $event['title']);
+            $decision = $period === 'hourly'
+                ? $this->stories->evaluate($event, $context, $eventEligible)
+                : [
+                    'story_id' => 0,
+                    'should_post' => $eventEligible,
+                    'trigger' => 'daily',
+                    'metric_line' => '',
+                    'burst_line' => '',
+                ];
 
-            // Guard against duplicate titles within one batch too — the cache
-            // is only marked after a successful send, so two same-titled events
-            // would otherwise both pass the freshness check.
-            if (isset($batchSeen[$key]) || (! $force && $this->alreadyPosted($key))) {
+            $storyId = (int) ($decision['story_id'] ?? 0);
+
+            // The AI can emit title variants for one event in the same row.
+            // Story-level batch dedup catches those even when exact titles differ.
+            if (isset($batchSeen[$key]) || ($storyId > 0 && isset($batchStories[$storyId]))) {
                 $skippedSeen++;
 
                 continue;
             }
             $batchSeen[$key] = true;
+            if ($storyId > 0) {
+                $batchStories[$storyId] = true;
+            }
+
+            if (! $force && $this->alreadyPosted($key)) {
+                if ($period === 'hourly') {
+                    $this->stories->rememberExistingPost($storyId);
+                }
+                $skippedSeen++;
+
+                continue;
+            }
+
+            if (! $force && ! ($decision['should_post'] ?? false)) {
+                $skippedSeen++;
+
+                continue;
+            }
+
+            $event['dispatch'] = $decision;
             $fresh[] = $event;
         }
+
+        $cap = max(0, (int) config(
+            'services.telegram.'.($period === 'hourly' ? 'hourly_max_posts' : 'daily_max_posts'),
+            5,
+        ));
+        $fresh = array_slice($fresh, 0, $cap);
 
         if ($fresh === []) {
             return $this->summary($period, $considered, $eligible, 0, $skippedSeen, ! $this->telegram->isLive());
@@ -63,11 +104,14 @@ class TelegramDigestBroadcaster
         $posted = 0;
         $dryRun = false;
         foreach ($this->render($period, $context, $fresh) as $post) {
-            $result = $this->telegram->send($post['html']);
+            $result = $this->telegram->send($post['html'], $post['preview_url']);
             $dryRun = $dryRun || $result['dry_run'];
 
             if ($result['sent']) {
                 $this->markPosted($this->seenKey($period, $context['key'], $post['title']));
+                if ($period === 'hourly') {
+                    $this->stories->markPosted((int) $post['story_id']);
+                }
                 $posted++;
             }
         }
@@ -90,7 +134,31 @@ class TelegramDigestBroadcaster
             return [];
         }
 
-        [$events] = $this->select($period, $context['events']);
+        [$events] = $this->prepare($period, $context['events']);
+        $events = array_values(array_filter(
+            $events,
+            fn (array $event): bool => $period !== 'hourly'
+                || $event['video_count'] >= (int) config('services.telegram.hourly_min_videos', 8),
+        ));
+        $cap = max(0, (int) config(
+            'services.telegram.'.($period === 'hourly' ? 'hourly_max_posts' : 'daily_max_posts'),
+            5,
+        ));
+        $events = array_slice($events, 0, $cap);
+
+        if ($period === 'hourly') {
+            foreach ($events as $index => $event) {
+                $events[$index]['dispatch'] = [
+                    'story_id' => 0,
+                    'metric_line' => sprintf(
+                        '近1小時　影片%d、媒體%d',
+                        $event['video_count'],
+                        $event['media_count'],
+                    ),
+                    'burst_line' => '',
+                ];
+            }
+        }
 
         return array_map(
             static fn (array $post): string => $post['html'],
@@ -99,31 +167,28 @@ class TelegramDigestBroadcaster
     }
 
     /**
-     * Apply the hourly threshold, sort by prominence, and cap per run.
+     * Resolve source metadata and sort by prominence. The cap is applied only
+     * after novelty checks so a covered top event cannot starve a new one.
      *
      * @param  list<array<string, mixed>>  $events
      * @return array{0: list<array<string, mixed>>, 1: int, 2: int}
      */
-    private function select(string $period, array $events): array
+    private function prepare(string $period, array $events): array
     {
         $considered = count($events);
-
-        if ($period === 'hourly') {
-            $minVideos = (int) config('services.telegram.hourly_min_videos', 8);
-            $events = array_values(array_filter(
-                $events,
-                static fn (array $event): bool => $event['video_count'] >= $minVideos
-            ));
-        }
+        $events = array_map($this->enricher->enrich(...), $events);
 
         usort($events, static fn (array $a, array $b): int => ($b['video_count'] <=> $a['video_count'])
             ?: ($b['media_count'] <=> $a['media_count']));
 
-        // A non-positive cap disables posting for the period entirely.
-        $cap = (int) config('services.telegram.'.($period === 'hourly' ? 'hourly_max_posts' : 'daily_max_posts'), 5);
-        $events = array_slice($events, 0, max(0, $cap));
+        $eligible = $period === 'hourly'
+            ? count(array_filter(
+                $events,
+                fn (array $event): bool => $event['video_count'] >= (int) config('services.telegram.hourly_min_videos', 8),
+            ))
+            : count($events);
 
-        return [$events, $considered, count($events)];
+        return [$events, $considered, $eligible];
     }
 
     /**
@@ -131,20 +196,27 @@ class TelegramDigestBroadcaster
      *
      * @param  array{key: string, url: string, label: string, events: list<array<string, mixed>>}  $context
      * @param  list<array<string, mixed>>  $events
-     * @return list<array{title: string, html: string}>
+     * @return list<array{title: string, html: string, preview_url: string|null, story_id: int, event: array<string, mixed>}>
      */
     private function render(string $period, array $context, array $events): array
     {
-        foreach ($events as $index => $event) {
-            $events[$index]['video_titles'] = $this->videoTitles($event['video_ids']);
-        }
-
         $summaries = $this->writer->summaries(array_map(static fn (array $event): array => [
             'title' => $event['title'],
+            'description' => $event['description'],
+            'category' => $event['category'],
+            'angle' => $event['angle'],
+            'camp' => $event['camp'],
             'keywords' => $event['keywords'],
             'people' => $event['people'],
+            'places' => $event['places'],
             'media' => $event['media'],
-            'video_titles' => $event['video_titles'],
+            'videos' => array_map(static fn (array $video): array => [
+                'video_id' => $video['video_id'],
+                'title' => $video['title'],
+                'channel' => $video['channel'],
+                'channel_tags' => $video['tags'],
+                'view_count' => $video['view_count'],
+            ], array_slice($event['videos'], 0, 18)),
             'video_count' => $event['video_count'],
             'media_count' => $event['media_count'],
         ], $events));
@@ -154,14 +226,25 @@ class TelegramDigestBroadcaster
             'html' => $this->formatter->format([
                 'title' => $event['title'],
                 'summary' => $summaries[$event['title']] ?? '',
+                'description' => $event['description'],
+                'category' => $event['category'],
+                'angle' => $event['angle'],
+                'camp' => $event['camp'],
                 'keywords' => $event['keywords'],
                 'people' => $event['people'],
+                'places' => $event['places'],
                 'video_count' => $event['video_count'],
                 'media_count' => $event['media_count'],
+                'channel_tag_counts' => $event['channel_tag_counts'],
+                'videos' => $event['videos'],
+                'metric_line' => (string) data_get($event, 'dispatch.metric_line', ''),
+                'burst_line' => (string) data_get($event, 'dispatch.burst_line', ''),
                 'url' => $context['url'],
                 'label' => $context['label'],
-                'breaking' => $period === 'hourly',
             ]),
+            'preview_url' => $event['preview_url'],
+            'story_id' => (int) data_get($event, 'dispatch.story_id', 0),
+            'event' => $event,
         ], $events);
     }
 
@@ -198,6 +281,7 @@ class TelegramDigestBroadcaster
             'key' => 'd:'.$date,
             'url' => $this->dashboard('/ai/days/'.$date),
             'label' => $date,
+            'date_from' => (string) $row->date_from,
             'events' => $events,
         ];
     }
@@ -232,6 +316,7 @@ class TelegramDigestBroadcaster
             'key' => 'h:'.$from,
             'url' => $this->dashboard('/ai/hours?date='.$date),
             'label' => $date.' '.$hour.'時',
+            'date_from' => $from,
             'events' => $this->normalizeEvents($this->decodeList($row->result_json ?? null)),
         ];
     }
@@ -255,8 +340,13 @@ class TelegramDigestBroadcaster
 
             $events[] = [
                 'title' => $title,
+                'description' => $this->text($item, ['描述', '說明', 'description', 'content']),
+                'category' => $this->textOrFirst($item, ['分類', '類型', 'category', 'type']),
+                'angle' => $this->text($item, ['角度', 'angle']),
+                'camp' => $this->text($item, ['陣營', 'camp', 'stance']),
                 'keywords' => $this->stringList($item, ['關鍵字', 'keywords']),
                 'people' => $this->stringList($item, ['人物', 'people']),
+                'places' => $this->stringList($item, ['地名', 'places']),
                 'media' => array_values(array_filter(array_map('strval', $media))),
                 'video_ids' => $videoIds,
                 'video_count' => count($videoIds),
@@ -303,31 +393,6 @@ class TelegramDigestBroadcaster
         return $events;
     }
 
-    /**
-     * @param  list<string>  $videoIds
-     * @return list<string>
-     */
-    private function videoTitles(array $videoIds): array
-    {
-        if ($videoIds === []) {
-            return [];
-        }
-
-        try {
-            return DB::table('urt_video')
-                ->whereIn('videoId', array_slice($videoIds, 0, 12))
-                ->orderByDesc('viewCount')
-                ->limit(6)
-                ->pluck('title')
-                ->map(static fn (mixed $t): string => trim((string) $t))
-                ->filter(static fn (string $t): bool => $t !== '')
-                ->values()
-                ->all();
-        } catch (QueryException) {
-            return [];
-        }
-    }
-
     private function seenKey(string $period, string $contextKey, string $title): string
     {
         return 'tg:digest:'.$period.':'.$contextKey.':'.md5($title);
@@ -356,7 +421,7 @@ class TelegramDigestBroadcaster
         }
     }
 
-    private function dedupStore(): \Illuminate\Contracts\Cache\Repository
+    private function dedupStore(): Repository
     {
         $store = (string) config('services.telegram.dedup_store', 'database');
 
@@ -395,6 +460,16 @@ class TelegramDigestBroadcaster
         }
 
         return '';
+    }
+
+    /**
+     * @param  list<string>  $keys
+     */
+    private function textOrFirst(array $item, array $keys): string
+    {
+        $text = $this->text($item, $keys);
+
+        return $text !== '' ? $text : ($this->stringList($item, $keys)[0] ?? '');
     }
 
     /**

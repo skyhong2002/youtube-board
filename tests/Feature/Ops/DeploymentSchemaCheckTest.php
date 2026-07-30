@@ -35,7 +35,7 @@ class DeploymentSchemaCheckTest extends TestCase
 
         $this->assertSame(0, $exitCode, (string) json_encode($payload, JSON_UNESCAPED_SLASHES));
         $this->assertTrue($payload['ready']);
-        $this->assertSame(64, $payload['required_table_count']);
+        $this->assertSame(65, $payload['required_table_count']);
         $this->assertSame([], $payload['missing_tables']);
         $this->assertSame([], $payload['missing_columns']);
         $this->assertSame([], $payload['missing_indexes']);
@@ -47,6 +47,7 @@ class DeploymentSchemaCheckTest extends TestCase
             'ingestion_youtube_quota_daily' => null,
             'ingestion_runs' => null,
             'ingestion_run_jobs' => null,
+            'telegram_digest_stories' => null,
         ], $payload['required_table_engines']);
         $this->assertTrue($payload['required_table_engines_valid']);
         $this->assertSame([
@@ -225,6 +226,12 @@ class DeploymentSchemaCheckTest extends TestCase
                 'run_id', 'job_key', 'recorded_at', 'attempted', 'succeeded', 'failed', 'action', 'exit_code',
                 'started_at', 'finished_at', 'created_at', 'updated_at',
             ], ['run_id', 'job_key'], []],
+            'telegram_digest_stories' => [[
+                'id', 'story_key', 'canonical_title', 'fingerprint_json', 'video_ids_json',
+                'video_channels_json', 'observations_json', 'first_seen_at', 'last_seen_at',
+                'last_posted_at', 'last_posted_video_ids_json', 'last_posted_channel_ids_json',
+                'post_count', 'created_at', 'updated_at',
+            ], ['id'], [['story_key']]],
         ];
         $secondaryIndexes = [
             'ingestion_runs' => [
@@ -234,6 +241,10 @@ class DeploymentSchemaCheckTest extends TestCase
             'ingestion_run_jobs' => [
                 ['job_key', 'attempted', 'recorded_at'],
                 ['job_key', 'succeeded', 'recorded_at'],
+            ],
+            'telegram_digest_stories' => [
+                ['last_seen_at'],
+                ['last_posted_at'],
             ],
         ];
         $foreignKeys = [

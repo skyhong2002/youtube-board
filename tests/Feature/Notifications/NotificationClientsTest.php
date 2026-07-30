@@ -92,7 +92,10 @@ class NotificationClientsTest extends TestCase
         config()->set('services.telegram.channel_id', '@channel');
         Http::fake();
 
-        $result = (new TelegramClient)->send('<b>hi</b>');
+        $result = (new TelegramClient)->send(
+            '<b>hi</b> <a href="https://www.youtube.com/watch?v=preview">影片</a>',
+            'https://www.youtube.com/watch?v=preview',
+        );
 
         $this->assertTrue($result['dry_run']);
         $this->assertFalse($result['sent']);
@@ -107,7 +110,10 @@ class NotificationClientsTest extends TestCase
         config()->set('services.telegram.api_base_url', 'https://api.telegram.test');
         Http::fake(['api.telegram.test/*' => Http::response(['ok' => true, 'result' => ['message_id' => 1]])]);
 
-        $result = (new TelegramClient)->send('<b>hi</b>');
+        $result = (new TelegramClient)->send(
+            '<b>hi</b> <a href="https://www.youtube.com/watch?v=preview">影片</a>',
+            'https://www.youtube.com/watch?v=preview',
+        );
 
         $this->assertTrue($result['sent']);
         $this->assertFalse($result['dry_run']);
@@ -115,7 +121,10 @@ class NotificationClientsTest extends TestCase
             return str_contains($request->url(), '/botBOTTOKEN/sendMessage')
                 && $request['chat_id'] === '@channel'
                 && $request['parse_mode'] === 'HTML'
-                && $request['text'] === '<b>hi</b>';
+                && $request['text'] === '<b>hi</b> <a href="https://www.youtube.com/watch?v=preview">影片</a>'
+                && $request['link_preview_options']['is_disabled'] === false
+                && $request['link_preview_options']['url'] === 'https://www.youtube.com/watch?v=preview'
+                && $request['link_preview_options']['prefer_large_media'] === true;
         });
     }
 }

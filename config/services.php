@@ -43,9 +43,21 @@ return [
         'daily_max_posts' => (int) env('TELEGRAM_DAILY_MAX_POSTS', 5),
         'hourly_max_posts' => (int) env('TELEGRAM_HOURLY_MAX_POSTS', 3),
         // Hourly posts fire only for events clearing the video floor ("重大事件").
-        // No media floor: hourly AI rows structurally omit 媒體事件, so a media
-        // requirement would silence hourly posts entirely.
+        // First reports use the source event size. Follow-ups use newly observed
+        // videos and resolved channels from the durable story tracker below.
         'hourly_min_videos' => (int) env('TELEGRAM_HOURLY_MIN_VIDEOS', 8),
+        'story_match_hours' => (int) env('TELEGRAM_STORY_MATCH_HOURS', 72),
+        'update_cooldown_hours' => (int) env('TELEGRAM_UPDATE_COOLDOWN_HOURS', 24),
+        'resurface_hours' => (int) env('TELEGRAM_RESURFACE_HOURS', 72),
+        'update_min_videos' => (int) env('TELEGRAM_UPDATE_MIN_VIDEOS', 5),
+        'update_min_media' => (int) env('TELEGRAM_UPDATE_MIN_MEDIA', 2),
+        'burst_cooldown_hours' => (int) env('TELEGRAM_BURST_COOLDOWN_HOURS', 3),
+        'burst_min_videos' => (int) env('TELEGRAM_BURST_MIN_VIDEOS', 8),
+        'burst_min_media' => (int) env('TELEGRAM_BURST_MIN_MEDIA', 3),
+        'burst_min_new_videos' => (int) env('TELEGRAM_BURST_MIN_NEW_VIDEOS', 4),
+        'burst_baseline_hours' => (int) env('TELEGRAM_BURST_BASELINE_HOURS', 3),
+        'burst_ratio' => (float) env('TELEGRAM_BURST_RATIO', 2.5),
+        'channel_tag_limit' => (int) env('TELEGRAM_CHANNEL_TAG_LIMIT', 3),
         // Dedup store must be SHARED across the web + scheduler containers (which
         // have separate file caches), so it defaults to the database cache store.
         'dedup_store' => env('TELEGRAM_DEDUP_STORE', 'database'),
@@ -56,7 +68,7 @@ return [
             'api_key' => env('TELEGRAM_OPENAI_API_KEY', env('OPENAI_API_KEY')),
             'model' => env('TELEGRAM_OPENAI_MODEL', 'gpt-5.4'),
             'timeout' => (int) env('TELEGRAM_OPENAI_TIMEOUT', 60),
-            'max_output_tokens' => (int) env('TELEGRAM_OPENAI_MAX_TOKENS', 900),
+            'max_output_tokens' => (int) env('TELEGRAM_OPENAI_MAX_TOKENS', 1800),
         ],
     ],
 

@@ -93,6 +93,23 @@ class DeploymentSchemaVerifier
             'created_at',
             'updated_at',
         ],
+        'telegram_digest_stories' => [
+            'id',
+            'story_key',
+            'canonical_title',
+            'fingerprint_json',
+            'video_ids_json',
+            'video_channels_json',
+            'observations_json',
+            'first_seen_at',
+            'last_seen_at',
+            'last_posted_at',
+            'last_posted_video_ids_json',
+            'last_posted_channel_ids_json',
+            'post_count',
+            'created_at',
+            'updated_at',
+        ],
     ];
 
     /**
@@ -154,6 +171,12 @@ class DeploymentSchemaVerifier
             ['kind' => 'index', 'columns' => ['job_key', 'attempted', 'recorded_at']],
             ['kind' => 'index', 'columns' => ['job_key', 'succeeded', 'recorded_at']],
         ],
+        'telegram_digest_stories' => [
+            ['kind' => 'primary', 'columns' => ['id']],
+            ['kind' => 'unique', 'columns' => ['story_key']],
+            ['kind' => 'index', 'columns' => ['last_seen_at']],
+            ['kind' => 'index', 'columns' => ['last_posted_at']],
+        ],
     ];
 
     /**
@@ -181,6 +204,7 @@ class DeploymentSchemaVerifier
         'ingestion_youtube_quota_daily',
         'ingestion_runs',
         'ingestion_run_jobs',
+        'telegram_digest_stories',
     ];
 
     /**

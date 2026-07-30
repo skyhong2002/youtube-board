@@ -69,5 +69,24 @@ abstract class TestCase extends BaseTestCase
                 ->on('ingestion_runs')
                 ->cascadeOnDelete();
         });
+
+        Schema::create('telegram_digest_stories', function (Blueprint $table): void {
+            $table->id();
+            $table->string('story_key', 64)->unique();
+            $table->string('canonical_title', 500);
+            $table->longText('fingerprint_json');
+            $table->longText('video_ids_json');
+            $table->longText('video_channels_json');
+            $table->longText('observations_json');
+            $table->dateTime('first_seen_at');
+            $table->dateTime('last_seen_at');
+            $table->dateTime('last_posted_at')->nullable();
+            $table->longText('last_posted_video_ids_json')->nullable();
+            $table->longText('last_posted_channel_ids_json')->nullable();
+            $table->unsignedInteger('post_count')->default(0);
+            $table->timestamps();
+            $table->index('last_seen_at');
+            $table->index('last_posted_at');
+        });
     }
 }
