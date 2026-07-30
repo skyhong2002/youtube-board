@@ -84,6 +84,30 @@ class AiTopicCacheBuilderTest extends TestCase
         $this->assertSame(1, $repeatPayload['unchanged']);
     }
 
+    public function test_channel_event_matching_uses_daily_identity_without_requiring_matching_data_type(): void
+    {
+        $this->createTables();
+        $this->seedCompleteDailyRow();
+        DB::table('urt_channel_ai')->update(['data_type' => 'daily']);
+
+        $exitCode = Artisan::call('reports:ai-topic:build', [
+            '--from' => '2026-05-23',
+            '--condition' => 'world',
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, $payload['updated']);
+        $this->assertSame(2, json_decode(
+            (string) DB::table('urt_ai_date')->value('data_json'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        )['Topic A']['影片數']);
+    }
+
     public function test_api_topic_route_serves_the_built_cache(): void
     {
         $this->createTables();

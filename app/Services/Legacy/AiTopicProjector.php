@@ -65,8 +65,7 @@ final class AiTopicProjector
 
         $dateFrom = (string) ($row->date_from ?? '');
         $dateTo = (string) ($row->date_to ?? '');
-        $dataType = (string) ($row->data_type ?? '');
-        $channelAi = $this->channelAi($channelMap, $dateFrom, $dateTo, $dataType);
+        $channelAi = $this->channelAi($channelMap, $dateFrom, $dateTo);
         $channelTags = $this->channelTags(array_keys($channelMap));
         $titleToUId = $this->titleToUId($channelMap);
         $topicData = [];
@@ -206,7 +205,7 @@ final class AiTopicProjector
     /**
      * @return array<string, list<array<string, mixed>>>
      */
-    private function channelAi(array $channelMap, string $dateFrom, string $dateTo, string $dataType): array
+    private function channelAi(array $channelMap, string $dateFrom, string $dateTo): array
     {
         $query = DB::table('urt_channel_ai')
             ->whereIn('u_id', array_keys($channelMap))
@@ -214,10 +213,6 @@ final class AiTopicProjector
             ->where('date_to', $dateTo)
             ->whereNull('del_flag')
             ->orderByDesc('pk');
-
-        if ($dataType !== '' && Schema::hasColumn('urt_channel_ai', 'data_type')) {
-            $query->where('data_type', $dataType);
-        }
 
         return $query->get(['u_id', 'result_json'])
             ->unique('u_id')
