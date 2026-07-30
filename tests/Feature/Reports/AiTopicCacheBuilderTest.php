@@ -270,6 +270,51 @@ class AiTopicCacheBuilderTest extends TestCase
         $this->assertNull(DB::table('urt_ai_date')->value('data_json'));
     }
 
+    public function test_topic_with_missing_video_source_is_omitted_when_another_topic_is_complete(): void
+    {
+        $this->createTables();
+        $this->seedCompleteDailyRow([
+            'result_json' => json_encode([
+                ['標題' => 'Incomplete Topic', '媒體事件' => ['News A' => ['事件A']]],
+                ['標題' => 'Complete Topic', '媒體事件' => ['News A' => ['事件B']]],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+        DB::table('urt_channel_ai')->update([
+            'result_json' => json_encode([
+                [
+                    '事件' => '事件A',
+                    'videoId' => ['video-1', 'video-2'],
+                    '描述' => '包含已遺失影片。',
+                ],
+                [
+                    '事件' => '事件B',
+                    'videoId' => ['video-1'],
+                    '描述' => '影片來源完整。',
+                ],
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+        DB::table('urt_video')->where('videoId', 'video-2')->delete();
+
+        $exitCode = Artisan::call('reports:ai-topic:build', [
+            '--from' => '2026-05-23',
+            '--condition' => 'world',
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+        $topics = json_decode(
+            (string) DB::table('urt_ai_date')->value('data_json'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, $payload['updated']);
+        $this->assertArrayNotHasKey('Incomplete Topic', $topics);
+        $this->assertSame(1, $topics['Complete Topic']['影片數']);
+    }
+
     public function test_invalid_calendar_date_is_blocked_before_selection(): void
     {
         $this->createTables();

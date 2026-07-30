@@ -187,9 +187,29 @@ final class AiTopicProjector
 
         $videos = $this->videos($videoIds);
 
-        if (count($videos) !== count($videoIds)) {
+        foreach ($topicData as $title => $topic) {
+            $topicVideoIds = collect($topic['videos'])
+                ->flatten()
+                ->unique()
+                ->values()
+                ->all();
+
+            if (array_diff($topicVideoIds, array_keys($videos)) !== []) {
+                unset($topicData[$title]);
+            }
+        }
+
+        if ($topicData === []) {
             return $this->blocked($raw, $channelMap, 'missing_video_source', false, count($topics), count($videoIds));
         }
+
+        $videoIds = collect($topicData)
+            ->pluck('videos')
+            ->flatten()
+            ->unique()
+            ->values()
+            ->all();
+        $videos = array_intersect_key($videos, array_flip($videoIds));
 
         return [
             'complete' => true,
@@ -201,7 +221,7 @@ final class AiTopicProjector
             'raw' => $raw,
             'topic_count' => count($topics),
             'channel_count' => count($channelMap),
-            'video_count' => count($videos),
+            'video_count' => count($videoIds),
         ];
     }
 
