@@ -63,6 +63,7 @@ use App\Services\Ingestion\VideoDurationsPreview;
 use App\Services\Ingestion\VideoStatisticsIngestion;
 use App\Services\Ingestion\VideoStatisticsPreview;
 use App\Services\Notifications\TelegramDigestBroadcaster;
+use App\Services\Notifications\TelegramScheduleSlotGate;
 use App\Support\SensitiveTextRedactor;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Application as ConsoleApplication;
@@ -4346,20 +4347,24 @@ Artisan::command('notify:telegram:digest {--period=daily : daily or hourly} {--f
 // never spends AI quota while disabled. Manual runs remain available anytime.
 if (config('services.telegram.enabled', false)) {
     // The production scheduler is a `while true; schedule:run; sleep 60` loop,
-    // so each cycle drifts by the previous run's duration and exact-minute
-    // schedules (hourlyAt/dailyAt) silently skip when their minute falls in a
-    // gap. Run the digest frequently instead: posted events dedup to no-ops, so
-    // a missed minute only delays a post by one interval instead of losing it.
+    // so each cycle can skip an exact cron minute. Evaluate every minute and
+    // claim a durable time slot before starting each digest command.
     Schedule::command('notify:telegram:digest --period=hourly')
-        ->everyTenMinutes()
+        ->everyMinute()
+        ->when(fn (): bool => app(TelegramScheduleSlotGate::class)->claim(
+            'hourly',
+            10,
+            (string) config('app.timezone', 'UTC'),
+        ))
         ->withoutOverlapping(15)
         ->runInBackground()
         ->appendOutputTo(storage_path('logs/telegram-digest.log'));
 
     Schedule::command('notify:telegram:digest --period=daily')
-        ->everyThirtyMinutes()
+        ->everyMinute()
         ->timezone('Asia/Taipei')
         ->between('9:00', '21:00')
+        ->when(fn (): bool => app(TelegramScheduleSlotGate::class)->claim('daily', 30, 'Asia/Taipei'))
         ->withoutOverlapping(15)
         ->runInBackground()
         ->appendOutputTo(storage_path('logs/telegram-digest.log'));
