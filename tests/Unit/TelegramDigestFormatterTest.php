@@ -60,6 +60,7 @@ class TelegramDigestFormatterTest extends TestCase
         $this->assertStringContainsString('href="https://www.youtube.com/watch?v=green1"', $message);
         $this->assertStringContainsString('<b>TVBS NEWS〔泛藍〕</b>', $message);
         $this->assertStringContainsString('<a href="https://youtube.observe.tw/ai/days/2026-05-24">完整整理</a>', $message);
+        $this->assertStringNotContainsString('<br', $message);
         $this->assertStringNotContainsString('🎬', $message);
         $this->assertStringNotContainsString('🔑', $message);
         $this->assertStringNotContainsString('👤', $message);

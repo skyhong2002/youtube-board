@@ -262,7 +262,7 @@ class TelegramDigestFormatter
             ]));
         };
 
-        $summaryHtml = $summary !== '' ? nl2br($this->e($summary), false) : '';
+        $summaryHtml = $summary !== '' ? $this->e($summary) : '';
         if ($this->visibleLength($build($summaryHtml, $included, $includedVideos)) > self::MAX_LENGTH) {
             $summaryLength = mb_strlen($summary, 'UTF-8');
             $low = 0;
@@ -273,7 +273,7 @@ class TelegramDigestFormatter
                 $middle = intdiv($low + $high, 2);
                 $trimmed = rtrim(mb_substr($summary, 0, $middle, 'UTF-8'));
                 $candidate = $trimmed !== ''
-                    ? nl2br($this->e($trimmed).($middle < $summaryLength ? '…' : ''), false)
+                    ? $this->e($trimmed).($middle < $summaryLength ? '…' : '')
                     : '';
 
                 if ($this->visibleLength($build($candidate, $included, $includedVideos)) <= self::MAX_LENGTH) {
