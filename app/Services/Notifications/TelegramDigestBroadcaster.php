@@ -154,8 +154,19 @@ class TelegramDigestBroadcaster
                     $this->dailyDispatch->markSent($context['key']);
                 }
                 $posted++;
-            } elseif ($period === 'daily' && ! ($result['uncertain'] ?? false)) {
-                $this->dailyDispatch->releaseFailed($context['key']);
+            } else {
+                if (! $result['dry_run']) {
+                    Log::warning('Telegram digest send failed.', [
+                        'period' => $period,
+                        'story_id' => (int) $post['story_id'],
+                        'uncertain' => (bool) ($result['uncertain'] ?? false),
+                        'error' => $result['error'],
+                    ]);
+                }
+
+                if ($period === 'daily' && ! ($result['uncertain'] ?? false)) {
+                    $this->dailyDispatch->releaseFailed($context['key']);
+                }
             }
         }
 

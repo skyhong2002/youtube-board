@@ -9,6 +9,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -568,9 +569,19 @@ class TelegramDigestBroadcasterTest extends TestCase
             ]),
             'api.telegram.test/*' => Http::response(['ok' => false, 'description' => 'Bad Request'], 400),
         ]);
+        Log::spy();
 
         $first = app(TelegramDigestBroadcaster::class)->run('daily');
         $this->assertSame(0, $first['posted']);
+        Log::shouldHaveReceived('warning')->once()->with(
+            'Telegram digest send failed.',
+            \Mockery::on(fn (array $context): bool => $context === [
+                'period' => 'daily',
+                'story_id' => 1,
+                'uncertain' => false,
+                'error' => 'Bad Request',
+            ]),
+        );
         $this->assertDatabaseMissing('telegram_digest_dispatches', [
             'context_key' => 'd:2026-05-24',
         ]);
