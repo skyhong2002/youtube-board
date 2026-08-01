@@ -137,6 +137,23 @@ class TelegramDigestFormatterTest extends TestCase
         $this->assertStringNotContainsString('<live>', $message);
     }
 
+    public function test_truncated_video_title_remains_valid_utf8(): void
+    {
+        $message = (new TelegramDigestFormatter)->format($this->post([
+            'videos' => [[
+                'title' => str_repeat('測試中，', 20),
+                'channel' => '測試新聞台',
+                'tags' => ['其他'],
+                'group' => '其他',
+                'url' => 'https://www.youtube.com/watch?v=utf8',
+            ]],
+        ]));
+
+        $this->assertTrue(mb_check_encoding($message, 'UTF-8'));
+        $this->assertStringContainsString('…</a>', $message);
+        $this->assertStringNotContainsString("\u{FFFD}", $message);
+    }
+
     public function test_long_summary_is_trimmed_but_preserves_expandable_video_link(): void
     {
         $message = (new TelegramDigestFormatter)->format($this->post([

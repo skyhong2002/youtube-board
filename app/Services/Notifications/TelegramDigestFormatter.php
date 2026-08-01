@@ -466,7 +466,9 @@ class TelegramDigestFormatter
 
         $limit = 56;
         if (mb_strlen($title, 'UTF-8') > $limit) {
-            $title = rtrim(mb_substr($title, 0, $limit, 'UTF-8'), " \t\n\r\0\x0B，、；;：:").'…';
+            $title = rtrim(mb_substr($title, 0, $limit, 'UTF-8'));
+            $title = preg_replace('/[，、；;：:]+$/u', '', $title) ?? $title;
+            $title .= '…';
         }
 
         return $title !== '' ? $title : '查看影片';
