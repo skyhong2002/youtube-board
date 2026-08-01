@@ -2,6 +2,10 @@
 
 namespace App\Services\Notifications;
 
+use DateTimeImmutable;
+use DateTimeZone;
+use Throwable;
+
 /**
  * Renders a compact headline and metadata followed by a long, expandable
  * report whose source titles are direct YouTube links.
@@ -28,19 +32,26 @@ class TelegramDigestFormatter
                 $counts[] = '影片'.(int) $post['video_count'];
             }
             if ((int) ($post['media_count'] ?? 0) > 0) {
-                $counts[] = '媒體'.(int) $post['media_count'];
+                $counts[] = '來源頻道'.(int) $post['media_count'];
             }
-            $metric = implode('、', $counts);
+            $metric = implode('｜', $counts);
         }
 
-        $header = $headline.($metric !== '' ? '　'.$this->e($metric) : '');
+        $header = $headline;
         $meta = $this->metaBlocks($post);
+        if ($metric !== '') {
+            $previous = $this->previousUpdateLabel($post['previous_posted_at'] ?? null);
+            if ($previous !== '' && str_contains($metric, '上次推播後')) {
+                $metric = str_replace('上次推播後', '上次推播後（前次 '.$previous.'）', $metric);
+            }
+            array_unshift($meta, '⏱ '.$this->e($metric));
+        }
         $footer = $this->footer($post);
         $summary = trim((string) ($post['summary'] ?? ''));
         $description = trim((string) ($post['description'] ?? ''));
 
-        if ($summary === '' || ($description !== '' && ! str_contains($summary, $description))) {
-            $summary = trim($summary.($summary !== '' && $description !== '' ? "\n\n" : '').$description);
+        if ($summary === '') {
+            $summary = $description;
         }
 
         $coverage = $this->coverageBlocks(
@@ -48,13 +59,7 @@ class TelegramDigestFormatter
             (array) ($post['recommendations'] ?? []),
         );
         $expanded = $this->expandedWithinBudget($header, $meta, $summary, $coverage, $footer);
-        $blocks = array_values(array_filter([
-            $header,
-            ...$meta,
-            $expanded !== '' ? '<blockquote expandable>'.$expanded.'</blockquote>' : '',
-            $footer,
-        ], static fn (string $block): bool => $block !== ''));
-        $message = implode("\n\n", $blocks);
+        $message = $this->assembleMessage($header, $meta, $expanded, $footer);
 
         if ($this->visibleLength($message) <= self::MAX_LENGTH) {
             return $message;
@@ -85,31 +90,38 @@ class TelegramDigestFormatter
             $blocks[] = $this->e(implode('｜', $context));
         }
 
-        $tagCounts = (array) ($post['channel_tag_counts'] ?? []);
+        $tagCounts = $this->sortedGroupCounts((array) ($post['group_video_counts'] ?? []));
         if ($tagCounts !== []) {
             $parts = [];
             foreach (array_slice($tagCounts, 0, 6, true) as $tag => $count) {
-                $parts[] = trim((string) $tag).max(0, (int) $count);
+                $parts[] = trim((string) $tag).max(0, (int) $count).'支';
             }
             if ($parts !== []) {
-                $blocks[] = '頻道標籤　'.$this->e(implode('、', $parts));
+                $blocks[] = '▸ 影片分布　'.$this->e(implode('、', $parts));
             }
         }
 
-        foreach ([
-            '關鍵字' => (array) ($post['keywords'] ?? []),
-            '人物' => (array) ($post['people'] ?? []),
-            '地名' => (array) ($post['places'] ?? []),
-        ] as $label => $values) {
-            $values = $this->cleanList($values, $label === '關鍵字' ? 8 : 6);
-            if ($values !== []) {
-                $blocks[] = $label.'　'.$this->e(implode('、', $values));
-            }
+        $keywords = $this->cleanList((array) ($post['keywords'] ?? []), 8);
+        if ($keywords !== []) {
+            $blocks[] = '# '.$this->e(implode('、', $keywords));
+        }
+
+        $entities = [];
+        $people = $this->cleanList((array) ($post['people'] ?? []), 6);
+        $places = $this->cleanList((array) ($post['places'] ?? []), 6);
+        if ($people !== []) {
+            $entities[] = '人物　'.implode('、', $people);
+        }
+        if ($places !== []) {
+            $entities[] = '地名　'.implode('、', $places);
+        }
+        if ($entities !== []) {
+            $blocks[] = $this->e(implode('｜', $entities));
         }
 
         $burst = trim((string) ($post['burst_line'] ?? ''));
         if ($burst !== '') {
-            array_unshift($blocks, $this->e($burst));
+            array_unshift($blocks, '↗ '.$this->e($burst));
         }
 
         return $blocks;
@@ -210,9 +222,11 @@ class TelegramDigestFormatter
     {
         $channel = trim((string) ($video['channel'] ?? '')) ?: '未知頻道';
         $tags = $this->cleanList((array) ($video['tags'] ?? []), 3);
-        $source = $channel.($tags !== [] ? '〔'.implode('、', $tags).'〕' : '');
+        $displayChannel = preg_replace('/\s+Formosa\s+TV\s+News\s+network$/iu', '', $channel) ?? $channel;
+        $source = $displayChannel.($tags !== [] ? '〔'.implode('、', $tags).'〕' : '');
+        $title = $this->shortVideoTitle((string) ($video['title'] ?? ''), $channel);
 
-        return '<b>'.$this->e($source).'</b>　<a href="'.$this->attr((string) $video['url']).'">〈'.$this->e((string) $video['title']).'〉</a>';
+        return '<b>'.$this->e($source).'</b>　<a href="'.$this->attr((string) $video['url']).'">'.$this->e($title).'</a>';
     }
 
     /**
@@ -248,18 +262,13 @@ class TelegramDigestFormatter
             $videoCount,
         ): string {
             $remaining = max(0, $videoCount - $videos);
-            $expanded = implode("\n", array_filter([
+            $expanded = implode("\n\n", array_filter([
                 $summaryHtml,
                 $rows !== [] ? implode("\n", $rows) : '',
                 $remaining > 0 ? '其餘'.$remaining.'支見完整整理' : '',
             ]));
 
-            return implode("\n\n", array_filter([
-                $header,
-                ...$meta,
-                '<blockquote expandable>'.$expanded.'</blockquote>',
-                $footer,
-            ]));
+            return $this->assembleMessage($header, $meta, $expanded, $footer);
         };
 
         $summaryHtml = $summary !== '' ? $this->e($summary) : '';
@@ -303,7 +312,7 @@ class TelegramDigestFormatter
 
         $remaining = max(0, $videoCount - $includedVideos);
 
-        return implode("\n", array_filter([
+        return implode("\n\n", array_filter([
             $summaryHtml,
             $included !== [] ? implode("\n", $included) : '',
             $remaining > 0 ? '其餘'.$remaining.'支見完整整理' : '',
@@ -346,18 +355,13 @@ class TelegramDigestFormatter
             $remaining,
             $footer,
         ): string {
-            $expanded = implode("\n", array_filter([
+            $expanded = implode("\n\n", array_filter([
                 $trimmed !== '' ? $this->e($trimmed).($wasTrimmed ? '…' : '') : '',
                 $priorityCoverage !== [] ? implode("\n", $priorityCoverage) : '',
                 $remaining > 0 ? '其餘'.$remaining.'支見完整整理' : '',
             ]));
 
-            return implode("\n\n", array_filter([
-                $header,
-                ...$meta,
-                $expanded !== '' ? '<blockquote expandable>'.$expanded.'</blockquote>' : '',
-                $footer,
-            ]));
+            return $this->assembleMessage($header, $meta, $expanded, $footer);
         };
 
         while ($meta !== [] && $this->visibleLength($build('', $summary !== '')) > self::MAX_LENGTH) {
@@ -396,11 +400,103 @@ class TelegramDigestFormatter
     {
         $url = trim((string) ($post['url'] ?? ''));
         $label = trim((string) ($post['label'] ?? ''));
-        $link = $url !== '' ? '<a href="'.$this->attr($url).'">完整整理</a>' : '';
+        $link = $url !== '' ? '↗ <a href="'.$this->attr($url).'">完整整理</a>' : '';
 
         return $link !== '' && $label !== ''
             ? $link.' · '.$this->e($label)
             : ($link !== '' ? $link : $this->e($label));
+    }
+
+    /**
+     * @param  list<string>  $meta
+     */
+    private function assembleMessage(string $header, array $meta, string $expanded, string $footer): string
+    {
+        $preamble = implode("\n", array_filter([
+            $header,
+            ...$meta,
+        ], static fn (string $block): bool => $block !== ''));
+
+        return implode("\n\n", array_filter([
+            $preamble,
+            $expanded !== '' ? '<blockquote expandable>'.$expanded.'</blockquote>' : '',
+            $footer,
+        ], static fn (string $block): bool => $block !== ''));
+    }
+
+    private function previousUpdateLabel(mixed $value): string
+    {
+        if (! is_scalar($value) || trim((string) $value) === '') {
+            return '';
+        }
+
+        try {
+            return (new DateTimeImmutable((string) $value))
+                ->setTimezone(new DateTimeZone('Asia/Taipei'))
+                ->format('m/d H:i');
+        } catch (Throwable) {
+            return '';
+        }
+    }
+
+    private function shortVideoTitle(string $title, string $channel): string
+    {
+        $title = preg_replace('/\s+/u', ' ', trim($title)) ?? trim($title);
+        $title = preg_replace('/\s*@[-_.a-z0-9]+\s*$/iu', '', $title) ?? $title;
+
+        $parts = preg_split('/\s*[｜|]\s*/u', $title) ?: [];
+        $title = trim((string) ($parts[0] ?? $title));
+
+        if (preg_match('/^(.*?)[－–—]\s*([^－–—]+)$/u', $title, $matches) === 1) {
+            $suffix = trim($matches[2]);
+            $normalizedChannel = $this->normalizedText($channel);
+            $normalizedSuffix = $this->normalizedText($suffix);
+            if ($normalizedSuffix !== '' && (
+                str_contains($normalizedChannel, $normalizedSuffix)
+                || str_contains($normalizedSuffix, $normalizedChannel)
+            )) {
+                $title = trim($matches[1]);
+            }
+        }
+
+        $limit = 56;
+        if (mb_strlen($title, 'UTF-8') > $limit) {
+            $title = rtrim(mb_substr($title, 0, $limit, 'UTF-8'), " \t\n\r\0\x0B，、；;：:").'…';
+        }
+
+        return $title !== '' ? $title : '查看影片';
+    }
+
+    private function normalizedText(string $value): string
+    {
+        return mb_strtolower(preg_replace('/[^\p{L}\p{N}]+/u', '', $value) ?? '', 'UTF-8');
+    }
+
+    /**
+     * @param  array<string, mixed>  $counts
+     * @return array<string, int>
+     */
+    private function sortedGroupCounts(array $counts): array
+    {
+        $normalized = [];
+        foreach ($counts as $group => $count) {
+            $group = trim((string) $group);
+            if ($group !== '' && (int) $count > 0) {
+                $normalized[$group] = (int) $count;
+            }
+        }
+
+        $order = ['泛綠', '泛藍', '泛白', '泛紅', '較無偏', '中立', '公共電視', '公共媒體', '其他'];
+        uksort($normalized, static function (string $left, string $right) use ($normalized, $order): int {
+            $leftIndex = array_search($left, $order, true);
+            $rightIndex = array_search($right, $order, true);
+
+            return ($normalized[$right] <=> $normalized[$left])
+                ?: (($leftIndex === false ? 99 : $leftIndex) <=> ($rightIndex === false ? 99 : $rightIndex))
+                ?: strcmp($left, $right);
+        });
+
+        return $normalized;
     }
 
     /**

@@ -21,7 +21,7 @@ class TelegramDigestFormatterTest extends TestCase
             'places' => ['台北'],
             'video_count' => 18,
             'media_count' => 6,
-            'channel_tag_counts' => ['泛綠' => 2, '泛藍' => 2, '公共電視' => 1],
+            'group_video_counts' => ['泛綠' => 9, '泛藍' => 6, '公共媒體' => 3],
             'videos' => [
                 [
                     'title' => '毒駕撞死人只判緩刑',
@@ -48,18 +48,19 @@ class TelegramDigestFormatterTest extends TestCase
         $message = (new TelegramDigestFormatter)->format($this->post());
 
         $this->assertStringContainsString('<b>毒駕致死案引發修法討論</b>', $message);
-        $this->assertStringContainsString('影片18、媒體6', $message);
+        $this->assertStringContainsString('⏱ 影片18｜來源頻道6', $message);
         $this->assertStringContainsString('分類公共安全｜角度司法與修法｜陣營跨陣營', $message);
-        $this->assertStringContainsString('頻道標籤　泛綠2、泛藍2、公共電視1', $message);
-        $this->assertStringContainsString('關鍵字　毒駕、交通安全、修法', $message);
-        $this->assertStringContainsString('人物　卓榮泰、鍾小平', $message);
-        $this->assertStringContainsString('地名　台北', $message);
+        $this->assertStringContainsString('▸ 影片分布　泛綠9支、泛藍6支、公共媒體3支', $message);
+        $this->assertStringContainsString('# 毒駕、交通安全、修法', $message);
+        $this->assertStringContainsString('人物　卓榮泰、鍾小平｜地名　台北', $message);
         $this->assertStringContainsString('<blockquote expandable>', $message);
         $this->assertStringContainsString('<b>先看</b>', $message);
         $this->assertStringContainsString('<b>三立新聞〔泛綠、台灣立場〕</b>', $message);
         $this->assertStringContainsString('href="https://www.youtube.com/watch?v=green1"', $message);
         $this->assertStringContainsString('<b>TVBS NEWS〔泛藍〕</b>', $message);
         $this->assertStringContainsString('<a href="https://youtube.observe.tw/ai/days/2026-05-24">完整整理</a>', $message);
+        $this->assertStringNotContainsString('行政院與立法院討論加重刑責。', $message);
+        $this->assertStringNotContainsString("\n\n分類公共安全", $message);
         $this->assertStringNotContainsString('<br', $message);
         $this->assertStringNotContainsString('🎬', $message);
         $this->assertStringNotContainsString('🔑', $message);
@@ -73,14 +74,42 @@ class TelegramDigestFormatterTest extends TestCase
             'people' => [],
             'places' => [],
             'media_count' => 0,
-            'channel_tag_counts' => [],
+            'group_video_counts' => [],
         ]));
 
         $this->assertStringNotContainsString('人物　', $message);
         $this->assertStringNotContainsString('地名　', $message);
         $this->assertStringNotContainsString('媒體0', $message);
-        $this->assertStringNotContainsString('頻道標籤　', $message);
+        $this->assertStringNotContainsString('影片分布　', $message);
         $this->assertStringContainsString('影片18', $message);
+    }
+
+    public function test_update_line_names_previous_push_time_and_video_titles_drop_branding(): void
+    {
+        $message = (new TelegramDigestFormatter)->format($this->post([
+            'metric_line' => '上次推播後｜新增影片12｜新增頻道3',
+            'previous_posted_at' => '2026-05-24T02:00:00+00:00',
+            'videos' => [[
+                'title' => '熊本震後交通與搜救持續進行｜【國際懶人包】｜TVBS新聞 @TVBSNEWS01',
+                'channel' => 'TVBS NEWS',
+                'tags' => ['泛藍'],
+                'group' => '泛藍',
+                'url' => 'https://www.youtube.com/watch?v=blue1',
+            ], [
+                'title' => '熊本商店街震後仍冷清@newsebc',
+                'channel' => '東森新聞 CH51',
+                'tags' => ['其他'],
+                'group' => '其他',
+                'url' => 'https://www.youtube.com/watch?v=other1',
+            ]],
+        ]));
+
+        $this->assertStringContainsString('⏱ 上次推播後（前次 05/24 10:00）｜新增影片12｜新增頻道3', $message);
+        $this->assertStringContainsString('熊本震後交通與搜救持續進行</a>', $message);
+        $this->assertStringContainsString('熊本商店街震後仍冷清</a>', $message);
+        $this->assertStringNotContainsString('國際懶人包', $message);
+        $this->assertStringNotContainsString('@newsebc', $message);
+        $this->assertStringNotContainsString('〈', $message);
     }
 
     public function test_html_special_characters_are_escaped_in_text_and_attributes(): void
@@ -134,7 +163,7 @@ class TelegramDigestFormatterTest extends TestCase
     public function test_includes_as_many_video_links_as_fit_and_reports_the_remainder(): void
     {
         $videos = [];
-        for ($index = 1; $index <= 80; $index++) {
+        for ($index = 1; $index <= 160; $index++) {
             $videos[] = [
                 'title' => str_repeat('完整新聞標題', 6).$index,
                 'channel' => '新聞台'.$index,
@@ -148,12 +177,12 @@ class TelegramDigestFormatterTest extends TestCase
             'summary' => '事件摘要。',
             'description' => '',
             'videos' => $videos,
-            'video_count' => 80,
+            'video_count' => 160,
         ]));
 
         preg_match_all('/youtube\.com\/watch\?v=video\d+/', $message, $matches);
         $this->assertGreaterThan(2, count($matches[0]));
-        $this->assertLessThan(80, count($matches[0]));
+        $this->assertLessThan(160, count($matches[0]));
         $this->assertMatchesRegularExpression('/其餘\d+支見完整整理/', $message);
         $this->assertLessThanOrEqual(TelegramDigestFormatter::MAX_LENGTH, $this->visibleUtf16Length($message));
     }

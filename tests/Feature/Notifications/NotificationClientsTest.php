@@ -85,6 +85,34 @@ class NotificationClientsTest extends TestCase
         ]));
     }
 
+    public function test_news_writer_fallback_keeps_four_grounded_short_paragraphs(): void
+    {
+        $this->configureAi();
+        Http::fake(['api.openai.test/*' => Http::response('server error', 500)]);
+
+        $map = app(EventNewsWriter::class)->summaries([[
+            'title' => '熊本震後救援進度',
+            'description' => '熊本震後持續搜救並修復交通。',
+            'keywords' => ['熊本強震', '搜救', '新幹線'],
+            'group_video_counts' => ['泛綠' => 8, '泛藍' => 5],
+            'media_reports' => [[
+                'channel' => '三立新聞',
+                'description' => '追蹤物資集散與災區支援。',
+                'group' => '泛綠',
+            ], [
+                'channel' => 'TVBS NEWS',
+                'description' => '整理道路與新幹線受損情況。',
+                'group' => '泛藍',
+            ]],
+        ]]);
+
+        $paragraphs = explode("\n\n", $map['熊本震後救援進度']);
+        $this->assertCount(4, $paragraphs);
+        $this->assertStringContainsString('泛綠來源中，三立新聞', $paragraphs[1]);
+        $this->assertStringContainsString('泛藍來源中，TVBS NEWS', $paragraphs[2]);
+        $this->assertStringContainsString('熊本強震、搜救、新幹線', $paragraphs[3]);
+    }
+
     public function test_telegram_client_dry_runs_when_disabled(): void
     {
         config()->set('services.telegram.enabled', false);

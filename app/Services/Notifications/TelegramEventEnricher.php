@@ -23,6 +23,7 @@ class TelegramEventEnricher
             return $event + [
                 'videos' => [],
                 'channel_tag_counts' => [],
+                'group_video_counts' => [],
                 'media_count' => (int) ($event['media_count'] ?? 0),
                 'preview_url' => null,
             ];
@@ -46,6 +47,18 @@ class TelegramEventEnricher
                 ->all();
             $channelNames = $this->channelNames($uIds);
             $channelTags = $this->channelTags($uIds);
+            $mediaReports = collect((array) ($event['media_reports'] ?? []))
+                ->filter(fn (mixed $report): bool => is_array($report))
+                ->map(function (array $report) use ($channelTags): array {
+                    $tags = $channelTags[(int) ($report['u_id'] ?? 0)] ?? [];
+
+                    return array_merge($report, [
+                        'channel_tags' => $tags,
+                        'group' => $this->group($tags),
+                    ]);
+                })
+                ->values()
+                ->all();
             $videos = [];
 
             foreach ($videoIds as $position => $videoId) {
@@ -80,8 +93,12 @@ class TelegramEventEnricher
 
             $mediaKeys = [];
             $tagChannels = [];
+            $groupVideoCounts = [];
             foreach ($videos as $video) {
                 $mediaKey = $this->channelKey($video);
+
+                $group = trim((string) ($video['group'] ?? '')) ?: '其他';
+                $groupVideoCounts[$group] = ($groupVideoCounts[$group] ?? 0) + 1;
 
                 if ($mediaKey === '') {
                     continue;
@@ -99,17 +116,21 @@ class TelegramEventEnricher
                 ->map(fn (array $channels): int => count($channels))
                 ->sortDesc()
                 ->all();
+            arsort($groupVideoCounts);
 
             return array_merge($event, [
                 'videos' => $videos,
                 'media_count' => max((int) ($event['media_count'] ?? 0), count($mediaKeys)),
+                'media_reports' => $mediaReports,
                 'channel_tag_counts' => $tagCounts,
+                'group_video_counts' => $groupVideoCounts,
                 'preview_url' => $videos[0]['url'] ?? null,
             ]);
         } catch (QueryException) {
             return $event + [
                 'videos' => [],
                 'channel_tag_counts' => [],
+                'group_video_counts' => [],
                 'media_count' => (int) ($event['media_count'] ?? 0),
                 'preview_url' => null,
             ];

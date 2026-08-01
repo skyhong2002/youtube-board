@@ -287,7 +287,7 @@ class TelegramDigestBroadcasterTest extends TestCase
             && str_contains($r['text'], '毒駕事件')
             && str_contains($r['text'], '三立新聞：三立整理事故責任與受害者家屬訴求。')
             && str_contains($r['text'], 'TVBS NEWS：TVBS追蹤行政院與立法院修法進度。')
-            && str_contains($r['text'], '昨日整理　影片3、媒體3')
+            && str_contains($r['text'], '⏱ 昨日整理｜影片3｜來源頻道3')
             && str_contains($r['text'], '<b>先看</b>'));
     }
 
@@ -689,9 +689,10 @@ class TelegramDigestBroadcasterTest extends TestCase
             }
 
             return str_contains($request['text'], '<blockquote expandable>')
-                && str_contains($request['text'], '影片8、媒體6')
+                && str_contains($request['text'], '⏱ 近1小時｜影片8｜來源頻道6')
+                && str_contains($request['text'], '▸ 影片分布　泛綠3支、泛藍3支、公共電視2支')
                 && str_contains($request['text'], '分類公共安全｜角度司法與修法｜陣營跨陣營')
-                && str_contains($request['text'], '關鍵字　毒駕、修法')
+                && str_contains($request['text'], '# 毒駕、修法')
                 && str_contains($request['text'], '人物　卓榮泰')
                 && str_contains($request['text'], '三立新聞〔泛綠、台灣立場〕')
                 && str_contains($request['text'], 'TVBS NEWS〔泛藍〕')
@@ -753,7 +754,8 @@ class TelegramDigestBroadcasterTest extends TestCase
 
         $this->assertSame(1, $result['posted']);
         Http::assertSent(fn ($request): bool => str_contains($request->url(), 'sendMessage')
-            && str_contains($request['text'], '上次推播後　影片5、媒體5'));
+            && str_contains($request['text'], '上次推播後（前次 05/24 18:05）｜新增影片5｜新增頻道5')
+            && str_contains($request['text'], '▸ 影片分布　泛綠2支、公共電視2支、泛藍1支'));
         $this->assertSame(2, DB::table('telegram_digest_stories')->value('post_count'));
     }
 
@@ -791,7 +793,7 @@ class TelegramDigestBroadcasterTest extends TestCase
 
         $this->assertSame(1, $result['posted']);
         Http::assertSent(fn ($request): bool => str_contains($request->url(), 'sendMessage')
-            && str_contains($request['text'], '上次推播後　影片4、媒體4')
+            && str_contains($request['text'], '上次推播後（前次 05/24 18:05）｜新增影片4｜新增頻道4')
             && str_contains($request['text'], '為前3小時均值4倍'));
     }
 

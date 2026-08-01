@@ -119,7 +119,7 @@ class TelegramStoryTracker
                     ),
                     'burst_line' => $burst['is_burst']
                         ? sprintf(
-                            '近1小時影片%d、媒體%d，為前%d小時均值%s倍',
+                            '近1小時｜影片%d｜來源頻道%d｜為前%d小時均值%s倍',
                             count($videoIds),
                             count($currentChannels),
                             $burst['baseline_hours'],
@@ -130,6 +130,10 @@ class TelegramStoryTracker
                     'delta_media_count' => count($deltaChannels),
                     'new_media_count' => count($newChannels),
                     'hours_since_post' => $hoursSince,
+                    'previous_posted_at' => $lastPostedAt?->toIso8601String(),
+                    'display_video_ids' => in_array($decision['trigger'], ['update', 'burst', 'resurfaced'], true)
+                        ? $deltaVideoIds
+                        : $videoIds,
                 ];
             }, 3);
         } catch (Throwable) {
@@ -218,7 +222,7 @@ class TelegramStoryTracker
             'should_post' => false,
             'trigger' => 'tracker_unavailable',
             'metric_line' => sprintf(
-                $period === 'daily' ? '昨日整理　影片%d、媒體%d' : '近1小時　影片%d、媒體%d',
+                $period === 'daily' ? '昨日整理｜影片%d｜來源頻道%d' : '近1小時｜影片%d｜來源頻道%d',
                 (int) ($event['video_count'] ?? 0),
                 (int) ($event['media_count'] ?? 0),
             ),
@@ -227,6 +231,8 @@ class TelegramStoryTracker
             'delta_media_count' => (int) ($event['media_count'] ?? 0),
             'new_media_count' => (int) ($event['media_count'] ?? 0),
             'hours_since_post' => null,
+            'previous_posted_at' => null,
+            'display_video_ids' => [],
         ];
     }
 
@@ -287,18 +293,18 @@ class TelegramStoryTracker
         string $period,
     ): string {
         if ($period === 'daily') {
-            return sprintf('昨日整理　影片%d、媒體%d', $currentVideos, $currentMedia);
+            return sprintf('昨日整理｜影片%d｜來源頻道%d', $currentVideos, $currentMedia);
         }
 
         return match ($trigger) {
-            'update', 'burst' => sprintf('上次推播後　影片%d、媒體%d', $deltaVideos, $deltaMedia),
+            'update', 'burst' => sprintf('上次推播後｜新增影片%d｜新增頻道%d', $deltaVideos, $deltaMedia),
             'resurfaced' => sprintf(
-                '相隔%d天再度升溫　影片%d、媒體%d',
+                '相隔%d天再度升溫｜新增影片%d｜新增頻道%d',
                 max(1, (int) floor(($hoursSince ?? 72) / 24)),
                 $deltaVideos,
                 $deltaMedia,
             ),
-            default => sprintf('近1小時　影片%d、媒體%d', $currentVideos, $currentMedia),
+            default => sprintf('近1小時｜影片%d｜來源頻道%d', $currentVideos, $currentMedia),
         };
     }
 

@@ -98,6 +98,7 @@ class TelegramDigestBroadcaster
                 continue;
             }
 
+            $event['group_video_counts'] = $this->displayGroupVideoCounts($event, $decision);
             $event['dispatch'] = $decision;
             $fresh[] = $event;
         }
@@ -208,12 +209,13 @@ class TelegramDigestBroadcaster
                 'story_id' => 0,
                 'metric_line' => sprintf(
                     $period === 'daily'
-                        ? '昨日整理　影片%d、媒體%d'
-                        : '近1小時　影片%d、媒體%d',
+                        ? '昨日整理｜影片%d｜來源頻道%d'
+                        : '近1小時｜影片%d｜來源頻道%d',
                     $event['video_count'],
                     $event['media_count'],
                 ),
                 'burst_line' => '',
+                'previous_posted_at' => null,
             ];
         }
 
@@ -306,6 +308,7 @@ class TelegramDigestBroadcaster
             'places' => $event['places'],
             'media' => $event['media'],
             'media_reports' => $event['media_reports'] ?? [],
+            'group_video_counts' => $event['group_video_counts'] ?? [],
             'videos' => array_map(static fn (array $video): array => [
                 'video_id' => $video['video_id'],
                 'title' => $video['title'],
@@ -335,11 +338,12 @@ class TelegramDigestBroadcaster
                     'places' => $event['places'],
                     'video_count' => $event['video_count'],
                     'media_count' => $event['media_count'],
-                    'channel_tag_counts' => $event['channel_tag_counts'],
+                    'group_video_counts' => $event['group_video_counts'] ?? [],
                     'videos' => $event['videos'],
                     'recommendations' => $event['recommendations'],
                     'metric_line' => (string) data_get($event, 'dispatch.metric_line', ''),
                     'burst_line' => (string) data_get($event, 'dispatch.burst_line', ''),
+                    'previous_posted_at' => data_get($event, 'dispatch.previous_posted_at'),
                     'url' => $context['url'],
                     'label' => $context['label'],
                 ]),
@@ -578,6 +582,46 @@ class TelegramDigestBroadcaster
         }
 
         return $events;
+    }
+
+    /**
+     * Keep the visible group distribution on the same video basis as the
+     * headline metric: current videos for first/daily posts, newly discovered
+     * videos for updates and resurfacing.
+     *
+     * @param  array<string, mixed>  $event
+     * @param  array<string, mixed>  $decision
+     * @return array<string, int>
+     */
+    private function displayGroupVideoCounts(array $event, array $decision): array
+    {
+        $displayIds = collect((array) ($decision['display_video_ids'] ?? []))
+            ->filter(fn (mixed $id): bool => is_scalar($id) && trim((string) $id) !== '')
+            ->map(fn (mixed $id): string => trim((string) $id))
+            ->unique()
+            ->values();
+        if ($displayIds->isEmpty()) {
+            return (array) ($event['group_video_counts'] ?? []);
+        }
+
+        $wanted = array_fill_keys($displayIds->all(), true);
+        $counts = [];
+        foreach ((array) ($event['videos'] ?? []) as $video) {
+            if (! is_array($video) || ! isset($wanted[(string) ($video['video_id'] ?? '')])) {
+                continue;
+            }
+
+            $group = trim((string) ($video['group'] ?? '')) ?: '其他';
+            $counts[$group] = ($counts[$group] ?? 0) + 1;
+        }
+
+        $missing = max(0, $displayIds->count() - array_sum($counts));
+        if ($missing > 0) {
+            $counts['其他'] = ($counts['其他'] ?? 0) + $missing;
+        }
+        arsort($counts);
+
+        return $counts;
     }
 
     /**
