@@ -442,9 +442,14 @@ class TelegramDigestFormatter
     private function shortVideoTitle(string $title, string $channel): string
     {
         $title = preg_replace('/\s+/u', ' ', trim($title)) ?? trim($title);
+        $title = preg_replace('/^(?:【[^】]{1,30}】\s*)+/u', '', $title) ?? $title;
+        $title = preg_replace('/^(?:直播(?:完整版)?|快新聞)[／\/:：]\s*/u', '', $title) ?? $title;
         $title = preg_replace('/\s*@[-_.a-z0-9]+\s*$/iu', '', $title) ?? $title;
+        $title = preg_replace('/(?:\s+[#＃][\p{L}\p{N}_-]+)+\s*$/u', '', $title) ?? $title;
+        $title = preg_replace('/\s*【[^】]{1,30}】\s*$/u', '', $title) ?? $title;
+        $title = preg_replace('/\s+\d{8}\s*$/u', '', $title) ?? $title;
 
-        $parts = preg_split('/\s*[｜|]\s*/u', $title) ?: [];
+        $parts = preg_split('/\s*[｜|│]\s*/u', $title) ?: [];
         $title = trim((string) ($parts[0] ?? $title));
 
         if (preg_match('/^(.*?)[－–—]\s*([^－–—]+)$/u', $title, $matches) === 1) {

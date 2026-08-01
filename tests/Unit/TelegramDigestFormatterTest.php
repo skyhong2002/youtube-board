@@ -90,13 +90,13 @@ class TelegramDigestFormatterTest extends TestCase
             'metric_line' => '上次推播後｜新增影片12｜新增頻道3',
             'previous_posted_at' => '2026-05-24T02:00:00+00:00',
             'videos' => [[
-                'title' => '熊本震後交通與搜救持續進行｜【國際懶人包】｜TVBS新聞 @TVBSNEWS01',
+                'title' => '【每日必看】熊本震後交通與搜救持續進行│TVBS新聞 20260801',
                 'channel' => 'TVBS NEWS',
                 'tags' => ['泛藍'],
                 'group' => '泛藍',
                 'url' => 'https://www.youtube.com/watch?v=blue1',
             ], [
-                'title' => '熊本商店街震後仍冷清@newsebc',
+                'title' => '直播／熊本商店街震後仍冷清【最新快訊】 #newsebc',
                 'channel' => '東森新聞 CH51',
                 'tags' => ['其他'],
                 'group' => '其他',
@@ -107,8 +107,10 @@ class TelegramDigestFormatterTest extends TestCase
         $this->assertStringContainsString('⏱ 上次推播後（前次 05/24 10:00）｜新增影片12｜新增頻道3', $message);
         $this->assertStringContainsString('熊本震後交通與搜救持續進行</a>', $message);
         $this->assertStringContainsString('熊本商店街震後仍冷清</a>', $message);
-        $this->assertStringNotContainsString('國際懶人包', $message);
-        $this->assertStringNotContainsString('@newsebc', $message);
+        $this->assertStringNotContainsString('每日必看', $message);
+        $this->assertStringNotContainsString('TVBS新聞 20260801', $message);
+        $this->assertStringNotContainsString('最新快訊', $message);
+        $this->assertStringNotContainsString('#newsebc', $message);
         $this->assertStringNotContainsString('〈', $message);
     }
 
