@@ -363,7 +363,9 @@ class AiDailyReport
                 }
             }
 
-            if ($bestIndex === null || $bestOverlap <= 0) {
+            // A single shared token (a politician's name, a common keyword) is not
+            // enough evidence that two entries cover the same concrete event.
+            if ($bestIndex === null || $bestOverlap < 2) {
                 $clusters[] = [
                     'title' => $entry['event'],
                     'media_events' => [$entry['title'] => [$entry['event']]],

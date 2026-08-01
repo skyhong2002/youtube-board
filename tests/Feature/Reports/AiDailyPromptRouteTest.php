@@ -17,7 +17,7 @@ class AiDailyPromptRouteTest extends TestCase
         $response = $this->get('/ai/days/prompt');
 
         $response->assertOk();
-        $response->assertSee('事件數 15 - 20');
+        $response->assertSee('事件數 5 - 40');
         $response->assertSee('本機尚未匯入 `urt_channel_ai`');
     }
 
@@ -41,8 +41,9 @@ class AiDailyPromptRouteTest extends TestCase
         $response->assertOk();
         $response->assertSee('2026-05-23 all AI daily prompt preview');
         $response->assertSee('媒體 3');
-        $response->assertSee('事件數 15 - 20');
-        $response->assertSee('總數不得少於 15 個或多於 20 個');
+        $response->assertSee('事件數 5 - 40');
+        $response->assertSee('輸出事件總數請在 5 到 40 個之間，以當天實際發生的事件數為準：事件少就少輸出，不要硬湊數量，也不要為了塞進上限把不同的事併在一起。');
+        $response->assertSee('標題請寫成單一具體事件的標題，例如「T-34墜機事故」「鄭麗文訪美行程」');
         $response->assertSee('2 到 6 個最具代表性的媒體');
         $response->assertSee('正好保留 1 個最具代表性的輸入事件');
         $response->assertSee('不得重複媒體名稱');
@@ -81,7 +82,7 @@ class AiDailyPromptRouteTest extends TestCase
         $response->assertOk();
         $response->assertSee('condition=green');
         $response->assertSee('tagid=4');
-        $response->assertSee('事件數 8 - 12');
+        $response->assertSee('事件數 3 - 25');
         $response->assertSee('Green Channel');
         $response->assertSee('毒駕事件');
         $response->assertSee('單一事件');

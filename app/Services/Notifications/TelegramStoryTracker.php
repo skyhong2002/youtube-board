@@ -395,9 +395,9 @@ class TelegramStoryTracker
         $sharedKeywords = count(array_intersect($current['keywords'] ?? [], $existing['keywords'] ?? []));
         $titleSimilarity = $this->jaccard($current['title_grams'] ?? [], $existing['title_grams'] ?? []);
 
-        return ($sharedPeople >= 1 && ($sharedKeywords >= 1 || $titleSimilarity >= 0.25))
-            || ($sharedKeywords >= 2 && $titleSimilarity >= 0.2)
-            || $titleSimilarity >= 0.55;
+        return ($sharedPeople >= 1 && $sharedKeywords >= 2 && $titleSimilarity >= 0.2)
+            || ($sharedKeywords >= 3 && $titleSimilarity >= 0.3)
+            || $titleSimilarity >= 0.6;
     }
 
     /**

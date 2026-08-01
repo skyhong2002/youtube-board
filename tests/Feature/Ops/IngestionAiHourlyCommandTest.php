@@ -98,7 +98,7 @@ class IngestionAiHourlyCommandTest extends TestCase
         $this->assertSame('2026-05-25 09:59:59', $payload['date_to']);
         $this->assertSame(3, $payload['matching_channels']);
         $this->assertSame(3, $payload['video_rows']);
-        $this->assertSame(['min' => 3, 'max' => 7], $payload['prompt_bounds']);
+        $this->assertSame(['min' => 2, 'max' => 7], $payload['prompt_bounds']);
         $this->assertSame(1, $payload['existing_ai_hour_rows']);
         $this->assertSame(1, $payload['would_call_ai_requests']);
         $this->assertSame(1, $payload['would_insert_ai_hour_rows']);
@@ -368,7 +368,7 @@ class IngestionAiHourlyCommandTest extends TestCase
 
             return ($format['type'] ?? null) === 'json_schema'
                 && ($format['json_schema']['strict'] ?? null) === true
-                && ($events['minItems'] ?? null) === 3
+                && ($events['minItems'] ?? null) === 2
                 && ($events['maxItems'] ?? null) === 7
                 && str_contains((string) data_get($request->data(), 'messages.0.content'), '{"events":[...]}');
         });

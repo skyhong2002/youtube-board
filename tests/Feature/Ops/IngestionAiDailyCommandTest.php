@@ -69,7 +69,7 @@ class IngestionAiDailyCommandTest extends TestCase
         $this->assertSame(1, $row['media_rows']);
         $this->assertSame(2, $row['prompt_event_rows']);
         $this->assertSame(3, $row['prompt_video_refs']);
-        $this->assertSame(['min' => 8, 'max' => 12], $row['prompt_bounds']);
+        $this->assertSame(['min' => 3, 'max' => 25], $row['prompt_bounds']);
         $this->assertSame(1, $row['existing_ai_date_rows']);
         $this->assertSame(1, DB::table('urt_ai_date')->count());
     }
@@ -226,7 +226,7 @@ class IngestionAiDailyCommandTest extends TestCase
         $this->assertSame(3, $all['media_rows']);
         $this->assertSame(3, $all['prompt_event_rows']);
         $this->assertSame(6, $all['prompt_video_refs']);
-        $this->assertSame(['min' => 15, 'max' => 20], $all['prompt_bounds']);
+        $this->assertSame(['min' => 5, 'max' => 40], $all['prompt_bounds']);
 
         $refresh = $payload['channel_ai_refresh'];
         $this->assertSame(39, $refresh['configured_channels']);
@@ -569,8 +569,8 @@ class IngestionAiDailyCommandTest extends TestCase
                 && ($format['json_schema']['strict'] ?? null) === true
                 && ($request['max_completion_tokens'] ?? null) === 12_288
                 && ! isset($request['max_tokens'])
-                && ($events['minItems'] ?? null) === 20
-                && ($events['maxItems'] ?? null) === 20
+                && ($events['minItems'] ?? null) === 5
+                && ($events['maxItems'] ?? null) === 40
                 && ($mediaRows['minItems'] ?? null) === 2
                 && ($mediaRows['maxItems'] ?? null) === 6
                 && ($mediaEvents['minItems'] ?? null) === 1
@@ -626,8 +626,8 @@ class IngestionAiDailyCommandTest extends TestCase
         Http::assertSent(fn (Request $request): bool => ($request['max_completion_tokens'] ?? null) === 12_288
             && ! isset($request['max_tokens'])
             && ($request['response_format']['type'] ?? null) === 'json_schema'
-            && ($request['response_format']['json_schema']['schema']['properties']['events']['minItems'] ?? null) === 12
-            && ($request['response_format']['json_schema']['schema']['properties']['events']['maxItems'] ?? null) === 12);
+            && ($request['response_format']['json_schema']['schema']['properties']['events']['minItems'] ?? null) === 3
+            && ($request['response_format']['json_schema']['schema']['properties']['events']['maxItems'] ?? null) === 25);
     }
 
     public function test_ai_daily_execute_channel_limit_uses_eligible_legacy_channels(): void
@@ -1395,8 +1395,8 @@ SQL);
         config()->set('services.opencode_go.model', 'replacement-model');
         Http::fake([
             'https://opencode.test/v1/chat/completions' => Http::sequence()
-                ->push(['choices' => [['message' => ['content' => $this->dailyCompletion('過少', 14)]]]])
-                ->push(['choices' => [['message' => ['content' => $this->dailyCompletion('過多', 21)]]]]),
+                ->push(['choices' => [['message' => ['content' => $this->dailyCompletion('過少', 4)]]]])
+                ->push(['choices' => [['message' => ['content' => $this->dailyCompletion('過多', 41)]]]]),
         ]);
 
         foreach ([
@@ -1536,7 +1536,7 @@ SQL);
         config()->set('services.opencode_go.transient_retries', 0);
         Http::fake([
             'https://primary.test/v1/chat/completions' => Http::response([
-                'choices' => [['message' => ['content' => $this->dailyCompletion('過少', 14)]]],
+                'choices' => [['message' => ['content' => $this->dailyCompletion('過少', 4)]]],
             ]),
             'https://fallback.test/v1/chat/completions' => Http::response([
                 'error' => ['message' => 'quota token=fallback-provider-secret'],
@@ -1600,9 +1600,9 @@ SQL);
 
     private function dailyMinimumFromPrompt(string $prompt): int
     {
-        return preg_match('/合併成\s+(\d+)\s+到/u', $prompt, $matches) === 1
+        return preg_match('/輸出事件總數請在\s+(\d+)\s+到/u', $prompt, $matches) === 1
             ? (int) $matches[1]
-            : 15;
+            : 5;
     }
 
     private function insertDailyCache(string $resultJson): void

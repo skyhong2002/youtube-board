@@ -13,15 +13,17 @@ final class AiDailyContract
     public const REPRESENTATIVE_EVENTS_PER_MEDIA = 1;
 
     /**
-     * Legacy `maint/get_ai_day.php` daily topic-count contract.
+     * Daily topic-count contract. The wide range is intentional: topics must be
+     * single concrete news events, so the count follows the news day instead of
+     * forcing distinct stories into a fixed number of buckets.
      *
      * @return array{min: int, max: int}
      */
     public static function bounds(string $condition): array
     {
         return $condition === 'all'
-            ? ['min' => 15, 'max' => 20]
-            : ['min' => 8, 'max' => 12];
+            ? ['min' => 5, 'max' => 40]
+            : ['min' => 3, 'max' => 25];
     }
 
     public static function minTopics(string $condition): int

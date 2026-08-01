@@ -66,7 +66,7 @@ class IngestionAiPeriodCommandTest extends TestCase
                                     '2026-06-02' => ['鄭麗文訪美'],
                                 ],
                                 [
-                                    '2026-06-03' => ['鄭麗文訪美及兩岸關係'],
+                                    '2026-06-03' => ['鄭麗文訪美行程'],
                                     '2026-06-02' => ['鄭麗文訪美'],
                                 ],
                             ], JSON_UNESCAPED_UNICODE),
@@ -94,7 +94,7 @@ class IngestionAiPeriodCommandTest extends TestCase
         $this->assertSame(1, $payload['ai_call_guard']['used']);
         $this->assertSame([
             [
-                '2026-06-03' => ['鄭麗文訪美及兩岸關係'],
+                '2026-06-03' => ['鄭麗文訪美行程'],
                 '2026-06-02' => ['鄭麗文訪美'],
             ],
         ], $payload['period_ai']['rows'][0]['matches']);
@@ -105,14 +105,14 @@ class IngestionAiPeriodCommandTest extends TestCase
         $this->assertSame('all', $row->condition_type);
         $this->assertSame('qwen-test', $row->ai_type);
         $this->assertSame('["1","2"]', $row->data_json);
-        $this->assertSame('[{"2026-06-03":["鄭麗文訪美及兩岸關係"],"2026-06-02":["鄭麗文訪美"]}]', $row->result_json);
+        $this->assertSame('[{"2026-06-03":["鄭麗文訪美行程"],"2026-06-02":["鄭麗文訪美"]}]', $row->result_json);
         $this->assertSame('qwen-test-2026-07-15', $payload['period_ai']['rows'][0]['model']);
 
-        $response = $this->getJson('/api/api_event.php?pk=2&event='.urlencode('鄭麗文訪美及兩岸關係'));
+        $response = $this->getJson('/api/api_event.php?pk=2&event='.urlencode('鄭麗文訪美行程'));
 
         $response->assertOk();
         $response->assertJsonPath('meta.history_available', true);
-        $this->assertSame(['鄭麗文訪美及兩岸關係'], $response->json('result.match.2026-06-03'));
+        $this->assertSame(['鄭麗文訪美行程'], $response->json('result.match.2026-06-03'));
         $this->assertSame(['鄭麗文訪美'], $response->json('result.match.2026-06-02'));
         $this->assertSame('1', $response->json('result.pk.2026-06-02'));
         Http::assertSentCount(1);
@@ -245,7 +245,7 @@ class IngestionAiPeriodCommandTest extends TestCase
         $this->assertTrue($payload['period_ai']['updated']);
         $this->assertSame([
             [
-                '2026-06-03' => ['鄭麗文訪美及兩岸關係'],
+                '2026-06-03' => ['鄭麗文訪美行程'],
                 '2026-06-02' => ['鄭麗文訪美'],
             ],
         ], $payload['period_ai']['rows'][0]['matches']);
@@ -253,7 +253,7 @@ class IngestionAiPeriodCommandTest extends TestCase
 
         $row = DB::table('urt_ai_period')->first();
         $this->assertSame('CLI', $row->user_token);
-        $this->assertSame('[{"2026-06-03":["鄭麗文訪美及兩岸關係"],"2026-06-02":["鄭麗文訪美"]}]', $row->result_json);
+        $this->assertSame('[{"2026-06-03":["鄭麗文訪美行程"],"2026-06-02":["鄭麗文訪美"]}]', $row->result_json);
     }
 
     public function test_ai_period_parse_failure_is_sanitized_and_returns_nonzero_without_writing(): void
@@ -307,7 +307,7 @@ class IngestionAiPeriodCommandTest extends TestCase
                 'choices' => [[
                     'message' => [
                         'content' => json_encode([[
-                            '2026-06-03' => ['鄭麗文訪美及兩岸關係'],
+                            '2026-06-03' => ['鄭麗文訪美行程'],
                             '2026-06-02' => ['鄭麗文訪美'],
                         ]], JSON_UNESCAPED_UNICODE),
                     ],
@@ -437,7 +437,7 @@ class IngestionAiPeriodCommandTest extends TestCase
                 'del_flag' => null,
                 'result_json' => json_encode([
                     [
-                        '事件' => '鄭麗文訪美及兩岸關係',
+                        '事件' => '鄭麗文訪美行程',
                         '描述' => '鄭麗文訪美後續延伸到兩岸關係。',
                         '關鍵字' => ['鄭麗文', '訪美', '兩岸'],
                         '人物' => ['鄭麗文'],

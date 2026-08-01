@@ -347,7 +347,7 @@ class IngestionHealthCheckTest extends TestCase
 
         DB::table('urt_ai_date')
             ->where('condition_type', 'world')
-            ->update(['result_json' => $this->dailyResultJson('world', 7)]);
+            ->update(['result_json' => $this->dailyResultJson('world', 2)]);
         DB::table('urt_channel_ai')
             ->where('u_id', AiDailyPreview::channelAiUids()[0])
             ->update(['result_json' => '{"events":[]}']);
@@ -381,7 +381,7 @@ class IngestionHealthCheckTest extends TestCase
             'condition_type' => null,
             'mtime' => '2026-05-25 09:59:00',
             'del_flag' => null,
-            'result_json' => $this->dailyResultJson('all latest incomplete', 14),
+            'result_json' => $this->dailyResultJson('all latest incomplete', 4),
         ]);
 
         Artisan::call('ingestion:health', [
