@@ -86,11 +86,46 @@ class EventNewsWriter
         $paragraphs = [];
         $description = trim((string) ($event['description'] ?? ''));
         if ($description !== '') {
-            $paragraphs[] = $this->sentence($description);
+            $paragraphs[] = $this->sentence($this->focusText($description, 180));
+        } else {
+            $title = trim((string) ($event['title'] ?? ''));
+            $keywords = collect((array) ($event['keywords'] ?? []))
+                ->filter(fn (mixed $keyword): bool => is_scalar($keyword) && trim((string) $keyword) !== '')
+                ->map(fn (mixed $keyword): string => trim((string) $keyword))
+                ->unique()
+                ->take(4)
+                ->values()
+                ->all();
+            if ($title !== '') {
+                $paragraphs[] = $this->sentence(
+                    $title.($keywords !== [] ? '，目前報導聚焦'.implode('、', $keywords) : ''),
+                );
+            }
         }
 
+        $videos = collect((array) ($event['videos'] ?? []))
+            ->filter(fn (mixed $video): bool => is_array($video))
+            ->values();
         $reports = collect((array) ($event['media_reports'] ?? []))
             ->filter(fn (mixed $report): bool => is_array($report))
+            ->map(function (array $report) use ($videos): array {
+                if (trim((string) ($report['group'] ?? '')) !== '') {
+                    return $report;
+                }
+
+                $uId = (int) ($report['u_id'] ?? 0);
+                $channel = trim((string) ($report['channel'] ?? $report['媒體'] ?? ''));
+                $matchingVideo = $videos->first(fn (array $video): bool => (
+                    $uId > 0 && (int) ($video['u_id'] ?? 0) === $uId
+                ) || (
+                    $channel !== '' && trim((string) ($video['channel'] ?? '')) === $channel
+                ));
+                if (is_array($matchingVideo)) {
+                    $report['group'] = trim((string) ($matchingVideo['group'] ?? ''));
+                }
+
+                return $report;
+            })
             ->values();
         $groupOrder = collect((array) ($event['group_video_counts'] ?? []))
             ->filter(fn (mixed $count): bool => (int) $count > 0)
@@ -117,8 +152,7 @@ class EventNewsWriter
             }
 
             $group = trim((string) ($report['group'] ?? ''));
-            $paragraphs[] = ($group !== '' && $group !== '其他' ? $group.'來源中，' : '')
-                .$channel.'：'.$this->sentence($detail);
+            $paragraphs[] = $this->sourceParagraph($channel, $detail, $group);
             $seenChannels[$channel] = true;
             if (count($seenChannels) >= 2) {
                 break;
@@ -126,7 +160,16 @@ class EventNewsWriter
         }
 
         if (count($seenChannels) < 2) {
-            foreach ((array) ($event['videos'] ?? []) as $video) {
+            $orderedVideos = $groupOrder
+                ->map(fn (mixed $group): mixed => $videos->first(
+                    fn (array $video): bool => (string) ($video['group'] ?? '') === (string) $group,
+                ))
+                ->filter(fn (mixed $video): bool => is_array($video))
+                ->concat($videos)
+                ->unique(fn (array $video): string => trim((string) ($video['channel'] ?? '')))
+                ->values();
+
+            foreach ($orderedVideos as $video) {
                 if (! is_array($video)) {
                     continue;
                 }
@@ -136,7 +179,11 @@ class EventNewsWriter
                     continue;
                 }
 
-                $paragraphs[] = $channel.'聚焦'.$this->shortTitle($title).'。';
+                $paragraphs[] = $this->sourceParagraph(
+                    $channel,
+                    $title,
+                    trim((string) ($video['group'] ?? '')),
+                );
                 $seenChannels[$channel] = true;
                 if (count($seenChannels) >= 2) {
                     break;
@@ -145,6 +192,9 @@ class EventNewsWriter
         }
 
         if ($paragraphs === []) {
+            return '';
+        }
+        if (count($seenChannels) < 2) {
             return '';
         }
 
@@ -171,13 +221,31 @@ class EventNewsWriter
 
     private function shortTitle(string $title): string
     {
-        $title = preg_replace('/\s*@[-_.a-z0-9]+\s*$/iu', '', trim($title)) ?? trim($title);
-        $parts = preg_split('/\s*[｜|]\s*/u', $title) ?: [];
-        $title = trim((string) ($parts[0] ?? $title));
+        return $this->focusText($title, 56);
+    }
 
-        return mb_strlen($title, 'UTF-8') > 56
-            ? rtrim(mb_substr($title, 0, 56, 'UTF-8')).'…'
-            : $title;
+    private function sourceParagraph(string $channel, string $detail, string $group): string
+    {
+        $group = trim($group) ?: '其他';
+        $focus = $this->focusText($detail, 44);
+
+        return $group.'來源中，'.$channel.'著重'.$this->sentence($focus);
+    }
+
+    private function focusText(string $value, int $limit): string
+    {
+        $value = preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value);
+        $value = preg_replace('/^(?:【[^】]{1,30}】\s*)+/u', '', $value) ?? $value;
+        $value = preg_replace('/^(?:[#＃][\p{L}\p{N}_-]+\s*)+/u', '', $value) ?? $value;
+        $value = preg_replace('/\s*@[-_.a-z0-9]+\s*$/iu', '', $value) ?? $value;
+        $parts = preg_split('/\s*[｜|]\s*/u', $value) ?: [];
+        $value = trim((string) ($parts[0] ?? $value));
+        $value = trim($value);
+        $value = preg_replace('/[。.!！?？]+$/u', '', $value) ?? $value;
+
+        return mb_strlen($value, 'UTF-8') > $limit
+            ? rtrim(mb_substr($value, 0, $limit, 'UTF-8'), " \t\n\r\0\x0B，、；;：:").'…'
+            : $value;
     }
 
     /**

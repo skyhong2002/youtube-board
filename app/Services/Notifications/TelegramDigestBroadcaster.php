@@ -205,7 +205,7 @@ class TelegramDigestBroadcaster
         ));
 
         foreach ($events as $index => $event) {
-            $events[$index]['dispatch'] = [
+            $dispatch = [
                 'story_id' => 0,
                 'metric_line' => sprintf(
                     $period === 'daily'
@@ -216,7 +216,10 @@ class TelegramDigestBroadcaster
                 ),
                 'burst_line' => '',
                 'previous_posted_at' => null,
+                'display_video_ids' => $event['video_ids'],
             ];
+            $events[$index]['group_video_counts'] = $this->displayGroupVideoCounts($event, $dispatch);
+            $events[$index]['dispatch'] = $dispatch;
         }
 
         $posts = array_values(array_filter(
@@ -601,7 +604,14 @@ class TelegramDigestBroadcaster
             ->unique()
             ->values();
         if ($displayIds->isEmpty()) {
-            return (array) ($event['group_video_counts'] ?? []);
+            $displayIds = collect((array) ($event['video_ids'] ?? []))
+                ->filter(fn (mixed $id): bool => is_scalar($id) && trim((string) $id) !== '')
+                ->map(fn (mixed $id): string => trim((string) $id))
+                ->unique()
+                ->values();
+        }
+        if ($displayIds->isEmpty()) {
+            return [];
         }
 
         $wanted = array_fill_keys($displayIds->all(), true);

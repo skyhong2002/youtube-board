@@ -285,8 +285,8 @@ class TelegramDigestBroadcasterTest extends TestCase
 
         Http::assertSent(fn ($r) => str_contains($r->url(), '/botBOT/sendMessage')
             && str_contains($r['text'], '毒駕事件')
-            && str_contains($r['text'], '三立新聞：三立整理事故責任與受害者家屬訴求。')
-            && str_contains($r['text'], 'TVBS NEWS：TVBS追蹤行政院與立法院修法進度。')
+            && str_contains($r['text'], '泛綠來源中，三立新聞著重三立整理事故責任與受害者家屬訴求。')
+            && str_contains($r['text'], '泛藍來源中，TVBS NEWS著重TVBS追蹤行政院與立法院修法進度。')
             && str_contains($r['text'], '⏱ 昨日整理｜影片3｜來源頻道3')
             && str_contains($r['text'], '<b>先看</b>'));
     }
@@ -365,8 +365,8 @@ class TelegramDigestBroadcasterTest extends TestCase
         $this->assertSame(1, $result['posted']);
         Http::assertSent(fn ($request): bool => str_contains($request->url(), 'sendMessage')
             && str_contains($request['text'], '熊本強震救援進展')
-            && str_contains($request['text'], '三立新聞：三立新聞整理救援進度與餘震影響。')
-            && str_contains($request['text'], 'TVBS NEWS：TVBS NEWS追蹤餘震與交通恢復情形。')
+            && str_contains($request['text'], '泛綠來源中，三立新聞著重三立新聞整理救援進度與餘震影響。')
+            && str_contains($request['text'], '泛藍來源中，TVBS NEWS著重TVBS NEWS追蹤餘震與交通恢復情形。')
             && str_contains($request['text'], '人物　高市早苗')
             && str_contains($request['text'], '地名　熊本')
             && str_contains($request['text'], '<b>先看</b>'));
@@ -638,8 +638,8 @@ class TelegramDigestBroadcasterTest extends TestCase
 
         $this->assertSame(1, $result['posted']);
         Http::assertSent(fn ($request): bool => str_contains($request->url(), 'sendMessage')
-            && str_contains($request['text'], '三立新聞：三立整理事故責任與受害者家屬訴求。')
-            && str_contains($request['text'], 'TVBS NEWS：TVBS追蹤行政院與立法院修法進度。')
+            && str_contains($request['text'], '泛綠來源中，三立新聞著重三立整理事故責任與受害者家屬訴求。')
+            && str_contains($request['text'], '泛藍來源中，TVBS NEWS著重TVBS追蹤行政院與立法院修法進度。')
             && str_contains($request['text'], '<blockquote expandable>'));
     }
 
@@ -700,6 +700,24 @@ class TelegramDigestBroadcasterTest extends TestCase
                 && $request['link_preview_options']['url'] === 'https://www.youtube.com/watch?v=v1'
                 && $request['link_preview_options']['prefer_large_media'] === true;
         });
+    }
+
+    public function test_hourly_preview_group_distribution_accounts_for_unresolved_video_ids(): void
+    {
+        $this->createHourlyTable();
+        $this->createTaggedVideoTables(8);
+        $this->insertHourly(1, '2026-05-24 10:00:00', [[
+            '事件' => '毒駕修法進度',
+            '描述' => '行政院與立法院持續討論修法。',
+            '關鍵字' => ['毒駕', '修法'],
+            'videoId' => array_map(fn (int $index): string => 'v'.$index, range(1, 9)),
+        ]]);
+
+        $messages = app(TelegramDigestBroadcaster::class)->preview('hourly');
+
+        $this->assertCount(1, $messages);
+        $this->assertStringContainsString('⏱ 近1小時｜影片9｜來源頻道6', $messages[0]);
+        $this->assertStringContainsString('▸ 影片分布　泛綠3支、泛藍3支、公共電視2支、其他1支', $messages[0]);
     }
 
     public function test_same_story_in_the_next_hour_is_suppressed_even_when_title_changes(): void

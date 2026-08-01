@@ -113,6 +113,36 @@ class NotificationClientsTest extends TestCase
         $this->assertStringContainsString('熊本強震、搜救、新幹線', $paragraphs[3]);
     }
 
+    public function test_news_writer_video_fallback_uses_group_order_and_removes_title_noise(): void
+    {
+        $this->configureAi();
+        Http::fake(['api.openai.test/*' => Http::response('server error', 500)]);
+
+        $map = app(EventNewsWriter::class)->summaries([[
+            'title' => '熊本震後救援進度',
+            'description' => '熊本震後持續搜救並修復交通。',
+            'keywords' => ['熊本強震', '搜救'],
+            'group_video_counts' => ['泛綠' => 8, '泛藍' => 5],
+            'videos' => [[
+                'channel' => '三立新聞',
+                'group' => '泛綠',
+                'title' => '【#直播中LIVE】熊本物資集散與災區支援｜三立新聞 @setn',
+            ], [
+                'channel' => 'TVBS NEWS',
+                'group' => '泛藍',
+                'title' => '【國際懶人包】新幹線與道路修復進度｜TVBS新聞 @tvbsnews01',
+            ]],
+        ]]);
+
+        $paragraphs = explode("\n\n", $map['熊本震後救援進度']);
+        $this->assertCount(4, $paragraphs);
+        $this->assertSame('泛綠來源中，三立新聞著重熊本物資集散與災區支援。', $paragraphs[1]);
+        $this->assertSame('泛藍來源中，TVBS NEWS著重新幹線與道路修復進度。', $paragraphs[2]);
+        $this->assertStringNotContainsString('LIVE', $map['熊本震後救援進度']);
+        $this->assertStringNotContainsString('@', $map['熊本震後救援進度']);
+        $this->assertStringNotContainsString('｜', $map['熊本震後救援進度']);
+    }
+
     public function test_telegram_client_dry_runs_when_disabled(): void
     {
         config()->set('services.telegram.enabled', false);
