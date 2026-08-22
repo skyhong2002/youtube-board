@@ -141,7 +141,7 @@ Dokploy platform and service layout was first observed on 2026-05-31. The curren
 - Server: `Dokploy Server`.
 - Services:
   - `YouTube Board Web`: Laravel application for `youtube.observe.tw`; container/service name `youtube-board-web-mwafzd`.
-  - `YouTube Board Scheduler`: dedicated Laravel scheduler service that evaluates `schedule:run` every minute and uses the same application image as the web service.
+  - Scheduler: as of 2026-08-22 there is no separate scheduler service; `schedule:run` executes every minute as a Dokploy scheduled task inside the `YouTube Board Web` container.
   - `YouTube Board DB`: persistent MariaDB database; container/service name `youtube-board-db-qcja1i`.
   - `YouTube Board phpMyAdmin`: protected phpMyAdmin for the MariaDB service; container/service name `youtube-board-pma-dxtxrr`.
 
@@ -157,7 +157,7 @@ Production service notes:
 - Web Traefik routes redirect HTTP to HTTPS and forward HTTPS to `http://youtube-board-web-mwafzd:8000`.
 - Web service has no Dokploy basic auth, no extra exposed ports, no redirects, and no volumes configured.
 - Web service resource limits are currently 1 GB memory limit, 256 MB memory reservation, 2 CPU limit, and 1 CPU reservation.
-- Web and scheduler were operator-confirmed on the same image on 2026-07-16; both services were `1/1` with restart count zero after rollout. The application-code release in that image is commit `acae6b9bb2ce2b8c93b8b750e12781df1dd92671`; later documentation-only commits may produce a newer image SHA without changing runtime code.
+- On 2026-08-22 the web service (which now also hosts the scheduler task) was redeployed to commit `19df26fd9db16159a051869e3b6ecbfc5785759f`, operator-session-confirmed `done` in Dokploy; later documentation-only commits may produce a newer image SHA without changing runtime code.
 
 Database service notes:
 
@@ -198,7 +198,7 @@ Production app environment:
 
 Production scheduler status:
 
-- `INGESTION_SCHEDULER_ENABLED=true`, `INGESTION_LOCAL_POLLING_ENABLED=true`, and `INGESTION_PRODUCTION_POLLING_ENABLED=true` remain enabled, and the dedicated scheduler evaluates Laravel due jobs every minute.
+- `INGESTION_SCHEDULER_ENABLED=true`, `INGESTION_LOCAL_POLLING_ENABLED=true`, and `INGESTION_PRODUCTION_POLLING_ENABLED=true` remain enabled, and `schedule:run` evaluates Laravel due jobs every minute as a Dokploy scheduled task in the web container (the dedicated scheduler service was removed; observed 2026-08-22).
 - `INGESTION_SCHEDULED_WRITE_ALLOWLIST` is configured in Dokploy and includes `ai.daily` and `ai.hourly` as of 2026-07-16. Do not print the full env block because it also contains secrets.
 - Production ingestion/polling is controlled by scheduler and polling env gates plus the allowlist. New write/API jobs must still be explicitly allowlisted before scheduled execute mode can run.
 - To adjust production polling, follow `docs/deployment.md` and `docs/legacy-inventory/scheduler-activation.md`; require an exact `INGESTION_SCHEDULED_WRITE_ALLOWLIST`, a rollback plan, and explicit operator approval before adding new write/API jobs.
@@ -207,7 +207,9 @@ Deployment operations:
 
 - Prefer Dokploy Deploy/Reload/Rebuild controls for production changes.
 - The web service Deployments tab exposes a Dokploy deploy webhook URL; do not paste the full URL into commits, issues, logs, or chat unless explicitly rotating/reconfiguring secrets.
-- Latest operator-confirmed application-code release on 2026-07-16 is commit `acae6b9bb2ce2b8c93b8b750e12781df1dd92671` (`Restrict local dump table engines`). Use the Dokploy deployment record for the exact current image commit when documentation-only commits follow it.
+- Latest operator-confirmed application-code release on 2026-08-22 is commit `19df26fd9db16159a051869e3b6ecbfc5785759f` (`Add project logo and t3.json icon config`). Use the Dokploy deployment record for the exact current image commit when documentation-only commits follow it.
+- Autodeploy chain: a GitHub `push` webhook posts to `https://youtube.observe.tw/ops/deploy/dokploy` (route `ops/deploy/dokploy`, HMAC-verified against `DOKPLOY_DEPLOY_RELAY_SECRET`), and the app relays `main`-branch pushes to `DOKPLOY_DEPLOY_WEBHOOK_URL`.
+- Autodeploy silently broke between 2026-08-01 15:25 and 2026-08-02: the GitHub webhook pointed at the dead domain `youtube-board.skyhong.tw`, and the running web container was missing `DOKPLOY_DEPLOY_RELAY_SECRET` (the relay route 404s when that env is absent). Fixed on 2026-08-22 by repointing the webhook to `youtube.observe.tw`, rotating the relay secret on both sides, and adding the env var; an end-to-end webhook redelivery returned 200 and deployed. If pushes stop deploying, check the GitHub webhook deliveries and the relay endpoint status code first (404 = env missing, 403 = signature mismatch).
 - On 2026-05-31, Dokploy env was updated through Chrome to add `youtube.tag_videos.backfill` to `INGESTION_SCHEDULED_WRITE_ALLOWLIST`, then the web application was reloaded successfully.
 - If changing resource limits, volumes, Traefik config, basic auth, or cluster settings in Dokploy, redeploy afterward for the change to apply.
 - Keep `deploy/dokploy-env.example`, `deploy/dokploy-mariadb-env.example`, and `deploy/dokploy-phpmyadmin-env.example` aligned with the production shape, but never copy production secret values into those files.
