@@ -153,7 +153,8 @@ Production service notes:
 - Web service build type is `Dockerfile`, with Docker file `Dockerfile` and context `.`.
 - Web service autodeploy is enabled.
 - Web service has clean-cache disabled.
-- Web service domain is `https://youtube.observe.tw/`, path `/`, container port `8000`, HTTPS via `letsencrypt`.
+- Web service domain is `https://youtube.observe.tw/`, path `/`, container port `8000`, HTTPS via `letsencrypt`. As observed on 2026-08-25, Cloudflare also fronts the public domain (responses carry `server: cloudflare`), so origin response headers are partially rewritten.
+- The container serves the app with FrankenPHP (`frankenphp php-server`, since 2026-08-25, commit `8e1db86`); before that it used `php artisan serve`, whose near-serial request handling caused multi-second tail latency and uptime-probe timeouts.
 - Web Traefik routes redirect HTTP to HTTPS and forward HTTPS to `http://youtube-board-web-mwafzd:8000`.
 - Web service has no Dokploy basic auth, no extra exposed ports, no redirects, and no volumes configured.
 - Web service resource limits are currently 1 GB memory limit, 256 MB memory reservation, 2 CPU limit, and 1 CPU reservation.
@@ -207,7 +208,7 @@ Deployment operations:
 
 - Prefer Dokploy Deploy/Reload/Rebuild controls for production changes.
 - The web service Deployments tab exposes a Dokploy deploy webhook URL; do not paste the full URL into commits, issues, logs, or chat unless explicitly rotating/reconfiguring secrets.
-- Latest operator-confirmed application-code release on 2026-08-22 is commit `19df26fd9db16159a051869e3b6ecbfc5785759f` (`Add project logo and t3.json icon config`). Use the Dokploy deployment record for the exact current image commit when documentation-only commits follow it.
+- Latest confirmed application-code release on 2026-08-25 is commit `8e1db86` (`Serve production with FrankenPHP instead of artisan serve`), verified live via the rebuilt image's static-file `Last-Modified` and restored sub-second homepage latency. Use the Dokploy deployment record for the exact current image commit when documentation-only commits follow it.
 - Autodeploy chain: a GitHub `push` webhook posts to `https://youtube.observe.tw/ops/deploy/dokploy` (route `ops/deploy/dokploy`, HMAC-verified against `DOKPLOY_DEPLOY_RELAY_SECRET`), and the app relays `main`-branch pushes to `DOKPLOY_DEPLOY_WEBHOOK_URL`.
 - Autodeploy silently broke between 2026-08-01 15:25 and 2026-08-02: the GitHub webhook pointed at the dead domain `youtube-board.skyhong.tw`, and the running web container was missing `DOKPLOY_DEPLOY_RELAY_SECRET` (the relay route 404s when that env is absent). Fixed on 2026-08-22 by repointing the webhook to `youtube.observe.tw`, rotating the relay secret on both sides, and adding the env var; an end-to-end webhook redelivery returned 200 and deployed. If pushes stop deploying, check the GitHub webhook deliveries and the relay endpoint status code first (404 = env missing, 403 = signature mismatch).
 - On 2026-05-31, Dokploy env was updated through Chrome to add `youtube.tag_videos.backfill` to `INGESTION_SCHEDULED_WRITE_ALLOWLIST`, then the web application was reloaded successfully.
