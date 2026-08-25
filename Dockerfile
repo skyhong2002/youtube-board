@@ -55,8 +55,10 @@ ENV XDG_CONFIG_HOME=/tmp/caddy-config \
 # The frankenphp base image's HEALTHCHECK probes the Caddy admin API on :2019,
 # which is disabled in `frankenphp php-server` mode — Swarm would kill the
 # healthy container after three failed probes. Probe the app itself instead.
+# The scheduler service reuses this image with a non-server command, so only
+# require /up when PID 1 is actually the FrankenPHP web server.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
-    CMD curl -fsS "http://localhost:${PORT:-8000}/up" || exit 1
+    CMD curl -fsS "http://localhost:${PORT:-8000}/up" || ! grep -q frankenphp /proc/1/cmdline
 
 USER www-data
 
