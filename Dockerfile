@@ -1,4 +1,4 @@
-FROM php:8.4-cli-alpine3.22
+FROM dunglas/frankenphp:1-php8.4-alpine
 
 RUN apk add --no-cache \
         bash \
@@ -47,6 +47,10 @@ RUN chmod -R a+rX /var/www/html \
         storage/framework/views \
         storage/logs \
     && chown -R www-data:www-data bootstrap/cache storage
+
+# Caddy (inside FrankenPHP) needs writable config/data dirs when running unprivileged.
+ENV XDG_CONFIG_HOME=/tmp/caddy-config \
+    XDG_DATA_HOME=/tmp/caddy-data
 
 USER www-data
 

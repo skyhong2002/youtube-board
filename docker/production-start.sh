@@ -39,4 +39,4 @@ php artisan deployment:schema-check --no-interaction
 php artisan config:cache --no-interaction
 php artisan view:cache --no-interaction
 
-exec php artisan serve --host=0.0.0.0 --port="${PORT:-8000}"
+exec frankenphp php-server --root public --listen "0.0.0.0:${PORT:-8000}"
