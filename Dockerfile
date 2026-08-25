@@ -52,6 +52,12 @@ RUN chmod -R a+rX /var/www/html \
 ENV XDG_CONFIG_HOME=/tmp/caddy-config \
     XDG_DATA_HOME=/tmp/caddy-data
 
+# The frankenphp base image's HEALTHCHECK probes the Caddy admin API on :2019,
+# which is disabled in `frankenphp php-server` mode — Swarm would kill the
+# healthy container after three failed probes. Probe the app itself instead.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD curl -fsS "http://localhost:${PORT:-8000}/up" || exit 1
+
 USER www-data
 
 EXPOSE 8000
