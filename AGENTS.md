@@ -141,7 +141,7 @@ Dokploy platform and service layout was first observed on 2026-05-31. The curren
 - Server: `Dokploy Server`.
 - Services:
   - `YouTube Board Web`: Laravel application for `youtube.observe.tw`; container/service name `youtube-board-web-mwafzd`.
-  - Scheduler: as of 2026-08-22 there is no separate scheduler service; `schedule:run` executes every minute as a Dokploy scheduled task inside the `YouTube Board Web` container.
+  - `youtube-board-scheduler`: separate Swarm service that runs the schedule loop (`while true; do php artisan schedule:run; sleep 60; done`) using the web service's image tag (`youtube-board-web-mwafzd:latest`) with a command override. It does NOT follow web deploys: it keeps its old container (and therefore old code) until restarted. After every code release, run `docker service update --force youtube-board-scheduler` on the Dokploy host (or deploy it in Dokploy) so scheduled jobs pick up the new image. Its service-level healthcheck was disabled on 2026-08-26 (`--no-healthcheck`) because the image healthcheck targets the web server. (A 2026-08-22 note here claimed the separate scheduler no longer existed — that was a misreading of the Dokploy UI; host inspection shows the service.)
   - `YouTube Board DB`: persistent MariaDB database; container/service name `youtube-board-db-qcja1i`.
   - `YouTube Board phpMyAdmin`: protected phpMyAdmin for the MariaDB service; container/service name `youtube-board-pma-dxtxrr`.
 
@@ -154,7 +154,8 @@ Production service notes:
 - Web service autodeploy is enabled.
 - Web service has clean-cache disabled.
 - Web service domain is `https://youtube.observe.tw/`, path `/`, container port `8000`, HTTPS via `letsencrypt`. As observed on 2026-08-25, Cloudflare also fronts the public domain (responses carry `server: cloudflare`), so origin response headers are partially rewritten.
-- The container serves the app with FrankenPHP (`frankenphp php-server`, since 2026-08-25, commit `8e1db86`); before that it used `php artisan serve`, whose near-serial request handling caused multi-second tail latency and uptime-probe timeouts.
+- The container serves the app with FrankenPHP (`frankenphp php-server`); before 2026-08-26 it used `php artisan serve`, whose near-serial request handling caused multi-second tail latency and uptime-probe timeouts. The first FrankenPHP deploys (2026-08-25, `8e1db86`) silently rolled back: the frankenphp base image's HEALTHCHECK probes the Caddy admin API on :2019, which `php-server` mode disables, so Swarm killed the healthy container after ~90s and kept the old task (deploys are start-first with `FailureAction: rollback`). Fixed by overriding the image HEALTHCHECK to probe Laravel's `/up` (`4ef5968`, refined for the scheduler container in `4dbebd9`).
+- When verifying a release, check container state on the Dokploy host (`docker ps`, process list, code in the container) — public response headers are rewritten and cached by Cloudflare and can misleadingly show fresh `Last-Modified` values.
 - Web Traefik routes redirect HTTP to HTTPS and forward HTTPS to `http://youtube-board-web-mwafzd:8000`.
 - Web service has no Dokploy basic auth, no extra exposed ports, no redirects, and no volumes configured.
 - Web service resource limits are currently 1 GB memory limit, 256 MB memory reservation, 2 CPU limit, and 1 CPU reservation.
@@ -199,7 +200,8 @@ Production app environment:
 
 Production scheduler status:
 
-- `INGESTION_SCHEDULER_ENABLED=true`, `INGESTION_LOCAL_POLLING_ENABLED=true`, and `INGESTION_PRODUCTION_POLLING_ENABLED=true` remain enabled, and `schedule:run` evaluates Laravel due jobs every minute as a Dokploy scheduled task in the web container (the dedicated scheduler service was removed; observed 2026-08-22).
+- `INGESTION_SCHEDULER_ENABLED=true`, `INGESTION_LOCAL_POLLING_ENABLED=true`, and `INGESTION_PRODUCTION_POLLING_ENABLED=true` remain enabled, and the dedicated `youtube-board-scheduler` Swarm service evaluates Laravel due jobs every minute (see the service notes above for its deploy caveat).
+- Because the scheduler did not follow web deploys, scheduled jobs (including AI generation) ran the 2026-08-01 image until the scheduler was force-updated on 2026-08-26 — data-quality changes shipped in between only took effect from that date.
 - `INGESTION_SCHEDULED_WRITE_ALLOWLIST` is configured in Dokploy and includes `ai.daily` and `ai.hourly` as of 2026-07-16. Do not print the full env block because it also contains secrets.
 - Production ingestion/polling is controlled by scheduler and polling env gates plus the allowlist. New write/API jobs must still be explicitly allowlisted before scheduled execute mode can run.
 - To adjust production polling, follow `docs/deployment.md` and `docs/legacy-inventory/scheduler-activation.md`; require an exact `INGESTION_SCHEDULED_WRITE_ALLOWLIST`, a rollback plan, and explicit operator approval before adding new write/API jobs.
@@ -208,7 +210,7 @@ Deployment operations:
 
 - Prefer Dokploy Deploy/Reload/Rebuild controls for production changes.
 - The web service Deployments tab exposes a Dokploy deploy webhook URL; do not paste the full URL into commits, issues, logs, or chat unless explicitly rotating/reconfiguring secrets.
-- Latest confirmed application-code release on 2026-08-25 is commit `8e1db86` (`Serve production with FrankenPHP instead of artisan serve`), verified live via the rebuilt image's static-file `Last-Modified` and restored sub-second homepage latency. Use the Dokploy deployment record for the exact current image commit when documentation-only commits follow it.
+- Latest confirmed application-code release on 2026-08-26 is commit `4dbebd9` (`Skip the /up healthcheck for non-server containers`), verified on the Dokploy host via healthy task state with `frankenphp php-server` as PID 1. Use the Dokploy deployment record for the exact current image commit when documentation-only commits follow it.
 - Autodeploy chain: a GitHub `push` webhook posts to `https://youtube.observe.tw/ops/deploy/dokploy` (route `ops/deploy/dokploy`, HMAC-verified against `DOKPLOY_DEPLOY_RELAY_SECRET`), and the app relays `main`-branch pushes to `DOKPLOY_DEPLOY_WEBHOOK_URL`.
 - Autodeploy silently broke between 2026-08-01 15:25 and 2026-08-02: the GitHub webhook pointed at the dead domain `youtube-board.skyhong.tw`, and the running web container was missing `DOKPLOY_DEPLOY_RELAY_SECRET` (the relay route 404s when that env is absent). Fixed on 2026-08-22 by repointing the webhook to `youtube.observe.tw`, rotating the relay secret on both sides, and adding the env var; an end-to-end webhook redelivery returned 200 and deployed. If pushes stop deploying, check the GitHub webhook deliveries and the relay endpoint status code first (404 = env missing, 403 = signature mismatch).
 - On 2026-05-31, Dokploy env was updated through Chrome to add `youtube.tag_videos.backfill` to `INGESTION_SCHEDULED_WRITE_ALLOWLIST`, then the web application was reloaded successfully.

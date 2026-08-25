@@ -27,7 +27,8 @@ Commit `97c2f93`「Make AI events single-story granular」（已 push）。系�
 ## Part B — 部署滿半天後的驗證
 
 1. **確認變更真的在跑**：確認 Dokploy 部署的 image commit 包含 `97c2f93`（參考 `AGENTS.md` 的部署記錄慣例）。沒部署的話先回報，不要繼續往下判讀。
-   - 2026-08-23 更新：`97c2f93` 遲至 2026-08-23 凌晨（台北時間）才隨 `19df26f` 部署上線——autodeploy 在 2026-08-01 晚間斷線（詳見 `AGENTS.md` 部署章節），此前 production 一直跑舊粒度。Part B 的「部署滿半天」時鐘從 2026-08-23 起算。
+   - 2026-08-23 更新：`97c2f93` 遲至 2026-08-23 凌晨（台北時間）才隨 `19df26f` 部署上線——autodeploy 在 2026-08-01 晚間斷線（詳見 `AGENTS.md` 部署章節），此前 production 一直跑舊粒度。
+   - 2026-08-26 再更正：8-23 那次只更新了 web 容器；實際執行 `ai:daily`/`ai:hourly` 的 scheduler 服務因不跟隨 web 部署，一直跑 2026-08-01 的舊 image（daily bounds 仍為 15–20，這解釋了 8-23 之後每天仍恰好 20 個事件）。scheduler 於 2026-08-26 手動更新到新 image 後，粒度改動才真正開始生效。**Part B 的「部署滿半天」時鐘從 2026-08-26 起算**，量化檢查請以 2026-08-26 之後產生的 rows 為準。
 2. **取新資料**：用 `scripts/remote-ai-tables-dump.php` 匯入最近的 `urt_ai_hour` / `urt_ai_date` / `urt_channel_ai`（唯讀、最小權限）。
 3. **量化檢查**：
    - 部署後產生的每個 hourly/daily row，事件數應落在新界線內，且新聞量大時通常比舊資料多。
