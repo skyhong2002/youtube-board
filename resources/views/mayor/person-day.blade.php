@@ -122,7 +122,7 @@
                 <div class="kpi">
                     <div class="kpi-label">支持度</div>
                     <div class="kpi-value">{{ $summary['support_percentage'] === null ? 'n/a' : number_format((float) $summary['support_percentage'], 1).'%' }}</div>
-                    <div class="kpi-detail">weighted raw {{ $summary['support_raw'] === null ? 'n/a' : number_format((float) $summary['support_raw'], 0) }}</div>
+                    <div class="kpi-detail">加權分數 {{ $summary['support_raw'] === null ? 'n/a' : number_format((float) $summary['support_raw'], 0) }}</div>
                 </div>
                 <div class="kpi">
                     <div class="kpi-label">{{ $type_name }}</div>

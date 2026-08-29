@@ -134,6 +134,11 @@
                 <span>generated {{ $generated_at }}</span>
             </div>
 
+            <p class="notice">
+                支持度是把各政治傾向頻道中的候選人關鍵字指標套用係數後換算，並不是候選人的實際影片支數。
+                加權分數可為負值；換算支持度百分比時，負值會按 0 計算。
+            </p>
+
             @if (! $available)
                 <p class="notice">本機尚未匯入 `urt_show_tag_date` cache table。<br><x-ingestion-portal job="reports.mayor.static" /></p>
             @elseif (! $data_available)
@@ -176,7 +181,7 @@
                             </div>
                             <div class="portal-stat">
                                 <strong>{{ is_numeric($raw) ? number_format((float) $raw, 0) : 'n/a' }}</strong>
-                                {{ $type_name }} raw
+                                {{ $type_name }}分數
                             </div>
                         </div>
                         <div class="portal-actions">
@@ -269,7 +274,7 @@
                             <th>日期</th>
                             @foreach ($candidates as $candidate)
                                 <th class="number">{{ $candidate }} %</th>
-                                <th class="number">{{ $candidate }} raw</th>
+                                <th class="number">{{ $candidate }} 加權分數</th>
                             @endforeach
                             <th class="number">cache hits</th>
                         </tr>

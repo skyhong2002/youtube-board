@@ -357,9 +357,9 @@ class MayorReport
     private function types(): array
     {
         return [
-            'tags_views' => '觀看數',
-            'tags_video' => '影片數',
-            'tags_result' => '重要度',
+            'tags_views' => '觀看數加權',
+            'tags_video' => '影片提及加權',
+            'tags_result' => '重要度加權',
         ];
     }
 

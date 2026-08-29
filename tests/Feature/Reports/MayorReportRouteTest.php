@@ -117,7 +117,9 @@ class MayorReportRouteTest extends TestCase
         $response = $this->get('/mayor/cities/taitung?from=2026-05-20&to=2026-05-20');
 
         $response->assertOk();
-        $response->assertSee('影片數 · 2026-05-20 - 2026-05-20');
+        $response->assertSee('影片提及加權 · 2026-05-20 - 2026-05-20');
+        $response->assertSee('並不是候選人的實際影片支數');
+        $response->assertSee('負值會按 0 計算');
         $response->assertSee('候選人支持度趨勢');
         $response->assertDontSee('目前沒有符合這組 city/date/type');
     }
