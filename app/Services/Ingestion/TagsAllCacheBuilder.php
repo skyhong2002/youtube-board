@@ -6,6 +6,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\LazyCollection;
 use Throwable;
 
 class TagsAllCacheBuilder
@@ -31,7 +32,8 @@ class TagsAllCacheBuilder
         $recentFrom = $now->subDays($recentDays)->startOfDay();
         $generatedAt = $now->format('Y-m-d H:i:s');
         $keywords = [];
-        $videos = [];
+        $videoRows = [];
+        $videosScanned = 0;
         $metrics = [];
 
         try {
@@ -39,7 +41,8 @@ class TagsAllCacheBuilder
             $keywords = $keywordSelection['rows'];
 
             $videoSelection = $this->videoRows($days, $videoLimit, $now);
-            $videos = $videoSelection['rows'];
+            $videoRows = $videoSelection['rows'];
+            $videosScanned = $videoSelection['selected'];
 
             if ($videoSelection['truncated']) {
                 $payload = $this->payload(
@@ -49,7 +52,7 @@ class TagsAllCacheBuilder
                     keywordLimit: $keywordLimit,
                     videoLimit: $videoLimit,
                     keywords: $keywords,
-                    videos: $videos,
+                    videosScanned: $videosScanned,
                     metrics: [],
                     execute: $execute,
                     generatedAt: $generatedAt,
@@ -62,7 +65,7 @@ class TagsAllCacheBuilder
                 return $payload;
             }
 
-            $metrics = $this->metrics($keywords, $videos, $recentFrom);
+            $metrics = $this->metrics($keywords, $videoRows, $recentFrom);
 
             if ($execute) {
                 $this->writeCache($metrics, $generatedAt);
@@ -75,7 +78,7 @@ class TagsAllCacheBuilder
                 keywordLimit: $keywordLimit,
                 videoLimit: $videoLimit,
                 keywords: $keywords,
-                videos: $videos,
+                videosScanned: $videosScanned,
                 metrics: $metrics,
                 execute: $execute,
                 generatedAt: $generatedAt,
@@ -94,7 +97,7 @@ class TagsAllCacheBuilder
                 keywordLimit: $keywordLimit,
                 videoLimit: $videoLimit,
                 keywords: $keywords,
-                videos: $videos,
+                videosScanned: $videosScanned,
                 metrics: $metrics,
                 execute: $execute,
                 generatedAt: $generatedAt,
@@ -111,7 +114,6 @@ class TagsAllCacheBuilder
 
     /**
      * @param  list<array{tag: string, weight: float}>  $keywords
-     * @param  list<object>  $videos
      * @param  array<string, array{video: int, video_all: int, views: int, views_all: int}>  $metrics
      * @return array<string, mixed>
      */
@@ -122,7 +124,7 @@ class TagsAllCacheBuilder
         int $keywordLimit,
         int $videoLimit,
         array $keywords,
-        array $videos,
+        int $videosScanned,
         array $metrics,
         bool $execute,
         string $generatedAt,
@@ -146,7 +148,7 @@ class TagsAllCacheBuilder
             'keyword_limit' => $keywordLimit,
             'video_limit' => $videoLimit,
             'keywords_selected' => count($keywords),
-            'videos_scanned' => count($videos),
+            'videos_scanned' => $videosScanned,
             'tags_with_metrics' => count($metrics),
             'write_targets' => ['urt_show_data.data_name=tags_all columns=ctime,mtime,api,para,the_result'],
             'writes' => $execute && ! $failed ? 1 : 0,
@@ -221,7 +223,7 @@ class TagsAllCacheBuilder
     }
 
     /**
-     * @return array{rows: list<object>, truncated: bool}
+     * @return array{rows: iterable<object>, selected: int, truncated: bool}
      */
     private function videoRows(int $days, int $limit, CarbonImmutable $now): array
     {
@@ -238,23 +240,34 @@ class TagsAllCacheBuilder
         $query = DB::table('urt_video')
             ->select(['pk', 'u_id', 'videoId', 'publishedAt', 'title', 'description', 'viewCount'])
             ->whereIn('u_id', $uIds)
-            ->whereBetween('publishedAt', [$from, $to])
-            ->orderBy('publishedAt');
+            ->whereBetween('publishedAt', [$from, $to]);
 
-        $rows = $query->limit($limit + 1)->get()->all();
+        $available = (clone $query)->count();
+
+        if ($available > $limit) {
+            return [
+                'rows' => [],
+                'selected' => $limit,
+                'truncated' => true,
+            ];
+        }
+
+        /** @var LazyCollection<int, object> $rows */
+        $rows = $query->lazyById(500, column: 'pk');
 
         return [
-            'rows' => array_slice($rows, 0, $limit),
-            'truncated' => count($rows) > $limit,
+            'rows' => $rows,
+            'selected' => $available,
+            'truncated' => false,
         ];
     }
 
     /**
      * @param  list<array{tag: string, weight: float}>  $keywords
-     * @param  list<object>  $videos
+     * @param  iterable<object>  $videos
      * @return array<string, array{video: int, video_all: int, views: int, views_all: int}>
      */
-    private function metrics(array $keywords, array $videos, CarbonImmutable $recentFrom): array
+    private function metrics(array $keywords, iterable $videos, CarbonImmutable $recentFrom): array
     {
         $metrics = [];
         $keywordTags = array_column($keywords, 'tag');
