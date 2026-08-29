@@ -341,7 +341,7 @@ return [
             'group' => 'Derived reports',
             'priority' => 3,
             'modern_command' => 'reports:keywords:cache',
-            'scheduled_execute_command' => 'reports:keywords:cache --execute --days=31 --recent-days=7 --keyword-limit=1000 --video-limit=50000',
+            'scheduled_execute_command' => 'reports:keywords:cache --execute --days=31 --recent-days=7 --keyword-limit=1000 --video-limit=100000',
             'legacy_command' => '/usr/bin/php /home/urtube/maint/tags_all.php',
             'schedule' => '27 3,8,11,13,18,23 * * *',
             'cadence' => '每日 6 次',

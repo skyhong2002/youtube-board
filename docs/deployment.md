@@ -191,7 +191,7 @@ The AI client tries the primary OpenAI `gpt-5.4-mini` provider first, then the O
 For derived report freshness, candidate keys are:
 
 - `reports.keywords.build`: ranks the bounded local `tags` source. Legacy `tag.analysis.tw` synchronization is off by default and requires `INGESTION_LEGACY_EXTERNAL_SYNC_ENABLED=true`.
-- `reports.keywords.cache`: counts the raw video source first and streams complete in-cap rows in chunks, so its 50,000-row safety cap remains usable under the Production PHP memory limit; raw-video truncation still fails closed.
+- `reports.keywords.cache`: counts the raw video source first and streams complete in-cap rows in chunks, so its reviewed 100,000-row safety cap remains usable under the Production PHP memory limit; raw-video truncation still fails closed.
 - `reports.groups.build`: reads Laravel's local `tag_group` source. Legacy `tag.analysis.tw` synchronization is off by default behind the same explicit gate.
 - `reports.people.build`: refreshes selected political-people `urt_show_tag_date` cache rows from local `urt_video`, `urt_count`, and `tags`.
 - `reports.counts.build` and `reports.schedule.build`: refresh local derived count deltas and schedule stime rows from existing local log/cache data.

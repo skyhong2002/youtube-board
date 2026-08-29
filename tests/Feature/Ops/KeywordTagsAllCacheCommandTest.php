@@ -166,7 +166,7 @@ SQL);
             ->find('reports.keywords.cache')['scheduled_execute_command'];
 
         $this->assertStringContainsString('--keyword-limit=1000', $command);
-        $this->assertStringContainsString('--video-limit=50000', $command);
+        $this->assertStringContainsString('--video-limit=100000', $command);
     }
 
     private function createTables(): void
