@@ -710,11 +710,11 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('reports.keywords.build');
         $response->assertSee('reports:keywords:build');
-        $response->assertSee('scheduled/local <code>--execute</code> upserts local <code>tags</code> rows', false);
+        $response->assertSee('local report mode writes nothing; explicitly gated legacy sync may upsert <code>tags</code> rows', false);
         $response->assertSee('due now');
         $response->assertSee('reports:keywords:build --execute --hours=2 --limit=100 --offset=auto');
         $response->assertSee('Runtime env 已明確啟用全部 scheduled polling');
-        $response->assertSee('先套 offset/limit 再逐筆驗證');
+        $response->assertSee('scheduled execute 不再因 legacy 新文易數服務故障而失敗');
     }
 
     public function test_ingestion_job_detail_allows_groups_build_ingestion_preview(): void
@@ -724,11 +724,11 @@ class IngestionDashboardTest extends TestCase
         $response->assertOk();
         $response->assertSee('reports.groups.build');
         $response->assertSee('reports:groups:build');
-        $response->assertSee('scheduled/local <code>--execute</code> upserts local <code>tag_group</code> rows', false);
+        $response->assertSee('local report mode writes nothing; explicitly gated legacy sync may upsert <code>tag_group</code> rows', false);
         $response->assertSee('due now');
         $response->assertSee('reports:groups:build --execute --hours=22 --limit=100 --offset=auto');
         $response->assertSee('Runtime env 已明確啟用全部 scheduled polling');
-        $response->assertSee('malformed selected row 隔離且 cursor 仍前進');
+        $response->assertSee('scheduled execute 不再因 legacy 新文易數服務故障而失敗');
     }
 
     public function test_ingestion_job_detail_allows_people_build_ingestion_preview(): void

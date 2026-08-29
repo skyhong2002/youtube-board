@@ -83,6 +83,7 @@ class MayorReport
                 'types' => $this->types(),
                 'series' => $series,
                 'cache_rows' => collect($records)->flatten(1)->count(),
+                'coverage' => $this->coverage($range['dates'], $records),
                 'tagids' => $this->tagIds(),
                 'tag_labels' => $this->tagLabels(),
                 'candidate_party_labels' => $this->candidatePartyLabels($city),
@@ -419,20 +420,43 @@ class MayorReport
     }
 
     /**
-     * @param list<array{raw: array<string, float>}> $series
+     * @param list<array{raw: array<string, float|null>}> $series
      */
     private function seriesHasData(array $series): bool
     {
         return collect($series)->contains(
-            fn (array $row): bool => collect($row['raw'])->contains(fn (float $value): bool => abs($value) > 0.000001),
+            fn (array $row): bool => collect($row['raw'])->contains(
+                fn (mixed $value): bool => is_numeric($value) && abs((float) $value) > 0.000001,
+            ),
         );
+    }
+
+    /**
+     * @param  list<string>  $dates
+     * @param  array<string, array<int, array<string, float>>>  $records
+     * @return array{requested_days: int, covered_days: int, missing_days: int, complete: bool, first_covered_date: string|null, last_covered_date: string|null}
+     */
+    private function coverage(array $dates, array $records): array
+    {
+        $coveredDates = collect($dates)
+            ->filter(fn (string $date): bool => isset($records[$date]) && count($records[$date]) > 0)
+            ->values();
+
+        return [
+            'requested_days' => count($dates),
+            'covered_days' => $coveredDates->count(),
+            'missing_days' => count($dates) - $coveredDates->count(),
+            'complete' => $coveredDates->count() === count($dates),
+            'first_covered_date' => $coveredDates->first(),
+            'last_covered_date' => $coveredDates->last(),
+        ];
     }
 
     /**
      * @param array{key: string, label: string, candidates: list<string>, candidate_blocs?: array<string, string>, factors: array<string, array<int, float>>, source: string} $city
      * @param list<string> $dates
      * @param array<string, array<int, array<string, float>>> $records
-     * @return list<array{date: string, percentages: array<string, float>, raw: array<string, float>, total: float, cache_rows: int}>
+     * @return list<array{date: string, percentages: array<string, float|null>, raw: array<string, float|null>, total: float|null, cache_rows: int, source_available: bool}>
      */
     private function series(array $city, array $dates, array $records): array
     {
@@ -440,6 +464,7 @@ class MayorReport
             ->map(function (string $date) use ($city, $records): array {
                 $raw = [];
                 $cacheRows = 0;
+                $sourceAvailable = false;
 
                 foreach ($city['candidates'] as $candidate) {
                     $score = 0.0;
@@ -453,6 +478,7 @@ class MayorReport
 
                             for ($inner = 0; $inner <= 6; $inner++) {
                                 $innerDate = CarbonImmutable::parse($outerDate, 'Asia/Taipei')->subDays($inner)->toDateString();
+                                $sourceAvailable = $sourceAvailable || isset($records[$innerDate][$tagId]);
                                 $value = (float) ($records[$innerDate][$tagId][$candidate] ?? 0.0);
 
                                 if ($value !== 0.0) {
@@ -467,6 +493,17 @@ class MayorReport
                     }
 
                     $raw[$candidate] = $score;
+                }
+
+                if (! $sourceAvailable) {
+                    return [
+                        'date' => $date,
+                        'percentages' => array_fill_keys($city['candidates'], null),
+                        'raw' => array_fill_keys($city['candidates'], null),
+                        'total' => null,
+                        'cache_rows' => 0,
+                        'source_available' => false,
+                    ];
                 }
 
                 $supportScores = collect($raw)
@@ -485,6 +522,7 @@ class MayorReport
                     'raw' => $raw,
                     'total' => $total,
                     'cache_rows' => $cacheRows,
+                    'source_available' => true,
                 ];
             })
             ->values()
@@ -733,6 +771,14 @@ class MayorReport
             'types' => $this->types(),
             'series' => [],
             'cache_rows' => 0,
+            'coverage' => [
+                'requested_days' => count($range['dates']),
+                'covered_days' => 0,
+                'missing_days' => count($range['dates']),
+                'complete' => false,
+                'first_covered_date' => null,
+                'last_covered_date' => null,
+            ],
             'tagids' => $this->tagIds(),
             'tag_labels' => $this->tagLabels(),
             'candidate_party_labels' => $this->candidatePartyLabels($city),

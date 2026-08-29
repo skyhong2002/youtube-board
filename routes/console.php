@@ -2530,10 +2530,10 @@ $guardedIngestionCommand('reports:counts:build {--id= : Optional u_id to preview
                 $index + 1,
                 $row['u_id'],
                 $computed['view_week'],
-                $computed['sub_week'],
+                $computed['sub_week'] ?? 0,
                 $computed['video_week'],
                 $computed['view_month'],
-                $computed['sub_month'],
+                $computed['sub_month'] ?? 0,
                 $computed['video_month'],
             ));
         }
@@ -2875,7 +2875,7 @@ $guardedIngestionCommand('reports:keywords:build {--limit=20 : Maximum keyword r
 
         return 1;
     }
-})->purpose('Preview or execute keyword sync from 新文易數 tag.analysis.tw; Laravel uses database-backed keyword cache data');
+})->purpose('Build bounded keyword rankings from Laravel local data; optional legacy external sync requires an explicit environment gate');
 
 $guardedIngestionCommand('reports:keywords:cache {--execute : Write the rebuilt tags_all cache to local DB} {--dry-run : Force preview mode; this is the default} {--days=31 : Calendar-day window to aggregate, matching legacy tags_all.php} {--recent-days=7 : Recent window used for video/views metrics; legacy includes today plus this many previous days} {--keyword-limit=1000 : Ranked keyword source scan cap, max 10000} {--video-limit=50000 : Raw video source scan cap, max 200000} {--json : Emit JSON instead of text}', function (TagsAllCacheBuilder $builder) {
     $days = max(1, min(90, (int) $this->option('days')));
@@ -3058,7 +3058,7 @@ $guardedIngestionCommand('reports:groups:build {--group= : Preview one tag_group
 
         return 1;
     }
-})->purpose('Preview or execute tag_group sync from 新文易數 tag.analysis.tw');
+})->purpose('Report Laravel local tag_group state; optional legacy external sync requires an explicit environment gate');
 
 $guardedIngestionCommand('reports:schedule:build {--videoId= : Preview one scheduled video} {--hours=1 : Lookback window for recently refreshed schedule rows} {--limit=20 : Number of schedule rows to print/update} {--execute : Update selected urt_video_schedule stime rows} {--dry-run : Force preview mode; this is the default} {--json : Emit JSON instead of text}', function (ScheduleReportsPreview $preview) {
     try {

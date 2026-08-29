@@ -38,27 +38,6 @@ class TagsAllCacheBuilder
             $keywordSelection = $this->keywordRows($keywordLimit, $now);
             $keywords = $keywordSelection['rows'];
 
-            if ($keywordSelection['truncated']) {
-                $payload = $this->payload(
-                    now: $now,
-                    recentFrom: $recentFrom,
-                    days: $days,
-                    keywordLimit: $keywordLimit,
-                    videoLimit: $videoLimit,
-                    keywords: $keywords,
-                    videos: [],
-                    metrics: [],
-                    execute: $execute,
-                    generatedAt: $generatedAt,
-                    status: 'blocked',
-                    blockedReason: 'keyword_scan_limit_exceeded',
-                    sourceTruncated: true,
-                );
-                Log::warning('Keyword tags-all cache row blocked.', $this->logContext($payload));
-
-                return $payload;
-            }
-
             $videoSelection = $this->videoRows($days, $videoLimit, $now);
             $videos = $videoSelection['rows'];
 
@@ -101,6 +80,7 @@ class TagsAllCacheBuilder
                 execute: $execute,
                 generatedAt: $generatedAt,
                 status: 'success',
+                sourceTruncated: $keywordSelection['truncated'],
             );
 
             Log::info('Keyword tags-all cache row completed.', $this->logContext($payload));

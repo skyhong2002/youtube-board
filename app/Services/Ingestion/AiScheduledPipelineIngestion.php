@@ -173,14 +173,23 @@ class AiScheduledPipelineIngestion
                 'write_targets' => [],
             ];
         $cacheExitCode = (int) ($topicCache['exit_code'] ?? 1);
-        $exitCode = max($aiExitCode, $cacheExitCode);
+        // The topic projection is a derived convenience cache. Daily and
+        // channel AI rows remain valid when the model returns an unresolvable
+        // media label, so keep that failure visible without marking the whole
+        // source-first AI run as failed.
+        $exitCode = $aiExitCode;
+        $warningRows = $aiExitCode === 0 && $cacheExitCode !== 0
+            ? max(1, (int) ($topicCache['failed_rows'] ?? 1))
+            : 0;
 
         return [
             'mode' => 'execute',
-            'status' => $exitCode === 0 ? 'success' : 'partial_failure',
+            'status' => $exitCode !== 0
+                ? 'partial_failure'
+                : ($warningRows > 0 ? 'success_with_warnings' : 'success'),
             'exit_code' => $exitCode,
-            'failed_rows' => (int) ($ai['failed_rows'] ?? ($aiExitCode === 0 ? 0 : 1))
-                + (int) ($topicCache['failed_rows'] ?? ($cacheExitCode === 0 ? 0 : 1)),
+            'failed_rows' => (int) ($ai['failed_rows'] ?? ($aiExitCode === 0 ? 0 : 1)),
+            'warning_rows' => $warningRows,
             'source' => 'ai_daily_source_first_pipeline',
             'date' => $date,
             'source_refresh' => $source,

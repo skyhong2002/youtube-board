@@ -338,10 +338,6 @@ class TagDateCacheBuilder
             $keywordSelection = $this->keywords($keywordLimit, $now, $onlyKeywords);
             $keywords = $keywordSelection['rows'];
 
-            if ($keywordSelection['truncated']) {
-                return $this->blockedRowPayload($tagIds, $orTagIds, $notTagIds, $date, $onlyKeywords, $execute, $generatedAt, $caps, $lists, 'keyword_scan_limit_exceeded', keywordRowsScanned: $keywordSelection['scanned']);
-            }
-
             $channelSelection = $this->channelIds($tagIds, $orTagIds, $notTagIds, $channelLimit);
             $channelIds = $channelSelection['rows'];
 
@@ -403,6 +399,7 @@ class TagDateCacheBuilder
                 'lists' => $lists,
                 'only_keywords' => $onlyKeywords,
                 'keywords_selected' => count($keywords),
+                'keyword_source_bounded' => $keywordSelection['truncated'],
                 'channels_matched' => count($channelIds),
                 'videos_scanned' => count($videos),
                 'tags_count' => count($metrics['tags_result']),

@@ -35,8 +35,9 @@ class ReportSourceTimestampLookup
     /**
      * @param  list<string>  $columns
      * @param  array<string, mixed>  $where
+     * @param  array<string, list<mixed>>  $whereIn
      */
-    public function latest(string $table, array $columns, array $where = []): ?CarbonImmutable
+    public function latest(string $table, array $columns, array $where = [], array $whereIn = []): ?CarbonImmutable
     {
         $table = trim($table);
         $columns = array_values(array_unique(array_filter(array_map(
@@ -53,8 +54,17 @@ class ReportSourceTimestampLookup
             fn (mixed $_value, mixed $column): bool => is_string($column) && $this->hasColumn($table, $column),
             ARRAY_FILTER_USE_BOTH,
         );
+        $whereIn = array_filter(
+            $whereIn,
+            fn (mixed $values, mixed $column): bool => is_string($column)
+                && $this->hasColumn($table, $column)
+                && is_array($values)
+                && $values !== [],
+            ARRAY_FILTER_USE_BOTH,
+        );
         ksort($where);
-        $scopeKey = $table.'|'.sha1(json_encode($where, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE));
+        ksort($whereIn);
+        $scopeKey = $table.'|'.sha1(json_encode([$where, $whereIn], JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE));
         $availableColumns = array_values(array_filter(
             $columns,
             fn (string $column): bool => $this->hasColumn($table, $column),
@@ -69,7 +79,7 @@ class ReportSourceTimestampLookup
                 $this->columnListing($table),
                 array_values(array_unique([...self::TIMESTAMP_COLUMNS, ...$availableColumns])),
             ));
-            $this->loadMaxValues($scopeKey, $table, $prefetchColumns, $where);
+            $this->loadMaxValues($scopeKey, $table, $prefetchColumns, $where, $whereIn);
         }
 
         $latest = null;
@@ -88,8 +98,9 @@ class ReportSourceTimestampLookup
     /**
      * @param  list<string>  $columns
      * @param  array<string, mixed>  $where
+     * @param  array<string, list<mixed>>  $whereIn
      */
-    private function loadMaxValues(string $scopeKey, string $table, array $columns, array $where): void
+    private function loadMaxValues(string $scopeKey, string $table, array $columns, array $where, array $whereIn): void
     {
         $aliases = [];
 
@@ -99,6 +110,10 @@ class ReportSourceTimestampLookup
 
             foreach ($where as $column => $value) {
                 $value === null ? $query->whereNull($column) : $query->where($column, $value);
+            }
+
+            foreach ($whereIn as $column => $values) {
+                $query->whereIn($column, $values);
             }
 
             $selects = [];

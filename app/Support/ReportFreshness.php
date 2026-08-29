@@ -148,7 +148,7 @@ class ReportFreshness
         ],
         'mayor.*' => [
             'jobs' => ['reports.mayor.static'],
-            'sources' => ['tag_date'],
+            'sources' => ['mayor_tag_date'],
         ],
 
         'ai.hours' => [
@@ -202,6 +202,11 @@ class ReportFreshness
             ['table' => 'urt_show_tag_date', 'column' => 'mtime'],
             ['table' => 'urt_show_tag_date', 'column' => 'ctime'],
             ['table' => 'urt_show_tag_date', 'column' => 'the_date'],
+        ],
+        'mayor_tag_date' => [
+            ['table' => 'urt_show_tag_date', 'column' => 'mtime', 'where_in' => ['tagid' => ['3', '4', '5', '6']]],
+            ['table' => 'urt_show_tag_date', 'column' => 'ctime', 'where_in' => ['tagid' => ['3', '4', '5', '6']]],
+            ['table' => 'urt_show_tag_date', 'column' => 'the_date', 'where_in' => ['tagid' => ['3', '4', '5', '6']]],
         ],
         'groups' => [
             ['table' => 'tag_group', 'column' => 'mtime'],
@@ -344,14 +349,21 @@ class ReportFreshness
 
         foreach ($sourceGroups as $group) {
             foreach (self::SOURCE_GROUPS[$group] ?? [] as $source) {
-                $sourcesByTable[$source['table']][] = $source['column'];
+                $scope = json_encode($source['where_in'] ?? [], JSON_THROW_ON_ERROR);
+                $sourcesByTable[$source['table'].'|'.$scope]['table'] = $source['table'];
+                $sourcesByTable[$source['table'].'|'.$scope]['where_in'] = $source['where_in'] ?? [];
+                $sourcesByTable[$source['table'].'|'.$scope]['columns'][] = $source['column'];
             }
         }
 
         $latest = null;
 
-        foreach ($sourcesByTable as $table => $columns) {
-            $timestamp = $this->sourceTimestamps->latest($table, array_values(array_unique($columns)));
+        foreach ($sourcesByTable as $source) {
+            $timestamp = $this->sourceTimestamps->latest(
+                $source['table'],
+                array_values(array_unique($source['columns'])),
+                whereIn: $source['where_in'],
+            );
 
             if ($timestamp !== null && ($latest === null || $timestamp->greaterThan($latest))) {
                 $latest = $timestamp;

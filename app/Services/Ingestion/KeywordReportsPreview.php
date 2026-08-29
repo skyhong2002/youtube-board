@@ -59,19 +59,12 @@ class KeywordReportsPreview
         ];
 
         $sourceRows = $this->localSourceRows();
+        $localSourceCount = $this->localSourceCount();
 
-        if ($sourceRows->count() > self::LOCAL_SOURCE_LIMIT) {
-            return $this->localSourceBlockedPayload(
-                now: $now,
-                recentSince: $recentSince,
-                execute: $execute,
-                observedRows: $sourceRows->count(),
-            );
-        }
-
-        if ($execute) {
-            $syncResult = $this->syncLegacyTags($now, $hours, $limit, $offset, $sourceRows->count());
+        if ($execute && (bool) config('ingestion.legacy_external_sync_enabled', false)) {
+            $syncResult = $this->syncLegacyTags($now, $hours, $limit, $offset);
             $sourceRows = $this->localSourceRows();
+            $localSourceCount = $this->localSourceCount();
         }
 
         $excluded = [
@@ -129,11 +122,12 @@ class KeywordReportsPreview
             'mode' => $execute ? 'execute' : 'ingestion-preview',
             'generated_at' => $now->format('Y-m-d H:i:s'),
             'recent_since' => $recentSince,
-            'source_tags' => $sourceRows->count(),
+            'source_tags' => $localSourceCount,
             'source_limit' => self::LOCAL_SOURCE_LIMIT,
             'source_selected' => $sourceRows->count(),
             'source_complete' => true,
-            'source_truncated' => false,
+            'source_truncated' => $localSourceCount > $sourceRows->count(),
+            'source_policy' => 'bounded_ranked_local_keywords',
             'blocked_reason' => null,
             'eligible_keywords' => count($eligible),
             'recent_keywords' => $recentCount,
@@ -143,7 +137,9 @@ class KeywordReportsPreview
                 'data/keyword.json',
                 'data/keyword_all.json',
             ],
-            'external_fetch_skipped' => '新文易數 tag.analysis.tw keyword fetch is intentionally skipped in planning mode',
+            'external_fetch_skipped' => (bool) config('ingestion.legacy_external_sync_enabled', false)
+                ? ($execute ? '' : 'legacy external sync is not called in preview mode')
+                : 'legacy external sync is not called because it is disabled; Laravel local tags are the source of record',
             'sync_candidates' => $syncResult['candidates'],
             'sync_attempted' => $syncResult['attempted'],
             'synced_rows' => $syncResult['synced'],
@@ -155,7 +151,7 @@ class KeywordReportsPreview
             'sync_batch_wrapped' => $syncResult['batch_wrapped'],
             'sync_source_truncated' => $syncResult['source_truncated'],
             'exit_code' => $syncResult['failed'] > 0 ? 1 : 0,
-            'writes' => $execute ? ['tags'] : [],
+            'writes' => $syncResult['synced'] > 0 ? ['tags'] : [],
         ];
     }
 
@@ -167,7 +163,6 @@ class KeywordReportsPreview
         int $hours,
         int $limit,
         int|string|null $offset,
-        int $localSourceCount,
     ): array {
         $hours = max(1, min(168, $hours));
         $limit = max(1, min(100, $limit));
@@ -206,16 +201,6 @@ class KeywordReportsPreview
                     'exception_class' => $exception::class,
                 ]);
             }
-        }
-
-        $selectedTags = $validatedRows->pluck('tag')->unique()->values();
-        $existingTags = $selectedTags->isEmpty()
-            ? collect()
-            : DB::table('tags')->whereIn('tag', $selectedTags->all())->pluck('tag');
-        $newTagCount = $selectedTags->diff($existingTags)->count();
-
-        if ($localSourceCount + $newTagCount > self::LOCAL_SOURCE_LIMIT) {
-            throw new \RuntimeException('keyword local source limit exceeded');
         }
 
         $synced = 0;
@@ -282,46 +267,13 @@ class KeywordReportsPreview
             ->orderByDesc('hours_count')
             ->orderByDesc('max_count')
             ->orderBy('tag')
-            ->limit(self::LOCAL_SOURCE_LIMIT + 1)
+            ->limit(self::LOCAL_SOURCE_LIMIT)
             ->get();
     }
 
-    /** @return array<string, mixed> */
-    private function localSourceBlockedPayload(
-        CarbonImmutable $now,
-        string $recentSince,
-        bool $execute,
-        int $observedRows,
-    ): array {
-        return [
-            'mode' => $execute ? 'execute' : 'ingestion-preview',
-            'generated_at' => $now->format('Y-m-d H:i:s'),
-            'recent_since' => $recentSince,
-            'source_tags' => $observedRows,
-            'source_limit' => self::LOCAL_SOURCE_LIMIT,
-            'source_selected' => 0,
-            'source_complete' => false,
-            'source_truncated' => true,
-            'blocked_reason' => 'source_tag_limit_exceeded',
-            'eligible_keywords' => 0,
-            'recent_keywords' => 0,
-            'excluded' => ['no_tag' => 0, 'single_char' => 0, 'numeric' => 0, 'short_ascii' => 0],
-            'rows' => [],
-            'filesystem_targets' => ['data/keyword.json', 'data/keyword_all.json'],
-            'external_fetch_skipped' => 'local tag source exceeded the configured scan cap',
-            'sync_candidates' => 0,
-            'sync_attempted' => 0,
-            'synced_rows' => 0,
-            'failed_rows' => 0,
-            'sync_source_limit' => self::REMOTE_SOURCE_LIMIT,
-            'sync_offset' => 0,
-            'sync_offset_mode' => 'explicit',
-            'sync_next_offset' => 0,
-            'sync_batch_wrapped' => false,
-            'sync_source_truncated' => false,
-            'exit_code' => 1,
-            'writes' => [],
-        ];
+    private function localSourceCount(): int
+    {
+        return DB::table('tags')->count();
     }
 
     /** @return array{tag: string, max_count: int, hours_count: int, max_hours: string, mtime: string, no_tag: int} */

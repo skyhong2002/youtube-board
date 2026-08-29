@@ -34,6 +34,7 @@
             .facts span { min-height: 24px; color: var(--muted); font-size: 12px; }
             .meta { color: var(--muted); white-space: nowrap; }
             .notice { margin: 0 0 14px; padding: 12px; border: 1px solid #f7d58b; border-radius: 6px; background: var(--warn-bg); color: var(--warn); }
+            .missing { color: var(--warn); font-weight: 700; }
             .dashboard-portal { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin: 0 0 18px; }
             .portal-card { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
             .portal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
@@ -137,6 +138,12 @@
                 <p class="notice">本機尚未匯入 `urt_show_tag_date` cache table。<br><x-ingestion-portal job="reports.mayor.static" /></p>
             @elseif (! $data_available)
                 <p class="notice">目前沒有符合這組 city/date/type 的 tag-date cache；Laravel 會透過 mayor cache refresh 補齊動態儀表板資料。<br><x-ingestion-portal job="reports.mayor.static" /></p>
+            @elseif (! ($coverage['complete'] ?? false))
+                <p class="notice">
+                    本報表要求 {{ number_format($coverage['requested_days']) }} 天，但 mayor tag 3–6 cache 只涵蓋 {{ number_format($coverage['covered_days']) }} 天，缺少 {{ number_format($coverage['missing_days']) }} 天。
+                    @if ($coverage['last_covered_date'])目前最後涵蓋日期為 {{ $coverage['last_covered_date'] }}；缺資料日期會顯示為「待更新」，不會當成 0。@endif
+                    <br><x-ingestion-portal job="reports.mayor.static" />
+                </p>
             @endif
 
             <div class="legend" aria-label="候選人">
@@ -201,11 +208,22 @@
                         @foreach ($candidates as $candidateIndex => $candidate)
                             @php
                                 $candidateColor = $colorFor($candidate, $candidateIndex);
-                                $points = collect($series)
-                                    ->map(fn ($row, $index) => $xFor($index).','.$yFor((float) ($row['percentages'][$candidate] ?? 0)))
-                                    ->implode(' ');
+                                $segments = [];
+                                $segment = [];
+                                foreach ($series as $index => $row) {
+                                    $value = $row['percentages'][$candidate] ?? null;
+                                    if (! is_numeric($value)) {
+                                        if (count($segment) > 1) { $segments[] = $segment; }
+                                        $segment = [];
+                                        continue;
+                                    }
+                                    $segment[] = $xFor($index).','.$yFor((float) $value);
+                                }
+                                if (count($segment) > 1) { $segments[] = $segment; }
                             @endphp
-                            <polyline points="{{ $points }}" fill="none" stroke="{{ $candidateColor }}" stroke-width="2.6" />
+                            @foreach ($segments as $points)
+                                <polyline points="{{ implode(' ', $points) }}" fill="none" stroke="{{ $candidateColor }}" stroke-width="2.6" />
+                            @endforeach
                         @endforeach
                     </svg>
                 </section>
@@ -261,8 +279,9 @@
                             <tr>
                                 <th>{{ $row['date'] }}</th>
                                 @foreach ($candidates as $candidate)
-                                    <td class="number">{{ number_format((float) ($row['percentages'][$candidate] ?? 0), 2) }}%</td>
-                                    <td class="number">{{ number_format((float) ($row['raw'][$candidate] ?? 0), 2) }}</td>
+                                    @php $percentage = $row['percentages'][$candidate] ?? null; $raw = $row['raw'][$candidate] ?? null; @endphp
+                                    <td class="number {{ is_numeric($percentage) ? '' : 'missing' }}">{{ is_numeric($percentage) ? number_format((float) $percentage, 2).'%' : '待更新' }}</td>
+                                    <td class="number {{ is_numeric($raw) ? '' : 'missing' }}">{{ is_numeric($raw) ? number_format((float) $raw, 2) : '待更新' }}</td>
                                 @endforeach
                                 <td class="number">{{ number_format($row['cache_rows']) }}</td>
                             </tr>

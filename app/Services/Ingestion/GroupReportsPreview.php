@@ -45,7 +45,7 @@ class GroupReportsPreview
         $hours = max(1, min(168, $hours));
         $limit = max(1, min(200, $limit));
         $groupName = $groupName !== null && trim($groupName) !== '' ? trim($groupName) : null;
-        $syncResult = $execute
+        $syncResult = $execute && (bool) config('ingestion.legacy_external_sync_enabled', false)
             ? $this->syncLegacyGroups($now, $hours, $limit, $offset)
             : [
                 'candidates' => 0,
@@ -101,7 +101,9 @@ class GroupReportsPreview
             'deleted_rows' => $deletedRows,
             'latest_time' => $latestTime !== null ? (string) $latestTime : null,
             'rows' => $rows,
-            'external_fetch_skipped' => '新文易數 tag.analysis.tw group sync is intentionally not called in planning mode',
+            'external_fetch_skipped' => (bool) config('ingestion.legacy_external_sync_enabled', false)
+                ? ($execute ? '' : 'legacy external sync is not called in preview mode')
+                : 'legacy external sync is not called because it is disabled; Laravel local tag_group is the source of record',
             'sync_candidates' => $syncResult['candidates'],
             'sync_attempted' => $syncResult['attempted'],
             'synced_rows' => $syncResult['synced'],
@@ -113,7 +115,7 @@ class GroupReportsPreview
             'sync_batch_wrapped' => $syncResult['batch_wrapped'],
             'sync_source_truncated' => $syncResult['source_truncated'],
             'exit_code' => $syncResult['failed'] > 0 ? 1 : 0,
-            'writes' => $execute ? ['tag_group'] : [],
+            'writes' => $syncResult['synced'] > 0 ? ['tag_group'] : [],
         ];
     }
 

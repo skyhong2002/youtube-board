@@ -12,6 +12,12 @@ use Tests\TestCase;
 
 class IngestionKeywordsBuildCommandTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config()->set('ingestion.legacy_external_sync_enabled', true);
+    }
+
     protected function tearDown(): void
     {
         CarbonImmutable::setTestNow();
@@ -99,6 +105,32 @@ class IngestionKeywordsBuildCommandTest extends TestCase
         $this->assertSame(sprintf('%.2f', log(1010) + log(250)), $payload['rows'][0]['legacy_weight']);
         $this->assertTrue($payload['rows'][0]['included_in_keyword_all']);
         $this->assertSame(6, DB::table('tags')->count());
+    }
+
+    public function test_execute_uses_ranked_local_keywords_when_legacy_external_sync_is_disabled(): void
+    {
+        config()->set('ingestion.legacy_external_sync_enabled', false);
+        Http::preventStrayRequests();
+        $this->createTables();
+        DB::table('tags')->insert([
+            'tag' => '本機關鍵字',
+            'ctime' => '2026-05-25 10:00:00',
+            'mtime' => '2026-05-25 10:00:00',
+            'max_count' => 10,
+            'hours_count' => 10,
+            'max_hours' => '2026-05-25 10:00:00',
+            'no_tag' => 0,
+        ]);
+
+        $exitCode = Artisan::call('reports:keywords:build', ['--execute' => true, '--json' => true]);
+        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('bounded_ranked_local_keywords', $payload['source_policy']);
+        $this->assertSame(0, $payload['synced_rows']);
+        $this->assertSame([], $payload['writes']);
+        $this->assertStringContainsString('source of record', $payload['external_fetch_skipped']);
+        Http::assertNothingSent();
     }
 
     public function test_ingestion_scheduler_can_execute_ingestion_keywords_preview_when_due(): void
@@ -348,8 +380,9 @@ class IngestionKeywordsBuildCommandTest extends TestCase
         $this->assertStringContainsString('failure=external_sync_failed', Artisan::output());
     }
 
-    public function test_reports_keywords_build_blocks_truncated_local_preview_before_external_fetch(): void
+    public function test_reports_keywords_build_uses_bounded_local_ranking_when_dictionary_exceeds_cap(): void
     {
+        config()->set('ingestion.legacy_external_sync_enabled', false);
         $this->createTables();
 
         foreach (array_chunk(range(1, 10001), 500) as $ids) {
@@ -366,12 +399,13 @@ class IngestionKeywordsBuildCommandTest extends TestCase
         ]);
         $payload = json_decode(trim(Artisan::output()), true);
 
-        $this->assertSame(1, $exitCode);
-        $this->assertFalse($payload['source_complete']);
+        $this->assertSame(0, $exitCode);
+        $this->assertTrue($payload['source_complete']);
         $this->assertTrue($payload['source_truncated']);
-        $this->assertSame('source_tag_limit_exceeded', $payload['blocked_reason']);
+        $this->assertNull($payload['blocked_reason']);
         $this->assertSame(10000, $payload['source_limit']);
-        $this->assertSame(0, $payload['source_selected']);
+        $this->assertSame(10001, $payload['source_tags']);
+        $this->assertSame(10000, $payload['source_selected']);
         $this->assertSame([], $payload['writes']);
         Http::assertNothingSent();
     }

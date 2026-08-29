@@ -78,6 +78,25 @@ class ReportFreshnessMetaTest extends TestCase
         $this->assertSame('ingestion-run', $freshness['source'] ?? null);
     }
 
+    public function test_mayor_freshness_only_uses_mayor_tag_rows(): void
+    {
+        Schema::dropIfExists('urt_show_tag_date');
+        Schema::create('urt_show_tag_date', function ($table): void {
+            $table->string('tagid');
+            $table->timestamp('ctime')->nullable();
+            $table->timestamp('mtime')->nullable();
+            $table->date('the_date');
+        });
+        DB::table('urt_show_tag_date')->insert([
+            ['tagid' => '3', 'ctime' => '2026-05-10 01:00:00', 'mtime' => '2026-05-10 02:00:00', 'the_date' => '2026-05-09'],
+            ['tagid' => '102', 'ctime' => '2026-05-28 01:00:00', 'mtime' => '2026-05-28 02:00:00', 'the_date' => '2026-05-27'],
+        ]);
+
+        $freshness = app(ReportFreshness::class)->forRoute('mayor.show');
+
+        $this->assertSame('資料更新 2026-05-10 02:00:00', $freshness['display'] ?? null);
+    }
+
     private function createHomeTables(): void
     {
         foreach (['urt_count', 'urt_tag', 'tags', 'urt_show_data'] as $table) {

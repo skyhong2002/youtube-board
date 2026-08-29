@@ -220,9 +220,10 @@ SQL);
             now: $now,
         );
 
-        $this->assertSame('blocked', $ordinary['status']);
+        $this->assertSame('success', $ordinary['status']);
         $this->assertSame(20000, $ordinary['keyword_limit']);
-        $this->assertSame('keyword_scan_limit_exceeded', $ordinary['blocked_reason']);
+        $this->assertNull($ordinary['blocked_reason']);
+        $this->assertTrue($ordinary['keyword_source_bounded']);
         $this->assertSame('success', $complete['status']);
         $this->assertSame(100000, $complete['keyword_limit']);
         $this->assertSame(20001, $complete['keyword_rows_scanned']);
@@ -378,7 +379,7 @@ SQL);
         $this->assertSame(0, DB::table('urt_show_tag_date')->count());
     }
 
-    public function test_channel_and_keyword_source_caps_block_incomplete_rows(): void
+    public function test_channel_cap_blocks_but_keyword_cap_builds_a_ranked_bounded_row(): void
     {
         $this->createTables();
         $this->seedRawData();
@@ -408,8 +409,10 @@ SQL);
         );
 
         $this->assertSame('channel_scan_limit_exceeded', $channels['blocked_reason']);
-        $this->assertSame('keyword_scan_limit_exceeded', $keywords['blocked_reason']);
-        $this->assertSame(0, DB::table('urt_show_tag_date')->count());
+        $this->assertSame('success', $keywords['status']);
+        $this->assertNull($keywords['blocked_reason']);
+        $this->assertTrue($keywords['keyword_source_bounded']);
+        $this->assertSame(1, DB::table('urt_show_tag_date')->count());
     }
 
     private function createTables(): void

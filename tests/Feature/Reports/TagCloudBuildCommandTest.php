@@ -340,9 +340,9 @@ SQL);
     {
         $registry = app(IngestionJobRegistry::class);
         $commands = [
-            'reports.tag_cloud.build' => ['--channel-limit=1000', '--video-limit=50000', '--keyword-limit=5000'],
+            'reports.tag_cloud.build' => ['--channel-limit=1000', '--video-limit=50000', '--keyword-limit=1000'],
             'reports.channel_cloud.build' => ['--limit=50', '--offset=auto', '--video-limit=10000', '--keyword-limit=5000'],
-            'reports.tag_date.build' => ['--date-limit=400', '--channel-limit=1000', '--video-limit=10000', '--keyword-limit=5000'],
+            'reports.tag_date.build' => ['--days=2', '--date-limit=400', '--channel-limit=1000', '--video-limit=10000', '--keyword-limit=1000'],
         ];
 
         foreach ($commands as $key => $options) {

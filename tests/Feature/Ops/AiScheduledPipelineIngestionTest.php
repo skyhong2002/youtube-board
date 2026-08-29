@@ -429,6 +429,45 @@ class AiScheduledPipelineIngestionTest extends TestCase
         $this->assertSame('no_source_events', $result['ai']['daily_ai']['rows'][0]['skip_reason']);
     }
 
+    public function test_daily_pipeline_reports_derived_topic_cache_failure_as_a_nonfatal_warning(): void
+    {
+        $pipeline = $this->pipeline(
+            quotaPayload: [
+                'exit_code' => 0,
+                'crawl_complete' => true,
+                'selected_channels' => 39,
+                'updated_channels' => 39,
+                'failed_channels' => 0,
+                'completed_channel_ids' => AiDailyPreview::channelAiUids(),
+            ],
+            daily: function (MockInterface $mock): void {
+                $mock->shouldReceive('execute')->once()->andReturn([
+                    'status' => 'success',
+                    'exit_code' => 0,
+                    'failed_rows' => 0,
+                    'write_targets' => ['urt_channel_ai', 'urt_ai_date'],
+                ]);
+            },
+            topicCache: function (MockInterface $mock): void {
+                $mock->shouldReceive('build')->once()->andReturn([
+                    'status' => 'partial_failure',
+                    'exit_code' => 1,
+                    'failed_rows' => 1,
+                    'blocked_reason' => 'row_failures',
+                    'write_targets' => [],
+                ]);
+            },
+        );
+
+        $result = $pipeline->executeDaily(date: '2026-07-14');
+
+        $this->assertSame('success_with_warnings', $result['status']);
+        $this->assertSame(0, $result['exit_code']);
+        $this->assertSame(0, $result['failed_rows']);
+        $this->assertSame(1, $result['warning_rows']);
+        $this->assertSame('row_failures', $result['topic_cache']['blocked_reason']);
+    }
+
     public function test_daily_pipeline_does_not_trust_complete_counts_when_a_required_channel_was_not_crawled(): void
     {
         $requiredChannelIds = AiDailyPreview::channelAiUids();

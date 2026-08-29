@@ -31,7 +31,7 @@ class ProductionDeploymentContractTest extends TestCase
         $migrate = strpos($entrypoint, 'php artisan migrate --force --no-interaction');
         $status = strpos($entrypoint, 'php artisan migrate:status --no-interaction');
         $schema = strpos($entrypoint, 'php artisan deployment:schema-check --no-interaction');
-        $serve = strpos($entrypoint, 'exec php artisan serve');
+        $serve = strpos($entrypoint, 'exec frankenphp php-server');
 
         $this->assertIsInt($wait);
         $this->assertIsInt($clearConfig);

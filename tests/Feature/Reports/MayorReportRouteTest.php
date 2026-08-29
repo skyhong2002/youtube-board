@@ -138,6 +138,21 @@ class MayorReportRouteTest extends TestCase
         $response->assertDontSee('html_*.html');
     }
 
+    public function test_mayor_city_page_marks_cache_gaps_as_pending_instead_of_zero(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
+        $this->createTagDateCacheTable();
+        $this->seedTaipeiCache('2026-05-01', '2026-05-01');
+
+        $response = $this->get('/mayor/cities/taipei?from=2026-05-01&to=2026-05-20&type=tags_video');
+
+        $response->assertOk();
+        $response->assertSee('缺少 19 天');
+        $response->assertSee('最後涵蓋日期為 2026-05-01');
+        $response->assertSee('待更新');
+        $response->assertDontSee('2026-05-20</th>\n                                                                    <td class="number ">0.00%', false);
+    }
+
     public function test_mayor_nav_and_city_page_cover_current_county_city_candidate_list(): void
     {
         $this->createTagDateCacheTable();

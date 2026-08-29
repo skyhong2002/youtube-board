@@ -116,7 +116,7 @@ SQL);
             });
     }
 
-    public function test_keyword_and_video_source_caps_block_without_publishing_partial_cache(): void
+    public function test_keyword_source_is_bounded_but_video_source_still_blocks_partial_cache(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-26 12:00:00', 'Asia/Taipei'));
         $this->createTables();
@@ -130,11 +130,11 @@ SQL);
         ]);
         $keywordPayload = json_decode(trim(Artisan::output()), true);
 
-        $this->assertSame(1, $keywordExit);
-        $this->assertSame('blocked', $keywordPayload['status']);
-        $this->assertSame('keyword_scan_limit_exceeded', $keywordPayload['blocked_reason']);
+        $this->assertSame(0, $keywordExit);
+        $this->assertSame('success', $keywordPayload['status']);
+        $this->assertNull($keywordPayload['blocked_reason']);
         $this->assertTrue($keywordPayload['source_truncated']);
-        $this->assertSame(0, DB::table('urt_show_data')->count());
+        $this->assertSame(1, DB::table('urt_show_data')->count());
 
         $this->assertSame(0, Artisan::call('reports:keywords:cache', [
             '--keyword-limit' => 10,

@@ -12,6 +12,12 @@ use Tests\TestCase;
 
 class IngestionGroupsBuildCommandTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config()->set('ingestion.legacy_external_sync_enabled', true);
+    }
+
     protected function tearDown(): void
     {
         CarbonImmutable::setTestNow();
@@ -106,6 +112,30 @@ class IngestionGroupsBuildCommandTest extends TestCase
         $this->assertSame(1, $payload['group_count']);
         $this->assertSame('Group B', $payload['rows'][0]['group_name']);
         $this->assertSame(1, $payload['rows'][0]['active_rows']);
+    }
+
+    public function test_execute_uses_local_source_when_legacy_external_sync_is_disabled(): void
+    {
+        config()->set('ingestion.legacy_external_sync_enabled', false);
+        Http::preventStrayRequests();
+        $this->createTable();
+        DB::table('tag_group')->insert([
+            'ctime' => '2026-05-01 00:00:00',
+            'latest_time' => '2026-05-20 10:00:00',
+            'tag' => '本機標籤',
+            'group_name' => '本機群組',
+            'del_flag' => '0',
+        ]);
+
+        $exitCode = Artisan::call('reports:groups:build', ['--execute' => true, '--json' => true]);
+        $payload = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, $payload['group_count']);
+        $this->assertSame(0, $payload['synced_rows']);
+        $this->assertSame([], $payload['writes']);
+        $this->assertStringContainsString('source of record', $payload['external_fetch_skipped']);
+        Http::assertNothingSent();
     }
 
     public function test_ingestion_scheduler_can_execute_ingestion_groups_preview_when_due(): void
