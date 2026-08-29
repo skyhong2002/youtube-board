@@ -651,7 +651,7 @@ class ReportLineageProfiles
                 self::job(
                     key: 'reports.tag_cloud.build',
                     label: '標籤文字雲 cache 重建',
-                    command: 'reports:tag-cloud:build --execute --days=1,3,7,30,90 --tagid=1,2,3,4,5,6,13,14,81 --keyword-limit=5000',
+                    command: 'reports:tag-cloud:build --execute --days=1,3,7,30,90 --tagid=1 --keyword-limit=1000',
                     apiCalls: [],
                     reads: ['urt_video', 'urt_count', 'tags'],
                     writes: ['urt_show_tag_cloud'],

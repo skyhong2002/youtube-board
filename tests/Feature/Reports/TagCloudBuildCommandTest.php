@@ -352,6 +352,10 @@ SQL);
                 $this->assertStringContainsString($option, $command);
             }
         }
+
+        $tagCloudCommand = (string) $registry->find('reports.tag_cloud.build')['scheduled_execute_command'];
+        $this->assertStringContainsString('--tagid=1 ', $tagCloudCommand);
+        $this->assertStringNotContainsString('--tagid=1,2,3,4,5,6,13,14,81', $tagCloudCommand);
     }
 
     private function createTables(): void

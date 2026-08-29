@@ -229,7 +229,7 @@ return [
             'group' => 'Derived reports',
             'priority' => 3,
             'modern_command' => 'reports:tag-cloud:build',
-            'scheduled_execute_command' => 'reports:tag-cloud:build --execute --days=1,3,7,30,90 --tagid=1,2,3,4,5,6,13,14,81 --channel-limit=1000 --video-limit=50000 --keyword-limit=1000',
+            'scheduled_execute_command' => 'reports:tag-cloud:build --execute --days=1,3,7,30,90 --tagid=1 --channel-limit=1000 --video-limit=50000 --keyword-limit=1000',
             'legacy_command' => '/usr/bin/php /home/urtube/maint/make_tag_cloud.php',
             'schedule' => '27 3,8,11,13,18,23 * * *',
             'cadence' => '每日 6 次',
