@@ -156,7 +156,7 @@ class TagCloudCacheBuilder
         $generatedAt = $now->format('Y-m-d H:i:s');
         $keywords = [];
         $channelIds = [];
-        $videos = [];
+        $videosScanned = 0;
         $metrics = [
             'tags_result' => [],
             'count_tags' => 0,
@@ -197,13 +197,13 @@ class TagCloudCacheBuilder
             }
 
             $videoSelection = $this->videos($channelIds, $now, $days, $videoLimit);
-            $videos = $videoSelection['rows'];
+            $videosScanned = $videoSelection['scanned'];
 
             if ($videoSelection['truncated']) {
-                return $this->blockedPeriodPayload($tagIds, $orTagIds, $notTagIds, $days, $onlyKeywords, $execute, $generatedAt, $caps, $lists, 'video_scan_limit_exceeded', keywordRowsScanned: $keywordSelection['scanned'], keywordsSelected: count($keywords), channelsMatched: count($channelIds), videosScanned: count($videos));
+                return $this->blockedPeriodPayload($tagIds, $orTagIds, $notTagIds, $days, $onlyKeywords, $execute, $generatedAt, $caps, $lists, 'video_scan_limit_exceeded', keywordRowsScanned: $keywordSelection['scanned'], keywordsSelected: count($keywords), channelsMatched: count($channelIds), videosScanned: $videosScanned);
             }
 
-            $metrics = $this->metrics($keywords, $videos);
+            $metrics = $this->metrics($keywords, $videoSelection['rows'], $videosScanned);
 
             if ($execute) {
                 $this->upsertCache($tagIds, $orTagIds, $notTagIds, $days, $metrics, count($channelIds), $generatedAt, $onlyKeywords);
@@ -228,7 +228,7 @@ class TagCloudCacheBuilder
                 'keywords_selected' => count($keywords),
                 'keyword_source_bounded' => $keywordSelection['truncated'],
                 'channels_matched' => count($channelIds),
-                'videos_scanned' => count($videos),
+                'videos_scanned' => $videosScanned,
                 'tags_count' => count($metrics['tags_result']),
                 'count_tags' => $metrics['count_tags'],
                 'count_videos' => $metrics['count_videos'],
@@ -265,7 +265,7 @@ class TagCloudCacheBuilder
                 'only_keywords' => $onlyKeywords,
                 'keywords_selected' => count($keywords),
                 'channels_matched' => count($channelIds),
-                'videos_scanned' => count($videos),
+                'videos_scanned' => $videosScanned,
                 'tags_count' => count($metrics['tags_result']),
                 'count_tags' => $metrics['count_tags'],
                 'count_videos' => $metrics['count_videos'],
@@ -609,39 +609,45 @@ class TagCloudCacheBuilder
     }
 
     /**
-     * @return array{rows: list<object>, truncated: bool}
+     * @return array{rows: iterable<object>, scanned: int, truncated: bool}
      */
     private function videos(array $channelIds, CarbonImmutable $now, int $days, int $limit): array
     {
         if ($channelIds === []) {
-            return ['rows' => [], 'truncated' => false];
+            return ['rows' => [], 'scanned' => 0, 'truncated' => false];
         }
 
         $from = $now->subDays($days)->format('Y-m-d H:i:s');
         $to = $now->format('Y-m-d H:i:s');
 
-        $rows = DB::table('urt_video')
+        $query = DB::table('urt_video')
             ->select(['pk', 'u_id', 'videoId', 'publishedAt', 'title', 'description', 'viewCount'])
             ->whereIn('u_id', $channelIds)
-            ->whereBetween('publishedAt', [$from, $to])
-            ->orderBy('publishedAt')
-            ->orderBy('pk')
-            ->limit($limit + 1)
-            ->get()
-            ->all();
+            ->whereBetween('publishedAt', [$from, $to]);
+
+        $sourceCount = (clone $query)->count();
+
+        if ($sourceCount > $limit) {
+            return [
+                'rows' => [],
+                'scanned' => $limit,
+                'truncated' => true,
+            ];
+        }
 
         return [
-            'rows' => array_slice($rows, 0, $limit),
-            'truncated' => count($rows) > $limit,
+            'rows' => $query->lazyById(500, column: 'pk'),
+            'scanned' => $sourceCount,
+            'truncated' => false,
         ];
     }
 
     /**
      * @param  list<array{tag: string, divisor: float}>  $keywords
-     * @param  list<object>  $videos
+     * @param  iterable<object>  $videos
      * @return array{tags_result: array<string, string>, count_tags: int, count_videos: int, total_views: int}
      */
-    private function metrics(array $keywords, array $videos): array
+    private function metrics(array $keywords, iterable $videos, int $videoCount): array
     {
         $keywordTags = array_column($keywords, 'tag');
         $keywordDivisors = collect($keywords)->mapWithKeys(fn (array $row): array => [$row['tag'] => $row['divisor']])->all();
@@ -717,7 +723,7 @@ class TagCloudCacheBuilder
         return [
             'tags_result' => $tagsResult,
             'count_tags' => $countTags,
-            'count_videos' => count($videos),
+            'count_videos' => $videoCount,
             'total_views' => $totalViews,
         ];
     }
