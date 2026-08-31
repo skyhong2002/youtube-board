@@ -87,6 +87,13 @@
                 $candidateParties = $candidate_party_labels ?? [];
                 $colorFor = fn (string $candidate, int $index): string => $candidateColors[$candidate] ?? $fallbackColors[$index % count($fallbackColors)];
                 $partyLabelFor = fn (string $candidate): ?string => $candidateParties[$candidate] ?? null;
+                $formatShare = function (mixed $value): string {
+                    if (! is_numeric($value)) { return 'n/a'; }
+
+                    $share = (float) $value;
+
+                    return $share > 0 && $share < 0.1 ? '<0.1%' : number_format($share, 1).'%';
+                };
                 $candidates = $city['candidates'];
                 $allValues = collect($series)->flatMap(fn ($row) => array_values($row['percentages']))->filter(fn ($value) => is_numeric($value))->map(fn ($value) => (float) $value)->values();
                 $minValue = min(0, (float) ($allValues->min() ?? 0));
@@ -182,7 +189,7 @@
                         </div>
                         <div class="portal-stats">
                             <div class="portal-stat">
-                                <strong>{{ is_numeric($percentage) ? number_format((float) $percentage, 1).'%' : 'n/a' }}</strong>
+                                <strong>{{ $formatShare($percentage) }}</strong>
                                 {{ $range['to'] }} 媒體聲量占比
                             </div>
                             <div class="portal-stat">

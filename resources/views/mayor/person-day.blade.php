@@ -76,6 +76,13 @@
                     ? route('mayor.people.date', ['city' => $city['key'], 'person' => $targetPerson, 'date' => $targetDate] + ($query + $extra))
                     : route('mayor.people.show', ['city' => $city['key'], 'person' => $targetPerson] + ($query + $extra));
                 $formatMetric = fn (mixed $value, int $decimals = 0): string => is_numeric($value) ? number_format((float) $value, $decimals) : 'n/a';
+                $formatShare = function (mixed $value): string {
+                    if (! is_numeric($value)) { return 'n/a'; }
+
+                    $share = (float) $value;
+
+                    return $share > 0 && $share < 0.1 ? '<0.1%' : number_format($share, 1).'%';
+                };
                 $actions = $ai['actions_today'] !== [] ? $ai['actions_today'] : $recommendations;
             @endphp
 
@@ -121,7 +128,7 @@
                 </div>
                 <div class="kpi">
                     <div class="kpi-label">近 7 日媒體聲量占比</div>
-                    <div class="kpi-value">{{ $summary['media_share_percentage'] === null ? 'n/a' : number_format((float) $summary['media_share_percentage'], 1).'%' }}</div>
+                    <div class="kpi-value">{{ $formatShare($summary['media_share_percentage']) }}</div>
                     <div class="kpi-detail">近 7 日{{ $type_name }} {{ $summary['rolling_volume'] === null ? 'n/a' : number_format((float) $summary['rolling_volume'], 0) }}</div>
                 </div>
                 <div class="kpi">
