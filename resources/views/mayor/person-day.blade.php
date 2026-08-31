@@ -120,9 +120,9 @@
                     <div class="kpi-detail">{{ $ai['ai_type'] ?? 'waiting for ai:mayor-person' }}</div>
                 </div>
                 <div class="kpi">
-                    <div class="kpi-label">支持度</div>
-                    <div class="kpi-value">{{ $summary['support_percentage'] === null ? 'n/a' : number_format((float) $summary['support_percentage'], 1).'%' }}</div>
-                    <div class="kpi-detail">加權分數 {{ $summary['support_raw'] === null ? 'n/a' : number_format((float) $summary['support_raw'], 0) }}</div>
+                    <div class="kpi-label">近 7 日媒體聲量占比</div>
+                    <div class="kpi-value">{{ $summary['media_share_percentage'] === null ? 'n/a' : number_format((float) $summary['media_share_percentage'], 1).'%' }}</div>
+                    <div class="kpi-detail">近 7 日{{ $type_name }} {{ $summary['rolling_volume'] === null ? 'n/a' : number_format((float) $summary['rolling_volume'], 0) }}</div>
                 </div>
                 <div class="kpi">
                     <div class="kpi-label">{{ $type_name }}</div>

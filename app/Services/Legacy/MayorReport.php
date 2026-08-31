@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 
 class MayorReport
 {
+    private const ROLLING_DAYS = 7;
+
     private const CITY_REGIONS = [
         'north' => [
             'label' => '北部',
@@ -72,7 +74,7 @@ class MayorReport
             return [
                 'available' => true,
                 'data_available' => $this->seriesHasData($series),
-                'title' => $city['label'].'候選人影片觀看支持度',
+                'title' => $city['label'].'候選人媒體聲量趨勢',
                 'city' => $city,
                 'cities' => $this->cities(),
                 'city_regions' => $this->cityRegions(),
@@ -81,6 +83,7 @@ class MayorReport
                 'type' => $type,
                 'type_name' => $this->types()[$type],
                 'types' => $this->types(),
+                'rolling_days' => self::ROLLING_DAYS,
                 'series' => $series,
                 'cache_rows' => collect($records)->flatten(1)->count(),
                 'coverage' => $this->coverage($range['dates'], $records),
@@ -324,7 +327,7 @@ class MayorReport
         return [
             'from' => $from,
             'to' => $to,
-            'cache_from' => CarbonImmutable::parse($from, 'Asia/Taipei')->subDays(13)->toDateString(),
+            'cache_from' => CarbonImmutable::parse($from, 'Asia/Taipei')->subDays(self::ROLLING_DAYS - 1)->toDateString(),
             'dates' => $dates,
             'days' => $days,
             'today' => $today,
@@ -357,9 +360,9 @@ class MayorReport
     private function types(): array
     {
         return [
-            'tags_views' => '觀看數加權',
-            'tags_video' => '影片提及加權',
-            'tags_result' => '重要度加權',
+            'tags_views' => '觀看聲量',
+            'tags_video' => '影片提及聲量',
+            'tags_result' => '關鍵字重要度',
         ];
     }
 
@@ -463,36 +466,26 @@ class MayorReport
         return collect($dates)
             ->map(function (string $date) use ($city, $records): array {
                 $raw = [];
-                $cacheRows = 0;
+                $usedCacheRows = [];
                 $sourceAvailable = false;
 
                 foreach ($city['candidates'] as $candidate) {
-                    $score = 0.0;
+                    $volume = 0.0;
 
                     foreach ($this->tagIds() as $tagId) {
-                        $factor = (float) ($city['factors'][$candidate][$tagId] ?? 0.0);
+                        for ($offset = 0; $offset < self::ROLLING_DAYS; $offset++) {
+                            $sourceDate = CarbonImmutable::parse($date, 'Asia/Taipei')->subDays($offset)->toDateString();
 
-                        for ($outer = 0; $outer <= 6; $outer++) {
-                            $outerDate = CarbonImmutable::parse($date, 'Asia/Taipei')->subDays($outer)->toDateString();
-                            $rolling = 0.0;
-
-                            for ($inner = 0; $inner <= 6; $inner++) {
-                                $innerDate = CarbonImmutable::parse($outerDate, 'Asia/Taipei')->subDays($inner)->toDateString();
-                                $sourceAvailable = $sourceAvailable || isset($records[$innerDate][$tagId]);
-                                $value = (float) ($records[$innerDate][$tagId][$candidate] ?? 0.0);
-
-                                if ($value !== 0.0) {
-                                    $cacheRows++;
-                                }
-
-                                $rolling += $value;
+                            if (isset($records[$sourceDate][$tagId])) {
+                                $sourceAvailable = true;
+                                $usedCacheRows[$sourceDate.'|'.$tagId] = true;
                             }
 
-                            $score += $factor * $rolling;
+                            $volume += max(0.0, (float) ($records[$sourceDate][$tagId][$candidate] ?? 0.0));
                         }
                     }
 
-                    $raw[$candidate] = $score;
+                    $raw[$candidate] = $volume;
                 }
 
                 if (! $sourceAvailable) {
@@ -506,14 +499,11 @@ class MayorReport
                     ];
                 }
 
-                $supportScores = collect($raw)
-                    ->map(fn (float $score): float => max(0.0, $score))
-                    ->all();
-                $total = array_sum($supportScores);
+                $total = array_sum($raw);
                 $percentages = [];
 
-                foreach ($supportScores as $candidate => $score) {
-                    $percentages[$candidate] = $total > 0.000001 ? ($score / $total) * 100 : 0.0;
+                foreach ($raw as $candidate => $volume) {
+                    $percentages[$candidate] = $total > 0.000001 ? ($volume / $total) * 100 : 0.0;
                 }
 
                 return [
@@ -521,7 +511,7 @@ class MayorReport
                     'percentages' => $percentages,
                     'raw' => $raw,
                     'total' => $total,
-                    'cache_rows' => $cacheRows,
+                    'cache_rows' => count($usedCacheRows),
                     'source_available' => true,
                 ];
             })
@@ -760,7 +750,7 @@ class MayorReport
         return [
             'available' => false,
             'data_available' => false,
-            'title' => $city['label'].'候選人影片觀看支持度',
+            'title' => $city['label'].'候選人媒體聲量趨勢',
             'city' => $city,
             'cities' => $this->cities(),
             'city_regions' => $this->cityRegions(),
@@ -769,6 +759,7 @@ class MayorReport
             'type' => $type,
             'type_name' => $this->types()[$type],
             'types' => $this->types(),
+            'rolling_days' => self::ROLLING_DAYS,
             'series' => [],
             'cache_rows' => 0,
             'coverage' => [

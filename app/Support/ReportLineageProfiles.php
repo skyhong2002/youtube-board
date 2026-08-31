@@ -2945,8 +2945,8 @@ class ReportLineageProfiles
     private static function mayorReport(): array
     {
         return [
-            'title' => '縣市首長候選人支持度',
-            'summary' => '本頁讀固定縣市候選人/加權規則與 urt_show_tag_date cache，計算候選人在地方政治 tag 中的 rolling 支持度百分比。',
+            'title' => '縣市首長候選人媒體聲量',
+            'summary' => '本頁讀固定縣市候選人與 urt_show_tag_date cache，等權加總四類政治頻道來源，計算候選人的七日 rolling 媒體聲量占比。',
             'jobs' => [
                 self::job(
                     key: 'reports.mayor.static',
@@ -2973,36 +2973,36 @@ class ReportLineageProfiles
                 'controller' => 'App\Http\Controllers\Reports\MayorReportController',
                 'service' => 'App\Services\Legacy\MayorReport',
                 'reads' => ['urt_show_tag_date'],
-                'request' => '頁面 request 本身不呼叫外部 API；讀本機 urt_show_tag_date，套用固定城市/候選人 factors 即時計算 support series。',
+                'request' => '頁面 request 本身不呼叫外部 API；讀本機 urt_show_tag_date，即時計算七日媒體聲量占比 series。',
                 'transforms' => [
                     'city route/query 經 normalizeCity 後選 fallbackCities 或 legacy mayor php config。',
                     '只讀 tagid 3/4/5/6 且 tag_or/tag_not 空的 urt_show_tag_date rows。',
-                    '每個候選人依城市 factors 加權，每日使用雙層七日 rolling 計算 raw score。',
-                    'raw score 取正值後正規化為百分比；若 views 無資料會 fallback 到 tags_video。',
+                    '每個候選人把 tag ids 3/4/5/6 的非負來源值等權加總，每日使用單層七日 rolling 平滑。',
+                    '候選人七日聲量除以同日所有候選人總聲量得到占比；若 views 無資料會 fallback 到 tags_video。',
                 ],
             ],
             'fixed_sources' => [
                 self::fixedSource('Mayor city/candidate fallback', 'MayorReport::fallbackCities', '候選人與 factor templates 是 curated 固定資料；目前標示更新日 2026-05-28，只有部署會變更。'),
                 self::fixedSource('Mayor tag ids', 'MayorReport::tagIds = 3,4,5,6', '參與計算的 tag ids 寫死在 service。'),
-                self::fixedSource('Mayor factor templates', 'MayorReport::factorTemplate green/blue/white/other', '加權矩陣固定；不會由排程更新。'),
+                self::fixedSource('Legacy Mayor factor templates', 'MayorReport::factorTemplate green/blue/white/other', '舊版加權矩陣只在頁面折疊區保留作模型沿革參考，不納入媒體聲量占比。'),
             ],
             'sources' => [
                 self::source('urt_show_tag_date', 'urt_show_tag_date', ['mtime', 'ctime', 'the_date']),
             ],
             'graph' => [
-                self::fixedNode('mayor_rules', 'city candidates / factors', '城市候選人、tag ids 與加權矩陣為程式碼固定規則，隨部署更新。'),
+                self::fixedNode('mayor_rules', 'city candidates / source tags', '城市候選人與 tag ids 為程式碼固定規則，隨部署更新。'),
                 self::jobNode('mayor_cache_job', 'reports:mayor:static / tag-date build', 'service', 'reports.mayor.static', '用本機影片與 tags 重建 mayor 所需逐日 cache；不在頁面 request 執行。', [
                     'job_details' => ['reports.tag_date.build'],
                 ]),
                 self::sourceNode('mayor_tag_cache', 'urt_show_tag_date cache', 'cache', 'urt_show_tag_date', '保存候選人 keyword 在政治 tag 中的 daily weights。'),
-                self::serviceNode('mayor_report', 'MayorReport weighted rolling support', 'request 時套用固定 factors 與 rolling 規則，計算百分比 series。'),
-                self::pageNode('mayor_page', '市長/縣市首長報表頁', '/mayor / /mayor/cities/{city}', 'Blade 呈現縣市切換、候選人支持度趨勢與 cache 狀態。'),
+                self::serviceNode('mayor_report', 'MayorReport rolling media share', 'request 時等權加總四類來源並套用七日 rolling，計算媒體聲量占比 series。'),
+                self::pageNode('mayor_page', '市長/縣市首長報表頁', '/mayor / /mayor/cities/{city}', 'Blade 呈現縣市切換、候選人媒體聲量趨勢與 cache 狀態。'),
             ],
             'edges' => [
                 self::edge('mayor_rules', 'mayor_cache_job', 'select tag ids', '固定候選人與 tag ids 決定 cache 需求。'),
                 self::edge('mayor_cache_job', 'mayor_tag_cache', 'write cache', 'mayor/static 或 tag-date build 維護 cache。'),
-                self::edge('mayor_tag_cache', 'mayor_report', 'weighted rolling', '報表服務讀 cache 並套用 factors。'),
-                self::edge('mayor_report', 'mayor_page', 'render support', 'Blade 輸出候選人支持度圖。'),
+                self::edge('mayor_tag_cache', 'mayor_report', 'rolling aggregate', '報表服務讀 cache，等權加總並計算七日聲量占比。'),
+                self::edge('mayor_report', 'mayor_page', 'render media share', 'Blade 輸出候選人媒體聲量占比圖。'),
             ],
         ];
     }
@@ -3045,7 +3045,7 @@ class ReportLineageProfiles
                 'request' => '頁面 request 本身不呼叫 AI API；優先讀 urt_mayor_person_ai，缺 AI row 時顯示來源資料與待產生狀態。',
                 'transforms' => [
                     'route city/person/date 決定單一候選人與單日。',
-                    '讀 mayor tag ids 3/4/5/6 的 urt_show_tag_date，組成候選人日訊號與支持度 snapshot。',
+                    '讀 mayor tag ids 3/4/5/6 的 urt_show_tag_date，組成候選人日訊號與七日媒體聲量占比 snapshot。',
                     '讀 urt_show_video_tag_date 與 urt_video 找當日代表影片與關聯關鍵字。',
                     '解析 urt_mayor_person_ai.result_json 顯示摘要、發生事項、風險、調整與今日行動。',
                 ],

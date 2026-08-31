@@ -18,7 +18,7 @@ class MayorReportRouteTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_mayor_city_page_renders_legacy_candidate_support_from_tag_date_cache(): void
+    public function test_mayor_city_page_renders_candidate_media_share_from_tag_date_cache(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
         $this->createTagDateCacheTable();
@@ -27,7 +27,7 @@ class MayorReportRouteTest extends TestCase
         $response = $this->get('/mayor/cities/taipei?from=2026-05-20&to=2026-05-20&type=tags_views');
 
         $response->assertOk();
-        $response->assertSee('台北市候選人影片觀看支持度');
+        $response->assertSee('台北市候選人媒體聲量趨勢');
         $response->assertSee('蔣萬安');
         $response->assertSee('沈伯洋');
         $response->assertSee('郭璽');
@@ -44,14 +44,16 @@ class MayorReportRouteTest extends TestCase
         $response->assertSee('泛紅係數');
         $response->assertSee('泛白係數');
         $response->assertDontSee('factor tag 3');
-        $response->assertSee('cache rows 52');
-        $response->assertSee('候選人支持度趨勢');
+        $response->assertSee('cache rows 28');
+        $response->assertSee('近 7 日媒體聲量占比趨勢');
+        $response->assertSee('不是民調支持度');
+        $response->assertSee('不套用舊版正負陣營係數');
         $response->assertSee('關鍵字趨勢');
         $response->assertSee('/tags/compare?tagid=3%2C4%2C5%2C6&amp;tags=%E8%94%A3%E8%90%AC%E5%AE%89&amp;type=tags_views&amp;days=30&amp;from=2026-05-20&amp;to=2026-05-20', false);
         $response->assertDontSee('api/cloud_tag_date.php');
     }
 
-    public function test_mayor_city_support_percentages_do_not_use_negative_weighted_scores_as_support(): void
+    public function test_mayor_city_media_share_uses_equal_weight_source_volume_instead_of_partisan_factors(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-25 12:00:00', 'Asia/Taipei'));
         $this->createTagDateCacheTable();
@@ -73,12 +75,11 @@ class MayorReportRouteTest extends TestCase
         $response = $this->get('/mayor/cities/keelung?from=2026-05-20&to=2026-05-20&type=tags_views');
 
         $response->assertOk();
-        $response->assertSee('0.00%');
-        $response->assertSee('-90,000.00');
-        $response->assertSee('100.00%');
-        $response->assertSee('300,000.00');
-        $response->assertDontSee('-42.86%');
-        $response->assertDontSee('142.86%');
+        $response->assertSee('50.00%');
+        $response->assertSee('100,000.00');
+        $response->assertDontSee('-90,000.00');
+        $response->assertDontSee('300,000.00');
+        $response->assertSee('舊版政治傾向係數（僅供模型沿革參考，不納入上方聲量占比）');
     }
 
     public function test_mayor_city_page_shows_unavailable_state_with_cache_refresh_guidance(): void
@@ -89,7 +90,7 @@ class MayorReportRouteTest extends TestCase
         $response = $this->get('/mayor/cities/taipei?from=2026-05-20&to=2026-05-20');
 
         $response->assertOk();
-        $response->assertSee('台北市候選人影片觀看支持度');
+        $response->assertSee('台北市候選人媒體聲量趨勢');
         $response->assertSee('mayor cache refresh');
         $response->assertSee('動態儀表板資料');
         $response->assertSee('目前沒有可繪製的候選人趨勢資料');
@@ -117,10 +118,9 @@ class MayorReportRouteTest extends TestCase
         $response = $this->get('/mayor/cities/taitung?from=2026-05-20&to=2026-05-20');
 
         $response->assertOk();
-        $response->assertSee('影片提及加權 · 2026-05-20 - 2026-05-20');
-        $response->assertSee('並不是候選人的實際影片支數');
-        $response->assertSee('負值會按 0 計算');
-        $response->assertSee('候選人支持度趨勢');
+        $response->assertSee('影片提及聲量 · 2026-05-20 - 2026-05-20');
+        $response->assertSee('不是民調支持度');
+        $response->assertSee('近 7 日媒體聲量占比趨勢');
         $response->assertDontSee('目前沒有符合這組 city/date/type');
     }
 
@@ -133,9 +133,9 @@ class MayorReportRouteTest extends TestCase
         $response = $this->get('/mayor');
 
         $response->assertOk();
-        $response->assertSee('台北市候選人影片觀看支持度');
+        $response->assertSee('台北市候選人媒體聲量趨勢');
         $response->assertSee('2026-05-10');
-        $response->assertSee('候選人支持度趨勢');
+        $response->assertSee('近 7 日媒體聲量占比趨勢');
         $response->assertDontSee('api/cloud_tag_date.php');
         $response->assertDontSee('html_*.html');
     }
@@ -176,7 +176,7 @@ class MayorReportRouteTest extends TestCase
         $response->assertSee('高雄市');
         $response->assertSee('新竹縣');
         $response->assertSee('嘉義市');
-        $response->assertSee('金門縣候選人影片觀看支持度');
+        $response->assertSee('金門縣候選人媒體聲量趨勢');
         $response->assertSee('陳玉珍');
         $response->assertSee('楊鎮浯');
         $response->assertSee('李文良');

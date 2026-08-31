@@ -21,9 +21,9 @@ class MayorPersonDailyReport
     ];
 
     private const TYPES = [
-        'tags_views' => '觀看數',
-        'tags_video' => '影片數',
-        'tags_result' => '重要度',
+        'tags_views' => '觀看聲量',
+        'tags_video' => '影片提及聲量',
+        'tags_result' => '關鍵字重要度',
     ];
 
     public function __construct(private readonly MayorReport $mayorReport)
@@ -44,8 +44,8 @@ class MayorPersonDailyReport
         $daily = $this->dailySignals($resolvedPerson, $date, $type, $tagNames);
         $previousDaily = $this->dailySignals($resolvedPerson, $this->shiftDate($date, -1), $type, $tagNames);
         $videoBundle = $this->videos($resolvedPerson, $date);
-        $support = $this->supportSnapshot($request, $city, $resolvedPerson, $date, $type);
-        $summary = $this->summary($city, $resolvedPerson, $daily, $previousDaily, $support, $videoBundle['videos']);
+        $mediaShare = $this->mediaShareSnapshot($request, $city, $resolvedPerson, $date, $type);
+        $summary = $this->summary($city, $resolvedPerson, $daily, $previousDaily, $mediaShare, $videoBundle['videos']);
         $ai = $this->aiCache($city['key'], $resolvedPerson, $date);
 
         return [
@@ -608,7 +608,7 @@ class MayorPersonDailyReport
      * @param array{key: string, label: string, candidates: list<string>, factors: array<string, array<int, float>>, source: string} $city
      * @return array{percentage: float|null, raw: float|null, total: float|null}
      */
-    private function supportSnapshot(Request $request, array $city, string $person, string $date, string $type): array
+    private function mediaShareSnapshot(Request $request, array $city, string $person, string $date, string $type): array
     {
         $supportRequest = Request::create('/mayor/cities/'.$city['key'], 'GET', array_merge($request->query(), [
             'from' => $date,
@@ -633,11 +633,11 @@ class MayorPersonDailyReport
      * @param array{key: string, label: string, candidates: list<string>, factors: array<string, array<int, float>>, source: string} $city
      * @param array{tag_rows: list<array<string, mixed>>, totals: array<string, float>} $daily
      * @param array{tag_rows: list<array<string, mixed>>, totals: array<string, float>} $previousDaily
-     * @param array{percentage: float|null, raw: float|null, total: float|null} $support
+     * @param array{percentage: float|null, raw: float|null, total: float|null} $mediaShare
      * @param list<array<string, mixed>> $videos
      * @return array<string, mixed>
      */
-    private function summary(array $city, string $person, array $daily, array $previousDaily, array $support, array $videos): array
+    private function summary(array $city, string $person, array $daily, array $previousDaily, array $mediaShare, array $videos): array
     {
         $factors = $city['factors'][$person] ?? [];
         $tagRows = collect($daily['tag_rows'])
@@ -663,8 +663,8 @@ class MayorPersonDailyReport
         };
 
         return [
-            'support_percentage' => $support['percentage'],
-            'support_raw' => $support['raw'],
+            'media_share_percentage' => $mediaShare['percentage'],
+            'rolling_volume' => $mediaShare['raw'],
             'weighted_score' => $weighted,
             'positive_pressure' => $positive,
             'negative_pressure' => $negative,

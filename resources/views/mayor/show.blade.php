@@ -47,7 +47,13 @@
             .portal-actions a { display: inline-flex; align-items: center; min-height: 30px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 6px; background: #f8fafc; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
             .portal-actions a.primary { border-color: #8ccfbe; background: var(--accent-bg); color: var(--accent); }
             .chart { border: 1px solid var(--line); background: var(--surface); padding: 12px; overflow-x: auto; }
+            .chart-heading { position: sticky; left: 0; margin: 0 0 10px; }
+            .chart-heading h2 { margin: 0 0 4px; }
+            .chart-heading p { margin: 0; color: var(--muted); font-size: 12px; }
             svg { display: block; min-width: 860px; width: 100%; height: auto; }
+            .model-reference { margin-top: 22px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+            .model-reference summary { padding: 10px 12px; color: #344054; cursor: pointer; font-weight: 700; }
+            .model-reference .table-wrap { border: 0; border-top: 1px solid var(--line); }
             .table-wrap { overflow-x: auto; border: 1px solid var(--line); background: var(--surface); }
             table { width: 100%; min-width: 860px; border-collapse: collapse; }
             th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; text-align: left; }
@@ -135,8 +141,8 @@
             </div>
 
             <p class="notice">
-                支持度是把各政治傾向頻道中的候選人關鍵字指標套用係數後換算，並不是候選人的實際影片支數。
-                加權分數可為負值；換算支持度百分比時，負值會按 0 計算。
+                本頁顯示候選人在四類政治頻道來源中的近 {{ $rolling_days }} 日媒體聲量占比，不是民調支持度。
+                各來源等權加總，不套用舊版正負陣營係數；占比只代表候選人關鍵字在目前收錄內容中的相對聲量。
             </p>
 
             @if (! $available)
@@ -177,11 +183,11 @@
                         <div class="portal-stats">
                             <div class="portal-stat">
                                 <strong>{{ is_numeric($percentage) ? number_format((float) $percentage, 1).'%' : 'n/a' }}</strong>
-                                {{ $range['to'] }} 支持度
+                                {{ $range['to'] }} 媒體聲量占比
                             </div>
                             <div class="portal-stat">
                                 <strong>{{ is_numeric($raw) ? number_format((float) $raw, 0) : 'n/a' }}</strong>
-                                {{ $type_name }}分數
+                                近 {{ $rolling_days }} 日{{ $type_name }}
                             </div>
                         </div>
                         <div class="portal-actions">
@@ -193,8 +199,12 @@
             </section>
 
             @if ($data_available)
-                <section class="chart" aria-label="候選人支持度趨勢">
-                    <svg viewBox="0 0 {{ $chartWidth }} {{ $chartHeight }}" role="img" aria-label="{{ $title }}">
+                <section class="chart" aria-label="候選人媒體聲量占比趨勢">
+                    <div class="chart-heading">
+                        <h2>近 {{ $rolling_days }} 日媒體聲量占比趨勢</h2>
+                        <p>每個日期彙整當日及前 {{ $rolling_days - 1 }} 日；同日所有候選人的占比合計為 100%。</p>
+                    </div>
+                    <svg viewBox="0 0 {{ $chartWidth }} {{ $chartHeight }}" role="img" aria-label="{{ $city['label'] }}候選人近 {{ $rolling_days }} 日媒體聲量占比趨勢">
                         <line x1="{{ $padLeft }}" y1="{{ $padTop }}" x2="{{ $padLeft }}" y2="{{ $padTop + $plotHeight }}" stroke="#d7dde6" />
                         <line x1="{{ $padLeft }}" y1="{{ $padTop + $plotHeight }}" x2="{{ $padLeft + $plotWidth }}" y2="{{ $padTop + $plotHeight }}" stroke="#d7dde6" />
                         @for ($tick = 0; $tick <= 4; $tick++)
@@ -236,9 +246,10 @@
                 <div class="empty">目前沒有可繪製的候選人趨勢資料。</div>
             @endif
 
-            <h2>候選人</h2>
-            <div class="table-wrap">
-                <table>
+            <details class="model-reference">
+                <summary>舊版政治傾向係數（僅供模型沿革參考，不納入上方聲量占比）</summary>
+                <div class="table-wrap">
+                    <table>
                     <thead>
                         <tr>
                             <th>候選人</th>
@@ -263,8 +274,9 @@
                             </tr>
                         @endforeach
                     </tbody>
-                </table>
-            </div>
+                    </table>
+                </div>
+            </details>
 
             <h2>每日資料</h2>
             <div class="table-wrap">
@@ -273,10 +285,10 @@
                         <tr>
                             <th>日期</th>
                             @foreach ($candidates as $candidate)
-                                <th class="number">{{ $candidate }} %</th>
-                                <th class="number">{{ $candidate }} 加權分數</th>
+                                <th class="number">{{ $candidate }} 聲量占比</th>
+                                <th class="number">{{ $candidate }} {{ $type_name }}</th>
                             @endforeach
-                            <th class="number">cache hits</th>
+                            <th class="number">來源 cache rows</th>
                         </tr>
                     </thead>
                     <tbody>

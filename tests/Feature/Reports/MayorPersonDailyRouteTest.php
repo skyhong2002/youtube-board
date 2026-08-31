@@ -25,6 +25,9 @@ class MayorPersonDailyRouteTest extends TestCase
         $response->assertSee('安排短影音回應');
         $response->assertSee('蔣萬安市政攻防');
         $response->assertSee('City News');
+        $response->assertSee('近 7 日媒體聲量占比');
+        $response->assertSee('近 7 日觀看聲量');
+        $response->assertDontSee('<div class="kpi-label">支持度</div>', false);
         $response->assertSee('資料來源與更新狀態');
         $response->assertSee('urt_mayor_person_ai');
     }
