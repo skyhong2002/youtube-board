@@ -40,7 +40,7 @@ class TelegramDigestBroadcasterTest extends TestCase
         config()->set('services.telegram.ai', [
             'base_url' => 'https://api.openai.test/v1',
             'api_key' => 'sk-test',
-            'model' => 'gpt-5.4',
+            'model' => 'gpt-5.6-terra',
             'timeout' => 30,
             'max_output_tokens' => 900,
         ]);

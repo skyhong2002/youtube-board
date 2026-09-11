@@ -15,7 +15,8 @@ class NotificationClientsTest extends TestCase
         config()->set('services.telegram.ai', [
             'base_url' => 'https://api.openai.test/v1',
             'api_key' => 'sk-test-key',
-            'model' => 'gpt-5.4',
+            'model' => 'gpt-5.6-terra',
+            'reasoning_effort' => 'low',
             'timeout' => 30,
             'max_output_tokens' => 900,
         ]);
@@ -26,7 +27,7 @@ class NotificationClientsTest extends TestCase
         $this->configureAi();
         Http::fake([
             'api.openai.test/*' => Http::response([
-                'model' => 'gpt-5.4',
+                'model' => 'gpt-5.6-terra',
                 'choices' => [['message' => ['content' => '摘要內容']]],
             ]),
         ]);
@@ -36,7 +37,9 @@ class NotificationClientsTest extends TestCase
         $this->assertSame('摘要內容', $result['content']);
         Http::assertSent(function ($request) {
             return str_contains($request->url(), 'api.openai.test/v1/chat/completions')
-                && $request['model'] === 'gpt-5.4'
+                && $request['model'] === 'gpt-5.6-terra'
+                && $request['reasoning_effort'] === 'low'
+                && $request['max_completion_tokens'] === 900
                 && $request['messages'][0]['role'] === 'system'
                 && $request['messages'][1]['content'] === 'user'
                 && $request['response_format']['type'] === 'json_object'

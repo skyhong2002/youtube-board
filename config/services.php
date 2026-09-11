@@ -62,13 +62,20 @@ return [
         // have separate file caches), so it defaults to the database cache store.
         'dedup_store' => env('TELEGRAM_DEDUP_STORE', 'database'),
         // News-brief writer: reuses the prod direct OpenAI key by default but on
-        // the full gpt-5.4 model, via a path independent of the ingestion client.
+        // gpt-5.6-terra (2.5M tokens/day free pool, vs 250k/day for gpt-5.4), via a
+        // path independent of the ingestion client. gpt-5.6-terra is a reasoning
+        // model: reasoning tokens count against max_completion_tokens, so the cap
+        // must leave room for ~250 output tokens per event (a 13-event hourly batch
+        // needs ~3k) or the response is empty and every brief falls back to
+        // extractive copy. Reasoning effort is pinned low to keep that overhead
+        // and latency small; set it to an empty string to omit the field.
         'ai' => [
             'base_url' => rtrim((string) env('TELEGRAM_OPENAI_BASE_URL', 'https://api.openai.com/v1'), '/'),
             'api_key' => env('TELEGRAM_OPENAI_API_KEY', env('OPENAI_API_KEY')),
-            'model' => env('TELEGRAM_OPENAI_MODEL', 'gpt-5.4'),
-            'timeout' => (int) env('TELEGRAM_OPENAI_TIMEOUT', 60),
-            'max_output_tokens' => (int) env('TELEGRAM_OPENAI_MAX_TOKENS', 1800),
+            'model' => env('TELEGRAM_OPENAI_MODEL', 'gpt-5.6-terra'),
+            'reasoning_effort' => env('TELEGRAM_OPENAI_REASONING_EFFORT', 'low'),
+            'timeout' => (int) env('TELEGRAM_OPENAI_TIMEOUT', 120),
+            'max_output_tokens' => (int) env('TELEGRAM_OPENAI_MAX_TOKENS', 8000),
         ],
     ],
 

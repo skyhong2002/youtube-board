@@ -2,15 +2,16 @@
 
 namespace App\Services\Notifications;
 
+use App\Services\Ingestion\OpenCodeChatClient;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 /**
  * Minimal OpenAI chat-completions client dedicated to the Telegram digest.
  *
- * Deliberately independent of the ingestion {@see \App\Services\Ingestion\OpenCodeChatClient}
+ * Deliberately independent of the ingestion {@see OpenCodeChatClient}
  * (no JSON-schema/token-cap/business-lock machinery): the digest targets the full
- * gpt-5.4 model on the direct OpenAI endpoint via the `services.telegram.ai` config.
+ * gpt-5.6-terra model on the direct OpenAI endpoint via the `services.telegram.ai` config.
  */
 class OpenAiChatClient
 {
@@ -27,21 +28,28 @@ class OpenAiChatClient
             throw new RuntimeException('Telegram digest OpenAI API key is not configured.');
         }
 
-        $model = (string) ($config['model'] ?? 'gpt-5.4');
+        $model = (string) ($config['model'] ?? 'gpt-5.6-terra');
+        $reasoningEffort = trim((string) ($config['reasoning_effort'] ?? ''));
+
+        $body = [
+            'model' => $model,
+            'messages' => [
+                ['role' => 'system', 'content' => $system],
+                ['role' => 'user', 'content' => $user],
+            ],
+            'max_completion_tokens' => (int) ($config['max_output_tokens'] ?? 8000),
+        ];
+
+        if ($reasoningEffort !== '') {
+            $body['reasoning_effort'] = $reasoningEffort;
+        }
 
         $response = Http::baseUrl((string) ($config['base_url'] ?? 'https://api.openai.com/v1'))
-            ->timeout((int) ($config['timeout'] ?? 60))
+            ->timeout((int) ($config['timeout'] ?? 120))
             ->withToken($apiKey)
             ->acceptJson()
             ->asJson()
-            ->post('chat/completions', array_merge([
-                'model' => $model,
-                'messages' => [
-                    ['role' => 'system', 'content' => $system],
-                    ['role' => 'user', 'content' => $user],
-                ],
-                'max_completion_tokens' => (int) ($config['max_output_tokens'] ?? 900),
-            ], $options))
+            ->post('chat/completions', array_merge($body, $options))
             ->throw();
 
         $json = $response->json();

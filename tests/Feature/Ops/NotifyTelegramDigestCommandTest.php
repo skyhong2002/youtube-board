@@ -18,7 +18,7 @@ class NotifyTelegramDigestCommandTest extends TestCase
         config()->set('services.telegram.dedup_store', 'array');
         config()->set('services.telegram.ai', [
             'base_url' => 'https://api.openai.test/v1', 'api_key' => 'sk-test',
-            'model' => 'gpt-5.4', 'timeout' => 30, 'max_output_tokens' => 900,
+            'model' => 'gpt-5.6-terra', 'timeout' => 30, 'max_output_tokens' => 900,
         ]);
         Http::fake([
             'api.openai.test/*' => Http::response(['choices' => [['message' => ['content' => json_encode(['items' => [[
