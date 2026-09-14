@@ -3,12 +3,19 @@
 namespace App\Support;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Throwable;
 
 class ReportSourceTimestampLookup
 {
+    /**
+     * MAX() over the large legacy tables is re-run for every report request, so
+     * share the result across requests for a short window.
+     */
+    public const CACHE_TTL_SECONDS = 60;
+
     private const TIMESTAMP_COLUMNS = [
         'ctime',
         'date_from',
@@ -102,42 +109,65 @@ class ReportSourceTimestampLookup
      */
     private function loadMaxValues(string $scopeKey, string $table, array $columns, array $where, array $whereIn): void
     {
-        $aliases = [];
+        $cacheKey = 'report-source-timestamps:'.sha1($scopeKey.'|'.implode(',', $columns));
+        $fetch = fn (): array => $this->queryMaxValues($table, $columns, $where, $whereIn);
 
         try {
-            $grammar = DB::connection()->getQueryGrammar();
-            $query = DB::table($table);
-
-            foreach ($where as $column => $value) {
-                $value === null ? $query->whereNull($column) : $query->where($column, $value);
-            }
-
-            foreach ($whereIn as $column => $values) {
-                $query->whereIn($column, $values);
-            }
-
-            $selects = [];
-
-            foreach ($columns as $index => $column) {
-                $alias = 'report_max_'.$index;
-                $aliases[$column] = $alias;
-                $selects[] = DB::raw(sprintf(
-                    'MAX(%s) AS %s',
-                    $grammar->wrap($column),
-                    $grammar->wrap($alias),
-                ));
-            }
-
-            $row = $query->select($selects)->first();
-
-            foreach ($aliases as $column => $alias) {
-                $this->maxValues[$scopeKey][$column] = $row->{$alias} ?? null;
+            try {
+                $values = Cache::remember($cacheKey, self::CACHE_TTL_SECONDS, $fetch);
+            } catch (Throwable) {
+                $values = $fetch();
             }
         } catch (Throwable) {
-            foreach ($columns as $column) {
-                $this->maxValues[$scopeKey][$column] = null;
-            }
+            $values = array_fill_keys($columns, null);
         }
+
+        foreach ($columns as $column) {
+            $this->maxValues[$scopeKey][$column] = $values[$column] ?? null;
+        }
+    }
+
+    /**
+     * @param  list<string>  $columns
+     * @param  array<string, mixed>  $where
+     * @param  array<string, list<mixed>>  $whereIn
+     * @return array<string, mixed>
+     */
+    private function queryMaxValues(string $table, array $columns, array $where, array $whereIn): array
+    {
+        $grammar = DB::connection()->getQueryGrammar();
+        $query = DB::table($table);
+
+        foreach ($where as $column => $value) {
+            $value === null ? $query->whereNull($column) : $query->where($column, $value);
+        }
+
+        foreach ($whereIn as $column => $values) {
+            $query->whereIn($column, $values);
+        }
+
+        $aliases = [];
+        $selects = [];
+
+        foreach ($columns as $index => $column) {
+            $alias = 'report_max_'.$index;
+            $aliases[$column] = $alias;
+            $selects[] = DB::raw(sprintf(
+                'MAX(%s) AS %s',
+                $grammar->wrap($column),
+                $grammar->wrap($alias),
+            ));
+        }
+
+        $row = $query->select($selects)->first();
+        $values = [];
+
+        foreach ($aliases as $column => $alias) {
+            $value = $row->{$alias} ?? null;
+            $values[$column] = $value instanceof \DateTimeInterface ? $value->format('Y-m-d H:i:s') : $value;
+        }
+
+        return $values;
     }
 
     private function hasTable(string $table): bool

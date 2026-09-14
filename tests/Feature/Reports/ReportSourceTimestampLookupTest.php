@@ -4,6 +4,7 @@ namespace Tests\Feature\Reports;
 
 use App\Support\ReportSourceTimestampLookup;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
@@ -37,6 +38,36 @@ class ReportSourceTimestampLookupTest extends TestCase
         $this->assertSame('2026-07-13 12:00:00', $latestWrite?->format('Y-m-d H:i:s'));
         $this->assertSame('2026-07-12 23:59:59', $latestRange?->format('Y-m-d H:i:s'));
         $this->assertCount(1, $maxQueries);
+    }
+
+    public function test_lookup_shares_max_values_across_instances_through_the_cache(): void
+    {
+        $this->createProbeTable();
+        DB::table('report_source_probe')->insert([
+            'scope' => 'all',
+            'mtime' => '2026-07-13 12:00:00',
+        ]);
+        $maxQueries = 0;
+        DB::listen(function ($query) use (&$maxQueries): void {
+            $sql = strtolower($query->sql);
+
+            if (str_contains($sql, 'report_source_probe') && str_contains($sql, 'max(')) {
+                $maxQueries++;
+            }
+        });
+
+        $first = (new ReportSourceTimestampLookup)->latest('report_source_probe', ['mtime']);
+        DB::table('report_source_probe')->update(['mtime' => '2026-07-13 13:00:00']);
+        $second = (new ReportSourceTimestampLookup)->latest('report_source_probe', ['mtime']);
+
+        $this->assertSame('2026-07-13 12:00:00', $first?->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-07-13 12:00:00', $second?->format('Y-m-d H:i:s'));
+        $this->assertSame(1, $maxQueries);
+
+        Cache::flush();
+
+        $this->assertSame('2026-07-13 13:00:00', (new ReportSourceTimestampLookup)->latest('report_source_probe', ['mtime'])?->format('Y-m-d H:i:s'));
+        $this->assertSame(2, $maxQueries);
     }
 
     public function test_lookup_keeps_filtered_scopes_separate(): void

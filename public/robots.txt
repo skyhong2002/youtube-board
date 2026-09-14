@@ -1,2 +1,37 @@
+# AI crawlers: fully blocked (also enforced with 403 by App\Http\Middleware\BlockAiCrawlers)
+User-agent: GPTBot
+User-agent: ChatGPT-User
+User-agent: OAI-SearchBot
+User-agent: ClaudeBot
+User-agent: Claude-Web
+User-agent: Claude-User
+User-agent: Claude-SearchBot
+User-agent: anthropic-ai
+User-agent: Google-Extended
+User-agent: Bytespider
+User-agent: CCBot
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+User-agent: Amazonbot
+User-agent: meta-externalagent
+User-agent: meta-externalfetcher
+User-agent: Applebot-Extended
+User-agent: cohere-ai
+User-agent: Diffbot
+User-agent: AI2Bot
+User-agent: ImagesiftBot
+User-agent: Timpibot
+User-agent: YouBot
+User-agent: PetalBot
+Disallow: /
+
+# Everyone else: keep crawlers out of the parameter-heavy report pages.
 User-agent: *
-Disallow:
+Disallow: /keywords/
+Disallow: /channels/
+Disallow: /ch/
+Disallow: /tags/
+Disallow: /api/
+Disallow: /ops/
+Disallow: /dev/
+Crawl-delay: 10
