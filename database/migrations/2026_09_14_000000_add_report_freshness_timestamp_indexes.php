@@ -49,7 +49,7 @@ return new class extends Migration
     {
         if (Schema::hasTable('urt_video')
             && Schema::hasColumns('urt_video', ['u_id', 'publishedAt'])
-            && ! Schema::hasIndex('urt_video', 'u_id_publishedAt')) {
+            && ! $this->hasIndexNamed('urt_video', 'u_id_publishedAt')) {
             Schema::table('urt_video', function (Blueprint $blueprint): void {
                 $blueprint->index(['u_id', 'publishedAt'], 'u_id_publishedAt');
             });
@@ -61,7 +61,7 @@ return new class extends Migration
             }
 
             foreach (self::TIMESTAMP_COLUMNS as $column) {
-                if (! Schema::hasColumn($table, $column) || Schema::hasIndex($table, $column)) {
+                if (! Schema::hasColumn($table, $column) || $this->hasIndexNamed($table, $column)) {
                     continue;
                 }
 
@@ -75,5 +75,23 @@ return new class extends Migration
     public function down(): void
     {
         // Indexes may pre-date this migration in production; leave them in place.
+    }
+
+    /**
+     * Schema::hasIndex() compares names case-sensitively while the MySQL
+     * driver reports them lowercased, so a legacy index like `publishedAt`
+     * would look missing and the ADD INDEX would fail with a duplicate key.
+     */
+    private function hasIndexNamed(string $table, string $name): bool
+    {
+        $wanted = strtolower($name);
+
+        foreach (Schema::getIndexListing($table) as $existing) {
+            if (strtolower($existing) === $wanted) {
+                return true;
+            }
+        }
+
+        return false;
     }
 };
