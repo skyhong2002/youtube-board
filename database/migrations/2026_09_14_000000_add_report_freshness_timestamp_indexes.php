@@ -10,6 +10,10 @@ use Illuminate\Support\Facades\Schema;
  * an index on every timestamp column in that query the optimizer falls back to
  * a full scan, which on urt_video (~550k rows, MyISAM) took ~1.7 s per request.
  *
+ * KeywordRelationFallback additionally filters urt_video by channel (u_id) and
+ * publishedAt range; a composite index lets that use one range scan instead of
+ * reading every video of each channel and sorting on disk.
+ *
  * The legacy tables are not created by these migrations, so this is guarded to
  * be a no-op wherever a table, column, or index is missing. Production had the
  * indexes applied by hand on 2026-09-14.
@@ -43,6 +47,14 @@ return new class extends Migration
 
     public function up(): void
     {
+        if (Schema::hasTable('urt_video')
+            && Schema::hasColumns('urt_video', ['u_id', 'publishedAt'])
+            && ! Schema::hasIndex('urt_video', 'u_id_publishedAt')) {
+            Schema::table('urt_video', function (Blueprint $blueprint): void {
+                $blueprint->index(['u_id', 'publishedAt'], 'u_id_publishedAt');
+            });
+        }
+
         foreach (self::TABLES as $table) {
             if (! Schema::hasTable($table)) {
                 continue;

@@ -2,7 +2,6 @@
 
 use App\Console\Commands\DeploymentSchemaCheckCommand;
 use App\Console\Commands\ImportLocalDumpCommand;
-use App\Http\Middleware\BlockAiCrawlers;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -18,7 +17,6 @@ return Application::configure(basePath: dirname(__DIR__))
         ImportLocalDumpCommand::class,
     ])
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->prepend(BlockAiCrawlers::class);
         $middleware->validateCsrfTokens(except: [
             'ops/deploy/dokploy',
             'redir/*',
