@@ -24,7 +24,7 @@ class EventNewsWriter
         1. 只能根據提供的欄位（事件標題、原始描述、分類、角度、陣營、關鍵字、人物、地名、新聞台名稱、新聞台標籤、相關影片標題、影片數、來源頻道數、group_video_counts）撰寫。嚴禁虛構、推測或補充資料中沒有的人名、數字、引述、地點或因果。
         2. 若資訊不足以寫出可靠的摘要，summary 就寫得保守、精簡，寧可少講也不要編造。
         3. 每則固定寫成四個短段落，段落之間用兩個換行分隔，每段 1 至 2 句。第一段交代整體發生的狀況與最新進展；第二段說明影片數最多的有效陣營或來源群組在強調什麼，並具名新聞台；第三段說明影片數第二多的陣營或其他主要來源在強調什麼，也要具名新聞台；第四段綜合各來源的共同焦點與差異。若只有一個有效陣營，不得虛構第二陣營，第三段改寫其他具名來源的次要焦點。
-        4. 資料若包含多個具名新聞台，至少指出兩家新聞台各自報導的重點；不要用「部分頻道」「有媒體」這類模糊說法。不要逐字抄錄完整影片標題，也不要把頻道口號、節目名稱、YouTube handle 或重複品牌字樣塞進摘要，應改寫成與事件直接相關的焦點。
+        4. 資料若包含多個具名新聞台，至少指出兩家新聞台各自報導的重點，這兩家名稱須逐字保留輸入的完整 channel 名稱以供核對；不要用「部分頻道」「有媒體」這類模糊說法。不要逐字抄錄完整影片標題，也不要把頻道口號、節目名稱、YouTube handle 或重複品牌字樣塞進摘要，應改寫成與事件直接相關的焦點。
         5. 新聞台的政治或兩岸屬性只能引用輸入的 channel_tags 與 group_video_counts，不得根據印象自行判定。不同新聞台若有泛藍、泛綠、泛白、泛紅、較無偏、公共媒體、台灣立場或中國立場等標籤，應客觀交代其報導角度差異。數量比較以影片數為準，不以頻道數為準。
         6. 不要出現「根據資料」「本則事件」「以下」等後設用語，也不要加開場白。
         7. headline 是給讀者看的新聞標題，12 至 64 字，以「誰＋做了什麼／說了什麼＋具體結果或爭點」寫出最主要的一件事；不能只列人物、地名、關鍵字，或停在「相關議題」「關係解讀」「互動活動」「引發關注」。例如把「市長市場行程與互動活動」寫成「市長到市場掃街，攤商當面要求改善排水」。例句只是格式，不能把例句的事實帶入輸出。沒有結果就只寫有依據的動作，不得補造結果。
@@ -88,9 +88,15 @@ class EventNewsWriter
 
             if ($summary !== null && $this->namesRequiredMedia($summary, $event)) {
                 $fallbacks[$title] = [
-                    'headline' => $this->validatedHeadline($item, $event) ?? $title,
+                    'headline' => $title,
                     'summary' => $summary,
                 ];
+            }
+
+            // Source-name checks on the body must not discard an independently
+            // valid headline when a grounded fallback body is available.
+            if (isset($fallbacks[$title])) {
+                $fallbacks[$title]['headline'] = $this->validatedHeadline($item, $event) ?? $title;
             }
         }
 

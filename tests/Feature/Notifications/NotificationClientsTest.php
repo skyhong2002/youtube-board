@@ -139,6 +139,30 @@ class NotificationClientsTest extends TestCase
         }
     }
 
+    public function test_news_writer_preserves_valid_headline_when_summary_uses_unnamed_sources(): void
+    {
+        $this->configureAi();
+        $headline = '沈伯洋赴信義區拜廟，批蔣市府「不知道在做什麼」';
+        Http::fake(['api.openai.test/*' => Http::response([
+            'choices' => [['message' => ['content' => json_encode(['items' => [[
+                'title' => '沈伯洋公開行程', 'headline' => $headline,
+                'headline_video_ids' => ['v1'], 'summary' => '部分頻道報導沈伯洋拜廟。',
+            ]]], JSON_UNESCAPED_UNICODE)]]],
+        ])]);
+        $briefs = app(EventNewsWriter::class)->briefs([[
+            'title' => '沈伯洋公開行程', 'description' => '沈伯洋赴信義區拜廟。',
+            'videos' => [
+                ['video_id' => 'v1', 'channel' => '三立新聞LIVE', 'title' => '沈伯洋信義區拜廟 批蔣市府不知道在做什麼'],
+                ['video_id' => 'v2', 'channel' => '三立新聞網SETN', 'title' => '沈伯洋信義區拜廟 與民眾握手'],
+            ],
+        ]]);
+
+        $this->assertSame($headline, $briefs['沈伯洋公開行程']['headline']);
+        $this->assertStringNotContainsString('部分頻道', $briefs['沈伯洋公開行程']['summary']);
+        $this->assertStringContainsString('三立新聞LIVE', $briefs['沈伯洋公開行程']['summary']);
+        $this->assertStringContainsString('三立新聞網SETN', $briefs['沈伯洋公開行程']['summary']);
+    }
+
     public function test_news_writer_falls_back_to_empty_on_model_failure(): void
     {
         $this->configureAi();
