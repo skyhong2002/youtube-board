@@ -13,6 +13,8 @@ Status legend:
 
 ## Current Status
 
+Telegram daily/hourly briefs now generate a separate source-backed action/statement headline instead of displaying the grouping label by default. Unsupported or malformed headline output falls back to the original title; deduplication still uses the original event identity. The writer must preserve attribution and uncertainty and avoid inferred geographic or itinerary relationships.
+
 | Area | Legacy source | Modern target | Status | Notes |
 | --- | --- | --- | --- | --- |
 | Ground truth copy | `urtube/`, `vh-board.conf`, `urtube/cron` | `/Users/skyhong/Documents/youtube-board-legacy` | done | Legacy snapshot copied and used as a local reference for the real-time YouTube dashboard rebuild. |

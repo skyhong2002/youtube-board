@@ -300,7 +300,7 @@ class TelegramDigestBroadcaster
             $events[$index]['recommendations'] = $this->videoRanker->select($event);
         }
 
-        $summaries = $this->writer->summaries(array_map(static fn (array $event): array => [
+        $briefs = $this->writer->briefs(array_map(static fn (array $event): array => [
             'title' => $event['title'],
             'description' => $event['description'],
             'category' => $event['category'],
@@ -323,14 +323,15 @@ class TelegramDigestBroadcaster
             'media_count' => $event['media_count'],
         ], $events));
 
-        return array_map(function (array $event) use ($period, $context, $summaries): array {
-            $summary = trim((string) ($summaries[$event['title']] ?? ''));
+        return array_map(function (array $event) use ($period, $context, $briefs): array {
+            $brief = $briefs[$event['title']] ?? [];
+            $summary = trim((string) ($brief['summary'] ?? ''));
             $previewUrl = trim((string) data_get($event, 'recommendations.0.url', '')) ?: null;
 
             return [
                 'title' => $event['title'],
                 'html' => $this->formatter->format([
-                    'title' => $event['title'],
+                    'title' => $brief['headline'] ?? $event['title'],
                     'summary' => $summary,
                     'description' => $event['description'],
                     'category' => $event['category'],

@@ -18,7 +18,7 @@ class EventNewsWriter
     public function __construct(private OpenAiChatClient $client) {}
 
     private const SYSTEM = <<<'PROMPT'
-        你是「臺灣 YouTube 新聞觀測站」Telegram 頻道的編輯。輸入是一批當日/當時 YouTube 上最受關注事件的結構化資料。請為每則事件寫一段繁體中文（台灣新聞用語）的新聞式摘要。
+        你是「臺灣 YouTube 新聞觀測站」Telegram 頻道的編輯。輸入是一批當日/當時 YouTube 上最受關注事件的結構化資料。請為每則事件寫繁體中文（台灣新聞用語）的新聞標題與摘要，讓只看標題的人也知道發生了什麼。
 
         嚴格規則：
         1. 只能根據提供的欄位（事件標題、原始描述、分類、角度、陣營、關鍵字、人物、地名、新聞台名稱、新聞台標籤、相關影片標題、影片數、來源頻道數、group_video_counts）撰寫。嚴禁虛構、推測或補充資料中沒有的人名、數字、引述、地點或因果。
@@ -27,7 +27,11 @@ class EventNewsWriter
         4. 資料若包含多個具名新聞台，至少指出兩家新聞台各自報導的重點；不要用「部分頻道」「有媒體」這類模糊說法。不要逐字抄錄完整影片標題，也不要把頻道口號、節目名稱、YouTube handle 或重複品牌字樣塞進摘要，應改寫成與事件直接相關的焦點。
         5. 新聞台的政治或兩岸屬性只能引用輸入的 channel_tags 與 group_video_counts，不得根據印象自行判定。不同新聞台若有泛藍、泛綠、泛白、泛紅、較無偏、公共媒體、台灣立場或中國立場等標籤，應客觀交代其報導角度差異。數量比較以影片數為準，不以頻道數為準。
         6. 不要出現「根據資料」「本則事件」「以下」等後設用語，也不要加開場白。
-        7. 只輸出 JSON 物件，格式為 {"items":[{"title": 原事件標題（原封不動）, "summary": 你寫的四段摘要}]}。items 的順序與數量必須對應輸入事件。
+        7. headline 是給讀者看的新聞標題，12 至 64 字，以「誰＋做了什麼／說了什麼＋具體結果或爭點」寫出最主要的一件事；不能只列人物、地名、關鍵字，或停在「相關議題」「關係解讀」「互動活動」「引發關注」。例如把「市長市場行程與互動活動」寫成「市長到市場掃街，攤商當面要求改善排水」。例句只是格式，不能把例句的事實帶入輸出。沒有結果就只寫有依據的動作，不得補造結果。
+        8. headline 與摘要第一段必須以原始影片標題為依據。上游事件名稱與描述可能過度合併或誤連地點，不能當成已核實事實；不要因影片同時提到兩個地名就自行推定行政區歸屬。同一人物的不同活動不可串成同一次行程。若來源是評論、預測、質疑或指控，標題必須具名歸因並保留「稱」「質疑」「恐」等原有不確定性；不可把問句改成確定結論，也不可把熱門影片數當成社會支持度。只有評論可用時，就交代誰對哪件事提出什麼具體說法。
+        9. headline_video_ids 必須列出直接支持標題的輸入 videos[].video_id（至少一個），標題的每項具體主張都須有列出的影片支持。不要為寫標題新增輸入以外的事實。不足以寫出可靠標題時 headline 留空，headline_video_ids 用空陣列。
+        10. 第一段直接交代具體動作、說法或進展，不要只寫「成為分析焦點」「引發討論」。來源分布與媒體比較放在後三段。
+        11. 只輸出 JSON 物件，格式為 {"items":[{"title": 原事件標題（原封不動，僅供資料對應）, "headline": 新聞標題, "headline_video_ids": [支持標題的影片ID], "summary": 你寫的四段摘要}]}。items 的順序與數量必須對應輸入事件。
         PROMPT;
 
     /**
@@ -35,6 +39,17 @@ class EventNewsWriter
      * @return array<string, string> event title => summary (only well-formed entries)
      */
     public function summaries(array $events): array
+    {
+        return array_map(static fn (array $brief): string => $brief['summary'], $this->briefs($events));
+    }
+
+    /**
+     * Original titles remain identity keys; editorial headlines are display-only.
+     *
+     * @param  list<array<string, mixed>>  $events
+     * @return array<string, array{headline: string, summary: string}>
+     */
+    public function briefs(array $events): array
     {
         $events = array_values(array_filter(
             $events,
@@ -47,9 +62,12 @@ class EventNewsWriter
 
         $fallbacks = collect($events)
             ->mapWithKeys(fn (array $event): array => [
-                (string) $event['title'] => $this->fallback($event),
+                (string) $event['title'] => [
+                    'headline' => (string) $event['title'],
+                    'summary' => $this->fallback($event),
+                ],
             ])
-            ->filter(fn (string $summary): bool => $summary !== '')
+            ->filter(fn (array $brief): bool => $brief['summary'] !== '')
             ->all();
         $user = json_encode(['events' => $events], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
 
@@ -65,14 +83,48 @@ class EventNewsWriter
 
         foreach ($events as $event) {
             $title = (string) $event['title'];
-            $summary = $generated[$title] ?? null;
+            $item = $generated[$title] ?? [];
+            $summary = $item['summary'] ?? null;
 
             if ($summary !== null && $this->namesRequiredMedia($summary, $event)) {
-                $fallbacks[$title] = $summary;
+                $fallbacks[$title] = [
+                    'headline' => $this->validatedHeadline($item, $event) ?? $title,
+                    'summary' => $summary,
+                ];
             }
         }
 
         return $fallbacks;
+    }
+
+    /**
+     * Check shape and source membership, not factual entailment. Editorial
+     * grounding and attribution are required by the prompt above.
+     */
+    private function validatedHeadline(array $item, array $event): ?string
+    {
+        $headline = $item['headline'] ?? null;
+        $evidence = $item['headline_video_ids'] ?? null;
+        if (! is_string($headline) || ! is_array($evidence) || ! array_is_list($evidence) || $evidence === []) {
+            return null;
+        }
+
+        $headline = trim($headline);
+        if (mb_strlen($headline) < 12 || mb_strlen($headline) > 64
+            || preg_match('/[\r\n<>]/u', $headline) === 1) {
+            return null;
+        }
+
+        $knownIds = collect((array) ($event['videos'] ?? []))
+            ->filter(fn (mixed $video): bool => is_array($video) && is_string($video['title'] ?? null) && trim($video['title']) !== '')
+            ->pluck('video_id')->filter(fn (mixed $id): bool => is_string($id) && $id !== '')->all();
+        foreach ($evidence as $id) {
+            if (! is_string($id) || ! in_array($id, $knownIds, true)) {
+                return null;
+            }
+        }
+
+        return $headline;
     }
 
     /**
@@ -283,7 +335,7 @@ class EventNewsWriter
     }
 
     /**
-     * @return array<string, string>
+     * @return array<string, array<string, mixed>>
      */
     private function parse(string $content): array
     {
@@ -299,10 +351,10 @@ class EventNewsWriter
             if (! is_array($item)) {
                 continue;
             }
-            $title = trim((string) ($item['title'] ?? ''));
-            $summary = trim((string) ($item['summary'] ?? ''));
+            $title = is_string($item['title'] ?? null) ? trim($item['title']) : '';
+            $summary = is_string($item['summary'] ?? null) ? trim($item['summary']) : '';
             if ($title !== '' && $summary !== '') {
-                $map[$title] = $summary;
+                $map[$title] = [...$item, 'summary' => $summary];
             }
         }
 

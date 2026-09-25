@@ -720,6 +720,40 @@ class TelegramDigestBroadcasterTest extends TestCase
         $this->assertStringContainsString('▸ 影片分布　泛綠3支、泛藍3支、公共電視2支、其他1支', $messages[0]);
     }
 
+    public function test_editorial_headline_is_rendered_without_changing_event_deduplication(): void
+    {
+        Carbon::setTestNow('2026-05-24 10:05:00');
+        $this->createHourlyTable();
+        $this->createTaggedVideoTables(8);
+        $this->insertHourly(1, '2026-05-24 10:00:00', [[
+            '事件' => '毒駕修法進度',
+            '描述' => '行政院與立法院持續討論修法。',
+            'videoId' => array_map(fn (int $index): string => 'v'.$index, range(1, 8)),
+        ]]);
+        $headline = '行政院與立法院討論修法，回應毒駕事故';
+        DB::table('urt_video')->where('videoId', 'v1')->update(['title' => '毒駕事故後行政院與立法院討論修法']);
+        DB::table('urt_video')->where('videoId', 'v2')->update(['title' => '行政院回應毒駕修法訴求']);
+        Http::swap(new Factory);
+        Http::fake(['api.openai.test/*' => Http::response([
+            'choices' => [['message' => ['content' => json_encode(['items' => [[
+                'title' => '毒駕修法進度',
+                'headline' => $headline,
+                'headline_video_ids' => ['v1', 'v2'],
+                'summary' => '三立新聞報導毒駕事故，TVBS NEWS追蹤修法討論。',
+            ]]], JSON_UNESCAPED_UNICODE)]]],
+        ]), 'api.telegram.test/*' => Http::response(['ok' => true, 'result' => ['message_id' => 1]])]);
+
+        $broadcaster = app(TelegramDigestBroadcaster::class);
+        $preview = $broadcaster->preview('hourly');
+        $this->assertCount(1, $preview);
+        $this->assertStringContainsString('<b>'.$headline.'</b>', $preview[0]);
+        $this->assertStringNotContainsString('<b>毒駕修法進度</b>', $preview[0]);
+        $this->assertSame(1, $broadcaster->run('hourly')['posted']);
+        $this->assertTrue(Cache::store('array')->has('tg:digest:hourly:h:2026-05-24 10:00:00:'.md5('毒駕修法進度')));
+        $this->assertSame(0, $broadcaster->run('hourly')['posted']);
+        Http::assertSentCount(3); // Preview AI, publish AI, one Telegram send.
+    }
+
     public function test_same_story_in_the_next_hour_is_suppressed_even_when_title_changes(): void
     {
         $this->createHourlyTable();
