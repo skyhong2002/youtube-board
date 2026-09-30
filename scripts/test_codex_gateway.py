@@ -78,7 +78,7 @@ class GatewayTests(unittest.TestCase):
 
     def test_unsupported_model_and_nontext_requests_fail_before_inference(self):
         for body in ({}, {"model": "not-configured", "messages": []},
-                     {"model": "gpt-5.6-terra", "messages": [{"role": "user", "content": []}]}):
+                     {"model": "gpt-6.1-sol", "messages": [{"role": "user", "content": []}]}):
             with self.assertRaises(gateway.GatewayError):
                 gateway.validate(body)
 

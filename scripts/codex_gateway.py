@@ -40,7 +40,7 @@ def reserve_call():
 def validate(body):
     if not isinstance(body, dict):
         raise GatewayError(400, "invalid_request")
-    model = os.environ.get("CODEX_GATEWAY_MODEL", "gpt-5.6-terra")
+    model = os.environ.get("CODEX_GATEWAY_MODEL", "gpt-6.1-sol")
     if body.get("model") != model:
         raise GatewayError(400, "unsupported_model")
     if body.get("stream"):

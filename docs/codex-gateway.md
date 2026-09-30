@@ -4,8 +4,22 @@ As of 2026-10-01, the Laravel web and scheduler services use the private
 `scripts/codex_gateway.py` adapter on skyhong-blog. Both ingestion's
 `OpenCodeChatClient` (channel, daily, hourly, period, event, mayor-person analyses)
 and Telegram's independent `OpenAiChatClient` use the host's existing official
-ChatGPT-authenticated Codex CLI with `gpt-5.6-terra`. There is no API-key provider
+ChatGPT-authenticated Codex CLI with `gpt-6.1-sol`. There is no API-key provider
 fallback. Google YouTube API credentials and scheduled-write allowlists are unchanged.
+
+## Model price check (2026-10-01)
+
+The operator requested GPT-6.1 Sol only if its price was lower than GPT-5.6 Terra.
+The [official Codex credit rates](https://learn.chatgpt.com/docs/pricing) at Standard
+speed are respectively 50 vs 50 input, 2.5 vs 5 cached input, and 250 vs 300 output
+credits per million tokens. Input is equal, cached input is 50% cheaper, and output
+is 16.7% cheaper. API Standard prices likewise are $2/$0.10/$10 versus $2/$0.20/$12
+per million input/cached-input/output tokens. Actual task cost depends on token
+usage; included subscription allowance is not determined solely by these rates.
+The gateway retains low reasoning and Standard speed. Codex CLI 0.154.0 returned
+`model is not supported` for the target with this ChatGPT login; the same login
+succeeded with 0.159.2. The gateway uses an isolated, pinned 0.159.2 installation
+without changing other host applications' CLI binaries.
 
 ## Runtime configuration
 
@@ -15,12 +29,12 @@ environment on every recreation (its other scheduling/Telegram settings differ).
 
 ```dotenv
 OPENAI_BASE_URL=http://172.19.0.1:8321/v1
-OPENAI_MODEL=gpt-5.6-terra
+OPENAI_MODEL=gpt-6.1-sol
 OPENAI_ENDPOINT_STYLE=chat
 OPENAI_TIMEOUT=270
 OPENAI_FALLBACK_API_KEY=
 TELEGRAM_OPENAI_BASE_URL=http://172.19.0.1:8321/v1
-TELEGRAM_OPENAI_MODEL=gpt-5.6-terra
+TELEGRAM_OPENAI_MODEL=gpt-6.1-sol
 TELEGRAM_OPENAI_TIMEOUT=270
 ```
 
@@ -34,7 +48,7 @@ Never put that value or `~/.codex/auth.json` in Git, logs, or support messages.
 Copy the Python file to `/home/ubuntu/apps/youtube-codex-gateway/codex_gateway.py`
 and the user unit to `~/.config/systemd/user/youtube-codex-gateway.service`.
 The private environment file configures the bearer secret, the bind address
-`172.19.0.1`, port `8321`, binary `/home/ubuntu/.local/node/bin/codex`, model,
+`172.19.0.1`, port `8321`, binary `/home/ubuntu/apps/youtube-codex-gateway/runtime-0.159.2/node_modules/.bin/codex`, model,
 240-second inference deadline, and 60 calls per hour. Set PATH to include the
 Codex binary's Node directory. Enable the user service with
 `systemctl --user enable --now youtube-codex-gateway` and ensure user lingering
