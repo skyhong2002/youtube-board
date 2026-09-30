@@ -1,5 +1,12 @@
 # Deployment
 
+## Current production AI provider
+
+Production switched to the host's ChatGPT-authenticated Codex gateway on 2026-10-01.
+See [Codex gateway operations](codex-gateway.md) for both ingestion and Telegram
+settings, installation, limits, verification, and rollback. The older OpenAI/API
+examples below remain available for deployments explicitly configured for API use.
+
 ## Dokploy Production Services
 
 The production deployment should use separate Dokploy services:
