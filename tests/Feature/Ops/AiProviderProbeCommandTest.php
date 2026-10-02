@@ -59,7 +59,37 @@ class AiProviderProbeCommandTest extends TestCase
         });
     }
 
-    public function test_ai_provider_probe_uses_completion_token_limit_for_gpt_five_models(): void
+    public function test_provider_capabilities_come_from_explicit_config_not_model_names(): void
+    {
+        config()->set('services.opencode_go.api_key', 'primary-key');
+        config()->set('services.opencode_go.base_url', 'https://api.openai.com/v1');
+        config()->set('services.opencode_go.model', 'gpt-5.4-mini');
+        config()->set('services.opencode_go.endpoint_style', 'chat');
+        config()->set('services.opencode_go.token_limit_param', 'max_tokens');
+        config()->set('services.opencode_go.structured_output', false);
+        config()->set('services.opencode_go.reasoning_effort', '');
+        config()->set('services.opencode_go.fallback_api_key', null);
+
+        Http::fake([
+            'https://api.openai.com/v1/chat/completions' => Http::response([
+                'choices' => [['message' => ['content' => '{"events":["ok"]}']]],
+            ]),
+        ]);
+        Http::preventStrayRequests();
+
+        app(OpenCodeChatClient::class)->completeValidated(
+            'Return JSON.',
+            fn (string $content): array => ['valid' => true, 'json' => $content],
+            jsonSchema: ['type' => 'object'],
+        );
+
+        Http::assertSent(fn (Request $request): bool => isset($request['max_tokens'])
+            && ! isset($request['max_completion_tokens'])
+            && ! isset($request['response_format'])
+            && ! isset($request['reasoning_effort']));
+    }
+
+    public function test_ai_provider_probe_defaults_primary_to_completion_token_limit(): void
     {
         config()->set('services.opencode_go.api_key', 'primary-key');
         config()->set('services.opencode_go.base_url', 'https://api.openai.test/v1');

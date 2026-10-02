@@ -232,7 +232,7 @@ class AiDailyIngestion
                         ->value('pk');
                     $values = [
                         'mtime' => $now->format('Y-m-d H:i:s'),
-                        'ai_type' => (string) ($completion['configured_model'] ?? $completion['model']),
+                        'ai_type' => $completion['provenance_model'],
                         'channel_id' => (string) ($row['channel_id_json'] ?? '{}'),
                         'result_json' => $validated['json'],
                     ];
@@ -562,7 +562,7 @@ class AiDailyIngestion
                             ->value('pk');
                         $values = [
                             'mtime' => $now->format('Y-m-d H:i:s'),
-                            'ai_type' => (string) ($completion['configured_model'] ?? $completion['model']),
+                            'ai_type' => $completion['provenance_model'],
                             'result_json' => $validated['json'],
                         ];
 
@@ -702,7 +702,7 @@ class AiDailyIngestion
             'condition' => $row['condition'],
             'prompt_event_rows' => $row['prompt_event_rows'],
             'prompt_chars' => $prompt === null ? 0 : mb_strlen($prompt, 'UTF-8'),
-            'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
+            'model' => (string) config('services.opencode_go.model', 'sky-quality'),
             'provider' => null,
             'provider_failures' => [],
             'usage' => null,

@@ -155,7 +155,7 @@ class MayorPersonAiIngestion
                 $values = [
                     'mtime' => $now->format('Y-m-d H:i:s'),
                     'city_label' => $city['label'],
-                    'ai_type' => $completion['configured_model'],
+                    'ai_type' => $completion['provenance_model'],
                     'provider' => $completion['provider'],
                     'prompt_json' => json_encode(['version' => 1, 'prompt' => $prompt], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
                     'source_json' => json_encode($source, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
@@ -424,7 +424,7 @@ class MayorPersonAiIngestion
             'eligible' => $target['eligible'],
             'source_videos' => count($source['videos'] ?? []),
             'prompt_chars' => mb_strlen($prompt, 'UTF-8'),
-            'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
+            'model' => (string) config('services.opencode_go.model', 'sky-quality'),
             'provider' => null,
             'provider_failures' => [],
             'usage' => null,

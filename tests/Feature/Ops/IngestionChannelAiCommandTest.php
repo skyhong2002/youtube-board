@@ -168,6 +168,45 @@ class IngestionChannelAiCommandTest extends TestCase
         });
     }
 
+    public function test_channel_ai_gateway_alias_gets_structured_output_and_stores_resolved_model(): void
+    {
+        config()->set('services.opencode_go.api_key', 'gateway-key');
+        config()->set('services.opencode_go.base_url', 'http://gateway.test:8318/v1');
+        config()->set('services.opencode_go.model', 'sky-quality');
+        config()->set('services.opencode_go.endpoint_style', 'chat');
+        config()->set('services.opencode_go.fallback_api_key', null);
+        $events = json_decode($this->structuredChannelPayload('閘道事件'), true, 512, JSON_THROW_ON_ERROR);
+
+        Http::fake([
+            'http://gateway.test:8318/v1/chat/completions' => Http::response([
+                'model' => 'gpt-6.1-sol',
+                'choices' => [['message' => ['content' => json_encode([
+                    'events' => $events,
+                ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)]]],
+            ]),
+        ]);
+        Http::preventStrayRequests();
+
+        $exitCode = Artisan::call('ai:channel', [
+            'u_id' => 77,
+            '--from' => '2026-05-24',
+            '--to' => '2026-05-25',
+            '--type' => 'todate',
+            '--execute' => true,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('gpt-6.1-sol', $payload['model']);
+        $this->assertSame('gpt-6.1-sol', DB::table('urt_channel_ai')->value('ai_type'));
+        Http::assertSent(fn (Request $request): bool => $request['model'] === 'sky-quality'
+            && ($request['response_format']['type'] ?? null) === 'json_schema'
+            && isset($request['max_completion_tokens'])
+            && ! isset($request['max_tokens'])
+            && ($request['reasoning_effort'] ?? null) === 'low');
+    }
+
     public function test_channel_ai_invalid_or_wrong_shape_json_and_existing_lock_do_not_write(): void
     {
         $this->configureProvider();

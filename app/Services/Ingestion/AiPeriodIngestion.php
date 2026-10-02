@@ -89,7 +89,7 @@ class AiPeriodIngestion
                 'skipped' => true,
                 'failed' => true,
                 'skip_reason' => $blockedReason,
-                'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
+                'model' => (string) config('services.opencode_go.model', 'sky-quality'),
                 'provider' => null,
                 'provider_failures' => [],
                 'usage' => null,
@@ -107,7 +107,7 @@ class AiPeriodIngestion
                 'skipped' => true,
                 'failed' => true,
                 'skip_reason' => 'ai_call_guard_exhausted',
-                'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
+                'model' => (string) config('services.opencode_go.model', 'sky-quality'),
                 'provider' => null,
                 'provider_failures' => [],
                 'usage' => null,
@@ -136,7 +136,7 @@ class AiPeriodIngestion
                 'skipped' => true,
                 'failed' => true,
                 'skip_reason' => 'business_key_locked',
-                'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
+                'model' => (string) config('services.opencode_go.model', 'sky-quality'),
                 'provider' => null,
                 'provider_failures' => [],
                 'usage' => null,
@@ -161,7 +161,7 @@ class AiPeriodIngestion
                 $range['from_date'],
                 $range['to_date'],
             );
-            $upsert = $this->upsertPeriod($range, $condition, (string) $fromDay['pk'], (string) $toDay['pk'], $matches, $completion['configured_model'], $userToken, $now);
+            $upsert = $this->upsertPeriod($range, $condition, (string) $fromDay['pk'], (string) $toDay['pk'], $matches, $completion['provenance_model'], $userToken, $now);
 
             return $this->executeResult($range, $condition, $fromDay, $toDay, $now, $aiCallLimit, [
                 'ai_call_attempted' => true,
@@ -194,7 +194,7 @@ class AiPeriodIngestion
                 'skipped' => true,
                 'failed' => true,
                 'skip_reason' => $this->sanitizedFailure($exception),
-                'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
+                'model' => (string) config('services.opencode_go.model', 'sky-quality'),
                 'provider' => null,
                 'provider_failures' => [],
                 'usage' => null,

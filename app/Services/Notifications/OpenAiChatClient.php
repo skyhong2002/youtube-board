@@ -10,8 +10,8 @@ use RuntimeException;
  * Minimal OpenAI chat-completions client dedicated to the Telegram digest.
  *
  * Deliberately independent of the ingestion {@see OpenCodeChatClient}
- * (no JSON-schema/token-cap/business-lock machinery): the digest targets the full
- * gpt-5.6-terra model on the direct OpenAI endpoint via the `services.telegram.ai` config.
+ * (no JSON-schema/token-cap/business-lock machinery): the digest requests the
+ * `sky-quality` alias on the central AI gateway via the `services.telegram.ai` config.
  */
 class OpenAiChatClient
 {
@@ -28,7 +28,7 @@ class OpenAiChatClient
             throw new RuntimeException('Telegram digest OpenAI API key is not configured.');
         }
 
-        $model = (string) ($config['model'] ?? 'gpt-5.6-terra');
+        $model = (string) ($config['model'] ?? 'sky-quality');
         $reasoningEffort = trim((string) ($config['reasoning_effort'] ?? ''));
 
         $body = [
@@ -44,7 +44,7 @@ class OpenAiChatClient
             $body['reasoning_effort'] = $reasoningEffort;
         }
 
-        $response = Http::baseUrl((string) ($config['base_url'] ?? 'https://api.openai.com/v1'))
+        $response = Http::baseUrl((string) ($config['base_url'] ?? 'http://100.71.224.62:8318/v1'))
             ->timeout((int) ($config['timeout'] ?? 120))
             ->withToken($apiKey)
             ->acceptJson()

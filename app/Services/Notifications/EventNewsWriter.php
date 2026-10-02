@@ -6,7 +6,7 @@ use Throwable;
 
 /**
  * Turns structured AI-summary events into grounded Traditional-Chinese news briefs
- * using the gpt-5.6-terra model, in a style close to @hn_best_cht.
+ * using the `sky-quality` gateway alias, in a style close to @hn_best_cht.
  *
  * The prompt is grounded strictly in the supplied data (event title, keywords,
  * people, media, related video titles) and forbids inventing facts, so the

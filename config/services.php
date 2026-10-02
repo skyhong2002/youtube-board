@@ -61,18 +61,18 @@ return [
         // Dedup store must be SHARED across the web + scheduler containers (which
         // have separate file caches), so it defaults to the database cache store.
         'dedup_store' => env('TELEGRAM_DEDUP_STORE', 'database'),
-        // News-brief writer: reuses the prod direct OpenAI key by default but on
-        // gpt-5.6-terra (2.5M tokens/day free pool, vs 250k/day for gpt-5.4), via a
-        // path independent of the ingestion client. gpt-5.6-terra is a reasoning
-        // model: reasoning tokens count against max_completion_tokens, so the cap
+        // News-brief writer: reuses the ingestion gateway URL and key by default,
+        // via a path independent of the ingestion client. The `sky-quality` alias
+        // resolves to a reasoning model on the central AI gateway (see
+        // docs/codex-gateway.md): reasoning tokens count against max_completion_tokens, so the cap
         // must leave room for ~250 output tokens per event (a 13-event hourly batch
         // needs ~3k) or the response is empty and every brief falls back to
         // extractive copy. Reasoning effort is pinned low to keep that overhead
         // and latency small; set it to an empty string to omit the field.
         'ai' => [
-            'base_url' => rtrim((string) env('TELEGRAM_OPENAI_BASE_URL', 'https://api.openai.com/v1'), '/'),
+            'base_url' => rtrim((string) env('TELEGRAM_OPENAI_BASE_URL', env('OPENAI_BASE_URL', 'http://100.71.224.62:8318/v1')), '/'),
             'api_key' => env('TELEGRAM_OPENAI_API_KEY', env('OPENAI_API_KEY')),
-            'model' => env('TELEGRAM_OPENAI_MODEL', 'gpt-5.6-terra'),
+            'model' => env('TELEGRAM_OPENAI_MODEL', 'sky-quality'),
             'reasoning_effort' => env('TELEGRAM_OPENAI_REASONING_EFFORT', 'low'),
             'timeout' => (int) env('TELEGRAM_OPENAI_TIMEOUT', 120),
             'max_output_tokens' => (int) env('TELEGRAM_OPENAI_MAX_TOKENS', 8000),
@@ -98,10 +98,16 @@ return [
     ],
 
     'opencode_go' => [
-        'base_url' => env('OPENAI_BASE_URL', 'https://api.openai.com/v1'),
+        // Central AI gateway (CLIProxyAPI on sky-mini); request semantic aliases
+        // (`sky-quality`, `sky-fast`), never concrete models. Capabilities are
+        // explicit per provider rather than inferred from the host or model name.
+        'base_url' => env('OPENAI_BASE_URL', 'http://100.71.224.62:8318/v1'),
         'api_key' => env('OPENAI_API_KEY'),
-        'model' => env('OPENAI_MODEL', 'gpt-5.4-mini'),
+        'model' => env('OPENAI_MODEL', 'sky-quality'),
         'endpoint_style' => env('OPENAI_ENDPOINT_STYLE', 'chat'),
+        'token_limit_param' => env('OPENAI_TOKEN_LIMIT_PARAM', 'max_completion_tokens'),
+        'structured_output' => (bool) env('OPENAI_STRUCTURED_OUTPUT', true),
+        'reasoning_effort' => env('OPENAI_REASONING_EFFORT', 'low'),
         'timeout' => (int) env('OPENAI_TIMEOUT', 180),
         'max_tokens' => (int) env('OPENAI_MAX_TOKENS', 4096),
         'daily_max_tokens' => max(128, min(
@@ -115,6 +121,9 @@ return [
         'fallback_api_key' => env('OPENAI_FALLBACK_API_KEY'),
         'fallback_model' => env('OPENAI_FALLBACK_MODEL', 'qwen3.6-plus'),
         'fallback_endpoint_style' => env('OPENAI_FALLBACK_ENDPOINT_STYLE', 'auto'),
+        'fallback_token_limit_param' => env('OPENAI_FALLBACK_TOKEN_LIMIT_PARAM', 'max_tokens'),
+        'fallback_structured_output' => (bool) env('OPENAI_FALLBACK_STRUCTURED_OUTPUT', false),
+        'fallback_reasoning_effort' => env('OPENAI_FALLBACK_REASONING_EFFORT', ''),
         'fallback_timeout' => (int) env('OPENAI_FALLBACK_TIMEOUT', env('OPENAI_TIMEOUT', 180)),
         'fallback_max_tokens' => (int) env('OPENAI_FALLBACK_MAX_TOKENS', env('OPENAI_MAX_TOKENS', 4096)),
     ],

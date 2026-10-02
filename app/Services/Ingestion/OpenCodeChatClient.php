@@ -13,13 +13,18 @@ class OpenCodeChatClient
 {
     public const MAX_OFFICIAL_STRUCTURED_OUTPUT_TOKENS = AiDailyContract::OFFICIAL_DAILY_MAX_TOKENS;
 
+    /**
+     * Narrowest adopted legacy cache `ai_type` column (varchar(16)).
+     */
+    public const PROVENANCE_MODEL_MAX_LENGTH = 16;
+
     public function __construct(
         private readonly HttpFactory $http,
         private readonly IngestionTelemetry $telemetry,
     ) {}
 
     /**
-     * @return array{content: string, model: string, configured_model: string, provider: string, provider_failures: list<string>, usage: array<string, mixed>|null, latency_ms: int}
+     * @return array{content: string, model: string, configured_model: string, provenance_model: string, provider: string, provider_failures: list<string>, usage: array<string, mixed>|null, latency_ms: int}
      */
     public function complete(string $prompt): array
     {
@@ -29,7 +34,7 @@ class OpenCodeChatClient
     /**
      * @param  callable(string): array{valid: bool}  $validator
      * @param  array<string, mixed>|null  $jsonSchema
-     * @return array{content: string, model: string, configured_model: string, provider: string, provider_failures: list<string>, usage: array<string, mixed>|null, latency_ms: int, validation: array<string, mixed>}
+     * @return array{content: string, model: string, configured_model: string, provenance_model: string, provider: string, provider_failures: list<string>, usage: array<string, mixed>|null, latency_ms: int, validation: array<string, mixed>}
      */
     public function completeValidated(
         string $prompt,
@@ -111,7 +116,7 @@ class OpenCodeChatClient
     }
 
     /**
-     * @return array{content: string, model: string, configured_model: string, provider: string, provider_failures: list<string>, usage: array<string, mixed>|null, latency_ms: int}
+     * @return array{content: string, model: string, configured_model: string, provenance_model: string, provider: string, provider_failures: list<string>, usage: array<string, mixed>|null, latency_ms: int}
      */
     public function probe(string $providerName, string $prompt = 'Reply with OK.', int $maxTokens = 16): array
     {
@@ -134,7 +139,7 @@ class OpenCodeChatClient
     }
 
     /**
-     * @param  array{name: string, api_key: string, base_url: string, model: string, endpoint_style: string, timeout: int, max_tokens: int}  $provider
+     * @param  array{name: string, api_key: string, base_url: string, model: string, endpoint_style: string, timeout: int, max_tokens: int, token_limit_param: string, structured_output: bool, reasoning_effort: string}  $provider
      * @param  (callable(string): array{valid: bool})|null  $validator
      * @return array<string, mixed>
      */
@@ -152,11 +157,7 @@ class OpenCodeChatClient
         $endpointStyle = $provider['endpoint_style'];
         $timeout = $provider['timeout'];
         $messagesStyle = $this->usesMessagesEndpoint($model, $endpointStyle);
-        $structuredOutput = $this->usesOfficialOpenAiStructuredOutput(
-            $provider,
-            $messagesStyle,
-            $jsonSchema,
-        );
+        $structuredOutput = $jsonSchema !== null && ! $messagesStyle && $provider['structured_output'];
         $maxTokens = $maxTokensOverride === null
             ? $provider['max_tokens']
             : max(1, min($provider['max_tokens'], $maxTokensOverride));
@@ -179,9 +180,10 @@ class OpenCodeChatClient
             ],
             'temperature' => 0.2,
         ];
-        $body[$messagesStyle || ! $this->usesCompletionTokenLimit($model)
-            ? 'max_tokens'
-            : 'max_completion_tokens'] = $maxTokens;
+        $body[$messagesStyle ? 'max_tokens' : $provider['token_limit_param']] = $maxTokens;
+        if (! $messagesStyle && $provider['reasoning_effort'] !== '') {
+            $body['reasoning_effort'] = $provider['reasoning_effort'];
+        }
         if ($structuredOutput) {
             $body['response_format'] = [
                 'type' => 'json_schema',
@@ -382,6 +384,11 @@ class OpenCodeChatClient
                 'content' => $content,
                 'model' => $responseModel,
                 'configured_model' => $model,
+                // Cache `ai_type` provenance: the resolved upstream model when it
+                // fits the legacy column, else the stable configured model/alias.
+                'provenance_model' => mb_strlen($responseModel, 'UTF-8') <= self::PROVENANCE_MODEL_MAX_LENGTH
+                    ? $responseModel
+                    : $model,
                 'usage' => $usage,
                 'latency_ms' => $this->elapsedMs($providerStarted),
             ];
@@ -397,7 +404,7 @@ class OpenCodeChatClient
     }
 
     /**
-     * @return list<array{name: string, api_key: string, base_url: string, model: string, endpoint_style: string, timeout: int, max_tokens: int}>
+     * @return list<array{name: string, api_key: string, base_url: string, model: string, endpoint_style: string, timeout: int, max_tokens: int, token_limit_param: string, structured_output: bool, reasoning_effort: string}>
      */
     private function providers(): array
     {
@@ -406,10 +413,13 @@ class OpenCodeChatClient
             name: 'primary',
             apiKey: config('services.opencode_go.api_key'),
             baseUrl: config('services.opencode_go.base_url'),
-            model: config('services.opencode_go.model', 'qwen3.6-plus'),
+            model: config('services.opencode_go.model', 'sky-quality'),
             endpointStyle: config('services.opencode_go.endpoint_style', 'auto'),
             timeout: config('services.opencode_go.timeout', 180),
             maxTokens: config('services.opencode_go.max_tokens', 4096),
+            tokenLimitParam: config('services.opencode_go.token_limit_param', 'max_completion_tokens'),
+            structuredOutput: config('services.opencode_go.structured_output', true),
+            reasoningEffort: config('services.opencode_go.reasoning_effort', 'low'),
         );
 
         if ($primary !== null) {
@@ -424,6 +434,9 @@ class OpenCodeChatClient
             endpointStyle: config('services.opencode_go.fallback_endpoint_style', 'auto'),
             timeout: config('services.opencode_go.fallback_timeout', config('services.opencode_go.timeout', 180)),
             maxTokens: config('services.opencode_go.fallback_max_tokens', config('services.opencode_go.max_tokens', 4096)),
+            tokenLimitParam: config('services.opencode_go.fallback_token_limit_param', 'max_tokens'),
+            structuredOutput: config('services.opencode_go.fallback_structured_output', false),
+            reasoningEffort: config('services.opencode_go.fallback_reasoning_effort', ''),
         );
 
         if ($fallback !== null) {
@@ -434,7 +447,7 @@ class OpenCodeChatClient
     }
 
     /**
-     * @return array{name: string, api_key: string, base_url: string, model: string, endpoint_style: string, timeout: int, max_tokens: int}|null
+     * @return array{name: string, api_key: string, base_url: string, model: string, endpoint_style: string, timeout: int, max_tokens: int, token_limit_param: string, structured_output: bool, reasoning_effort: string}|null
      */
     private function provider(
         string $name,
@@ -444,11 +457,16 @@ class OpenCodeChatClient
         mixed $endpointStyle,
         mixed $timeout,
         mixed $maxTokens,
+        mixed $tokenLimitParam,
+        mixed $structuredOutput,
+        mixed $reasoningEffort,
     ): ?array {
         $apiKey = is_string($apiKey) ? trim($apiKey) : '';
         $baseUrl = is_string($baseUrl) ? rtrim(trim($baseUrl), '/') : '';
         $model = is_string($model) ? trim($model) : '';
         $endpointStyle = is_string($endpointStyle) ? trim($endpointStyle) : 'auto';
+        $tokenLimitParam = $tokenLimitParam === 'max_completion_tokens' ? 'max_completion_tokens' : 'max_tokens';
+        $reasoningEffort = is_string($reasoningEffort) ? strtolower(trim($reasoningEffort)) : '';
 
         if ($apiKey === '' || $baseUrl === '' || $model === '') {
             return null;
@@ -462,6 +480,9 @@ class OpenCodeChatClient
             'endpoint_style' => $endpointStyle,
             'timeout' => max(5, (int) $timeout),
             'max_tokens' => max(128, (int) $maxTokens),
+            'token_limit_param' => $tokenLimitParam,
+            'structured_output' => filter_var($structuredOutput, FILTER_VALIDATE_BOOL),
+            'reasoning_effort' => $reasoningEffort,
         ];
     }
 
@@ -481,35 +502,6 @@ class OpenCodeChatClient
             'minimax-m2.5',
             'minimax-m2.7',
         ], true);
-    }
-
-    private function usesCompletionTokenLimit(string $model): bool
-    {
-        return str_starts_with(strtolower($model), 'gpt-5');
-    }
-
-    /**
-     * @param  array{name: string, api_key: string, base_url: string, model: string, endpoint_style: string, timeout: int, max_tokens: int}  $provider
-     * @param  array<string, mixed>|null  $jsonSchema
-     */
-    private function usesOfficialOpenAiStructuredOutput(
-        array $provider,
-        bool $messagesStyle,
-        ?array $jsonSchema,
-    ): bool {
-        if ($jsonSchema === null || $messagesStyle || $provider['name'] !== 'primary') {
-            return false;
-        }
-
-        $scheme = parse_url($provider['base_url'], PHP_URL_SCHEME);
-        $host = parse_url($provider['base_url'], PHP_URL_HOST);
-        $port = parse_url($provider['base_url'], PHP_URL_PORT);
-
-        return is_string($scheme)
-            && strtolower($scheme) === 'https'
-            && is_string($host)
-            && strtolower($host) === 'api.openai.com'
-            && ($port === null || $port === 443);
     }
 
     /**
@@ -754,7 +746,7 @@ class OpenCodeChatClient
     }
 
     /**
-     * @param  array{name: string, api_key: string, base_url: string, model: string, endpoint_style: string, timeout: int, max_tokens: int}  $provider
+     * @param  array{name: string, api_key: string, base_url: string, model: string, endpoint_style: string, timeout: int, max_tokens: int, token_limit_param: string, structured_output: bool, reasoning_effort: string}  $provider
      * @param  array<string, mixed>|null  $usage
      * @return array<string, mixed>
      */

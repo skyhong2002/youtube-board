@@ -187,7 +187,7 @@ class ChannelAiIngestion
                 ->format('Y-m-d H:i:s');
             $values = [
                 'mtime' => $now,
-                'ai_type' => (string) ($completion['configured_model'] ?? $completion['model']),
+                'ai_type' => $completion['provenance_model'],
                 'result_json' => $resultJson,
             ];
 

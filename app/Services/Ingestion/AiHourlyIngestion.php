@@ -52,7 +52,7 @@ class AiHourlyIngestion
                 'prompt_video_rows' => $payload['prompt_video_rows'],
                 'prompt_chars' => $payload['prompt_chars'],
                 ...$this->sourceMeta($payload),
-                'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
+                'model' => (string) config('services.opencode_go.model', 'sky-quality'),
                 'provider' => null,
                 'provider_failures' => [],
                 'usage' => null,
@@ -81,7 +81,7 @@ class AiHourlyIngestion
                 'prompt_video_rows' => $payload['prompt_video_rows'],
                 'prompt_chars' => $payload['prompt_chars'],
                 ...$this->sourceMeta($payload),
-                'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
+                'model' => (string) config('services.opencode_go.model', 'sky-quality'),
                 'provider' => null,
                 'provider_failures' => [],
                 'usage' => null,
@@ -179,7 +179,7 @@ class AiHourlyIngestion
                 ->format('Y-m-d H:i:s');
             $values = [
                 'mtime' => $now,
-                'ai_type' => (string) ($completion['configured_model'] ?? $completion['model']),
+                'ai_type' => $completion['provenance_model'],
                 'del_flag' => null,
                 'result_json' => $validated['json'],
             ];
@@ -274,7 +274,7 @@ class AiHourlyIngestion
             'prompt_video_rows' => $payload['prompt_video_rows'],
             'prompt_chars' => $payload['prompt_chars'],
             ...$this->sourceMeta($payload),
-            'model' => $completion['model'] ?? (string) config('services.opencode_go.model', 'qwen3.6-plus'),
+            'model' => $completion['model'] ?? (string) config('services.opencode_go.model', 'sky-quality'),
             'provider' => $completion['provider'] ?? null,
             'provider_failures' => $completion['provider_failures'] ?? [],
             'usage' => $completion['usage'] ?? null,

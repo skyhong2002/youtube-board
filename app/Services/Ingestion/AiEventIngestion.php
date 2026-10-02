@@ -107,7 +107,7 @@ class AiEventIngestion
                 'skipped' => true,
                 'failed' => false,
                 'skip_reason' => $blockedReason,
-                'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
+                'model' => (string) config('services.opencode_go.model', 'sky-quality'),
                 'provider' => null,
                 'provider_failures' => [],
                 'usage' => null,
@@ -182,7 +182,7 @@ class AiEventIngestion
                         $fallbackReason = 'invalid_json_response';
                     }
 
-                    $upsert = $this->upsertEvent($day, $topic, $promptType, $resultJson, $completion['configured_model'], $userToken, $now);
+                    $upsert = $this->upsertEvent($day, $topic, $promptType, $resultJson, $completion['provenance_model'], $userToken, $now);
                     $rows[] = $baseRow + [
                         'ai_call_attempted' => true,
                         'inserted' => $upsert['inserted'],
@@ -207,7 +207,7 @@ class AiEventIngestion
                         'skip_reason' => $this->sanitizedFailure($exception),
                         'fallback_used' => false,
                         'fallback_reason' => null,
-                        'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
+                        'model' => (string) config('services.opencode_go.model', 'sky-quality'),
                         'provider' => null,
                         'provider_failures' => [],
                         'usage' => null,
@@ -854,7 +854,7 @@ class AiEventIngestion
             'skip_reason' => $reason,
             'fallback_used' => false,
             'fallback_reason' => null,
-            'model' => (string) config('services.opencode_go.model', 'qwen3.6-plus'),
+            'model' => (string) config('services.opencode_go.model', 'sky-quality'),
             'provider' => null,
             'provider_failures' => [],
             'usage' => null,
