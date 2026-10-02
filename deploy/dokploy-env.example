@@ -55,8 +55,8 @@ YOUTUBE_DATA_API_QUOTA_WARNING_PERCENT=80
 # Requires a Google Cloud service account with read-only Cloud Monitoring access.
 GOOGLE_CLOUD_PROJECT_ID=
 GOOGLE_CLOUD_MONITORING_SERVICE_ACCOUNT_JSON_BASE64=
-# Central AI gateway on sky-mini (tailnet). Request aliases only: sky-quality or sky-fast.
-OPENAI_BASE_URL=http://100.71.224.62:8318/v1
+# AI gateway local to the Dokploy host (skyhong-blog, docker0 bridge). Request aliases only: sky-quality or sky-fast.
+OPENAI_BASE_URL=http://172.17.0.1:8317/v1
 OPENAI_MODEL=sky-quality
 OPENAI_ENDPOINT_STYLE=chat
 OPENAI_TOKEN_LIMIT_PARAM=max_completion_tokens

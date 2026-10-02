@@ -70,7 +70,7 @@ return [
         // extractive copy. Reasoning effort is pinned low to keep that overhead
         // and latency small; set it to an empty string to omit the field.
         'ai' => [
-            'base_url' => rtrim((string) env('TELEGRAM_OPENAI_BASE_URL', env('OPENAI_BASE_URL', 'http://100.71.224.62:8318/v1')), '/'),
+            'base_url' => rtrim((string) env('TELEGRAM_OPENAI_BASE_URL', env('OPENAI_BASE_URL', 'http://172.17.0.1:8317/v1')), '/'),
             'api_key' => env('TELEGRAM_OPENAI_API_KEY', env('OPENAI_API_KEY')),
             'model' => env('TELEGRAM_OPENAI_MODEL', 'sky-quality'),
             'reasoning_effort' => env('TELEGRAM_OPENAI_REASONING_EFFORT', 'low'),
@@ -98,10 +98,10 @@ return [
     ],
 
     'opencode_go' => [
-        // Central AI gateway (CLIProxyAPI on sky-mini); request semantic aliases
+        // AI gateway (CLIProxyAPI) local to the Dokploy host; request semantic aliases
         // (`sky-quality`, `sky-fast`), never concrete models. Capabilities are
         // explicit per provider rather than inferred from the host or model name.
-        'base_url' => env('OPENAI_BASE_URL', 'http://100.71.224.62:8318/v1'),
+        'base_url' => env('OPENAI_BASE_URL', 'http://172.17.0.1:8317/v1'),
         'api_key' => env('OPENAI_API_KEY'),
         'model' => env('OPENAI_MODEL', 'sky-quality'),
         'endpoint_style' => env('OPENAI_ENDPOINT_STYLE', 'chat'),

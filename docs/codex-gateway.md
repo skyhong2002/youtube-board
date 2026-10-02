@@ -1,8 +1,14 @@
 # Production AI gateway
 
-As of 2026-10-02, the Laravel web and scheduler services send all AI calls to the
-central AI gateway on sky-mini (CLIProxyAPI, policy repo `~/Projects/ai-gateway`
-on that Mac). Both ingestion's `OpenCodeChatClient` (channel, daily, hourly,
+Since 2026-10-03, the Laravel web and scheduler services send all AI calls to
+skyhong-blog's own local AI gateway (CLIProxyAPI, a user systemd unit
+`cliproxyapi` on the Dokploy host, bound to the docker0 bridge at
+`172.17.0.1:8317`). Gateways are per-host: every host runs its own copy with the
+same policy (repo `~/Projects/ai-gateway`) and the same client keys, so a gateway
+failure only affects its own host. From 2026-10-02 to 2026-10-03 production
+reached the gateway on sky-mini over the tailnet (`100.71.224.62:8318`).
+
+Both ingestion's `OpenCodeChatClient` (channel, daily, hourly,
 period, event, mayor-person analyses) and Telegram's independent
 `OpenAiChatClient` request the semantic alias `sky-quality`; the gateway decides
 which upstream model answers. The project never names a concrete model. Google
@@ -18,7 +24,7 @@ The separately managed `youtube-board-scheduler` Swarm service needs the same AI
 environment on every recreation (`docker service update --env-add ...`).
 
 ```dotenv
-OPENAI_BASE_URL=http://100.71.224.62:8318/v1
+OPENAI_BASE_URL=http://172.17.0.1:8317/v1
 OPENAI_MODEL=sky-quality
 OPENAI_ENDPOINT_STYLE=chat
 OPENAI_TOKEN_LIMIT_PARAM=max_completion_tokens
@@ -26,15 +32,15 @@ OPENAI_STRUCTURED_OUTPUT=true
 OPENAI_REASONING_EFFORT=low
 OPENAI_TIMEOUT=270
 OPENAI_FALLBACK_API_KEY=
-TELEGRAM_OPENAI_BASE_URL=http://100.71.224.62:8318/v1
+TELEGRAM_OPENAI_BASE_URL=http://172.17.0.1:8317/v1
 TELEGRAM_OPENAI_MODEL=sky-quality
 TELEGRAM_OPENAI_TIMEOUT=270
 ```
 
-`100.71.224.62:8318` is sky-mini's Tailscale-only forwarder to the gateway and is
-reachable from skyhong-blog containers. `OPENAI_API_KEY` and
+`172.17.0.1` is the docker0 bridge address on skyhong-blog, reachable from all
+containers on that host (including Swarm overlay tasks). `OPENAI_API_KEY` and
 `TELEGRAM_OPENAI_API_KEY` hold the `youtube-board` client key from
-`~/.config/ai-gateway/clients.env` on sky-mini. Never put that value in Git, logs,
+`~/.config/ai-gateway/clients.env` (identical on every gateway host). Never put that value in Git, logs,
 or support messages. When unset, the Telegram base URL and key fall back to the
 ingestion values.
 
@@ -87,8 +93,9 @@ test broadcasts as a provider probe.
 Model changes happen in the ai-gateway repo (`model-policy.json` +
 `apply.py`), not here. When updating Laravel, follow the ordinary main-branch
 Dokploy deployment and force-update the scheduler to the same image, preserving
-the environment above. Gateway outages, quota, and upstream login are managed on
-sky-mini (see the ai-gateway README).
+the environment above. Gateway outages and upstream login are managed on
+skyhong-blog (`systemctl --user status cliproxyapi`, config
+`~/.config/cliproxyapi/config.yaml`; see the ai-gateway README).
 
 ## History
 
@@ -96,4 +103,4 @@ From 2026-10-01 to 2026-10-02 production used a private Codex CLI adapter on
 skyhong-blog (`youtube-codex-gateway`). It was retired on 2026-10-02 and its
 script, systemd units, firewall rule, and server files were removed on
 2026-10-03; it is not a rollback path. Model changes and outages are handled in
-the central ai-gateway on sky-mini.
+the ai-gateway repo and the host-local gateway.

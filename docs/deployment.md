@@ -2,7 +2,7 @@
 
 ## Current production AI provider
 
-Production switched to the central AI gateway on sky-mini (alias `sky-quality`) on 2026-10-02.
+Production switched to the central AI gateway (alias `sky-quality`) on 2026-10-02, reached on sky-mini over the tailnet; since 2026-10-03 it uses skyhong-blog's own local gateway at `http://172.17.0.1:8317/v1`.
 See [AI gateway operations](codex-gateway.md) for both ingestion and Telegram
 settings, explicit capability config, provenance, verification, and rollback. The env
 example below reflects that configuration.
@@ -162,7 +162,7 @@ INGESTION_RUN_HISTORY_MAX_RECORDS=25000
 YOUTUBE_API_KEY=<youtube-data-api-key>
 # Optional comma-separated fallback keys, configured only in Dokploy secrets/env:
 YOUTUBE_API_KEYS=<youtube-data-api-key-2>,<youtube-data-api-key-3>
-OPENAI_BASE_URL=http://100.71.224.62:8318/v1
+OPENAI_BASE_URL=http://172.17.0.1:8317/v1
 OPENAI_MODEL=sky-quality
 OPENAI_ENDPOINT_STYLE=chat
 OPENAI_TOKEN_LIMIT_PARAM=max_completion_tokens

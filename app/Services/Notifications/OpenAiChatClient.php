@@ -44,7 +44,7 @@ class OpenAiChatClient
             $body['reasoning_effort'] = $reasoningEffort;
         }
 
-        $response = Http::baseUrl((string) ($config['base_url'] ?? 'http://100.71.224.62:8318/v1'))
+        $response = Http::baseUrl((string) ($config['base_url'] ?? 'http://172.17.0.1:8317/v1'))
             ->timeout((int) ($config['timeout'] ?? 120))
             ->withToken($apiKey)
             ->acceptJson()

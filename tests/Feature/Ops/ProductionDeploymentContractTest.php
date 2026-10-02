@@ -210,7 +210,7 @@ class ProductionDeploymentContractTest extends TestCase
         $this->assertIsString($localTemplate);
         $this->assertIsString($productionTemplate);
 
-        $this->assertStringContainsString("env('OPENAI_BASE_URL', 'http://100.71.224.62:8318/v1')", $config);
+        $this->assertStringContainsString("env('OPENAI_BASE_URL', 'http://172.17.0.1:8317/v1')", $config);
         $this->assertStringContainsString("env('OPENAI_MODEL', 'sky-quality')", $config);
         $this->assertStringContainsString("env('OPENAI_ENDPOINT_STYLE', 'chat')", $config);
         $this->assertStringContainsString("env('OPENAI_FALLBACK_BASE_URL', 'https://opencode.ai/zen/go/v1')", $config);
@@ -218,7 +218,7 @@ class ProductionDeploymentContractTest extends TestCase
         $this->assertStringContainsString("env('OPENAI_FALLBACK_ENDPOINT_STYLE', 'auto')", $config);
 
         foreach ([$localTemplate, $productionTemplate] as $template) {
-            $this->assertStringContainsString('OPENAI_BASE_URL=http://100.71.224.62:8318/v1', $template);
+            $this->assertStringContainsString('OPENAI_BASE_URL=http://172.17.0.1:8317/v1', $template);
             $this->assertStringContainsString('OPENAI_MODEL=sky-quality', $template);
             $this->assertStringContainsString('OPENAI_ENDPOINT_STYLE=chat', $template);
             $this->assertStringContainsString('OPENAI_FALLBACK_BASE_URL=https://opencode.ai/zen/go/v1', $template);
