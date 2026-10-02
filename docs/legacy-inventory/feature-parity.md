@@ -1,6 +1,6 @@
 # Feature Parity Backlog
 
-Production AI generation now uses the private Codex gateway for ingestion and Telegram (2026-10-01); see [operations](../codex-gateway.md). Routes, data contracts, validators, and scheduled-write allowlists are unchanged.
+Production AI generation now uses the central AI gateway (`sky-quality` alias) for ingestion and Telegram (2026-10-02); see [operations](../codex-gateway.md). Routes, data contracts, validators, and scheduled-write allowlists are unchanged.
 
 This backlog tracks the legacy YouTube Board behavior rebuilt in Laravel. Ground truth is read from `/Users/skyhong/Documents/youtube-board-legacy`; public site checks are secondary and may be blocked by Cloudflare or server policy.
 
