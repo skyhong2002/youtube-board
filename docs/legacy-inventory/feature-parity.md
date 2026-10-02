@@ -32,7 +32,7 @@ Telegram daily/hourly briefs now generate a separate source-backed action/statem
 | Legacy stopwords helper | `stopwords.php` | `App\Services\Legacy\LegacyStopwords` | done | Shared parser for legacy stopwords now feeds keyword list, tag cloud, channel cloud, daily tag relation, and live tag reports. This prevents drift from copied hard-coded stopword arrays while keeping the legacy snapshot as the reference source. |
 | Current live ranking | `live.php` | `/live/current` | done | Real-time YouTube dashboard report backed by imported legacy live tables. |
 | YouTube Data API key check | YouTube Data API v3 | `/dev/check`, JSON probes | done | Server-side sanitized probe verified with Chrome. |
-| AI provider probe | OpenAI-compatible chat completions | `.env` config, `ai:provider:probe` | done | Production primary OpenAI `gpt-5.4-mini` was verified with a no-write probe. OpenCode Go `qwen3.6-plus` remains the configured fallback; its fallback path is tested, while the live provider returned HTTP 429 because of an external monthly quota on 2026-07-15. |
+| AI provider probe | OpenAI-compatible chat completions | `.env` config, `ai:provider:probe` | done | Production primary is the central AI gateway alias `sky-quality` (since 2026-10-02), verified with a no-write probe. OpenCode Go `qwen3.6-plus` remains the configured fallback; its fallback path is tested, while the live provider returned HTTP 429 because of an external monthly quota on 2026-07-15. |
 
 ## Public Report Surfaces
 

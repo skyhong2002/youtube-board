@@ -5,9 +5,8 @@ central AI gateway on sky-mini (CLIProxyAPI, policy repo `~/Projects/ai-gateway`
 on that Mac). Both ingestion's `OpenCodeChatClient` (channel, daily, hourly,
 period, event, mayor-person analyses) and Telegram's independent
 `OpenAiChatClient` request the semantic alias `sky-quality`; the gateway decides
-which upstream model answers (`gpt-6.1-sol` at revision 2026-10-02, the same
-model the previous private gateway pinned). The project never names a concrete
-model. Google YouTube API credentials and scheduled-write allowlists are unchanged.
+which upstream model answers. The project never names a concrete model. Google
+YouTube API credentials and scheduled-write allowlists are unchanged.
 
 `sky-quality` is used for every call because every output is a summary or brief
 that people read. `sky-fast` (bulk classification/extraction) is not used.
@@ -91,17 +90,10 @@ Dokploy deployment and force-update the scheduler to the same image, preserving
 the environment above. Gateway outages, quota, and upstream login are managed on
 sky-mini (see the ai-gateway README).
 
-## Retired private Codex gateway
+## History
 
-From 2026-10-01 to 2026-10-02 production used `scripts/codex_gateway.py`, a
-private adapter on skyhong-blog that ran the Codex CLI per request at
-`http://172.19.0.1:8321/v1`. Its user unit `youtube-codex-gateway` is now stopped
-and disabled; the script, units (`deploy/youtube-codex-gateway*.service`),
-`/home/ubuntu/apps/youtube-codex-gateway/`, and
-`~/.config/youtube-codex-gateway.env` were left in place for rollback. The
-`youtube-codex-gateway-firewall` system unit was left as is (it only permits
-Docker bridge ingress to that unused address/port). To roll back, re-enable the
-user unit and restore the previous AI env from the private mode-0600 backups
-`~/.config/ai-gateway-migration-dokploy-before-*.env` and
-`~/.config/ai-gateway-migration-scheduler-before-*.json` on skyhong-blog. Never
-copy those backups to Git.
+From 2026-10-01 to 2026-10-02 production used a private Codex CLI adapter on
+skyhong-blog (`youtube-codex-gateway`). It was retired on 2026-10-02 and its
+script, systemd units, firewall rule, and server files were removed on
+2026-10-03; it is not a rollback path. Model changes and outages are handled in
+the central ai-gateway on sky-mini.
