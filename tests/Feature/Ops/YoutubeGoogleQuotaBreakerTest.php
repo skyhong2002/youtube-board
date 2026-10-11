@@ -11,6 +11,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class YoutubeGoogleQuotaBreakerTest extends TestCase
@@ -110,6 +111,7 @@ class YoutubeGoogleQuotaBreakerTest extends TestCase
 
     public function test_health_warns_when_google_quota_runs_out_below_the_local_budget(): void
     {
+        Storage::fake('local');
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-10 18:30:00', 'America/Los_Angeles'));
         config()->set('ingestion.youtube_daily_quota_budget', 9000);
         $this->seedLedger('2026-10-10', consumed: 4300, googleExhaustedAt: '2026-10-11 01:00:00', googleExhaustedUnits: 4300);
