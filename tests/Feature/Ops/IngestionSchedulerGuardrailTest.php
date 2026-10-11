@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Ops;
 
-use App\Console\GuardedClosureCommand;
+use App\Console\GuardedIngestionCommand;
 use App\Services\Ingestion\DirectYoutubeQuotaGuard;
 use App\Services\Ingestion\IngestionCommandLock;
 use App\Services\Ingestion\IngestionCommandLockContext;
@@ -16,7 +16,6 @@ use App\Services\Ingestion\YoutubeQuotaEstimator;
 use App\Services\Ingestion\YoutubeQuotaReservationContext;
 use App\Services\Ingestion\YoutubeQuotaWindowException;
 use Carbon\CarbonImmutable;
-use Illuminate\Foundation\Console\ClosureCommand;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -78,7 +77,7 @@ class IngestionSchedulerGuardrailTest extends TestCase
     {
         $writeCommands = collect(Artisan::all())
             ->filter(fn ($command): bool => $command->getDefinition()->hasOption('execute'))
-            ->filter(fn ($command): bool => $command instanceof ClosureCommand);
+            ->filter(fn ($command): bool => str_starts_with($command::class, 'App\\Console\\Commands\\'));
 
         $this->assertNotEmpty($writeCommands);
 
@@ -106,12 +105,17 @@ class IngestionSchedulerGuardrailTest extends TestCase
         ];
         $lock = app(IngestionCommandLock::class);
         $writeCommands = collect(Artisan::all())
-            ->filter(fn ($command): bool => $command instanceof ClosureCommand)
+            ->filter(fn ($command): bool => str_starts_with($command::class, 'App\\Console\\Commands\\'))
             ->filter(fn ($command): bool => $command->getDefinition()->hasOption('execute'));
 
         foreach ($writeCommands as $name => $command) {
+            // Local-only dump import into the development database, not an ingestion job.
+            if ($name === 'db:import-local') {
+                continue;
+            }
+
             if ($name === 'ingestion:run' || in_array($name, $quotaOwned, true)) {
-                $this->assertNotInstanceOf(GuardedClosureCommand::class, $command, $name);
+                $this->assertNotInstanceOf(GuardedIngestionCommand::class, $command, $name);
 
                 if ($name !== 'ingestion:run') {
                     $this->assertNotNull($lock->jobKeyForCommand($name), $name);
@@ -120,7 +124,7 @@ class IngestionSchedulerGuardrailTest extends TestCase
                 continue;
             }
 
-            $this->assertInstanceOf(GuardedClosureCommand::class, $command, $name);
+            $this->assertInstanceOf(GuardedIngestionCommand::class, $command, $name);
             $this->assertNotNull($lock->jobKeyForCommand($name), $name);
         }
     }

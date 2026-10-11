@@ -3,11 +3,11 @@
 namespace App\Console;
 
 use App\Services\Ingestion\IngestionCommandLock;
-use Illuminate\Foundation\Console\ClosureCommand;
+use Illuminate\Console\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-class GuardedClosureCommand extends ClosureCommand
+abstract class GuardedIngestionCommand extends Command
 {
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
