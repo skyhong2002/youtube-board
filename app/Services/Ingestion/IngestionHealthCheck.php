@@ -185,6 +185,15 @@ class IngestionHealthCheck
             $status = 'warn';
         }
 
+        if ((bool) ($quota['google_quota_exhausted'] ?? false)) {
+            $status = $status === 'fail' ? 'fail' : 'warn';
+
+            if ((int) ($quota['google_exhausted_units'] ?? 0) < $budget) {
+                $quota['warning'] = 'Google reported the daily quota exhausted while the local ledger was below budget: '
+                    .'the GCP project quota is being consumed outside this app, or its cap is lower than configured.';
+            }
+        }
+
         return [
             'status' => $status,
             'requests' => count($events),
@@ -421,7 +430,11 @@ class IngestionHealthCheck
         $missing = array_values(array_diff($target['people'], $completed));
 
         return [
-            'status' => $missing === [] ? 'ok' : 'fail',
+            'status' => match (true) {
+                $missing === [] => 'ok',
+                $completed !== [] => 'warn',
+                default => 'fail',
+            },
             'date' => $date,
             'available' => true,
             'city' => $target['city'],

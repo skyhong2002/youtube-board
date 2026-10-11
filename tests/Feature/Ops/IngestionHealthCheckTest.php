@@ -3,6 +3,7 @@
 namespace Tests\Feature\Ops;
 
 use App\Services\Ingestion\AiDailyPreview;
+use App\Services\Ingestion\IngestionHealthCheck;
 use App\Services\Ingestion\IngestionTelemetry;
 use App\Services\Ingestion\OpenCodeChatClient;
 use App\Services\Ingestion\YoutubeDataApiClient;
@@ -424,6 +425,24 @@ class IngestionHealthCheckTest extends TestCase
         $this->assertSame(39, $target['channel_rows_total']);
         $this->assertSame(38, $target['channel_rows']);
         $this->assertSame(1, $target['invalid_channel_rows']);
+    }
+
+    public function test_partial_mayor_person_coverage_warns_and_only_zero_coverage_fails(): void
+    {
+        $this->createAiTables();
+        $health = app(IngestionHealthCheck::class);
+
+        $this->assertSame('fail', $health->check('2026-05-24')['targets']['mayor_person']['status']);
+
+        DB::table('urt_mayor_person_ai')->insert([
+            'city_key' => 'taipei',
+            'person' => '蔣萬安',
+            'the_date' => '2026-05-24',
+            'mtime' => '2026-05-25 09:55:00',
+            'del_flag' => null,
+        ]);
+
+        $this->assertSame('warn', $health->check('2026-05-24')['targets']['mayor_person']['status']);
     }
 
     private function createAiTables(): void

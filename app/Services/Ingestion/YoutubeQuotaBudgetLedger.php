@@ -41,9 +41,49 @@ class YoutubeQuotaBudgetLedger
                 now: $now,
                 consumed: max(0, (int) ($row->consumed_units ?? 0)),
                 reserved: max(0, (int) ($row->reserved_units ?? 0)),
+                googleExhaustedAt: $row->google_exhausted_at ?? null,
+                googleExhaustedUnits: isset($row->google_exhausted_units) ? (int) $row->google_exhausted_units : null,
             );
         } catch (Throwable) {
             return $this->unavailableState($budget, $now, 'quota_ledger_query_failed');
+        }
+    }
+
+    /**
+     * Trip the daily circuit breaker after Google reports the project quota
+     * exhausted. Reservations for the same Pacific quota date are refused
+     * until the next reset, regardless of how much local budget remains.
+     * Best-effort: a ledger failure must not mask the API response.
+     */
+    public function markGoogleExhausted(?CarbonInterface $at = null): void
+    {
+        $now = $this->quotaNow($at);
+
+        try {
+            if (! Schema::hasColumn('ingestion_youtube_quota_daily', 'google_exhausted_at')) {
+                return;
+            }
+
+            $timestamp = CarbonImmutable::now('UTC')->format('Y-m-d H:i:s');
+            DB::table('ingestion_youtube_quota_daily')->insertOrIgnore([
+                'provider' => self::PROVIDER,
+                'quota_date' => $now->toDateString(),
+                'consumed_units' => 0,
+                'reserved_units' => 0,
+                'created_at' => $timestamp,
+                'updated_at' => $timestamp,
+            ]);
+            DB::table('ingestion_youtube_quota_daily')
+                ->where('provider', self::PROVIDER)
+                ->where('quota_date', $now->toDateString())
+                ->whereNull('google_exhausted_at')
+                ->update([
+                    'google_exhausted_at' => $timestamp,
+                    'google_exhausted_units' => DB::raw('consumed_units + reserved_units'),
+                    'updated_at' => $timestamp,
+                ]);
+        } catch (Throwable) {
+            // The next quotaExceeded response retries the write.
         }
     }
 
@@ -63,6 +103,10 @@ class YoutubeQuotaBudgetLedger
 
         if (! (bool) ($initial['available'] ?? false)) {
             return ['allowed' => false, 'reason' => (string) ($initial['reason'] ?? 'quota_ledger_unavailable'), 'state' => $initial];
+        }
+
+        if ((bool) ($initial['google_quota_exhausted'] ?? false)) {
+            return ['allowed' => false, 'reason' => 'google_quota_exhausted', 'state' => $initial];
         }
 
         try {
@@ -143,7 +187,14 @@ class YoutubeQuotaBudgetLedger
     /**
      * @return array<string, mixed>
      */
-    private function payload(int $budget, CarbonImmutable $now, int $consumed, int $reserved): array
+    private function payload(
+        int $budget,
+        CarbonImmutable $now,
+        int $consumed,
+        int $reserved,
+        ?string $googleExhaustedAt = null,
+        ?int $googleExhaustedUnits = null,
+    ): array
     {
         $projected = $consumed + $reserved;
 
@@ -161,6 +212,9 @@ class YoutubeQuotaBudgetLedger
             'history_estimated_units' => $projected,
             'projected_units' => $projected,
             'remaining_units' => max(0, $budget - $projected),
+            'google_quota_exhausted' => $googleExhaustedAt !== null,
+            'google_exhausted_at' => $googleExhaustedAt,
+            'google_exhausted_units' => $googleExhaustedUnits,
         ];
     }
 

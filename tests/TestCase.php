@@ -24,6 +24,8 @@ abstract class TestCase extends BaseTestCase
             $table->date('quota_date');
             $table->unsignedBigInteger('consumed_units')->default(0);
             $table->unsignedBigInteger('reserved_units')->default(0);
+            $table->dateTime('google_exhausted_at')->nullable();
+            $table->unsignedInteger('google_exhausted_units')->nullable();
             $table->timestamps();
             $table->unique(['provider', 'quota_date']);
         });

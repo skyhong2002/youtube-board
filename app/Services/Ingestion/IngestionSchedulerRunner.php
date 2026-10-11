@@ -376,17 +376,22 @@ class IngestionSchedulerRunner
         $this->youtubeQuotaBudget = ['enabled' => true] + $reservedState;
         $allowed = (bool) $reservation['allowed'];
         $budgetExceeded = $reservation['reason'] === 'quota_budget_exceeded';
+        $googleExhausted = $reservation['reason'] === 'google_quota_exhausted';
 
         return [
             'allowed' => $allowed,
-            'action' => $allowed
-                ? 'allow'
-                : ($budgetExceeded ? 'skip:youtube-quota-budget' : 'failed:youtube-quota-ledger-unavailable'),
-            'skip_reason' => $allowed
-                ? null
-                : ($budgetExceeded
-                    ? 'scheduled YouTube request upper bound would exceed the configured daily budget'
-                    : 'durable YouTube quota reservation failed; scheduled API job was not started'),
+            'action' => match (true) {
+                $allowed => 'allow',
+                $budgetExceeded => 'skip:youtube-quota-budget',
+                $googleExhausted => 'skip:youtube-google-quota-exhausted',
+                default => 'failed:youtube-quota-ledger-unavailable',
+            },
+            'skip_reason' => match (true) {
+                $allowed => null,
+                $budgetExceeded => 'scheduled YouTube request upper bound would exceed the configured daily budget',
+                $googleExhausted => 'Google reported the daily project quota exhausted; YouTube jobs resume after the Pacific quota reset',
+                default => 'durable YouTube quota reservation failed; scheduled API job was not started',
+            },
             'planned_units' => $plannedUnits,
             'history_estimated_units' => $current,
             'consumed_units' => (int) ($reservedState['consumed_units'] ?? 0),
@@ -395,7 +400,7 @@ class IngestionSchedulerRunner
             'budget_units' => $budget,
             'remaining_units' => (int) ($reservedState['remaining_units'] ?? max(0, $budget - $current)),
             'reservation_active' => $allowed,
-            'operational_failure' => ! $allowed && ! $budgetExceeded,
+            'operational_failure' => ! $allowed && ! $budgetExceeded && ! $googleExhausted,
             'quota_date' => $reservedState['quota_date'] ?? null,
             'window_timezone' => $reservedState['window_timezone'] ?? 'America/Los_Angeles',
             'ledger_source' => $reservedState['source'] ?? null,

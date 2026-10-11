@@ -184,10 +184,16 @@ Web request gates
                     @php($mayorPerson = $health['targets']['mayor_person'] ?? [])
                     <span class="badge {{ $healthClass[$schedulerHealth['status'] ?? 'unknown'] ?? 'unknown' }}">scheduler {{ ($schedulerHealth['active'] ?? false) ? 'active' : 'not observed' }}</span>
                     <span class="badge {{ $healthClass[$youtubeHealth['status'] ?? 'unknown'] ?? 'unknown' }}">YouTube {{ number_format((int) ($youtubeHealth['requests'] ?? 0)) }} req / {{ number_format((int) ($youtubeHealth['failed_requests'] ?? 0)) }} fail / max {{ number_format((int) ($youtubeHealth['max_latency_ms'] ?? 0)) }}ms</span>
+                    @if (! empty($youtubeHealth['quota']['google_quota_exhausted']))
+                        <span class="badge warn">Google quota exhausted at {{ $youtubeHealth['quota']['google_exhausted_at'] ?? '-' }} UTC (ledger {{ number_format((int) ($youtubeHealth['quota']['google_exhausted_units'] ?? 0)) }} units)</span>
+                    @endif
                     <span class="badge {{ $healthClass[$aiHealth['status'] ?? 'unknown'] ?? 'unknown' }}">AI {{ number_format((int) ($aiHealth['requests'] ?? 0)) }} req / {{ number_format((int) ($aiHealth['failed_requests'] ?? 0)) }} fail / max {{ number_format((int) ($aiHealth['max_latency_ms'] ?? 0)) }}ms</span>
                     <span class="badge {{ $healthClass[$aiDaily['status'] ?? 'unknown'] ?? 'unknown' }}">AI daily {{ count($aiDaily['completed_conditions'] ?? []) }}/{{ count($aiDaily['expected_conditions'] ?? []) }} conditions</span>
                     <span class="badge {{ $healthClass[$mayorPerson['status'] ?? 'unknown'] ?? 'unknown' }}">mayor {{ count($mayorPerson['completed_people'] ?? []) }}/{{ count($mayorPerson['expected_people'] ?? []) }} people</span>
                 </div>
+                @if (! empty($youtubeHealth['quota']['warning']))
+                    <p class="muted">{{ $youtubeHealth['quota']['warning'] }}</p>
+                @endif
                 <p class="muted">
                     job runtime、YouTube API latency、AI provider latency 會由 <code>ingestion:run --execute --record</code> 寫進 run-history；舊紀錄沒有 telemetry 時會顯示為 0 或 unknown。
                 </p>

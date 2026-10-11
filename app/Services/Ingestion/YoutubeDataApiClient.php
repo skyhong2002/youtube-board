@@ -14,6 +14,7 @@ class YoutubeDataApiClient
         private readonly IngestionTelemetry $telemetry,
         private readonly YoutubeApiCredentials $credentials,
         private readonly YoutubeQuotaReservationContext $quotaContext,
+        private readonly YoutubeQuotaBudgetLedger $quotaLedger,
     ) {}
 
     /**
@@ -596,6 +597,7 @@ class YoutubeDataApiClient
     {
         $responses = [];
         $keyPoolFailureReason = null;
+        $dailyQuotaExhaustedKeys = 0;
         $method = $this->method($url, $query);
         $attempt = 0;
         $transientRetries = max(0, min(3, (int) config('services.youtube.transient_retries', 1)));
@@ -662,6 +664,7 @@ class YoutubeDataApiClient
                 }
 
                 if ($apiKeyFallback) {
+                    $dailyQuotaExhaustedKeys += $this->isDailyQuotaExhausted($response) ? 1 : 0;
                     $keyPoolFailureReason = $quotaRetry
                         ? YoutubeApiKeyPoolExhaustedException::QUOTA_FAILURE
                         : YoutubeApiKeyPoolExhaustedException::AUTHENTICATION_FAILURE;
@@ -679,6 +682,10 @@ class YoutubeDataApiClient
         }
 
         if ($keyPoolFailureReason !== null) {
+            if ($dailyQuotaExhaustedKeys === count($this->apiKeys())) {
+                $this->quotaLedger->markGoogleExhausted();
+            }
+
             throw new YoutubeApiKeyPoolExhaustedException($keyPoolFailureReason);
         }
 
@@ -725,6 +732,20 @@ class YoutubeDataApiClient
             || str_contains(strtolower($message), 'quota')
             || str_contains(strtolower($message), 'rate')
             || str_contains(strtolower($message), 'daily limit');
+    }
+
+    /**
+     * Daily project quota, as opposed to per-minute rate limits that clear on their own.
+     */
+    private function isDailyQuotaExhausted(Response $response): bool
+    {
+        if ($response->status() !== 403) {
+            return false;
+        }
+
+        $reason = (string) ($response->json('error.errors.0.reason') ?? '');
+
+        return in_array($reason, ['quotaExceeded', 'dailyLimitExceeded'], true);
     }
 
     private function isTransientFailure(Response $response): bool
