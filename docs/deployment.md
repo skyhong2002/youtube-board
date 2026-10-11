@@ -239,3 +239,18 @@ pma-youtube-board.skyhong.tw
 ```
 
 Do not expose phpMyAdmin publicly without an access gate.
+
+## Operations route authentication
+
+Production `/ops/*` and `/dev/*` routes require HTTP Basic authentication and
+return 403 until it is configured. Set `OPS_BASIC_AUTH_USER` and
+`OPS_BASIC_AUTH_PASSWORD_HASH` in the Dokploy web service environment; the
+password value must be a bcrypt hash, never plaintext. Generate one with:
+
+```bash
+php artisan tinker --execute="echo Hash::make('your-password');"
+```
+
+Save the username and hash in Dokploy, then reload the web service so the runtime
+environment is applied. The `/ops/deploy/dokploy` webhook is separately
+authenticated by its relay secret and is intentionally excluded from Basic auth.

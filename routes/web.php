@@ -134,17 +134,19 @@ Route::get('/ai/events/{id}/wall', [AiEventController::class, 'wall'])->whereNum
 Route::get('/ai/events/{id}', AiEventController::class)->whereNumber('id')->name('ai.events.show');
 Route::get('/ai/hours', AiHourlyController::class)->name('ai.hours');
 Route::get('/ai/periods', AiPeriodController::class)->name('ai.periods');
-Route::get('/ops/integrations', [IntegrationCheckController::class, 'index'])->name('ops.integrations');
-Route::get('/ops/ingestion', IngestionDashboardController::class)->name('ops.ingestion');
-Route::get('/ops/ingestion/data-capture', [IngestionDashboardController::class, 'dataCapture'])->name('ops.ingestion.data-capture');
-Route::get('/ops/ingestion/report-processing', [IngestionDashboardController::class, 'reportProcessing'])->name('ops.ingestion.report-processing');
-Route::post('/ops/ingestion/run', [IngestionDashboardController::class, 'run'])
-    ->middleware('throttle:10,1')
-    ->name('ops.ingestion.run');
-Route::get('/ops/ingestion/runs/{runId}', [IngestionDashboardController::class, 'runShow'])
-    ->where('runId', '\d{8}-\d{6}-[0-9a-f-]{36}')
-    ->name('ops.ingestion.runs.show');
-Route::get('/ops/ingestion/{jobKey}', [IngestionDashboardController::class, 'show'])->where('jobKey', '[A-Za-z0-9_.-]+')->name('ops.ingestion.show');
+Route::middleware('ops.auth')->group(function (): void {
+    Route::get('/ops/integrations', [IntegrationCheckController::class, 'index'])->name('ops.integrations');
+    Route::get('/ops/ingestion', IngestionDashboardController::class)->name('ops.ingestion');
+    Route::get('/ops/ingestion/data-capture', [IngestionDashboardController::class, 'dataCapture'])->name('ops.ingestion.data-capture');
+    Route::get('/ops/ingestion/report-processing', [IngestionDashboardController::class, 'reportProcessing'])->name('ops.ingestion.report-processing');
+    Route::post('/ops/ingestion/run', [IngestionDashboardController::class, 'run'])
+        ->middleware('throttle:10,1')
+        ->name('ops.ingestion.run');
+    Route::get('/ops/ingestion/runs/{runId}', [IngestionDashboardController::class, 'runShow'])
+        ->where('runId', '\d{8}-\d{6}-[0-9a-f-]{36}')
+        ->name('ops.ingestion.runs.show');
+    Route::get('/ops/ingestion/{jobKey}', [IngestionDashboardController::class, 'show'])->where('jobKey', '[A-Za-z0-9_.-]+')->name('ops.ingestion.show');
+});
 Route::post('/ops/deploy/dokploy', DokployDeployWebhookController::class)->name('ops.deploy.dokploy');
 Route::match(['GET', 'POST'], '/redir/{script}.php', LegacyWriteGuardController::class)
     ->where('script', 'add_live|add_live_tvbs|add_video|ai_day|ai_hour|channel_ai|channel_gpt|make_live|renew|tag')
@@ -841,15 +843,17 @@ Route::get('/ch/{u_id}', function (Request $request, int $u_id) {
 Route::get('/dev/check', [IntegrationCheckController::class, 'devCheck'])
     ->name('dev.check');
 
-if (app()->environment(['local', 'testing'])) {
-    $youtubeProbe = [IntegrationCheckController::class, 'youtube'];
+Route::middleware('ops.auth')->group(function (): void {
+    if (app()->environment(['local', 'testing'])) {
+        $youtubeProbe = [IntegrationCheckController::class, 'youtube'];
 
-    Route::get('/dev/yt-check', $youtubeProbe)
-        ->name('dev.yt.check');
+        Route::get('/dev/yt-check', $youtubeProbe)
+            ->name('dev.yt.check');
 
-    Route::get('/dev/youtube-api-probe', $youtubeProbe)
-        ->name('dev.youtube-api.probe');
+        Route::get('/dev/youtube-api-probe', $youtubeProbe)
+            ->name('dev.youtube-api.probe');
 
-    Route::get('/dev/integrations/youtube/probe', $youtubeProbe)
-        ->name('dev.integrations.youtube.probe');
-}
+        Route::get('/dev/integrations/youtube/probe', $youtubeProbe)
+            ->name('dev.integrations.youtube.probe');
+    }
+});

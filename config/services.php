@@ -128,6 +128,11 @@ return [
         'fallback_max_tokens' => (int) env('OPENAI_FALLBACK_MAX_TOKENS', env('OPENAI_MAX_TOKENS', 4096)),
     ],
 
+    'ops' => [
+        'basic_auth_user' => env('OPS_BASIC_AUTH_USER'),
+        'basic_auth_password_hash' => env('OPS_BASIC_AUTH_PASSWORD_HASH'),
+    ],
+
     'dokploy' => [
         'deploy_webhook_url' => env('DOKPLOY_DEPLOY_WEBHOOK_URL'),
         'deploy_relay_secret' => env('DOKPLOY_DEPLOY_RELAY_SECRET'),

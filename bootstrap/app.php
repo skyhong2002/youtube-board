@@ -5,6 +5,7 @@ use App\Console\Commands\ImportLocalDumpCommand;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use App\Http\Middleware\OpsBasicAuth;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -17,6 +18,9 @@ return Application::configure(basePath: dirname(__DIR__))
         ImportLocalDumpCommand::class,
     ])
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->alias([
+            'ops.auth' => OpsBasicAuth::class,
+        ]);
         $middleware->validateCsrfTokens(except: [
             'ops/deploy/dokploy',
             'redir/*',
