@@ -195,6 +195,7 @@ The current Production-approved AI job keys are `ai.hourly` and `ai.daily`; both
 
 - `ai.hourly`: at minute 10, runs `ai:hourly:pipeline`; it first refreshes the latest 50 uploads for all 39 configured AI channels and proves that the previous complete hour is covered, then refreshes `urt_ai_hour`. Any incomplete channel source blocks the AI stage.
 - `ai.daily`: at 00:00, runs `ai:daily:pipeline --date=yesterday`; it first completes a paginated tag 102 uploads crawl and the `urt_show_tag_date` rebuild for the closed calendar day, using a dedicated 100,000-keyword hard cap with `limit + 1` truncation detection, then proves that every configured daily-AI channel is in the successful crawl set. It attempts eligible channel-level `urt_channel_ai` rows and six daily `urt_ai_date` conditions only after those checks; channels with fewer than 10 videos are valid skips. An incomplete crawl, truncated keyword dictionary, or missing configured-channel coverage blocks the AI stage.
+- `ai.daily.catchup` (allowlisted on the scheduler service 2026-10-11): at 02:20, 04:20 and 06:20, runs `ai:daily:pipeline --missing-only --date=yesterday`. It exits 0 before any YouTube or AI call when all six condition rows are valid; otherwise it repeats the source-first crawl and calls AI only for missing or invalid channel and condition rows.
 
 This approval does not cover any additional job key or schedule/allowlist change. Every new Production write/API job still requires exact dry-run evidence, backup and rollback planning, and explicit operator approval.
 
@@ -217,6 +218,14 @@ After a stable first polling window, these broader candidates still require a ne
 - `reports.mayor.static`: refreshes mayor/city `urt_show_tag_date` cache rows for the dynamic Laravel mayor pages.
 
 The scheduler service must run `php artisan schedule:run --verbose --no-interaction` every minute from `/var/www/html`, or the equivalent Dokploy scheduled task must be enabled against the current web image. Verify a fresh `ingestion:run --execute --record` history entry after deployment without changing the exact allowlist. Environment gates alone do not start the scheduler. Each approved scheduled write job uses its capped `scheduled_execute_command`; keys outside the exact allowlist remain blocked. Creating or enabling the Production scheduled task can execute already allowlisted writes and therefore requires explicit operator approval.
+
+The Production scheduler is a separate Swarm service (`youtube-board-scheduler`) on the web image tag; Dokploy rebuilds only the web service. After each deploy, wait until no long command (for example a manual `ai:daily` backfill or `ai.hourly` at minute 10) is running inside the scheduler container, then move it to the new image with its environment preserved:
+
+```bash
+docker service update --force --no-resolve-image --image youtube-board-web-mwafzd:latest youtube-board-scheduler
+```
+
+Scheduled YouTube jobs stop for the rest of the Pacific quota day once Google reports `quotaExceeded` on every configured key (`google_exhausted_at` on `ingestion_youtube_quota_daily`); they are recorded as `skip:youtube-google-quota-exhausted` and resume at the next quota date.
 
 ## MariaDB Environment
 
