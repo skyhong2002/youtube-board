@@ -110,9 +110,32 @@ class AiScheduledPipelineIngestion
         int $channelVideoLimit = 120,
         int $limit = 1000,
         string $userToken = 'CLI',
+        bool $missingOnly = false,
     ): array {
         $now = $this->now();
         $date = $this->date($date, $now);
+
+        // Catch-up runs stop before the YouTube crawl when an earlier run
+        // already produced every valid daily condition row.
+        if ($missingOnly && $this->dailyIngestion->complete($date, 'oneday', $userToken)) {
+            return [
+                'mode' => 'execute',
+                'status' => 'skipped',
+                'exit_code' => 0,
+                'failed_rows' => 0,
+                'source' => 'ai_daily_source_first_pipeline',
+                'date' => $date,
+                'ai' => [
+                    'status' => 'skipped',
+                    'skip_reason' => 'daily_rows_complete',
+                    'ai_call_attempted' => false,
+                ],
+                'write_targets' => [],
+                'generated_at' => $now->format('Y-m-d H:i:s'),
+                'secrets' => 'not_printed',
+            ];
+        }
+
         $sourceRun = $this->quotaGuard->run(
             jobKey: 'youtube.tag_videos.backfill',
             effectiveCommand: sprintf(
@@ -150,6 +173,7 @@ class AiScheduledPipelineIngestion
             aiCallLimit: $aiCallLimit,
             channelVideoLimit: $channelVideoLimit,
             userToken: $userToken,
+            missingOnly: $missingOnly,
         );
         $aiExitCode = (int) ($ai['exit_code'] ?? 1);
         $topicCache = $aiExitCode === 0

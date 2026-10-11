@@ -3,8 +3,10 @@
 namespace Tests\Feature\Ops;
 
 use App\Services\Ingestion\AiBusinessKeyLock;
+use App\Services\Ingestion\AiCommandInputValidator;
 use App\Services\Ingestion\AiDailyPreview;
 use App\Services\Ingestion\AiTopicCacheBuilder;
+use App\Services\Ingestion\IngestionCommandLock;
 use App\Services\Ingestion\IngestionSchedulerRunner;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request;
@@ -1560,6 +1562,85 @@ SQL);
         $this->assertStringNotContainsString('fallback-provider-secret', $output);
         $this->assertSame($existing, DB::table('urt_ai_date')->value('result_json'));
         Http::assertSentCount(2);
+    }
+
+    public function test_ai_daily_missing_only_reuses_valid_rows_and_regenerates_only_missing_ones(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'));
+        $this->createTables();
+        $this->seedDailyAiFixtures();
+        $this->seedRefreshChannelVideos();
+        config()->set('services.opencode_go.api_key', 'test-key');
+        config()->set('services.opencode_go.base_url', 'https://opencode.test/v1');
+        config()->set('services.opencode_go.model', 'qwen-test');
+        config()->set('services.opencode_go.fallback_api_key', null);
+        Http::fake([
+            'https://opencode.test/v1/chat/completions' => Http::sequence()
+                ->push(['choices' => [['message' => ['content' => $this->channelCompletion('頻道事件')]]]])
+                ->push(['choices' => [['message' => ['content' => $this->dailyCompletion('每日事件')]]]])
+                ->push(['choices' => [['message' => ['content' => $this->dailyCompletion('補跑事件')]]]]),
+        ]);
+        $run = fn (array $options = []): int => Artisan::call('ai:daily', [
+            '--execute' => true,
+            '--date' => '2026-05-24',
+            '--condition' => 'all',
+            '--channel-limit' => 1,
+            '--json' => true,
+        ] + $options);
+
+        $this->assertSame(0, $run());
+        DB::table('urt_ai_date')->delete();
+
+        $this->assertSame(0, $run(['--missing-only' => true]));
+        $payload = json_decode(trim(Artisan::output()), true);
+        $this->assertSame(0, $payload['channel_ai']['inserted'] + $payload['channel_ai']['updated']);
+        $this->assertSame(1, $payload['daily_ai']['inserted']);
+        $this->assertSame($this->dailyCompletion('補跑事件'), DB::table('urt_ai_date')->value('result_json'));
+
+        $this->assertSame(0, $run(['--missing-only' => true]));
+        Http::assertSentCount(3);
+    }
+
+    public function test_ai_daily_pipeline_missing_only_skips_before_youtube_when_daily_rows_are_complete(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 02:20:00', 'Asia/Taipei'));
+        $this->createTables();
+        Http::preventStrayRequests();
+
+        foreach (AiCommandInputValidator::DAILY_CONDITIONS as $condition) {
+            DB::table('urt_ai_date')->insert([
+                'ctime' => '2026-05-25 00:30:00',
+                'date_from' => '2026-05-24 00:00:00',
+                'date_to' => '2026-05-24 23:59:59',
+                'ai_type' => 'qwen-test',
+                'data_type' => 'oneday',
+                'condition_type' => $condition,
+                'user_token' => 'CLI',
+                'channel_id' => '{}',
+                'result_json' => $this->dailyCompletion('每日事件 '.$condition, count: $condition === 'all' ? 15 : 8),
+            ]);
+        }
+
+        $exitCode = Artisan::call('ai:daily:pipeline', [
+            '--execute' => true,
+            '--missing-only' => true,
+            '--date' => 'yesterday',
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('skipped', $payload['status']);
+        $this->assertSame('daily_rows_complete', $payload['ai']['skip_reason']);
+        Http::assertNothingSent();
+    }
+
+    public function test_ai_daily_pipeline_command_lock_tells_the_midnight_run_from_the_catchup(): void
+    {
+        $lock = app(IngestionCommandLock::class);
+
+        $this->assertSame('ai.daily', $lock->jobKeyForCommand('ai:daily:pipeline', ['missing-only' => false]));
+        $this->assertSame('ai.daily.catchup', $lock->jobKeyForCommand('ai:daily:pipeline', ['missing-only' => true]));
     }
 
     private function channelCompletion(string $title, int $count = 3): string

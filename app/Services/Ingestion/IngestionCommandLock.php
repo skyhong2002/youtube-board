@@ -90,7 +90,8 @@ class IngestionCommandLock
             $actual = $options[(string) $option] ?? null;
 
             if ($expected === null) {
-                if ($actual !== null && $actual !== '') {
+                // An unset value flag arrives as null/'', an unset boolean flag as false.
+                if ($actual !== null && $actual !== '' && $actual !== false) {
                     return false;
                 }
 

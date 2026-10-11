@@ -3177,7 +3177,7 @@ $guardedIngestionCommand('ai:channel {u_id : Channel u_id} {--from= : Required s
     }
 })->purpose('Preview or explicitly generate one channel AI cache row for a reviewed date range');
 
-$guardedIngestionCommand('ai:daily {--date= : Legacy date, today, or yesterday; defaults to yesterday in Asia/Taipei} {--condition= : Optional single legacy condition; default previews make_ai_day.sh conditions} {--type=oneday : Legacy urt_channel_ai data_type} {--limit=1000 : Max channel AI rows per condition} {--channel-limit=39 : Max configured channels to refresh in execute mode} {--channel-offset=0 : Eligible configured channels to skip before refresh} {--channel-batch-size=0 : Refresh selected channels in chunks; 0 uses one batch} {--ai-call-limit=45 : Max logical AI completion chains; provider attempts within each chain are separately bounded} {--channel-video-limit=120 : Max videos in each channel prompt, hard max 500; 0 also uses 500} {--execute : Call the configured AI provider chain and upsert urt_channel_ai/urt_ai_date} {--dry-run : Force dry-run preview} {--user-token=CLI : user_token value for execute-mode upserts} {--json : Emit JSON instead of text}', function (AiDailyPreview $preview, AiDailyIngestion $ingestion) {
+$guardedIngestionCommand('ai:daily {--date= : Legacy date, today, or yesterday; defaults to yesterday in Asia/Taipei} {--condition= : Optional single legacy condition; default previews make_ai_day.sh conditions} {--type=oneday : Legacy urt_channel_ai data_type} {--limit=1000 : Max channel AI rows per condition} {--channel-limit=39 : Max configured channels to refresh in execute mode} {--channel-offset=0 : Eligible configured channels to skip before refresh} {--channel-batch-size=0 : Refresh selected channels in chunks; 0 uses one batch} {--ai-call-limit=45 : Max logical AI completion chains; provider attempts within each chain are separately bounded} {--channel-video-limit=120 : Max videos in each channel prompt, hard max 500; 0 also uses 500} {--missing-only : Reuse valid existing channel/daily AI rows and generate only missing or invalid ones} {--execute : Call the configured AI provider chain and upsert urt_channel_ai/urt_ai_date} {--dry-run : Force dry-run preview} {--user-token=CLI : user_token value for execute-mode upserts} {--json : Emit JSON instead of text}', function (AiDailyPreview $preview, AiDailyIngestion $ingestion) {
     try {
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
         $limit = AiCommandInputValidator::integer($this->option('limit'), '--limit', 1);
@@ -3199,6 +3199,7 @@ $guardedIngestionCommand('ai:daily {--date= : Legacy date, today, or yesterday; 
                 aiCallLimit: $aiCallLimit,
                 channelVideoLimit: $channelVideoLimit,
                 userToken: (string) $this->option('user-token'),
+                missingOnly: (bool) $this->option('missing-only'),
             );
             $failed = (int) $payload['channel_ai']['failed'] + (int) $payload['daily_ai']['failed'];
 
@@ -3321,7 +3322,7 @@ $guardedIngestionCommand('ai:daily {--date= : Legacy date, today, or yesterday; 
     }
 })->purpose('Ingestion preview of legacy daily AI summary generation; execute mode calls AI and upserts urt_channel_ai/urt_ai_date rows');
 
-$guardedIngestionCommand('ai:daily:pipeline {--date=yesterday : Date, today, or yesterday} {--limit=1000 : Max channel AI rows per condition} {--channel-limit=39 : Max configured channels to refresh} {--channel-batch-size=12 : Channel AI batch size} {--ai-call-limit=45 : Max logical AI completion chains; provider attempts within each chain are separately bounded} {--channel-video-limit=120 : Max videos in each channel prompt, hard max 500; 0 also uses 500} {--execute : Refresh complete YouTube sources before daily AI} {--dry-run : Preview both stages without writes} {--user-token=CLI : user_token for AI rows} {--json : Emit JSON}', function (AiScheduledPipelineIngestion $pipeline) {
+$guardedIngestionCommand('ai:daily:pipeline {--date=yesterday : Date, today, or yesterday} {--limit=1000 : Max channel AI rows per condition} {--channel-limit=39 : Max configured channels to refresh} {--channel-batch-size=12 : Channel AI batch size} {--ai-call-limit=45 : Max logical AI completion chains; provider attempts within each chain are separately bounded} {--channel-video-limit=120 : Max videos in each channel prompt, hard max 500; 0 also uses 500} {--missing-only : Skip entirely when all daily rows are valid; otherwise generate only missing or invalid AI rows} {--execute : Refresh complete YouTube sources before daily AI} {--dry-run : Preview both stages without writes} {--user-token=CLI : user_token for AI rows} {--json : Emit JSON}', function (AiScheduledPipelineIngestion $pipeline) {
     try {
         $execute = (bool) $this->option('execute') && ! (bool) $this->option('dry-run');
         $limit = AiCommandInputValidator::integer($this->option('limit'), '--limit', 1);
@@ -3338,6 +3339,7 @@ $guardedIngestionCommand('ai:daily:pipeline {--date=yesterday : Date, today, or 
                 channelVideoLimit: $channelVideoLimit,
                 limit: $limit,
                 userToken: (string) $this->option('user-token'),
+                missingOnly: (bool) $this->option('missing-only'),
             )
             : $pipeline->previewDaily(
                 date: (string) $this->option('date'),

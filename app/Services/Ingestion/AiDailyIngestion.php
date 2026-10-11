@@ -11,6 +11,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Throwable;
 
 class AiDailyIngestion
@@ -39,6 +40,7 @@ class AiDailyIngestion
         int $aiCallLimit = 45,
         int $channelVideoLimit = 120,
         string $userToken = 'CLI',
+        bool $missingOnly = false,
     ): array {
         $timezone = (string) config('ingestion.timezone', config('app.timezone', 'Asia/Taipei'));
         $now = CarbonImmutable::now($timezone);
@@ -74,6 +76,7 @@ class AiDailyIngestion
             userToken: $userToken,
             aiCallsUsed: $aiCallsUsed,
             aiCallLimit: $aiCallLimit,
+            missingOnly: $missingOnly,
         );
         $dailyPlan = $this->preview->preview(
             date: $date,
@@ -93,6 +96,12 @@ class AiDailyIngestion
 
         foreach ($dailyPlan['condition_rows'] as $row) {
             $prompt = (string) ($row['prompt'] ?? '');
+
+            if ($missingOnly && $this->validDailyRow($date, $dataType, (string) $row['condition'], $userToken)) {
+                $dailyRows[] = $this->skippedDailyRow($row, 'complete', $prompt);
+
+                continue;
+            }
 
             if ($channelBlockers->isNotEmpty()) {
                 $dailyRows[] = $this->skippedDailyRow(
@@ -346,6 +355,62 @@ class AiDailyIngestion
         ];
     }
 
+    public function complete(string $date, string $dataType = 'oneday', string $userToken = 'CLI'): bool
+    {
+        foreach (AiCommandInputValidator::DAILY_CONDITIONS as $condition) {
+            if (! $this->validDailyRow($date, $dataType, $condition, $userToken)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function validDailyRow(string $date, string $dataType, string $condition, string $userToken): bool
+    {
+        if (! Schema::hasTable('urt_ai_date')) {
+            return false;
+        }
+
+        $json = DB::table('urt_ai_date')
+            ->where('date_from', $date.' 00:00:00')
+            ->where('date_to', $date.' 23:59:59')
+            ->where('data_type', $dataType)
+            ->where('condition_type', $condition)
+            ->where('user_token', $userToken)
+            ->whereNull('del_flag')
+            ->orderByDesc('pk')
+            ->value('result_json');
+        $bounds = AiDailyContract::bounds($condition);
+
+        return (bool) $this->jsonValidator->validateEventList(
+            (string) $json,
+            'daily',
+            expectedMinItems: $bounds['min'],
+            expectedMaxItems: $bounds['max'],
+            dailyMaxMediaSources: AiDailyContract::MAX_REPRESENTATIVE_MEDIA_PER_TOPIC,
+            dailyMaxEventsPerMedia: AiDailyContract::REPRESENTATIVE_EVENTS_PER_MEDIA,
+        )['valid'];
+    }
+
+    /**
+     * @param  array{from: string, to: string}  $period
+     */
+    private function validChannelRow(int $uId, array $period, string $dataType, string $userToken): bool
+    {
+        $json = DB::table('urt_channel_ai')
+            ->where('u_id', $uId)
+            ->where('date_from', $period['from'])
+            ->where('date_to', $period['to'])
+            ->where('data_type', $dataType)
+            ->where('user_token', $userToken)
+            ->whereNull('del_flag')
+            ->orderByDesc('pk')
+            ->value('result_json');
+
+        return (bool) $this->jsonValidator->validateEventList((string) $json, 'channel')['valid'];
+    }
+
     /**
      * @param  array{from: string, to: string}  $period
      * @return Collection<int, array<string, mixed>>
@@ -360,6 +425,7 @@ class AiDailyIngestion
         string $userToken,
         int &$aiCallsUsed,
         int $aiCallLimit,
+        bool $missingOnly = false,
     ) {
         $dataType = substr($period['from'], 0, 10) === $now->toDateString() ? 'todate' : 'oneday';
         $rows = collect();
@@ -368,6 +434,12 @@ class AiDailyIngestion
         $uIds = $channelOffset <= 0 && $channelLimit >= count($configuredUIds)
             ? $configuredUIds
             : $this->eligibleChannelUIds($period, $channelLimit, $channelOffset);
+        if ($missingOnly) {
+            $uIds = array_values(array_filter(
+                $uIds,
+                fn (int $uId): bool => ! $this->validChannelRow($uId, $period, $dataType, $userToken),
+            ));
+        }
         $batchSize = $channelBatchSize > 0 ? $channelBatchSize : max(1, count($uIds));
         $batches = array_chunk($uIds, $batchSize);
 

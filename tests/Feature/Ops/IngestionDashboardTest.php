@@ -801,7 +801,7 @@ class IngestionDashboardTest extends TestCase
         $this->assertSame(0, $exitCode);
         $this->assertStringContainsString('scheduler=enabled', $output);
         $this->assertStringContainsString('command_missing=0', $output);
-        $this->assertStringContainsString('command_ready=44', $output);
+        $this->assertStringContainsString('command_ready=45', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_statics.php -> youtube:channels:stats', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_live.php -> youtube:live:poll', $output);
         $this->assertStringContainsString('active command:ready /usr/bin/php /home/urtube/maint/get_live_tvbs.php -> youtube:tvbs:live:poll', $output);
