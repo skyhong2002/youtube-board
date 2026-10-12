@@ -125,3 +125,39 @@ Rollback: restore the privately backed-up pre-release compose via Dokploy and
 redeploy image `sha256:2a537598c86fbe3c351cab4b9b64e17eca911a0d401872e1becd36a5427c0c6c`.
 Keep `/var/lib/youtube-board-ts/crawler-logs` intact. That prior image retains
 the X-Service-Token cache fix but only logs crawlers to stdout.
+
+## Verified identity release — 2026-10-12 18:30–18:34 UTC
+
+Commit `7eb48f4` is deployed as pinned image
+`sha256:5b7d9171d9633c132766c65abd934c791787693a72b7f016bcd1408097dedadd`.
+Three backend source files changed; trusted-ingress source hashes and unchanged
+frontend layers/runtime configuration were checked in the built image. Dokploy
+rollout completed and the new web task was healthy. No schema or writer changes.
+
+Independent Codex and actual Opus 5.5 reviews completed. The mapped-IPv4 PTR issue
+identified by Opus was corrected; tests assert dotted IPv4 resolver input. Trust
+boundary tests include forged XFF/CF headers, and a pending-DNS shutdown test proves
+that the unverified record reaches persistent storage before close. API typecheck
+and 30 focused crawler/ingress/cache tests passed (the new shutdown test and
+changed verifier tests were rerun after review).
+
+The same-image isolated canary passed all 17 sitemap children and persistence/
+separate-container lock checks, with peak memory 461,295,616 bytes. The 50 public
+checks passed again: sitemap GET/HEAD/lastmod, OpenAPI 115 paths, anonymous public
+API cache headers, credential/RSC private cache headers, invalid-query no-store,
+health, and private `/my`. Homepage retained hash CSP and shareable STALE policy.
+
+At 18:34:38 UTC, all 38 new retained discovery probes had the custom verifier agent
+and `verified:false`. There were zero verified Googlebot child-sitemap records.
+Historical missing `verified` fields remain unverified. This is not evidence that
+GSC accepted the sitemap; cache hits and earlier requests need separate evidence.
+
+Receipts are the ignored `crawler-verified-image-proof.json`,
+`canary-crawler-verified-7eb48f4.json`, `crawler-verified-public-7eb48f4.json`, and
+`crawler-verified-request-summary.json`. Only this release's temporary build
+contexts were removed; persisted logs and images remain.
+
+Rollback: restore the privately saved pre-release compose and deploy
+`sha256:93b364265df858fd019cbf54c25456b72b782b23551670c1668a16e3d7c849d0`.
+Keep the crawler-log mount and files; older code omits `verified`, which the
+summarizer treats as false.
