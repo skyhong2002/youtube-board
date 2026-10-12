@@ -16,6 +16,7 @@ const COLUMNS: Array<{ label: string; links: FooterLink[] }> = [
     { href: '/observe/opt-out', label: '停用網站分析' },
   ] },
   { label: '開發與來源', links: [
+    { href: '/api', label: 'API 文件與狀態' },
     { href: 'https://github.com/skyhong2002/youtube-board/issues', label: '問題回報', external: true },
     { href: 'https://tag.observe.tw', label: '新文易數', external: true },
     { href: 'https://youtube.board.tw', label: '舊版 YouTube Board', external: true },
@@ -53,7 +54,7 @@ export default function SiteFooter() {
     <footer className="mt-14 text-sm text-zinc-600 dark:text-zinc-400">
       <section aria-label="資料來源與計算方式" className="border-t border-zinc-200 pt-6 text-xs leading-6 dark:border-zinc-800">
         <h2 className="mb-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">資料來源與計算方式</h2>
-        <p>影片、頻道與直播觀測來自 YouTube；共同標籤詞彙來自 <a className="underline underline-offset-4" href="https://tag.observe.tw">新文易數 tag.observe.tw</a>。標籤保留來源、版本與比對依據。</p>
+        <p>影片、頻道與直播觀測來自 YouTube；共同標籤詞彙的標籤來源：新文易數（tag.observe.tw），保留來源、版本與比對依據。</p>
         <p>影片數、觀看數與直播同時在線人數分別計算，不代表 YouTube 全站流量或因果關係。更新時間與資料涵蓋範圍以各報表標示為準。</p>
       </section>
 

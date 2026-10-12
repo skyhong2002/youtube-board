@@ -32,6 +32,9 @@ const config: NextConfig = {
         .split(",")
         .map((value) => value.trim())
         .filter(Boolean),
+    // /api and /api/status read the generated ../docs/api.md at prerender and ISR
+    // regeneration (lib/api-docs-source.ts); fs reads are not traced, so package it explicitly.
+    outputFileTracingIncludes: { "/api": ["../docs/api.md"], "/api/status": ["../docs/api.md"] },
     poweredByHeader: false,
     // ISR pages and public data reads stay in a bounded in-memory LRU; the runtime
     // filesystem is read-only, so nothing is flushed to disk.

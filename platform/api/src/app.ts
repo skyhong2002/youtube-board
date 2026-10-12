@@ -34,7 +34,7 @@ import { createReader, DataSourceUnavailable, DataQueryFailed, type Reader } fro
 import { reports } from './reports/service.js';
 import {registerPublicApiPolicy,type PublicApiPolicyOptions} from './public-api/rate-limit.js';
 import {registerApiMetadata} from './public-api/metadata.js';
-import {createApiStatus} from './public-api/status.js';
+import {createApiStatus,statusRepresentation} from './public-api/status.js';
 import { addVocabularyQualityNotice } from './reports/vocabulary-quality.js';
 import { vocabulary, videoTagEvidence } from './reports/vocabulary.js';
 import { BadQuery, NotFound, mergeTagId, positiveId, videoId, type Query } from './reports/query.js';
@@ -69,8 +69,10 @@ export function buildApp(options: AppOptions = {}) {
         const path=request.url.split('?')[0];
         if(path!=='/api/status'||!['GET','HEAD'].includes(request.method))return;
         reply.header('Vary','Accept, RSC').header('Cache-Control','no-store');
-        const accept=request.headers.accept??'';
-        if(request.headers.rsc!==undefined||accept.includes('text/html')&&!accept.includes('application/json'))return;
+        if(request.headers.rsc!==undefined)return;
+        const representation=statusRepresentation(request.headers.accept);
+        if(representation==='html')return;
+        if(representation===null){reply.code(406);return request.method==='HEAD'?reply.send():reply.send({error:'No acceptable API status representation.'});}
         const result=await publicStatus();reply.code(result.statusCode).type('application/json; charset=utf-8');
         if(request.method==='HEAD')return reply.header('Content-Length',Buffer.byteLength(JSON.stringify(result.body))).send();
         return reply.send(result.body);

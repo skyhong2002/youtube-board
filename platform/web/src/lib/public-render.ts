@@ -18,8 +18,8 @@ export function withoutTransportParams(search: Search): Search {
     return Object.fromEntries(Object.entries(search).filter(([key]) => !transport.has(key)));
 }
 /** X-Robots-Tag for any real query variant. Pages that ignore the query (home, event
- * detail) render their canonical metadata, so the header is what keeps them out of the
- * index; transport params alone (`_rsc`) do not count. */
+ * detail, /api) render their canonical metadata, so the header is what keeps them out
+ * of the index; transport params alone (`_rsc`) do not count. */
 export function queryVariantRobots(url: URL): string | null {
     return [...url.searchParams.keys()].some((key) => !transport.has(key)) ? "noindex, follow" : null;
 }
@@ -36,6 +36,10 @@ export function publicRenderDecision(url: URL, method = "GET"): RenderDecision {
         ({ kind: "render", target, eligible: shareable ? route : null }) as const;
     // Home has no query semantics; the ISR render ignores any query string.
     if (pathname === "/") return render("home", "home");
+    // API docs are build-time content; only the bare page is shareable. The status page
+    // reports live availability and is never shared.
+    if (pathname === "/api") return render(null, "api");
+    if (pathname === "/api/status") return render(null, null);
     // `/events?…` with a real query stays on the original dynamic page.
     if (pathname === "/events") return filtered ? render(null, null) : render("events", "events");
     // Event detail reads only its id; a query never changes it, so the same ISR page serves

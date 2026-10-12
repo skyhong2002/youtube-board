@@ -13,6 +13,7 @@ export const NAV_GROUPS: Array<{ label: string; links: NavLink[] }> = [
   { label: '看來源', links: [
     { href: '/channels', label: '頻道來源', short: '頻道' },
     { href: '/groups', label: '頻道群組', short: '群組' },
+    { href: '/api', label: 'API 文件與狀態', short: 'API' },
   ] },
   { label: '看寫法', links: [{ href: '/compare/titles', label: '影片標題用語比較', short: '寫法' }] },
 ];

@@ -713,7 +713,7 @@ Report is implemented. Only its data/meta envelope is specified in this catalog;
 
 | Parameter | In | Schema / bounds | Description |
 | --- | --- | --- | --- |
-| `id` (required) | path | {"type":"string"} | Local positive numeric record ID. |
+| `id` (required) | path | {"type":"string"} | Canonical editorial event UUID. |
 
 ### /api/v1/channels/{id}/prompt
 

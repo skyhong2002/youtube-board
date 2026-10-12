@@ -6,7 +6,7 @@ import type {VideoRow} from '../../../api/src/contracts';
 import robots from '../app/robots';
 import {resolveRoute} from './routes';
 import {SITE_ORIGIN} from './site';
-import {absoluteUrl,breadcrumbJsonLd,eventBreadcrumbs,eventMetadata,filteredEventsMetadata,filteredMetadata,filteredReportMetadata,homeJsonLd,homeMetadata,isoDuration,pageMetadata,privateMetadata,reportBreadcrumbs,reportCanonicalPath,reportMetadata,reportTitle,serializeJsonLd,videoJsonLd} from './seo';
+import {absoluteUrl,apiDocsMetadata,apiStatusMetadata,breadcrumbJsonLd,eventBreadcrumbs,eventMetadata,filteredEventsMetadata,filteredMetadata,filteredReportMetadata,homeJsonLd,homeMetadata,isoDuration,pageMetadata,privateMetadata,reportBreadcrumbs,reportCanonicalPath,reportMetadata,reportTitle,serializeJsonLd,videoJsonLd} from './seo';
 
 const source=(file:string)=>{for(const root of [process.cwd(),join(process.cwd(),'web'),join(process.cwd(),'platform/web')]){const path=join(root,file);if(existsSync(path))return readFileSync(path,'utf8');}throw new Error('missing '+file);};
 const route=(path:string)=>{const segments=path.slice(1).split('/').map(decodeURIComponent),value=resolveRoute(segments);assert.ok(value,path);return {route:value,segments};};
@@ -38,6 +38,11 @@ test('private pages are noindex; query variants are noindex and canonical to the
   assert.match(source(file),/index:false|privateMetadata\(/,file);
  assert.match(source('src/app/events/page.tsx'),/metadata=filteredEventsMetadata\(\)/);
  assert.match(source('src/app/render-filtered/report/[...segments]/page.tsx'),/filteredReportMetadata\(route, segments\)/);
+});
+test('/api and /api/status each carry their own canonical; status stays out of the index',()=>{
+ const api=apiDocsMetadata();assert.equal(api.alternates?.canonical,'https://youtube.observe.tw/api');assert.equal(api.robots,undefined);
+ const status=apiStatusMetadata();assert.equal(status.alternates?.canonical,'https://youtube.observe.tw/api/status');assert.deepEqual(status.robots,{index:false,follow:true});
+ assert.match(source('src/app/api/page.tsx'),/metadata = apiDocsMetadata\(\)/);assert.match(source('src/app/api/status/page.tsx'),/metadata = apiStatusMetadata\(\)/);
 });
 test('report titles are descriptive and unique per public path; names come only from subject data',()=>{
  const paths=['/videos','/channels','/channels/12','/channels/12/videos','/channels/12/comments','/channels/12/ai/days/2026-10-01','/videos/dQw4w9WgXcQ','/videos/dQw4w9WgXcQ/analytics','/keywords','/keywords/%E4%BA%A4%E9%80%9A/videos','/keywords/%E4%BA%A4%E9%80%9A/cloud','/tags','/tags/3/videos','/tags/3/channels','/tags/compare','/live/current','/live/hours','/live/days/2026-10-01','/live/walls/news','/ai/days','/ai/days/2026-10-01','/ai/hours','/ai/events/77','/ai/events/77/wall','/groups','/mayor'];

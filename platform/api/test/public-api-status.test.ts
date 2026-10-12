@@ -1,9 +1,17 @@
 import Fastify from 'fastify';
 import {it,expect,vi,afterEach} from 'vitest';
-import {createApiStatus,registerApiStatus} from '../src/public-api/status.js';
+import {createApiStatus,registerApiStatus,statusRepresentation} from '../src/public-api/status.js';
 import {PUBLIC_ENDPOINTS} from '../src/public-api/catalog.js';
 import {responseValidator} from '../../tools/check-openapi.js';
 afterEach(()=>vi.useRealTimers());
+it('negotiates status quality and specificity without overriding explicit exclusions',()=>{
+ for(const [accept,expected]of [
+  [undefined,'json'],['*/*','json'],['application/json','json'],['text/html','html'],
+  ['application/json;q=0,text/html;q=1','html'],['application/json;q=0,*/*;q=1','html'],
+  ['text/html;q=0,*/*;q=1','json'],['text/html,application/json;q=0.8','html'],
+  ['application/json;q=0,text/html;q=0',null],['image/png',null],
+ ]as const)expect(statusRepresentation(accept)).toBe(expected);
+});
 it('availability has abstract public-only services and its own no-store 200/503 contract',async()=>{
  for(const succeeds of [true,false]){const check=vi.fn(async()=>{if(!succeeds)throw new Error('private internal hostname and credentials');}),app=Fastify();registerApiStatus(app,{check,clock:()=>new Date('2026-10-11T10:00:00Z')});try{const response=await app.inject('/api/status');expect(response.statusCode).toBe(succeeds?200:503);expect(response.headers['cache-control']).toBe('no-store');expect(response.json()).toMatchObject({status:succeeds?'ok':'degraded',scope:'api_availability',services:[{id:'reports',status:succeeds?'ok':'unavailable'}]});expect(responseValidator(PUBLIC_ENDPOINTS.find(e=>e.path==='/api/status')!)(response.json())).toBe(true);expect(response.body).not.toMatch(/credentials|hostname|\/ops\/|\/auth\/|urt_video|grant/i);expect(check).toHaveBeenCalledTimes(1);}finally{await app.close();}}
 });

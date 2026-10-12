@@ -56,6 +56,9 @@ export const config = {
     matcher: [
         "/((?!(?:api|auth|feeds|media|brand)(?:/|$)|_next/(?:static|image)(?:/|$)|(?:favicon\\.ico|manifest\\.webmanifest|robots\\.txt|sitemap\\.xml)$).*)",
         "/_next/image",
+        // Exact HTML pages only; /api/v1/*, /api/ops/* and /auth stay outside the proxy.
+        "/api",
+        "/api/status",
         "/boards",
         "/boards/view",
         "/videos/:id/analytics",

@@ -9,10 +9,10 @@ export const THEME_SCRIPT = `(function(){try{var m=matchMedia('(prefers-color-sc
  * Any incoming copy is deleted; the gateway must still check status, Set-Cookie,
  * RSC/prefetch requests and private markers before storing a response. */
 export const PUBLIC_RENDER_HEADER = 'x-youtube-board-public-render';
-export const PUBLIC_RENDER_ROUTES = ['home', 'events', 'event', 'report'] as const;
+export const PUBLIC_RENDER_ROUTES = ['home', 'events', 'event', 'report', 'api'] as const;
 export type PublicRenderRoute = (typeof PUBLIC_RENDER_ROUTES)[number];
 /** Next ISR period per eligible route; the gateway owns the final shared TTL. */
-export const PUBLIC_RENDER_REVALIDATE_SECONDS: Record<PublicRenderRoute, number> = { home: 60, events: 60, event: 60, report: 60 };
+export const PUBLIC_RENDER_REVALIDATE_SECONDS: Record<PublicRenderRoute, number> = { home: 60, events: 60, event: 60, report: 60, api: 3600 };
 /** Next client-router cache-buster. It never selects content: it must not change the
  * route tree or reach the API, and a request carrying it is never shared-cached. */
 export const TRANSPORT_QUERY_PARAMS = ['_rsc'] as const;

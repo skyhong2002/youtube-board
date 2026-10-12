@@ -11,8 +11,8 @@ const decide=(path:string,method?:string)=>publicRenderDecision(new URL(path,'ht
 const source=(file:string)=>{for(const root of [process.cwd(),join(process.cwd(),'web'),join(process.cwd(),'platform/web')]){const path=join(root,file);if(existsSync(path))return readFileSync(path,'utf8');}throw new Error('missing '+file);};
 test('every real query variant gets X-Robots-Tag noindex, including pages that ignore the query',()=>{
  const robots=(path:string)=>queryVariantRobots(new URL(path,'http://local'));
- for(const path of ['/?a=1','/events/9b2e3c1a-0000-4000-8000-000000000001?page=2','/videos?q=a','/events?page=2','/channels?sort=x&_rsc=abc'])assert.equal(robots(path),'noindex, follow',path);
- for(const path of ['/','/videos','/channels?_rsc=abc'])assert.equal(robots(path),null,path);
+ for(const path of ['/?a=1','/events/9b2e3c1a-0000-4000-8000-000000000001?page=2','/api?x=1','/api/status?x=1','/videos?q=a','/events?page=2','/channels?sort=x&_rsc=abc'])assert.equal(robots(path),'noindex, follow',path);
+ for(const path of ['/','/videos','/api','/channels?_rsc=abc'])assert.equal(robots(path),null,path);
  assert.match(source('src/proxy.ts'),/queryVariantRobots\(request\.nextUrl\)[\s\S]*X-Robots-Tag/);
 });
 test('route decisions: canonical eligible, every query variant dynamic, internals blocked',()=>{
@@ -27,7 +27,11 @@ test('route decisions: canonical eligible, every query variant dynamic, internal
  for(const path of ['/videos/','/keywords/%E4%ZZ/videos','/arbitrary','/feeds/videos.xml','/boards','/my/saved','/compare/titles'])assert.equal((decide(path) as {eligible?:unknown}).eligible??null,null,path);
  for(const path of ['/render-isr','/render-isr/home/x','/RENDER-FILTERED/report/videos','/render%2Dfiltered/report/videos'])assert.equal(decide(path).kind,'blocked',path);
  assert.equal(isInternalRenderPath('/render-isr-extra'),false);assert.equal(isInternalRenderPath('/rendering'),false);
- assert.deepEqual(PUBLIC_RENDER_REVALIDATE_SECONDS,{home:60,events:60,event:60,report:60});
+ assert.deepEqual(PUBLIC_RENDER_REVALIDATE_SECONDS,{home:60,events:60,event:60,report:60,api:3600});
+ // /api has no internal rewrite (target null); only the bare page is shared as `api`.
+ assert.deepEqual(decide('/api'),{kind:'render',target:null,eligible:'api'});
+ assert.deepEqual(decide('/api?x=1'),{kind:'render',target:null,eligible:null});
+ assert.deepEqual(decide('/api/status'),{kind:'render',target:null,eligible:null});
 });
 /** Replays next.config beforeFiles rewrites with the pinned Next router helpers
  * (filesystem.js getPathMatch options, matchHas, prepareDestination) on the raw request

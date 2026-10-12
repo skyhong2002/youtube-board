@@ -37,7 +37,7 @@ describe('atomic prepared sitemap families',()=>{
   expect(f.queries.every(q=>!q.sql.includes('OFFSET')&&!q.sql.includes('MAX('))).toBe(true);
   for(const q of f.queries.filter(q=>!q.sql.includes('AS ceiling')))expect(q.params.at(-1)).toBe(1);
   expect(f.queries.find(q=>q.sql.includes('c.u_id>')&&q.params[0]==='1')?.params).toEqual(['1','60000001',1]);
-  expect(await maps.read('static','1')).not.toContain('https://youtube.observe.tw/api<');
+  expect(await maps.read('static','1')).toContain('https://youtube.observe.tw/api<');
  });
  it('splits exactly 50000+1 accepted URLs into two nonempty pages, independent of PK gaps',async()=>{
   const f=fixture({videos:Array.from({length:50001},(_,i)=>video(i+1))});const maps=createSitemaps(f.reader,{now:()=>NOW,pauseMs:0});await maps.prepare();
