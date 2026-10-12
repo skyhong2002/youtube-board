@@ -57,3 +57,11 @@ it('report integration shares actual reader work only within one report instance
  await other.videos({keyword:'AI'});expect(reads).toBe(2);
  await first.videos({keyword:'AI',days:'1'});expect(reads).toBe(3);
 });
+
+it('counts repeated acyclic branches against budget while rejecting cyclic DTOs',async()=>{
+ const cache=keywordVideoCache<unknown>({maxResultBytes:5000});let calls=0;
+ const leaf={value:'x'.repeat(100)};let root:unknown=leaf;for(let i=0;i<8;i++)root={a:root,b:root};
+ await cache({keyword:'dag'},undefined,async()=>{calls++;return root;});await cache({keyword:'dag'},undefined,async()=>{calls++;return root;});expect(calls).toBe(2);
+ const cycle:any={};cycle.self=cycle;await cache({keyword:'cycle'},undefined,async()=>{calls++;return cycle;});await cache({keyword:'cycle'},undefined,async()=>{calls++;return cycle;});expect(calls).toBe(4);
+ const result=await cache({keyword:'simple'},undefined,async()=>({a:leaf,b:leaf}));expect(result).toEqual({a:leaf,b:leaf});
+});

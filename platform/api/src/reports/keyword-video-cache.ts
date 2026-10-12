@@ -67,18 +67,19 @@ export function keywordVideoCache<T>(options:Options<T>={}){
 }
 /** Avoid constructing an unbounded second JSON copy of an oversized DTO. */
 function boundedJson(value:unknown,maxBytes:number):string|null{
-  let estimate=0;const stack:unknown[]=[value],seen=new Set<object>();
+  let estimate=0;const stack:Array<{value?:unknown;leave?:object}>=[{value}],ancestors=new Set<object>();
   while(stack.length){
-    const current=stack.pop();
+    const entry=stack.pop()!;if(entry.leave){ancestors.delete(entry.leave);continue;}
+    const current=entry.value;
     if(current===null)estimate+=4;
     else if(typeof current==='string')estimate+=Buffer.byteLength(current)+2;
     else if(typeof current==='number')estimate+=32;
     else if(typeof current==='boolean')estimate+=5;
     else if(typeof current==='object'){
-      if(seen.has(current))return null;seen.add(current);estimate+=2;
+      if(ancestors.has(current))return null;ancestors.add(current);stack.push({leave:current});estimate+=2;
       const keys=Object.keys(current);estimate+=keys.length;
       if(keys.length>maxBytes/2)return null;
-      for(const key of keys){if(!Array.isArray(current))estimate+=Buffer.byteLength(key)+3;stack.push((current as Record<string,unknown>)[key]);}
+      for(const key of keys){if(!Array.isArray(current))estimate+=Buffer.byteLength(key)+3;stack.push({value:(current as Record<string,unknown>)[key]});}
     }else if(current!==undefined)return null;
     if(estimate>maxBytes||stack.length>maxBytes/2)return null;
   }

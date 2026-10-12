@@ -17,3 +17,10 @@ it('does not retain failed or degraded source sections',async()=>{
  await expect(cache(async()=>{throw Error('upstream unavailable');})).rejects.toThrow('upstream unavailable');
  expect((await cache(async()=>sample())).exploration.keywords.status).toBe('synchronized');
 });
+
+it('retains real home shape with shared window metadata rather than mistaking aliases for cycles',async()=>{
+ const cache=homeResultCache();let calls=0;const metadata={terms:10};
+ const load=async()=>{calls++;const value=sample();value.exploration.keywords.exclusions=metadata as never;value.exploration.keywordToday.exclusions=metadata as never;return value;};
+ const first=await cache(load);await cache(load);expect(calls).toBe(1);
+ expect(first.exploration.keywords.exclusions).toEqual(metadata);expect(first.exploration.keywords.exclusions).not.toBe(first.exploration.keywordToday.exclusions);
+});
