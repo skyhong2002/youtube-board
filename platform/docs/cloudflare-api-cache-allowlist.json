@@ -1,0 +1,188 @@
+{
+  "generatedBy": "tools/gen-api-cache-allowlist.ts; do not edit",
+  "host": "youtube.observe.tw",
+  "method": "GET",
+  "query": "must be empty",
+  "excludedRequestHeaders": [
+    "cookie",
+    "authorization",
+    "x-api-key",
+    "x-service-token",
+    "rsc"
+  ],
+  "originPolicy": "Respect Cache-Control. Never override private/no-store/Set-Cookie, errors or non-JSON. Do not force TTL.",
+  "exactPaths": [
+    {
+      "path": "/api/v1",
+      "sMaxAge": 3600
+    },
+    {
+      "path": "/api/v1/ai/aspects",
+      "sMaxAge": 60
+    },
+    {
+      "path": "/api/v1/ai/days",
+      "sMaxAge": 60
+    },
+    {
+      "path": "/api/v1/ai/days/prompt",
+      "sMaxAge": 60
+    },
+    {
+      "path": "/api/v1/ai/hours",
+      "sMaxAge": 60
+    },
+    {
+      "path": "/api/v1/ai/periods",
+      "sMaxAge": 60
+    },
+    {
+      "path": "/api/v1/channels",
+      "sMaxAge": 60
+    },
+    {
+      "path": "/api/v1/editorial/events",
+      "sMaxAge": 60
+    },
+    {
+      "path": "/api/v1/groups",
+      "sMaxAge": 60
+    },
+    {
+      "path": "/api/v1/home",
+      "sMaxAge": 60
+    },
+    {
+      "path": "/api/v1/keywords",
+      "sMaxAge": 300
+    },
+    {
+      "path": "/api/v1/live/channels",
+      "sMaxAge": 30
+    },
+    {
+      "path": "/api/v1/live/continuous",
+      "sMaxAge": 30
+    },
+    {
+      "path": "/api/v1/live/current",
+      "sMaxAge": 30
+    },
+    {
+      "path": "/api/v1/live/days",
+      "sMaxAge": 30
+    },
+    {
+      "path": "/api/v1/live/hours",
+      "sMaxAge": 30
+    },
+    {
+      "path": "/api/v1/live/periods",
+      "sMaxAge": 30
+    },
+    {
+      "path": "/api/v1/live/tags",
+      "sMaxAge": 30
+    },
+    {
+      "path": "/api/v1/live/trends/daily",
+      "sMaxAge": 30
+    },
+    {
+      "path": "/api/v1/mayor",
+      "sMaxAge": 60
+    },
+    {
+      "path": "/api/v1/openapi.json",
+      "sMaxAge": 3600
+    },
+    {
+      "path": "/api/v1/tags",
+      "sMaxAge": 60
+    },
+    {
+      "path": "/api/v1/tags/cloud",
+      "sMaxAge": 60
+    },
+    {
+      "path": "/api/v1/tags/comments",
+      "sMaxAge": 60
+    },
+    {
+      "path": "/api/v1/tags/compare",
+      "sMaxAge": 60
+    },
+    {
+      "path": "/api/v1/tags/days",
+      "sMaxAge": 60
+    },
+    {
+      "path": "/api/v1/tags/live/videos",
+      "sMaxAge": 30
+    },
+    {
+      "path": "/api/v1/tags/trends",
+      "sMaxAge": 60
+    },
+    {
+      "path": "/api/v1/tags/videos",
+      "sMaxAge": 60
+    },
+    {
+      "path": "/api/v1/videos",
+      "sMaxAge": 60
+    },
+    {
+      "path": "/api/v1/vocabulary",
+      "sMaxAge": 300
+    }
+  ],
+  "parameterizedExcluded": [
+    "/api/v1/ai/days/:date/:condition/prompt",
+    "/api/v1/ai/days/:date/prompt",
+    "/api/v1/ai/days/:id/events",
+    "/api/v1/ai/days/:id/events/history",
+    "/api/v1/ai/events/:id",
+    "/api/v1/ai/events/:id/history",
+    "/api/v1/ai/events/:id/people",
+    "/api/v1/ai/events/:id/wall",
+    "/api/v1/channels/:id",
+    "/api/v1/channels/:id/ai",
+    "/api/v1/channels/:id/ai/days",
+    "/api/v1/channels/:id/cloud",
+    "/api/v1/channels/:id/comments",
+    "/api/v1/channels/:id/people",
+    "/api/v1/channels/:id/prompt",
+    "/api/v1/channels/:id/trends",
+    "/api/v1/channels/:id/videos",
+    "/api/v1/comments/authors/:key",
+    "/api/v1/editorial/events/:id",
+    "/api/v1/filter-options/:kind",
+    "/api/v1/groups/:name",
+    "/api/v1/groups/:name/live",
+    "/api/v1/groups/:name/ranking",
+    "/api/v1/groups/:name/trends",
+    "/api/v1/keywords/:keyword/cloud",
+    "/api/v1/keywords/:keyword/days",
+    "/api/v1/keywords/:keyword/groups/trends",
+    "/api/v1/keywords/:keyword/live/trends",
+    "/api/v1/keywords/:keyword/videos",
+    "/api/v1/live/days/:date",
+    "/api/v1/live/groups/:group/hours",
+    "/api/v1/live/videos/:id/trend",
+    "/api/v1/live/walls/:variant",
+    "/api/v1/mayor/cities/:city",
+    "/api/v1/mayor/cities/:city/people/:person",
+    "/api/v1/mayor/cities/:city/people/:person/days/:date",
+    "/api/v1/tags/:id/channels",
+    "/api/v1/tags/:id/cloud",
+    "/api/v1/tags/:id/comments",
+    "/api/v1/tags/:id/days",
+    "/api/v1/tags/:id/live/videos",
+    "/api/v1/tags/:id/trends",
+    "/api/v1/tags/:id/videos",
+    "/api/v1/videos/:id",
+    "/api/v1/videos/:id/analytics",
+    "/api/v1/videos/:id/tags"
+  ]
+}

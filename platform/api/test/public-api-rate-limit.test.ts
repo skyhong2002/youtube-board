@@ -58,7 +58,7 @@ describe('anonymous public API release policy',()=>{
    expect((await app.inject('/api/v1/failure')).json()).toEqual({error:'Invalid query.',code:'BAD_QUERY'});
    expect((await app.inject('/api/failure.php')).json()).toEqual({error:{code:'BAD_QUERY',message:'Invalid query.'}});
    const publicResponse=await app.inject('/api/v1/videos');expect(publicResponse.headers['cache-control']).toContain('s-maxage=60');
-   for(const headers of [{authorization:'Bearer test'},{cookie:'session=test'},{rsc:'1'}])expect((await app.inject({url:'/api/v1/videos',headers})).headers['cache-control']).toBe('private, no-store');
+   for(const headers of [{authorization:'Bearer test'},{cookie:'session=test'},{'x-api-key':'test'},{'x-service-token':'test'},{'x-service-token':''},{rsc:'1'}])expect((await app.inject({url:'/api/v1/videos',headers})).headers['cache-control']).toBe('private, no-store');
   }finally{await app.close();}
  });
  it('offers read-only noncredentialed CORS and leaves private namespaces outside the policy',async()=>{

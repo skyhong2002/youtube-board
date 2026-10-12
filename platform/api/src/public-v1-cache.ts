@@ -20,13 +20,13 @@ export function publicV1Ttl(path:string):number{
  * Returns false outside v1; legacy/private routes retain their existing policy. */
 export function applyPublicV1Cache(request:FastifyRequest,reply:FastifyReply):boolean{
  const path=publicV1Path(request);if(!V1.test(path))return false;
- // The full API policy owns preflight caching; this read-only hook does not.
- if(request.method==='OPTIONS'&&reply.statusCode<400)return true;
+ const privateResponse=partialReplies.has(reply)||['x-api-key','x-service-token','authorization','cookie','rsc'].some(name=>request.headers[name]!==undefined)||reply.hasHeader('set-cookie');
+ // Anonymous successful preflights keep their policy; credentialed ones never share.
+ if(request.method==='OPTIONS'&&reply.statusCode<400&&!privateResponse)return true;
  const vary=new Map<string,string>();
  for(const token of String(reply.getHeader('Vary')??'').split(',').map(v=>v.trim()).filter(Boolean))vary.set(token.toLowerCase(),token);
- for(const name of ['Accept','X-Api-Key','Authorization','Cookie','RSC'])if(!vary.has(name.toLowerCase()))vary.set(name.toLowerCase(),name);
+ for(const name of ['Accept','X-Api-Key','X-Service-Token','Authorization','Cookie','RSC'])if(!vary.has(name.toLowerCase()))vary.set(name.toLowerCase(),name);
  reply.header('Vary',vary.has('*')?'*':[...vary.values()].join(', '));
- const privateResponse=partialReplies.has(reply)||['x-api-key','authorization','cookie','rsc'].some(name=>request.headers[name]!==undefined)||reply.hasHeader('set-cookie');
  const json=/^application\/json(?:\s*;|$)/i.test(String(reply.getHeader('content-type')??''));
  const ttl=publicV1Ttl(path),shareable=['GET','HEAD'].includes(request.method)&&reply.statusCode>=200&&reply.statusCode<300&&json&&ttl>0&&!vary.has('*');
  reply.header('Cache-Control',privateResponse?'private, no-store':shareable?`public, max-age=0, s-maxage=${ttl}, stale-while-revalidate=${ttl*2}`:'no-store');

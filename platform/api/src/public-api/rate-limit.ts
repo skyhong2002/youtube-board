@@ -36,14 +36,14 @@ export function registerPublicApiPolicy(app:FastifyInstance,options:PublicApiPol
   reply.header('Access-Control-Allow-Origin','*').header('Access-Control-Expose-Headers','x-ratelimit-limit, x-ratelimit-remaining, x-ratelimit-reset, Retry-After');
   if(request.method==='OPTIONS')return reply.header('Access-Control-Allow-Methods','GET, HEAD, OPTIONS').header('Access-Control-Allow-Headers','x-api-key, Accept').header('Access-Control-Max-Age','600').header('Cache-Control','public, max-age=600').code(204).send();
   const at=clock(),ip=ingressClientIp(request),internal=loopback(request),raw=request.headers['x-api-key'];
-  const privateResponse=raw!==undefined||request.headers.authorization!==undefined||request.headers.cookie!==undefined;
+  const privateResponse=raw!==undefined||request.headers['x-service-token']!==undefined||request.headers.authorization!==undefined||request.headers.cookie!==undefined;
   const decision=take(ip,internal,+at);state.set(request,{decision,private:privateResponse});
   if(!decision.allowed)return reply.header('Retry-After',String(Math.max(1,decision.reset-Math.floor(+at/1000)))).code(429).send({error:'API rate limit exceeded',code:'RATE_LIMITED'});
  });
  app.addHook('onSend',async(request,reply,payload)=>{
   const path=publicPath(request);if(!isPublicApiPath(path))return payload;
   const vary=new Set(String(reply.getHeader('Vary')??'').split(',').map(v=>v.trim()).filter(Boolean));
-  for(const name of ['X-Api-Key','Authorization','Cookie'])vary.add(name);
+  for(const name of ['X-Api-Key','X-Service-Token','Authorization','Cookie'])vary.add(name);
   reply.header('Vary',[...vary].join(', '));
   const current=state.get(request);
   if(current){const d=current.decision;reply.header('x-ratelimit-limit',String(d.limit)).header('x-ratelimit-remaining',String(d.remaining)).header('x-ratelimit-reset',String(d.reset));}
