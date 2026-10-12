@@ -33,3 +33,55 @@ Only exact `yt3.ggpht.com` and `yt3.googleusercontent.com` HTTPS sources are eli
 A crash can leave `.refresh.lock`; stop and verify no refresh worker remains before removing a stale lock. Never remove a lock merely because it is old. Back up manifest, channel files and sweep cursor together. Restore to a separate local volume and verify revision hashes and public route responses before attaching it. Each channel retains at most16 immutable revisions (maximum512KiB each). When this limit is reached, the publisher returns `CACHE_REVISION_LIMIT` and retains the current good revision. Before an operator removes any older revision, stop refresh writers, back up the volume, and identify the current revision from the manifest; never remove that active revision. Old URLs may be cached for one year, so prefer increasing the reviewed storage allowance or archiving over early deletion. Neither HTTP requests nor the refresh command silently garbage-collect old revisions.
 
 Video optimization accepts only canonical thumbnail URLs, one URL parameter, allowed widths and quality75. Next image redirects are disabled, local/private fetches and SVG are disabled, upstream response bodies are capped at2MiB, and loading failures render a local placeholder. Avatar cache dates are never shown as source-data update times.
+
+## Precomputed avatar WebP sizes
+
+The original192px PNG URL, revision hash and v1 manifest remain unchanged.
+Writers now also prepare48/96/192px WebP files, at
+`/media/channels/<u_id>/<revision>/<width>.webp`. Each derivative is at most64KiB;
+all three sizes have one-year immutable caching and separate ETags.
+Only those three widths exist. Missing files return404 without encoding,
+downloading or modifying storage during a request. Frontend fallback remains
+the original PNG, then the fixed-size source initial. Existing derivative files
+are never overwritten, including after a codec upgrade; changing encoding at an
+existing immutable URL is forbidden.
+
+For existing **local cache files**, the standalone backfill defaults to dry-run:
+
+```sh
+nice -n 19 ionice -c3 node --import tsx tools/avatar-derivatives.ts --root=/absolute/media/path --limit=100
+nice -n 19 ionice -c3 node --import tsx tools/avatar-derivatives.ts --root=/absolute/media/path --limit=100 --execute
+```
+
+Use `--after-id=<lastProcessedId>` for the next batch. Only current manifest
+revisions are considered. No source API or database is read or written. The CLI
+sets its process niceness to19 and uses the same `.refresh.lock` as the refresh
+worker. Each batch is sequential, at most500 sources/32MiB input/120seconds,
+with200ms pacing by default (`--delay-ms`, minimum100ms). One killable5second
+subprocess uses one libvips thread and96MiB V8 heap; only192×192 PNG input is
+accepted, animation is rejected, and output dimensions/bytes are checked.
+Neither backfill nor refresh deletes old revisions or changes existing PNGs.
+If an existing derivative is malformed, the batch reports failure and preserves
+it for operator investigation; it never silently replaces immutable content.
+Partial derivative publication can be resumed, and manifest pointers change
+only after all derivatives for a new revision have been safely prepared.
+
+
+Crash recovery requires more than clearing the writer lock: immutable publication
+links a fully synced temporary file to its final name, then removes that temporary
+name. A crash between these steps can leave both names pointing to the same inode
+(`nlink=2`); serving and backfill deliberately reject that file. Stop writers and
+verify the exact published filename plus its matching `.UUID.tmp` filename are
+regular files with the same device/inode, expected revision/dimensions and bytes.
+After preserving recovery evidence and obtaining operator approval, remove only
+that verified extra temporary link, never the published PNG/WebP. Verify `nlink=1`
+and the public response before resuming. Do not use wildcard cleanup or automatic
+removal of existing files. Unrelated or unexplained links require investigation.
+
+Backfill's cursor advances past ordinary per-ID failures, which are included in
+`failures`; retain that list. After resolving a failure, rerun starting immediately
+before its ID (`--after-id=<failedId-1> --limit=1`), or repeat from zero (valid
+existing derivatives are skipped). Cancellation/run-budget interruptions leave
+the cursor before the interrupted item. Refresh forwards cancellation into the
+encoder and checks it again before committing the manifest pointer; partial
+unreferenced image files may remain and are not deleted automatically.

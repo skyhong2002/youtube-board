@@ -1,5 +1,7 @@
 import {VideoThumbnail} from '@/components/VideoThumbnail';
 import styles from './home.module.css';
-export default function VideoPicture({videoId,priority=false}:{videoId:string|null;priority?:boolean}){
- return <span className={styles.picture}><VideoThumbnail videoId={videoId} fill priority={priority} sizes="(max-width: 640px) 100vw, 640px"/></span>;
+import {VIDEO_PICTURE_SIZES,type VideoPictureVariant} from './video-picture-sizes';
+export {VIDEO_PICTURE_SIZES,type VideoPictureVariant};
+export default function VideoPicture({videoId,variant,priority=false}:{videoId:string|null;variant:VideoPictureVariant;priority?:boolean}){
+ return <span className={styles.picture}><VideoThumbnail videoId={videoId} fill priority={priority} sizes={VIDEO_PICTURE_SIZES[variant]}/></span>;
 }

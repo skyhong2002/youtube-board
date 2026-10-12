@@ -21,7 +21,12 @@ const config: NextConfig = {
             // Internal render targets chosen by the proxy (see INTERNAL_RENDER_HEADER).
             beforeFiles: internalRenderRewrites,
             afterFiles: process.env.NODE_ENV === "development"
-                ? [{ source: "/media/channels/:id/:revision", destination: "http://127.0.0.1:4100/media/channels/:id/:revision" }]
+                ? [
+                    // Dev only: forward cached avatar PNGs (/:id/:rev.png) and their WebP derivatives
+                    // (/:id/:rev/:width.webp) to the local API; production routes /media at the gateway.
+                    { source: "/media/channels/:id/:revision", destination: "http://127.0.0.1:4100/media/channels/:id/:revision" },
+                    { source: "/media/channels/:id/:revision/:width", destination: "http://127.0.0.1:4100/media/channels/:id/:revision/:width" },
+                ]
                 : [],
             fallback: [],
         };

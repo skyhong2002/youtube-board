@@ -1,10 +1,10 @@
 import {constants} from 'node:fs';
-import {mkdir,open,lstat,realpath,rename,unlink,readdir} from 'node:fs/promises';
+import {mkdir,open,lstat,realpath,rename,unlink,readdir,link} from 'node:fs/promises';
 import {isAbsolute,join,resolve,dirname} from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
-import {channelAvatarUrl,isChannelAssetId,isMediaRevision,type ChannelAvatar} from '../media-assets.js';
+import {channelAvatarUrl,isChannelAssetId,isMediaRevision,type ChannelAvatar,channelAvatarWebpUrl,AVATAR_WEBP_WIDTHS,type AvatarWebpWidth} from '../media-assets.js';
 
-export const MEDIA_LIMITS=Object.freeze({manifestBytes:8*1024*1024,entries:50000,inputBytes:2*1024*1024,outputBytes:512*1024,pixels:16*1024*1024,dimension:4096,runBytes:32*1024*1024,revisions:16});
+export const MEDIA_LIMITS=Object.freeze({manifestBytes:8*1024*1024,entries:50000,inputBytes:2*1024*1024,outputBytes:512*1024,pixels:16*1024*1024,dimension:4096,runBytes:32*1024*1024,revisions:16,webpBytes:64*1024});
 export class MediaCacheError extends Error {constructor(public readonly code:string){super(code);}}
 export interface AvatarEntry {channelId:string;revision:string;cachedAt:string;sourceHash:string;sourceWidth:number;sourceHeight:number;format:'png'}
 export interface AvatarManifest {version:1;entries:Record<string,AvatarEntry>}
@@ -63,9 +63,9 @@ export async function readManifest(root:string):Promise<AvatarManifest|null>{
 export async function writableManifest(root:string):Promise<AvatarManifest>{
  try{return await manifestOrThrow(root);}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')return {version:1,entries:Object.create(null)};throw error;}
 }
-async function atomicWrite(path:string,body:Buffer){
+async function atomicWrite(path:string,body:Buffer,signal?:AbortSignal){
  const temporary=path+'.'+randomUUID()+'.tmp';let handle;
- try{handle=await open(temporary,'wx',0o640);await handle.writeFile(body);await handle.sync();await handle.close();handle=undefined;await rename(temporary,path);await syncDirectory(dirname(path));}
+ try{handle=await open(temporary,'wx',0o640);await handle.writeFile(body);await handle.sync();await handle.close();handle=undefined;signal?.throwIfAborted();await rename(temporary,path);await syncDirectory(dirname(path));}
  finally{await handle?.close();await unlink(temporary).catch(()=>{});}
 }
 export async function withCacheWriter<T>(root:string,work:()=>Promise<T>):Promise<T>{
@@ -81,12 +81,64 @@ export async function readAvatarBytes(root:string,id:number,revision:string):Pro
 }
 function validPublishedPng(bytes:Buffer){return bytes.length>=24&&bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))&&bytes.toString('ascii',12,16)==='IHDR'&&bytes.readUInt32BE(16)===192&&bytes.readUInt32BE(20)===192;}
 /** Caller holds the cache-wide writer lock. Old revisions intentionally remain. */
-export async function publishAvatar(root:string,manifest:AvatarManifest,input:{id:number;channelId:string;sourceUrl:string;png:Buffer;sourceWidth:number;sourceHeight:number;cachedAt:string}):Promise<ChannelAvatar>{
+export async function publishAvatar(root:string,manifest:AvatarManifest,input:{id:number;channelId:string;sourceUrl:string;png:Buffer;sourceWidth:number;sourceHeight:number;cachedAt:string},signal?:AbortSignal):Promise<ChannelAvatar>{
+ signal?.throwIfAborted();
  if(!isChannelAssetId(input.id)||!validChannel(input.channelId)||input.png.length>MEDIA_LIMITS.outputBytes||!validPublishedPng(input.png))fail('INVALID_ASSET');
  root=await checkedRoot(root);const revision=hash(input.png),next:AvatarManifest={version:1,entries:{...manifest.entries,[input.id]:{channelId:input.channelId,revision,cachedAt:input.cachedAt,sourceHash:hash(input.sourceUrl),sourceWidth:input.sourceWidth,sourceHeight:input.sourceHeight,format:'png'}} as AvatarManifest['entries']};
  const metadata=Buffer.from(JSON.stringify(next));parseManifest(metadata);
  const channels=await directory(root,'channels',true),channel=await directory(channels,String(input.id),true),path=join(channel,revision+'.png');
- try{const old=await readBoundedFile(path,MEDIA_LIMITS.outputBytes);if(!old.equals(input.png))fail('INVALID_ASSET');}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;const files=await readdir(channel);if(files.length>=64||files.filter(f=>/^[a-f0-9]{64}\.png$/.test(f)).length>=MEDIA_LIMITS.revisions)fail('CACHE_REVISION_LIMIT');await atomicWrite(path,input.png);}
- await atomicWrite(join(root,'manifest.json'),metadata);manifest.entries=next.entries;
+ try{const old=await readBoundedFile(path,MEDIA_LIMITS.outputBytes);if(!old.equals(input.png))fail('INVALID_ASSET');}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;const files=await readdir(channel);if(files.length>=64||files.filter(f=>/^[a-f0-9]{64}\.png$/.test(f)).length>=MEDIA_LIMITS.revisions)fail('CACHE_REVISION_LIMIT');await writeImmutable(path,input.png);await readAvatarBytes(root,input.id,revision);}
+ await publishAvatarDerivatives(root,input.id,revision,input.png,signal);
+ signal?.throwIfAborted();
+ await atomicWrite(join(root,'manifest.json'),metadata,signal);manifest.entries=next.entries;
  return {url:channelAvatarUrl(input.id,revision)!,revision,width:192,height:192,cachedAt:input.cachedAt};
+}
+
+/** Cheap format/dimension check; native decoding only happens in the writer subprocess. */
+export function validAvatarWebp(bytes:Buffer,width:AvatarWebpWidth):boolean{
+ if(bytes.length<30||bytes.length>MEDIA_LIMITS.webpBytes||bytes.toString('ascii',0,4)!=='RIFF'||bytes.toString('ascii',8,12)!=='WEBP'||bytes.readUInt32LE(4)+8!==bytes.length)return false;
+ let at=12,canvas=false,image=false;
+ while(at<bytes.length){
+  if(at+8>bytes.length)return false;
+  const type=bytes.toString('ascii',at,at+4),length=bytes.readUInt32LE(at+4),start=at+8;
+  if(length>bytes.length-start)return false;
+  let w:number|undefined,h:number|undefined;
+  if(type==='ANIM'||type==='ANMF')return false;
+  if(type==='VP8X'){if(canvas||length!==10||(bytes[start]!&2))return false;canvas=true;w=bytes.readUIntLE(start+4,3)+1;h=bytes.readUIntLE(start+7,3)+1;}
+  if(type==='VP8 '){if(image||length<10||!bytes.subarray(start+3,start+6).equals(Buffer.from([0x9d,1,0x2a])))return false;image=true;w=bytes.readUInt16LE(start+6)&0x3fff;h=bytes.readUInt16LE(start+8)&0x3fff;}
+  if(type==='VP8L'){if(image||length<5||bytes[start]!==0x2f)return false;image=true;const bits=bytes.readUInt32LE(start+1);w=(bits&0x3fff)+1;h=((bits>>>14)&0x3fff)+1;}
+  if(w!==undefined&&(w!==width||h!==width))return false;
+  at=start+length+(length%2);
+ }
+ return at===bytes.length&&image;
+}
+export async function readAvatarWebpBytes(root:string,id:number,revision:string,width:AvatarWebpWidth):Promise<Buffer>{
+ if(!channelAvatarWebpUrl(id,revision,width))fail('INVALID_ASSET');
+ const base=await checkedRoot(root),channels=await directory(base,'channels'),channel=await directory(channels,String(id)),derivatives=await directory(channel,revision);
+ const bytes=await readBoundedFile(join(derivatives,width+'.webp'),MEDIA_LIMITS.webpBytes);
+ if(!validAvatarWebp(bytes,width))fail('INVALID_ASSET');return bytes;
+}
+/** Exclusive publication never changes a served immutable URL, even after a codec upgrade. */
+async function writeImmutable(path:string,body:Buffer){
+ const temporary=path+'.'+randomUUID()+'.tmp';let handle;
+ try{
+  handle=await open(temporary,'wx',0o640);await handle.writeFile(body);await handle.sync();await handle.close();handle=undefined;
+  try{await link(temporary,path);}catch(error){if((error as NodeJS.ErrnoException).code!=='EEXIST')throw error;}
+  await unlink(temporary);await syncDirectory(dirname(path));
+ }finally{await handle?.close();await unlink(temporary).catch(()=>{});}
+}
+/** Caller holds withCacheWriter. Local PNG only; no requests/manifest edits/deletion. */
+export async function publishAvatarDerivatives(root:string,id:number,revision:string,png?:Buffer,signal?:AbortSignal):Promise<number>{
+ if(!channelAvatarUrl(id,revision))fail('INVALID_ASSET');
+ const source=png??await readAvatarBytes(root,id,revision);
+ if(source.length>MEDIA_LIMITS.outputBytes||!validPublishedPng(source)||hash(source)!==revision)fail('INVALID_ASSET');
+ const missing:AvatarWebpWidth[]=[];
+ for(const width of AVATAR_WEBP_WIDTHS){try{await readAvatarWebpBytes(root,id,revision,width);}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;missing.push(width);}}
+ if(!missing.length)return 0;
+ signal?.throwIfAborted();
+ const {avatarWebpDerivatives}=await import('./webp-transform.js'),outputs=await avatarWebpDerivatives(source,signal);
+ const base=await checkedRoot(root),channels=await directory(base,'channels'),channel=await directory(channels,String(id)),derivatives=await directory(channel,revision,true);
+ let bytes=0;
+ for(const width of missing){signal?.throwIfAborted();const body=outputs.get(width)!;if(!validAvatarWebp(body,width))fail('INVALID_ASSET');await writeImmutable(join(derivatives,width+'.webp'),body);await readAvatarWebpBytes(root,id,revision,width);bytes+=body.length;}
+ return bytes;
 }

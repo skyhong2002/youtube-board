@@ -50,8 +50,8 @@ export async function refreshChannelAvatars(options:AvatarRefreshOptions,deps:Av
     if(item.status==='prepared'){
      await options.assertOwnership!();
      if(signal.aborted){result.truncated=true;break batches;}
-     try{await publishAvatar(root,manifest,{...item.channel,sourceUrl:item.channel.sourceUrl!,...item.raster,cachedAt:now.toISOString()});result.results.push({id:item.channel.id,status:'updated'});}
-     catch(error){result.results.push({id:item.channel.id,status:'failed',code:error instanceof MediaCacheError?error.code:'CACHE_PUBLISH_FAILED'});}
+     try{await publishAvatar(root,manifest,{...item.channel,sourceUrl:item.channel.sourceUrl!,...item.raster,cachedAt:now.toISOString()},signal);result.results.push({id:item.channel.id,status:'updated'});}
+     catch(error){if(signal.aborted){result.truncated=true;break batches;}result.results.push({id:item.channel.id,status:'failed',code:error instanceof MediaCacheError?error.code:'CACHE_PUBLISH_FAILED'});}
     }else result.results.push({id:item.channel.id,status:item.status,...('code'in item?{code:item.code}:{})});
     result.lastProcessedId=item.channel.id;
    }

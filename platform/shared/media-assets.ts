@@ -13,3 +13,9 @@ export function isChannelAvatar(value:unknown):value is ChannelAvatar{
  const a=value as ChannelAvatar,path=typeof a.url==='string'?/^\/media\/channels\/([1-9]\d*)\/([a-f0-9]{64})\.png$/.exec(a.url):null;
  return !!path&&isChannelAssetId(Number(path[1]))&&path[2]===a.revision&&isMediaRevision(a.revision)&&a.width===192&&a.height===192&&typeof a.cachedAt==='string'&&/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(a.cachedAt)&&Number.isFinite(Date.parse(a.cachedAt))&&new Date(a.cachedAt).toISOString()===a.cachedAt;
 }
+
+/** Finite precomputed derivative set; the immutable PNG identity remains canonical. */
+export const AVATAR_WEBP_WIDTHS=[48,96,192] as const;
+export type AvatarWebpWidth=typeof AVATAR_WEBP_WIDTHS[number];
+export function isAvatarWebpWidth(value:unknown):value is AvatarWebpWidth{return AVATAR_WEBP_WIDTHS.some(width=>width===value);}
+export function channelAvatarWebpUrl(id:number,revision:string,width:number):string|null{return isChannelAssetId(id)&&isMediaRevision(revision)&&isAvatarWebpWidth(width)?`/media/channels/${id}/${revision}/${width}.webp`:null;}

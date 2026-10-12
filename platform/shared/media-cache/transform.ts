@@ -5,7 +5,7 @@ import {rasterType} from './download.js';
 export interface AvatarRaster {png:Buffer;sourceWidth:number;sourceHeight:number}
 /** libvips can silently flatten APNG without exposing metadata.pages. Inspect
  * actual bounded PNG chunks, never search compressed pixels for marker strings. */
-function rejectPngAnimation(body:Buffer){
+export function rejectPngAnimation(body:Buffer){
  if(rasterType(body)!=='image/png')return;
  let at=8,chunks=0;
  while(at<body.length){
