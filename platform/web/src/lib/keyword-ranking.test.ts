@@ -6,6 +6,7 @@ import {ImageConfigContext} from 'next/dist/shared/lib/image-config-context.shar
 import {imageConfigDefault} from 'next/dist/shared/lib/image-config';
 import config from '../../next.config';
 import type {HomeKeywordSummary} from '../../../api/src/contracts';
+import {joinSentences} from './format';
 import {KeywordRankingTable} from '../components/KeywordRanking';
 import {DESCRIPTION_TEMPLATE_NOTE,DISPLAY_EXCLUSION_NOTE,INSUFFICIENT,NO_VIEWS,viewsSummary,TAG_SOURCE_ATTRIBUTION,displayExclusionLabel,evidenceParts,heatLabel,keywordEvidenceOf,keywordMethodNotes,matchCoveragePercent,rankingBasis,riseLabel,sparklineRuns,trendValues,viewsCell,viewsText} from './keyword-ranking';
 type Row=HomeKeywordSummary['rows'][number];
@@ -65,7 +66,19 @@ test('evidence is bounded, marked only when offsets fit, and absent evidence sta
  assert.equal(evidenceParts({snippet:'abc',start:0,end:9,snippetStart:0}).match,'');
  const long=evidenceParts({snippet:'a'.repeat(200)+'X'+'b'.repeat(200),start:200,end:201,snippetStart:0});
  assert.equal(long.match,'X');assert.ok((long.before+long.match+long.after).length<=92);
+ // Anchored on the match: at most 8 leading characters, ellipses only where text was cut.
+ const promo=evidenceParts({snippet:'優惠券'.repeat(30)+'支持'+'後文'.repeat(60),start:1090,end:1092,snippetStart:1000});
+ assert.equal(promo.match,'支持');assert.equal(promo.before,'…'+'優惠券'.repeat(30).slice(-8));assert.ok(promo.after.endsWith('…'));
+ assert.deepEqual(evidenceParts({snippet:'支持者表示',start:0,end:2,snippetStart:0}),{before:'',match:'支持',after:'者表示'});
+ assert.deepEqual(evidenceParts({snippet:'1234567支持',start:7,end:9,snippetStart:0}),{before:'1234567',match:'支持',after:''});
+ assert.equal(evidenceParts({snippet:'12345678X支持',start:9,end:11,snippetStart:0}).before,'…2345678X');
+ // Offsets that do not point inside the snippet never produce a mark.
+ for(const bad of [{start:5,end:5},{start:-1,end:1},{start:2.5,end:4},{start:3,end:99}])assert.equal(evidenceParts({snippet:'沒有命中的文字',snippetStart:0,...bad}).match,'',JSON.stringify(bad));
  assert.equal(keywordEvidenceOf({}),null);assert.deepEqual(keywordEvidenceOf({keywordEvidence:[{term:'x'}]}),[]);
+});
+test('warning sentences join without 。； and keep every warning',()=>{
+ assert.equal(joinSentences(['涵蓋不完整。','觀看值缺漏；','比對版本為 exact-text-v1']),'涵蓋不完整；觀看值缺漏；比對版本為 exact-text-v1。');
+ assert.doesNotMatch(joinSentences(['a。','b。']),/。；/);assert.equal(joinSentences(['只有一句。']),'只有一句。');assert.equal(joinSentences(['',' ']),'');
 });
 test('ranking table keeps one-line rows, a sticky lead with fixed thumbnails, and honest gaps',()=>{
  const rows=[row(),row({key:'k2',term:'Apple',sourceTerms:[{key:'k2',term:'Apple'},{key:'k3',term:'apple'}],representativeVideoId:null,trend:[{date:'2026-10-13',heat:null}],views:null,measuredViewVideos:0,knownViews:0,channel:null})];

@@ -7,10 +7,13 @@ export interface KeywordEvidenceNoticeProps {
  coverage: ReportMeta['coverage'];
  subject: string;
  scopeLabel?: string;
+ /** Status, version, every count and the scope explanation only; the caller carries the
+  * source attribution and methodology (e.g. in its MethodDisclosure). */
+ compact?: boolean;
 }
 
 /** Scope counts describe collected videos, not all videos available on YouTube. */
-export function KeywordEvidenceNotice({coverage,subject,scopeLabel='目前篩選範圍'}:KeywordEvidenceNoticeProps){
+export function KeywordEvidenceNotice({coverage,subject,scopeLabel='目前篩選範圍',compact=false}:KeywordEvidenceNoticeProps){
  const metric=(key:string)=>{const value=coverage[key];return typeof value==='number'&&Number.isSafeInteger(value)&&value>=0?value:null;};
  const source=metric('sourceVideos'),fresh=metric('freshVideos'),stale=metric('staleVideos'),unprocessed=metric('unprocessedVideos'),matched=metric('keywordMatchedVideos');
  const version=typeof coverage.vocabularyVersion==='string'&&coverage.vocabularyVersion.trim()?coverage.vocabularyVersion:null;
@@ -23,9 +26,15 @@ export function KeywordEvidenceNotice({coverage,subject,scopeLabel='目前篩選
  else if(synchronized&&((stale??0)>0||(unprocessed??0)>0))explanation=matched!==null&&matched>0?'結果可能不完整，另有來源尚未比對或文字已變動；請參考上方涵蓋數量。':'部分來源尚未完成目前版本比對，空列表不能視為沒有相關影片。';
  else if(complete)explanation='已收錄的來源影片皆已完成目前版本比對；下方只列出符合這個共同標籤的影片。';
  const metrics=[['來源影片',source],['有效比對',fresh],['來源文字已變動',stale],['尚未比對',unprocessed],['符合標籤',matched]] as const;
+ const status=`詞彙狀態：${synchronized?'已同步':notSynchronized?'尚未同步':'未提供'} · 版本：${version??'未提供'}`;
+ if(compact)return <aside className={`${ui.note} [overflow-wrap:anywhere]`} aria-label="共同標籤比對範圍">
+  <dl className="flex flex-wrap gap-x-4 gap-y-0.5">{metrics.map(([label,value])=><div className="flex gap-1" key={label}><dt>{label}</dt><dd>{value===null?'未提供':`${count(value)} 部`}</dd></div>)}</dl>
+  <p className="mt-1">{explanation}</p>
+  <p className="mt-1 break-words text-xs">{status}</p>
+ </aside>;
  return <aside className={`${ui.note} [overflow-wrap:anywhere]`} aria-label="共同標籤比對範圍">
   <p><strong>共同標籤「{subject}」</strong>來自 <Link className={ui.link} href="/vocabulary">新文易數共同詞彙</Link>，與頻道分類分開；文字命中不代表事件歸屬或立場。</p>
-  <p className="break-words">詞彙狀態：{synchronized?'已同步':notSynchronized?'尚未同步':'未提供'} · 版本：{version??'未提供'}</p>
+  <p className="break-words">{status}</p>
   <p>{scopeLabel}：</p>
   <dl className="my-1 flex flex-wrap gap-x-5 gap-y-1">{metrics.map(([label,value])=><div className="flex gap-1" key={label}><dt>{label}</dt><dd>{value===null?'未提供':`${count(value)} 部`}</dd></div>)}</dl>
   <p>{explanation}</p>

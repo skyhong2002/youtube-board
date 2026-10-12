@@ -3,14 +3,14 @@ import {currentTab} from '@/lib/report-navigation';
 import {ChannelArchiveNotice} from './ChannelArchiveNotice';
 import Link from 'next/link';
 import type {ReportMeta} from '@/lib/api';
-import {dateTime,count} from '@/lib/format';
+import {dateTime,count,joinSentences} from '@/lib/format';
 import {reportStyle as ui} from '@/lib/report-styles';
 export function Heading({title,description,eyebrow,meta}:{title:string;description?:string;eyebrow?:string;meta?:ReportMeta}){
  return <header className="mb-5 flex flex-wrap items-end justify-between gap-3"><div className="min-w-0 space-y-1">{eyebrow&&<p className="text-xs text-zinc-500">{eyebrow}</p>}<h1 className="text-2xl font-semibold tracking-tight">{title}</h1>{description&&<p className="max-w-4xl text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{description}</p>}{meta&&<p className="text-sm text-zinc-600 dark:text-zinc-400">更新於 {dateTime(meta.updatedAt)} · 台北時間</p>}</div></header>;
 }
 export function DataNotice({meta}:{meta:ReportMeta}){
  const warnings=meta.warnings.filter(w=>meta.dataset!=='fixture'||w!=='此環境使用合成範例 YouTube 資料。');
- return <><ChannelArchiveNotice coverage={meta.coverage}/>{meta.dataset==='fixture'&&<aside className="my-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">這是開發驗證資料，僅供確認頁面與計算流程，並非目前的 YouTube 觀測結果。</aside>}{warnings.length>0&&<aside className={ui.note}><p>資料範圍提醒：{warnings.join('；')}</p></aside>}</>;
+ return <><ChannelArchiveNotice coverage={meta.coverage}/>{meta.dataset==='fixture'&&<aside className="my-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">這是開發驗證資料，僅供確認頁面與計算流程，並非目前的 YouTube 觀測結果。</aside>}{warnings.length>0&&<aside className={ui.note}><p>資料範圍提醒：{joinSentences(warnings)}</p></aside>}</>;
 }
 export function Unavailable({status,title}:{status:number;title:string}){
  const pending=status===501,invalid=status===400||status===422,conflict=status===409;

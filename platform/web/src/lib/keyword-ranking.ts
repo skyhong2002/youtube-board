@@ -103,12 +103,14 @@ export function keywordMethodNotes(summary:HomeKeywordSummary|null,basis:Ranking
   `寫法：僅英文大小寫不同的標籤合併為一列，原始寫法保留在詞彙池。${DISPLAY_EXCLUSION_NOTE}${exclusions?(exclusions.terms>0?`本期另有 ${count(exclusions.terms)} 個命中詞依標籤顯示規則不列入排行（${Object.entries(exclusions.reasons).map(([code,n])=>`${exclusionReasonLabel(code)} ${count(n)} 個`).join('、')}）；排除只影響排行顯示，原始詞彙池與比對證據都保留。規則版本 ${exclusions.youtubePolicyVersion}，上游規則 ${exclusions.policyCommit.slice(0,7)}。`:'本期沒有依標籤顯示規則排除的命中詞。'):'排除規則統計目前未提供。'}`,
  ];
 }
-/** Bounded snippet around the match; offsets that do not fit the snippet keep the text unmarked. */
-export function evidenceParts(evidence:{snippet:string;start:number;end:number;snippetStart:number},max=90){
+/** Bounded one-line snippet anchored on the match: at most `lead` characters of context
+ * before it (so a narrow, end-truncated cell still shows the mark) and the rest after it.
+ * Offsets come from the source; ones that do not fit the snippet keep the text unmarked. */
+export function evidenceParts(evidence:{snippet:string;start:number;end:number;snippetStart:number},max=90,leadMax=8){
  const text=typeof evidence.snippet==='string'?evidence.snippet:'',start=evidence.start-evidence.snippetStart,end=evidence.end-evidence.snippetStart;
  const clip=(value:string)=>value.length>max?value.slice(0,max-1)+'…':value;
  if(!Number.isInteger(start)||!Number.isInteger(end)||start<0||end<=start||end>text.length)return {before:clip(text),match:'',after:''};
- const room=Math.max(0,max-(end-start)),lead=Math.min(start,Math.ceil(room/2)),from=start-lead,to=Math.min(text.length,end+room-lead);
+ const room=Math.max(0,max-(end-start)),lead=Math.min(start,leadMax,Math.ceil(room/2)),from=start-lead,to=Math.min(text.length,end+room-lead);
  return {before:(from>0?'…':'')+text.slice(from,start),match:text.slice(start,end),after:text.slice(end,to)+(to<text.length?'…':'')};
 }
 export const EVIDENCE_FIELD_LABELS:Record<string,string>={title:'標題',description:'說明',caption:'字幕'};

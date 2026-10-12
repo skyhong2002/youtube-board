@@ -11,6 +11,8 @@ import FollowButton from './reader/FollowButton';
 
 /** Layout from tag.observe.tw tag/[tag] and ArticleResults at afe0a653.
  * Keep API ranking and scope; a page of videos cannot establish global facets. */
+/** Text match only; no claim that quality filtering removed promotional or copyright passages. */
+export const MATCH_CAVEAT='標題或說明出現標籤，不代表影片主題；可能來自固定宣傳或版權文字。';
 type Period={from:string|null;to:string|null;days:string|null};
 const periodLabel=(p:Period|undefined)=>p?.from||p?.to?`發布日期 ${p.from??'不限'} 至 ${p.to??'不限'}（台北時間）`:p?.days&&/^\d+$/.test(p.days)?`往前 ${p.days} 日發布（含今天共 ${Number(p.days)+1} 個台北日曆日）`:p?.days?`往前 ${p.days} 日發布`:'全部已收錄期間';
 export function KeywordProfile({keyword,description,data,meta,notice,tabs,filters,pagination,period}:{
@@ -28,17 +30,17 @@ export function KeywordProfile({keyword,description,data,meta,notice,tabs,filter
   </header>
   {notice}
   {tabs}
-  <dl className="grid gap-x-4 gap-y-1 rounded-xl border border-zinc-300 bg-white p-4 text-sm sm:grid-cols-[6rem_minmax(0,1fr)] dark:border-zinc-800 dark:bg-zinc-900" aria-label="來源、期間與比對方式">
-   <dt className="text-zinc-500">來源</dt><dd><Link className="text-brand-700 hover:underline dark:text-brand-400" href="/vocabulary">{TAG_SOURCE_ATTRIBUTION}</Link></dd>
-   <dt className="text-zinc-500">期間</dt><dd>{periodLabel(period)}</dd>
-   <dt className="text-zinc-500">方式</dt><dd>標籤文字比對影片標題與說明，不是 AI 判讀；字幕尚未取得</dd>
-   <dt className="text-zinc-500">涵蓋</dt><dd>見「收錄與比對範圍」；未比對的影片不在列表中</dd>
-  </dl>
+  {/* One compact line, as tag.observe.tw's ranking subtitle; the long method text is in 「本頁資料來源與計算方式」. */}
+  <p className="flex flex-wrap gap-x-3 gap-y-0.5 text-sm text-zinc-600 dark:text-zinc-400" aria-label="來源、期間與比對方式">
+   <Link className="text-brand-700 hover:underline dark:text-brand-400" href="/vocabulary">{TAG_SOURCE_ATTRIBUTION}</Link>
+   <span>{periodLabel(period)}</span>
+   <span>比對標題與說明・字幕尚未取得・未比對影片不列入</span>
+  </p>
   <section className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]" aria-label="共同標籤影片與比對範圍">
    <aside className="min-w-0 space-y-4 lg:order-2">
     <section className="space-y-3" aria-label="影片來源範圍">
      <h2 className="text-sm font-medium text-zinc-600 dark:text-zinc-400">收錄與比對範圍</h2>
-     <KeywordEvidenceNotice coverage={meta.coverage} subject={keyword}/>
+     <KeywordEvidenceNotice coverage={meta.coverage} subject={keyword} compact/>
     </section>
     <details className="rounded-xl border border-zinc-300 bg-white dark:border-zinc-800 dark:bg-zinc-900">
      <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-zinc-700 focus-visible:outline-2 focus-visible:outline-brand-600 dark:text-zinc-300">篩選影片與日期</summary>
@@ -46,16 +48,16 @@ export function KeywordProfile({keyword,description,data,meta,notice,tabs,filter
     </details>
    </aside>
    <div className="min-w-0 space-y-4">
-    <div className="space-y-1">
-     <h2 className="text-lg font-semibold tracking-tight">符合共同標籤的影片 <span className="text-sm font-normal text-zinc-500">{data.total===null?(data.totalStatus==='unavailable'?'總數暫時無法取得':'總數未計算'):`${count(data.total)} 部`}</span></h2>
-     <p className="text-sm text-zinc-600 dark:text-zinc-400">詞彙使用 tag.observe.tw 現行比對證據；「往前 N 日」包含今天與前 N 天，共 N+1 個台北日曆日（往前 7 日為 8 個日曆日）；指定起訖日期時以實際起訖日為準。日數、日期與小時條件會同時套用。</p>
-    </div>
+    <h2 className="text-lg font-semibold tracking-tight">符合共同標籤的影片 <span className="text-sm font-normal text-zinc-500">{data.total===null?(data.totalStatus==='unavailable'?'總數暫時無法取得':'總數未計算'):`${count(data.total)} 部`}</span></h2>
+    <p className="text-sm text-zinc-600 dark:text-zinc-400">{MATCH_CAVEAT}</p>
     <KeywordVideoList rows={data.rows}/>
     {pagination}
    </div>
   </section>
   <MethodDisclosure>
-   <p>{TAG_SOURCE_ATTRIBUTION}。共同標籤「{keyword}」以文字比對影片標題與說明；命中不代表事件歸屬或立場。字幕尚未取得，不列入比對。</p>
+   <p>{TAG_SOURCE_ATTRIBUTION}。共同標籤「{keyword}」以文字比對影片標題與說明，不是 AI 判讀；命中不代表事件歸屬或立場，與頻道分類分開。字幕尚未取得，不列入比對。</p>
+   <p>僅列出目前詞彙版本與影片標題、說明仍相符的比對結果；待比對或來源文字已變動的影片不會列入，數量見「收錄與比對範圍」。</p>
+   <p>期間：「往前 N 日」包含今天與前 N 天，共 N+1 個台北日曆日（往前 7 日為 8 個日曆日）；指定起訖日期時以實際起訖日為準。日數、日期與小時條件會同時套用。</p>
    <p>每支影片最多顯示 3 段命中片段，標示來自標題、說明或字幕；沒有片段時顯示「沒有命中片段」，不另行補寫。完整比對依據在影片頁的「共同標籤與比對依據」。</p>
    <p>{DISPLAY_EXCLUSION_NOTE}</p>
    <p>{DESCRIPTION_TEMPLATE_NOTE}</p>
@@ -71,7 +73,13 @@ function Evidence({row,href}:{row:VideoRow;href:string}){
   const parts=evidenceParts(e),label=EVIDENCE_FIELD_LABELS[e.field]??'來源文字',empty=!parts.before&&!parts.match&&!parts.after;
   return <li key={i} className="flex min-w-0 items-baseline gap-1.5">
    <span className="shrink-0 rounded bg-zinc-100 px-1.5 text-[11px] leading-5 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">{label}</span>
-   {empty?<span className="text-xs">{e.field==='caption'?'字幕尚未取得':'沒有命中片段'}</span>:<span className="min-w-0 truncate" title={parts.before+parts.match+parts.after}>{parts.before}<mark className="bg-brand-50 text-brand-800 dark:bg-brand-950 dark:text-brand-300">{parts.match}</mark>{parts.after}</span>}
+   {/* One line. The trailing context gives way first, then the leading context is clipped
+       from its start (justify-end overflows leftwards), so the mark itself stays visible. */}
+   {empty?<span className="text-xs">{e.field==='caption'?'字幕尚未取得':'沒有命中片段'}</span>:<span className="flex min-w-0 whitespace-nowrap" title={e.snippet}>
+    {parts.before&&<span className="flex min-w-0 shrink justify-end overflow-hidden"><span>{parts.before}</span></span>}
+    {parts.match?<mark className="max-w-full shrink-0 truncate bg-brand-50 text-brand-800 dark:bg-brand-950 dark:text-brand-300">{parts.match}</mark>:null}
+    {parts.after&&<span className="min-w-0 flex-1 shrink-[1000] truncate">{parts.after}</span>}
+   </span>}
   </li>;
  })}<li><Link href={`${href}#keyword-evidence`} className="text-xs text-brand-700 hover:underline dark:text-brand-400">查看影片比對依據 →</Link></li></ul>;
 }

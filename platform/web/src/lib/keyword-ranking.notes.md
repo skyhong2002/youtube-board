@@ -32,3 +32,13 @@ Backend dependencies (fields read defensively): `HomeKeywordSummary` ranking fie
 `representativeVideoId`/`channel`/`sourceTerms`/`knownViews`/`measuredViewVideos`),
 `VocabularyTerm.displayExclusion`, and `VideoRow.keywordEvidence` (≤3 per video; absent →
 「沒有命中片段」).
+
+Review-driven UI fixes (2026-10-12 20:09 UTC): implemented by a separate Opus 5.5
+CLI execution in session `ff13df03-faef-4d0e-b687-ae218358b0bc`, following actual
+GPT-6.1 Sol candidate screenshot review. Evidence snippets keep the matched span
+visible on narrow screens; redundant mobile preface copy moves into the existing
+method disclosure while scope counts remain visible. Warning punctuation is
+joined consistently. Body foreground/background use tag's unlayered token rule.
+Private execution receipts: `platform/.local/f2/opus-ui-evidence-result.json` and
+`platform/.local/f2/opus-ui-token-result.json`. These are implementation receipts,
+not independent visual approvals. New-SHA screenshots/review remain required.

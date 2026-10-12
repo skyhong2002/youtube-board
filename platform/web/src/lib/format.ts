@@ -39,6 +39,12 @@ export function youtubeUrl(value: string): string | undefined {
         return undefined;
     }
 }
+/** Joins sentences that may already end in 。；; etc. with one 「；」 and a final 「。」,
+ * so no 「。；」 appears. Text inside each sentence is kept as is; blanks are dropped. */
+export function joinSentences(items: readonly string[]) {
+    const parts = items.map((item) => item.trim().replace(/[。；;，,、\s]+$/u, "")).filter(Boolean);
+    return parts.length ? `${parts.join("；")}。` : "";
+}
 export function first(value: string | string[] | undefined) {
     return Array.isArray(value) ? value[0] : value;
 }
