@@ -50,3 +50,26 @@ load attribution or promise an arbitrary-traffic SLA from a small sample.
 Rollback: redeploy the preceding pinned cb186be image with the existing
 Dokploy compose configuration, leaving environment, routes, accounts and
 Laravel scheduler unchanged. No database restore is required for this patch.
+
+## Production result — 2026-10-12 13:48 UTC
+
+Released `2ea4080` as image
+`sha256:c7a03a9b4b31ba46455e503174f960e9a29bbf240199eb8e19f457424ffb14a1`.
+Nine focused loopback-canary checks passed, including credential/RSC isolation,
+invalid-query JSON, health and auth. Cold keyword read was365ms; repeated read
+7ms. Temporary canary container was removed. Compiled frontend files and runtime
+configuration were verified unchanged; Dokploy changed image IDs only.
+
+Forty public requests for two keywords, at most two concurrent, one pair every
+three seconds: all200; median128.75ms, p95 981.8ms, maximum1412.6ms. The sample ran
+alongside the existing Laravel scheduler, with no synthetic write workload or
+matching/collection/avatar jobs. This is a bounded smoke-load result, not a
+capacity guarantee. Database CPU samples before/after were both0.01%; sampled
+active-query categories were TS evidence/coverage/other report queries and one
+Laravel query. No historical attribution of the earlier CPU spike is claimed.
+
+All40 replies advertised `public, max-age=0, s-maxage=60,
+stale-while-revalidate=120`. Cloudflare reported DYNAMIC for all40; API eligibility
+is pending the other operator's rollout and OpenAPI/status availability. No API
+edge HIT is claimed. Preserve these origin policies when enabling eligibility,
+with query/credentials/RSC exclusions as agreed.

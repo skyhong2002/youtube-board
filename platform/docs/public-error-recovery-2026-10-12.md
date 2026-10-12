@@ -9,3 +9,11 @@
 驗證：隔離build成功；104項API/CSP/proxy/fallback測試及17項frontend讀取/ISR測試通過。實際封裝Next+gateway無DB測試重現首次讀取503，390px深淺色瀏覽器皆顯示中文頁、CSS成功、無橫向溢出，console只有預期503而無CSP違規。既有成功ISR/data快取機制未改；此批不改schema、資料、環境、路由或writer。
 
 Opus負責 error.tsx、public-data.ts與staticHTML/CSS，Codex負責gateway/API、整合測試及部署。Codex獨立審查採納以pathname區分assets、避免query後綴誤判的修正。
+
+
+Production release evidence: cb186be image
+`sha256:19c81fa64a5f33ce5257cee50a8710e0f9ee08996381efcf3944b346201d38b1`
+passed31 canary checks and deployed2026-10-12 13:26UTC. Keyword page returned200
+in969ms, health and owned fallback CSS returned200, auth/me and my stayed
+private. Temporary canary removed; source writers and schema unchanged. The
+subsequent2ea4080 backend cache release preserves these frontend/fallback bytes.

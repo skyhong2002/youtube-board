@@ -40,7 +40,7 @@ export function publicMarkerMatches(marker:unknown,pathname:string):boolean {
 }
 /** Only canonical anonymous HTML is shareable. Query and RSC are separate variants. */
 export function publicHtmlTtl(request: Pick<FastifyRequest,'url'|'method'|'headers'>): number | null {
-  if (request.method !== 'GET' || request.url.includes('?') || request.headers.cookie !== undefined || request.headers.authorization !== undefined ||
+  if (request.method !== 'GET' || request.url.includes('?') || request.headers.cookie !== undefined || request.headers.authorization !== undefined || request.headers['x-api-key'] !== undefined ||
       transportHeaders.some(name => request.headers[name] !== undefined)) return null;
   if (String(request.headers.accept??'').includes('text/x-component')) return null;
   const pathname = request.url;
@@ -61,16 +61,28 @@ export function publicHtmlVary(value: unknown): string {
   const names = String(value??'').split(',').map(s=>s.trim()).filter(Boolean);
   if (names.includes('*')) return '*';
   const result = new Map(names.map(name=>[name.toLowerCase(),name]));
-  for (const name of ['Cookie','Authorization','RSC','Next-Router-State-Tree','Next-Router-Prefetch','Next-Router-Segment-Prefetch','Next-Url','Accept','Accept-Encoding']) result.set(name.toLowerCase(),name);
+  for (const name of ['Cookie','Authorization','X-Api-Key','RSC','Next-Router-State-Tree','Next-Router-Prefetch','Next-Router-Segment-Prefetch','Next-Url','Accept','Accept-Encoding']) result.set(name.toLowerCase(),name);
   return [...result.values()].join(', ');
 }
 
-export function acceptsGzip(value:unknown):boolean {
-  if(typeof value!=='string')return false;
-  return value.split(',').some(part=>{
-    const match=/^\s*gzip\s*(?:;\s*q=(0(?:\.\d{1,3})?|1(?:\.0{1,3})?))?\s*$/i.exec(part);
-    return match!==null&&(match[1]===undefined||Number(match[1])>0);
-  });
+/** Prefer Brotli on equal quality; explicit coding refusals override wildcard.
+ * Identity is a fallback unless the client gives it an explicit higher quality. */
+export function htmlEncoding(value:unknown):'br'|'gzip'|'identity'|null {
+  if(typeof value!=='string'||!value.trim())return 'identity';
+  const weights=new Map<string,number>();
+  for(const part of value.split(',')){
+    const name=part.split(';')[0]!.trim().toLowerCase();
+    if(!['br','gzip','identity','*'].includes(name))continue;
+    const match=/^\s*(?:br|gzip|identity|\*)\s*(?:;\s*q=(0(?:\.\d{0,3})?|1(?:\.0{0,3})?))?\s*$/i.exec(part);
+    const q=match?(match[1]===undefined?1:Number(match[1])):0;
+    weights.set(name,Math.min(weights.get(name)??1,q));
+  }
+  const quality=(name:string)=>weights.get(name)??weights.get('*')??0;
+  const br=quality('br'),gzip=quality('gzip'),best=Math.max(br,gzip);
+  const identity=weights.get('identity')??(weights.get('*')===0?0:1);
+  if(identity>0&&weights.has('identity')&&identity>best)return 'identity';
+  if(best>0)return br>=gzip?'br':'gzip';
+  return identity>0?'identity':null;
 }
 
 export function publicCacheControl(ttl:number,stale:number,revalidation?:string): string {
@@ -78,7 +90,7 @@ export function publicCacheControl(ttl:number,stale:number,revalidation?:string)
   return `public, max-age=0, s-maxage=${ttl}, stale-while-revalidate=${stale}, no-transform${revalidation?', '+revalidation:''}`;
 }
 
-export function upstreamPublicPolicy(value:unknown,age:unknown=undefined):{ttl:number;stale:number;revalidation?:string}|null {
+export function upstreamPublicPolicy(value:unknown,age:unknown=undefined,isStale=false):{ttl:number;stale:number;revalidation?:string}|null {
   if(typeof value!=='string'||/\b(?:private|no-store|no-cache)\b/i.test(value))return null;
   const directives=value.split(',').map(s=>s.trim().toLowerCase());
   function seconds(name:string,fallback:number|null):number|null {
@@ -90,7 +102,15 @@ export function upstreamPublicPolicy(value:unknown,age:unknown=undefined):{ttl:n
   }
   const ttl=seconds('s-maxage',null), stale=seconds('stale-while-revalidate',0);
   const ageSeconds=age===undefined?0:typeof age==='string'&&/^\d+$/.test(age)?Number(age):NaN;
-  if(ttl===null||stale===null||!Number.isSafeInteger(ageSeconds)||ttl<=ageSeconds)return null;
+  if(ttl===null||stale===null||ttl<=0||!Number.isSafeInteger(ageSeconds)||!Number.isSafeInteger(ttl+stale))return null;
   const revalidation=['must-revalidate','proxy-revalidate'].filter(s=>directives.includes(s)).join(', ');
+  if(isStale){
+    // Next may omit Age for ISR STALE. Treat it as at least its freshness TTL,
+    // never grant the old entity another complete freshness/staleness window.
+    const remaining=ttl+stale-Math.max(ttl,ageSeconds);
+    if(revalidation||stale<=0||remaining<1)return null;
+    return {ttl:1,stale:remaining-1};
+  }
+  if(ttl<=ageSeconds)return null;
   return {ttl:ttl-ageSeconds,stale:revalidation?0:stale,...(revalidation?{revalidation}:{})};
 }

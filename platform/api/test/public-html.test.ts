@@ -3,7 +3,30 @@ import {mkdtemp,mkdir,writeFile,rm,symlink} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
-import {publicScriptManifest,publicHtmlTtl,publicHtmlVary,upstreamPublicPolicy,publicMarkerMatches} from '../src/public-html.js';
+import {publicScriptManifest,publicHtmlTtl,publicHtmlVary,upstreamPublicPolicy,publicMarkerMatches,htmlEncoding} from '../src/public-html.js';
+
+it('shares ISR STALE for one second only within the upstream remaining stale budget',()=>{
+  const policy='public, s-maxage=60, stale-while-revalidate=120';
+  expect(upstreamPublicPolicy(policy,undefined,true)).toEqual({ttl:1,stale:119});
+  expect(upstreamPublicPolicy(policy,'100',true)).toEqual({ttl:1,stale:79});
+  expect(upstreamPublicPolicy(policy,'179',true)).toEqual({ttl:1,stale:0});
+  for(const age of ['180','181','invalid','-1'])expect(upstreamPublicPolicy(policy,age,true)).toBeNull();
+  for(const header of ['private, '+policy,'no-store, '+policy,'no-cache, '+policy,policy+', must-revalidate',policy+', proxy-revalidate','s-maxage=60','s-maxage=0, stale-while-revalidate=120'])expect(upstreamPublicPolicy(header,undefined,true)).toBeNull();
+  for(let age=0;age<180;age++){
+    const result=upstreamPublicPolicy(policy,String(age),true)!;
+    expect(result.ttl+result.stale).toBeLessThanOrEqual(180-Math.max(age,60));
+  }
+});
+
+it('negotiates Brotli/gzip quality, wildcard refusals and explicit identity without guessing malformed qualities',()=>{
+  for(const [header,result] of [
+    [undefined,'identity'],['','identity'],['br, gzip;q=0.8','br'],['gzip, br','br'],['br;q=0.3, gzip;q=0.9','gzip'],
+    ['br;q=0,gzip;q=0.4','gzip'],['br;q=0,*;q=0.5','gzip'],['gzip;q=0,*;q=0.5','br'],['*','br'],
+    ['gzip;q=0','identity'],['br;q=0.5,identity;q=1','identity'],['br;q=0.5,identity;q=0','br'],
+    ['*;q=0',null],['identity;q=0,br;q=0,gzip;q=0',null],['br;q=oops,gzip;q=0.5','gzip'],
+    ['br;q=1.1','identity'],['br;q=0,br;q=1,gzip;q=0.4','gzip'],['BR;Q=0.8,GZIP;Q=0.5','br'],
+  ] as const)expect(htmlEncoding(header)).toBe(result);
+});
 
 it('never overrides upstream privacy, revalidation or remaining freshness',()=>{
   for(const value of ['private, s-maxage=60','no-store','s-maxage=60, no-cache','s-maxage=60,s-maxage=abc','s-maxage=NaN','public','s-maxage=0'])expect(upstreamPublicPolicy(value)).toBeNull();
@@ -20,7 +43,7 @@ it('isolates private, query, credentials and every Next representation from anon
   expect(publicHtmlTtl(base)).toBe(60);
   expect(publicHtmlTtl({...base,url:'/live/current'})).toBe(30);
   for(const url of ['/my','/my/follows','/manage','/ops/ingestion','/auth/google','/feeds/u/token','/boards','/login','/render-filtered/channels','/?period=week']) expect(publicHtmlTtl({...base,url})).toBeNull();
-  for(const key of ['cookie','authorization','rsc','next-router-state-tree','next-router-prefetch','next-router-segment-prefetch','next-url','x-nextjs-data','next-action']) expect(publicHtmlTtl({...base,headers:{[key]:''}})).toBeNull();
+  for(const key of ['cookie','authorization','x-api-key','rsc','next-router-state-tree','next-router-prefetch','next-router-segment-prefetch','next-url','x-nextjs-data','next-action']) expect(publicHtmlTtl({...base,headers:{[key]:''}})).toBeNull();
   expect(publicHtmlTtl({...base,headers:{accept:'text/x-component'}})).toBeNull();
   expect(publicHtmlTtl({...base,method:'HEAD'})).toBeNull();
   for(const url of ['/channels/%2e%2e/my','//channels','/channels/','/channels%2F8','/channels/../videos','/channels//8'])expect(publicHtmlTtl({...base,url})).toBeNull();
@@ -29,6 +52,7 @@ it('isolates private, query, credentials and every Next representation from anon
   for(const marker of [undefined,'','v1','home','events','event'])expect(publicMarkerMatches(marker,'/channels')).toBe(false);
   expect(publicHtmlVary('Accept-Encoding, RSC')).toContain('Accept-Encoding');
   expect(publicHtmlVary('Accept-Encoding, RSC').split(', ').filter(s=>s==='RSC')).toHaveLength(1);
+  expect(publicHtmlVary('x-api-key').split(', ').filter(s=>s.toLowerCase()==='x-api-key')).toEqual(['X-Api-Key']);
   expect(publicHtmlVary('*')).toBe('*');
 });
 

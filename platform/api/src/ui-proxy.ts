@@ -1,22 +1,30 @@
 import proxy from '@fastify/http-proxy';
 import type { FastifyInstance } from 'fastify';
 import {promisify} from 'node:util';
-import {gzip} from 'node:zlib';
+import {gzip,brotliCompress,constants as zlibConstants} from 'node:zlib';
 import {HtmlRenderSlots} from './html-render-slots.js';
 import { validImageOptimizationQuery } from '../../shared/image-policy.js';
 import {securePublicHtml} from './public-html-csp.js';
-import {PRIVATE_CACHE, PUBLIC_RENDER_HEADER, publicMarkerMatches,publicHtmlTtl, publicHtmlVary, publicCacheControl,upstreamPublicPolicy,acceptsGzip} from './public-html.js';
+import {PRIVATE_CACHE, PUBLIC_RENDER_HEADER, publicMarkerMatches,publicHtmlTtl, publicHtmlVary, publicCacheControl,upstreamPublicPolicy,htmlEncoding} from './public-html.js';
 import {INTERNAL_RENDER_HEADER,isInternalRenderPath} from '../../shared/public-render-contract.js';
 import {unavailableResponder,type UnavailableAssets} from './ui-unavailable.js';
+import {publicCacheDiagnostics} from './public-cache-diagnostics.js';
 const gzipAsync=promisify(gzip);
+const brotliAsync=promisify(brotliCompress);
 
 export type HtmlSecurityOptions = {assets:ReadonlyMap<string,string>;themeScript:string}&UnavailableAssets;
 
 /** The gateway owns API/ops namespaces; the exact read-only console page reaches Next. */
-export async function registerUiProxy(app: FastifyInstance, options: { origin: string; htmlSecurity?:HtmlSecurityOptions }) {
+export async function registerUiProxy(app: FastifyInstance, options: { origin: string; htmlSecurity?:HtmlSecurityOptions;cacheDiagnostics?:ReturnType<typeof publicCacheDiagnostics> }) {
   const origin = new URL(options.origin);
   if (!['http:', 'https:'].includes(origin.protocol) || origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) throw new Error('Invalid UI origin');
   const slots=new HtmlRenderSlots();
+  const cacheDiagnostics=options.cacheDiagnostics??publicCacheDiagnostics({emit:record=>{
+    // Fixed aggregate JSON only, visible even with Fastify logger:false. Never
+    // enqueue more logs when stderr is backed up; counters remain cumulative.
+    if(process.stderr.writableNeedDrain)return;
+    process.stderr.write(JSON.stringify(record)+'\n');
+  }});
   const unavailable=unavailableResponder(options.htmlSecurity??{});
   if(unavailable.css)app.get('/errors/unavailable.css',(_request,reply)=>reply.header('Cache-Control','public, max-age=300, no-transform').header('X-Content-Type-Options','nosniff').type('text/css; charset=utf-8').send(unavailable.css));
   await app.register(proxy, {
@@ -106,16 +114,24 @@ export async function registerUiProxy(app: FastifyInstance, options: { origin: s
             const result=securePublicHtml(Buffer.concat(chunks),security);
             const vary=publicHtmlVary(reply.getHeader('vary'));
             const ttl=publicHtmlTtl(request);
-            const upstreamPolicy=upstreamPublicPolicy(reply.getHeader('cache-control'),reply.getHeader('age'));
+            const upstreamPolicy=upstreamPublicPolicy(reply.getHeader('cache-control'),reply.getHeader('age'),String(reply.getHeader('x-nextjs-cache')??'').toUpperCase()==='STALE');
             const shareable=reply.statusCode===200 && !result.clientRenderFailed && publicMarkerMatches(marker,request.url) && ttl!==null && upstreamPolicy!==null &&
-              String(reply.getHeader('x-nextjs-cache')??'').toUpperCase()!=='STALE' && !reply.hasHeader('set-cookie') && vary!=='*';
+              !reply.hasHeader('set-cookie') && vary!=='*';
+            cacheDiagnostics.observe({shareable,clientRenderFailed:result.clientRenderFailed,ttlAvailable:ttl!==null,upstreamPolicyAvailable:upstreamPolicy!==null,
+              markerMatches:publicMarkerMatches(marker,request.url),statusOk:reply.statusCode===200,upstreamStale:String(reply.getHeader('x-nextjs-cache')??'').toUpperCase()==='STALE',
+              privateRequest:request.method!=='GET'||['cookie','authorization','x-api-key','rsc','next-router-state-tree','next-router-prefetch','next-router-segment-prefetch','next-url','x-nextjs-data','next-action'].some(name=>request.headers[name]!==undefined)||String(request.headers.accept??'').includes('text/x-component'),
+              varyWildcard:vary==='*',setCookie:reply.hasHeader('set-cookie')});
             for(const name of ['content-length','content-encoding','etag','age','content-security-policy-report-only']) reply.removeHeader(name);
             reply.header('Content-Security-Policy',result.csp).header('Vary',vary)
               .header('Cache-Control',shareable?publicCacheControl(Math.min(ttl!,upstreamPolicy!.ttl),Math.min(ttl!,upstreamPolicy!.stale),upstreamPolicy!.revalidation):PRIVATE_CACHE)
               .header('Date',new Date().toUTCString())
               .header('X-Content-Type-Options','nosniff').header('Strict-Transport-Security','max-age=31536000');
-            const encoded=acceptsGzip(request.headers['accept-encoding'])?await gzipAsync(result.body,{level:4}):null;
-            if(encoded)reply.header('Content-Encoding','gzip');
+            const encoding=htmlEncoding(request.headers['accept-encoding']);
+            if(encoding===null){reply.code(406).header('Cache-Control',PRIVATE_CACHE).send();return;}
+            // Compress asynchronously while retaining the existing bounded render
+            // lease. Low Brotli quality avoids expensive per-request optimization.
+            const encoded=encoding==='br'?await brotliAsync(result.body,{params:{[zlibConstants.BROTLI_PARAM_QUALITY]:4,[zlibConstants.BROTLI_PARAM_MODE]:zlibConstants.BROTLI_MODE_TEXT}}):encoding==='gzip'?await gzipAsync(result.body,{level:4}):null;
+            if(encoded)reply.header('Content-Encoding',encoding);
             reply.send(encoded??result.body);
           } catch {
             // Do not log HTML, URLs, cookies or parsing details: pages can contain user data.
