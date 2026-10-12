@@ -8,7 +8,7 @@ import { CHANNEL_SORTS, type ChannelRankingScope, type ChannelSort } from '../..
 import { optionalChannelAi } from './channel-ai.js';
 import { homeExploration } from './home-exploration.js';
 import { sql, type SQL } from 'drizzle-orm';
-import type { Reader, Row } from '../db/client.js';
+import { DataQueryFailed, type Reader, type Row } from '../db/client.js';
 import type { ChannelData, ChannelRow, ChannelCollection, Collection, HomeData, LiveRow, TagRow, VideoData, VideoRow, AiDaysData, AiEventData } from '../contracts.js';
 import { channel, integer, latest, list, object, tags, text, timestamp, video, taipeiDate, taipeiSql, tagIds } from './normalize.js';
 import { BadQuery, NotFound, page, tagFilter, search, positiveId, idList, dateFilter, bounded } from './query.js';
@@ -85,15 +85,44 @@ export function reports(reader: Reader, clock: () => Date = () => new Date()): R
         // trailing space must not match another exact vocabulary identity.
         const evidence = sql `EXISTS(SELECT 1 FROM ts_video_tag_evidence e WHERE e.video_id=v.videoId AND e.vocabulary_version=${version} AND e.term=${keyword} AND BINARY e.term=BINARY ${keyword})`;
         const where = sql `${scope} ${keyword ? sql `AND EXISTS(SELECT 1 FROM ts_video_tag_matches m WHERE m.video_id=v.videoId AND m.vocabulary_version=${version} AND ${fresh} AND ${evidence})` : sql ``}`;
-        const [rows, count, coverageRows] = await Promise.all([
-            reader.rows(sql `SELECT v.pk,v.videoId,v.u_id,LEFT(v.channelId,128) AS channelId,LEFT(v.channelTitle,256) AS channelTitle,LEFT(v.title,512) AS title,LEFT(v.thumbnails,2048) AS thumbnails,v.publishedAt,v.viewCount,v.likeCount,v.commentCount,v.dislikeCount,v.mtime,v.ctime,LEFT(n.tags,4096) AS tags FROM urt_video v LEFT JOIN urt_count n ON n.u_id=v.u_id WHERE ${where} ORDER BY ${sql.identifier('v')}.${sql.identifier(column)} DESC,v.pk DESC LIMIT ${limit} OFFSET ${offset}`),
-            reader.rows(sql `SELECT COUNT(*) AS total FROM urt_video v LEFT JOIN urt_count n ON n.u_id=v.u_id WHERE ${where}`),
+        const fields=sql`v.pk,v.videoId,v.u_id,LEFT(v.channelId,128) AS channelId,LEFT(v.channelTitle,256) AS channelTitle,LEFT(v.title,512) AS title,LEFT(v.thumbnails,2048) AS thumbnails,v.publishedAt,v.viewCount,v.likeCount,v.commentCount,v.dislikeCount,v.mtime,v.ctime,LEFT(n.tags,4096) AS tags`;
+        const order=sql`${sql.identifier('v')}.${sql.identifier(column)} DESC,v.pk DESC`;
+        const source=sql`FROM urt_video v LEFT JOIN urt_count n ON n.u_id=v.u_id`;
+        const selection=async():Promise<{rows:Row[];total:number}>=>{
+            if(!term){
+                const [rows,count]=await Promise.all([
+                    reader.rows(sql`SELECT ${fields} ${source} WHERE ${where} ORDER BY ${order} LIMIT ${limit} OFFSET ${offset}`),
+                    reader.rows(sql`SELECT COUNT(*) AS total ${source} WHERE ${where}`),
+                ]);
+                return {rows,total:integer(count[0]?.total)??0};
+            }
+            // Exact LIKE counts require a full text scan. Count and choose compact
+            // primary keys together, instead of running that scan twice in parallel.
+            // MariaDB GROUP_CONCAT LIMIT rejects mysql2's DOUBLE-bound integers:
+            // only the already bounded integer pagination values become literals.
+            const [page]=await reader.rows(sql`SELECT COUNT(*) AS total,GROUP_CONCAT(CONCAT(v.pk,'#') ORDER BY ${order} SEPARATOR ',' LIMIT ${sql.raw(String(limit))} OFFSET ${sql.raw(String(offset))}) AS pageKeys ${source} WHERE ${where}`);
+            const total=integer(page?.total),raw=page?.pageKeys;
+            if(total===null||total<0)throw new DataQueryFailed('INVALID_VIDEO_PAGE');
+            const expected=Math.min(limit,Math.max(0,total-offset)),keys=raw===null||raw===''?[]:typeof raw==='string'?raw.split(','):[];
+            // GROUP_CONCAT may be truncated by server settings. A terminator on
+            // every key plus exact cardinality prevents a partial last integer
+            // from selecting another real row. Never return a plausible short page.
+            if(keys.length!==expected||keys.some(key=>!/^-?\d{1,20}#$/.test(key))||new Set(keys).size!==keys.length||expected===0&&raw!==null&&raw!=='')throw new DataQueryFailed('INVALID_VIDEO_PAGE');
+            if(!keys.length)return {rows:[],total};
+            // Laravel can change text/taxonomy/evidence between statements. Recheck
+            // membership on only these primary keys; never return a now-stale match.
+            const rows=await reader.rows(sql`SELECT ${fields} ${source} WHERE v.pk IN (${sql.join(keys.map(key=>sql`${key.slice(0,-1)}`),sql`,`)}) AND ${where} ORDER BY ${order}`);
+            return {rows,total};
+        };
+        const [selected, coverageRows] = await Promise.all([
+            selection(),
             keyword ? reader.rows(sql `SELECT COUNT(*) AS sourceVideos,COALESCE(SUM(m.video_id IS NULL),0) AS unprocessedVideos,COALESCE(SUM(m.video_id IS NOT NULL AND (${fresh})),0) AS freshVideos,COALESCE(SUM(m.video_id IS NOT NULL AND NOT(${fresh})),0) AS staleVideos FROM urt_video v LEFT JOIN urt_count n ON n.u_id=v.u_id LEFT JOIN ts_video_tag_matches m ON m.video_id=v.videoId AND m.vocabulary_version=${version} WHERE ${scope}`) : Promise.resolve([]),
         ]);
+        const {rows,total}=selected;
         const c = coverageRows[0];
         const listingScope=keyword?'keyword':requestedScope??(channelId!==null?'channel':idList(query.tagid).length||idList(query.or).length||idList(query.not).length?'taxonomy':'general');
         const enriched=await enrichVideoListings(reader,rows,listingScope,listingScope==='taxonomy'?await names():new Map());
-        return { rows: enriched, total: integer(count[0]?.total) ?? 0, limit, offset, ...(keyword ? { evidenceCoverage: { status: 'synchronized', vocabularyVersion: version, sourceVideos: integer(c?.sourceVideos) ?? 0, freshVideos: integer(c?.freshVideos) ?? 0, staleVideos: integer(c?.staleVideos) ?? 0, unprocessedVideos: integer(c?.unprocessedVideos) ?? 0, keywordMatchedVideos: integer(count[0]?.total) ?? 0 } } : {}) };
+        return { rows: enriched, total, limit, offset, ...(keyword ? { evidenceCoverage: { status: 'synchronized', vocabularyVersion: version, sourceVideos: integer(c?.sourceVideos) ?? 0, freshVideos: integer(c?.freshVideos) ?? 0, staleVideos: integer(c?.staleVideos) ?? 0, unprocessedVideos: integer(c?.unprocessedVideos) ?? 0, keywordMatchedVideos: total } } : {}) };
     };
     const liveRows = (query: Query = {}) => currentLive(reader,query,clock,names);
     const tagRows = async (query: Query = {}): Promise<Collection<TagRow>> => {

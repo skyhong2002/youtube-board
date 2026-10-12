@@ -10,7 +10,26 @@ export const checkedLiveSum=(a:number,b:number)=>{const n=a+b;if(!Number.isSafeI
 async function storedLogs(reader:Reader,q:Query,from:string,to:string,display=false){
  const term=search(q.q),joins=display||term?sql`LEFT JOIN urt_video v ON v.pk=(SELECT MAX(v2.pk) FROM urt_video v2 WHERE v2.videoId=l.videoId AND BINARY v2.videoId=BINARY l.videoId) LEFT JOIN urt_show_video_live s ON s.pk_live=(SELECT MAX(s2.pk_live) FROM urt_show_video_live s2 WHERE s2.videoId=l.videoId AND BINARY s2.videoId=BINARY l.videoId) LEFT JOIN urt_channel c ON c.u_id=l.u_id`:sql``;
  const where=sql`l.the_date BETWEEN ${from} AND ${to} AND l.max_current>0 AND ${tagFilter(q)} ${term?sql`AND(COALESCE(s.title,v.title,'') COLLATE utf8mb4_unicode_ci LIKE ${term} ESCAPE '=' OR COALESCE(${liveChannelTitleSql},'') COLLATE utf8mb4_unicode_ci LIKE ${term} ESCAPE '=')`:sql``}`;
- const rows=display?await reader.rows(sql`SELECT l.pk,l.the_date,l.videoId,l.u_id,l.max_current,a.tags,a.sum_current,a.count_rows,a.ctime,a.mtime,COALESCE(s.title,v.title) AS title,${liveChannelTitleSql} AS channel_title FROM(SELECT l.u_id,n.tags,SUM(l.max_current) AS sum_current,COUNT(*) AS count_rows,MAX(l.ctime) AS ctime,MAX(l.mtime) AS mtime FROM urt_video_live_log l JOIN urt_count n ON n.u_id=l.u_id ${term?joins:sql``} WHERE ${where} GROUP BY l.u_id,n.tags LIMIT ${LIVE_READ_LIMITS.rows+1}) a JOIN urt_video_live_log l ON l.pk=(SELECT l.pk FROM urt_video_live_log l JOIN urt_count n ON n.u_id=l.u_id ${term?joins:sql``} WHERE l.u_id=a.u_id AND ${where} ORDER BY l.max_current DESC,l.the_date DESC,l.pk DESC LIMIT 1) ${joins}`):await reader.rows(sql`SELECT l.the_date,n.tags,SUM(l.max_current) AS sum_current,COUNT(*) AS count_rows,MAX(l.ctime) AS ctime,MAX(l.mtime) AS mtime FROM urt_video_live_log l JOIN urt_count n ON n.u_id=l.u_id ${joins} WHERE ${where} GROUP BY l.the_date,n.tags ORDER BY l.the_date DESC LIMIT ${LIVE_READ_LIMITS.rows+1}`);
+ // Rank and aggregate the filtered observations once. A correlated peak-row
+ // lookup rescans the entire date range for every channel on the source schema,
+ // whose live log has a date index but no channel index.
+ // Only ROW_NUMBER uses a window: MariaDB's full-partition SUM/MAX windows
+ // can become expensive for a channel with many repeated observations.
+ const rows=display?await reader.rows(sql`
+  SELECT l.pk,l.the_date,l.videoId,l.u_id,l.max_current,a.tags,a.sum_current,a.count_rows,a.ctime,a.mtime,
+   COALESCE(s.title,v.title) AS title,${liveChannelTitleSql} AS channel_title
+  FROM (
+   SELECT ranked.u_id,ranked.tags,SUM(ranked.max_current) AS sum_current,COUNT(*) AS count_rows,
+    MAX(ranked.ctime) AS ctime,MAX(ranked.mtime) AS mtime,
+    MAX(CASE WHEN ranked.peak_rank=1 THEN ranked.pk END) AS peak_pk
+   FROM (
+    SELECT l.pk,l.u_id,l.max_current,l.ctime,l.mtime,n.tags,
+     ROW_NUMBER() OVER (PARTITION BY l.u_id,n.tags ORDER BY l.max_current DESC,l.the_date DESC,l.pk DESC) AS peak_rank
+    FROM urt_video_live_log l JOIN urt_count n ON n.u_id=l.u_id ${term?joins:sql``}
+    WHERE ${where}
+   ) ranked GROUP BY ranked.u_id,ranked.tags LIMIT ${LIVE_READ_LIMITS.rows+1}
+  ) a JOIN urt_video_live_log l ON l.pk=a.peak_pk ${joins}
+ `):await reader.rows(sql`SELECT l.the_date,n.tags,SUM(l.max_current) AS sum_current,COUNT(*) AS count_rows,MAX(l.ctime) AS ctime,MAX(l.mtime) AS mtime FROM urt_video_live_log l JOIN urt_count n ON n.u_id=l.u_id ${joins} WHERE ${where} GROUP BY l.the_date,n.tags ORDER BY l.the_date DESC LIMIT ${LIVE_READ_LIMITS.rows+1}`);
  if(rows.length>LIVE_READ_LIMITS.rows)throw new ReportReadBound('Narrow live aggregate filters: exceeds20,000 channel or date/category aggregates.');return rows;
 }
 export const LIVE_DAILY_GROUPS={party:{name:'立場陣營',ids:[3,6,4,5,48,49]},news:{name:'新聞媒體',ids:[53,29,64,63,50,65,75,19,69,73,77,80,85,76]},main:{name:'主流新聞',ids:[53,29,64,63,50,65,75]},media:{name:'媒體類型',ids:[89,12,9,81]},china:{name:'中國政論',ids:[10,11,15,22,55]}};

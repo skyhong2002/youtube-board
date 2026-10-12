@@ -1,6 +1,6 @@
 # Cutover readiness — 2026-10-12
 
-The latest user authorization permits frontend deployment followed by individual writer handoffs, subject to preserving the production database. **Production routing and workflow ownership have not switched.** Dokploy still redirects the shared browser's project URL to its login page; the user has offered to sign in. No production TS database schema or runtime principal has been created.
+The latest user authorization permits frontend deployment followed by individual writer handoffs, subject to preserving the production database. **See the newer [execution record](frontend-cutover-execution-2026-10-12.md): the frontend briefly switched and was rolled back after direct API probes found report SQL timeouts.** Dokploy API access, independent TS schema/accounts and candidate services are now established. Background ownership remains Laravel. The evidence below describes the earlier frozen candidate, not completion of live acceptance.
 
 ## Completed evidence
 
