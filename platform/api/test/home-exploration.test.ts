@@ -35,6 +35,31 @@ describe.skipIf(!url)('homepage maintained vocabulary and source metrics with Ma
  it('deduplicates title/description evidence and exposes fresh/stale/unmatched with unknown views',async()=>{
   const r=await homeExploration(reader,now);expect(r.keywords.rows).toEqual([{key,term,videoCount:2,views:null,unknownViewVideos:1}]);expect(r.keywords).toMatchObject({sourceVideos:4,freshVideos:2,staleVideos:1,unprocessedVideos:1,version:run});expect(r.keywords.from).toBe('2035-01-02T00:00:00+08:00');expect(r.keywords.rows[0]?.videoCount).not.toBe(999999);
  });
+ it('today starts at Taipei midnight and keeps independent coverage from seven calendar days',async()=>{
+  try{for(const [published,todayCount,todaySources] of [['2035-01-07 23:59:59',1,3],['2035-01-08 00:00:00',2,4],['2035-01-08 12:00:00',2,4],['2035-01-08 12:00:01',1,3]] as const){
+   await db.execute('UPDATE urt_video SET publishedAt=? WHERE BINARY videoId=BINARY ?',[published,ids[0]]);
+   const result=await homeExploration(reader,now);
+   expect(result.keywordToday).toMatchObject({from:'2035-01-08T00:00:00+08:00',to:'2035-01-08T12:00:00+08:00',sourceVideos:todaySources,freshVideos:todayCount,staleVideos:1,unprocessedVideos:1,version:run});
+   expect(result.keywordToday.rows[0]).toMatchObject({videoCount:todayCount,views:null,unknownViewVideos:1});
+   expect(result.keywords.rows[0]?.videoCount).toBe(published==='2035-01-08 12:00:01'?1:2);
+  }}finally{await db.execute('UPDATE urt_video SET publishedAt=? WHERE BINARY videoId=BINARY ?',[from,ids[0]]);}
+ });
+ it('each window independently selects up to forty cloud terms rather than filtering the weekly top forty',async()=>{
+  const extraKeys=Array.from({length:43},(_,i)=>i===42?'f'.repeat(64):i.toString(16).padStart(64,'0'));
+  try{
+   await db.execute("UPDATE urt_video SET publishedAt='2035-01-07 10:00:00' WHERE BINARY videoId=BINARY ?",[ids[0]]);
+   for(const [i,extraKey] of extraKeys.entries())await db.execute("INSERT INTO ts_video_tag_evidence(video_id,vocabulary_version,term_key,term,source,field_name,start_offset,end_offset,matched_text,snippet,snippet_start,rule_version) VALUES(?,?,?,?,'https://tag.observe.tw','title',0,5,?,?,0,'fixture')",[ids[i===42?1:0],run,extraKey,`排行詞${i}`,term,term]);
+   const result=await homeExploration(reader,now);
+   expect(result.keywords.rows).toHaveLength(40);expect(result.keywordToday.rows).toHaveLength(2);
+   expect(result.keywords.rows.some(r=>r.key==='f'.repeat(64))).toBe(false);
+   expect(result.keywordToday.rows.some(r=>r.key==='f'.repeat(64))).toBe(true);
+   expect(result.keywords.rows[0]?.key).toBe(key);
+   expect(result.keywordToday.sourceVideos).toBe(3);expect(result.keywords.sourceVideos).toBe(4);
+  }finally{
+   await db.execute('DELETE FROM ts_video_tag_evidence WHERE vocabulary_version=? AND term_key<>?',[run,key]);
+   await db.execute('UPDATE urt_video SET publishedAt=? WHERE BINARY videoId=BINARY ?',[from,ids[0]]);
+  }
+ });
  it('statistics mtime changes do not stale textual matching, but title changes do',async()=>{
   await db.execute("UPDATE urt_video SET mtime='2035-01-08 12:00:00' WHERE BINARY videoId=BINARY ?",[ids[0]]);expect((await homeExploration(reader,now)).keywords.rows[0]?.videoCount).toBe(2);
   await db.execute("UPDATE urt_video SET title='edited' WHERE BINARY videoId=BINARY ?",[ids[0]]);try{const result=await homeExploration(reader,now);expect(result.keywords.rows[0]?.videoCount).toBe(1);expect(result.keywords.staleVideos).toBe(2);}finally{await db.execute('UPDATE urt_video SET title=? WHERE BINARY videoId=BINARY ?',[term,ids[0]]);}
@@ -48,11 +73,11 @@ describe.skipIf(!url)('homepage maintained vocabulary and source metrics with Ma
   try{for(const [published,expected] of [['2035-01-01 23:59:59',1],['2035-01-02 00:00:00',2],['2035-01-08 12:00:00',2],['2035-01-08 12:00:01',1]] as const){await db.execute('UPDATE urt_video SET publishedAt=? WHERE BINARY videoId=BINARY ?',[published,ids[0]]);expect((await homeExploration(reader,now)).keywords.rows[0]?.videoCount).toBe(expected);}}finally{await db.execute('UPDATE urt_video SET publishedAt=? WHERE BINARY videoId=BINARY ?',[from,ids[0]]);}
  });
  it('optional matching timeout keeps core homepage but unexpected schema errors remain HTTP500',async()=>{
-  const dialect=new MySqlDialect();for(const [error,status] of [[new DataSourceUnavailable(),200],[new DataQueryFailed('ER_BAD_FIELD_ERROR'),500]] as const){const isolated=buildApp({dataset:'fixture',clock:()=>now,reader:{rows:async query=>{if(dialect.sqlToQuery(query).sql.includes('ts_video_tag_matches'))throw error;return reader.rows(query);},close:async()=>{}}});try{const r=await isolated.inject('/api/v1/home');expect(r.statusCode).toBe(status);if(status===200){expect(r.json().data.exploration.keywords).toMatchObject({status:'unavailable',sourceVideos:null});expect(r.json().data.channels).toBeInstanceOf(Array);expect(r.json().data.exploration.categories.status).toBe('available');expect(r.json().meta.warnings).toContain('關鍵字統計目前無法完整讀取。');}}finally{await isolated.close();}}
+  const dialect=new MySqlDialect();for(const [error,status] of [[new DataSourceUnavailable(),200],[new DataQueryFailed('ER_BAD_FIELD_ERROR'),500]] as const){const isolated=buildApp({dataset:'fixture',clock:()=>now,reader:{rows:async query=>{if(dialect.sqlToQuery(query).sql.includes('ts_video_tag_matches'))throw error;return reader.rows(query);},close:async()=>{}}});try{const r=await isolated.inject('/api/v1/home');expect(r.statusCode).toBe(status);if(status===200){expect(r.json().data.exploration.keywords).toMatchObject({status:'unavailable',sourceVideos:null});expect(r.json().data.exploration.keywordToday).toMatchObject({status:'unavailable',sourceVideos:null,from:'2035-01-08T00:00:00+08:00'});expect(r.json().data.channels).toBeInstanceOf(Array);expect(r.json().data.exploration.categories.status).toBe('available');expect(r.json().meta.warnings).toContain('關鍵字統計目前無法完整讀取。');}}finally{await isolated.close();}}
  });
  it('invalid aggregate coverage never becomes a fabricated zero',async()=>{
   const dialect=new MySqlDialect();const result=await homeExploration({rows:async query=>dialect.sqlToQuery(query).sql.includes('AS source_videos')?reader.rows(sql`SELECT '9007199254740993' AS source_videos,0 AS fresh,0 AS stale,0 AS unprocessed`):reader.rows(query),close:async()=>{}},now);expect(result.keywords).toMatchObject({status:'unavailable',reason:'precision',sourceVideos:null,freshVideos:null});
  });
- it('home preserves channels/live/daily fields alongside new exploration panels',async()=>{const r=await app.inject('/api/v1/home');expect(r.statusCode).toBe(200);const d=r.json().data;for(const key of ['channels','live','events','tags'])expect(Array.isArray(d[key])).toBe(true);expect(d.exploration.keywords.rows[0].videoCount).toBe(2);expect(d.exploration.categories.summary.overlapping).toBe(true);});
+ it('home preserves channels/live/daily fields alongside new exploration panels',async()=>{const r=await app.inject('/api/v1/home');expect(r.statusCode).toBe(200);const d=r.json().data;for(const key of ['channels','live','events','tags'])expect(Array.isArray(d[key])).toBe(true);expect(d.exploration.keywords.rows[0].videoCount).toBe(2);expect(d.exploration.keywordToday.rows[0].videoCount).toBe(2);expect(d.exploration.categories.summary.overlapping).toBe(true);});
  it('unsynchronized vocabulary yields explicit unknown coverage rather than news or legacy keyword substitutes',async()=>{await db.execute("DELETE FROM ts_vocabulary_current WHERE source='https://tag.observe.tw' AND run_id=?",[run]);try{expect((await homeExploration(reader,now)).keywords).toMatchObject({status:'not-synchronized',rows:[],freshVideos:null,sourceVideos:null});}finally{await db.execute("INSERT INTO ts_vocabulary_current(source,run_id) VALUES('https://tag.observe.tw',?)",[run]);}});
 });

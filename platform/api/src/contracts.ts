@@ -184,9 +184,14 @@ export interface AiEventData {
     presentation:EventPresentation;
     evidenceCoverage:ReportMeta['coverage'];
 }
+/** Fresh YouTube title/description evidence, ranked by video count; at most 40 cloud terms. */
+export type HomeKeywordSummary = { vocabularyCoverage:'observed-article-window'|'all-current-indexed-article-tags'|'unavailable';vocabularyWindow:{since:string;until:string}|null;source:'https://tag.observe.tw';version:string|null;status:'synchronized'|'not-synchronized'|'unavailable';reason:string|null;from:string;to:string;updatedAt:string|null;rows:{key:string;term:string;videoCount:number;views:number|null;unknownViewVideos:number}[];sourceVideos:number|null;freshVideos:number|null;staleVideos:number|null;unprocessedVideos:number|null;metric:'current-cumulative-views-of-window-published-videos' };
 export interface HomeExploration {
     categories: { status:'available'|'unavailable';reason:string|null;rows:TagRow[];summary:{visibleCategories:number|null;channelMemberships:number|null;uniqueChannels:number|null;weeklyViews:number|null;overlapping:true};updatedAt:string|null;minimumWeeklyViews:10 };
-    keywords: { vocabularyCoverage:'observed-article-window'|'all-current-indexed-article-tags'|'unavailable';vocabularyWindow:{since:string;until:string}|null;source:'https://tag.observe.tw';version:string|null;status:'synchronized'|'not-synchronized'|'unavailable';reason:string|null;from:string;to:string;updatedAt:string|null;rows:{key:string;term:string;videoCount:number;views:number|null;unknownViewVideos:number}[];sourceVideos:number|null;freshVideos:number|null;staleVideos:number|null;unprocessedVideos:number|null;metric:'current-cumulative-views-of-window-published-videos' };
+    /** Seven inclusive Taipei calendar dates through response to. */
+    keywords: HomeKeywordSummary;
+    /** Current Taipei date from midnight through response to. */
+    keywordToday: HomeKeywordSummary;
 }
 export interface HomeData {
     exploration: HomeExploration;
