@@ -1,5 +1,59 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {homeEdition,visibleHomeKeywords} from './home-presentation';
+import {Fragment,createElement,type ReactNode} from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
+import type {HomeKeywordSummary} from '../../../api/src/contracts';
+import {homeEdition,homeKeywordCloudWords,homeKeywordState,homeKeywordSummary,keywordVideosHref,keywordViewsLabel,visibleHomeKeywords} from './home-presentation';
+import {KeywordWindowPane,KeywordWindowProvider,KeywordWindowSwitch} from '../app/_home/KeywordWindow';
+const summary=(patch:Partial<HomeKeywordSummary>={}):HomeKeywordSummary=>({vocabularyCoverage:'observed-article-window',vocabularyWindow:null,source:'https://tag.observe.tw',version:'run-1',status:'synchronized',reason:null,from:'2026-10-06T00:00:00+08:00',to:'2026-10-12T09:30:00+08:00',updatedAt:'2026-10-12T01:00:00.000Z',rows:[],sourceVideos:10,freshVideos:8,staleVideos:1,unprocessedVideos:1,metric:'current-cumulative-views-of-window-published-videos',...patch});
+const row=(i:number,patch:Partial<HomeKeywordSummary['rows'][number]>={}):HomeKeywordSummary['rows'][number]=>({key:`k${i}`,term:`詞${i}`,videoCount:50-i,views:1000*i,unknownViewVideos:0,...patch});
 test('home edition uses recorded observation time with Taipei dates and a neutral missing state',()=>{assert.match(homeEdition('2026-10-10T18:00:00Z','2026-10-08'),/2026\/10\/11/);assert.match(homeEdition(null,'2026-10-08'),/2026\/10\/08/);assert.equal(homeEdition(null,null),'持續觀察 YouTube 公共討論');assert.equal(homeEdition('invalid',null),'持續觀察 YouTube 公共討論');});
 test('unavailable or unsynchronized home vocabulary never exposes old rows as current',()=>{const rows=[{key:'news',term:'新聞',videoCount:3,views:null,unknownViewVideos:3}];assert.deepEqual(visibleHomeKeywords({status:'unavailable',rows}),[]);assert.deepEqual(visibleHomeKeywords({status:'not-synchronized',rows}),[]);assert.equal(visibleHomeKeywords({status:'synchronized',rows}),rows);});
+test('today and week are read from their own summaries; an older API without keywordToday is unknown, not empty',()=>{
+ const week=summary({rows:[row(1)]}),today=summary({from:'2026-10-12T00:00:00+08:00',rows:[row(2)]});
+ assert.equal(homeKeywordSummary({keywords:week,keywordToday:today},'today'),today);
+ assert.equal(homeKeywordSummary({keywords:week,keywordToday:today},'week'),week);
+ assert.equal(homeKeywordSummary({keywords:week},'today'),null);
+ assert.equal(homeKeywordSummary({keywords:week,keywordToday:{status:'synchronized'}},'today'),null);
+ const missing=homeKeywordState(null,'today');assert.deepEqual(missing.rows,[]);assert.match(missing.message??'',/尚未提供今日.*狀態未知/);assert.doesNotMatch(missing.message??'',/尚無收錄|尚無可確認/);
+});
+test('empty keyword states stay distinct and truthful',()=>{
+ const message=(s:HomeKeywordSummary)=>homeKeywordState(s,'today').message;
+ assert.match(message(summary({status:'unavailable',rows:[row(1)]}))??'',/無法完整讀取/);
+ assert.match(message(summary({status:'not-synchronized',rows:[row(1)]}))??'',/尚未同步/);
+ assert.match(message(summary({sourceVideos:0,freshVideos:0}))??'',/今日尚無收錄的發布影片/);
+ assert.match(message(summary({sourceVideos:5,freshVideos:0}))??'',/收錄 5 支影片，尚無完成比對/);
+ assert.match(message(summary({sourceVideos:5,freshVideos:4}))??'',/已完成比對 4 支影片，尚未出現共同詞彙/);
+ assert.match(message(summary({sourceVideos:null,freshVideos:null}))??'',/尚無可確認/);
+ // Video-only surface: no article/news wording in any empty state.
+ for(const s of [null,summary({status:'unavailable'}),summary({status:'not-synchronized'}),summary({sourceVideos:0}),summary({freshVideos:0}),summary()])assert.doesNotMatch(homeKeywordState(s,'week').message??'',/文章|新聞|篇/);
+ const ok=homeKeywordState(summary({rows:[row(1)]}),'week');assert.equal(ok.message,null);assert.equal(ok.rows.length,1);
+});
+test('keyword links keep the selected Taipei publication dates',()=>{
+ assert.equal(keywordVideosHref('台積電',summary()),'/keywords/%E5%8F%B0%E7%A9%8D%E9%9B%BB/videos?from=2026-10-06&to=2026-10-12');
+ assert.equal(keywordVideosHref('a/b',summary({from:'2026-10-12T00:00:00+08:00'})),'/keywords/a%2Fb/videos?from=2026-10-12&to=2026-10-12');
+ // Late UTC evening is already the next Taipei day.
+ assert.equal(keywordVideosHref('x',{from:'2026-10-11T16:00:00.000Z',to:'2026-10-11T17:00:00.000Z'}),'/keywords/x/videos?from=2026-10-12&to=2026-10-12');
+ assert.equal(keywordVideosHref('x',{from:'invalid',to:'2026-10-12T00:00:00+08:00'}),'/keywords/x/videos');
+ assert.equal(keywordVideosHref('x',null),'/keywords/x/videos');
+});
+test('the cloud keeps all forty ranked terms weighted by video count and unknown views are never zero',()=>{
+ const rows=Array.from({length:40},(_,i)=>row(i+1));rows[5]={...rows[5]!,views:null,unknownViewVideos:2};
+ const words=homeKeywordCloudWords(rows,summary({from:'2026-10-12T00:00:00+08:00',rows}),'today');
+ assert.equal(words.length,40);assert.deepEqual(words.map(w=>w.count),rows.map(r=>r.videoCount));
+ assert.ok(words.every(w=>w.href.endsWith('?from=2026-10-12&to=2026-10-12')));
+ assert.deepEqual(words.map(w=>w.tone).slice(0,4),['brand','brand','brand','strong']);
+ const unknown=words[5]!.card.rows.find(([k])=>k==='目前累計觀看')?.[1];assert.match(unknown??'',/未知（2 支尚無觀看值）/);
+ assert.equal(keywordViewsLabel({views:0,unknownViewVideos:0}),'0 次');
+ assert.ok(words.every(w=>w.card.rows.every(([,v])=>!/AI|增量|文章/.test(v))));
+});
+test('the window switch is a labelled radio group and only the selected pane renders',()=>{
+ const panes=(extra?:ReactNode)=>createElement(Fragment,null,extra,createElement(KeywordWindowPane,{window:'today',children:'TODAY-PANE'}),createElement(KeywordWindowPane,{window:'week',children:'WEEK-PANE'}));
+ const html=renderToStaticMarkup(createElement(KeywordWindowProvider,{children:panes(createElement(KeywordWindowSwitch,{name:'kw'}))}));
+ assert.match(html,/<legend[^>]*>關鍵字期間/);assert.equal(html.match(/type="radio"/g)?.length,2);
+ const checked=(html.match(/<input[^>]*>/g)??[]).filter(input=>/\schecked=""/.test(input));assert.equal(checked.length,1);assert.match(checked[0]!,/value="week"/);
+ assert.match(html,/aria-controls="home-keyword-ranking home-keyword-cloud"/);
+ assert.match(html,/WEEK-PANE/);assert.doesNotMatch(html,/TODAY-PANE/);
+ const today=renderToStaticMarkup(createElement(KeywordWindowProvider,{initial:'today',children:panes()}));
+ assert.match(today,/TODAY-PANE/);assert.doesNotMatch(today,/WEEK-PANE/);
+});

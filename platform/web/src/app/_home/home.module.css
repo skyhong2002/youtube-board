@@ -20,17 +20,12 @@
 .skip:focus { top: 12px; }
 .main { max-width: 1152px; margin: auto; padding: 0; }
 .edition { font-size: 12px; line-height: 1.7; margin-top: 6px; color: var(--muted); }
-/* Masthead: the square site mark centred where a page title would be, as on the parent site. */
-.masthead { display: flex; flex-direction: column; align-items: center; text-align: center; margin: 4px 0 28px; }
-.masthead h1 { line-height: 0; }
-.mastheadMark { width: 128px; height: 128px; color: var(--ink); }
-.mastheadTagline { margin-top: 14px; font-size: 14px; line-height: 1.6; color: var(--ink); letter-spacing: .04em; }
-.masthead .edition { margin-top: 4px; }
+.mastheadTagline { font-size: 14px; line-height: 1.6; color: var(--ink); letter-spacing: .04em; }
 .columns { display: grid; grid-template-columns: minmax(180px, .85fr) minmax(0, 2fr) minmax(210px, 1fr); align-items: start; gap: 20px; }
 .left, .center, .right { min-width: 0; }
 .sectionHeading, .gapHeading { margin-bottom: 12px; }
-.sectionHeading h2, .rankingHeading h2, .gapHeading h2 { font-size: 16px; font-weight: 600; line-height: 24px; }
-.sectionHeading h2::before, .rankingHeading h2::before, .gapHeading h2::before { content: ""; display: inline-block; width: 3px; height: 14px; margin-right: 8px; border-radius: 1px; background: var(--accent); vertical-align: -1px; }
+.sectionHeading h2, .rankingHeading h2, .gapHeading h2, .cloudCaption h2 { font-size: 16px; font-weight: 600; line-height: 24px; }
+.sectionHeading h2::before, .rankingHeading h2::before, .gapHeading h2::before, .cloudCaption h2::before { content: ""; display: inline-block; width: 3px; height: 14px; margin-right: 8px; border-radius: 1px; background: var(--accent); vertical-align: -1px; }
 .brief { border: 1px solid var(--line); padding: 16px; border-radius: 12px; background: var(--panel); }
 .briefCount { font-size: 32px; font-weight: 600; letter-spacing: -1px; line-height: 1; font-variant-numeric: tabular-nums; }
 .briefCount > span { font-size: 12px; letter-spacing: 0; margin-left: 7px; color: var(--muted); font-weight: 400; }
@@ -150,7 +145,6 @@
 }
 @media (max-width: 640px) {
   .main { padding-top: 0; }
-  .mastheadMark { width: 104px; height: 104px; }
   .campShare { flex-wrap: wrap; gap: 10px; }
   .campShareChart { flex-basis: 100%; order: 1; }
   .campShareChart .bar { height: 38px; }
@@ -175,11 +169,6 @@
 .sectionHeading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .sectionHeading > a { font-size: 12px; color: var(--accent); white-space: nowrap; }
 .sectionHeadingLater { margin-top: 28px; }
-/* Reserves the smallest canvas the cloud can have (RankingWordCloud's column
-   layout: 760×220, and 340×240 below md) so the events below do not jump while
-   it streams in; a taller cloud grows the box, a short one leaves no gap. */
-.growthCloud { aspect-ratio: 760 / 220; }
-@media (max-width: 767px) { .growthCloud { aspect-ratio: 340 / 240; } }
 
 
 /* Outlet icons folded away so the share bar stays one line. */
@@ -313,7 +302,6 @@
 .storyList > .more { margin-top: 0; border: 0; border-top: 1px solid var(--soft-line); border-radius: 0; }
 
 /* YouTube data slots retain the parent layout and type scale. */
-.masthead h1 { width: 100%; display: flex; justify-content: center; }
 .photo { width: 100%; height: 100%; object-fit: cover; }
 .channelAvatar { width: 20px; height: 20px; border-radius: 4px; object-fit: cover; }
 .topicDescription { font-size: 13px; line-height: 1.8; color: var(--muted); margin: 10px 0; }
@@ -324,7 +312,41 @@
 .sourceLinks { display: flex; flex-wrap: wrap; gap: 5px 12px; }
 .summaryValues { display: flex; flex-wrap: wrap; gap: 12px 20px; flex: 1; font-size: 12px; color: var(--muted); }
 .summaryValues strong { color: var(--ink); font-size: 14px; font-weight: 500; }
-.emptyCloud { min-height: 110px; display: flex; align-items: center; justify-content: center; font-size: 12px; line-height: 1.8; color: var(--muted); }
-.growthCloud:has(.emptyCloud) { aspect-ratio: auto; }
+
+/* Masthead cloud: the masthead in the middle of the keyword cloud, as on the
+ * parent site. One of three canvases shows per breakpoint (masthead-cloud.ts
+ * MASTHEAD_CANVASES; the numbers arrive as --compact-*, --medium-*, --wide-* on
+ * the frame). The frame is a size container, so the masthead scales with the
+ * cloud: --u is one canvas unit in px. The overlay lets the pointer through to
+ * the words around the mark. */
+.mastheadCloud { text-align: center; margin: 0 0 28px; }
+.mastheadCloudFrame {
+  --cw: var(--wide-w); --ch: var(--wide-h); --logo: var(--wide-logo); --t: var(--wide-t); --e: var(--wide-e);
+  position: relative; container-type: inline-size; margin: 0 auto; max-width: var(--wide-max); aspect-ratio: var(--cw) / var(--ch);
+}
+.mastheadCloudCompact, .mastheadCloudMedium { display: none; }
+.mastheadCloudCentre { --u: calc(100cqw / var(--cw)); position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+/* The family mark is a light/dark image pair rather than the parent's inline Logo. */
+.mastheadCloudCentre h1 { line-height: 0; display: flex; justify-content: center; }
+.mastheadCloudMark { width: calc(var(--logo) * var(--u)); height: calc(var(--logo) * var(--u)); }
+.mastheadCloudCentre .mastheadTagline { font-size: calc(var(--t) * var(--u)); margin-top: calc(var(--logo) * .03 * var(--u)); white-space: nowrap; }
+.mastheadCloudCentre .edition { font-size: calc(var(--e) * var(--u)); margin-top: calc(2 * var(--u)); white-space: nowrap; }
+.mastheadCloudLink { font-size: calc(var(--e) * var(--u)); line-height: 1.7; color: var(--accent); pointer-events: auto; }
+@media (max-width: 1023px) {
+  .mastheadCloudFrame { --cw: var(--medium-w); --ch: var(--medium-h); --logo: var(--medium-logo); --t: var(--medium-t); --e: var(--medium-e); max-width: var(--medium-max); }
+  .mastheadCloudWide { display: none; }
+  .mastheadCloudMedium { display: block; }
+}
+@media (max-width: 639px) {
+  .mastheadCloudFrame { --cw: var(--compact-w); --ch: var(--compact-h); --logo: var(--compact-logo); --t: var(--compact-t); --e: var(--compact-e); max-width: var(--compact-max); }
+  .mastheadCloudMedium { display: none; }
+  .mastheadCloudCompact { display: block; }
+}
+/* Under the frame: the cloud's visible heading, the shared window switch and its coverage line. */
+.cloudCaption { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 12px; margin-top: 8px; }
+.cloudCaption .panelNote { flex-basis: 100%; }
 
 .journalistOutlets { font-size: 11px; color: var(--muted); }
+/* Channel activity: the cached avatar shares the name's line centre. */
+.journalistName { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.journalistName > span:last-child { min-width: 0; overflow-wrap: anywhere; }
