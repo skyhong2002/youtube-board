@@ -2,13 +2,19 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {existsSync,readFileSync} from 'node:fs';
 import {join} from 'node:path';
-import {publicRenderDecision,withoutTransportParams,ISR_HOME_PATH,ISR_EVENTS_PATH,FILTERED_REPORT_PREFIX} from './public-render';
+import {publicRenderDecision,queryVariantRobots,withoutTransportParams,ISR_HOME_PATH,ISR_EVENTS_PATH,FILTERED_REPORT_PREFIX} from './public-render';
 import {PUBLIC_DATA_REVALIDATE,PublicDataError,deterministicPartial,publicApiUrl,publicDataClass,readPublicResponse,requireSuccess} from './public-data';
 import {tagEvidenceRenderable} from './evidence';
 import {INTERNAL_RENDER_HEADER,PUBLIC_RENDER_REVALIDATE_SECONDS,REPORT_FAMILIES,THEME_SCRIPT,internalRenderRewrites,isInternalRenderPath} from '../../../shared/public-render-contract';
 import {resolveRoute} from './routes';
 const decide=(path:string,method?:string)=>publicRenderDecision(new URL(path,'http://local'),method);
 const source=(file:string)=>{for(const root of [process.cwd(),join(process.cwd(),'web'),join(process.cwd(),'platform/web')]){const path=join(root,file);if(existsSync(path))return readFileSync(path,'utf8');}throw new Error('missing '+file);};
+test('every real query variant gets X-Robots-Tag noindex, including pages that ignore the query',()=>{
+ const robots=(path:string)=>queryVariantRobots(new URL(path,'http://local'));
+ for(const path of ['/?a=1','/events/9b2e3c1a-0000-4000-8000-000000000001?page=2','/videos?q=a','/events?page=2','/channels?sort=x&_rsc=abc'])assert.equal(robots(path),'noindex, follow',path);
+ for(const path of ['/','/videos','/channels?_rsc=abc'])assert.equal(robots(path),null,path);
+ assert.match(source('src/proxy.ts'),/queryVariantRobots\(request\.nextUrl\)[\s\S]*X-Robots-Tag/);
+});
 test('route decisions: canonical eligible, every query variant dynamic, internals blocked',()=>{
  assert.deepEqual(decide('/'),{kind:'render',target:'home',eligible:'home'});
  assert.deepEqual(decide('/?a=1'),{kind:'render',target:'home',eligible:null});

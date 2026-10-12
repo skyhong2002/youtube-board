@@ -24,6 +24,30 @@ const segment = producerLiteral('completeSegmentScript1Full').slice(0, -5);
 const clientRender = producerLiteral('clientRenderScript1Full').slice(0, -5);
 
 describe('public HTML hash CSP', () => {
+  it('preserves inert escaped JSON-LD without granting it script execution', () => {
+    const value = JSON.stringify({'@context':'https://schema.org','@type':'WebSite',name:'</script><script>alert(1)</script>'}).replaceAll('<', '\\u003c');
+    const result = secure(`<script type="application/ld+json">${value}</script>`);
+    expect(result.csp).toContain("script-src 'none'");
+    expect(result.csp).not.toContain(digest(value));
+    expect(result.body.toString()).toContain(value);
+  });
+  it.each([
+    '<script type="application/ld+json" src="/_next/static/chunks/app.js">{}</script>',
+    '<script type="application/ld+json" nonce="x">{}</script>',
+    '<script type="application/ld+json">alert(1)</script>',
+    '<script type="application/ld+json">{"text":"<img>"}</script>',
+    '<script type="application/ld+json">null</script>',
+    '<script type="application/ld+json">'+JSON.stringify({text:'x'.repeat(65536)})+'</script>',
+  ])('rejects executable or unbounded structured data %#', content => {
+    expect(() => secure(content)).toThrow('INVALID_STRUCTURED_DATA');
+  });
+  it('limits analytics domains to transport destinations, retaining hash script trust', () => {
+    expect(secure(script(theme)).csp).not.toMatch(/google-analytics|googletagmanager|analytics\.google/);
+    const csp = securePublicHtml(html(script(theme)), {...opts, analytics:true}).csp;
+    expect(csp.split(';').find(v=>v.trim().startsWith('script-src '))).not.toMatch(/google|unsafe-inline|nonce-/);
+    expect(csp).toContain("connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com");
+    expect(csp).toContain("object-src 'none'; base-uri 'self'");
+  });
   it('hashes audited inline scripts and attaches build SRI to external scripts', () => {
     const inline = [theme, 'requestAnimationFrame(function(){$RT=performance.now()});', boundary + '$RC("B:0","S:0")', bootstrap, 'self.__next_f.push([1,"hello"])'];
     const result = secure('<script async src="/_next/static/chunks/app.js"></script>' + inline.map(script).join(''));

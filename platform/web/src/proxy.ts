@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { legacyRedirect } from "../../shared/legacy-redirects";
 import { reportRequestStatus } from "./lib/request-status";
 import { validImageOptimizationQuery } from "../../shared/image-policy";
-import { publicRenderDecision, type RenderDecision } from "./lib/public-render";
+import { publicRenderDecision, queryVariantRobots, type RenderDecision } from "./lib/public-render";
 import { INTERNAL_RENDER_HEADER, PUBLIC_RENDER_HEADER, THEME_SCRIPT } from "../../shared/public-render-contract";
 // The gateway owns the final script policy (fixed inline hashes + build SRI). HTML may be
 // shared ISR output, so nothing here is per-request: no nonce, no script 'unsafe-inline'.
@@ -32,6 +32,8 @@ function securedResponse(request: NextRequest, decision: Extract<RenderDecision,
     // after its own success / Set-Cookie / RSC / private checks.
     if (decision.eligible) response.headers.set(PUBLIC_RENDER_HEADER, decision.eligible);
     else response.headers.set("Cache-Control", "private, no-store");
+    const robots = queryVariantRobots(request.nextUrl);
+    if (robots) response.headers.set("X-Robots-Tag", robots);
     return response;
 }
 export function proxy(request: NextRequest) {

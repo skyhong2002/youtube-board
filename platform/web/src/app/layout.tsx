@@ -2,6 +2,7 @@ import SiteHeader from '@/components/SiteHeader';
 import SiteFooter from '@/components/SiteFooter';
 import ThemeSync from '@/components/ThemeSync';
 import ScrollReset from '@/components/ScrollReset';
+import SiteAnalytics from '@/components/SiteAnalytics';
 import { siteMetadata, siteViewport } from '@/lib/site';
 import { THEME_SCRIPT } from '../../../shared/public-render-contract';
 import './globals.css';
@@ -15,6 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head><script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} /></head>
       <body className="min-h-full bg-zinc-50 text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100">
         <ThemeSync />
+        <SiteAnalytics />
         <a href="#main" className="skip-link">跳至主要內容</a>
         <div className="flex min-h-dvh flex-col">
           <ScrollReset />

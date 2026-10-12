@@ -17,6 +17,12 @@ const transport = new Set<string>(TRANSPORT_QUERY_PARAMS);
 export function withoutTransportParams(search: Search): Search {
     return Object.fromEntries(Object.entries(search).filter(([key]) => !transport.has(key)));
 }
+/** X-Robots-Tag for any real query variant. Pages that ignore the query (home, event
+ * detail) render their canonical metadata, so the header is what keeps them out of the
+ * index; transport params alone (`_rsc`) do not count. */
+export function queryVariantRobots(url: URL): string | null {
+    return [...url.searchParams.keys()].some((key) => !transport.has(key)) ? "noindex, follow" : null;
+}
 /** Route a proxied page request. Only query-free GET/HEAD requests to allowlisted public
  * routes are cache-eligible; every real query keeps its original dynamic semantics.
  * `_rsc` alone selects the same route tree as the canonical URL but is never eligible. */

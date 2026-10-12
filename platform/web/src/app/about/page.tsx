@@ -1,5 +1,6 @@
 import { Heading } from "@/components/ReportUI";
-export const metadata = { title: "資料與方法" };
+import { pageMetadata } from "@/lib/seo";
+export const metadata = pageMetadata({ title: "資料與方法", description: "有影儀表板的資料來源、觀測範圍、計算方式與限制：讓每一個數字有清楚的範圍、來源與限制。", path: "/about" });
 export default function About() {
     return (
         <>

@@ -74,7 +74,7 @@ function clientRenderDigest(value:string):boolean{
  */
 export function securePublicHtml(
   html: Buffer,
-  options: { assets: ReadonlyMap<string, string>; themeScript: string },
+  options: { assets: ReadonlyMap<string, string>; themeScript: string; analytics?: boolean },
 ): { body: Buffer; csp: string; clientRenderFailed: boolean } {
   if (html.byteLength > MAX_HTML_BYTES) reject('HTML_TOO_LARGE');
   let source: string;
@@ -187,11 +187,18 @@ export function securePublicHtml(
         const location = node.sourceCodeLocation;
         if (!location?.startTag || !location.endTag) reject('INCOMPLETE_SCRIPT');
         const type = (attrs.get('type') ?? '').trim().toLowerCase();
-        if (!['', 'text/javascript', 'application/javascript', 'module'].includes(type)) reject('UNKNOWN_SCRIPT_TYPE');
+        if (!['', 'text/javascript', 'application/javascript', 'module', 'application/ld+json'].includes(type)) reject('UNKNOWN_SCRIPT_TYPE');
         // HTML normalizes CR/CRLF in rawtext before CSP hashing. No entities
         // are decoded inside script rawtext; preserve original body bytes.
         const text = source.slice(location.startTag.endOffset, location.endTag.startOffset).replace(/\r\n?/g, '\n');
-        if (attrs.has('src')) {
+        if (type === 'application/ld+json') {
+          // Inert structured data never becomes a script trust root. Require
+          // escaped rawtext and valid bounded JSON; don't hash or execute it.
+          if ([...attrs.keys()].some(name => !['type', 'id'].includes(name)) || text.includes('<') || Buffer.byteLength(text) > 65536) reject('INVALID_STRUCTURED_DATA');
+          let data: unknown;
+          try { data = JSON.parse(text); } catch { reject('INVALID_STRUCTURED_DATA'); }
+          if (!data || typeof data !== 'object') reject('INVALID_STRUCTURED_DATA');
+        } else if (attrs.has('src')) {
           const src = attrs.get('src')!;
           if (text.trim() || !staticScriptUrl(src)) reject('UNKNOWN_EXTERNAL_SCRIPT');
           const digest = options.assets.get(src);
@@ -208,7 +215,9 @@ export function securePublicHtml(
     if ('childNodes' in node) for (let i = node.childNodes.length - 1; i >= 0; i--) pending.push(node.childNodes[i]);
   }
   const scriptSources = hashes.size ? `'strict-dynamic' ${[...hashes].map(hash => `'${hash}'`).join(' ')}` : "'none'";
-  const csp = `default-src 'self'; script-src ${scriptSources}; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://i.ytimg.com https://lh3.googleusercontent.com; font-src 'self'; connect-src 'self'; frame-src https://www.youtube-nocookie.com https://www.youtube.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'`;
+  const analyticsImages = options.analytics ? ' https://*.google-analytics.com https://*.googletagmanager.com' : '';
+  const analyticsConnections = options.analytics ? ' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com' : '';
+  const csp = `default-src 'self'; script-src ${scriptSources}; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://i.ytimg.com https://lh3.googleusercontent.com${analyticsImages}; font-src 'self'; connect-src 'self'${analyticsConnections}; frame-src https://www.youtube-nocookie.com https://www.youtube.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'`;
   if (Buffer.byteLength(csp) > MAX_CSP_BYTES) reject('CSP_TOO_LARGE');
   edits.sort((a, b) => b.start - a.start);
   for (const edit of edits) source = source.slice(0, edit.start) + edit.value + source.slice(edit.end);

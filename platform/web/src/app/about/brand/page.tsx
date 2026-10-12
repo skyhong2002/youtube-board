@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Heading } from '@/components/ReportUI';
-export const metadata = { title: '標誌與品牌' };
+import { pageMetadata } from '@/lib/seo';
+export const metadata = pageMetadata({ title: '標誌與品牌', description: '有影儀表板的標誌、圖示與品牌識別候選，說明與新文易數同家族的設計脈絡及下載方式。', path: '/about/brand' });
 const candidates = [
   { key: 'family', title: '新文易數同家族・舊站印記', label: '網站目前採用', description: '「有影／儀表板」沿用母站的宋體與上下排列，中間嵌入播放箭頭穿過直立橢圓環的舊站印記。小圖示以「影」字搭配加粗、簡化的舊標，在小尺寸保留辨識度。' },
   { key: 'legacy', title: '延續舊站', label: '備選方案', description: '沿用 youtube.board.tw 的播放箭頭穿過直立橢圓環，重新整理曲線與比例，並換上 YouTube 紅。' },

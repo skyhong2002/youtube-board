@@ -13,6 +13,7 @@ const COLUMNS: Array<{ label: string; links: FooterLink[] }> = [
     { href: '/vocabulary', label: '共同標籤詞彙' },
     { href: '/live/walls/news', label: '直播電視牆' },
     { href: '/about/brand', label: '有影儀表板識別' },
+    { href: '/observe/opt-out', label: '停用網站分析' },
   ] },
   { label: '開發與來源', links: [
     { href: 'https://github.com/skyhong2002/youtube-board/issues', label: '問題回報', external: true },

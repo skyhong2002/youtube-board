@@ -15,12 +15,22 @@ import {reportStyle as ui} from '@/lib/report-styles';
 import {count} from '@/lib/format';
 import {renameHistory} from '@/lib/editorial-history';
 import {safeReportHref} from '@/lib/report-contract';
+import {PublicDataError} from '@/lib/public-data';
+import {breadcrumbJsonLd,eventBreadcrumbs,eventMetadata} from '@/lib/seo';
+import JsonLd from '@/components/JsonLd';
 // Params-only public ISR (proxy marks bare /events/{uuid} as `event`). Follow/Save state
 // is fetched client-side; a query string never changes this page.
 export const revalidate=60;
 export const dynamicParams=true;
 export async function generateStaticParams(){return [];}
-export const metadata={title:'事件來源與時間軸'};
+// The same read as the page (shared ISR cache entry); a 404 there is a 404 here.
+export async function generateMetadata({params}:{params:Promise<{id:string}>}){
+ const {id}=await params;if(!uuid(id))notFound();
+ enablePublicRevalidation();
+ try{const result=await api<Data>('editorial/events/'+encodeURIComponent(id));if(result.ok){const {data}=result.response;return eventMetadata({canonicalId:data.canonicalId,title:data.event.title,sourceCount:data.sources.length});}}
+ catch(error){if(!(error instanceof PublicDataError))throw error;}
+ return {title:'事件來源與時間軸'};
+}
 /** `sourceChannel` exists only for video sources whose captured channel matches; article publishers stay text. */
 type Source={id:string;kind:string;source_id:string;headline:string;url:string|null;thumbnail?:string|null;sourceChannel?:ChannelSource|null;published_at:string|null;observed_at:string;source_sha256:string;provenance:{source:string;sourceVersion?:string;publisher?:string;headlineEvidence:string;tags?:string[]}};
 type Data={canonicalId:string;event:{title:string;version:number};sources:Source[];history:{action:string;at:string;before:{id:string;title:string}[];after:{id:string;title:string}[]}[]};
@@ -34,7 +44,7 @@ export default async function EventPage({params}:{params:Promise<{id:string}>}){
  const {data,meta}=result.response;if(data.canonicalId!==id)redirect('/events/'+data.canonicalId);
  const kinds=new Map<string,number>();for(const s of data.sources)kinds.set(s.kind,(kinds.get(s.kind)??0)+1);
  const cover=data.sources.find(s=>s.kind==='video'&&/^[A-Za-z0-9_-]{11}$/.test(s.source_id));
- return <div className="space-y-8"><EventHeader title={data.event.title} breadcrumb={<><Link className="hover:underline" href="/events">事件時間軸</Link> / 第 {data.event.version} 版</>} description="關聯由編輯審核，同名來源不會自動合併；新聞與 YouTube 指標分別計算。" updatedAt={meta.updatedAt}
+ return <div className="space-y-8"><JsonLd data={breadcrumbJsonLd(eventBreadcrumbs({canonicalId:data.canonicalId,title:data.event.title,sourceCount:data.sources.length}))}/><EventHeader title={data.event.title} breadcrumb={<><Link className="hover:underline" href="/events">事件時間軸</Link> / 第 {data.event.version} 版</>} description="關聯由編輯審核，同名來源不會自動合併；新聞與 YouTube 指標分別計算。" updatedAt={meta.updatedAt}
  cover={cover?{videoId:cover.source_id,title:cover.headline,channel:cover.sourceChannel}:null}
  actions={<><FollowButton kind="event" target={id}/><SaveButton kind="event" target={id}/></>}
  tags={[...new Set(data.sources.flatMap(s=>s.provenance.tags??[]))].slice(0,12)}

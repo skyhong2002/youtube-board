@@ -5,8 +5,9 @@ import { boardApiQuery, boardFeedUrl, boardSearch, parseBoardRequest } from "@/l
 import { Heading, Unavailable, DataNotice, Pagination } from "@/components/ReportUI";
 import { VideoTable } from "@/components/DataViews";
 import { KeywordEvidenceNotice } from "@/components/KeywordEvidenceNotice";
+import { privateMetadata } from "@/lib/seo";
 export const dynamic = "force-dynamic";
-export const metadata = { title: "自訂觀測看板" };
+export const metadata = privateMetadata("自訂觀測看板");
 export default async function Board({ searchParams }: { searchParams: Promise<Search> }) {
     const parsed = parseBoardRequest(await searchParams);
     if (!parsed) return <Unavailable status={400} title="看板篩選條件無效" />;

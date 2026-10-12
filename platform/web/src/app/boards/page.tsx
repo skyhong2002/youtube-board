@@ -3,8 +3,9 @@ import { BoardEditor } from "@/components/BoardEditor";
 import { FilterPicker } from "@/components/FilterPicker";
 import { parseBoardRequest } from "@/lib/boards";
 import type { Search } from "@/lib/api";
+import { privateMetadata } from "@/lib/seo";
 export const dynamic = "force-dynamic";
-export const metadata = { title: "我的看板" };
+export const metadata = privateMetadata("我的看板");
 export default async function Boards({ searchParams }: { searchParams: Promise<Search> }) {
     const parsed = parseBoardRequest(await searchParams);
     if (!parsed) return <Unavailable status={400} title="看板篩選條件無效" />;

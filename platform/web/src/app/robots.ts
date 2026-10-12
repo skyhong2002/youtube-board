@@ -7,6 +7,8 @@ export default function robots():MetadataRoute.Robots {
   rules:{userAgent:'*',allow:'/',disallow:[
    '/auth', '/login', '/my', '/manage', '/ops', '/api/', '/runtime/',
    '/feeds/u/', '/boards', '/redir/', '/prompt/',
+   // Search results: the header search submits `q` (to /videos); report filters reuse it.
+   '/search', '/*?q=', '/*&q=',
   ]},
   sitemap:new URL('/sitemap.xml',SITE_ORIGIN).href,
  };

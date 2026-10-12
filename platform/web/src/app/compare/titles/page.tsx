@@ -11,8 +11,9 @@ import {
 import { first, dateTime } from "@/lib/format";
 import { compareTitles, type TitlePiece } from "@/lib/headline";
 import { Heading, DataNotice, Unavailable } from "@/components/ReportUI";
+import { pageMetadata } from "@/lib/seo";
 export const dynamic = "force-dynamic";
-export const metadata = { title: "影片標題用語比較" };
+export const metadata = pageMetadata({ title: "影片標題用語比較", description: "並排比較兩支 YouTube 影片標題的用語與寫法差異，回到各自的影片觀測與原始來源。", path: "/compare/titles" });
 export default async function Compare({
     searchParams,
 }: {
