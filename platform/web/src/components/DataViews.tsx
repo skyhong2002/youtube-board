@@ -18,7 +18,7 @@ type Tag = ChannelRow["tags"][number];
 /** Categories on one clipped line; the full list stays in the title. In the
  *  lead it gives way first and hides once the table is scrolled on phones. */
 function TagLine({ tags, href, lead=false }: { tags: Tag[]; href: (tag: Tag) => string; lead?: boolean }) {
-    return <span className={lead ? `${table.leadExtra} ${table.leadText} shrink-3 text-xs text-zinc-500 sm:max-w-48` : `${table.clip} text-xs text-zinc-500`} title={tags.map((tag) => tag.name).join("、")}>
+    return <span className={lead ? `${table.leadWide} ${table.leadText} shrink-3 text-xs text-zinc-500 sm:max-w-48` : `${table.clip} text-xs text-zinc-500`} title={tags.map((tag) => tag.name).join("、")}>
         {tags.map((tag, index) => <Fragment key={tag.id}>{index > 0 && "、"}<Link className="hover:underline" href={href(tag)}>{tag.name}</Link></Fragment>)}
     </span>;
 }
@@ -44,9 +44,9 @@ export function ChannelTable({ rows, offset=0, ranking }: { rows: ChannelRow[];o
                     {rows.map((row, index) => (
                         <tr key={row.id} className={table.row}>
                             <td className={table.lead}>
-                              {/* One line: rank and categories yield to the channel once the table is scrolled on phones. */}
+                              {/* One line. Phones show only the avatar and name (as tag.observe.tw media rows); rank and categories appear from sm up. */}
                               <div className={`${table.leadBox} flex items-center gap-2`}>
-                                <span className={`${table.leadExtra} shrink-0 text-xs tabular-nums text-zinc-400`}>{String(offset+index+1).padStart(2,'0')}</span>
+                                <span className={`${table.leadWide} shrink-0 text-xs tabular-nums text-zinc-400`}>{String(offset+index+1).padStart(2,'0')}</span>
                                 <Link className="flex min-w-0 items-center gap-2 font-medium hover:underline" href={`/channels/${row.id}`} title={row.title || undefined}><ChannelAvatar avatar={row.avatar} title={row.title} size={24}/>
                                     <span className={`${table.leadText} sm:max-w-xs`}>{row.title || "頻道名稱尚未取得"}</span>
                                 </Link>
@@ -84,8 +84,9 @@ export function VideoTable({ rows }: { rows: VideoRow[] }) {
                     {rows.map((row) => (
                         <tr key={row.id} className={table.row}>
                             <td className={table.lead}>
+                              {/* Phones give the whole lead to the title; the thumbnail appears from sm up. */}
                               <div className={`${table.leadBox} flex items-center gap-2`}>
-                                <span className={`${table.leadExtra} shrink-0`}><VideoThumbnail videoId={row.id} width={48} height={27}/></span>
+                                <span className={`${table.leadWide} shrink-0`}><VideoThumbnail videoId={row.id} width={48} height={27}/></span>
                                 <Link className={`${table.leadText} font-medium hover:underline sm:max-w-xs`}
                                     title={row.title || undefined}
                                     href={`/videos/${encodeURIComponent(row.id)}`}
@@ -137,15 +138,17 @@ export function LiveTable({ rows,offset=0 }: { rows: LiveRow[];offset?:number })
                     {rows.map((row, index) => (
                         <tr key={row.id} className={table.row}>
                             <td className={table.lead}>
-                              {/* One line: rank and thumbnail yield to the title once the table is scrolled on phones. */}
+                              {/* One line. Desktop: rank, thumbnail, title. Phones: the channel avatar and name lead
+                                  the same video link (many live titles share a prefix), then the title; full text in title. */}
                               <div className={`${table.leadBox} flex items-center gap-2`}>
-                                <span className={`${table.leadExtra} shrink-0 text-xs tabular-nums text-zinc-400`}>{String(offset+index+1).padStart(2,'0')}</span>
-                                <span className={`${table.leadExtra} shrink-0`}><VideoThumbnail videoId={row.id} width={48} height={27}/></span>
-                                <Link className={`${table.leadText} font-medium hover:underline sm:max-w-xs`}
-                                    title={row.title || undefined}
+                                <span className={`${table.leadWide} shrink-0 text-xs tabular-nums text-zinc-400`}>{String(offset+index+1).padStart(2,'0')}</span>
+                                <span className={`${table.leadWide} shrink-0`}><VideoThumbnail videoId={row.id} width={48} height={27}/></span>
+                                <Link className="flex min-w-0 items-center gap-1.5 font-medium hover:underline sm:max-w-xs"
+                                    title={[row.channelTitle, row.title].filter(Boolean).join(" · ") || undefined}
                                     href={`/videos/${encodeURIComponent(row.id)}`}
                                 >
-                                    {row.title || "直播標題尚未取得"}
+                                    <span className="shrink-0 sm:hidden"><ChannelAvatar avatar={row.channelAvatar} title={row.channelTitle} size={16}/></span>
+                                    <span className={table.leadText}><span className="sm:hidden">{row.channelTitle || "頻道名稱尚未取得"} · </span>{row.title || "直播標題尚未取得"}</span>
                                 </Link>
                               </div>
                             </td>

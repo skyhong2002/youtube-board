@@ -16,6 +16,9 @@ const headClass=(html:string,label:string)=>html.match(new RegExp(`<th[^>]*class
 const bodyClasses=(html:string,label:string)=>[...html.matchAll(new RegExp(`<td data-label="${label}"[^>]*class="([^"]*)"`,'g'))].map(m=>m[1]);
 const longTitle='一個非常非常長的頻道名稱會在手機上被截斷而不是換行成好幾行';
 const clip='table-clip inline-block min-w-0 max-w-xs truncate align-top';
+/** A 48×27 VideoThumbnail directly inside a span with exactly `wrapper` classes. The thumbnail's
+ * own attributes (data-thumbnail-*, class, style) may come in any order. */
+const thumbIn=(wrapper:string)=>new RegExp(`<span class="${wrapper.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}"><span (?=[^>]*data-thumbnail-state="(?:pending|missing)")(?=[^>]*class="relative inline-flex[^"]*")(?=[^>]*style="width:48px;height:27px;min-width:48px")[^>]*>`);
 /** Every body row (table.row) of a rendered table. */
 const bodyRows=(html:string)=>{const rows=[...html.matchAll(/<tr class="group [^"]*">([\s\S]*?)<\/tr>/g)].map(m=>m[1]);assert.ok(rows.length,'no body rows');return rows;};
 /** One visual line per row: at most the lead's own flex box, no stacked blocks, vertical margins or line breaks. */
@@ -55,7 +58,7 @@ test('wide report table: sticky entity lead, one-line clipped text with full tit
  assert.equal(html.match(/table-lead-extra shrink-0/g)?.length,1);
  assert.match(html,/<span class="shrink-0"><span class="inline-flex shrink-0/);
  assert.match(html,/table-lead-box[\s\S]*?class="min-w-0 max-w-full truncate inline-block align-top sm:max-w-xs" title="影片標題"/);
- assert.match(html,/table-lead-extra shrink-0"><span class="relative inline-flex[^"]*" style="width:48px;height:27px/);
+ assert.match(html,thumbIn('table-lead-extra shrink-0'));
  assert.equal(html.match(new RegExp(`class="${clip}" title="${longTitle}"`,'g'))?.length,2);
  // The detail rides on the same line as its value and is cut first.
  assert.match(html,new RegExp(`<span class="inline-flex min-w-0 max-w-full items-center gap-2 align-top"><span class="${clip}" title="${longTitle}">${longTitle}</span><small class="min-w-0 max-w-xs shrink-3 truncate text-xs" title="批次說明很長很長的補充">`));
@@ -80,15 +83,17 @@ const escape=(text:string)=>text.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 const anchor=(attrs:Record<string,string>)=>'<a '+Object.entries(attrs).map(([key,value])=>'(?=[^>]*'+key+'="'+escape(value)+'")').join('')+'[^>]*>';
 /** Header labels in document order. */
 const heads=(html:string)=>[...html.matchAll(/<th(?:\s[^>]*)?>([^<]*)/g)].map(m=>m[1]);
-const thumb48=/<span class="table-lead-extra shrink-0"><span class="relative inline-flex[^"]*" style="width:48px;height:27px/;
+const thumb48=thumbIn('table-lead-extra max-sm:hidden shrink-0');
 
 test('channel ranking row is one line: rank, avatar, clipped name and inline categories that yield on scroll',()=>{
  const html=render(createElement(ChannelTable,{rows:[channel],offset:9}));
  assert.match(html,/<table class="whitespace-nowrap"/);
  assert.match(headClass(html,'頻道'),/table-lead sticky/);
- assert.match(html,/<div class="table-lead-box min-w-0 flex items-center gap-2"><span class="table-lead-extra shrink-0 text-xs tabular-nums text-zinc-400">10<\/span>/);
+ // Phones keep only avatar + name in the 9.5rem lead: rank and categories are hidden at rest below sm, shown from sm up.
+ assert.match(html,/<div class="table-lead-box min-w-0 flex items-center gap-2"><span class="table-lead-extra max-sm:hidden shrink-0 text-xs tabular-nums text-zinc-400">10<\/span>/);
+ assert.doesNotMatch(html.match(/<a [^>]*href="\/channels\/8"[^>]*>/)![0],/max-sm:hidden/);
  assert.match(html,new RegExp(`${anchor({title:longTitle,href:'/channels/8'})}<span class="inline-flex shrink-0[^>]*>[\\s\\S]*?<span class="min-w-0 max-w-full truncate sm:max-w-xs">${longTitle}</span>`));
- assert.match(html,new RegExp(`<span class="table-lead-extra min-w-0 max-w-full truncate shrink-3 text-xs text-zinc-500 sm:max-w-48" title="新聞、政治">${anchor({href:'/tags/3/channels'})}新聞</a>、${anchor({href:'/tags/4/channels'})}政治</a></span>`));
+ assert.match(html,new RegExp(`<span class="table-lead-extra max-sm:hidden min-w-0 max-w-full truncate shrink-3 text-xs text-zinc-500 sm:max-w-48" title="新聞、政治">${anchor({href:'/tags/3/channels'})}新聞</a>、${anchor({href:'/tags/4/channels'})}政治</a></span>`));
  assert.doesNotMatch(html,/class="tags/);
  bodyRows(html).forEach(assertOneLineRow);
 });
@@ -108,9 +113,10 @@ test('live row is one line: rank and thumbnail yield in the lead; channel, categ
  const live:LiveRow={...video,currentViewers:10,todayPeak:20,allTimePeak:null,startedAt:null,trend:[],tags:[tag],partialLogEvidence:true};
  const html=render(createElement(LiveTable,{rows:[live],offset:0}));
  assert.deepEqual(heads(html),['直播 / 頻道','同時在線','今日高峰','歷史高峰','頻道','頻道分類','更新時間','原始來源']);
- assert.match(html,/<div class="table-lead-box min-w-0 flex items-center gap-2"><span class="table-lead-extra shrink-0 text-xs tabular-nums text-zinc-400">01<\/span>/);
+ assert.match(html,/<div class="table-lead-box min-w-0 flex items-center gap-2"><span class="table-lead-extra max-sm:hidden shrink-0 text-xs tabular-nums text-zinc-400">01<\/span>/);
  assert.match(html,thumb48);
- assert.match(html,new RegExp(`class="min-w-0 max-w-full truncate font-medium hover:underline sm:max-w-xs" title="${longTitle}"`));
+ // Phones lead with the source (avatar + channel name) on the same video link, then the title; one truncating line.
+ assert.match(html,new RegExp(`${anchor({class:'flex min-w-0 items-center gap-1.5 font-medium hover:underline sm:max-w-xs',title:`來源頻道 · ${longTitle}`,href:'/videos/AbCdEfGh123'})}<span class="shrink-0 sm:hidden"><span class="inline-flex shrink-0[^>]*>[\\s\\S]*?</span></span><span class="min-w-0 max-w-full truncate"><span class="sm:hidden">來源頻道 · </span>${longTitle}</span></a>`));
  assert.match(html,/href="\/channels\/8"/);
  assert.match(html,new RegExp(`<span class="${clip} text-xs text-zinc-500" title="新聞">${anchor({href:'/live/current?tagid=3'})}新聞</a></span>`));
  assert.match(html,/20<small class="ml-1.5">部分取樣<\/small>/);

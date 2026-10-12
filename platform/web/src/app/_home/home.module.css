@@ -349,6 +349,12 @@
 .cloudCaption .panelNote { flex-basis: 100%; }
 
 /* Category names stay on one line, cut with an ellipsis (full text in title); never one character per line. */
+/* Keyword ranking: the term keeps one line and width priority in the 238px sidebar; the
+ * metrics line truncates instead of wrapping (full text in the link title). */
+.ranking .rankBody { flex: 1; }
+.ranking .rankBody strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
+.rankMeta { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.rankMeta small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .journalistOutlets { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--muted); }
 /* Channel activity: the cached avatar shares the name's line centre. */
 .journalistName { display: flex; align-items: center; gap: 6px; min-width: 0; }

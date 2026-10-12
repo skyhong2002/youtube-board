@@ -25,8 +25,9 @@ import {
 } from "./ReportUI";
 import { TimeChart } from "./Charts";
 import { MayorShare, MayorSwitcher } from "./MayorShare";
+import { mayorCoverage } from "@/lib/bucket-coverage";
 import { cities } from "../../../shared/city-definitions";
-const MAYOR_SHARE_NOTE='近 7 日媒體聲量占比：每個日期彙整當日及前 6 日；同日所有候選人的占比合計為 100%。卡片顯示期間內最新一天的占比與原始量。';
+const MAYOR_SHARE_NOTE='近 7 日媒體聲量占比：每個日期彙整當日及前 6 日。只有當日所有候選人都有數值、且合計大於 0 時，同日占比合計才是 100%；任一候選人缺值時該日占比顯示 n/a，不以其餘候選人換算；全部為 0 時占比為 0%。卡片顯示期間內最新一天的占比與原始量。每個日期的七日範圍應有 28 個分類日桶（4 個分類 × 7 日）；占比圖與各候選人原始量圖中，未滿 28 或涵蓋未知的日期以虛線與空心點標示並註明涵蓋數，缺少的桶不補零，也不代表聲量下降。';
 export async function ExpandedReport({
     apiPath,
     path,
@@ -212,7 +213,7 @@ export async function ExpandedReport({
                     </section>
                 </>
             ) : null}
-            {mayorCity && data.series?.length ? <MayorShare city={mayorCity} series={data.series} search={search} /> : null}
+            {mayorCity && data.series?.length ? <MayorShare city={mayorCity} series={data.series} search={search} rows={data.rows} /> : null}
             {data.series?.map((series, index) => (
                 <section key={`${series.name}-${index}`}>
                     <SectionHeading title={series.name} />
@@ -222,6 +223,7 @@ export async function ExpandedReport({
                                 points={series.points}
                                 label={series.name}
                                 unit={series.unit}
+                                coverage={mayorCity ? mayorCoverage(data.rows, series.points.map((point) => point.time)) : undefined}
                             />
                         ) : (
                             <Empty title="這個期間尚無觀測點" />

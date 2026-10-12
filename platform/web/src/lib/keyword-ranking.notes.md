@@ -49,3 +49,29 @@ public URL, kept after failure) and `data-thumbnail-state` = missing | pending |
 error. Only `loaded` (naturalWidth > 0) is a real image; the placeholder SVG is never one.
 Lazy images not yet requested (empty currentSrc) stay `pending` at hydration. These
 attributes support evidence capture; they do not replace checking the rendered image.
+
+Mobile identity (729bcf7 review): rows stay one line and the lead keeps tag's 9.5rem /
+5.5rem-scrolled caps. Below `sm`, `table.leadWide` hides rank, inline categories and the
+48px video thumbnail at rest so the entity's icon + name get the lead; from `sm` up they
+show as before. Live rows on phones lead with the channel avatar + name on the same video
+link, then the title (full text in `title`); the 頻道 column is unchanged. The homepage
+ranking keeps the term on its own line and folds metrics into one truncating line whose
+link title carries heat, rise, counts and the views summary (無觀看值 / 已知小計 intact).
+
+/mayor coverage (`components/MayorShare.tsx`): each rolling-7-day date is joined to its
+report row's `observedBuckets` (expected 28 = 4 categories × 7 days), not to the
+source-wide `meta.coverage.expectedBuckets`. Invalid or missing counts are unknown. A
+latest-date badge sits above the candidate cards and the chart caption lists every
+incomplete date with its count. The chart draws complete dates as a solid line, and
+incomplete or unknown dates as dashed segments with hollow markers. The tooltip shows
+the date's coverage. A recorded 0 at 28/28 stays a charted 0. The raw table is unchanged.
+The same encoding, shared from `lib/bucket-coverage.ts`, applies to the per-candidate raw
+`TimeChart`s on /mayor only, through an optional `coverage` prop. Other reports pass none
+and render as before. With coverage, the raw table gains a 分類日桶 column, and the
+tooltip shows 涵蓋未知 instead of a count when the count is unknown. Complete points use
+small solid markers, so an isolated complete value, including 0, stays visible. Each
+maximal run of incomplete or unknown dates gets its own dashed series, padded only with
+the complete finite point directly before and after the run. A dashed line therefore
+never crosses a complete→complete interval: P,C,C,P draws dashed P–C and C–P only. Shares
+fail closed: if any candidate's value is missing on a date, every share for that date is
+n/a, never a 100% renormalised over the rest. All-zero dates stay 0%.

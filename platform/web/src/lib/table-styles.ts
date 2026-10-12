@@ -27,6 +27,9 @@ export const table = {
   leadBox: 'table-lead-box min-w-0',
   /** Secondary marks in the lead cell (flags, badges, schedules); hidden while scrolled on phones. */
   leadExtra: 'table-lead-extra',
+  /** Secondary marks (rank, categories, video thumbnail) that phones drop even at rest,
+   *  so the 9.5rem lead goes to the entity's icon and name; from `sm` up they behave as `leadExtra`. */
+  leadWide: 'table-lead-extra max-sm:hidden',
   /** Text that must fit on one line inside `leadBox`. */
   leadText: 'min-w-0 max-w-full truncate',
   /** Long free text in a body cell: one line cut with an ellipsis; give it a
