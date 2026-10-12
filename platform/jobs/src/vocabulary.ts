@@ -3,7 +3,11 @@ import { createHash } from 'node:crypto';
 export const SOURCE = 'https://tag.observe.tw';
 export const VOCABULARY_JOB = 'tags.vocabulary.sync';
 export interface Window { since: string; until: string }
-export interface SourceArticle { id: string; media: string; publishedAt: string; tags: string[] }
+export interface SourceArticle {
+  id: string; media: string; publishedAt: string; tags: string[];
+  /** Exact upstream array retained in staging when U+200B/edge-space normalization changes a tag. */
+  sourceTags?: string[];
+}
 export interface ArticlePage { articles: SourceArticle[]; nextCursor: string | null }
 export interface VocabularyTerm { key: string; term: string; articleCount: number; media: string[]; provenance: 'upstream-article-tag-origin-unspecified'; upstreamId?: string; upstream?: ExportTerm }
 export interface VocabularySnapshot {

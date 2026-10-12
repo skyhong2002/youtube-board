@@ -35,8 +35,22 @@ export class TagArticleSource implements ArticleSource {
       if (!record(a) || !(typeof a.id === 'number' && Number.isSafeInteger(a.id) && a.id > 0) || typeof a.media !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(a.media) || typeof a.publishedAt !== 'string' || !Array.isArray(a.tags)) throw new Error('Invalid tag source article');
       const at = Date.parse(a.publishedAt);
       if (!(at >= Date.parse(window.since) && at < Date.parse(window.until))) throw new Error('Tag article outside requested window');
-      if (a.tags.length > 500 || !a.tags.every(t => typeof t === 'string' && t.trim().length > 0 && t === t.trim() && !/[\p{Cc}\p{Cf}]/u.test(t) && t.length <= 240)) throw new Error('Invalid tag source terms');
-      return { id: String(a.id), media: a.media, publishedAt: a.publishedAt, tags: a.tags as string[] };
+      const originalTags = a.tags;
+      if (originalTags.length > 500) throw new Error('Invalid tag source terms');
+      const tags = originalTags.map((raw: unknown) => {
+        // Bound the original input too: normalization must not bypass ingestion caps.
+        if (typeof raw !== 'string' || raw.length > 240) throw new Error('Invalid tag source terms');
+        // U+200B is the sole supported format-character exception. Check other
+        // controls before trim(), which would otherwise silently erase tabs/BOM.
+        const withoutZeroWidthSpace = raw.replaceAll('\u200B', '');
+        if (/[\p{Cc}\p{Cf}]/u.test(withoutZeroWidthSpace)) throw new Error('Invalid tag source terms');
+        const term = withoutZeroWidthSpace.trim();
+        if (!term) throw new Error('Invalid tag source terms');
+        return term;
+      });
+      const changed = tags.some((term, index) => term !== originalTags[index]);
+      return { id: String(a.id), media: a.media, publishedAt: a.publishedAt, tags,
+        ...(changed ? { sourceTags: originalTags as string[] } : {}) };
     });
     const nextCursor = data.nextCursor as string | null;
     if (nextCursor && (!/^\d{1,15}_\d{1,19}$/.test(nextCursor) || !articles.length)) throw new Error('Invalid continuation cursor');
