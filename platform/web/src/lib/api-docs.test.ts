@@ -124,7 +124,8 @@ test('status view keeps only availability and endpoint paths; 503 bodies still d
 test('attribution and navigation link follow the tag-style development group',()=>{
  const footer=file('src/components/SiteFooter.tsx');
  assert.match(footer,/label: '開發與來源', links: \[\n\s+\{ href: '\/api', label: 'API 文件與狀態' \}/);
- assert.match(file('src/lib/site-nav.ts'),/\{ href: '\/api', label: 'API 文件與狀態', short: 'API' \}/);
+ // API docs live in the footer only; the header lists public reports.
+ assert.doesNotMatch(file('src/lib/site-nav.ts'),/href: '\/api'/);
  for(const name of ['src/components/SiteFooter.tsx','src/app/api/page.tsx']){const source=file(name);assert.match(source,/標籤來源：新文易數（tag\.observe\.tw）/,name);assert.doesNotMatch(source,/新文易數 tag\.observe\.tw|記者/,name);}
  for(const name of ['src/components/SiteFooter.tsx','src/lib/site-nav.ts','src/components/ApiTabs.tsx'])assert.doesNotMatch(file(name),/href: '\/api\/'/,name);
 });
