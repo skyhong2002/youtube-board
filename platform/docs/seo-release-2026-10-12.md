@@ -54,3 +54,45 @@ Image-only rollback targets the previous 27bba6f image
 `sha256:82378eb881e3005ff7f361a0ce6b0a529aceab502bc03220a68f75e8d11edd17`.
 No schema, grants, routes, secrets or workflow ownership change. Full canary and
 post-deployment inventory evidence must be recorded before claiming completion.
+
+### Complete production re-verification
+
+Corrective commit `19e97c0` deployed on 2026-10-12 at approximately 15:30 UTC,
+image `sha256:ebe572f15104072aaf51f61278012e25a9abec4c1cdcbffdd559b0604785335b`.
+At 15:31:45 UTC the public index advertised **17 children**. Every child GET
+and HEAD returned 200, was nonempty, had valid URL lastmod, and its index lastmod
+matched the maximum child lastmod. GET/HEAD index returned XML with
+`public, max-age=0, s-maxage=3600`. Results at that time:
+
+| Child | URLs | Uncompressed bytes | GET / HEAD |
+| --- | ---: | ---: | --- |
+| `/sitemaps/static/1.xml` | 20 | 2,118 | 200 / 200 |
+| `/sitemaps/channels/1.xml` | 3,474 | 363,867 | 200 / 200 |
+| `/sitemaps/videos/1.xml` | 50,000 | 5,500,108 | 200 / 200 |
+| `/sitemaps/videos/2.xml` | 50,000 | 5,500,108 | 200 / 200 |
+| `/sitemaps/videos/3.xml` | 50,000 | 5,500,108 | 200 / 200 |
+| `/sitemaps/videos/4.xml` | 50,000 | 5,500,108 | 200 / 200 |
+| `/sitemaps/videos/5.xml` | 50,000 | 5,500,108 | 200 / 200 |
+| `/sitemaps/videos/6.xml` | 50,000 | 5,500,108 | 200 / 200 |
+| `/sitemaps/videos/7.xml` | 50,000 | 5,500,108 | 200 / 200 |
+| `/sitemaps/videos/8.xml` | 50,000 | 5,500,108 | 200 / 200 |
+| `/sitemaps/videos/9.xml` | 50,000 | 5,500,108 | 200 / 200 |
+| `/sitemaps/videos/10.xml` | 50,000 | 5,500,108 | 200 / 200 |
+| `/sitemaps/videos/11.xml` | 50,000 | 5,500,108 | 200 / 200 |
+| `/sitemaps/videos/12.xml` | 50,000 | 5,500,108 | 200 / 200 |
+| `/sitemaps/videos/13.xml` | 50,000 | 5,500,108 | 200 / 200 |
+| `/sitemaps/videos/14.xml` | 23,737 | 2,611,178 | 200 / 200 |
+| `/sitemaps/tags/1.xml` | 108 | 11,772 | 200 / 200 |
+
+Total: 677,339 URL entries; largest file 5,500,108 bytes, below both
+50,000 URLs and 50 MB. Events/keywords detail children are intentionally omitted.
+Ten public canonical/hash-CSP pages and private/noindex account/opt-out pages
+passed again. GSC processing remains external and unconfirmed; successful
+HTTP verification is not a claim that Google has accepted the sitemap.
+
+Read-only canary generated all 17 children in 41.3 seconds, became ready in
+53.5 seconds at 0.5 CPU, and peaked at 317,689,856 bytes including bounded
+parallel child reads and detail reports. Retained XML was 9,171,579 compressed
+bytes. Canary was removed after verified ownership checks. Focused integrated
+29 tests plus separately verified 9 real-MariaDB keyword/sitemap tests and
+API/runtime typechecks passed. No database writes or writer handoff occurred.
