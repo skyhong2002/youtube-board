@@ -29,6 +29,11 @@ export const table = {
   leadExtra: 'table-lead-extra',
   /** Text that must fit on one line inside `leadBox`. */
   leadText: 'min-w-0 max-w-full truncate',
+  /** Long free text in a body cell: one line cut with an ellipsis; give it a
+   *  `title` with the full text. Stacked rows cut it at the row edge instead. */
+  clip: 'table-clip inline-block min-w-0 max-w-xs truncate align-top',
+  /** Put on the <table>: every row stays on one visual line. */
+  nowrap: 'whitespace-nowrap',
   /** Stacked layout for narrow text tables; pair with `data-label` on cells. */
   stack: 'table-stack',
 } as const;

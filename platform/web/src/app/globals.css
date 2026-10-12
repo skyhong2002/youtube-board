@@ -267,11 +267,16 @@ table {
     font-size: 14px;
     text-align: left;
 }
+/* Header cells paint the frame's opaque header tone themselves, so body rows
+   never show through the following header or columns scrolled under it. */
+thead,
+thead th {
+    background-color: var(--table-head-bg, var(--background));
+}
 th {
     font-weight: 500;
     font-size: 12px;
     color: var(--muted);
-    background: var(--background);
     white-space: nowrap;
 }
 td,
@@ -583,7 +588,7 @@ tbody tr:hover {
 @media (max-width: 760px) { .home-discovery-grid { grid-template-columns: minmax(0,1fr); } .home-entry-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 
 .table-frame:has(.table-scroller) { overflow: visible; border: 0; border-radius: 0; background: transparent; }
-.table-frame.table-card:has(.table-scroller) { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.table-frame.table-card:has(.table-scroller) { overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
 
 /* Native select arrows hug the right edge; pull the chevron in so it sits inside the padding. */
 select:not([multiple]):not([size]) {
@@ -681,9 +686,18 @@ select:not([multiple]):not([size]) {
   [data-theme="dark"] .table-stack tr {
     border-top-color: var(--color-zinc-800);
   }
+  /* Each stacked value still keeps to one line, cut at the row edge; clipped
+     text carries its full title. */
   .table-stack td {
     padding: 0.125rem 0;
-    white-space: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .table-stack .table-clip {
+    display: inline;
+    max-width: none;
+    overflow: visible;
   }
   .table-stack td[data-label]::before {
     content: attr(data-label);
@@ -714,5 +728,3 @@ select:not([multiple]):not([size]) {
     animation: none;
   }
 }
-
-@media (width < 40rem) { td, th { padding: 8px; } }

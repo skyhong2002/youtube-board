@@ -16,6 +16,7 @@ import { VideoAnalytics } from '@/components/VideoAnalytics';
 import { PromptPreview } from '@/components/PromptPreview';
 import { LiveWall } from '@/components/LiveWall';
 import Link from "next/link";
+import { Fragment } from "react";
 import { notFound } from "next/navigation";
 import {
     api,
@@ -85,7 +86,7 @@ function TopicEvidence({ topic }: { topic: TopicRow }) {
                     查看分組依據 · {topic.evidence.length} 筆來源分析
                 </summary>
                 <TableScroller card className="mt-3" label="議題分組依據與影片引用">
-                    <table className={"w-full text-left text-sm " + tableStyle.stack}>
+                    <table className={"w-full text-left text-sm " + tableStyle.nowrap + " " + tableStyle.stack}>
                         <thead>
                             <tr>
                                 <th className={tableStyle.cell}>頻道 / 來源議題</th>
@@ -93,36 +94,45 @@ function TopicEvidence({ topic }: { topic: TopicRow }) {
                             </tr>
                         </thead>
                         <tbody>
-                            {topic.evidence.map((item, index) => (
+                            {topic.evidence.map((item, index) => {
+                                const unverified = (id: string) => !!item.resolvedVideoIds && !item.resolvedVideoIds.includes(id);
+                                const notes = [
+                                    item.withheldVideoReferenceCount ? `${count(item.withheldVideoReferenceCount)} 筆引用超過呈現範圍，請查看來源紀錄。` : "",
+                                    item.invalidReferenceCount ? `${count(item.invalidReferenceCount)} 筆引用格式不符，未建立連結。` : "",
+                                ].filter(Boolean);
+                                // One line per cell: the source link comes before the free-text topic so it is never cut.
+                                return (
                                 <tr className={tableStyle.row} key={`${item.source.id}-${index}`}>
                                     <td data-label="頻道 / 來源議題" className={tableStyle.cell}>
-                                        <Link
-                                            href={`/channels/${item.channelId}`}
-                                        >
-                                            <ChannelAvatar avatar={item.channelAvatar} title={item.channelTitle} size={20}/>{" "}{item.channelTitle}
-                                        </Link>
-                                        <small style={{ display: "block" }}>
-                                            {item.event}
-                                        </small>
-                                        {item.source.snapshotRunId?<small>生成快照來源 #{item.source.id}</small>:<Link href={`/channels/${item.channelId}/ai/days?pk=${item.source.id}`}>來源紀錄 #{item.source.id}{item.source.itemIndex===undefined?'':` · 第 ${item.source.itemIndex+1} 項`}</Link>}
+                                        <span className={tableStyle.clip + " sm:max-w-md"} title={`${item.channelTitle} · ${item.event}`}>
+                                            <Link
+                                                className="hover:underline"
+                                                href={`/channels/${item.channelId}`}
+                                            >
+                                                <ChannelAvatar className="mr-1.5" avatar={item.channelAvatar} title={item.channelTitle} size={20}/>{item.channelTitle}
+                                            </Link>
+                                            {" · "}
+                                            {item.source.snapshotRunId?<small>生成快照來源 #{item.source.id}</small>:<Link className="hover:underline" href={`/channels/${item.channelId}/ai/days?pk=${item.source.id}`}>來源紀錄 #{item.source.id}{item.source.itemIndex===undefined?'':` · 第 ${item.source.itemIndex+1} 項`}</Link>}
+                                            {" · "}
+                                            <small>{item.event}</small>
+                                        </span>
                                     </td>
                                     <td data-label="影片證據" className={tableStyle.cell}>
-                                        {item.withheldVideoReferenceCount?<p>{count(item.withheldVideoReferenceCount)} 筆引用超過呈現範圍，請查看來源紀錄。</p>:null}
-                                        {item.invalidReferenceCount?<p>{count(item.invalidReferenceCount)} 筆引用格式不符，未建立連結。</p>:null}
-                                        <div className="tags">
-                                            {item.videoIds.map((id) => item.resolvedVideoIds&&!item.resolvedVideoIds.includes(id)?<span className="tag" key={id}>{id}（本地來源未核對）</span>:(
+                                        <span className={tableStyle.clip + " sm:max-w-md"} title={[...notes, item.videoIds.map((id) => unverified(id) ? `${id}（本地來源未核對）` : id).join("、")].join(" ")}>
+                                            {notes.map((note) => <small className="mr-1.5" key={note}>{note}</small>)}
+                                            {item.videoIds.map((id, i) => <Fragment key={id}>{i > 0 && "、"}{unverified(id)?<span>{id}（本地來源未核對）</span>:(
                                                 <Link
-                                                    className="tag"
+                                                    className="hover:underline"
                                                     href={`/videos/${encodeURIComponent(id)}`}
-                                                    key={id}
                                                 >
                                                     {id}
                                                 </Link>
-                                            ))}
-                                        </div>
+                                            )}</Fragment>)}
+                                        </span>
                                     </td>
                                 </tr>
-                            ))}
+                                );
+                            })}
                         </tbody>
                     </table>
                 </TableScroller>

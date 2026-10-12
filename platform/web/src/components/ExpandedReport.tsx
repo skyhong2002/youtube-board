@@ -1,22 +1,16 @@
 import {ComparisonControls} from './ComparisonControls';
-import {ChannelAvatar} from './ChannelAvatar';
-import {VideoThumbnail} from './VideoThumbnail';
 import {FilterPicker} from './FilterPicker';
 import {familyTabs} from '@/lib/report-navigation';
-import {MissingObservation,ObservationValue} from './ObservationValue';
-import TableScroller from './TableScroller';
-import {table as tableStyle} from '@/lib/table-styles';
+import {ObservationValue} from './ObservationValue';
+import {ReportTable} from './ReportTable';
 import {reportStyle as ui} from '@/lib/report-styles';
 import {LiveCoverageNotice} from './LiveCoverageNotice';
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api, type Search } from "@/lib/api";
-import { count, dateTime } from "@/lib/format";
+import { count } from "@/lib/format";
 import {
     type ReportData,
-    type ReportValue,
-    type ReportCell,
-    type ReportColumn,
     safeReportHref,
 } from "@/lib/report-contract";
 import {
@@ -244,65 +238,6 @@ export async function ExpandedReport({
                 <Empty />
             ) : null}
             <Pagination collection={data} search={search} path={path} />
-        </>
-    );
-}
-function ReportTable({columns,rows,label}:{columns:ReportColumn[];rows:Record<string,ReportValue|ReportCell>[];label:string}){
- const wide=columns.length>3;
- return <TableScroller card label={label+'表格，可左右捲動'}><table className={'w-full text-left text-sm '+(!wide?tableStyle.stack:'')}><thead className="bg-(--table-head-bg) text-xs text-zinc-600 dark:text-zinc-400"><tr>{columns.map((column,i)=><th key={column.key} className={wide&&i===0?tableStyle.leadHead:numeric(column)?tableStyle.num:tableStyle.cell}>{column.label}{column.unit&&<span>（{column.unit}）</span>}</th>)}</tr></thead><tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">{rows.map((row,index)=><tr className={tableStyle.row} key={index}>{columns.map((column,i)=><td data-label={column.label} key={column.key} className={wide&&i===0?tableStyle.lead:numeric(column)?tableStyle.num:tableStyle.cell}>{wide&&i===0?<div className={tableStyle.leadBox}><Cell value={row[column.key]} column={column}/></div>:<Cell value={row[column.key]} column={column}/>}</td>)}</tr>)}</tbody></table></TableScroller>;
-}
-function numeric(column: ReportColumn) {
-    return column.kind === "number" || column.kind === "percent";
-}
-function Cell({
-    value,
-    column,
-}: {
-    value: ReportValue | ReportCell | undefined;
-    column: ReportColumn;
-}) {
-    const cell =
-        value !== null && typeof value === "object"
-            ? value
-            : { value: value ?? null };
-    const href = safeReportHref(cell.href);
-    const text =
-        (cell.value === null || (typeof cell.value === "number" && !Number.isFinite(cell.value)))
-            ? <MissingObservation/>
-            : column.kind === "date" || column.kind === "datetime"
-              ? dateTime(String(cell.value), column.kind === "date")
-              : typeof cell.value === "number"
-                ? `${count(cell.value)}${column.kind === "percent" ? "%" : ""}`
-                : typeof cell.value === "boolean"
-                  ? cell.value
-                      ? "是"
-                      : "否"
-                  : cell.value;
-    const content = cell.media ? <span className="inline-flex min-w-0 items-center gap-2"><span className="table-lead-extra shrink-0">{cell.media.kind === 'channel' ? <ChannelAvatar avatar={cell.media.avatar} title={typeof cell.value === 'string' ? cell.value : undefined} size={20}/> : <VideoThumbnail videoId={cell.media.videoId} width={96} height={54}/>}</span><span className="min-w-0">{text}</span></span> : text;
-    return (
-        <>
-            {href ? (
-                href.startsWith("/") ? (
-                    <Link className={ui.link} href={href}>{content}</Link>
-                ) : (
-                    <a className={ui.link} href={href} target="_blank" rel="noopener noreferrer">
-                        {content} ↗<span className="sr-only">（另開視窗）</span>
-                    </a>
-                )
-            ) : (
-                content
-            )}
-            {cell.detail && (
-                <small
-                    style={{
-                        display: "block",
-                        fontSize: 12,
-                        whiteSpace: "normal",
-                    }}
-                >
-                    {cell.detail}
-                </small>
-            )}
         </>
     );
 }

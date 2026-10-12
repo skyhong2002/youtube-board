@@ -102,7 +102,7 @@ export async function VocabularyReport({
             </form>
             {data.rows.length ? (
                 <TableScroller card label="共同詞彙表格，可左右捲動">
-                    <table className="w-full text-left text-sm">
+                    <table className={"w-full text-left text-sm " + table.nowrap}>
                         <thead className="bg-(--table-head-bg) text-xs text-zinc-600 dark:text-zinc-400">
                             <tr>
                                 <th className={table.leadHead}>內容詞彙</th>
@@ -115,13 +115,15 @@ export async function VocabularyReport({
                             {data.rows.map((term) => (
                                 <tr className={table.row} key={term.key}>
                                     <td className={table.lead}>
-                                        <strong className={table.leadBox}>{term.term}</strong>
+                                        <div className={table.leadBox}>
+                                            <strong className={table.leadText + " block sm:max-w-xs"} title={term.term}>{term.term}</strong>
+                                        </div>
                                     </td>
                                     <td className={table.num}>
                                         {count(term.articleCount)}
                                     </td>
                                     <td className={table.cell}>
-                                        <div className="tags">
+                                        <div className="flex items-center gap-1.5">
                                             {term.media
                                                 .slice(0, 6)
                                                 .map((name) => (
@@ -141,7 +143,7 @@ export async function VocabularyReport({
                                         </div>
                                     </td>
                                     <td className={table.cell}>
-                                        <div className="board-actions"><FollowButton kind="tag" target={term.term}/>
+                                        <div className="flex items-center gap-3"><FollowButton kind="tag" target={term.term}/>
                                             <Link
                                                 className={ui.link}
                                                 href={`/keywords/${encodeURIComponent(term.term)}/videos`}

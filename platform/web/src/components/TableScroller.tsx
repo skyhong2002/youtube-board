@@ -57,7 +57,9 @@ export default function TableScroller({
     const head = ref.current?.querySelector('thead');
     const tableEl = head?.closest('table');
     if (!head || !tableEl) return;
-    const timeline = CSS.supports('animation-timeline: scroll()');
+    // globals.css drops every animation under reduced motion, so the header follows by script there.
+    const timeline =
+      CSS.supports('animation-timeline: scroll()') && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const offset = () => document.querySelector('[data-site-header]')?.getBoundingClientRect().height ?? 0;
     let start = 0;
     let travel = 0;

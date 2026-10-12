@@ -1,5 +1,6 @@
 import { CHANNEL_SORTS, type ChannelRanking } from '../../../shared/channel-ranking';
 import Link from "next/link";
+import { Fragment } from "react";
 import {ChannelAvatar} from "./ChannelAvatar";
 import {VideoThumbnail} from "./VideoThumbnail";
 import type {
@@ -13,12 +14,26 @@ import { count, compact, dateTime, youtubeUrl } from "@/lib/format";
 import { Empty } from "./ReportUI";
 import TableScroller from "./TableScroller";
 import { table } from "@/lib/table-styles";
+type Tag = ChannelRow["tags"][number];
+/** Categories on one clipped line; the full list stays in the title. In the
+ *  lead it gives way first and hides once the table is scrolled on phones. */
+function TagLine({ tags, href, lead=false }: { tags: Tag[]; href: (tag: Tag) => string; lead?: boolean }) {
+    return <span className={lead ? `${table.leadExtra} ${table.leadText} shrink-3 text-xs text-zinc-500 sm:max-w-48` : `${table.clip} text-xs text-zinc-500`} title={tags.map((tag) => tag.name).join("、")}>
+        {tags.map((tag, index) => <Fragment key={tag.id}>{index > 0 && "、"}<Link className="hover:underline" href={href(tag)}>{tag.name}</Link></Fragment>)}
+    </span>;
+}
+/** Channel attribution as its own one-line column. */
+function ChannelCell({ id, title, avatar }: { id: number; title: string; avatar?: VideoRow["channelAvatar"] }) {
+    return <Link className="flex min-w-0 items-center gap-1.5 hover:underline" href={`/channels/${id}`} title={title || undefined}>
+        <ChannelAvatar avatar={avatar} title={title} size={16}/><span className={table.clip}>{title || "頻道名稱尚未取得"}</span>
+    </Link>;
+}
 const channelColumns = {viewCount:'views',subscriberCount:'subscribers',videoCount:'videoCount',view_week:'weeklyViews',view_month:'monthlyViews',views_pred_week:'estimatedWeeklyViews',views_pred_month:'estimatedMonthlyViews',sub_week:'weeklySubscribers',sub_month:'monthlySubscribers',video_week:'weeklyVideos',video_month:'monthlyVideos'} as const;
 export function ChannelTable({ rows, offset=0, ranking }: { rows: ChannelRow[];offset?:number;ranking?:ChannelRanking }) {
     if (!rows.length) return <Empty title="尚無符合條件的頻道" />;
     return (
         <TableScroller card label="頻道排行表，可左右捲動">
-            <table style={ranking?{minWidth:1780}:undefined}>
+            <table className={table.nowrap} style={ranking?{minWidth:1780}:undefined}>
                 <thead>
                     <tr>
                         <th className={table.leadHead}>頻道</th>
@@ -29,22 +44,13 @@ export function ChannelTable({ rows, offset=0, ranking }: { rows: ChannelRow[];o
                     {rows.map((row, index) => (
                         <tr key={row.id} className={table.row}>
                             <td className={table.lead}>
-                              <div className={table.leadBox}>
-                                <span className="mr-2 text-xs tabular-nums text-zinc-400">{String(offset+index+1).padStart(2,'0')}</span>
-                                <Link className="inline-flex items-center gap-2 font-medium hover:underline" href={`/channels/${row.id}`}><ChannelAvatar avatar={row.avatar} title={row.title} size={24}/>
-                                    {row.title || "頻道名稱尚未取得"}
+                              {/* One line: rank and categories yield to the channel once the table is scrolled on phones. */}
+                              <div className={`${table.leadBox} flex items-center gap-2`}>
+                                <span className={`${table.leadExtra} shrink-0 text-xs tabular-nums text-zinc-400`}>{String(offset+index+1).padStart(2,'0')}</span>
+                                <Link className="flex min-w-0 items-center gap-2 font-medium hover:underline" href={`/channels/${row.id}`} title={row.title || undefined}><ChannelAvatar avatar={row.avatar} title={row.title} size={24}/>
+                                    <span className={`${table.leadText} sm:max-w-xs`}>{row.title || "頻道名稱尚未取得"}</span>
                                 </Link>
-                                <div className="tags table-lead-extra">
-                                    {row.tags.map((tag) => (
-                                        <Link
-                                            className="tag"
-                                            key={tag.id}
-                                            href={`/tags/${tag.id}/channels`}
-                                        >
-                                            {tag.name}
-                                        </Link>
-                                    ))}
-                                </div>
+                                {row.tags.length > 0 && <TagLine lead tags={row.tags} href={(tag) => `/tags/${tag.id}/channels`}/>}
                               </div>
                             </td>
                             {ranking ? <>{CHANNEL_SORTS.map(([key])=><td key={key} className="number">{count(row[channelColumns[key]])}</td>)}<td className="number">{count(row.monthlyEstimateGap)}</td></> : <><td className="number">{compact(row.subscribers)}</td><td className="number">{compact(row.weeklyViews)}</td><td className="number">{count(row.videoCount)}</td></>}
@@ -61,10 +67,11 @@ export function VideoTable({ rows }: { rows: VideoRow[] }) {
     const ratio=(v:number|null|undefined,suffix:string)=>v===null||v===undefined?'—':v.toFixed(2)+suffix;
     return (
         <TableScroller card label="影片觀測表，可左右捲動">
-            <table>
+            <table className={table.nowrap}>
                 <thead>
                     <tr>
                         <th className={table.leadHead}>影片</th>
+                        <th>頻道</th>
                         <th>發布時間</th>
                         <th className="number">觀看數</th>
                         <th className="number">喜歡</th>
@@ -77,27 +84,23 @@ export function VideoTable({ rows }: { rows: VideoRow[] }) {
                     {rows.map((row) => (
                         <tr key={row.id} className={table.row}>
                             <td className={table.lead}>
-                              <div className={table.leadBox}>
-                                <span className="table-lead-extra mb-2 block"><VideoThumbnail videoId={row.id}/></span>
-                                <Link className="line-clamp-3 font-medium hover:underline"
-                                    title={row.title}
+                              <div className={`${table.leadBox} flex items-center gap-2`}>
+                                <span className={`${table.leadExtra} shrink-0`}><VideoThumbnail videoId={row.id} width={48} height={27}/></span>
+                                <Link className={`${table.leadText} font-medium hover:underline sm:max-w-xs`}
+                                    title={row.title || undefined}
                                     href={`/videos/${encodeURIComponent(row.id)}`}
                                 >
                                     {row.title || "影片標題尚未取得"}
                                 </Link>
-                                <small className="table-lead-extra block mt-1">
-                                    <Link className="inline-flex items-center gap-1.5" href={`/channels/${row.channelId}`}><ChannelAvatar avatar={row.channelAvatar} title={row.channelTitle} size={16}/>
-                                        {row.channelTitle || "頻道名稱尚未取得"}
-                                    </Link>
-                                </small>
                               </div>
                             </td>
+                            <td><ChannelCell id={row.channelId} title={row.channelTitle} avatar={row.channelAvatar}/></td>
                             <td>
                                 <small>{dateTime(row.publishedAt)}</small>
                             </td>
                             <td className="number">{compact(row.views)}</td>
                             <td className="number">{count(row.likes)}</td>
-                            <td className="number">{channel?`${count(row.listing?.recordedComments??null)} ／ ${count(row.listing?.providerComments??null)}`:count(row.comments)}{channel&&<small className="block">{row.listing?.commentStatus==='complete'?(row.listing.recordedComments===null?'完整批次無總數，顯示 YouTube':'完整收錄'):row.listing?.commentStatus==='pending'?'收錄未完成，顯示 YouTube':'未收錄，顯示 YouTube'}</small>}</td>
+                            <td className="number">{channel?`${count(row.listing?.recordedComments??null)} ／ ${count(row.listing?.providerComments??null)}`:count(row.comments)}{channel&&<small className="ml-1.5">{row.listing?.commentStatus==='complete'?(row.listing.recordedComments===null?'完整批次無總數，顯示 YouTube':'完整收錄'):row.listing?.commentStatus==='pending'?'收錄未完成，顯示 YouTube':'未收錄，顯示 YouTube'}</small>}</td>
                             {taxonomy&&<><td className="number">{ratio(row.listing?.commentsPerThousandViews,'‰')}</td><td>{row.listing?.tags.map(tag=><Link className="badge" key={tag.id} href={`/tags/${tag.id}/videos`}>{tag.name}</Link>)}</td></>}
                             {channel&&<><td className="number">{ratio(row.listing?.likeSharePercent,'%')}</td><td className="number">{count(row.listing?.commentAuthors??null)}</td><td className="number">{count(row.listing?.commentReplies??null)}</td><td className="number">{count(row.listing?.commentLikes??null)}</td></>}
                         </tr>
@@ -117,13 +120,16 @@ export function LiveTable({ rows,offset=0 }: { rows: LiveRow[];offset?:number })
         );
     return (
         <TableScroller card label="直播觀測表，可左右捲動">
-            <table>
+            <table className={table.nowrap}>
                 <thead>
                     <tr>
                         <th className={table.leadHead}>直播 / 頻道</th>
                         <th className="number">同時在線</th>
                         <th className="number">今日高峰</th>
                         <th className="number">歷史高峰</th>
+                        <th>頻道</th>
+                        <th>頻道分類</th>
+                        <th>更新時間</th>
                         <th>原始來源</th>
                     </tr>
                 </thead>
@@ -131,29 +137,26 @@ export function LiveTable({ rows,offset=0 }: { rows: LiveRow[];offset?:number })
                     {rows.map((row, index) => (
                         <tr key={row.id} className={table.row}>
                             <td className={table.lead}>
-                              <div className={table.leadBox}>
-                                <span className="table-lead-extra mb-2 block"><VideoThumbnail videoId={row.id}/></span>
-                                <span className="mr-2 text-xs tabular-nums text-zinc-400">{String(offset+index+1).padStart(2,'0')}</span>
-                                <Link className="line-clamp-3 font-medium hover:underline"
-                                    title={row.title}
+                              {/* One line: rank and thumbnail yield to the title once the table is scrolled on phones. */}
+                              <div className={`${table.leadBox} flex items-center gap-2`}>
+                                <span className={`${table.leadExtra} shrink-0 text-xs tabular-nums text-zinc-400`}>{String(offset+index+1).padStart(2,'0')}</span>
+                                <span className={`${table.leadExtra} shrink-0`}><VideoThumbnail videoId={row.id} width={48} height={27}/></span>
+                                <Link className={`${table.leadText} font-medium hover:underline sm:max-w-xs`}
+                                    title={row.title || undefined}
                                     href={`/videos/${encodeURIComponent(row.id)}`}
                                 >
                                     {row.title || "直播標題尚未取得"}
                                 </Link>
-                                <small className="table-lead-extra block mt-1">
-                                    <Link className="inline-flex items-center gap-1.5" href={`/channels/${row.channelId}`}><ChannelAvatar avatar={row.channelAvatar} title={row.channelTitle} size={16}/>
-                                        {row.channelTitle || "頻道名稱尚未取得"}
-                                    </Link>{" "}
-                                    · {dateTime(row.updatedAt)}
-                                </small>
-                                <div className="tags table-lead-extra">{row.tags.map(tag=><Link className="tag" key={tag.id} href={`/live/current?tagid=${tag.id}`}>{tag.name}</Link>)}</div>
                               </div>
                             </td>
                             <td className="number">
                                 <strong>{count(row.currentViewers)}</strong>
                             </td>
-                            <td className="number">{count(row.todayPeak)}{row.partialLogEvidence&&<small style={{display:'block'}}>部分取樣</small>}</td>
+                            <td className="number">{count(row.todayPeak)}{row.partialLogEvidence&&<small className="ml-1.5">部分取樣</small>}</td>
                             <td className="number">{count(row.allTimePeak)}</td>
+                            <td><ChannelCell id={row.channelId} title={row.channelTitle} avatar={row.channelAvatar}/></td>
+                            <td>{row.tags.length > 0 ? <TagLine tags={row.tags} href={(tag) => `/live/current?tagid=${tag.id}`}/> : "—"}</td>
+                            <td><small>{dateTime(row.updatedAt)}</small></td>
                             <td>
                                 <a
                                     className="external-link"
