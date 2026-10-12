@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {existsSync,readFileSync} from 'node:fs';
 import {join} from 'node:path';
-import {ANALYTICS_PAGE_TITLE,PUBLIC_GA_ID,OPT_OUT_STORAGE_KEY,analyticsBlockReason,analyticsLinkEvent,analyticsPage,analyticsPageType,analyticsReferrer,isAutomationAgent,readOptOut,resolveMeasurementId,writeOptOut,type AnalyticsEnvironment} from './analytics-consent';
+import {ANALYTICS_PAGE_TITLE,PUBLIC_GA_ID,OPT_OUT_STORAGE_KEY,analyticsBlockReason,analyticsLinkEvent,analyticsPage,analyticsPageType,analyticsReferrer,analyticsReferrerAllowsStart,isAutomationAgent,readOptOut,resolveMeasurementId,writeOptOut,type AnalyticsEnvironment} from './analytics-consent';
 
 const chrome='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
 const allowed:AnalyticsEnvironment={measurementId:PUBLIC_GA_ID,nodeEnv:'production',hostname:'youtube.observe.tw',webdriver:false,userAgent:chrome,doNotTrack:[null,undefined,'unspecified'],globalPrivacyControl:false,optedOut:false};
@@ -42,25 +42,25 @@ test('private, auth, search, unknown, query and fragment pages are never measure
  // Any query at all, not just q/keyword, and any fragment.
  for(const [path,search,hash] of [['/videos','?q=%E4%BA%A4%E9%80%9A',''],['/channels','?sort=views',''],['/events','?page=2',''],['/','?utm_source=x',''],['/videos','','#token=abc'],['/about','','#section']])
   assert.equal(analyticsPage({pathname:path,search,hash}),null,path+search+hash);
- const types:Array<[string,string]>=[['/','home'],['/videos','videos'],['/videos/dQw4w9WgXcQ','video'],['/videos/dQw4w9WgXcQ/analytics','video'],['/channels','channels'],['/channels/12/comments','channel'],['/keywords','keywords'],['/vocabulary','keywords'],['/keywords/%E4%BA%A4%E9%80%9A/videos','keyword'],['/tags','tags'],['/tags/compare','tags'],['/tags/3/videos','tag'],['/events','events'],['/events/9b2e3c1a-0000-4000-8000-000000000001','event'],['/ai/days','ai'],['/live/current','live'],['/groups','groups'],['/mayor','mayor'],['/compare/titles','compare'],['/about/brand','about']];
+ const types:Array<[string,string]>=[['/','home'],['/videos','videos'],['/videos/dQw4w9WgXcQ','video'],['/videos/dQw4w9WgXcQ/analytics','video'],['/channels','channels'],['/channels/12/comments','channel'],['/keywords','keywords'],['/vocabulary','keywords'],['/tags','tags'],['/tags/compare','tags'],['/tags/3/videos','tag'],['/events','events'],['/events/9b2e3c1a-0000-4000-8000-000000000001','event'],['/ai/days','ai'],['/live/current','live'],['/groups','groups'],['/mayor','mayor'],['/compare/titles','compare'],['/about/brand','about']];
  for(const [path,type] of types)assert.equal(analyticsPageType(path),type,path);
 });
-test('page_location is origin + path with free text redacted; referrer never forwards an external path',()=>{
- const location=(pathname:string)=>analyticsPage({pathname,search:'',hash:''})?.location;
- assert.equal(location('/'),'https://youtube.observe.tw/');
- assert.equal(location('/channels/12/videos'),'https://youtube.observe.tw/channels/12/videos');
- assert.equal(location('/videos/dQw4w9WgXcQ/analytics'),'https://youtube.observe.tw/videos/dQw4w9WgXcQ/analytics');
- assert.equal(location('/keywords/%E7%A7%98%E5%AF%86/videos'),'https://youtube.observe.tw/keywords/-/videos');
- assert.equal(location('/keywords/secret/cloud'),'https://youtube.observe.tw/keywords/-/cloud');
- assert.equal(location('/groups/secret/ranking'),'https://youtube.observe.tw/groups/-/ranking');
- assert.equal(location('/mayor/cities/%E5%8F%B0%E5%8C%97/people/%E7%8E%8B/days/2026-10-01'),'https://youtube.observe.tw/mayor/cities/-/people/-/days/2026-10-01');
- assert.equal(location('/ai/days/2026-10-01/secret'),'https://youtube.observe.tw/ai/days/2026-10-01/-');
- assert.equal(location('/live/groups/secret/hours'),'https://youtube.observe.tw/live/groups/-/hours');
+test('routes with any free-text segment are not measured at all, since gtag reports the raw URL',()=>{
+ for(const path of ['/keywords/%E7%A7%98%E5%AF%86/videos','/keywords/secret/videos','/keywords/secret/cloud','/keywords/secret/groups/trends','/groups/secret','/groups/secret/ranking','/mayor/cities/%E5%8F%B0%E5%8C%97','/mayor/cities/%E5%8F%B0%E5%8C%97/people/%E7%8E%8B/days/2026-10-01','/ai/days/2026-10-01/secret','/live/groups/secret/hours','/videos/secret','/videos/notavideo-id-x','/live/videos/secret/trend','/%76ideos'])
+  assert.equal(analyticsPage({pathname:path,search:'',hash:''}),null,path);
+ // Listings and ID-only routes stay measurable, and their location is the raw URL.
+ for(const path of ['/','/keywords','/groups','/mayor','/ai/days','/ai/days/2026-10-01','/ai/days/12/events','/channels/12/videos','/channels/12/ai/days/2026-10-01','/videos/dQw4w9WgXcQ/analytics','/live/videos/dQw4w9WgXcQ/trend','/tags/3/videos'])
+  assert.equal(analyticsPage({pathname:path,search:'',hash:''})?.location,'https://youtube.observe.tw'+path,path);
+});
+test('referrer never forwards an external path; an unmeasured same-site referrer blocks the document',()=>{
  assert.equal(analyticsReferrer('https://www.google.com/search?q=secret#frag'),'https://www.google.com/');
  assert.equal(analyticsReferrer('https://mail.example.com/u/0/inbox/user@example.com'),'https://mail.example.com/');
- assert.equal(analyticsReferrer('https://youtube.observe.tw/keywords/%E7%A7%98%E5%AF%86/videos'),'https://youtube.observe.tw/keywords/-/videos');
+ assert.equal(analyticsReferrer('https://youtube.observe.tw/channels/12'),'https://youtube.observe.tw/channels/12');
+ assert.equal(analyticsReferrer('https://youtube.observe.tw/keywords/%E7%A7%98%E5%AF%86/videos'),'https://youtube.observe.tw/');
  assert.equal(analyticsReferrer('https://youtube.observe.tw/my/settings?token=abc'),'https://youtube.observe.tw/');
  for(const value of ['','not a url','android-app://com.example/x'])assert.equal(analyticsReferrer(value),'',value);
+ for(const value of ['','not a url','https://www.google.com/search?q=x','https://youtube.observe.tw/','https://youtube.observe.tw/keywords'])assert.ok(analyticsReferrerAllowsStart(value),value);
+ for(const value of ['https://youtube.observe.tw/keywords/secret/videos','https://youtube.observe.tw/my/settings','https://youtube.observe.tw/videos?q=x','https://youtube.observe.tw/events#headlines'])assert.ok(!analyticsReferrerAllowsStart(value),value);
  assert.equal(ANALYTICS_PAGE_TITLE,'有影儀表板');
 });
 test('custom events carry only link domain, fixed content types and channel/video IDs',()=>{
@@ -89,10 +89,11 @@ test('SiteAnalytics loads gtag only through the trusted bundle: one config, no i
  assert.match(code,/https:\/\/www\.googletagmanager\.com\/gtag\/js\?id=/);
  assert.match(code,/process\.env\.NEXT_PUBLIC_GA_ID/);
  assert.doesNotMatch(code,/'login'|auth\/me/,'login is not emitted until the callback issues a one-time success receipt');
- // Fixed title and sanitized location/referrer for every hit; the history guard runs before the native call.
- assert.match(code,/gtag\('set', \{ page_title: ANALYTICS_PAGE_TITLE, page_location: page\.location, page_referrer: analyticsReferrer\(document\.referrer\) \}\);\s*gtag\('config', id\);/);
+ // Fixed title before the config, Google signals off; the history guard runs before the native call.
+ assert.match(code,/gtag\('set', \{ page_title: ANALYTICS_PAGE_TITLE, page_location: page\.location, page_referrer: analyticsReferrer\(document\.referrer\) \}\);\s*gtag\('config', id, \{ allow_google_signals: false, allow_ad_personalization_signals: false \}\);/);
  assert.match(code,/prepare\(new URL\(url, window\.location\.href\)\);[\s\S]*return original\.call\(this, data, unused, url\);/);
- assert.match(code,/addEventListener\('popstate', onPopState, true\)[\s\S]*document\.createElement\('script'\)/);
+ assert.match(code,/addEventListener\('popstate', onUrlChange, true\);\s*window\.addEventListener\('hashchange', onUrlChange, true\)[\s\S]*document\.createElement\('script'\)/);
+ assert.match(code,/if \(!page\) \{ stop\(\); return; \}/,'an unmeasured URL stops GA rather than pausing it');
  assert.doesNotMatch(code,/document\.title|location\.search|location\.hash/);
  const layout=source('src/app/layout.tsx');assert.match(layout,/<SiteAnalytics \/>/);assert.doesNotMatch(layout,/cookies\(|headers\(/);
 });

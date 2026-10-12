@@ -12,7 +12,7 @@ import {publicCacheDiagnostics} from './public-cache-diagnostics.js';
 const gzipAsync=promisify(gzip);
 const brotliAsync=promisify(brotliCompress);
 
-export type HtmlSecurityOptions = {assets:ReadonlyMap<string,string>;themeScript:string}&UnavailableAssets;
+export type HtmlSecurityOptions = {assets:ReadonlyMap<string,string>;themeScript:string;analytics?:boolean}&UnavailableAssets;
 
 /** The gateway owns API/ops namespaces; the exact read-only console page reaches Next. */
 export async function registerUiProxy(app: FastifyInstance, options: { origin: string; htmlSecurity?:HtmlSecurityOptions;cacheDiagnostics?:ReturnType<typeof publicCacheDiagnostics> }) {

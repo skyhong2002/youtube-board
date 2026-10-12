@@ -10,6 +10,7 @@ import {publicScriptManifest} from '../api/src/public-html.js';
 import {THEME_SCRIPT} from '../shared/public-render-contract.js';
 import {fileURLToPath} from 'node:url';
 import {loadUnavailableAssets} from '../api/src/ui-unavailable.js';
+import {analyticsTransportEnabled} from '../shared/analytics-runtime.js';
 
 const databases=frontendDatabases(process.env);
 const app = buildApp({sitemapWarmup:true});
@@ -27,7 +28,7 @@ await registerOps(app,{auth});
 const uiOrigin = process.env.UI_ORIGIN ?? 'http://127.0.0.1:3100';
 const assets=await publicScriptManifest(fileURLToPath(new URL('../web/.next/standalone/web/.next/static/',import.meta.url)));
 const unavailable=await loadUnavailableAssets(new URL('../web/.next/standalone/web/public/errors/',import.meta.url));
-await registerUiProxy(app, { origin: uiOrigin,htmlSecurity:{assets,themeScript:THEME_SCRIPT,...unavailable} });
+await registerUiProxy(app, { origin: uiOrigin,htmlSecurity:{assets,themeScript:THEME_SCRIPT,...unavailable,analytics:analyticsTransportEnabled(process.env)} });
 const ready = readinessProbe(async () => {
   const [api, ui] = await Promise.all([
     app.inject({ method: 'GET', url: '/ready' }),

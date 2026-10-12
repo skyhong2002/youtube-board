@@ -14,10 +14,8 @@ export const OPT_OUT_EVENT = 'observe-analytics-opt-out';
 /** Every hit carries this fixed page_title, never document.title (video and channel titles). */
 export const ANALYTICS_PAGE_TITLE = SITE_NAME;
 
-/** Off unless explicitly configured. Enhanced measurement's history page_views are expected
- * to take the `set` page_title/page_location/page_referrer, but that is unverified until
- * GA DebugView or captured /g/collect requests show it; enable only after that proof.
- * An empty or malformed value also disables GA. */
+/** Off unless explicitly configured; enable only after captured /g/collect requests from a
+ * real gtag.js have been validated. An empty or malformed value also disables GA. */
 export function resolveMeasurementId(value: string | undefined): string | null {
   const id = value?.trim() ?? '';
   return /^G-[A-Z0-9]{4,20}$/.test(id) ? id : null;
@@ -69,37 +67,42 @@ export function writeOptOut(storage: OptOutStorage | null | undefined, optedOut:
   } catch { return false; }
 }
 
-export const PAGE_TYPES = ['home', 'videos', 'video', 'channels', 'channel', 'keywords', 'keyword', 'tags', 'tag', 'events', 'event', 'ai', 'live', 'groups', 'mayor', 'compare', 'about'] as const;
+export const PAGE_TYPES = ['home', 'videos', 'video', 'channels', 'channel', 'keywords', 'tags', 'tag', 'events', 'event', 'ai', 'live', 'groups', 'mayor', 'compare', 'about'] as const;
 export type PageType = (typeof PAGE_TYPES)[number];
-/** A measurable page: a fixed type and the only page_location GA may receive. */
+/** A measurable page: a fixed type and its location, which is exactly the browser URL. */
 export type AnalyticsPage = { type: PageType; location: string };
 // Account, admin, auth, private token, personal board and opt-out pages are never measured.
 const PRIVATE_PATH = /^\/(?:my|manage|ops|login|auth|boards|runtime|redir|observe|search)(?:\/|$)|^\/feeds\/u(?:\/|$)|^\/api\//;
 const STATIC_PAGES: Record<string, PageType> = { '/': 'home', '/events': 'events', '/compare/titles': 'compare', '/about': 'about', '/about/brand': 'about' };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-// Structural words, numeric IDs, dates and YouTube video IDs; anything else is free text.
-const SAFE_SEGMENT = /^(?:[a-z][a-z-]*|\d{1,16}|\d{4}-\d{2}-\d{2}|[A-Za-z0-9_-]{11})$/;
-/** Positions holding reader-chosen or name text (keyword terms, group, city and person
- * names, AI day conditions), replaced by `-` in page_location. */
-function freeTextPositions(segments: string[]): number[] {
+const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
+// Structural words, numeric IDs and dates. resolveRoute admits only fixed words outside the
+// free-text and video-ID positions below, so nothing a reader or source wrote passes here.
+const SAFE_SEGMENT = /^(?:[a-z][a-z-]*|\d{1,16}|\d{4}-\d{2}-\d{2})$/;
+/** Whether a report route carries reader-chosen or name text (keyword terms, group, city
+ * and person names, AI day conditions). Such pages are not measured at all: gtag's
+ * history page_views report the raw browser URL and ignore a `set` page_location, so
+ * redacting the segment would not keep it out of GA. */
+function hasFreeText(segments: string[]): boolean {
   const [family, id] = segments;
-  if (family === 'keywords' || family === 'groups') return [1];
-  if (family === 'mayor' && id === 'cities') return [2, 4];
-  if (family === 'live' && id === 'groups') return [2];
-  if (family === 'ai' && id === 'days' && /^\d{4}-\d{2}-\d{2}$/.test(segments[2] ?? '')) return [3];
-  return [];
+  if ((family === 'keywords' || family === 'vocabulary' || family === 'groups') && segments.length > 1) return true;
+  if (family === 'mayor' && id === 'cities') return true;
+  if (family === 'live' && id === 'groups') return true;
+  return family === 'ai' && id === 'days' && /^\d{4}-\d{2}-\d{2}$/.test(segments[2] ?? '') && segments.length > 3;
 }
+const videoIdIndex = ([family, id]: string[]) => family === 'videos' ? 1 : family === 'live' && id === 'videos' ? 2 : -1;
 function reportPageType(segments: string[]): PageType {
   const [family, id] = segments;
   if (family === 'videos') return id ? 'video' : 'videos';
   if (family === 'channels') return id ? 'channel' : 'channels';
-  if (family === 'keywords' || family === 'vocabulary') return id ? 'keyword' : 'keywords';
+  if (family === 'vocabulary') return 'keywords';
   if (family === 'tags') return id && /^\d+$/.test(id) ? 'tag' : 'tags';
   return family as PageType;
 }
 /** The measured form of a browser URL, or null when it must not be measured at all: any
- * query or fragment, private/auth/search pages, unknown paths, comment-author pages and
- * prompt previews. The location is origin + path only, with free text redacted. */
+ * query or fragment, private/auth/search pages, unknown paths, comment-author pages, prompt
+ * previews and every route with a free-text segment. The location is origin + path and is
+ * exactly the raw browser URL, so it is what gtag reports whether or not it honours `set`. */
 export function analyticsPage(url: Pick<URL, 'pathname' | 'search' | 'hash'>): AnalyticsPage | null {
   const { pathname } = url;
   if (url.search || url.hash || PRIVATE_PATH.test(pathname)) return null;
@@ -109,22 +112,31 @@ export function analyticsPage(url: Pick<URL, 'pathname' | 'search' | 'hash'>): A
   if (event) return UUID.test(event[1]!) ? { type: 'event', location: SITE_ORIGIN + pathname } : null;
   const segments = decodeReportSegments(pathname.slice(1).split('/'));
   const route = segments && resolveRoute(segments);
-  if (!segments || !route || route.kind === 'prompt-preview' || segments[0] === 'comments') return null;
-  const redacted = freeTextPositions(segments);
-  const safe = segments.map((segment, index) => redacted.includes(index) ? '-' : segment);
-  if (!safe.every(segment => segment === '-' || SAFE_SEGMENT.test(segment))) return null;
+  if (!segments || !route || route.kind === 'prompt-preview' || segments[0] === 'comments' || hasFreeText(segments)) return null;
+  const videoAt = videoIdIndex(segments);
+  if (!segments.every((segment, index) => index === videoAt ? VIDEO_ID.test(segment) : SAFE_SEGMENT.test(segment))) return null;
+  // Percent-encoded ASCII would make the raw URL differ from the measured one.
+  if ('/' + segments.join('/') !== pathname) return null;
   const type = reportPageType(segments);
-  return PAGE_TYPES.includes(type) ? { type, location: SITE_ORIGIN + '/' + safe.join('/') } : null;
+  return PAGE_TYPES.includes(type) ? { type, location: SITE_ORIGIN + pathname } : null;
 }
 export const analyticsPageType = (pathname: string, search = '') => analyticsPage({ pathname, search, hash: '' })?.type ?? null;
-/** page_referrer: a same-site page's measured location, otherwise only the referring
- * origin, so no external path, query or fragment is forwarded. */
+/** page_referrer for the first hit: a same-site page's measured location, otherwise only
+ * the referring origin, so no external path, query or fragment is forwarded. */
 export function analyticsReferrer(referrer: string): string {
   let url: URL;
   try { url = new URL(referrer); } catch { return ''; }
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return '';
   if (url.origin === SITE_ORIGIN) return analyticsPage(url)?.location ?? SITE_ORIGIN + '/';
   return url.origin + '/';
+}
+/** Whether a document may start GA given its referrer. A same-site referrer that is not
+ * itself a measured page (private, query, fragment, free text) blocks the document: the
+ * sanitized `set` page_referrer is not proven to replace gtag's own document.referrer. */
+export function analyticsReferrerAllowsStart(referrer: string): boolean {
+  let url: URL;
+  try { url = new URL(referrer); } catch { return true; }
+  return url.origin !== SITE_ORIGIN || analyticsPage(url) !== null;
 }
 
 export type AnalyticsEvent =
