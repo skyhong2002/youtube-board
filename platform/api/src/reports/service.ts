@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import {eventReport} from './event-report.js';
 import {VIDEO_LIST_MAX} from '../../../shared/video-listing.js';
 import {enrichVideoListings} from './video-listing.js';
@@ -83,8 +84,9 @@ export function reports(reader: Reader, clock: () => Date = () => new Date()): R
         const fresh = sql `m.source_pk=v.pk AND BINARY m.source_text_sha256=BINARY ${videoTextDigest()}`;
         // utf8mb4_bin still uses PAD SPACE equality; an upstream label with a
         // trailing space must not match another exact vocabulary identity.
-        const evidence = sql `EXISTS(SELECT 1 FROM ts_video_tag_evidence e WHERE e.video_id=v.videoId AND e.vocabulary_version=${version} AND e.term=${keyword} AND BINARY e.term=BINARY ${keyword})`;
-        const where = sql `${scope} ${keyword ? sql `AND EXISTS(SELECT 1 FROM ts_video_tag_matches m WHERE m.video_id=v.videoId AND m.vocabulary_version=${version} AND ${fresh} AND ${evidence})` : sql ``}`;
+        const keywordKey=keyword?createHash('sha256').update('https://tag.observe.tw\0'+keyword).digest('hex'):null;
+        const evidence = sql `EXISTS(SELECT 1 FROM ts_video_tag_evidence e WHERE e.video_id=m.video_id AND BINARY e.video_id=BINARY m.video_id AND e.vocabulary_version=${version} AND e.term_key=${keywordKey} AND BINARY e.term=BINARY ${keyword})`;
+        const where = sql `${scope} ${keyword ? sql `AND EXISTS(SELECT 1 FROM ts_video_tag_matches m WHERE m.video_id=CONVERT(v.videoId USING ascii) AND BINARY m.video_id=BINARY v.videoId AND m.vocabulary_version=${version} AND ${fresh} AND ${evidence})` : sql ``}`;
         const fields=sql`v.pk,v.videoId,v.u_id,LEFT(v.channelId,128) AS channelId,LEFT(v.channelTitle,256) AS channelTitle,LEFT(v.title,512) AS title,LEFT(v.thumbnails,2048) AS thumbnails,v.publishedAt,v.viewCount,v.likeCount,v.commentCount,v.dislikeCount,v.mtime,v.ctime,LEFT(n.tags,4096) AS tags`;
         const order=sql`${sql.identifier('v')}.${sql.identifier(column)} DESC,v.pk DESC`;
         const source=sql`FROM urt_video v LEFT JOIN urt_count n ON n.u_id=v.u_id`;
@@ -116,7 +118,7 @@ export function reports(reader: Reader, clock: () => Date = () => new Date()): R
         };
         const [selected, counted, coverageRows] = await Promise.all([
             selection(),count(),
-            keyword ? reader.rows(sql `SELECT COUNT(*) AS sourceVideos,COALESCE(SUM(m.video_id IS NULL),0) AS unprocessedVideos,COALESCE(SUM(m.video_id IS NOT NULL AND (${fresh})),0) AS freshVideos,COALESCE(SUM(m.video_id IS NOT NULL AND NOT(${fresh})),0) AS staleVideos FROM urt_video v LEFT JOIN urt_count n ON n.u_id=v.u_id LEFT JOIN ts_video_tag_matches m ON m.video_id=v.videoId AND m.vocabulary_version=${version} WHERE ${scope}`) : Promise.resolve([]),
+            keyword ? reader.rows(sql `SELECT COUNT(*) AS sourceVideos,COALESCE(SUM(m.video_id IS NULL),0) AS unprocessedVideos,COALESCE(SUM(m.video_id IS NOT NULL AND (${fresh})),0) AS freshVideos,COALESCE(SUM(m.video_id IS NOT NULL AND NOT(${fresh})),0) AS staleVideos FROM urt_video v LEFT JOIN urt_count n ON n.u_id=v.u_id LEFT JOIN ts_video_tag_matches m ON m.video_id=CONVERT(v.videoId USING ascii) AND BINARY m.video_id=BINARY v.videoId AND m.vocabulary_version=${version} WHERE ${scope}`) : Promise.resolve([]),
         ]);
         const {rows,hasNext}=selected,{total,totalStatus}=counted;
         const c = coverageRows[0];

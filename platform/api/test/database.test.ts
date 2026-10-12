@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import { assertTestDatabaseUrl } from '../../shared/test-database.js';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import mysql from 'mysql2/promise';
@@ -198,7 +199,7 @@ async function seedEvidence(url: string) {
         const [videos] = await db.query<any[]>("SELECT pk,videoId,title,description FROM urt_video WHERE videoId IN ('FixtureAa01','Fixtureaa01','FixtureLive')");
         for (const v of videos) {
             await db.execute("INSERT INTO ts_video_tag_matches(video_id,vocabulary_version,source_pk,source_text_sha256,source_observed_at,rule_version,evidence_count)VALUES(?,'api-test-v1',?,?,'2026-10-10 00:00:00','test',1)", [v.videoId, v.videoId === 'FixtureLive' ? 0 : v.pk, sourceTextFingerprint(v.videoId === 'Fixtureaa01' ? 'stale title' : v.title, v.description)]);
-            await db.execute("INSERT INTO ts_video_tag_evidence(video_id,vocabulary_version,term_key,term,source,field_name,start_offset,end_offset,matched_text,snippet,snippet_start,rule_version)VALUES(?,'api-test-v1',?,'交通','https://tag.observe.tw','title',0,2,'交通','交通',0,'test')", [v.videoId, 'a'.repeat(64)]);
+            await db.execute("INSERT INTO ts_video_tag_evidence(video_id,vocabulary_version,term_key,term,source,field_name,start_offset,end_offset,matched_text,snippet,snippet_start,rule_version)VALUES(?,'api-test-v1',?,'交通','https://tag.observe.tw','title',0,2,'交通','交通',0,'test')", [v.videoId, createHash('sha256').update('https://tag.observe.tw\0交通').digest('hex')]);
         }
         await db.execute("INSERT INTO ts_vocabulary_terms(run_id,term_key,term,article_count,payload)VALUES('api-test-v1',?,'Opus新聞',1,?) ON DUPLICATE KEY UPDATE payload=VALUES(payload)", ['b'.repeat(64), JSON.stringify({ key: 'b'.repeat(64), term: 'Opus新聞', articleCount: 1, media: [] })]);
     }
