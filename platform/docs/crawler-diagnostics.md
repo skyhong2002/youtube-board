@@ -45,7 +45,10 @@ power-loss durability guarantee.
 - `completed`: true on response finish, false on early close. For an incomplete
   response, bytes is only bytes submitted; it cannot prove remote receipt.
 - `userAgent`: only known crawler/browser product/version tokens, not the raw UA.
-- `cfRay`: strictly validated ray value; `cfColo`: its three-letter suffix.
+- `cfRay`: strictly validated ray value; `cfColo`: its three-letter suffix as
+  received at the origin. Cloudflare may use a different colo suffix in the
+  client response (observed KIX at origin, TPE at client for the same ray ID);
+  correlate the hexadecimal ID, not the suffix alone.
 - `cfCountry`: two uppercase letters, otherwise null. No IP is logged.
 
 No cookies, authorization headers, service tokens, full URLs, request bodies or
@@ -68,3 +71,41 @@ final hook transformations, HEAD/204/304, disconnects, field sanitization, file
 rotation/reopen, bounded queues, sink failures and cross-process lock ownership.
 Deployment acceptance records live in the ignored `.local/dokploy` directory.
 No DB/schema, frontend/CSP, Cloudflare or Laravel writer changes are required.
+
+## Production acceptance — 2026-10-12 17:49–17:50 UTC
+
+Code `dfce18e`, pinned image
+`sha256:93b364265df858fd019cbf54c25456b72b782b23551670c1668a16e3d7c849d0`
+was deployed through Dokploy; Swarm update completed with a healthy web task.
+Only two backend source files changed in the image. Both services retain the
+previous frontend layers, and only web receives the new bind/setting. Stored
+secret environment, routes, DB grants and writer gates were preserved.
+
+- API typecheck and 23 focused crawler/cache/rate-policy tests passed.
+- Independent Codex review had no blocker. Its request for separate-container
+  lock proof was adopted: the canary's second container waited while the first
+  held its descriptor, then appended after the first was removed. A third
+  read-only container recovered the identical persisted file checksum. All
+  canary containers and temporary log files were cleaned up.
+- Fifty public checks passed. Robots GET logged 313 bytes; HEAD logged zero.
+  Sitemap index GET logged 2,182 bytes; HEAD zero. These persisted records
+  matched the actual external response bodies using CF-Ray hexadecimal IDs.
+- All 17 child sitemap GET/HEAD responses were 200, nonempty and had lastmod.
+  Static: 21; channels: 3,474; tags: 108; videos 1–13: 50,000 each;
+  videos 14: 23,945 (ingestion continues, so this count can grow).
+- OpenAPI still has 115 public GET paths. Anonymous API GET is
+  `public, max-age=0, s-maxage=60, stale-while-revalidate=120`; Cookie,
+  Authorization, X-Api-Key, X-Service-Token or RSC gives `private, no-store`.
+  Invalid query returned 400/no-store; isolated canary 429 also used no-store.
+- Homepage was Cloudflare HIT, 103 ms request duration, with hash CSP preserved;
+  `/my` stayed no-store. Tag/blog were 200; Laravel scheduler remained running.
+
+Receipts: ignored `.local/dokploy/canary-crawler-dfce18e.json`,
+`crawler-public-dfce18e.json`, `crawler-acceptance-dfce18e.json` and sanitized
+`crawler-persistent-records-dfce18e.json`. This verifies diagnostic availability,
+not GSC sitemap acceptance or authenticated Googlebot activity.
+
+Rollback: restore the privately backed-up pre-release compose via Dokploy and
+redeploy image `sha256:2a537598c86fbe3c351cab4b9b64e17eca911a0d401872e1becd36a5427c0c6c`.
+Keep `/var/lib/youtube-board-ts/crawler-logs` intact. That prior image retains
+the X-Service-Token cache fix but only logs crawlers to stdout.
