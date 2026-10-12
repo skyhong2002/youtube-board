@@ -59,8 +59,21 @@ outage was unnecessary after independent recovery verification.
 ## Ongoing backup and resource limits
 
 This sealed snapshot protects the present state, not future account writes.
-The recurring job still requires separately recorded rollout and retrieval proof
-for source + TS + restricted principals + the TS runtime environment. Its
+At **09:47 UTC** the recurring job was atomically extended after a timestamped
+original backup to source + TS + restricted principals + the TS runtime
+environment. Snapshot **ca27cf55** completed at **09:50 UTC**; actual NAS retrieval
+restored 25 files/directories (499.300 MiB), including the TS environment and
+sealed principal exports. The 523,534,041-byte dump SHA-256 is
+`1adc4a88340513a96b44163f58ebeda9e79a3690fd5a63126a68947d7afa3628`;
+its off-host copy matches. A second isolated MariaDB imported users, the complete
+dump and grants successfully at **10:00 UTC**: 66 source tables, 36 TS tables,
+36 source facade views, two restricted DB principals, one account and two
+sessions. Source channel/video row counts were 3,889 / 672,260. Private evidence:
+`nightly-ts-{run,restore}.log`, `nightly-ts-restore-proof.json`.
+
+This closes recurring TS account/secret/grant coverage for the currently
+provisioned frontend. Any later worker facade schema must be added to the
+backup/recovery scope before its workflow runs. The recurring job's
 `--single-transaction` mode does not guarantee MyISAM consistency; a fresh
 consistent capture remains required before destructive migrations/writer handoff.
 
