@@ -16,4 +16,21 @@ The opt-out page `/observe/opt-out` is noindex. Choosing opt-out immediately sto
 
 Frontend implementation is by Claude Opus 5.5; Codex reviewed and integrated it. Pure browser-policy tests, a fake enhanced-history implementation and actual gtag transport interception verify the boundary. The interception harness blocks collection and stores only safe event fields; these are **not production events delivered to GA**. Real loader tests confirmed one initial/history/back page_view each, fixed title, sanitized external referrer, safe external-link/RSS/SVG keyword events, and no events after direct hash navigation followed by public navigation. Google backend delivery must be verified after the enabled deployment; do not claim Realtime receipt from intercepted evidence.
 
-The previously deployed SEO build (`27bba6f`) has analytics disabled. A subsequent enabled release must verify built-bundle hydration, script/connection CSP, first load/history/back counts, opt-out/private exclusions and actual UTC event send times. Keep public HTML cacheable and `/my`, `/auth/*`, opt-out and account APIs private/no-store.
+The enabled build `1a93214` was deployed on 2026-10-12 at approximately 15:37 UTC, pinned to `sha256:08292fb0cd1a898b2a65f7db8826a6c0c0d52d402a4a08a4e13d7f7fb188437b`. Only the public measurement-ID environment entry was added. Database/schema, routing and writer ownership did not change. The previous sitemap image remains the GA-disabled rollback.
+
+A normal collaborative browser (webdriver false; DNT/GPC/opt-out off) loaded the actual built Next bundle. Observed outgoing UTC times:
+
+| Event | UTC time |
+| --- | --- |
+| Initial about page_view | 15:38:12.340 |
+| SPA about → channels page_view | 15:39:32.336 |
+| Browser back → about page_view | 15:40:06.337 |
+| Fresh video landing page_view | 15:41:56.734 |
+| open_original | 15:42:02.335 |
+| select_content (video) | 15:43:06.334 |
+
+Initial/history/back each generated one page_view; config count was one and the application queued no manual page_view. The fixed public site title was used. Custom events carried only the expected domain/type/public video ID, with no title, full external URL, email or user ID. A pass-through observer preserved transport; fetch resolved with opaque no-cors responses. This records actual send attempts, **not Google Realtime receipt**, which is for the Google administrator to confirm. One outbound click followed YouTube; a later repeat prevented only page navigation to retain observation while preserving the analytics request.
+
+No CSP errors were observed. SPA entry into opt-out set the GA kill switch without a new hit; a fresh `/my` document loaded zero GA scripts/resources and was noindex. HTTP `/my` and opt-out remained private/no-store. Sitemap remained public XML and all 17 nonempty children remained in the canary. Public homepage hash CSP and ISR shared-cache headers remained enabled.
+
+Opus5.5 review was complete and model-verified. Adopted: real built-bundle transport checks, outbound parameter audit, runtime/build ID checks and accurate separation from Realtime proof. Its concern that enhanced-measurement settings were unverified was resolved by the user's two explicit confirmations that only page-load/history are enabled. External initial-referrer origin sanitization already had actual gtag interception evidence; conservative same-origin exclusions remain. Optional cookie-retention change and older Safari/Firefox behavior remain separate follow-up work. The login event is still pending the secure one-time receipt described above.
