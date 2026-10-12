@@ -1,0 +1,1011 @@
+[
+  {
+    "url": "/api/api_live_day.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {},
+      "meta": {
+        "videoId": "V1p33hqPrUk",
+        "period": {
+          "date": "2026-10-11",
+          "from": "2026-10-11",
+          "to": "2026-10-11",
+          "is_range": true
+        },
+        "available": false,
+        "source": "urt_video_live_log",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/api_live_date.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {
+        "tag": {
+          "max": [],
+          "count": []
+        },
+        "video": [],
+        "hour": []
+      },
+      "meta": {
+        "period": {
+          "date": "2026-10-11",
+          "from": "2026-10-11",
+          "to": "2026-10-11",
+          "is_range": true
+        },
+        "available": false,
+        "source": "urt_video_live_log derived real-time YouTube dashboard",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/api_live_hour.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {},
+      "meta": {
+        "period": {
+          "date": "2026-10-11",
+          "from": "2026-10-11",
+          "to": "2026-10-11",
+          "is_range": true
+        },
+        "available": false,
+        "source": "urt_video_live_log derived real-time YouTube dashboard",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/api_live_tag_date.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {
+        "views": [],
+        "videos": [],
+        "all": [],
+        "hour": [],
+        "data": []
+      },
+      "meta": {
+        "date": "2026-10-11",
+        "filters": {
+          "tagid": [],
+          "or": [],
+          "not": [],
+          "tagid_string": "",
+          "or_string": "",
+          "not_string": ""
+        },
+        "counts": {
+          "channels": 0,
+          "videos": 0,
+          "tags": 0,
+          "total_views": 0
+        },
+        "mtime": null,
+        "cache_window": null,
+        "available": false,
+        "source": "urt_show_live_tag_date cache",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/live_date.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": [],
+      "time": "2026-10-11 18:00:00",
+      "date": "2026-10-11",
+      "from": "2026-10-11",
+      "to": "2026-10-11",
+      "count_videos": 0,
+      "meta": {
+        "period": {
+          "date": "2026-10-11",
+          "from": "2026-10-11",
+          "to": "2026-10-11",
+          "is_range": true
+        },
+        "available": false,
+        "source": "urt_video_live_log",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/live_tvbs.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {},
+      "time": "2026-10-11 18:00:00",
+      "date": "2026-10-11",
+      "count_videos": 0,
+      "meta": {
+        "period": {
+          "date": "2026-10-11",
+          "from": "2026-10-11",
+          "to": "2026-10-11",
+          "is_range": true
+        },
+        "available": false,
+        "source": "urt_video_live_log_tvbs",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/video_live.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=UTF-8",
+      "cache-control": "no-store",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": "<head>\n<meta http-equiv=\"refresh\" content=\"300\">\n</head>\n<body>\n目前：0 人，最高：0 人\n<script type=\"text/javascript\">var myvalues = [];</script>\n<span class=\"stream\"></span>\n</body>\n"
+  },
+  {
+    "url": "/api/csv_live_line.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "text/csv; charset=UTF-8",
+      "cache-control": "no-store",
+      "content-disposition": "attachment;filename=quwqlazU-c8.csv",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": "\"2022-10-31 22:00:00\",\n\"2022-10-31 23:00:00\",\n\"2022-11-01 00:00:00\",\n"
+  },
+  {
+    "url": "/api/tags_list.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": [],
+      "meta": {
+        "available": false,
+        "source": "urt_tag",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/tags_index.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": [],
+      "meta": {
+        "sort": "weight",
+        "limit": 2,
+        "available": false,
+        "source": "tags",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/tags_all.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {},
+      "meta": {
+        "mtime": null,
+        "cache_window": null,
+        "blocked_reason": "local tags_all cache is empty; legacy force mode is intentionally not run",
+        "available": false,
+        "source": "urt_show_data.tags_all",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/video_tags.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {},
+      "meta": {
+        "cache_table": "urt_show_video_tag",
+        "pk": 17,
+        "videoId": "",
+        "title_only": false,
+        "available": false,
+        "source": "tags table computed real-time YouTube dashboard",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/video_tags_title.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {},
+      "meta": {
+        "cache_table": "urt_show_video_tag_title",
+        "pk": 17,
+        "videoId": "",
+        "title_only": true,
+        "available": false,
+        "source": "tags table computed real-time YouTube dashboard",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/channels_list.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": [],
+      "time": "2026-10-11 18:00:00",
+      "count_channels": 0,
+      "meta": {
+        "filters": {
+          "tagid": [],
+          "or": [],
+          "not": [],
+          "limit": 2
+        },
+        "available": false,
+        "source": "urt_channel + urt_count",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/channel_videos.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": [],
+      "time": "2026-10-11 18:00:00",
+      "comments_count": 0,
+      "hours": 24,
+      "start_time": "2026-10-10 18:00:00",
+      "min": 100,
+      "count_videos": 0,
+      "meta": {
+        "available": false,
+        "source": "urt_video by channel",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/channels_videos.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": [],
+      "time": "2026-10-11 18:00:00",
+      "comments_count": 0,
+      "hours": 72,
+      "start_time": "2026-10-08 18:00:00",
+      "min": 100,
+      "count_videos": 0,
+      "meta": {
+        "filters": {
+          "tagid": [],
+          "or": [],
+          "not": [],
+          "limit": 2
+        },
+        "available": false,
+        "source": "urt_video + urt_count",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/api_tag.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": []
+  },
+  {
+    "url": "/api/api_tag_log.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {},
+      "meta": {
+        "tag": "",
+        "filters": {
+          "tagid": [],
+          "or": [],
+          "not": [],
+          "limit": 2
+        },
+        "limit": 2,
+        "count_channels": 0,
+        "available": false,
+        "source": "urt_count.tags + urt_log.thedata",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/tags_day.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {},
+      "meta": {
+        "filters": {
+          "tagid": [],
+          "or": [],
+          "not": [],
+          "tagid_string": "",
+          "or_string": "",
+          "not_string": ""
+        },
+        "days": 3,
+        "counts": {
+          "channels": 0,
+          "videos": 0,
+          "tags": 0,
+          "tags_count": 0
+        },
+        "mtime": null,
+        "cache_window": null,
+        "blocked_reason": "local cache row is missing or empty; legacy generation is intentionally not run",
+        "available": false,
+        "source": "urt_show_tag_cloud",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/tags_video.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {},
+      "meta": {
+        "filters": {
+          "tagid": [],
+          "or": [],
+          "not": [],
+          "tagid_string": "",
+          "or_string": "",
+          "not_string": ""
+        },
+        "days": 3,
+        "counts": {
+          "channels": 0,
+          "videos": 0,
+          "tags": 0,
+          "tags_count": 0
+        },
+        "mtime": null,
+        "cache_window": null,
+        "blocked_reason": "local cache row is missing or empty; legacy generation is intentionally not run",
+        "available": false,
+        "source": "urt_show_tag_cloud",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/tags_relation_date.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "count_channels": 0,
+      "count_videos": 0,
+      "count_tags": 0,
+      "result": [],
+      "videos": [],
+      "meta": {
+        "tag": "蔡英文",
+        "date": "2026-10-11",
+        "mtime": null,
+        "cache_window": null,
+        "available": false,
+        "source": "urt_show_video_tag_date",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/tag_month.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {},
+      "meta": {
+        "filters": {
+          "tagid": [],
+          "or": [],
+          "not": [],
+          "tagid_string": "",
+          "or_string": "",
+          "not_string": ""
+        },
+        "tag": "蔡英文",
+        "month": "2026-10-01",
+        "count_videos": 0,
+        "total_views": 0,
+        "mtime": null,
+        "blocked_reason": "local cache row is missing or empty; legacy generation is intentionally not run",
+        "available": false,
+        "source": "urt_show_tag_month",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/tag_period.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {},
+      "meta": {
+        "filters": {
+          "tagid": [],
+          "or": [],
+          "not": [],
+          "tagid_string": "",
+          "or_string": "",
+          "not_string": ""
+        },
+        "tag": "蔡英文",
+        "days": 60,
+        "from_month": "2026-08-01",
+        "to_month": "2026-10-01",
+        "blocked_reason": "local cache row is missing or empty; legacy generation is intentionally not run",
+        "available": false,
+        "source": "urt_show_tag_month period",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/tag_tags_days.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {},
+      "time": null,
+      "count_channels": 0,
+      "count_videos": 0,
+      "count_tags": 0,
+      "tags_count": 0,
+      "videos": [],
+      "meta": {
+        "filters": {
+          "tagid": [],
+          "or": [],
+          "not": [],
+          "tagid_string": "",
+          "or_string": "",
+          "not_string": ""
+        },
+        "tag": "柯文哲",
+        "days": 3,
+        "available": false,
+        "source": "urt_show_tag_cloud_tag",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/cloud.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {},
+      "meta": {
+        "u_id": 2,
+        "days": 30,
+        "mtime": null,
+        "cache_window": null,
+        "blocked_reason": "local channel cloud cache is empty; run reports:channel-cloud:build to rebuild urt_show_cloud",
+        "available": false,
+        "source": "urt_show_cloud.keywords_json",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/cloud_tag_date.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {},
+      "meta": {
+        "filters": {
+          "tagid": [],
+          "or": [],
+          "not": [],
+          "tagid_string": "",
+          "or_string": "",
+          "not_string": ""
+        },
+        "date": "2026-10-11",
+        "type": "tags_result",
+        "mtime": null,
+        "cache_window": null,
+        "blocked_reason": "local tag-date cache is empty; legacy generation is intentionally not run",
+        "available": false,
+        "source": "urt_show_tag_date",
+        "realtime_dashboard": true
+      },
+      "total_views": 0,
+      "count_channels": 0,
+      "count_videos": 0,
+      "count_tags": 0
+    }
+  },
+  {
+    "url": "/api/cloud_tag_date_noapi.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {},
+      "meta": {
+        "filters": {
+          "tagid": [],
+          "or": [],
+          "not": [],
+          "tagid_string": "",
+          "or_string": "",
+          "not_string": ""
+        },
+        "date": "2026-10-11",
+        "type": "tags_result",
+        "mtime": null,
+        "cache_window": null,
+        "blocked_reason": "local tag-date cache is empty; legacy generation is intentionally not run",
+        "available": false,
+        "source": "urt_show_tag_date.noapi",
+        "realtime_dashboard": true
+      },
+      "total_views": 0,
+      "count_channels": 0,
+      "count_videos": 0,
+      "count_tags": 0
+    }
+  },
+  {
+    "url": "/api/group_view.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {
+        "tag_array": [],
+        "group_array": [
+          {
+            "name": "新聞",
+            "tag_para": "tagid=13"
+          },
+          {
+            "name": "個人社論",
+            "tag_para": "tagid=1 not=2,9,10,13"
+          },
+          {
+            "name": "台灣立場",
+            "tag_para": "tagid=9,48"
+          },
+          {
+            "name": "中國立場",
+            "tag_para": "tagid=9,49"
+          }
+        ],
+        "group_data": {},
+        "data_array": {}
+      },
+      "meta": {
+        "group": "六都市長候選人",
+        "view": "politician",
+        "cache_available": false,
+        "cache_strategy": "dynamic-tag-date-projection",
+        "projection_complete": false,
+        "blocked_reason": "missing_group_tags",
+        "available": false,
+        "source": "tag_group + legacy group config",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/api_channel_log.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {
+        "2026-10-09": {
+          "videos": 0,
+          "orig": 0,
+          "pred": 0,
+          "moving": 0
+        },
+        "2026-10-10": {
+          "videos": 0,
+          "orig": 0,
+          "pred": 0,
+          "moving": 0
+        },
+        "2026-10-11": {
+          "videos": 0,
+          "orig": 0,
+          "pred": 0,
+          "moving": 0
+        }
+      },
+      "meta": {
+        "u_id": 2,
+        "limit": 2,
+        "log_rows": 0,
+        "invalid_log_rows": 0,
+        "unusable_log_rows": 0,
+        "valid_points": 0,
+        "view_points": 0,
+        "video_points": 0,
+        "channel": null,
+        "blocked_reason": "local urt_log has no rows for this channel",
+        "available": false,
+        "source": "urt_log.thedata",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/channel_pred.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {
+        "2026-10-09": {
+          "videos": 0,
+          "orig": 0,
+          "pred": 0,
+          "moving": 0
+        },
+        "2026-10-10": {
+          "videos": 0,
+          "orig": 0,
+          "pred": 0,
+          "moving": 0
+        },
+        "2026-10-11": {
+          "videos": 0,
+          "orig": 0,
+          "pred": 0,
+          "moving": 0
+        }
+      },
+      "summary": {
+        "views_pred_week": 0,
+        "views_pred_month": 0
+      },
+      "meta": {
+        "u_id": 2,
+        "limit": 2,
+        "log_rows": 0,
+        "invalid_log_rows": 0,
+        "unusable_log_rows": 0,
+        "valid_points": 0,
+        "view_points": 0,
+        "video_points": 0,
+        "channel": null,
+        "blocked_reason": "local urt_log has no usable rows for this channel",
+        "available": false,
+        "source": "urt_log.thedata",
+        "realtime_dashboard": true,
+        "months_limit": 4,
+        "writeback_skipped": "run reports:channel-predictions:build --execute for reviewed urt_count prediction writeback"
+      }
+    }
+  },
+  {
+    "url": "/api/ai_day.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {},
+      "meta": {
+        "condition": "all",
+        "available": false,
+        "source": "urt_ai_date",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/api_topic.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {},
+      "meta": {
+        "condition": "all",
+        "type": "oneday",
+        "available": false,
+        "source": "urt_ai_date topic",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/api_event.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {},
+      "meta": {
+        "condition": "all",
+        "available": false,
+        "source": "urt_ai_date event",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/api_comment.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture"
+    },
+    "body": {
+      "result": {},
+      "authors": {},
+      "latest_time": null,
+      "updated": null,
+      "videoId": "azzXesons8Q",
+      "meta": {
+        "log_write_skipped": "legacy urt_log_api insert is handled by Laravel ingestion jobs",
+        "blocked_reason": "local urt_comment has no row for this video",
+        "available": false,
+        "source": "urt_comment",
+        "realtime_dashboard": true
+      }
+    }
+  },
+  {
+    "url": "/api/api_duration.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain; charset=UTF-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture",
+      "x-youtube-board-data-source": "true"
+    },
+    "body": "0"
+  },
+  {
+    "url": "/api/api_get_photo.php?date=2026-10-11&from=2026-10-11&to=2026-10-11&limit=2",
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain; charset=UTF-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With",
+      "x-youtube-board-dataset": "fixture",
+      "x-youtube-board-data-source": "true"
+    },
+    "body": "null"
+  }
+]

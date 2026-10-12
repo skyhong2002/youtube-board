@@ -1,0 +1,44 @@
+/** OpenAPI 3.1 / JSON Schema 2020-12. These describe responses, not serializers. */
+import {VIDEO_LIST_MAX} from '../../../shared/video-listing.js';
+export type Schema = Record<string, unknown>;
+export const ref = (name:string):Schema => ({$ref:`#/components/schemas/${name}`});
+export const str:Schema={type:'string'}, num:Schema={type:'number'}, bool:Schema={type:'boolean'};
+export const count:Schema={type:'integer',minimum:0}, nullableNumber:Schema={type:['number','null']};
+export const nullableString:Schema={type:['string','null']};
+export const time:Schema={type:'string',format:'date-time',description:'ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00.'}, nullableTime:Schema={...time,type:['string','null']};
+export const array=(items:Schema):Schema=>({type:'array',items});
+export const object=(properties:Record<string,Schema>,required=Object.keys(properties)):Schema=>({type:'object',properties,required,additionalProperties:true});
+export const enumString=(...values:string[]):Schema=>({type:'string',enum:values});
+const quality=object({normalizedTags:count,rejectedTags:count,articlesWithRejectedTags:count});
+const coverage:Schema={type:'object',additionalProperties:true,description:'Route-specific provenance, completeness and source-quality evidence; inspect the route description. Nested evidence is permitted.'};
+const tag=object({id:{type:'integer'},name:str,kind:{const:'channel'}});
+const collection=(item:Schema,extras:Record<string,Schema>={}):Schema=>object({rows:array(item),total:count,limit:{type:'integer',minimum:1},offset:count,...extras});
+const video=object({id:str,channelId:{type:'integer'},youtubeChannelId:str,channelTitle:str,title:str,description:str,thumbnail:nullableString,publishedAt:nullableTime,views:nullableNumber,likes:nullableNumber,comments:nullableNumber,updatedAt:nullableTime,youtubeUrl:str});
+const channel=object({id:{type:'integer'},youtubeId:str,title:str,thumbnail:nullableString,description:nullableString,publishedAt:nullableTime,youtubeUrl:str,
+ ...Object.fromEntries(['views','subscribers','videoCount','weeklyViews','monthlyViews','weeklySubscribers','weeklyVideos','monthlySubscribers','monthlyVideos','estimatedWeeklyViews','estimatedMonthlyViews','monthlyEstimateGap','legacyGrowthPercent','averageWeeklyViewsPerVideo'].map(k=>[k,nullableNumber])),updatedAt:nullableTime,tags:array(ref('ChannelTag'))});
+const live=object({...video.properties as Record<string,Schema>,currentViewers:num,todayPeak:num,allTimePeak:nullableNumber,startedAt:nullableTime,trend:array(object({time:time,value:num})),tags:array(ref('ChannelTag'))});
+const vocabularyTerm=object({key:str,term:str,articleCount:count,media:array(str),provenance:{const:'upstream-article-tag-origin-unspecified'}});
+const keywordSummary=object({sourceQuality:quality,vocabularyCoverage:enumString('observed-article-window','all-current-indexed-article-tags','unavailable'),vocabularyWindow:{anyOf:[object({since:time,until:time}),{type:'null'}]},source:{const:'https://tag.observe.tw'},version:nullableString,status:enumString('synchronized','not-synchronized','unavailable'),reason:nullableString,from:time,to:time,updatedAt:nullableTime,rows:array(object({key:str,term:str,videoCount:count,views:nullableNumber,unknownViewVideos:count})),sourceVideos:nullableNumber,freshVideos:nullableNumber,staleVideos:nullableNumber,unprocessedVideos:nullableNumber,metric:{const:'current-cumulative-views-of-window-published-videos'}},['vocabularyCoverage','vocabularyWindow','source','version','status','from','to','updatedAt','rows','sourceVideos','freshVideos','staleVideos','unprocessedVideos','metric']);
+export const SCHEMAS:Record<string,Schema>={
+ ReportMeta:object({schemaVersion:{const:1},requestedAt:time,updatedAt:nullableTime,timezone:{const:'Asia/Taipei'},source:{const:'mariadb'},dataset:enumString('fixture','live','unknown'),coverage,warnings:array(str)}),
+ ApiError:object({error:str,code:str},['error']),
+ LegacyApiError:object({error:object({code:str,message:str},['code'])}),
+ ChannelTag:tag, Video:video, Channel:channel, Live:live,
+ VideoCollection:object({rows:array(ref('Video')),total:{type:['integer','null'],minimum:0},limit:{type:'integer',minimum:1,maximum:VIDEO_LIST_MAX},offset:count,hasNext:bool,totalStatus:enumString('exact','not-computed','unavailable'),evidenceCoverage:coverage},['rows','total','limit','offset','hasNext','totalStatus']),
+ ChannelCollection:collection(ref('Channel'),{ranking:object({column:enumString('viewCount','subscriberCount','videoCount','view_week','view_month','views_pred_week','views_pred_month','sub_week','sub_month','video_week','video_month'),scope:enumString('directory','tag'),min:nullableNumber,minMetric:enumString('views','subscribers')})}),
+ LiveCollection:collection(ref('Live')),
+ Tag:object({...tag.properties as Record<string,Schema>,channels:count,weeklyViews:num,average:num,median:num}),
+ TagCollection:collection(ref('Tag')),
+ VocabularyTerm:vocabularyTerm,
+ Vocabulary:object({rows:array(ref('VocabularyTerm')),total:count,limit:count,offset:count,version:nullableString,source:{const:'https://tag.observe.tw'},attribution:str,window:{anyOf:[object({since:time,until:time}),{type:'null'}]},publishedAt:nullableTime,coverage:enumString('observed-article-window','all-current-indexed-article-tags'),upstreamSnapshotConsistent:bool,sourceQuality:quality},['rows','total','limit','offset','version','source','attribution','window','publishedAt','coverage','upstreamSnapshotConsistent']),
+ VideoTagEvidence:object({videoId:str,version:nullableString,status:enumString('not-synchronized','not-matched','matched','stale'),matchedAt:nullableTime,source:{const:'https://tag.observe.tw'},rows:array(object({key:str,term:str,field:str,start:count,end:count,text:str,snippet:str,snippetStart:count,ruleVersion:str}))}),
+ ChannelDetail:object({channel:ref('Channel'),videos:array(ref('Video')),trendAvailable:bool,aiSummary:ref('Report'),dailySummary:ref('Report')}),
+ VideoDetail:object({video:ref('Video'),durationSeconds:nullableNumber,captionAvailable:{type:['boolean','null']},history:array(object({date:str,views:nullableNumber,likes:nullableNumber,comments:nullableNumber,measured:{const:true}})),liveHistory:array(object({time:time,viewers:num,measured:{const:true}})),commentSummary:{type:'object',additionalProperties:true,description:'See the video analytics contract; fields are not fully described by this schema.'}}),
+ Home:object({summary:object({channels:count,videos:count,weeklyViews:num,liveChannels:count,liveViewers:num}),channels:array(ref('Channel')),tags:array(ref('Tag')),live:array(ref('Live')),events:array({type:'object',additionalProperties:true,description:'AI topic presentation; inspect evidence and unresolvedReferences.'}),aiDate:nullableString,exploration:object({keywords:keywordSummary,keywordToday:keywordSummary,categories:object({status:enumString('available','unavailable'),reason:nullableString,rows:array(ref('Tag')),summary:object({visibleCategories:nullableNumber,channelMemberships:nullableNumber,uniqueChannels:nullableNumber,weeklyViews:nullableNumber,overlapping:{const:true}}),updatedAt:nullableTime,minimumWeeklyViews:{const:10}})})}),
+ Report:object({title:str,columns:array(object({key:str,label:str,kind:enumString('text','number','date','datetime','percent'),unit:str},['key','label'])),rows:array({type:'object',additionalProperties:{anyOf:[{type:['string','number','boolean','null']},object({value:{type:['string','number','boolean','null']},href:str,detail:str},['value'])]}}),total:count,limit:count,offset:count,updatedAt:nullableTime},['title','columns','rows','total','limit','offset']),
+ RouteInventory:object({routes:array(str),readOnly:{const:true}}),
+ FilterOptions:object({kind:enumString('tags','channels'),rows:array(object({id:{type:'string',pattern:'^[0-9]+$'},label:str})),hasMore:bool,missingIds:array(str)}),
+ ApiIndex:object({name:str,version:str,docs:str,openapi:str,endpoints:array(object({method:{const:'GET'},path:str,operationId:str,tag:str,summary:str,schemaCoverage:enumString('detailed','partial','envelope-only','legacy-wire')}))}),
+ ApiAvailability:object({status:enumString('ok','degraded'),scope:{const:'api_availability'},checkedAt:time,services:array(object({id:{const:'reports'},status:enumString('ok','unavailable')})),endpoints:array(object({method:{const:'GET'},path:str}))}),
+};
+export const envelope=(data:Schema):Schema=>object({data,meta:ref('ReportMeta')});

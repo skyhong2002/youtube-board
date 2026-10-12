@@ -45,8 +45,9 @@ export async function registerUiProxy(app: FastifyInstance, options: { origin: s
       if (path === '/_next/image' && !validImageOptimizationQuery(new URL(request.url, 'http://gateway.invalid').searchParams)) {
         reply.code(400).header('Cache-Control', 'no-store').send({ error: { code: 'INVALID_IMAGE' } }); return;
       }
+      const publicApiPage = /^\/api\/?$/.test(path) || /^\/api\/status\/?$/.test(path);
       const ingestionConsole = /^\/ops\/ingestion\/?$/.test(path) && ['GET', 'HEAD'].includes(request.method);
-      if ((/^\/(?:api|ops|auth)(?:\/|$)/.test(path) || /^\/feeds\/u(?:\/|$)/.test(path)) && !ingestionConsole) {
+      if ((/^\/(?:api|ops|auth)(?:\/|$)/.test(path) || /^\/feeds\/u(?:\/|$)/.test(path)) && !ingestionConsole && !publicApiPage) {
         reply.code(404).header('Cache-Control', 'no-store').send({ error: { code: 'NOT_FOUND' } });
         return;
       }

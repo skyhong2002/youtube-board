@@ -32,6 +32,9 @@ import Fastify from 'fastify';
 import { sql } from 'drizzle-orm';
 import { createReader, DataSourceUnavailable, DataQueryFailed, type Reader } from './db/client.js';
 import { reports } from './reports/service.js';
+import {registerPublicApiPolicy,type PublicApiPolicyOptions} from './public-api/rate-limit.js';
+import {registerApiMetadata} from './public-api/metadata.js';
+import {createApiStatus} from './public-api/status.js';
 import { addVocabularyQualityNotice } from './reports/vocabulary-quality.js';
 import { vocabulary, videoTagEvidence } from './reports/vocabulary.js';
 import { BadQuery, NotFound, mergeTagId, positiveId, videoId, type Query } from './reports/query.js';
@@ -42,6 +45,7 @@ export const routeRegistry = [
     '/live/current', '/tags', '/tags/:id/channels', '/tags/:id/videos', '/ai/days', '/ai/events/:id', '/vocabulary', '/keywords',
 ] as const;
 interface AppOptions {
+    publicApi?: PublicApiPolicyOptions | false;
     reader?: Reader;
     /** Runtime startup readiness waits for a complete read-only sitemap family. */
     sitemapWarmup?: boolean;
@@ -51,12 +55,26 @@ interface AppOptions {
 }
 export function buildApp(options: AppOptions = {}) {
     const app = Fastify({ logger: false, trustProxy: trustedProxies(process.env.AUTH_TRUSTED_PROXY_CIDRS), requestTimeout: 15000, bodyLimit: 16384 }), reader = options.reader ?? createReader(options.databaseUrl ?? process.env.DATABASE_URL), clock = options.clock ?? (() => new Date()), service = reports(reader, clock);
+    if(options.publicApi!==false)registerPublicApiPolicy(app,{clock,...options.publicApi});
     registerPublicV1Cache(app);
     registerCrawlerLog(app);
     const sitemaps=registerSitemaps(app,reader,{staticLastModified:'2026-10-12T14:00:00.000Z',now:()=>+clock()});
     if(options.sitemapWarmup)app.addHook('onReady',async()=>{sitemaps.start();});
     app.addHook('onSend', async (_request, reply, payload) => { reply.header('Strict-Transport-Security','max-age=31536000'); return payload; });
     const meta = (data: unknown): ReportMeta => ({ schemaVersion: 1, requestedAt: clock().toISOString(), updatedAt: deepUpdatedAt(data), timezone: 'Asia/Taipei', source: 'mariadb', dataset: options.dataset ?? (process.env.DATASET_KIND === 'fixture' ? 'fixture' : 'unknown'), coverage: {}, warnings: [] });
+    registerApiMetadata(app,{meta:()=>meta(null)});
+    const publicStatus=createApiStatus({clock,check:async()=>{await reader.rows(sql`SELECT pk FROM urt_video LIMIT 1`);}});
+    // Exact HTML/RSC status page remains frontend-owned; JSON never proxies to itself.
+    app.addHook('onRequest',async(request,reply)=>{
+        const path=request.url.split('?')[0];
+        if(path!=='/api/status'||!['GET','HEAD'].includes(request.method))return;
+        reply.header('Vary','Accept, RSC').header('Cache-Control','no-store');
+        const accept=request.headers.accept??'';
+        if(request.headers.rsc!==undefined||accept.includes('text/html')&&!accept.includes('application/json'))return;
+        const result=await publicStatus();reply.code(result.statusCode).type('application/json; charset=utf-8');
+        if(request.method==='HEAD')return reply.header('Content-Length',Buffer.byteLength(JSON.stringify(result.body))).send();
+        return reply.send(result.body);
+    });
     registerMediaAssets(app);
     const registered: string[] = [];
     const register = (path: string, handler: (params: Record<string, string>, query: Query, channel?:ChannelIdentity) => Promise<unknown>) => {

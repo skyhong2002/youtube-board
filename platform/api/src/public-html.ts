@@ -35,6 +35,7 @@ export function publicMarkerMatches(marker:unknown,pathname:string):boolean {
   if(marker==='home')return pathname==='/';
   if(marker==='events')return pathname==='/events';
   if(marker==='event')return /^\/events\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(pathname);
+  if(marker==='api')return pathname==='/api';
   if(marker==='report')return /^\/(?:channels|videos|keywords|tags|live|ai|groups|mayor|comments)(?:\/|$)/.test(pathname);
   return false;
 }
@@ -50,6 +51,7 @@ export function publicHtmlTtl(request: Pick<FastifyRequest,'url'|'method'|'heade
      (pathname!=='/'&&pathname.endsWith('/')))return null;
   try {if(new URL(pathname,'http://canonical.invalid').pathname!==pathname)return null;decodeURIComponent(pathname);}catch{return null;}
   if (pathname === '/') return 60;
+  if (pathname === '/api') return 3600;
   if (/^\/live(?:\/|$)/.test(pathname)) return 30;
   if (/^\/(?:channels|videos|keywords|events|tags|ai|groups|mayor|comments)(?:\/|$)/.test(pathname)) return 60;
   if (/^\/(?:about|brand)\/?$/.test(pathname)) return 300;

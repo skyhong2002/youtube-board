@@ -24,7 +24,7 @@ it('rejects legacy taxonomy scopes and unsupported/duplicate scalars before sour
  const f=fixture();try{
   for(const query of ['tagid=3','or=3','not=3','tagid=','condition=all&tagid=3','type=oneday&type=week','condition=all&condition=blue','date=2038-04-01&date=2038-04-02','from=2038-04-02&to=2038-04-01','from=2038-04-01&to=2038-04-02','user_token=someone','limit=1001']){
    const r=await f.app.inject('/api/v1/ai/days/prompt?'+query);expect(r.statusCode,query+' '+r.body).toBe(400);
-   if(query.includes('tagid')||query.startsWith('or=')||query.startsWith('not='))expect(r.json().error.message).toContain('not automatically converted');
+   if(query.includes('tagid')||query.startsWith('or=')||query.startsWith('not='))expect(r.json().error).toContain('not automatically converted');
   }
   for(const query of ['condition=all','condition=blue','condition=','limit=501'])expect((await f.app.inject('/api/v1/channels/8/prompt?'+query)).statusCode).toBe(400);
   expect((await f.app.inject('/api/v1/ai/days/2038-04-01/blue/prompt?condition=all')).statusCode).toBe(400);
