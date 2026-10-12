@@ -1,3 +1,14 @@
+/** Minimum shape VideoTagEvidence renders; anything else shows its unavailable note
+ * instead of failing the whole video page. */
+export function tagEvidenceRenderable(data: unknown): boolean {
+    if (!data || typeof data !== "object") return false;
+    const rows = (data as { rows?: unknown }).rows;
+    return Array.isArray(rows) && rows.every((row) =>
+        !!row && typeof row === "object" &&
+        typeof (row as { term?: unknown }).term === "string" &&
+        typeof (row as { snippet?: unknown }).snippet === "string" &&
+        typeof (row as { text?: unknown }).text === "string");
+}
 export function splitEvidence(evidence: {
     snippet: string;
     snippetStart: number;

@@ -1,18 +1,18 @@
-import { headers } from 'next/headers';
 import SiteHeader from '@/components/SiteHeader';
 import SiteFooter from '@/components/SiteFooter';
 import ThemeSync from '@/components/ThemeSync';
 import ScrollReset from '@/components/ScrollReset';
 import { siteMetadata, siteViewport } from '@/lib/site';
+import { THEME_SCRIPT } from '../../../shared/public-render-contract';
 import './globals.css';
 export const metadata = siteMetadata;
 export const viewport = siteViewport;
-const themeScript = `(function(){try{var m=matchMedia('(prefers-color-scheme: dark)');function a(){var s=localStorage.getItem('theme');document.documentElement.dataset.theme=s==='dark'||s==='light'?s:m.matches?'dark':'light'}a();m.addEventListener('change',a)}catch(e){}})()`;
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const nonce = (await headers()).get('x-nonce') ?? undefined;
+// No request reads here: public pages are shared ISR output. The gateway authorizes
+// THEME_SCRIPT by the hash of its exact bytes, so it carries no nonce.
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-Hant" className="h-full" suppressHydrationWarning>
-      <head><script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
+      <head><script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} /></head>
       <body className="min-h-full bg-zinc-50 text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100">
         <ThemeSync />
         <a href="#main" className="skip-link">跳至主要內容</a>

@@ -3,6 +3,7 @@ import { BoardEditor } from "@/components/BoardEditor";
 import { FilterPicker } from "@/components/FilterPicker";
 import { parseBoardRequest } from "@/lib/boards";
 import type { Search } from "@/lib/api";
+export const dynamic = "force-dynamic";
 export const metadata = { title: "我的看板" };
 export default async function Boards({ searchParams }: { searchParams: Promise<Search> }) {
     const parsed = parseBoardRequest(await searchParams);

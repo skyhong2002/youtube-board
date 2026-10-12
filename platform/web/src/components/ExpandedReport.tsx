@@ -7,7 +7,7 @@ import {reportStyle as ui} from '@/lib/report-styles';
 import {LiveCoverageNotice} from './LiveCoverageNotice';
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { api, type Search } from "@/lib/api";
+import { api, rejectMalformedPayload, type Search } from "@/lib/api";
 import { count } from "@/lib/format";
 import {
     type ReportData,
@@ -45,8 +45,10 @@ export async function ExpandedReport({
         return <Unavailable status={result.status} title={title} />;
     }
     const { data, meta } = result.response;
-    if (!Array.isArray(data.columns) || !Array.isArray(data.rows))
+    if (!Array.isArray(data.columns) || !Array.isArray(data.rows)) {
+        rejectMalformedPayload();
         return <Unavailable status={502} title={title} />;
+    }
     const filters = data.filters || [],
         known = new Set(filters.map((filter) => filter.key));
     return (

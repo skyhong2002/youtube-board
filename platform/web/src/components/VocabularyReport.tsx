@@ -19,7 +19,7 @@ import {
     Pagination,
     Tabs,
 } from "./ReportUI";
-import { splitEvidence } from "@/lib/evidence";
+import { splitEvidence, tagEvidenceRenderable } from "@/lib/evidence";
 export async function VocabularyReport({
     search,
     path,
@@ -209,10 +209,14 @@ export async function VocabularyReport({
     );
 }
 export async function VideoTagEvidence({ videoId }: { videoId: string }) {
+    // Optional beside the video's own data: a missing or malformed tag payload keeps the
+    // note below; transient failures throw in ISR rather than caching this note.
     const result = await api<VideoTagEvidenceData>(
         `videos/${encodeURIComponent(videoId)}/tags`,
+        {},
+        { optional: true },
     );
-    if (!result.ok)
+    if (!result.ok || !tagEvidenceRenderable(result.response.data))
         return (
             <aside className={ui.note}>
                 <p>共同標籤的比對證據暫時無法讀取。</p>

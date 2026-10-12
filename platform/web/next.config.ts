@@ -20,6 +20,10 @@ const config: NextConfig = {
         .map((value) => value.trim())
         .filter(Boolean),
     poweredByHeader: false,
+    // ISR pages and public data reads stay in a bounded in-memory LRU; the runtime
+    // filesystem is read-only, so nothing is flushed to disk.
+    cacheMaxMemorySize: 64 * 1024 * 1024,
+    experimental: { isrFlushToDisk: false },
     logging: { incomingRequests: { ignore: [/^\/auth(?:\/|$)/, /^\/feeds\/u\//, /^\/api\/ops\/editorial(?:\/|$)/] } },
     async headers() {
         return [

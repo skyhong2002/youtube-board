@@ -6,7 +6,8 @@ import type {ChannelSource} from '../../../../../shared/media-assets';
 import SaveButton from '@/components/reader/SaveButton';
 import Link from 'next/link';
 import {notFound,redirect} from 'next/navigation';
-import {api} from '@/lib/api';
+import {api,enablePublicRevalidation} from '@/lib/api';
+import {uuid} from '../../../../../shared/editorial/contracts';
 import {DataNotice,SectionHeading,Empty,Unavailable} from '@/components/ReportUI';
 import TableScroller from '@/components/TableScroller';
 import {table} from '@/lib/table-styles';
@@ -14,6 +15,11 @@ import {reportStyle as ui} from '@/lib/report-styles';
 import {count} from '@/lib/format';
 import {renameHistory} from '@/lib/editorial-history';
 import {safeReportHref} from '@/lib/report-contract';
+// Params-only public ISR (proxy marks bare /events/{uuid} as `event`). Follow/Save state
+// is fetched client-side; a query string never changes this page.
+export const revalidate=60;
+export const dynamicParams=true;
+export async function generateStaticParams(){return [];}
 export const metadata={title:'事件來源與時間軸'};
 /** `sourceChannel` exists only for video sources whose captured channel matches; article publishers stay text. */
 type Source={id:string;kind:string;source_id:string;headline:string;url:string|null;thumbnail?:string|null;sourceChannel?:ChannelSource|null;published_at:string|null;observed_at:string;source_sha256:string;provenance:{source:string;sourceVersion?:string;publisher?:string;headlineEvidence:string;tags?:string[]}};
@@ -21,7 +27,10 @@ type Data={canonicalId:string;event:{title:string;version:number};sources:Source
 const labels:Record<string,string>={video:'YouTube 影片',daily:'每日分析',event:'事件分析',story:'推播故事',article:'新聞報導',create:'建立',rename:'重新命名',attach:'加入來源',refresh:'更新來源快照',merge:'合併',split:'拆分'};
 const time=(value:string|null)=>value?new Date(value).toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}):'時間未提供';
 export default async function EventPage({params}:{params:Promise<{id:string}>}){
- const {id}=await params,result=await api<Data>('editorial/events/'+encodeURIComponent(id));if(!result.ok){if(result.status===404||result.status===400)notFound();return <Unavailable status={result.status} title="事件來源"/>;}
+ enablePublicRevalidation();
+ // The API answers 400 for non-UUID ids; settle that here so ISR renders 404, not 500.
+ const {id}=await params;if(!uuid(id))notFound();
+ const result=await api<Data>('editorial/events/'+encodeURIComponent(id));if(!result.ok){if(result.status===404||result.status===400)notFound();return <Unavailable status={result.status} title="事件來源"/>;}
  const {data,meta}=result.response;if(data.canonicalId!==id)redirect('/events/'+data.canonicalId);
  const kinds=new Map<string,number>();for(const s of data.sources)kinds.set(s.kind,(kinds.get(s.kind)??0)+1);
  const cover=data.sources.find(s=>s.kind==='video'&&/^[A-Za-z0-9_-]{11}$/.test(s.source_id));
