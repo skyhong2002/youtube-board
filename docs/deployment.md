@@ -37,7 +37,7 @@ Use the MariaDB service's **General -> Internal Credentials -> Internal Host** v
 
 ## Production Release Migrations
 
-The production image owns schema upgrades. `docker/production-start.sh` waits for a bounded database readiness window, runs `php artisan migrate --force --no-interaction`, verifies `php artisan migrate:status` plus `php artisan deployment:schema-check`, and only then builds Laravel caches and binds the web port. The same schema verifier backs Laravel `/up`, including the required 66-table set, critical quota/mayor/run-history/Telegram story/dispatch columns, quota unique index, run-history and Telegram indexes, run-history foreign key, and MariaDB InnoDB engines. A connection, migration, or verification failure exits nonzero, so a new container cannot report a healthy web process with stale schema. `DB_STARTUP_WAIT_ATTEMPTS` and `DB_STARTUP_WAIT_SECONDS` may tune only the readiness window; they do not make migration failures graceful.
+Schema upgrades require explicit operator intent. `docker/production-start.sh` waits for a bounded database readiness window and runs `php artisan migrate --force --no-interaction` only when `LARAVEL_STARTUP_MIGRATIONS_ENABLED=true` (default false). It always verifies `php artisan migrate:status` plus `php artisan deployment:schema-check`, then builds Laravel caches and binds the web port. The same schema verifier backs Laravel `/up`, including the required 66-table set, critical quota/mayor/run-history/Telegram story/dispatch columns, quota unique index, run-history and Telegram indexes, run-history foreign key, and MariaDB InnoDB engines. A connection, approved migration, or verification failure exits nonzero. `DB_STARTUP_WAIT_ATTEMPTS` and `DB_STARTUP_WAIT_SECONDS` tune only the readiness window; they do not authorize migration or make failures graceful.
 
 All create migrations retain an existing table instead of replacing it. The startup schema verifier must still match every adopted baseline/framework/mayor column plus critical primary/unique indexes before the container becomes healthy; a same-named but incompatible table is not considered ready. The legacy baseline migration never drops adopted tables on rollback.
 
@@ -53,7 +53,7 @@ docker compose run --rm setup php artisan migrate:status
 docker compose run --rm setup php artisan migrate --force --no-interaction
 ```
 
-For the actual Production image, create an isolated MariaDB container and network, then start the root image exactly as Dokploy will. These values are disposable local-only credentials:
+For a migration preflight of the Production image, create an isolated MariaDB container and network, then explicitly enable its startup migration gate. These values are disposable local-only credentials:
 
 ```bash
 docker build -t youtube-board-production-preflight .
@@ -72,6 +72,7 @@ docker run -d --name youtube-board-production-preflight-web \
   -p 127.0.0.1:18081:8000 \
   -e APP_ENV=production \
   -e APP_DEBUG=false \
+  -e LARAVEL_STARTUP_MIGRATIONS_ENABLED=true \
   -e APP_KEY=base64:eW91dHViZS1ib2FyZC1sb2NhbC1jb21wb3NlLWtleSE= \
   -e APP_URL=http://127.0.0.1:18081 \
   -e DB_CONNECTION=mysql \
@@ -97,7 +98,7 @@ docker image rm youtube-board-production-preflight
 
 An adoption preflight must use a separately disposable database populated from the reviewed schema shape being adopted; do not point these commands at Production. Never copy migration rows or run one-off schema SQL in Production.
 
-Normal rollback is a code rollback followed by redeploy. Do not use `migrate:rollback` for this release: the identifier migration deliberately leaves binary collations in place because reverting them could merge distinct IDs or violate a unique index; the run-history and Telegram dispatch migrations have intentionally non-destructive `down()` methods, and rolling back farther would drop `ingestion_youtube_quota_daily` and erase fail-safe quota reservations for the current Pacific Time day. If the identifier migration stops between tables, no migration row is recorded; a later reviewed redeploy safely skips columns already converted and continues the remaining graph. Restore the pre-deploy backup only when a forward retry and code rollback cannot recover service. Before any future destructive migration, first configure and verify a restorable database backup in Dokploy. The retained schema remains compatible with a code rollback.
+Normal rollback is a code rollback followed by redeploy. Do not use `migrate:rollback` for this release: the identifier migration deliberately leaves binary collations in place because reverting them could merge distinct IDs or violate a unique index; the run-history and Telegram dispatch migrations have intentionally non-destructive `down()` methods, and rolling back farther would drop `ingestion_youtube_quota_daily` and erase fail-safe quota reservations for the current Pacific Time day. If the identifier migration stops between tables, no migration row is recorded; a later explicitly approved migration execution skips converted columns and continues the remaining graph. A normal redeploy with the startup gate off does not retry migrations. Restore the pre-deploy backup only when a forward retry and code rollback cannot recover service. Before any future destructive migration, first configure and verify a restorable database backup in Dokploy. The retained schema remains compatible with a code rollback.
 
 ## Telegram Digest Release
 
@@ -263,3 +264,54 @@ php artisan tinker --execute="echo Hash::make('your-password');"
 Save the username and hash in Dokploy, then reload the web service so the runtime
 environment is applied. The `/ops/deploy/dokploy` webhook is separately
 authenticated by its relay secret and is intentionally excluded from Basic auth.
+
+Configured Basic authentication now limits failed attempts before password hashing:
+20 failures per transport peer and 120 across peers per 60 seconds, using Laravel's
+configured cache. Successful authentication does not spend or reset this budget.
+An atomic cache lock serializes the authentication check and failed-attempt update;
+concurrent lock contention returns 429 with a one-second retry before hashing.
+The protected route runs after releasing the lock.
+Changing usernames or forwarded-IP headers does not reset it. A proxy therefore
+shares the peer budget; with the current file cache, limits apply within one web
+container. A blocked request returns 429 with Retry-After and no-store. This does
+not establish a private network boundary, Cloudflare origin restriction, or root
+access restriction.
+
+## Retained Laravel deployment after the TypeScript frontend cutover
+
+`docker/production-start.sh` defaults `LARAVEL_STARTUP_MIGRATIONS_ENABLED=false`.
+Only the exact value `true` runs `artisan migrate --force`; malformed values stop
+startup. Database readiness, migration status and `deployment:schema-check` still
+run, and schema failure prevents the web server from starting. Local compose setup
+continues to run its explicit local migration step. A documentation/platform push
+or ordinary web restart therefore cannot implicitly authorize source-schema writes.
+
+The application relay is disabled unless `DOKPLOY_DEPLOY_RELAY_ENABLED=true` is
+explicitly configured, in addition to its existing secret and webhook URL. When
+enabled, a correctly signed normal push with a complete usable GitHub commit list
+can skip Laravel deployment if every added, modified and removed path is under
+`platform/` or `docs/`, or is `README.md`/`AGENTS.md`. GitHub's 2048-commit cap,
+missing/invalid fields, force/created/deleted pushes, and mixed Laravel changes do
+not prove a safe skip. Such pushes follow the enabled relay's normal deployment
+behavior. HMAC, event and main-branch checks still apply before path handling.
+
+Operator freeze/rollout plan (configuration changes are not performed by code):
+
+1. In Dokploy, record the retained Laravel web and scheduler image/configuration,
+   then turn **Auto Deploy** off for `YouTube Board Web`. Disable its GitHub push
+   webhook delivery while installing the freeze if an older relay image is still
+   running. Preserve protected secrets and the original scheduler image.
+2. Set web runtime `DOKPLOY_DEPLOY_RELAY_ENABLED=false` and
+   `LARAVEL_STARTUP_MIGRATIONS_ENABLED=false`, then deploy this reviewed code or
+   reload the already deployed image. Confirm the running values as booleans and
+   verify a signed relay delivery produces 404 and no downstream deployment.
+   Dokploy's own Auto Deploy/direct deploy endpoint is separate and must also
+   remain disabled/controlled; the application gate cannot intercept it.
+3. For a reviewed Laravel code release, use an explicit Dokploy deploy while
+   startup migrations remain off. Verify schema readiness and the web process;
+   do not force-refresh the retained scheduler merely for platform/docs changes.
+4. A source-schema migration requires its own backup/rollback and approved window.
+   Prefer an explicit reviewed migration command; if using the startup gate,
+   enable it only for that reviewed deployment, then return it to false and reload.
+   Keep the relay off throughout. Re-enable automated Laravel deployment only
+   through a separate operator decision.

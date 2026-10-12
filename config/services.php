@@ -134,6 +134,7 @@ return [
     ],
 
     'dokploy' => [
+        'deploy_relay_enabled' => env('DOKPLOY_DEPLOY_RELAY_ENABLED', false) === true,
         'deploy_webhook_url' => env('DOKPLOY_DEPLOY_WEBHOOK_URL'),
         'deploy_relay_secret' => env('DOKPLOY_DEPLOY_RELAY_SECRET'),
     ],

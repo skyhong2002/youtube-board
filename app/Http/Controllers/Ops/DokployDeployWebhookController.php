@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Ops;
 
 use App\Http\Controllers\Controller;
+use App\Support\LaravelDeployPush;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -14,7 +15,7 @@ class DokployDeployWebhookController extends Controller
         $secret = (string) config('services.dokploy.deploy_relay_secret', '');
         $deployUrl = (string) config('services.dokploy.deploy_webhook_url', '');
 
-        if ($secret === '' || $deployUrl === '') {
+        if (config('services.dokploy.deploy_relay_enabled') !== true || $secret === '' || $deployUrl === '') {
             abort(404);
         }
 
@@ -32,6 +33,10 @@ class DokployDeployWebhookController extends Controller
 
         if ($request->input('ref') !== 'refs/heads/main') {
             return response()->json(['message' => 'branch ignored'], 202);
+        }
+
+        if (LaravelDeployPush::onlyDocumentationOrPlatform($request->json()->all())) {
+            return response()->json(['message' => 'no Laravel paths changed'], 202);
         }
 
         $response = Http::timeout(15)

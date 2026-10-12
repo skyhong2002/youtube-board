@@ -2,6 +2,13 @@
 
 set -eu
 
+# A web/container restart is not approval for source-schema writes. Local compose
+# setup has its own explicit migrate step; this production entrypoint defaults off.
+case "${LARAVEL_STARTUP_MIGRATIONS_ENABLED:-false}" in
+    true|false) ;;
+    *) echo "LARAVEL_STARTUP_MIGRATIONS_ENABLED must be true or false." >&2; exit 1 ;;
+esac
+
 # Never let a developer-generated cached config select the database used by migrations.
 rm -f bootstrap/cache/config.php
 
@@ -33,7 +40,11 @@ until php artisan db:show --no-interaction >/dev/null 2>&1; do
     sleep "$wait_seconds"
 done
 
-php artisan migrate --force --no-interaction
+if [ "${LARAVEL_STARTUP_MIGRATIONS_ENABLED:-false}" = "true" ]; then
+    php artisan migrate --force --no-interaction
+else
+    echo "Startup migrations disabled; checking the existing schema only."
+fi
 php artisan migrate:status --no-interaction
 php artisan deployment:schema-check --no-interaction
 php artisan config:cache --no-interaction

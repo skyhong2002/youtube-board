@@ -15,7 +15,7 @@ class ProductionDeploymentContractTest extends TestCase
         $this->projectRoot = dirname(__DIR__, 3);
     }
 
-    public function test_production_image_runs_verified_migrations_before_binding_the_web_port(): void
+    public function test_production_image_gates_migrations_and_always_verifies_schema_before_binding_the_web_port(): void
     {
         $dockerfile = file_get_contents($this->projectRoot.'/Dockerfile');
         $entrypoint = file_get_contents($this->projectRoot.'/docker/production-start.sh');
@@ -45,6 +45,7 @@ class ProductionDeploymentContractTest extends TestCase
         $this->assertLessThan($schema, $status);
         $this->assertLessThan($serve, $schema);
         $this->assertStringContainsString('set -eu', $entrypoint);
+        $this->assertStringContainsString('if [ "${LARAVEL_STARTUP_MIGRATIONS_ENABLED:-false}" = "true" ]; then', $entrypoint);
     }
 
     public function test_production_build_context_excludes_local_generated_runtime_state(): void

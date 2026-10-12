@@ -82,3 +82,7 @@ OPENAI_FALLBACK_API_KEY=
 # Required in production to protect /ops/* and /dev/*; store only a bcrypt hash.
 OPS_BASIC_AUTH_USER=
 OPS_BASIC_AUTH_PASSWORD_HASH=
+
+# Keep both off while Laravel remains the retained writer behind the TS frontend.
+LARAVEL_STARTUP_MIGRATIONS_ENABLED=false
+DOKPLOY_DEPLOY_RELAY_ENABLED=false
