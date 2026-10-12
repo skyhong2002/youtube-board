@@ -1,6 +1,6 @@
 # 有影儀表板
 
-The TypeScript replacement is being implemented in [`platform/`](platform/README.md); production remains on Laravel until the reviewed handoff.
+The public frontend at [youtube.observe.tw](https://youtube.observe.tw) runs the TypeScript platform in [`platform/`](platform/README.md). Background ingestion remains on Laravel until each reviewed workflow handoff.
 
 有影儀表板 (YouTube Board) is currently a Laravel rebuild of the public `youtube.board.tw` reporting experience as a real-time YouTube data dashboard.
 
@@ -153,3 +153,9 @@ The dashboard is built around scheduled and on-demand data capture from YouTube 
 Production deployment notes are in [docs/deployment.md](docs/deployment.md).
 
 Keep secrets out of the repository. Use `.env.example` and the files under `deploy/` as templates.
+
+## License and attribution
+
+Licensed under the [MIT License](LICENSE), copyright (c) 2026 Sky Hong.
+
+The TypeScript frontend adapts shared layout, navigation, theme, scrolling and table primitives from [新文易數 (tag.observe.tw)](https://github.com/skyhong2002/tag.observe.tw). Its original MIT copyright and permission notice are retained in [platform/web/upstream/tag-observe-LICENSE](platform/web/upstream/tag-observe-LICENSE); adaptation details are in [the upstream attribution](platform/web/upstream/README.md). Third-party dependencies retain their respective licenses.
