@@ -2,6 +2,7 @@ import {it,expect} from 'vitest';
 import Fastify from 'fastify';
 import {createHash} from 'node:crypto';
 import {registerAuth,authStartLimiter} from '../src/auth/index.js';
+import {AUTH_NETWORK_LIMITS} from '../src/auth/rate-limit.js';
 import {authConfig,callbackUrl,cookieNames,equalToken,safeNext,tokenDigest,readCookie} from '../src/auth/config.js';
 import {sessionView,type GoogleProvider} from '../src/auth/types.js';
 import {authEnv,memoryAuthStore} from './auth-fixture.js';
@@ -72,3 +73,24 @@ it('roll-forward secret rotation invalidates previous sessions and pending OAuth
 
 it('forged signed cookies never reach the session store and auth/me is rate limited',async()=>{const s=await setup();let calls=0;s.store.sessionUser=async()=>{calls++;return null;};try{for(let i=0;i<120;i++){const r=await s.app.inject({url:'/auth/me',headers:{cookie:'yt_dev_session='+('a'.repeat(43))+'.'+('b'.repeat(22))}});expect(r.statusCode).toBe(200);expect(r.json().user).toBeNull();}expect(calls).toBe(0);expect((await s.app.inject('/auth/me')).statusCode).toBe(429);}finally{await s.app.close();}});
 it('anonymous address churn cannot consume signed-session budget',async()=>{const s=await setup();try{const signed=await login(s);for(let i=0;i<12000;i++)await s.app.inject({url:'/auth/me',remoteAddress:`198.51.${Math.floor(i/200)}.${i%200}`,headers:{cookie:'yt_dev_session='+'a'.repeat(43)}});expect((await s.app.inject({url:'/auth/me',headers:{cookie:signed.sessionCookie}})).json().user?.email).toBe(identity.email);}finally{await s.app.close();}},15000);
+
+it.each([
+ ['/auth/google',AUTH_NETWORK_LIMITS.start,302,'600'],
+ ['/auth/google/callback',AUTH_NETWORK_LIMITS.callback,303,'60'],
+ ['/auth/me',AUTH_NETWORK_LIMITS.anonymousSession,200,'60'],
+] as const)('enforces the IPv6 aggregate on %s and preserves other prefixes and IPv4',async(url,limits,status,retry)=>{
+ const s=await setup();try{
+  for(let i=0;i<limits.aggregate;i++)expect((await s.app.inject({url,remoteAddress:`2001:db8:1:${i.toString(16)}::1`})).statusCode).toBe(status);
+  const denied=await s.app.inject({url,remoteAddress:'2001:db8:1:ffff::1'});expect(denied.statusCode).toBe(429);expect(denied.headers['retry-after']).toBe(retry);expect(denied.headers['cache-control']).toBe('private, no-store');
+  for(const remoteAddress of ['2001:db8:2:ffff::1','192.0.2.1','::ffff:192.0.2.2'])expect((await s.app.inject({url,remoteAddress})).statusCode).toBe(status);
+  s.setTime(new Date(+initial+limits.windowMs));expect((await s.app.inject({url,remoteAddress:'2001:db8:1:ffff::1'})).statusCode).toBe(status);
+ }finally{await s.app.close();}
+});
+it('signed sessions behind one IPv4 NAT retain independent session budgets',async()=>{
+ const s=await setup();try{
+  const first=await login(s),second=await login(s);
+  for(let i=0;i<120;i++)for(const sessionCookie of [first.sessionCookie,second.sessionCookie]){
+   const response=await s.app.inject({url:'/auth/me',remoteAddress:'192.0.2.1',headers:{cookie:sessionCookie}});expect(response.statusCode).toBe(200);expect(response.json().user?.email).toBe(identity.email);
+  }
+ }finally{await s.app.close();}
+});

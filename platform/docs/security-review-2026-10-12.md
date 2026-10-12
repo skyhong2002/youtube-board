@@ -12,6 +12,20 @@ This handles a Traefik deployment that resets forwarded chains to its Cloudflare
 
 IPv6 privacy addresses share a `/64` rate bucket; mapped IPv4 uses the same bucket as native IPv4. The per-process LRU holds at most2048 client cells. Independent fixed-window global budgets bound accepted cardinality churn after eviction. Login starts allow20/10minutes/network and4000 globally; callback30/minute and3000 globally; session lookup and session-view120/minute and12000 globally. Reader writes and private RSS have separate60/minute limits with12000 global budgets. These are per-process controls, not a distributed fleet quota or protection from all request/CPU load. A legitimate large NAT may share a bucket, and the global ceiling intentionally limits availability under a distributed flood.
 
+Auth network limits additionally group native IPv6 into `/48` budgets: login
+starts200/10minutes, callbacks300/minute and anonymous session views1200/minute.
+Each endpoint retains its existing `/64` and global limits. Separate2048-cell
+LRUs track networks and aggregates; rotating `/64`s cannot evict their shared
+`/48` counter. All three ceilings are checked before any counter is charged,
+so rejected requests cannot consume the remaining global budget. Native and
+mapped IPv4 receive no aggregate restriction. Signed session views/lookups stay
+keyed by the authenticated session digest, so distinct sessions behind one IPv4
+NAT retain independent budgets. Public reports, reader routes and ingress trust
+are unchanged. The new limits remain local to each API process; a shared `/48`
+can intentionally encounter its ceiling, and distributed callers across many
+prefixes still rely on the existing global ceiling. No Cloudflare rule or
+production configuration is changed by this implementation.
+
 Rate-limit exceptions now preserve HTTP429, `Retry-After:60`, `RATE_LIMITED` and private/no-store headers through both the root API handler and the encapsulated reader-account handler. Direct limiter responses retain their configured retry interval. No rejected session lookup reaches the database after exhaustion.
 
 ## Cookies and stored OAuth flows
