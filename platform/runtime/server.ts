@@ -6,6 +6,9 @@ import { registerOps } from '../api/src/ops/index.js';
 import { registerUiProxy } from '../api/src/ui-proxy.js';
 import { readinessProbe } from './readiness.js';
 import {frontendDatabases} from '../api/src/db/frontend.js';
+import {publicScriptManifest} from '../api/src/public-html.js';
+import {THEME_SCRIPT} from '../shared/public-render-contract.js';
+import {fileURLToPath} from 'node:url';
 
 const databases=frontendDatabases(process.env);
 const app = buildApp();
@@ -21,14 +24,14 @@ app.addHook('onResponse', async request => { active.delete(request.id); });
 app.addHook('onRequestAbort', async request => { active.delete(request.id); });
 await registerOps(app,{auth});
 const uiOrigin = process.env.UI_ORIGIN ?? 'http://127.0.0.1:3100';
-await registerUiProxy(app, { origin: uiOrigin });
+const assets=await publicScriptManifest(fileURLToPath(new URL('../web/.next/standalone/web/.next/static/',import.meta.url)));
+await registerUiProxy(app, { origin: uiOrigin,htmlSecurity:{assets,themeScript:THEME_SCRIPT} });
 const ready = readinessProbe(async () => {
   const [api, ui] = await Promise.all([
     app.inject({ method: 'GET', url: '/ready' }),
-    fetch(`${uiOrigin}/about`, { redirect: 'error', signal: AbortSignal.timeout(2000) }),
+    app.inject({method:'GET',url:'/about'}),
   ]);
-  await ui.body?.cancel();
-  return api.statusCode === 200 && ui.ok;
+  return api.statusCode === 200 && ui.statusCode===200 && typeof ui.headers['content-security-policy']==='string' && ui.headers['content-security-policy'].includes("'strict-dynamic'");
 });
 app.get('/runtime/ready', async (_request, reply) => stopping || !await ready() ? reply.code(503).send({ status: 'unavailable' }) : { status: 'ready' });
 for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, async () => {
