@@ -1,9 +1,17 @@
 # Shared vocabulary: local contract and release handoff
 
-The producer is implemented in the isolated `tag-vocabulary-export` worktree
-(branch `feat/youtube-vocabulary-export`). The original tag checkout is unchanged.
-Neither that worktree nor this replacement has been committed, pushed or deployed.
-The public full-export endpoint is therefore not a runtime dependency yet.
+The producer was released by the tag maintainer on 2026-10-12. The published
+base `e8a99a56-3008-4da8-86c6-64d1ff468b3f` contains 4,733,073 exact source terms,
+with a 44,852-term active subset. The read-only downstream preview is documented
+in [live preview acceptance](vocabulary-preview-2026-10-13.md).
+
+**Do not execute the old full import against this base yet.** The HTTP adapter now
+understands the released large manifest/active/changes contract, but the legacy
+full importer still has a 500-page ceiling and eager all-term checksum/hydration.
+The preview does not publish a DB snapshot or change the serving vocabulary.
+
+The sections below retain the earlier synthetic producer/consumer handoff as
+historical evidence; they do not describe the current upstream release status.
 
 The producer covers **all current indexed article tags**, including native article
 keywords, edits and rule-derived tags. It excludes archived articles outside the
