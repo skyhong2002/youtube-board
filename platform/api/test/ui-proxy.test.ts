@@ -1,0 +1,25 @@
+import Fastify from 'fastify';
+import { it, expect } from 'vitest';
+import { registerUiProxy } from '../src/ui-proxy.js';
+it('serves API locally and forwards UI/assets without forwarding ops credentials', async () => {
+  const ui = Fastify(); ui.get('/page', request => ({ auth: request.headers.authorization ?? null, cookie: request.headers.cookie ?? null }));
+  ui.get('/ops/ingestion', request => ({ console: true, auth: request.headers.authorization ?? null }));
+  ui.get('/auth/unknown',()=>({unexpectedPrivateForward:true}));
+  ui.get('/feeds/u/unknown.xml',()=>({unexpectedPrivateForward:true}));
+  await ui.listen({ port: 0, host: '127.0.0.1' });
+  const address = ui.server.address(); if (!address || typeof address === 'string') throw new Error('Missing port');
+  const app = Fastify(); app.get('/api/v1/test', () => ({ local: true }));
+  await registerUiProxy(app, { origin: `http://127.0.0.1:${address.port}` });
+  expect((await app.inject('/api/v1/test')).json()).toEqual({ local: true });
+  expect((await app.inject('/api/unknown')).statusCode).toBe(404);
+  expect((await app.inject('/ops/unknown')).statusCode).toBe(404);
+  for(const path of ['/auth/unknown','/%61uth/unknown','/feeds/u/unknown.xml','/feeds%2Fu%2Funknown.xml'])expect((await app.inject(path)).statusCode).toBe(404);
+  expect((await app.inject({ url: '/ops/ingestion', headers: { authorization: 'Bearer secret' } })).json()).toEqual({ console: true, auth: null });
+  expect((await app.inject({ method: 'POST', url: '/ops/ingestion' })).statusCode).toBe(405);
+  expect((await app.inject('/ops/ingestion/run')).statusCode).toBe(404);
+  expect((await app.inject({ method: 'POST', url: '/page', headers: { 'next-action': 'test' } })).statusCode).toBe(405);
+  for (const path of ['/%6fps/ingestion/run', '/ops%2Fingestion%2Frun', '/%252e%252e/ops']) expect([400, 404]).toContain((await app.inject(path)).statusCode);
+  expect((await app.inject({ method: 'HEAD', url: '/ops/ingestion' })).statusCode).toBe(200);
+  expect((await app.inject({ url: '/page', headers: { authorization: 'Bearer secret', cookie: 'session=secret' } })).json()).toEqual({ auth: null, cookie: null });
+  await app.close(); await ui.close();
+});

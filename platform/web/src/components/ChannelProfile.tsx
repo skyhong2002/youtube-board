@@ -1,0 +1,37 @@
+import Link from 'next/link';
+import type {ChannelData,ReportMeta,Search} from '@/lib/api';
+import {compact,count,dateTime,youtubeUrl} from '@/lib/format';
+import {familyTabs} from '@/lib/report-navigation';
+import {reportStyle as ui} from '@/lib/report-styles';
+import {ChannelAvatar} from './ChannelAvatar';
+import SourceSidebar from './SourceSidebar';
+import FollowButton from './reader/FollowButton';
+import {DataNotice,SectionHeading,Tabs} from './ReportUI';
+import {VideoResults} from './VideoResults';
+import {ChannelInsights} from './ChannelInsights';
+const card='rounded-lg border border-zinc-200 p-3 text-xs dark:border-zinc-800';
+function Values({items}:{items:Array<[string,string]>}){return <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2.5 leading-5">{items.map(([label,value])=><div key={label} className="contents"><dt className="text-zinc-500 dark:text-zinc-400">{label}</dt><dd className="text-right tabular-nums">{value}</dd></div>)}</dl>;}
+/** Source profile structure copied from mother media/[media] at afe0a653. */
+export function ChannelProfile({data,meta,path,search}:{data:ChannelData;meta:ReportMeta;path:string;search:Search}){
+ const c=data.channel,title=c.title||'頻道名稱尚未取得';
+ return <div className="pb-4">
+  <nav aria-label="麵包屑" className="mb-3 text-xs text-zinc-500 dark:text-zinc-400"><Link href="/channels" className="hover:underline">頻道</Link><span className="mx-2" aria-hidden="true">/</span>{title}</nav>
+  <header className="mb-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-zinc-300 pb-4 dark:border-zinc-700">
+   <div className="min-w-0"><div className="flex flex-wrap items-center gap-2.5"><ChannelAvatar avatar={c.avatar} title={title} size={28}/><h1 className="text-2xl font-semibold tracking-tight [overflow-wrap:anywhere]">{title}</h1><FollowButton kind="channel" target={String(c.id)}/></div><p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400"><span>YouTube 頻道觀測</span><span>· 更新 {dateTime(meta.updatedAt)} · 台北時間</span></p></div>
+   <dl className="flex gap-5 text-right sm:gap-7">{[['訂閱人數',compact(c.subscribers),'人'],['累計觀看',compact(c.views),'次'],['累計影片',count(c.videoCount),'支']].map(([label,value,unit])=><div key={label}><dt className="text-[11px] text-zinc-500 dark:text-zinc-400">{label}</dt><dd className="mt-0.5 text-xl font-semibold tabular-nums">{value}{value!=='—'&&<span className="ml-1 text-[10px] font-normal text-zinc-500">{unit}</span>}</dd></div>)}</dl>
+  </header>
+  <DataNotice meta={meta}/><Tabs items={familyTabs(path,search,meta.coverage)} active={path}/>
+  <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_19rem] lg:gap-6">
+   <SourceSidebar label="頻道資料、觀測增量與模型估計">
+    <section aria-label="頻道基本資料" className={card}><h2 className="mb-3 flex items-baseline justify-between gap-2 text-sm font-semibold">頻道資料<Link href="/about" className={'text-xs font-normal '+ui.link}>資料說明</Link></h2><dl className="grid grid-cols-[5rem_minmax(0,1fr)] gap-y-2.5 leading-5"><dt className="text-zinc-500 dark:text-zinc-400">頻道名稱</dt><dd className="[overflow-wrap:anywhere]">{title}</dd><dt className="text-zinc-500 dark:text-zinc-400">來源網站</dt><dd><a className={ui.link} href={youtubeUrl(c.youtubeUrl)} target="_blank" rel="noopener noreferrer">YouTube 頻道 ↗<span className="sr-only">（另開新視窗）</span></a></dd><dt className="text-zinc-500 dark:text-zinc-400">頻道建立</dt><dd>{dateTime(c.publishedAt,true)}</dd><dt className="text-zinc-500 dark:text-zinc-400">最近更新</dt><dd>{dateTime(c.updatedAt)}</dd><dt className="text-zinc-500 dark:text-zinc-400">本站分類</dt><dd className="flex flex-wrap gap-1">{c.tags.length?c.tags.map(t=><Link key={t.id} className={ui.tag} href={`/tags/${t.id}/channels`}>{t.name}</Link>):'未分類'}</dd></dl><details className="mt-3 border-t border-zinc-200 pt-3 dark:border-zinc-800"><summary className="cursor-pointer text-zinc-600 dark:text-zinc-400">頻道簡介</summary><p className="mt-2 whitespace-pre-wrap break-words leading-relaxed text-zinc-600 dark:text-zinc-400">{c.description||'來源尚未提供頻道簡介。'}</p></details></section>
+    <section className={card}><h2 className="mb-3 text-sm font-semibold">期間觀測增量</h2><Values items={[
+     ['近七日觀看',count(c.weeklyViews)],['近月觀看',count(c.monthlyViews)],['近七日訂閱',count(c.weeklySubscribers)],['近月訂閱',count(c.monthlySubscribers)],['近七日影片',count(c.weeklyVideos)],['近月影片',count(c.monthlyVideos)],['觀看成長指標',c.legacyGrowthPercent===null?'—':c.legacyGrowthPercent.toFixed(1)+'%'],['平均每片週觀看',count(c.averageWeeklyViewsPerVideo)]
+    ]}/><p className="mt-3 leading-relaxed text-zinc-500 dark:text-zinc-400">近七日／近月取期間內可用觀測，並非日曆週月。增量可能為負，缺值不補零。</p><details className="mt-2 text-zinc-500 dark:text-zinc-400"><summary className="cursor-pointer">指標計算方式</summary><p className="mt-2 leading-relaxed">成長指標沿用（週增量 − 月增量 ÷ 4）÷ 月增量 × 25；平均每片週觀看為週觀看增量 ÷ 週影片增量取整數，並非個別影片觀看平均。</p></details><p className="mt-3">{data.trendAvailable?<Link className={ui.link} href={`/channels/${c.id}/trends`}>查看歷史觀測 →</Link>:<span className="text-zinc-500 dark:text-zinc-400">尚無頻道歷史觀測。</span>}</p></section>
+    <section className={card}><h2 className="mb-3 text-sm font-semibold">歷史模型估計</h2><Values items={[
+     ['近七日觀看估計',count(c.estimatedWeeklyViews)],['近月觀看估計',count(c.estimatedMonthlyViews)],['近月估計差距',count(c.monthlyEstimateGap)]
+    ]}/><p className="mt-3 leading-relaxed text-zinc-500 dark:text-zinc-400">估計值來自歷史觀測模型；差距為近月估計減去觀測增量，並非已發生的觀看數。</p></section>
+   </SourceSidebar>
+   <div className="min-w-0 lg:col-start-1 lg:row-start-1"><SectionHeading title="近期收錄影片" href={`/channels/${c.id}/videos`}/><VideoResults rows={data.videos}/><ChannelInsights data={data}/></div>
+  </div>
+ </div>;
+}

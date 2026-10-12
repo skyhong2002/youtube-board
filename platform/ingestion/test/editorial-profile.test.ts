@@ -1,0 +1,8 @@
+import {it,expect} from 'vitest';
+import {YoutubeDataApiClient} from '../src/youtube.js';
+const id='UC'+'A'.repeat(22),now=new Date('2026-10-12T02:00:00Z');
+const channel=()=>({id,snippet:{title:'新聞頻道',description:'來源簡介',publishedAt:'2020-01-01T00:00:00Z',thumbnails:{default:{url:'https://yt3.ggpht.com/test.jpg'}}},contentDetails:{relatedPlaylists:{uploads:'UU'+id.slice(2)}},statistics:{viewCount:'0',videoCount:'2',hiddenSubscriberCount:true}});
+function client(item:unknown,onCall=()=>{}){return new YoutubeDataApiClient({keys:['fake-only'],now:()=>now,ledger:{precharge:async()=> '2026-10-11',markDailyExhausted:async()=>{}},fetcher:async(input)=>{onCall();const url=new URL(String(input));expect(url.origin).toBe('https://www.googleapis.com');expect(url.searchParams.get('part')).toBe('snippet,contentDetails,statistics');return new Response(JSON.stringify({items:[item]}));}});}
+it('channel profile uses exact ID, validated uploads and hidden subscribers remain unknown',async()=>{expect((await client(channel()).channelProfiles([id])).get(id)).toMatchObject({id,title:'新聞頻道',uploads:'UU'+id.slice(2),statistics:{viewCount:0,subscriberCount:null,hiddenSubscriberCount:true}});});
+it('channel profile rejects case-mismatched ID and wrong uploads identity',async()=>{await expect(client({...channel(),id:id.toLowerCase()}).channelProfiles([id])).rejects.toThrow();await expect(client({...channel(),contentDetails:{relatedPlaylists:{uploads:'UU'+'B'.repeat(22)}}}).channelProfiles([id])).rejects.toThrow();});
+it('noncanonical IDs fail before external fetch',async()=>{let calls=0;await expect(client(channel(),()=>calls++).channelProfiles(['@somebody'])).rejects.toThrow();expect(calls).toBe(0);});

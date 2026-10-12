@@ -4,6 +4,28 @@ These notes are for coding agents and maintainers working inside this repository
 
 ## Project Scope
 
+### Active rewrite direction (2026-10-11)
+
+The user authorized a complete TypeScript replacement aligned with tag.observe.tw,
+including Next.js/React, Fastify, Drizzle/MariaDB, and Redis/BullMQ. New code lives
+in `platform/`. Laravel remains the current production writer until each workflow
+has a verified, explicitly approved handoff. The Laravel-specific architectural
+direction below describes the running system, not the final rewrite target; all
+production access, secret handling, backup, and write-approval guardrails remain.
+Use tag.observe.tw as the shared content vocabulary source, preserving provenance,
+version and matching evidence; keep YouTube channel taxonomy and news/YouTube
+metrics separate. Windowed article-tag observations are not a complete canonical
+vocabulary. See `docs/ui-rewrite-assessment.md` and `platform/README.md`.
+
+The user chose YouTube red (`#FF0000`) as the new product's brand color on
+2026-10-12. Match tag.observe.tw's stack and interaction patterns while using
+red branding; use accessible red variants where needed for text contrast.
+
+The user authorizes parallel agent implementation (up to five collaborators,
+subject to tool limits) and direct CLI Proxy consultation with `claude-opus-5-5`
+for execution advice and feature reviews. Never send secrets in review packets.
+Only count reviews with actual returned text, address findings and execute tests.
+
 This repository modernizes the public YouTube Board experience in Laravel as a real-time YouTube data dashboard. Data capture, cache rebuilding, scheduled polling, AI generation, and report rendering are in scope when they run through reviewed Laravel commands, public HTTP responses, approved legacy snapshots, approved DB exports, or explicitly approved production inspection/export tasks.
 
 Current product direction:
@@ -169,8 +191,9 @@ Database service notes:
 - Database user is `youtube_board`.
 - External database port is not configured; keep production DB private unless explicitly approved.
 - Persistent volume `youtube-board-db-qcja1i-data` is mounted at `/var/lib/mysql`.
-- Dokploy backups are not configured because no S3 destination/provider is configured.
+- Backup status verified 2026-10-12: Dokploy-managed S3 backups are not configured, but host `nas-backup.timer` runs `/usr/local/bin/nas-backup run` daily around20:25 UTC to GGSS-NAS. The YouTube job is `/etc/nas-backup/jobs/youtube-board.sh`; `sudo nas-backup snapshots youtube-board` lists retained snapshots and `nas-backup restore <job> <dir>` restores to an isolated directory. The existing logical job uses `--single-transaction`, which does not guarantee a consistent snapshot of this database's MyISAM tables. Before writer handoff or destructive migration, make an additional consistent mixed-engine backup, preserve existing snapshots, keep an offhost copy, and restore/verify tables and rows in isolation. Never log the backed-up Dokploy `.env`.
 - Database service resource limits are currently 1 GB memory limit, 256 MB memory reservation, 2 CPU limit, and 1 CPU reservation.
+- Consistent cutover backup completed 2026-10-12 04:47 UTC: 66 tables, 596,386,781-byte archive, independent off-host and NAS copies, successful full isolated restore with 11 exact manifest comparisons. See `platform/docs/production-backup-2026-10-12.md` for SHA-256 and retrieval proof. This evidence does not itself mean frontend or writer cutover has occurred.
 - Do not use Dokploy "Rebuild Database" unless a fresh backup and rollback plan have been verified.
 
 phpMyAdmin service notes:

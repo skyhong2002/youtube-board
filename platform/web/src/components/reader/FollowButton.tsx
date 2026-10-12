@@ -1,0 +1,9 @@
+'use client';
+import {usePathname} from 'next/navigation';
+import {useState} from 'react';
+import type {AccountFollowKind} from '../../../../shared/account-contracts';
+import {follows,setFollow} from '@/lib/reader';
+import {loginHref,useSession} from '@/lib/session';
+import {accountMessage} from '@/lib/account-client';
+export const pill='inline-flex min-h-8 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-sm disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600',pillOff='border-zinc-300 text-zinc-700 hover:border-brand-600 hover:text-brand-700 dark:border-zinc-700 dark:text-zinc-300 dark:hover:text-brand-400',pillOn='border-brand-600 bg-brand-50 text-brand-800 dark:border-brand-500 dark:bg-brand-950 dark:text-brand-200';
+export default function FollowButton({kind,target}:{kind:AccountFollowKind;target:string}){const session=useSession(),list=follows.useValue(),path=usePathname(),[busy,setBusy]=useState(false),[error,setError]=useState('');if(!session?.enabled)return null;if(!session.user)return <a className={pill+' '+pillOff} href={loginHref(path)} onClick={e=>{e.currentTarget.href=loginHref(location.pathname+location.search);}}>＋ 追蹤</a>;const on=!!list.data?.some(item=>item.kind===kind&&item.target===target);return <span className="inline-flex flex-wrap items-center gap-2"><button type="button" className={pill+' '+(on?pillOn:pillOff)} aria-pressed={on} disabled={busy||!list.data} onClick={async()=>{setBusy(true);setError('');try{await setFollow(kind,target,!on);}catch(e){setError(accountMessage(e));}finally{setBusy(false);}}}>{on?'✓ 已追蹤':'＋ 追蹤'}</button>{(error||list.error)&&<span role="alert" className="text-xs text-red-700 dark:text-red-300">{error||list.error}{list.error&&<button className="ml-1 underline" onClick={()=>void follows.reload()}>重試</button>}</span>}</span>;}

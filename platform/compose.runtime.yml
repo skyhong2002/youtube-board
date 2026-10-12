@@ -1,0 +1,78 @@
+# Isolated local runtime overlay. Never targets the current Laravel deployment.
+# docker compose -f compose.yml -f compose.runtime.yml up -d --build web
+services:
+  web:
+    image: youtube-board-ts:${TS_IMAGE_REVISION:-local}
+    build:
+      context: ..
+      dockerfile: platform/Dockerfile
+    ports:
+      - "127.0.0.1:38000:8000"
+    environment: &runtime-env
+      APP_ENV: local
+      NODE_ENV: production
+      PORT: "8000"
+      DATASET_KIND: ${DATASET_KIND:-fixture}
+      DATABASE_URL: mysql://youtube_rewrite:youtube_rewrite_local@db:3306/youtube_board_rewrite
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_DATABASE: youtube_board_rewrite
+      DB_USERNAME: youtube_rewrite
+      DB_PASSWORD: youtube_rewrite_local
+      REDIS_URL: redis://redis:6379/0
+      YOUTUBE_PUBLIC_URL: ${YOUTUBE_PUBLIC_URL:-http://127.0.0.1:38000}
+      MEDIA_CACHE_ROOT: /var/lib/youtube-board/media
+      TS_INGESTION_ENABLED: "false"
+      TS_INGESTION_PRODUCTION_ENABLED: "false"
+      TS_SCHEDULER_ENABLED: "false"
+      TS_INGESTION_WRITE_ALLOWLIST: ""
+      TS_INGESTION_OWNERS: ""
+      TS_OPS_EXECUTION_ENABLED: "false"
+      TS_OPS_WRITE_ALLOWLIST: ""
+      TS_DEPLOY_RELAY_ENABLED: "false"
+    volumes:
+      - rewrite-media:/var/lib/youtube-board/media:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    mem_limit: 1g
+    cpus: 2
+    stop_grace_period: 35s
+  worker:
+    image: youtube-board-ts:${TS_IMAGE_REVISION:-local}
+    profiles: ["worker"]
+    command: ["node", "runtime/launcher.mjs", "worker"]
+    environment:
+      <<: *runtime-env
+      RUNTIME_ROLE: worker
+    volumes:
+      - rewrite-media:/var/lib/youtube-board/media
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    mem_limit: 512m
+    cpus: 1
+    stop_grace_period: 5m
+  scheduler:
+    image: youtube-board-ts:${TS_IMAGE_REVISION:-local}
+    profiles: ["scheduler"]
+    command: ["node", "runtime/launcher.mjs", "scheduler"]
+    environment:
+      <<: *runtime-env
+      RUNTIME_ROLE: scheduler
+      TS_SCHEDULE_CONFIG: /app/runtime/schedules.json
+    volumes:
+      - ${TS_SCHEDULE_CONFIG_FILE:-./runtime/schedules.example.json}:/app/runtime/schedules.json:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    mem_limit: 256m
+    cpus: 1
+    stop_grace_period: 35s
+
+volumes:
+  rewrite-media:

@@ -1,0 +1,13 @@
+{
+  "font": "Noto Serif CJK TC SemiBold",
+  "rasterizer": "rsvg-convert version 2.60.0",
+  "fontSha256": "d55b3b7435148c54db0dd251982a400beb16724cbb7ce48c52088f2635e0d2bc",
+  "variants": [
+    "legacy",
+    "family",
+    "original"
+  ],
+  "default": "family",
+  "accent": "#ff0000",
+  "glyphs": "outlined; no external font needed"
+}

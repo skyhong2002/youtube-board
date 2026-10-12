@@ -1,0 +1,5 @@
+.word { outline: none; }
+.word > rect { fill: transparent; }
+.word:hover > rect, .word:focus > rect { fill: #f4f4f5; }
+:global([data-theme="dark"]) .word:hover > rect,
+:global([data-theme="dark"]) .word:focus > rect { fill: #27272a; }

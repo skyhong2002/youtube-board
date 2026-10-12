@@ -1,0 +1,2310 @@
+{
+  "note": "Generated source inventory. Pending is the default; implementation and acceptance are recorded separately in api/PARITY.md, api/LEGACY-PARITY.md and ingestion/CACHE-PARITY.md.",
+  "routes": [
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/",
+      "name": "home",
+      "kind": "report",
+      "sourceLine": 58,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/index.php",
+      "name": "legacy.home.index",
+      "kind": "redirect",
+      "sourceLine": 59,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/groups",
+      "name": "groups.index",
+      "kind": "report",
+      "sourceLine": 62,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/groups/{groupName}/live",
+      "name": "groups.live",
+      "kind": "report",
+      "sourceLine": 63,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/groups/{groupName}/ranking",
+      "name": "groups.ranking",
+      "kind": "report",
+      "sourceLine": 64,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/groups/{groupName}/trends",
+      "name": "groups.trends",
+      "kind": "report",
+      "sourceLine": 65,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/groups/{groupName}",
+      "name": "groups.show",
+      "kind": "report",
+      "sourceLine": 66,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/mayor",
+      "name": "mayor.index",
+      "kind": "report",
+      "sourceLine": 67,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/mayor/cities/{city}/people/{person}/days/{date}",
+      "name": "mayor.people.date",
+      "kind": "report",
+      "sourceLine": 68,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/mayor/cities/{city}/people/{person}",
+      "name": "mayor.people.show",
+      "kind": "report",
+      "sourceLine": 73,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/mayor/cities/{city}",
+      "name": "mayor.show",
+      "kind": "report",
+      "sourceLine": 77,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live/current",
+      "name": "live.current",
+      "kind": "report",
+      "sourceLine": 79,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live/channels",
+      "name": "live.channels",
+      "kind": "report",
+      "sourceLine": 80,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live/continuous",
+      "name": "live.continuous",
+      "kind": "report",
+      "sourceLine": 81,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live/days",
+      "name": "live.days.index",
+      "kind": "report",
+      "sourceLine": 82,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live/days/{date}",
+      "name": "live.days.date",
+      "kind": "report",
+      "sourceLine": 83,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live/groups/{group}/hours",
+      "name": "live.groups.hours",
+      "kind": "report",
+      "sourceLine": 84,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live/hours",
+      "name": "live.hours",
+      "kind": "report",
+      "sourceLine": 85,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live/periods",
+      "name": "live.periods",
+      "kind": "report",
+      "sourceLine": 86,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live/tags",
+      "name": "live.tags",
+      "kind": "report",
+      "sourceLine": 87,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live/trends/daily",
+      "name": "live.trends.daily",
+      "kind": "report",
+      "sourceLine": 88,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live/videos/{videoId}/trend",
+      "name": "live.videos.trend",
+      "kind": "report",
+      "sourceLine": 89,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live/walls/{variant}",
+      "name": "live.wall",
+      "kind": "report",
+      "sourceLine": 90,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/videos/{videoId}/analytics",
+      "name": "videos.analytics",
+      "kind": "report",
+      "sourceLine": 91,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/videos/{videoId}",
+      "name": "videos.show",
+      "kind": "report",
+      "sourceLine": 92,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/tags",
+      "name": "tags.index",
+      "kind": "report",
+      "sourceLine": 93,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/keywords",
+      "name": "keywords.index",
+      "kind": "report",
+      "sourceLine": 94,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/keywords/{keyword}/groups/trends",
+      "name": "keywords.groups.trends",
+      "kind": "report",
+      "sourceLine": 95,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/keywords/{keyword}/live/trends",
+      "name": "keywords.live.trends",
+      "kind": "report",
+      "sourceLine": 96,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/keywords/{keyword}/cloud",
+      "name": "keywords.cloud",
+      "kind": "report",
+      "sourceLine": 97,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/keywords/{keyword}/days",
+      "name": "keywords.days",
+      "kind": "report",
+      "sourceLine": 98,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/keywords/{keyword}/videos",
+      "name": "keywords.videos",
+      "kind": "report",
+      "sourceLine": 99,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/tags/cloud",
+      "name": "tags.cloud.index",
+      "kind": "report",
+      "sourceLine": 100,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/tags/compare",
+      "name": "tags.compare",
+      "kind": "report",
+      "sourceLine": 101,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/tags/comments",
+      "name": "tags.comments.index",
+      "kind": "report",
+      "sourceLine": 102,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/tags/days",
+      "name": "tags.days.index",
+      "kind": "report",
+      "sourceLine": 103,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/tags/live/videos",
+      "name": "tags.live.videos.index",
+      "kind": "report",
+      "sourceLine": 104,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/tags/trends",
+      "name": "tags.trends.index",
+      "kind": "report",
+      "sourceLine": 105,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/tags/videos",
+      "name": "tags.videos.index",
+      "kind": "report",
+      "sourceLine": 106,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/tags/{tagId}/cloud",
+      "name": "tags.cloud",
+      "kind": "report",
+      "sourceLine": 107,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/tags/{tagId}/channels",
+      "name": "tags.channels",
+      "kind": "report",
+      "sourceLine": 108,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/tags/{tagId}/comments",
+      "name": "tags.comments",
+      "kind": "report",
+      "sourceLine": 109,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/tags/{tagId}/days",
+      "name": "tags.days",
+      "kind": "report",
+      "sourceLine": 110,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/tags/{tagId}/live/videos",
+      "name": "tags.live.videos",
+      "kind": "report",
+      "sourceLine": 111,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/tags/{tagId}/trends",
+      "name": "tags.trends",
+      "kind": "report",
+      "sourceLine": 112,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/tags/{tagId}/videos",
+      "name": "tags.videos",
+      "kind": "report",
+      "sourceLine": 113,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/comments/authors/{authorKey}",
+      "name": "comments.authors.show",
+      "kind": "report",
+      "sourceLine": 114,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/channels/{u_id}/comments",
+      "name": "channels.comments",
+      "kind": "report",
+      "sourceLine": 115,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/channels/{u_id}/cloud",
+      "name": "channels.cloud",
+      "kind": "report",
+      "sourceLine": 116,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/channels/{u_id}/ai",
+      "name": "channels.ai",
+      "kind": "report",
+      "sourceLine": 117,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/channels/{u_id}/ai/days",
+      "name": "channels.ai.days",
+      "kind": "report",
+      "sourceLine": 118,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/channels/{u_id}/ai/days/{date}",
+      "name": "channels.ai.days.date",
+      "kind": "report",
+      "sourceLine": 119,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/channels/{u_id}/people",
+      "name": "channels.people",
+      "kind": "report",
+      "sourceLine": 120,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/channels/{u_id}/prompt",
+      "name": "channels.prompt",
+      "kind": "report",
+      "sourceLine": 121,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/channels/{u_id}/trends",
+      "name": "channels.trends",
+      "kind": "report",
+      "sourceLine": 122,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/channels/{u_id}/videos",
+      "name": "channels.videos",
+      "kind": "report",
+      "sourceLine": 123,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/channels/{u_id}",
+      "name": "channels.show",
+      "kind": "report",
+      "sourceLine": 124,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ai/aspects",
+      "name": "ai.aspects",
+      "kind": "report",
+      "sourceLine": 125,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ai/days",
+      "name": "ai.days.index",
+      "kind": "report",
+      "sourceLine": 126,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ai/days/prompt",
+      "name": "ai.days.prompt.index",
+      "kind": "report",
+      "sourceLine": 127,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ai/days/{date}/prompt",
+      "name": "ai.days.prompt",
+      "kind": "report",
+      "sourceLine": 128,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ai/days/{date}/{condition}/prompt",
+      "name": "ai.days.condition.prompt",
+      "kind": "report",
+      "sourceLine": 129,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ai/days/{date}",
+      "name": "ai.days.date",
+      "kind": "report",
+      "sourceLine": 130,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ai/days/{date}/{condition}",
+      "name": "ai.days.condition",
+      "kind": "report",
+      "sourceLine": 131,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ai/events/{id}/people",
+      "name": "ai.events.people",
+      "kind": "report",
+      "sourceLine": 132,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ai/events/{id}/wall",
+      "name": "ai.events.wall",
+      "kind": "report",
+      "sourceLine": 133,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ai/events/{id}",
+      "name": "ai.events.show",
+      "kind": "report",
+      "sourceLine": 134,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ai/hours",
+      "name": "ai.hours",
+      "kind": "report",
+      "sourceLine": 135,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ai/periods",
+      "name": "ai.periods",
+      "kind": "report",
+      "sourceLine": 136,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ops/integrations",
+      "name": "ops.integrations",
+      "kind": "operations",
+      "sourceLine": 138,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ops/ingestion",
+      "name": "ops.ingestion",
+      "kind": "operations",
+      "sourceLine": 139,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ops/ingestion/data-capture",
+      "name": "ops.ingestion.data-capture",
+      "kind": "operations",
+      "sourceLine": 140,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ops/ingestion/report-processing",
+      "name": "ops.ingestion.report-processing",
+      "kind": "operations",
+      "sourceLine": 141,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/ops/ingestion/run",
+      "name": "ops.ingestion.run",
+      "kind": "operations",
+      "sourceLine": 142,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ops/ingestion/runs/{runId}",
+      "name": "ops.ingestion.runs.show",
+      "kind": "operations",
+      "sourceLine": 145,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ops/ingestion/{jobKey}",
+      "name": "ops.ingestion.show",
+      "kind": "operations",
+      "sourceLine": 148,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/ops/deploy/dokploy",
+      "name": "ops.deploy.dokploy",
+      "kind": "operations",
+      "sourceLine": 150,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "path": "/redir/{script}.php",
+      "name": "legacy.redir.guard",
+      "kind": "write-guard",
+      "sourceLine": 151,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "path": "/prompt/{script}.php",
+      "name": "legacy.prompt.guard",
+      "kind": "write-guard",
+      "sourceLine": 154,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/api_live_day.php",
+      "name": "legacy.api.live.day",
+      "kind": "compatibility-api",
+      "sourceLine": 158,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/api_live_date.php",
+      "name": "legacy.api.live.date",
+      "kind": "compatibility-api",
+      "sourceLine": 159,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/api_live_hour.php",
+      "name": "legacy.api.live.hour",
+      "kind": "compatibility-api",
+      "sourceLine": 160,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/api_live_tag_date.php",
+      "name": "legacy.api.live.tag.date",
+      "kind": "compatibility-api",
+      "sourceLine": 161,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/live_date.php",
+      "name": "legacy.api.live.date.list",
+      "kind": "compatibility-api",
+      "sourceLine": 162,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/live_tvbs.php",
+      "name": "legacy.api.live.tvbs",
+      "kind": "compatibility-api",
+      "sourceLine": 163,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/video_live.php",
+      "name": "legacy.api.live.video",
+      "kind": "compatibility-api",
+      "sourceLine": 164,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/csv_live_line.php",
+      "name": "legacy.api.live.csv.line",
+      "kind": "compatibility-api",
+      "sourceLine": 165,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/tags_list.php",
+      "name": "legacy.api.tags.list",
+      "kind": "compatibility-api",
+      "sourceLine": 166,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/tags_index.php",
+      "name": "legacy.api.tags.index",
+      "kind": "compatibility-api",
+      "sourceLine": 167,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/tags_all.php",
+      "name": "legacy.api.tags.all",
+      "kind": "compatibility-api",
+      "sourceLine": 168,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/video_tags.php",
+      "name": "legacy.api.video.tags",
+      "kind": "compatibility-api",
+      "sourceLine": 169,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/video_tags_title.php",
+      "name": "legacy.api.video.tags.title",
+      "kind": "compatibility-api",
+      "sourceLine": 170,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/channels_list.php",
+      "name": "legacy.api.channels.list",
+      "kind": "compatibility-api",
+      "sourceLine": 171,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/channel_videos.php",
+      "name": "legacy.api.channel.videos",
+      "kind": "compatibility-api",
+      "sourceLine": 172,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/channels_videos.php",
+      "name": "legacy.api.channels.videos",
+      "kind": "compatibility-api",
+      "sourceLine": 173,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/api_channel_log.php",
+      "name": "legacy.api.channel.log",
+      "kind": "compatibility-api",
+      "sourceLine": 174,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/channel_pred.php",
+      "name": "legacy.api.channel.prediction",
+      "kind": "compatibility-api",
+      "sourceLine": 175,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/api_tag.php",
+      "name": "legacy.api.tag.map",
+      "kind": "compatibility-api",
+      "sourceLine": 176,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/api_tag_log.php",
+      "name": "legacy.api.tag.log",
+      "kind": "compatibility-api",
+      "sourceLine": 177,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/tags_day.php",
+      "name": "legacy.api.tags.day",
+      "kind": "compatibility-api",
+      "sourceLine": 178,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/tags_video.php",
+      "name": "legacy.api.tags.video",
+      "kind": "compatibility-api",
+      "sourceLine": 179,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/tags_relation_date.php",
+      "name": "legacy.api.tags.relation.date",
+      "kind": "compatibility-api",
+      "sourceLine": 180,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/tag_month.php",
+      "name": "legacy.api.tag.month",
+      "kind": "compatibility-api",
+      "sourceLine": 181,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/tag_period.php",
+      "name": "legacy.api.tag.period",
+      "kind": "compatibility-api",
+      "sourceLine": 182,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/tag_tags_days.php",
+      "name": "legacy.api.tag.tags.days",
+      "kind": "compatibility-api",
+      "sourceLine": 183,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/cloud.php",
+      "name": "legacy.api.cloud.channel",
+      "kind": "compatibility-api",
+      "sourceLine": 184,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/cloud_tag_date.php",
+      "name": "legacy.api.cloud.tag.date",
+      "kind": "compatibility-api",
+      "sourceLine": 185,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/cloud_tag_date_noapi.php",
+      "name": "legacy.api.cloud.tag.date.noapi",
+      "kind": "compatibility-api",
+      "sourceLine": 186,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/group_view.php",
+      "name": "legacy.api.group.view",
+      "kind": "compatibility-api",
+      "sourceLine": 187,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/ai_day.php",
+      "name": "legacy.api.ai.day",
+      "kind": "compatibility-api",
+      "sourceLine": 188,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/api_topic.php",
+      "name": "legacy.api.ai.topic",
+      "kind": "compatibility-api",
+      "sourceLine": 189,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/api_event.php",
+      "name": "legacy.api.ai.event",
+      "kind": "compatibility-api",
+      "sourceLine": 190,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/api_comment.php",
+      "name": "legacy.api.comment",
+      "kind": "compatibility-api",
+      "sourceLine": 191,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/api_duration.php",
+      "name": "legacy.api.duration",
+      "kind": "compatibility-api",
+      "sourceLine": 192,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/api_get_photo.php",
+      "name": "legacy.api.photo",
+      "kind": "compatibility-api",
+      "sourceLine": 193,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live.php",
+      "name": "legacy.live.current",
+      "kind": "redirect",
+      "sourceLine": 195,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live_index.php",
+      "name": "legacy.live.index",
+      "kind": "redirect",
+      "sourceLine": 199,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live_cont.php",
+      "name": "legacy.live.continuous",
+      "kind": "redirect",
+      "sourceLine": 203,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live_day.php",
+      "name": "legacy.live.day",
+      "kind": "redirect",
+      "sourceLine": 207,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live_line.php",
+      "name": "legacy.live.video.trend",
+      "kind": "redirect",
+      "sourceLine": 219,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live_day_line.php",
+      "name": "legacy.live.daily.trend",
+      "kind": "redirect",
+      "sourceLine": 227,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/lives_date.php",
+      "name": "legacy.live.group.hours",
+      "kind": "redirect",
+      "sourceLine": 231,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live_channels.php",
+      "name": "legacy.live.channels",
+      "kind": "redirect",
+      "sourceLine": 239,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live_channel.php",
+      "name": "legacy.live.channel",
+      "kind": "redirect",
+      "sourceLine": 243,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live_hour.php",
+      "name": "legacy.live.hours",
+      "kind": "redirect",
+      "sourceLine": 260,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live_period.php",
+      "name": "legacy.live.period",
+      "kind": "redirect",
+      "sourceLine": 264,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live_tag.php",
+      "name": "legacy.live.tags",
+      "kind": "redirect",
+      "sourceLine": 268,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live_rank.php",
+      "name": "legacy.live.rank",
+      "kind": "redirect",
+      "sourceLine": 272,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live4.php",
+      "name": "legacy.live.wall.news",
+      "kind": "redirect",
+      "sourceLine": 289,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live5.php",
+      "name": "legacy.live.wall.alternate",
+      "kind": "redirect",
+      "sourceLine": 293,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live_china.php",
+      "name": "legacy.live.wall.china",
+      "kind": "redirect",
+      "sourceLine": 297,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ai_hour.php",
+      "name": "legacy.ai.hours",
+      "kind": "redirect",
+      "sourceLine": 301,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ai_period.php",
+      "name": "legacy.ai.periods",
+      "kind": "redirect",
+      "sourceLine": 305,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ai_day.php",
+      "name": "legacy.ai.days",
+      "kind": "redirect",
+      "sourceLine": 309,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ai_day_prompt.php",
+      "name": "legacy.ai.days.prompt",
+      "kind": "redirect",
+      "sourceLine": 330,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/day/{date}/{condition}",
+      "name": "legacy.ai.days.pretty",
+      "kind": "redirect",
+      "sourceLine": 351,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ai_event.php",
+      "name": "legacy.ai.event",
+      "kind": "redirect",
+      "sourceLine": 355,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ai_event_people.php",
+      "name": "legacy.ai.event.people",
+      "kind": "redirect",
+      "sourceLine": 367,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ai_event_wall.php",
+      "name": "legacy.ai.event.wall",
+      "kind": "redirect",
+      "sourceLine": 379,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ai_channel.php",
+      "name": "legacy.ai.channel.aspects",
+      "kind": "redirect",
+      "sourceLine": 391,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ai_tag.php",
+      "name": "legacy.ai.tag.aspects",
+      "kind": "redirect",
+      "sourceLine": 395,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ai_dashboard.php",
+      "name": "legacy.ai.dashboard.aspects",
+      "kind": "redirect",
+      "sourceLine": 399,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/rank.php",
+      "name": "legacy.rank.query",
+      "kind": "redirect",
+      "sourceLine": 403,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/rank/{tagId}",
+      "name": "legacy.rank.path",
+      "kind": "redirect",
+      "sourceLine": 411,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/tags.php",
+      "name": "legacy.keywords.index",
+      "kind": "redirect",
+      "sourceLine": 415,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/days.php",
+      "name": "legacy.tags.days",
+      "kind": "redirect",
+      "sourceLine": 419,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/tag_days.php",
+      "name": "legacy.keywords.days",
+      "kind": "redirect",
+      "sourceLine": 431,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/comments_recent.php",
+      "name": "legacy.tags.comments",
+      "kind": "redirect",
+      "sourceLine": 439,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/comments.php",
+      "name": "legacy.tags.comments.full",
+      "kind": "redirect",
+      "sourceLine": 451,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/author_comments_bak.php",
+      "name": "legacy.comments.author",
+      "kind": "redirect",
+      "sourceLine": 463,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/cloud.php",
+      "name": "legacy.tags.cloud",
+      "kind": "redirect",
+      "sourceLine": 479,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/tag_cloud.php",
+      "name": "legacy.keywords.cloud",
+      "kind": "redirect",
+      "sourceLine": 491,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/tag_video.php",
+      "name": "legacy.keywords.videos",
+      "kind": "redirect",
+      "sourceLine": 499,
+      "status": "pending",
+      "replacementQueryDefaults": {
+        "days": "7",
+        "column": "viewCount",
+        "limit": "1000"
+      },
+      "discardedDisplayOnlyQuery": [
+        "hours"
+      ]
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/tag_live.php",
+      "name": "legacy.keywords.live.trends",
+      "kind": "redirect",
+      "sourceLine": 507,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/tag.php",
+      "name": "legacy.tags.compare",
+      "kind": "redirect",
+      "sourceLine": 515,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/line.php",
+      "name": "legacy.tags.trends",
+      "kind": "redirect",
+      "sourceLine": 519,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/tag_group.php",
+      "name": "legacy.keywords.group.trends",
+      "kind": "redirect",
+      "sourceLine": 531,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/group_view.php",
+      "name": "legacy.groups.view",
+      "kind": "redirect",
+      "sourceLine": 539,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/group_people.php",
+      "name": "legacy.groups.people",
+      "kind": "redirect",
+      "sourceLine": 547,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/group_tag.php",
+      "name": "legacy.groups.tag",
+      "kind": "redirect",
+      "sourceLine": 555,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/group_live.php",
+      "name": "legacy.groups.live",
+      "kind": "redirect",
+      "sourceLine": 563,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/group_two.php",
+      "name": "legacy.groups.two",
+      "kind": "redirect",
+      "sourceLine": 571,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/group_chart.php",
+      "name": "legacy.groups.ranking",
+      "kind": "redirect",
+      "sourceLine": 579,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/group_line.php",
+      "name": "legacy.groups.trends",
+      "kind": "redirect",
+      "sourceLine": 587,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/mayor/city.php",
+      "name": "legacy.mayor.city",
+      "kind": "redirect",
+      "sourceLine": 595,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/mayor/html_{city}.html",
+      "name": "legacy.mayor.static",
+      "kind": "redirect",
+      "sourceLine": 603,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/mayor/{city}.php",
+      "name": "legacy.mayor.config",
+      "kind": "redirect",
+      "sourceLine": 607,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/html/{file}",
+      "name": "legacy.groups.static.html",
+      "kind": "redirect",
+      "sourceLine": 611,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/html/live_social.html",
+      "name": "legacy.live.static.social",
+      "kind": "redirect",
+      "sourceLine": 629,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/videos.php",
+      "name": "legacy.tags.videos",
+      "kind": "redirect",
+      "sourceLine": 633,
+      "status": "pending",
+      "replacementQueryDefaults": {
+        "hours": "24",
+        "min": "1000",
+        "column": "viewCount",
+        "limit": "1000"
+      }
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/live_videos.php",
+      "name": "legacy.live.videos",
+      "kind": "redirect",
+      "sourceLine": 645,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/video.php",
+      "name": "legacy.video.show",
+      "kind": "redirect",
+      "sourceLine": 662,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/video_data_att.php",
+      "name": "legacy.video.analytics",
+      "kind": "redirect",
+      "sourceLine": 670,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/video_data.php",
+      "name": "legacy.video.analytics.short",
+      "kind": "redirect",
+      "sourceLine": 678,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/channel.php",
+      "name": "legacy.channel.query.show",
+      "kind": "redirect",
+      "sourceLine": 686,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/channel_videos.php",
+      "name": "legacy.channel.query.videos",
+      "kind": "redirect",
+      "sourceLine": 698,
+      "status": "pending",
+      "replacementQueryDefaults": {
+        "hours": "24",
+        "min": "1000",
+        "column": "viewCount",
+        "limit": "1000"
+      }
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/channel_comments.php",
+      "name": "legacy.channel.query.comments",
+      "kind": "redirect",
+      "sourceLine": 710,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/channel_cloud.php",
+      "name": "legacy.channel.query.cloud",
+      "kind": "redirect",
+      "sourceLine": 722,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/channel_line.php",
+      "name": "legacy.channel.query.trends",
+      "kind": "redirect",
+      "sourceLine": 734,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/channel_days.php",
+      "name": "legacy.channel.query.people",
+      "kind": "redirect",
+      "sourceLine": 746,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/channel_date.php",
+      "name": "legacy.channel.query.ai.days",
+      "kind": "redirect",
+      "sourceLine": 758,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/channel_prompt.php",
+      "name": "legacy.channel.query.prompt",
+      "kind": "redirect",
+      "sourceLine": 775,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ch/{u_id}/videos",
+      "name": "legacy.channel.videos",
+      "kind": "redirect",
+      "sourceLine": 787,
+      "status": "pending",
+      "replacementQueryDefaults": {
+        "hours": "24",
+        "min": "1000",
+        "column": "viewCount",
+        "limit": "1000"
+      }
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ch/{u_id}/comments",
+      "name": "legacy.channel.comments",
+      "kind": "redirect",
+      "sourceLine": 791,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ch/{u_id}/cloud",
+      "name": "legacy.channel.cloud",
+      "kind": "redirect",
+      "sourceLine": 795,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ch/{u_id}/line",
+      "name": "legacy.channel.trends",
+      "kind": "redirect",
+      "sourceLine": 799,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ch/{u_id}/days",
+      "name": "legacy.channel.people",
+      "kind": "redirect",
+      "sourceLine": 803,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ch/{u_id}/date",
+      "name": "legacy.channel.ai.days",
+      "kind": "redirect",
+      "sourceLine": 807,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ch/{u_id}/ai",
+      "name": "legacy.channel.ai",
+      "kind": "redirect",
+      "sourceLine": 819,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ch/{u_id}/prompt",
+      "name": "legacy.channel.prompt",
+      "kind": "redirect",
+      "sourceLine": 823,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/channel_gpt.php",
+      "name": "legacy.channel.gpt",
+      "kind": "redirect",
+      "sourceLine": 827,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/ch/{u_id}",
+      "name": "legacy.channel.show",
+      "kind": "redirect",
+      "sourceLine": 839,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/dev/check",
+      "name": "dev.check",
+      "kind": "operations",
+      "sourceLine": 843,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/dev/yt-check",
+      "name": "dev.yt.check",
+      "kind": "operations",
+      "sourceLine": 850,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/dev/youtube-api-probe",
+      "name": "dev.youtube-api.probe",
+      "kind": "operations",
+      "sourceLine": 853,
+      "status": "pending"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/dev/integrations/youtube/probe",
+      "name": "dev.integrations.youtube.probe",
+      "kind": "operations",
+      "sourceLine": 856,
+      "status": "pending"
+    }
+  ],
+  "jobs": [
+    {
+      "key": "youtube.channels.stats",
+      "command": "youtube:channels:stats",
+      "schedule": "*/9 * * * *",
+      "externalDependency": "YouTube Data API + Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "youtube.live.poll",
+      "command": "youtube:live:poll",
+      "schedule": "* * * * *",
+      "externalDependency": "YouTube Data API + Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "youtube.tvbs.live.poll",
+      "command": "youtube:tvbs:live:poll",
+      "schedule": "* * * * *",
+      "externalDependency": "YouTube Data API + Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "youtube.live.cleanup",
+      "command": "youtube:live:cleanup",
+      "schedule": "27 */2 * * *",
+      "externalDependency": "Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "youtube.channels.videos.live_group",
+      "command": "youtube:channels:videos --live=2 --force=3",
+      "schedule": "1,31 0-15 * * *",
+      "externalDependency": "YouTube Data API + Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "youtube.channels.videos.live",
+      "command": "youtube:channels:videos --live=1 --force=3",
+      "schedule": "5 2-16 * * *",
+      "externalDependency": "YouTube Data API + Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "youtube.channels.videos.general",
+      "command": "youtube:channels:videos",
+      "schedule": "*/5 * * * *",
+      "externalDependency": "YouTube Data API + Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "youtube.tvbs.videos",
+      "command": "youtube:tvbs:videos",
+      "schedule": "*/5 * * * *",
+      "externalDependency": "YouTube Data API + Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "youtube.tag_videos.backfill",
+      "command": "youtube:tag-videos:backfill",
+      "schedule": "17 3,6,9,12,15,18,21 * * *",
+      "externalDependency": "YouTube Data API + Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "youtube.videos.stats",
+      "command": "youtube:videos:stats",
+      "schedule": "*/7 0-17 * * *",
+      "externalDependency": "YouTube Data API + Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "reports.counts.build",
+      "command": "reports:counts:build",
+      "schedule": "27 3,8,11,13,18,23 * * *",
+      "externalDependency": "Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "reports.keywords.build",
+      "command": "reports:keywords:build",
+      "schedule": "27 3,8,11,13,18,23 * * *",
+      "externalDependency": "Local DB; legacy tag.analysis.tw sync is disabled unless INGESTION_LEGACY_EXTERNAL_SYNC_ENABLED=true",
+      "status": "pending"
+    },
+    {
+      "key": "reports.people.build",
+      "command": "reports:people:build",
+      "schedule": "27 3,8,11,13,18,23 * * *",
+      "externalDependency": "Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "reports.tag_cloud.build",
+      "command": "reports:tag-cloud:build",
+      "schedule": "27 3,8,11,13,18,23 * * *",
+      "externalDependency": "Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "reports.channel_cloud.build",
+      "command": "reports:channel-cloud:build",
+      "schedule": "27 3,8,11,13,18,23 * * *",
+      "externalDependency": "Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "reports.tag_date.build",
+      "command": "reports:tag-date:build",
+      "schedule": "27 3,8,11,13,18,23 * * *",
+      "externalDependency": "Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "reports.tag_month.build",
+      "command": "reports:tag-month:build",
+      "schedule": "manual",
+      "externalDependency": "Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "reports.ai_topic.build",
+      "command": "reports:ai-topic:build",
+      "schedule": "manual",
+      "externalDependency": "Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "youtube.channels.retire",
+      "command": "youtube:channels:retire",
+      "schedule": "manual",
+      "externalDependency": "YouTube Data API channels.list(part=id) only with explicit `--execute`",
+      "status": "pending"
+    },
+    {
+      "key": "reports.group_view.build",
+      "command": "reports:group-view:build",
+      "schedule": "manual",
+      "externalDependency": "Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "reports.photos.build",
+      "command": "reports:photos:build",
+      "schedule": "manual",
+      "externalDependency": "Local DB; zh.wikipedia.org pageimages API only with explicit `--execute`",
+      "status": "pending"
+    },
+    {
+      "key": "reports.keywords.cache",
+      "command": "reports:keywords:cache",
+      "schedule": "27 3,8,11,13,18,23 * * *",
+      "externalDependency": "Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "reports.groups.build",
+      "command": "reports:groups:build",
+      "schedule": "27 3,8,11,13,18,23 * * *",
+      "externalDependency": "Local DB; legacy tag.analysis.tw sync is disabled unless INGESTION_LEGACY_EXTERNAL_SYNC_ENABLED=true",
+      "status": "pending"
+    },
+    {
+      "key": "reports.schedule.build",
+      "command": "reports:schedule:build",
+      "schedule": "29,47 * * * *",
+      "externalDependency": "Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "reports.static.html",
+      "command": "reports:static:build",
+      "schedule": "13 8 * * *",
+      "externalDependency": "Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "reports.mayor.static",
+      "command": "reports:mayor:static",
+      "schedule": "13 */5 * * *",
+      "externalDependency": "Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "reports.live.static",
+      "command": "reports:live:static",
+      "schedule": "*/19 * * * *",
+      "externalDependency": "Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "youtube.videos.duration",
+      "command": "youtube:videos:duration",
+      "schedule": "*/23 * * * *",
+      "externalDependency": "YouTube Data API + Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "reports.live.build",
+      "command": "reports:live:build",
+      "schedule": "*/9 0-9,15,23 * * * / */19 10-14 * * *",
+      "externalDependency": "Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "reports.live.show",
+      "command": "reports:live:show",
+      "schedule": "*/7 * * * *",
+      "externalDependency": "Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "reports.live.clean",
+      "command": "reports:live:clean",
+      "schedule": "33 3,13,23 * * *",
+      "externalDependency": "Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "reports.live_tag_date.build",
+      "command": "reports:live-tag-date:build",
+      "schedule": "manual",
+      "externalDependency": "Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "ai.channel",
+      "command": "ai:channel",
+      "schedule": "manual",
+      "externalDependency": "Local DB + OpenAI-compatible provider",
+      "status": "pending"
+    },
+    {
+      "key": "ai.daily",
+      "command": "ai:daily",
+      "schedule": "0 0 * * *",
+      "externalDependency": "Local DB + OpenAI-compatible provider",
+      "status": "pending"
+    },
+    {
+      "key": "ai.daily.catchup",
+      "command": "ai:daily:pipeline",
+      "schedule": "20 2,4,6 * * *",
+      "externalDependency": "YouTube Data API + OpenAI-compatible provider",
+      "status": "pending"
+    },
+    {
+      "key": "ai.mayor_person",
+      "command": "ai:mayor-person",
+      "schedule": "45 5,20 * * *",
+      "externalDependency": "Local DB + OpenAI-compatible provider",
+      "status": "pending"
+    },
+    {
+      "key": "ai.period",
+      "command": "ai:period",
+      "schedule": "manual",
+      "externalDependency": "Local DB + OpenAI-compatible provider",
+      "status": "pending"
+    },
+    {
+      "key": "ai.event",
+      "command": "ai:event",
+      "schedule": "manual",
+      "externalDependency": "Local DB + OpenAI-compatible provider",
+      "status": "pending"
+    },
+    {
+      "key": "ai.days_refresh",
+      "command": "ai:days:refresh",
+      "schedule": "manual",
+      "externalDependency": "Local DB + OpenAI-compatible provider",
+      "status": "pending"
+    },
+    {
+      "key": "ai.hourly",
+      "command": "ai:hourly",
+      "schedule": "10 * * * *",
+      "externalDependency": "Local DB + OpenAI-compatible provider",
+      "status": "pending"
+    },
+    {
+      "key": "youtube.comments.queue",
+      "command": "youtube:comments:queue --or=1,2,3,4,5,6,13,14,81 --hours=72 --min=500",
+      "schedule": "23 4,10,16 * * *",
+      "externalDependency": "Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "youtube.comments.fetch",
+      "command": "youtube:comments:fetch",
+      "schedule": "5 * * * *",
+      "externalDependency": "Local DB; YouTube Data API commentThreads.list and comments.list only with explicit/scheduled `--execute`",
+      "status": "pending"
+    },
+    {
+      "key": "reports.channel_predictions.build",
+      "command": "reports:channel-predictions:build",
+      "schedule": "manual",
+      "externalDependency": "Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "reports.keyword_relations.build",
+      "command": "reports:keyword-relations:build",
+      "schedule": "manual",
+      "externalDependency": "Local DB",
+      "status": "pending"
+    },
+    {
+      "key": "reports.keyword_cloud.build",
+      "command": "reports:keyword-cloud:build",
+      "schedule": "manual",
+      "externalDependency": "Local DB",
+      "status": "pending"
+    }
+  ]
+}

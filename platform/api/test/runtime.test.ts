@@ -1,0 +1,20 @@
+import { it, expect, vi } from 'vitest';
+import { readinessProbe } from '../../runtime/readiness.js';
+it('coalesces concurrent readiness probes and caches failures for the bounded interval', async () => {
+    let time = 1000;
+    const check = vi.fn(async () => true);
+    const probe = readinessProbe(check, () => time, 3000);
+    expect((await Promise.all(Array.from({ length: 100 }, () => probe()))).every(Boolean)).toBe(true);
+    expect(check).toHaveBeenCalledTimes(1);
+    time += 2999;
+    expect(await probe()).toBe(true);
+    expect(check).toHaveBeenCalledTimes(1);
+    time += 1;
+    check.mockRejectedValueOnce(new Error('offline'));
+    expect(await probe()).toBe(false);
+    expect(await probe()).toBe(false);
+    expect(check).toHaveBeenCalledTimes(2);
+    time += 3000;
+    expect(await probe()).toBe(true);
+    expect(check).toHaveBeenCalledTimes(3);
+});

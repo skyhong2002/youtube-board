@@ -1,0 +1,7 @@
+import type { Connection,RowDataPacket } from 'mysql2/promise';
+/** Migration008 only widens reviewed nullable signed counters/text, never silently changes source constraints. */
+export async function assertReportCacheSchema(db:Pick<Connection,'query'>) {
+ const targets:Record<string,string[]>={urt_show_live_tag_date:['total_views','hour_result','videos_result'],urt_show_tag_month:['total_views'],urt_show_video_tag_date:['videos_json','tags_json'],urt_video_live_tvbs:['concurrentViewers','max_current'],urt_video_live_log_tvbs:['max_current']};
+ const [rows]=await db.query<RowDataPacket[]>('SELECT TABLE_NAME,COLUMN_NAME,DATA_TYPE,COLUMN_TYPE,IS_NULLABLE,COLUMN_DEFAULT,EXTRA,CHARACTER_SET_NAME,COLLATION_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()');
+ for(const [table,names]of Object.entries(targets))for(const column of names){const r=rows.find(r=>r.TABLE_NAME===table&&r.COLUMN_NAME===column),numeric=['total_views','concurrentViewers','max_current'].includes(column);if(!r||r.IS_NULLABLE!=='YES'||![null,'NULL'].includes(r.COLUMN_DEFAULT)||r.EXTRA||/unsigned|zerofill/i.test(r.COLUMN_TYPE)||!(numeric?['int','bigint']:['text','longtext']).includes(r.DATA_TYPE)||!numeric&&(r.CHARACTER_SET_NAME!=='utf8mb4'||!(table==='urt_show_live_tag_date'?['utf8mb4_unicode_ci']:['utf8mb4_general_ci','utf8mb4_uca1400_ai_ci']).includes(r.COLLATION_NAME)))throw new Error(`Report cache migration schema drift: ${table}.${column}`);}
+}

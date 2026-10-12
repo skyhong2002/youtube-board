@@ -1,0 +1,64 @@
+[
+    {
+        "table": "urt_channel_ai",
+        "key": {
+            "date_from": "2026-10-10 00:00:00",
+            "date_to": "2026-10-10 23:59:59",
+            "data_type": "oneday",
+            "user_token": "CLI",
+            "u_id": 76
+        },
+        "lock": "ytb:ai:387fe4f450476b83abc0ea6419221315e6c64617972132d48224a3f4"
+    },
+    {
+        "table": "urt_ai_date",
+        "key": {
+            "date_from": "2026-10-10 00:00:00",
+            "date_to": "2026-10-10 23:59:59",
+            "data_type": "oneday",
+            "user_token": "CLI",
+            "condition_type": "all"
+        },
+        "lock": "ytb:ai:2a2e7c484cb77e790fbd96b5e25a5e6f74f793748ff70447864645d4"
+    },
+    {
+        "table": "urt_ai_hour",
+        "key": {
+            "date_from": "2026-10-10 01:00:00",
+            "date_to": "2026-10-10 01:59:59",
+            "condition_type": "all",
+            "data_type": "each",
+            "user_token": "cli"
+        },
+        "lock": "ytb:ai:4b75b1aae6e17fea0e9d43c4faf445e425c6f804ce66d0b7d20df89f"
+    },
+    {
+        "table": "urt_ai_event",
+        "key": {
+            "aipk": 42,
+            "event_name": "台灣 AI 😀  ",
+            "prompt_type": "Summary ",
+            "condition_type": "ALL"
+        },
+        "lock": "ytb:ai:232111457167a4f5c28df4ac01ed84e223011184e174b6259734e050"
+    },
+    {
+        "table": "urt_ai_period",
+        "key": {
+            "date_from": "2026-10-09 00:00:00",
+            "date_to": "2026-10-10 23:59:59",
+            "condition_type": "all"
+        },
+        "lock": "ytb:ai:04081b05a7ce6ea091ad33c240cdef4aafab08f405c7ec80de393aa0"
+    },
+    {
+        "table": "urt_mayor_person_ai",
+        "key": {
+            "city_key": "taipei",
+            "person": "蔣萬安",
+            "the_date": "2026-10-10",
+            "user_token": "CLI"
+        },
+        "lock": "ytb:ai:301538c103c9f9ec622678474d66b7eb4376b51db199ddea183b9b96"
+    }
+]

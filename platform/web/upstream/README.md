@@ -1,0 +1,1 @@
+The shared shell, navigation, theme, scroll and table primitives are adapted from skyhong2002/tag.observe.tw (local reference checkout tag.analysis.tw), copyright 2026 Sky Hong, under the accompanying MIT license. Product navigation, sources and red branding are specific to YouTube Board / 有影儀表板. The reference checkout was read only.

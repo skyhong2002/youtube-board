@@ -1,0 +1,26 @@
+{
+  "name": "@youtube-board/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:integration": "vitest run test/database.test.ts"
+  },
+  "dependencies": {
+    "@fastify/http-proxy": "^11.3.0",
+    "drizzle-orm": "^0.45.4",
+    "fastify": "^5.6.2",
+    "ioredis": "^6.0.0",
+    "jose": "^6.2.12",
+    "mysql2": "^3.15.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.3"
+  }
+}

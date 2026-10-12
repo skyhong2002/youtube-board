@@ -1,0 +1,76 @@
+name: TypeScript platform
+on:
+  pull_request:
+    paths: ['platform/**', 'database/schema/**', 'app/Support/YoutubeIdentifierSchema.php', '.github/workflows/platform.yml']
+  push:
+    branches: [main]
+    paths: ['platform/**', 'database/schema/**', 'app/Support/YoutubeIdentifierSchema.php', '.github/workflows/platform.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: platform
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_DATABASE: youtube_board_test_rewrite
+          MARIADB_USER: youtube_rewrite
+          MARIADB_PASSWORD: youtube_rewrite_local
+          MARIADB_ROOT_PASSWORD: youtube_rewrite_root_local
+        ports: ['23306:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+      redis:
+        image: redis:7.4-alpine
+        ports: ['26379:6379']
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s --health-timeout=5s --health-retries=15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: platform/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:integration
+      - name: Build the actual runtime image
+        run: docker build -f platform/Dockerfile -t youtube-board-ts:ci .
+        working-directory: .
+      - name: Start the read-only runtime against isolated fixtures
+        run: >-
+          docker run -d --name youtube-board-platform-ci --network host
+          -e APP_ENV=local -e DATASET_KIND=fixture -e PORT=8000
+          -e DATABASE_URL=mysql://youtube_rewrite:youtube_rewrite_local@127.0.0.1:23306/youtube_board_test_rewrite
+          -e REDIS_URL=redis://127.0.0.1:26379/14
+          -e YOUTUBE_PUBLIC_URL=http://127.0.0.1:8000
+          -e TS_INGESTION_ENABLED=false -e TS_SCHEDULER_ENABLED=false
+          -e TS_OPS_EXECUTION_ENABLED=false -e TS_DEPLOY_RELAY_ENABLED=false
+          youtube-board-ts:ci
+      - name: Verify packaged readiness, reports and excluded local files
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          const base='http://127.0.0.1:8000';
+          let ready=false;
+          for(let i=0;i<60;i++){
+            try {if((await fetch(base+'/runtime/ready',{signal:AbortSignal.timeout(2000)})).ok){ready=true;break;}}catch{}
+            await new Promise(resolve=>setTimeout(resolve,1000));
+          }
+          assert(ready,'Packaged runtime did not become ready');
+          for(const path of ['/','/groups','/ops/ingestion','/feeds/videos.xml'])assert.equal((await fetch(base+path)).status,200,path);
+          const response=await fetch(base+'/api/v1/home');assert.equal(response.status,200);assert.equal((await response.json()).meta.dataset,'fixture');
+          JS
+          docker exec youtube-board-platform-ci sh -c 'test ! -e /app/.local && test ! -e /app/.env'
+      - name: Stop the local candidate
+        if: always()
+        run: docker rm -f youtube-board-platform-ci || true

@@ -1,0 +1,31 @@
+CREATE TABLE IF NOT EXISTS ts_vocabulary_runs (
+ id VARCHAR(100) COLLATE utf8mb4_bin PRIMARY KEY,
+ window_since VARCHAR(30) NOT NULL,
+ window_until VARCHAR(30) NOT NULL,
+ checkpoint_cursor VARCHAR(80) NULL,
+ pages INT UNSIGNED NOT NULL DEFAULT 0,
+ status VARCHAR(16) NOT NULL DEFAULT 'scanning',
+ snapshot LONGTEXT NULL,
+ created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ published_at TIMESTAMP(3) NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+CREATE TABLE IF NOT EXISTS ts_vocabulary_stage (
+ run_id VARCHAR(100) COLLATE utf8mb4_bin NOT NULL,
+ article_id VARCHAR(24) COLLATE utf8mb4_bin NOT NULL,
+ payload LONGTEXT NOT NULL,
+ PRIMARY KEY(run_id, article_id),
+ FOREIGN KEY(run_id) REFERENCES ts_vocabulary_runs(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+CREATE TABLE IF NOT EXISTS ts_vocabulary_current (
+ source VARCHAR(100) COLLATE utf8mb4_bin PRIMARY KEY,
+ run_id VARCHAR(100) COLLATE utf8mb4_bin NOT NULL,
+ FOREIGN KEY(run_id) REFERENCES ts_vocabulary_runs(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+CREATE TABLE IF NOT EXISTS ts_job_runs (
+ job_key VARCHAR(100) COLLATE utf8mb4_bin NOT NULL,
+ execution_key VARCHAR(100) COLLATE utf8mb4_bin NOT NULL,
+ status VARCHAR(20) NOT NULL,
+ result LONGTEXT NULL,
+ updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+ PRIMARY KEY(job_key, execution_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;

@@ -1,0 +1,56 @@
+# Cloud and daily cache reports
+
+The public reader remains SELECT-only, including bounded source-derived fallback; reading never starts ingestion, matching, queue jobs or cache publication.
+
+## Cloud periods and evidence
+
+Channel/category defaults are three days, keyword default is seven. Category pages with no explicit `days` and no positive adjusted terms try seven, then thirty; a replacement must contain at least two positive terms. Explicit periods, channel pages and keyword pages never silently switch. Pending/withheld, incompatible and malformed primary caches also never trigger this switch; requested status is retained in coverage even when a missing/empty primary falls back. A missing baseline can trigger this switch; the selected period replaces both raw sections and the UI states the requested period had no comparable result.
+
+A historical cache pair without publication lineage retains the Laravel `(longDays + 1) / (days + 1)` normalization. A published TypeScript pair uses inclusive calendar lengths recorded in its sidecars; version, matching rule, vocabulary coverage and window endpoint must agree. The short window must be strictly shorter and contained in the long window, and both actual lengths must match their selected periods. Both observation cutoffs are disclosed. Separate cache jobs naturally capture at different times; cutoff equality is not required, and the UI states this is calendar normalization of separately captured observations rather than simultaneous complete-period measurement. Publication pending, unknown views, mixed legacy/new sources, incompatible versions/windows or malformed weights withhold relative rankings. Missing baselines also withhold the relative ranking; readable original short/long weights remain visible. This deliberately replaces the old behavior that labeled short weights as relative scores when the baseline was absent.
+
+Shared vocabulary article counts never enter these YouTube scores. Historical cache terms may still come from the old vocabulary and are explicitly identified as lacking maintained-vocabulary evidence. Readers do not regenerate old scores with a new dictionary. A `365`-day comparison remains invalid because there is no longer baseline.
+
+## Day ranges and matrices
+
+The day selector follows Laravel offset semantics: `days=7` selects today plus seven preceding dates, eight columns. Explicit from/to include both endpoints; invalid/reversed dates return400 instead of being silently repaired. At most91 dates and31 ranks are rendered, with paginated long-form rows retained. A `to`-only query anchors the backward window to that endpoint. Diff defaults on; blank, `no`, `off`, `false`, and `0` disable it, while malformed flags return400.
+
+`dailyValue` is that date's source value; `periodTotal` (and the legacy `total` alias) is the same term's total across the selected dates. With diff enabled, score is `dailyValue - periodTotal / requestedDateCount`; missing dates remain in the legacy denominator and are visible as null cells. Different/unknown publication versions/rules or malformed daily terms disable diff and period totals, preserving raw daily values with an explanation.
+
+The rank matrix and daily metric table retain missing cells. Channel counts/video counts come from stored source fields. Tag views mean cumulative observations of the referenced videos, never daily view growth; keyword relation caches contain no view totals, so views remain null and both `tags_view`/`tags_views` are rejected. The singular `tags_view` alias maps to tag cumulative views.
+
+Only the latest PK per date is loaded. Partial current-day windows, withheld buckets, malformed term data, and recorded source timestamps are disclosed. Withheld dates have a different status from missing caches; display labels use Traditional Chinese while status codes remain machine-readable. No request timestamp is presented as source freshness.
+
+## Decoding, exclusions and bounds
+
+The shared modern-report decoder supports scalar maps, weighted records/list records and recognized legacy wrappers (`keywords`, `keywords_json`, `tags_result`, `tags_video`, `tags_views`, `tags_json`, `tags`, `result`, `data`). A scalar or weighted term named `data`/`result`/`tags` remains a term; it is not mistaken for an envelope. Malformed JSON is distinguished from valid empty/zero-only clouds; blank and JSON null payloads are empty. Wrapper priority is deterministic and follows Laravel cloud versus daily precedence, with up to four nested envelopes accepted. Positive adjusted scores are selected before rounding to three decimal places; tiny positive values can therefore display as zero, matching Laravel. Duplicate normalized terms retain the last numeric value. Nonempty maps containing no numeric measurements (including all-null values) remain malformed rather than silently claiming an empty observation.
+
+Display exclusions are the repository's fixed Laravel `LegacyStopwords::FALLBACK` list plus local `tags.no_tag`. They are presentation policy, not the shared tag.observe vocabulary. Deployment-external `urtube/stopwords.php` is not loaded; the UI says so. Day exclusions apply before rankings and period totals, but do not rewrite source daily counts.
+
+Bounds:8MiB per decoded payload,20,000 terms per payload,16MiB combined daily payload and400 selected cache rows. SQL size preflight precedes payload loading, with a second byte check after loading. Lineage batches are bounded; unexpected SQL/schema failures remain500, explicit read caps422. No partial set is presented as a complete ranking after a cap failure. Unsafe numeric weights also fail the complete report with422 rather than silently removing a potentially high-ranked word. Cloud visual/raw sections show at most200 terms; long-form rankings remain paginated.
+
+## Remaining differences
+
+- Source-derived tag clouds are a documented extension to Laravel; its category/channel cloud readers are cache-only. Channel clouds remain cache-only.
+- Current maintained evidence replaces Laravel local tags/substrings. Unknown/stale coverage withholds the derived result instead of claiming a complete historical aggregate.
+- External legacy stopword-file coverage is not claimed.
+- Imported latest empty category cache is authoritative rather than silently recovering an older nonempty PK; an explicitly identified source-derived result may replace an eligible empty ranking.
+- Maintained-vocabulary exact matching intentionally differs from old substring/news-weight-derived materialization.
+
+Tests: `api/test/cloud-days.test.ts`, existing publication/edge/database/report-parity suites; only isolated loopback fixtures. Actual Opus review packet/response is retained outside source under `.local/reviews/cloud-days*`.
+
+## Bounded source-derived fallback
+
+When the selected category/keyword cloud has no relative rows and a missing/empty raw period, a bounded current-evidence calculation may replace **both** periods together. It never mixes a historical cache with a derived baseline. Ordinary implicit category7/30 cache selection runs first. Pending publication, malformed payloads and incompatible cache pairs never trigger derivation. Channel clouds remain cache-only.
+
+Tag/keyword days derive only when the whole selected ranking is empty, comparable and well-formed, and no selected publication is withheld. This includes existing empty or stopword-only caches: the entire window and its daily metrics are replaced, with original cache dates/freshness retained in derived coverage and a visible explanation. Existing nonempty reports retain all missing cells; they are not patched date by date. Tag fallback requires positive taxonomy scope. Tag daily channel totals count all active channels in that taxonomy scope, matching the worker; keyword totals count distinct channels with matching videos. Trend routes remain cache-only. Keyword daily relations retain their global active-channel scope. Pending sidecars with no cache row also block derivation.
+
+The reader pins one published tag.observe vocabulary and loads active scoped channels, source videos and existing exact-text evidence. Every selected source video, including a zero-match video, must have a matching source PK, current title/description SHA, supported rule and complete evidence count. Stale/unmatched coverage is visible and withholds the whole calculation. Article/news counts never enter YouTube metrics. Shared pure calculations in `shared/cache-metrics.ts` are also called by ingestion workers: title occurrences count twice, tag importance uses term length, keyword cloud uses cumulative views times the square root of subject occurrence share, and keyword days count distinct co-occurring videos.
+
+Bounds:5000channels,10000videos,16MiB source text,100000evidence rows and16MiB term payload per request. Optional fallback cap failures withhold derivation and return HTTP200 with unavailable/read-budget coverage; no top-N source truncation. Mandatory cache-reader caps described above still return422. Sources, channel selection and current vocabulary pointer are reread before releasing the result; changed input withholds it. Cache rows and publication guards are checked again before replacing the cached representation. These are bounded consistency checks, not a claim of a cross-table transaction over legacy MyISAM.
+
+Unknown views withhold tag derivation and view-weighted keyword clouds. Keyword daily co-occurrence can still derive because it does not consume view totals; null, negative or unsafe view values are counted as unknown (invalid values separately counted) and its views remain null. Tag derivation withholds invalid numeric source values with invalid-source-views coverage rather than failing the whole report. Keyword clouds convert invalid observations to unknown and then withhold only if the subject-matched sources require those views; irrelevant invalid observations remain visible in coverage. Dates with no source videos remain missing, and no cache rows are written. Freshness comes from source/evidence timestamps, never request time; source coverage is not a claim that YouTube ingestion collected every video. `meta.coverage.derived` identifies status, pinned version, vocabulary coverage and fresh/stale/unmatched/unknown counts.
+
+Validation: `api/test/derived-cache.test.ts` exercises real MariaDB sources, byte-distinct video IDs, provenance, gaps, unknown views, stale/unmatched coverage, pending empty publications, race guards and caps; ingestion report-cache tests exercise the shared worker calculations.
+
+
+Round4 correction: keyword source fallback applies a binary literal title/description SQL prefilter before source-count/byte/hash budgets. Only potential keyword candidates require complete current evidence; unrelated unprocessed videos cannot block every keyword. Final inclusion still uses maintained exact-text evidence, not the prefilter alone. Optional read/lineage budgets and connection timeouts return unavailable coverage; invalid source values/evidence retain distinct statuses. Global keyword queries use active-channel EXISTS and avoid loading all channel IDs. The existing 5-second MariaDB statement deadline bounds scans; this does not claim indexed full-text search or production load validation.

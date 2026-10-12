@@ -1,0 +1,32 @@
+{
+  "name": "youtube-board-platform",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "workspaces": [
+    "api",
+    "web",
+    "jobs",
+    "ingestion",
+    "ai",
+    "notifications"
+  ],
+  "scripts": {
+    "dev": "node tools/dev.mjs",
+    "typecheck": "npm run typecheck --workspaces --if-present && tsc -p runtime/tsconfig.json",
+    "test": "node --test tools/*.test.mjs && npm run test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "inventory": "node tools/inventory.mjs",
+    "db:bootstrap": "node --env-file-if-exists=.env tools/bootstrap-db.mjs",
+    "review": "python3 tools/opus-review.py",
+    "test:integration": "node tools/test-integration.mjs",
+    "db:restore-drill": "node tools/restore-drill.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}

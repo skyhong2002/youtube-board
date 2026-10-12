@@ -1,0 +1,45 @@
+# Frontend-only schema and credential separation
+
+The first production stage uses new `youtube_board_ts` state tables and 36 explicitly listed source views. No legacy source table is altered, copied, widened or written. Each view is `ALGORITHM=MERGE SQL SECURITY DEFINER`, with the new SELECT-only report principal as its explicit definer, never the privileged bootstrap operator. Account reads can therefore join a narrow source view with private follows while the account principal has privileges only inside the new schema.
+
+Production requires `TS_FRONTEND_SCHEMA_MODE=isolated`, `DATABASE_URL` for the report principal, and `TS_DATABASE_URL` for the distinct own-state principal. `AUTH_DATABASE_URL`, when supplied, must identify the same own-state principal and credential. All URLs must use the same MariaDB host/port and new `youtube_board_ts` schema (a suffix is supported for isolated tests). Public reports use `DATABASE_URL`; private reader feed/source joins, account writes and auth use own-state credentials. Production never falls back to legacy `DB_*` or the report principal. Local configurations preserve the existing single-schema fallback.
+
+The report principal gets SELECT on the 36 explicit legacy sources and their views plus 14 explicit public TS report tables (vocabulary, evidence, lineage, AI publication and editorial reports). It cannot SELECT auth users, sessions, OAuth flows, admin bindings, auth audit, reader follows/saves/feed tokens, notification state or job queues. The state principal gets SELECT on the public TS tables and its auth/reader tables, SELECT on only the own-schema `urt_channel` and `urt_video` views, and exact per-table auth/reader DML. It has no direct legacy SELECT, source/view DML, DDL/TRIGGER privilege, audit UPDATE/DELETE or editorial writes. Later editorial enablement requires reviewed additional grants. Postcreate verification compares actual table privileges against the full plan and rejects unexpected schema, column, global or role grants, without printing credential-bearing `SHOW GRANTS` output.
+
+## Bootstrap plan and execution
+
+`node tools/frontend-schema.mjs` is a no-network, no-DB dry run. It prints schema/user names, explicit view names, own-table write grants and a plan digest, never passwords or connection URLs. `--dry-run` is equivalent; no other preview flags are accepted.
+
+The operator supplies these runtime-only values for the separately authorized bootstrap task:
+
+- `FRONTEND_SOURCE_SCHEMA` (default `youtube_board`), `FRONTEND_TARGET_SCHEMA` (default `youtube_board_ts`). They must differ; the target must be a new `youtube_board_ts` or suffixed schema. System schemas are refused.
+- `FRONTEND_REPORT_USER`, `FRONTEND_STATE_USER`, `FRONTEND_ACCOUNT_HOST` (user defaults `youtube_ts_report`, `youtube_ts_state`). Production requires an explicit restricted actual IPv4 connection address or IPv4/contiguous-netmask subnet; `%` is allowed only outside production. Use `APP_ENV=production` for production bootstrap; no pre-existing account of either username is reused, so inherited grants cannot silently expand privileges.
+- `FRONTEND_BOOTSTRAP_URL`: privileged operator connection, never a runtime connection. Runtime user passwords use distinct `FRONTEND_REPORT_PASSWORD` and `FRONTEND_STATE_PASSWORD`, each at least 32 characters. Supply through protected environment, not command arguments or committed files.
+- `FRONTEND_BACKUP_OFFHOST_VERIFIED=true` and `FRONTEND_RESTORE_VERIFIED=true` only after the actual consistent off-host backup and isolated full-table/row restore satisfy the user's precondition. These are attestations, not a backup implementation.
+
+Only explicit `node tools/frontend-schema.mjs --execute` mutates. The tool recomputes the trusted plan, requires absent target schema and fresh principals, checks every source view's backing object is an existing base table, then creates the dedicated TS-only DDL, fresh runtime users, report-owned DEFINER views and exact grants. It verifies object types, exact view definer/security and actual effective grant metadata before reporting success. It never invokes the general source migrations, local baseline importer or source-counter widening. It accepts no arbitrary SQL file, source-table allowlist or shell command.
+
+DDL is not transactional. A failure reports a sanitized code and whether mutations began; it never automatically drops a partial schema or user. Keep the partial state, inspect with the operator, and separately reconcile it before retrying. The tool intentionally refuses an existing target on retry. Existing-schema upgrades need their own reviewed migration path, not this fresh-schema bootstrap. The dedicated [002-frontend-state.sql](../migrations/002-frontend-state.sql) contains TS table/index/trigger definitions from the existing migrations, excluding every legacy ALTER and data backfill; a restrictive statement guard rejects source/DML/dynamic/view operations. New migrations must update this reviewed bootstrap deliberately.
+
+Source views retain original types, indexes, collations and current rows. Therefore current schema/response parity still needs verification; the views do not simulate source-widening migrations or repair missing columns. New own-state journals/vocabulary are initially empty, and that must remain visible as unavailable/unmatched coverage. Bootstrap does not import account sessions or historical TS state from another site. Refreshing maintained vocabulary/matches remains a separately phased task under the existing execution gates.
+
+Keep TS jobs, worker/producer and ops/service-token execution disabled during frontend switch. `TS_OPS_SERVICE_AUTH_ENABLED` is off; Google administrators do not receive workflow queue authority. Preserve Laravel's existing webhook/ops ingress. Later source/cache/AI writer transfers need an explicit schema strategy for source writes and their journals: do not grant UPDATE on all compatibility views or aim the general migration chain at this schema as a shortcut. The frontend state principal must never become a legacy source writer.
+
+## Verification
+
+Offline guard tests: `node --test tools/frontend-schema.test.mjs`. The focused real MariaDB grant test is `FRONTEND_DB_TEST=1 node --test tools/frontend-schema-db.test.mjs`; it is hardwired to local Compose MariaDB 11.4 on loopback 23306 and the committed local fixture credential, ignores runtime URLs, creates random dedicated schemas/users and removes only those resources. It does not use the shared fixture database or contact production.
+
+The isolated run passed: an own-state source-view plus private-follows JOIN, public source reads, denied public SELECT of every auth/reader table and private job/notification state, denied own-state direct legacy SELECT, own auth/reader insert, audit-trigger metadata readiness with no TRIGGER privilege, denied source/view mutations by both users, denied DDL/audit mutation and unchanged source rows. With `FRONTEND_CANONICAL_CHECK=1`, a third disposable schema runs the original baseline, supplements and all canonical migrations; every TS column/index/trigger matches the dedicated bootstrap. Both flags are enabled by `npm run test:integration`, so this test is mandatory in that lane. No shared test data is changed by this test.
+
+API tests separately verify production URL fallback refusal, isolated schema/principal guards and actual private reader-store/feed pool wiring. This is local grant evidence, not proof of production schema, credentials, backup or permissions. See [cutover plan](cutover-review-plan.md).
+
+
+## Principal lifecycle and partial cleanup
+
+The report principal is also the source-view DEFINER. Removing its exact source SELECT grants, renaming or dropping its account, or changing its account host without recreating/revalidating the views breaks both public reports and the private reader feed. Credential-only password rotation retains the same definer identity; account/host rotation needs a separately reviewed view-definer migration and repeat grant tests. Auth/state runtime credentials must rotate together.
+
+The bootstrap operator remains the definer of the dedicated SIGNAL-only immutable-audit triggers. Keep that definer identity valid; these trigger bodies only raise an error and neither read nor mutate tables. Runtime accounts do not need TRIGGER privileges. Recreating trigger definers requires reviewed own-schema DDL and canonical comparison.
+
+A partial bootstrap is reconciled only within the newly created TS schema and the fresh accounts named by that plan, after checking for any subsequently created state. Never clean up or drop legacy tables/schema, unrelated users, or a running application's state. No automatic cleanup is implemented.
+
+Privilege verification also rejects routine/proxy grants and implicit PUBLIC rights or PUBLIC role assignments. Invalid explicit APP_ENV values (including prod/staging) reject configuration instead of overriding NODE_ENV production checks; local, preview and test are intentional non-production values.

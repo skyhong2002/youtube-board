@@ -1,0 +1,11 @@
+node_modules/
+.next/
+dist/
+coverage/
+*.tsbuildinfo
+.env
+.env.*.local
+.local/
+
+.env*
+!.env.example

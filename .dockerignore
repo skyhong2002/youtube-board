@@ -16,3 +16,6 @@ storage/framework/cache/data/*
 storage/framework/sessions/*
 storage/framework/views/*
 vendor
+# The replacement platform has its own build context. Keep local previews,
+# dependencies and review packets out of the currently deployed Laravel image.
+platform

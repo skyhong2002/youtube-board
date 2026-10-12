@@ -1,0 +1,11 @@
+import { describe,it,expect } from 'vitest';
+import { validateAiArguments,executeAiWorkflow } from '../src/ai-cli.js';
+const args=['ai:daily','--from=2045-10-10 00:00:00','--to=2045-10-10 23:59:59'];
+describe('AI queue ingress validation',()=>{
+ it('validates without DB or provider and returns explicit period',()=>{expect(validateAiArguments(args)).toMatchObject({kind:'daily',from:'2045-10-10 00:00:00',limit:1000});});
+ it('rejects duplicates, unknowns and malformed integer options',()=>{for(const tail of [['--call-limit=abc'],['--call-limit=101'],['--call-limit=1e1'],['--condition=all','--condition=blue'],['--env=production'],['--execute=true'],['--limit='],['--channel-id=8']])expect(()=>validateAiArguments([...args,...tail])).toThrow();});
+ it('preserves implicit hourly condition and refuses channel-only options',()=>{expect(validateAiArguments(['ai:hourly',...args.slice(1)])).toMatchObject({userToken:'cli'});expect(()=>validateAiArguments(['ai:hourly',...args.slice(1),'--condition=all','--call-limit=1'])).toThrow('only applies');});
+ it('rechecks scheduled gates before any DB/provider connection',async()=>{await expect(executeAiWorkflow(['ai:daily:pipeline',...args.slice(1),'--execute'],{APP_ENV:'test',TS_INGESTION_ENABLED:'true',TS_INGESTION_OWNERS:'ai.daily,ai.channel'},true)).rejects.toThrow('Scheduler');});
+ it('validates neutral mayor scopes and gates before connecting',async()=>{expect(validateAiArguments(['ai:mayor-person','--city=taipei','--person=蔣萬安','--date=2050-01-01'])).toMatchObject({city:'taipei',people:['蔣萬安'],limit:10});await expect(executeAiWorkflow(['ai:mayor-person','--execute'],{APP_ENV:'test',TS_INGESTION_ENABLED:'true'})).rejects.toThrow('ownership');});
+ it('validates derived workflow CLI options without opening a connection',()=>{expect(validateAiArguments(['ai:daily:catchup','--date=2045-10-10'])).toMatchObject({date:'2045-10-10',channelLimit:500});expect(validateAiArguments([...args,'--missing-only'])).toMatchObject({kind:'daily'});expect(()=>validateAiArguments(['ai:daily:catchup','--date=2045-10-10','--max-pages=201'])).toThrow('cap');expect(()=>validateAiArguments(['ai:event','--date=2045-10-10','--event=A','--prompt-type=unsafe'])).toThrow('prompt');});
+});

@@ -1,0 +1,15 @@
+**
+!platform/
+!platform/**
+platform/node_modules
+platform/**/node_modules
+platform/web/.next
+platform/**/.env*
+platform/**/.git
+platform/**/*.tsbuildinfo
+platform/**/coverage
+platform/**/test-results
+
+# Local reviews, restore dumps, manifests and operator scratch files never enter builds.
+platform/.local
+platform/**/.local

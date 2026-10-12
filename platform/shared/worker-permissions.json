@@ -1,0 +1,1740 @@
+{
+  "version": 1,
+  "profiles": {
+    "youtube.videos.stats": {
+      "tables": {
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "urt_video_schedule": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_video_log": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_video_log_history": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ingestion_youtube_quota_daily": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_youtube_item_backoff": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE"
+        ]
+      },
+      "dependencies": []
+    },
+    "youtube.channels.stats": {
+      "tables": {
+        "urt_channel": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "urt_count": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_log": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ingestion_youtube_quota_daily": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_youtube_item_backoff": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE"
+        ]
+      },
+      "dependencies": []
+    },
+    "youtube.channels.retire": {
+      "tables": {
+        "urt_channel": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ingestion_youtube_quota_daily": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_youtube_item_backoff": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE"
+        ]
+      },
+      "dependencies": []
+    },
+    "youtube.channels.videos.general": {
+      "tables": {
+        "urt_channel": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "tag_group": [
+          "SELECT"
+        ],
+        "urt_tag": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_video_schedule": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_video_live": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ingestion_youtube_quota_daily": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_youtube_item_backoff": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE"
+        ]
+      },
+      "dependencies": []
+    },
+    "youtube.channels.videos.live": {
+      "tables": {
+        "urt_channel": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "tag_group": [
+          "SELECT"
+        ],
+        "urt_tag": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_video_schedule": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_video_live": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ingestion_youtube_quota_daily": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_youtube_item_backoff": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE"
+        ]
+      },
+      "dependencies": []
+    },
+    "youtube.channels.videos.live_group": {
+      "tables": {
+        "urt_channel": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "tag_group": [
+          "SELECT"
+        ],
+        "urt_tag": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_video_schedule": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_video_live": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ingestion_youtube_quota_daily": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_youtube_item_backoff": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE"
+        ]
+      },
+      "dependencies": []
+    },
+    "youtube.tvbs.videos": {
+      "tables": {
+        "urt_channel": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_video_schedule": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_video_live_tvbs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ingestion_youtube_quota_daily": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_youtube_item_backoff": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE"
+        ]
+      },
+      "dependencies": []
+    },
+    "youtube.live.poll": {
+      "tables": {
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT"
+        ],
+        "urt_video_live": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "urt_video_live_log": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ingestion_youtube_quota_daily": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_youtube_item_backoff": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE"
+        ]
+      },
+      "dependencies": []
+    },
+    "youtube.tvbs.live.poll": {
+      "tables": {
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT"
+        ],
+        "urt_video_live_tvbs": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "urt_video_live_log_tvbs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ingestion_youtube_quota_daily": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_youtube_item_backoff": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE"
+        ]
+      },
+      "dependencies": []
+    },
+    "youtube.videos.duration": {
+      "tables": {
+        "urt_video": [
+          "SELECT"
+        ],
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_video_duration": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ingestion_youtube_quota_daily": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_youtube_item_backoff": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE"
+        ]
+      },
+      "dependencies": []
+    },
+    "youtube.tag_videos.backfill": {
+      "tables": {
+        "urt_channel": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "ts_vocabulary_current": [
+          "SELECT"
+        ],
+        "ts_vocabulary_runs": [
+          "SELECT"
+        ],
+        "ts_vocabulary_terms": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_video_schedule": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_video_live": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_show_tag_date": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_tag_cache_lineage": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_report_cache_lineage": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ingestion_youtube_quota_daily": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_youtube_item_backoff": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE"
+        ]
+      },
+      "dependencies": []
+    },
+    "youtube.comments.queue": {
+      "tables": {
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT"
+        ],
+        "urt_comment_queue_done": [
+          "SELECT"
+        ],
+        "urt_comment_queue": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ]
+      },
+      "dependencies": []
+    },
+    "youtube.comments.fetch": {
+      "tables": {
+        "urt_video": [
+          "SELECT"
+        ],
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_comment_queue": [
+          "SELECT",
+          "UPDATE",
+          "DELETE"
+        ],
+        "urt_comment_author": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_comment_rev": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_comment": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_comment_queue_done": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_comment_stages": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ingestion_youtube_quota_daily": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_youtube_item_backoff": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE"
+        ]
+      },
+      "dependencies": []
+    },
+    "youtube.comments.reset": {
+      "tables": {
+        "urt_video": [
+          "SELECT"
+        ],
+        "urt_comment_queue_done": [
+          "SELECT"
+        ],
+        "urt_comment_queue": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_comment_stages": [
+          "SELECT",
+          "DELETE"
+        ],
+        "ts_comment_stage_archive": [
+          "SELECT",
+          "INSERT"
+        ],
+        "ts_youtube_item_backoff": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ]
+      },
+      "dependencies": []
+    },
+    "reports.counts.build": {
+      "tables": {
+        "urt_count": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "urt_log": [
+          "SELECT"
+        ],
+        "ts_cache_item_state": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_report_cache_lineage": [
+          "SELECT"
+        ],
+        "ts_tag_cache_lineage": [
+          "SELECT"
+        ],
+        "ts_live_tag_cache_lineage": [
+          "SELECT"
+        ]
+      },
+      "dependencies": []
+    },
+    "reports.channel_predictions.build": {
+      "tables": {
+        "urt_count": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "urt_log": [
+          "SELECT"
+        ],
+        "ts_cache_item_state": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_report_cache_lineage": [
+          "SELECT"
+        ],
+        "ts_tag_cache_lineage": [
+          "SELECT"
+        ],
+        "ts_live_tag_cache_lineage": [
+          "SELECT"
+        ]
+      },
+      "dependencies": []
+    },
+    "reports.schedule.build": {
+      "tables": {
+        "urt_video_schedule": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "ts_cache_item_state": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_video_log_history": [
+          "SELECT"
+        ],
+        "ts_report_cache_lineage": [
+          "SELECT"
+        ],
+        "ts_tag_cache_lineage": [
+          "SELECT"
+        ],
+        "ts_live_tag_cache_lineage": [
+          "SELECT"
+        ]
+      },
+      "dependencies": []
+    },
+    "youtube.live.cleanup": {
+      "tables": {
+        "urt_video_live": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_report_cache_lineage": [
+          "SELECT"
+        ],
+        "ts_tag_cache_lineage": [
+          "SELECT"
+        ],
+        "ts_live_tag_cache_lineage": [
+          "SELECT"
+        ]
+      },
+      "dependencies": []
+    },
+    "reports.live.build": {
+      "tables": {
+        "urt_video_live": [
+          "SELECT"
+        ],
+        "urt_show_video_live": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_report_cache_lineage": [
+          "SELECT"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_video": [
+          "SELECT"
+        ],
+        "ts_tag_cache_lineage": [
+          "SELECT"
+        ],
+        "ts_live_tag_cache_lineage": [
+          "SELECT"
+        ]
+      },
+      "dependencies": []
+    },
+    "reports.live.clean": {
+      "tables": {
+        "urt_show_live_tag_date": [
+          "SELECT",
+          "DELETE"
+        ],
+        "ts_report_cache_archive": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_live_tag_cache_lineage": [
+          "SELECT"
+        ],
+        "ts_report_cache_lineage": [
+          "SELECT"
+        ],
+        "ts_tag_cache_lineage": [
+          "SELECT"
+        ]
+      },
+      "dependencies": []
+    },
+    "reports.live_tag_date.build": {
+      "tables": {
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT"
+        ],
+        "ts_vocabulary_current": [
+          "SELECT"
+        ],
+        "ts_vocabulary_runs": [
+          "SELECT"
+        ],
+        "ts_vocabulary_terms": [
+          "SELECT"
+        ],
+        "urt_video_live": [
+          "SELECT"
+        ],
+        "urt_video_live_log": [
+          "SELECT"
+        ],
+        "urt_show_live_tag_date": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_live_tag_cache_lineage": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_report_cache_lineage": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_tag_cache_lineage": [
+          "SELECT"
+        ]
+      },
+      "dependencies": []
+    },
+    "reports.tag_date.build": {
+      "tables": {
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT"
+        ],
+        "ts_vocabulary_current": [
+          "SELECT"
+        ],
+        "ts_vocabulary_runs": [
+          "SELECT"
+        ],
+        "ts_vocabulary_terms": [
+          "SELECT"
+        ],
+        "urt_show_tag_date": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_report_cache_lineage": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_tag_cache_lineage": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_live_tag_cache_lineage": [
+          "SELECT"
+        ]
+      },
+      "dependencies": []
+    },
+    "reports.people.build": {
+      "tables": {
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT"
+        ],
+        "ts_vocabulary_current": [
+          "SELECT"
+        ],
+        "ts_vocabulary_runs": [
+          "SELECT"
+        ],
+        "ts_vocabulary_terms": [
+          "SELECT"
+        ],
+        "urt_show_tag_date": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_report_cache_lineage": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_tag_cache_lineage": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_live_tag_cache_lineage": [
+          "SELECT"
+        ]
+      },
+      "dependencies": []
+    },
+    "reports.channel_cloud.build": {
+      "tables": {
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT"
+        ],
+        "ts_vocabulary_current": [
+          "SELECT"
+        ],
+        "ts_vocabulary_runs": [
+          "SELECT"
+        ],
+        "ts_vocabulary_terms": [
+          "SELECT"
+        ],
+        "urt_show_cloud": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_report_cache_lineage": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_tag_cache_lineage": [
+          "SELECT"
+        ],
+        "ts_live_tag_cache_lineage": [
+          "SELECT"
+        ]
+      },
+      "dependencies": []
+    },
+    "reports.tag_cloud.build": {
+      "tables": {
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT"
+        ],
+        "ts_vocabulary_current": [
+          "SELECT"
+        ],
+        "ts_vocabulary_runs": [
+          "SELECT"
+        ],
+        "ts_vocabulary_terms": [
+          "SELECT"
+        ],
+        "urt_show_tag_cloud": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_report_cache_lineage": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_tag_cache_lineage": [
+          "SELECT"
+        ],
+        "ts_live_tag_cache_lineage": [
+          "SELECT"
+        ]
+      },
+      "dependencies": []
+    },
+    "reports.keyword_cloud.build": {
+      "tables": {
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT"
+        ],
+        "ts_vocabulary_current": [
+          "SELECT"
+        ],
+        "ts_vocabulary_runs": [
+          "SELECT"
+        ],
+        "ts_vocabulary_terms": [
+          "SELECT"
+        ],
+        "urt_show_tag_cloud_tag": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_report_cache_lineage": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_tag_cache_lineage": [
+          "SELECT"
+        ],
+        "ts_live_tag_cache_lineage": [
+          "SELECT"
+        ]
+      },
+      "dependencies": []
+    },
+    "reports.keyword_relations.build": {
+      "tables": {
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT"
+        ],
+        "ts_vocabulary_current": [
+          "SELECT"
+        ],
+        "ts_vocabulary_runs": [
+          "SELECT"
+        ],
+        "ts_vocabulary_terms": [
+          "SELECT"
+        ],
+        "urt_show_video_tag_date": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_report_cache_lineage": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_tag_cache_lineage": [
+          "SELECT"
+        ],
+        "ts_live_tag_cache_lineage": [
+          "SELECT"
+        ]
+      },
+      "dependencies": []
+    },
+    "reports.tag_month.build": {
+      "tables": {
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT"
+        ],
+        "ts_vocabulary_current": [
+          "SELECT"
+        ],
+        "ts_vocabulary_runs": [
+          "SELECT"
+        ],
+        "ts_vocabulary_terms": [
+          "SELECT"
+        ],
+        "ts_video_tag_matches": [
+          "SELECT"
+        ],
+        "ts_video_tag_evidence": [
+          "SELECT"
+        ],
+        "urt_show_tag_date": [
+          "SELECT"
+        ],
+        "tags": [
+          "SELECT"
+        ],
+        "urt_show_tag_month": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_report_cache_lineage": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_tag_cache_lineage": [
+          "SELECT"
+        ],
+        "ts_live_tag_cache_lineage": [
+          "SELECT"
+        ]
+      },
+      "dependencies": []
+    },
+    "reports.keywords.cache": {
+      "tables": {
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT"
+        ],
+        "ts_vocabulary_current": [
+          "SELECT"
+        ],
+        "ts_vocabulary_runs": [
+          "SELECT"
+        ],
+        "ts_vocabulary_terms": [
+          "SELECT"
+        ],
+        "urt_show_data": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_report_cache_lineage": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_tag_cache_lineage": [
+          "SELECT"
+        ],
+        "ts_live_tag_cache_lineage": [
+          "SELECT"
+        ]
+      },
+      "dependencies": []
+    },
+    "reports.photos.build": {
+      "tables": {
+        "ts_vocabulary_current": [
+          "SELECT"
+        ],
+        "ts_vocabulary_runs": [
+          "SELECT"
+        ],
+        "ts_vocabulary_terms": [
+          "SELECT"
+        ],
+        "urt_show_photo": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_report_cache_lineage": [
+          "SELECT"
+        ],
+        "ts_cache_item_state": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_tag_cache_lineage": [
+          "SELECT"
+        ],
+        "ts_live_tag_cache_lineage": [
+          "SELECT"
+        ]
+      },
+      "dependencies": []
+    },
+    "ai.channel": {
+      "tables": {
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT"
+        ],
+        "urt_channel_ai": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_ai_date": [
+          "SELECT"
+        ],
+        "urt_ai_hour": [
+          "SELECT"
+        ],
+        "ts_ai_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ]
+      },
+      "dependencies": []
+    },
+    "ai.daily": {
+      "tables": {
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT"
+        ],
+        "urt_channel_ai": [
+          "SELECT"
+        ],
+        "urt_ai_date": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_ai_hour": [
+          "SELECT"
+        ],
+        "ts_ai_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ]
+      },
+      "dependencies": [
+        "ai.channel",
+        "youtube.tag_videos.backfill"
+      ]
+    },
+    "ai.hourly": {
+      "tables": {
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT"
+        ],
+        "urt_channel_ai": [
+          "SELECT"
+        ],
+        "urt_ai_date": [
+          "SELECT"
+        ],
+        "urt_ai_hour": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_ai_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ]
+      },
+      "dependencies": [
+        "youtube.channels.videos.general"
+      ]
+    },
+    "ai.event": {
+      "tables": {
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT"
+        ],
+        "urt_channel_ai": [
+          "SELECT"
+        ],
+        "urt_ai_date": [
+          "SELECT"
+        ],
+        "urt_ai_hour": [
+          "SELECT"
+        ],
+        "urt_ai_event": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_ai_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ]
+      },
+      "dependencies": []
+    },
+    "ai.period": {
+      "tables": {
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT"
+        ],
+        "urt_channel_ai": [
+          "SELECT"
+        ],
+        "urt_ai_date": [
+          "SELECT"
+        ],
+        "urt_ai_hour": [
+          "SELECT"
+        ],
+        "urt_ai_period": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_ai_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ]
+      },
+      "dependencies": []
+    },
+    "ai.mayor_person": {
+      "tables": {
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT"
+        ],
+        "urt_channel_ai": [
+          "SELECT"
+        ],
+        "urt_ai_date": [
+          "SELECT"
+        ],
+        "urt_ai_hour": [
+          "SELECT"
+        ],
+        "urt_mayor_person_ai": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_ai_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ]
+      },
+      "dependencies": []
+    },
+    "ai.daily.catchup": {
+      "tables": {},
+      "dependencies": [
+        "ai.daily"
+      ]
+    },
+    "reports.ai_topic.build": {
+      "tables": {
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT"
+        ],
+        "urt_channel_ai": [
+          "SELECT"
+        ],
+        "urt_ai_date": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "urt_ai_hour": [
+          "SELECT"
+        ],
+        "ts_ai_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_report_cache_lineage": [
+          "SELECT"
+        ],
+        "ts_tag_cache_lineage": [
+          "SELECT"
+        ],
+        "ts_live_tag_cache_lineage": [
+          "SELECT"
+        ]
+      },
+      "dependencies": []
+    },
+    "ai.days_refresh": {
+      "tables": {
+        "urt_ai_date": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ]
+      },
+      "dependencies": [
+        "ai.channel",
+        "ai.event",
+        "ai.period",
+        "reports.ai_topic.build"
+      ]
+    },
+    "notify.telegram.daily": {
+      "tables": {
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT"
+        ],
+        "urt_channel_ai": [
+          "SELECT"
+        ],
+        "urt_ai_date": [
+          "SELECT"
+        ],
+        "urt_ai_hour": [
+          "SELECT"
+        ],
+        "telegram_digest_stories": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "telegram_digest_dispatches": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE"
+        ],
+        "cache": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_notification_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_notification_attempts": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_notification_slots": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE"
+        ],
+        "ts_notification_resolutions": [
+          "SELECT",
+          "INSERT"
+        ],
+        "ts_notification_resolution_attempts": [
+          "SELECT",
+          "INSERT"
+        ],
+        "ts_ai_runs": [
+          "SELECT"
+        ],
+        "urt_tag": [
+          "SELECT"
+        ]
+      },
+      "dependencies": []
+    },
+    "notify.telegram.hourly": {
+      "tables": {
+        "urt_channel": [
+          "SELECT"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT"
+        ],
+        "urt_channel_ai": [
+          "SELECT"
+        ],
+        "urt_ai_date": [
+          "SELECT"
+        ],
+        "urt_ai_hour": [
+          "SELECT"
+        ],
+        "telegram_digest_stories": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "telegram_digest_dispatches": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE"
+        ],
+        "cache": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_notification_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_notification_attempts": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_notification_slots": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE"
+        ],
+        "ts_notification_resolutions": [
+          "SELECT",
+          "INSERT"
+        ],
+        "ts_notification_resolution_attempts": [
+          "SELECT",
+          "INSERT"
+        ],
+        "ts_ai_runs": [
+          "SELECT"
+        ],
+        "urt_tag": [
+          "SELECT"
+        ]
+      },
+      "dependencies": []
+    },
+    "channels.avatars.refresh": {
+      "tables": {
+        "urt_channel": [
+          "SELECT"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ]
+      },
+      "dependencies": []
+    },
+    "youtube.channels.adopt": {
+      "tables": {
+        "urt_channel": [
+          "SELECT",
+          "INSERT"
+        ],
+        "ts_editorial_candidates": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "ts_editorial_requests": [
+          "SELECT",
+          "INSERT"
+        ],
+        "ts_editorial_audit": [
+          "SELECT",
+          "INSERT"
+        ],
+        "ts_editorial_audit_events": [
+          "SELECT",
+          "INSERT"
+        ],
+        "ingestion_youtube_quota_daily": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_youtube_item_backoff": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE"
+        ]
+      },
+      "dependencies": []
+    },
+    "tags.vocabulary.import": {
+      "tables": {
+        "ts_vocabulary_current": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_vocabulary_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_vocabulary_terms": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ]
+      },
+      "dependencies": []
+    },
+    "tags.vocabulary.sync": {
+      "tables": {
+        "ts_vocabulary_current": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_vocabulary_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_vocabulary_stage": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ]
+      },
+      "dependencies": []
+    },
+    "tags.videos.match": {
+      "tables": {
+        "urt_video": [
+          "SELECT"
+        ],
+        "ts_vocabulary_current": [
+          "SELECT"
+        ],
+        "ts_vocabulary_runs": [
+          "SELECT"
+        ],
+        "ts_vocabulary_terms": [
+          "SELECT"
+        ],
+        "ts_video_tag_matches": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ts_video_tag_evidence": [
+          "SELECT",
+          "INSERT",
+          "DELETE"
+        ]
+      },
+      "dependencies": []
+    }
+  }
+}

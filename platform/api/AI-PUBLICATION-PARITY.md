@@ -1,0 +1,16 @@
+# AI history and mayor publication guard
+
+`/ai/hours`, `/ai/periods`, and mayor-person summary blocks now distinguish historical Laravel output from TypeScript journal projections. The current Laravel application remains the production writer; these changes authorize no production access or handoff.
+
+- An unclaimed legacy row stays visible without pretending that its input lineage was recorded.
+- A TypeScript row must have an exact output SHA-256, workflow, business key and target PK in a published journal. A newer pending revision does not hide an exact published older revision.
+- A claim by target PK or a not-yet-assigned target with the same business key prevents a projection from masquerading as legacy. Validated-before-published crashes and mutated previously published output are withheld separately. An attempted takeover can conservatively withhold an unchanged legacy row when ownership is ambiguous; this requires journal reconciliation, not a timestamp-based assumption of publication.
+- The immutable snapshot must match table/key, shared writer input hash and run ID. The shared hash extraction preserves existing writer bytes. It never looks up today's video titles or channel analyses to reinterpret an old result.
+- The `reports.ai_topic.build` journal independently publishes cached period statistics. Its immutable source/result, daily run ID, data JSON, materializer output, input hash and run ID must agree. If that cache is pending, changed or unverifiable, the published daily topics remain visible while unsupported metrics stay null.
+- Mayor source signals and videos remain available when only the summary is withheld. A specifically missing publication sidecar suppresses AI only; unknown-column/schema programming errors still propagate as server errors.
+
+Metadata-capped SQL transfers at most 128 KiB per legacy result/data blob, 2 MiB per generation snapshot and 8 MiB per topic snapshot. Snapshot transfers share a 16 MiB request budget; daily outputs are checked before optional topic snapshots. Topic matching parses only the latest eight published candidates. Oversized snapshots, budget exhaustion and unverified history beyond the candidate window have distinct coverage counts and do not claim snapshot corruption. When history extends beyond eight candidates, a current row may match an older publication or may have diverged; bounded inspection cannot establish either, so it is withheld as `history-unverified`. Reports retain the existing 48 hourly source / 62 daily source limits and disclose source states through `meta.coverage`, with period `topicCache` and mayor `ai` blocks. Unavailable newest output is disclosed rather than silently replaced by an older revision/date.
+
+Real isolated MariaDB fixtures use the actual `runAi`, `runMayor`, and `buildTopicCache` writers with deterministic local provider doubles. They exercise the journal/projection crash boundary, null target recovery, exact published history, divergence, malformed inputs, transfer bounds, mutable-source changes, independent cache withholding, and missing sidecar degradation. No model/network call is made by these fixtures.
+
+This is publication integrity, not a claim that model interpretations are factual. Source/metric default policies outside these three AI blocks remain tracked separately in `PARITY.md`.

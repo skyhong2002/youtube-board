@@ -1,0 +1,1 @@
+{"name":"@youtube-board/ai","version":"0.1.0","private":true,"type":"module","exports":"./src/index.ts","scripts":{"test":"vitest run","typecheck":"tsc --noEmit"},"dependencies":{"mysql2":"^3.15.3"},"devDependencies":{"vitest":"^5.0.3","typescript":"^5.9.3","@types/node":"^24.10.0"}}

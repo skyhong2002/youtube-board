@@ -1,0 +1,21 @@
+# Video listing defaults and metrics
+
+Canonical TypeScript video routes keep their newest-first, no-cutoff, no-minimum defaults and50-row pages. Public legacy page redirects materialize the Laravel page defaults, rather than borrowing compatibility API defaults:
+
+| Legacy entry | Replacement query defaults |
+|---|---|
+| `/videos.php` | `hours=24&min=1000&column=viewCount&limit=1000` |
+| `/channel_videos.php` with valid channel, `/ch/:id/videos` | Same defaults |
+| `/tag_video.php` | `days=7&column=viewCount&limit=1000` |
+
+Explicit valid scalar filters remain explicit; malformed numeric values return400; invalid legacy sort columns use their original page default. Blank legacy scalars follow PHP normalization (hours/days/limit1, min0, column viewCount). Keyword legacy redirects retain only days/limit and fixed viewCount ordering: Laravel ignored other modern filters. In particular, keyword legacy `hours` is deliberately removed: Laravel uses it only in the heading, while membership uses today plus `days` preceding Taipei dates. Applying it as the modern hours predicate would silently exclude legacy results. The keyword reader uses current maintained text evidence rather than legacy cached membership/substrings; that provenance difference remains explicit: its date window selects video publication dates, not the legacy cache relation date. Its explicit days/date/hour conditions intersect. Original canonical keyword defaults remain unchanged.
+
+Video lists alone allow up to1000rows; other paginated reports retain their existing200 limit. Lists select only identity, bounded display text, timestamps and scalar metrics, never full descriptions/comment JSON. Description remains available on detail/evidence paths. Display caps:512 title characters,256 channel-title characters,128 channel-ID characters,2048 thumbnail characters and4096 taxonomy text characters. Result ordering and evidence matching use original source columns before pagination, not bounded display text.
+
+Taxonomy lists require an existing urt_count row, as Laravel matchingChannelTags does, and show provider comments per1000 cumulative views and the same visible taxonomy subset as Laravel. Channel lists additionally read only latest scalar comment summaries for the selected page with byte-exact video IDs. A complete (`pageToken` empty/null) batch may supply displayed recorded comments, authors, replies and comment likes. Pending batches do not expose partial counts. Non-channel scopes report commentStatus null because archives are not queried. Provider comment counts remain separately available and the channel table displays both recorded/provider counts; sorting always uses the source video's provider metrics. Latest pending batches take precedence over any older complete revision. `likeSharePercent = likes/(likes+dislikes+displayedComments)*100`; missing inputs remain null instead of Laravel's zero casts. It is not a sentiment or audience-approval score. Complete archive observation timestamps contribute to row freshness.
+
+Modern controls expose sort, hours, minimum views, dates, taxonomy and keyword backward-day filters. The channel-specific page omits a redundant channel selector. Validation also runs before React streaming so bad video-list queries produce HTTP400. Clear returns to canonical modern defaults.
+
+Validation:39 redirect tests,25 web tests and7 dedicated MariaDB regressions plus27 core database tests; tests exercise original PHP redirects through API selection, scalar payloads,8-date keyword scope, exact case-sensitive comment IDs, pending batches, nullable ratios and metric-specific page bounds. Actual Opus review artifacts are retained under `.local/reviews/video-listing*`; no production execution or write handoff is involved.
+
+Additional legacy normalization: channel-ranking PHP and /rank/:id aliases retain legacy PHP integer coercion but cap output pages at200 (modern pagination is explicit). Legacy comment limit controls both sourceLimit (up to1000) and author page size (capped200). Unknown group_chart/group_line definition keys normalize to media; dynamic group names on group_view/group_people remain untouched. Canonical modern queries retain strict validation.

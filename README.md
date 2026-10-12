@@ -1,10 +1,12 @@
-# YouTube Board Modern
+# 有影儀表板
 
-YouTube Board Modern is a Laravel rebuild of the public `youtube.board.tw` reporting experience as a real-time YouTube data dashboard.
+The TypeScript replacement is being implemented in [`platform/`](platform/README.md); production remains on Laravel until the reviewed handoff.
+
+有影儀表板 (YouTube Board) is currently a Laravel rebuild of the public `youtube.board.tw` reporting experience as a real-time YouTube data dashboard.
 
 The project preserves the public report surfaces while moving data ingestion, cache rebuilding, scheduled polling, AI summaries, and report rendering into a maintainable Laravel codebase. The app is designed to fetch YouTube data, update local dashboard tables, and present live/near-real-time trends through modern routes plus compatibility redirects and API-shaped responses for legacy PHP URLs.
 
-![YouTube Board tour](docs/assets/youtube-board-tour.gif)
+![有影儀表板 tour](docs/assets/youtube-board-tour.gif)
 
 ## Features
 

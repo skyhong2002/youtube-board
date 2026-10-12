@@ -1,0 +1,9 @@
+# Operator authentication boundary
+
+Production editorial HTTP access defaults to Google administrator sessions through `requireAdmin`; preview/execute additionally enforce same-origin CSRF. Audit actors are server-resolved `user:<id>`, and preview/replay hashes remain actor-bound. Supplying any Authorization header selects the service path and never falls back to cookies, including invalid/empty headers.
+
+Service access in production is an explicit CI/automation exception, disabled by default: it requires `TS_OPS_SERVICE_AUTH_ENABLED=true`, a valid `TS_OPS_TOKEN`, and for editorial a configured `TS_OPS_ACTOR` yielding `service:<label>`. Requests carrying Cookie, Origin or Sec-Fetch headers are refused in production service mode. Header absence is not cryptographic proof of CI: the protected token is a separate service principal and must never be supplied to browser users. Provision a dedicated least-privilege automation secret only for a reviewed operational need; do not use it to evade per-user administration.
+
+`/api/ops/ingestion*` and `/api/ops/workflows*` deliberately remain **token-only automation APIs**. A Google login, including administrator login, does not authorize queue execution. Production service mode applies to their reads and writes; execution still requires the exact ops, ingestion, production, scheduler and ownership gates. They are not reader-facing administration endpoints. Local/test bearer testing remains available with existing origin checks.
+
+The authorized frontend-only production deployment leaves service mode, TS ops execution, all ingestion/scheduler gates and the token disabled/absent. No writer ownership moves. Google admin account management is a separate own-schema account operation; its permission does not imply editorial registry or background workflow activation. See [cutover plan](../../../docs/cutover-review-plan.md).

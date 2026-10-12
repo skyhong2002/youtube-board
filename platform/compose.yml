@@ -1,0 +1,36 @@
+name: youtube-board-rewrite
+
+services:
+  db:
+    image: mariadb:11.4
+    environment:
+      MARIADB_DATABASE: youtube_board_rewrite
+      MARIADB_USER: youtube_rewrite
+      MARIADB_PASSWORD: youtube_rewrite_local
+      MARIADB_ROOT_PASSWORD: youtube_rewrite_root_local
+    ports:
+      - "127.0.0.1:23306:3306"
+    volumes:
+      - rewrite-db:/var/lib/mysql
+      - ./tools/init-test-database.sql:/docker-entrypoint-initdb.d/10-test-db.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "127.0.0.1:26379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - rewrite-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  rewrite-db:
+  rewrite-redis:

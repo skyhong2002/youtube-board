@@ -1,0 +1,263 @@
+import type { ChannelAvatar } from '../../shared/media-assets.js';
+import type { ChannelRanking } from '../../shared/channel-ranking.js';
+import type { VideoCommentSummary } from './video-analytics-contracts.js';
+import type { ReportData } from './report-contracts.js';
+/** Public API v1. Timestamps carry their offset; null means unrecorded, never request time. */
+export interface ReportMeta {
+    schemaVersion: 1;
+    requestedAt: string;
+    updatedAt: string | null;
+    timezone: 'Asia/Taipei';
+    source: 'mariadb';
+    dataset: 'fixture' | 'live' | 'unknown';
+    coverage: Record<string, number | string | boolean | null>;
+    warnings: string[];
+}
+export interface ApiResponse<T> {
+    data: T;
+    meta: ReportMeta;
+}
+export interface ApiError {
+    error: {
+        code: string;
+        message: string;
+    };
+    meta?: ReportMeta;
+}
+export interface ChannelTag {
+    id: number;
+    name: string;
+    kind: 'channel';
+}
+export interface ChannelRow {
+    /** Same-origin cached branding; never a provider URL. */
+    avatar?: ChannelAvatar | null;
+    id: number;
+    youtubeId: string;
+    title: string;
+    thumbnail: string | null;
+    description: string | null;
+    publishedAt: string | null;
+    youtubeUrl: string;
+    views: number | null;
+    subscribers: number | null;
+    videoCount: number | null;
+    weeklyViews: number | null;
+    monthlyViews: number | null;
+    weeklySubscribers: number | null;
+    weeklyVideos: number | null;
+    monthlySubscribers: number | null;
+    monthlyVideos: number | null;
+    estimatedWeeklyViews: number | null;
+    estimatedMonthlyViews: number | null;
+    monthlyEstimateGap: number | null;
+    legacyGrowthPercent: number | null;
+    averageWeeklyViewsPerVideo: number | null;
+    updatedAt: string | null;
+    tags: ChannelTag[];
+}
+export interface VideoRow {
+    channelAvatar?: ChannelAvatar | null;
+    listing?: {scope:'channel'|'taxonomy'|'general'|'keyword';providerComments:number|null;recordedComments:number|null;commentStatus:'complete'|'pending'|'missing'|null;commentAuthors:number|null;commentReplies:number|null;commentLikes:number|null;likeSharePercent:number|null;commentsPerThousandViews:number|null;commentObservedAt:string|null;tags:ChannelTag[]};
+    id: string;
+    channelId: number;
+    youtubeChannelId: string;
+    channelTitle: string;
+    title: string;
+    description: string;
+    thumbnail: string | null;
+    publishedAt: string | null;
+    views: number | null;
+    likes: number | null;
+    comments: number | null;
+    updatedAt: string | null;
+    youtubeUrl: string;
+}
+export interface LiveRow extends VideoRow {
+    partialLogEvidence?: boolean;
+    currentViewers: number;
+    todayPeak: number;
+    allTimePeak: number | null;
+    startedAt: string | null;
+    trend: {
+        time: string;
+        value: number;
+    }[];
+    tags: ChannelTag[];
+}
+export interface Collection<T> {
+    evidenceCoverage?: ReportMeta['coverage'];
+    rows: T[];
+    total: number;
+    limit: number;
+    offset: number;
+}
+export interface ChannelCollection extends Collection<ChannelRow> {
+    ranking: ChannelRanking;
+}
+export interface TagRow extends ChannelTag {
+    channels: number;
+    weeklyViews: number;
+    average: number;
+    median: number;
+}
+export interface KeywordRow {
+    tag: string;
+    hoursCount: number;
+    maxCount: number;
+    maxHours: string | null;
+    weight: number;
+    origin: 'legacy-keyword-cache';
+}
+export interface EventEvidence {
+    channelAvatar?: ChannelAvatar | null;
+    channelId: number;
+    channelTitle: string;
+    event: string;
+    videoIds: string[];
+    resolvedVideoIds?: string[];
+    withheldVideoReferenceCount?: number;
+    invalidReferenceCount?: number;
+    keywords: string[];
+    people: string[];
+    source: {
+        table: 'urt_channel_ai';
+        id: number;
+        itemIndex?: number;
+        snapshotRunId?: string;
+    };
+}
+export interface TopicRow {
+    grouping?: 'source-signals';
+    detailUrl?: string;
+    id: string;
+    dailyId: number;
+    title: string;
+    channelCount: number;
+    videoCount: number;
+    score: number;
+    keywords: string[];
+    people: string[];
+    evidence: EventEvidence[];
+    unresolvedReferences: {
+        channelTitle: string;
+        event: string;
+    }[];
+}
+export interface AiDaysData {
+    date: string | null;
+    dateFrom: string | null;
+    dateTo: string | null;
+    dailyId: number | null;
+    condition: string;
+    rows: TopicRow[];
+    channels: number;
+    source: 'daily-cache' | 'channel-summaries' | 'none';
+    evidenceCoverage?: ReportMeta['coverage'];
+    updatedAt: string | null;
+    rawVideoRows: number | null;
+    sourceChannels: number;
+    lineage?: { state:'immutable-snapshot'|'snapshot-unavailable';runId:string|null };
+}
+export interface EventCitation {
+    id:string|null;rawId:string;media:string;href:string|null;
+    verification:'snapshot'|'stored-reference'|'missing'|'invalid'|'outside-snapshot';
+}
+export interface EventAnalysis {
+    id:number;type:string;result:unknown;updatedAt:string|null;
+    lineage?:{state:'immutable-snapshot'|'legacy-unrecorded';runId:string|null;dailyResultSha256:string|null;sourceChanged:boolean;sourceVideos:{id:string;title:string;channelId:number;media:string}[]};
+}
+export interface EventPresentation {
+    summaries:{analysisId:number;title:string;description:string;keywords:string[];media:string[];facts:{headline:string;citation:EventCitation}[];opinions:{stance:string;intensity:string;content:string;citation:EventCitation}[]}[];
+    people:{analysisId:number;mainSubject:string;groups:{kind:'supporting'|'opposing'|'other';rows:{person:string;role:string;stance:string;strength:string;description:string;citations:EventCitation[]}[]}[]} | null;
+    media:{analysisId:number;mainSubject:string;all:string[];groups:{kind:'supporting'|'opposing'|'other';rows:{media:string;stance:string;strength:string;description:string}[]}[]} | null;
+}
+export interface AiEventData {
+    id:number;dailyId:number;title:string;date:string|null;topic:TopicRow|null;topics:TopicRow[];idKind:'daily'|'event';
+    analyses:EventAnalysis[];videos:VideoRow[];
+    resolution:{requestedTitle:string;canonicalTitle:string;kind:'exact'|'same-day-source-alias';sourceDailyId:number;topicIds:string[]};
+    presentation:EventPresentation;
+    evidenceCoverage:ReportMeta['coverage'];
+}
+export interface HomeExploration {
+    categories: { status:'available'|'unavailable';reason:string|null;rows:TagRow[];summary:{visibleCategories:number|null;channelMemberships:number|null;uniqueChannels:number|null;weeklyViews:number|null;overlapping:true};updatedAt:string|null;minimumWeeklyViews:10 };
+    keywords: { vocabularyCoverage:'observed-article-window'|'all-current-indexed-article-tags'|'unavailable';vocabularyWindow:{since:string;until:string}|null;source:'https://tag.observe.tw';version:string|null;status:'synchronized'|'not-synchronized'|'unavailable';reason:string|null;from:string;to:string;updatedAt:string|null;rows:{key:string;term:string;videoCount:number;views:number|null;unknownViewVideos:number}[];sourceVideos:number|null;freshVideos:number|null;staleVideos:number|null;unprocessedVideos:number|null;metric:'current-cumulative-views-of-window-published-videos' };
+}
+export interface HomeData {
+    exploration: HomeExploration;
+    summary: {
+        channels: number;
+        videos: number;
+        weeklyViews: number;
+        liveChannels: number;
+        liveViewers: number;
+    };
+    channels: ChannelRow[];
+    tags: TagRow[];
+    tagsStatus?: 'available' | 'bounded';
+    live: LiveRow[];
+    events: TopicRow[];
+    aiDate: string | null;
+}
+export interface ChannelData {
+    aiSummary: ReportData;
+    dailySummary: ReportData;
+    trendAvailable: boolean;
+    channel: ChannelRow;
+    videos: VideoRow[];
+}
+export interface VideoData {
+    video: VideoRow;
+    commentSummary: VideoCommentSummary;
+    durationSeconds: number | null;
+    captionAvailable: boolean | null;
+    history: {
+        date: string;
+        views: number | null;
+        likes: number | null;
+        comments: number | null;
+        measured: true;
+    }[];
+    liveHistory: {
+        time: string;
+        viewers: number;
+        measured: true;
+    }[];
+}
+export interface VocabularyTerm {
+    key: string;
+    term: string;
+    articleCount: number;
+    media: string[];
+    provenance: 'upstream-article-tag-origin-unspecified';
+}
+export interface VocabularyData extends Collection<VocabularyTerm> {
+    version: string | null;
+    source: 'https://tag.observe.tw';
+    attribution: string;
+    window: {
+        since: string;
+        until: string;
+    } | null;
+    publishedAt: string | null;
+    coverage: 'observed-article-window' | 'all-current-indexed-article-tags';
+    upstreamSnapshotConsistent: boolean;
+}
+export interface VideoTagEvidenceData {
+    videoId: string;
+    version: string | null;
+    status: 'not-synchronized' | 'not-matched' | 'matched' | 'stale';
+    matchedAt: string | null;
+    source: 'https://tag.observe.tw';
+    rows: {
+        key: string;
+        term: string;
+        field: string;
+        start: number;
+        end: number;
+        text: string;
+        snippet: string;
+        snippetStart: number;
+        ruleVersion: string;
+    }[];
+}

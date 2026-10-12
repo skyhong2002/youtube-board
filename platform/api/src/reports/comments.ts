@@ -1,0 +1,39 @@
+import {readChannelIdentity,type ChannelIdentity} from './channel-identity.js';
+import {sql} from 'drizzle-orm';
+import type {Reader,Row} from '../db/client.js';
+import {mergeTagId,positiveId,bounded,tagFilter,page,type Query} from './query.js';
+import {object,text,integer,latest,taipeiSql} from './normalize.js';
+import {table,link,type Register} from './table.js';
+const byteBound=16*1024*1024,entryBound=100000;
+const capacity=()=>Object.assign(new Error('Comment participation exceeds the bounded source budget.'),{statusCode:422});
+export function authorParticipation(payload:unknown){
+ let raw:unknown=payload;if(typeof raw==='string'){try{raw=raw.trim()?JSON.parse(raw):{};}catch{return null;}}
+ if(raw===null||raw===undefined)raw={};if(typeof raw!=='object')return null;
+ const entries=Object.entries(raw as object);if(entries.length>entryBound)throw capacity();
+ const authors=new Map<string,string>();let invalid=0;
+ for(const [key,value]of entries){
+  const a=object(value),candidate=a.ChannelId??a.channelId??a.channel_id??(Array.isArray(raw)?undefined:key),id=typeof candidate==='string'?candidate.trim():'';
+  if(!id||id.length>128){invalid++;continue;}
+  if(!authors.has(id))authors.set(id,text(a.DisplayName??a.displayName)||id);
+ }
+ return {authors,invalid,entries:entries.length};
+}
+export async function commentParticipationReport(reader:Reader,clock:()=>Date,q:Query,channelId?:number,identity?:ChannelIdentity){
+ page(q);const hours=bounded(q.hours,24,1,8760),min=bounded(q.min,1000,0,2147483647),sourceLimit=bounded(q.sourceLimit,channelId?1000:25,1,1000),since=taipeiSql(new Date(+clock()-hours*3600000));
+ if(channelId&&!identity)await readChannelIdentity(reader,channelId);
+ const fields=sql`cm.pk AS comment_pk,cm.videoId AS archive_video_id,cm.pageToken,cm.ctime,cm.mtime,cm.latest_time,cm.authors_count,cm.comments_count,cm.likes_count,cm.threads_count,cm.replies_count,COALESCE(OCTET_LENGTH(cm.authors_json),0) AS author_bytes,v.videoId,v.title,v.channelTitle,v.viewCount,v.commentCount,v.publishedAt`;
+ const rows=channelId?await reader.rows(sql`SELECT ${fields} FROM urt_video v LEFT JOIN urt_comment cm ON cm.videoId=v.videoId AND BINARY cm.videoId=BINARY v.videoId WHERE v.u_id=${channelId} AND v.publishedAt>=${since} AND v.viewCount>=${min} ORDER BY v.viewCount DESC,v.pk LIMIT ${sourceLimit+1}`):await reader.rows(sql`SELECT ${fields} FROM urt_comment cm LEFT JOIN urt_video v ON v.pk=(SELECT MAX(v2.pk) FROM urt_video v2 WHERE v2.videoId=cm.videoId AND BINARY v2.videoId=BINARY cm.videoId) WHERE COALESCE(cm.pageToken,'')='' AND EXISTS(SELECT 1 FROM urt_count n WHERE n.u_id=cm.u_id AND ${tagFilter(q)}) ORDER BY cm.ctime DESC,cm.pk DESC LIMIT ${sourceLimit+1}`);
+ const truncated=rows.length>sourceLimit,selected=rows.slice(0,sourceLimit),complete=selected.filter(r=>r.comment_pk&&!text(r.pageToken));
+ if(complete.reduce((n,r)=>n+Number(r.author_bytes),0)>byteBound||complete.some(r=>Number(r.author_bytes)>2*1024*1024))throw capacity();
+ const payloads=new Map<number,Row>();for(let i=0;i<complete.length;i+=100){const batch=complete.slice(i,i+100),loaded=await reader.rows(sql`SELECT pk,authors_json FROM urt_comment WHERE COALESCE(pageToken,'')='' AND (${sql.join(batch.map(r=>sql`(pk=${r.comment_pk} AND COALESCE(OCTET_LENGTH(authors_json),0)=${r.author_bytes} AND ctime<=>${r.ctime} AND mtime<=>${r.mtime})`),sql` OR `)})`);for(const row of loaded)payloads.set(Number(row.pk),row);}
+ const authors=new Map<string,{name:string;videos:Set<string>}>(),decodedCounts=new Map<number,number>();let malformed=0,changed=0,entries=0,invalid=0;
+ for(const row of complete){const payload=payloads.get(Number(row.comment_pk));if(!payload){changed++;continue;}const decoded=authorParticipation(payload.authors_json);if(!decoded){malformed++;continue;}entries+=decoded.entries;if(entries>entryBound)throw capacity();invalid+=decoded.invalid;decodedCounts.set(Number(row.comment_pk),decoded.authors.size);
+  for(const [id,name]of decoded.authors){const author=authors.get(id)??{name,videos:new Set<string>()};author.videos.add(text(row.archive_video_id));authors.set(id,author);}
+ }
+ const ranked=[...authors].sort(([id,a],[other,b])=>b.videos.size-a.videos.size||(id<other?-1:id>other?1:0)).map(([id,a])=>({author:link(a.name,`/comments/authors/${encodeURIComponent(id)}`),videoCount:a.videos.size}));
+ const diagnostics=selected.map((r,index)=>{const id=text(r.videoId??r.archive_video_id),pending=Boolean(text(r.pageToken)),status=!r.comment_pk?'未收錄':pending?'擷取尚未完成':!payloads.has(Number(r.comment_pk))?'來源已變更':!decodedCounts.has(Number(r.comment_pk))?'作者格式無法解析':'完整批次',available=Boolean(r.comment_pk)&&!pending&&payloads.has(Number(r.comment_pk));
+  const threads=available?integer(r.threads_count):null,replies=available?integer(r.replies_count):null,stored=available?integer(r.comments_count):null;
+  return {rank:index+1,video:r.videoId?link(text(r.title)||id,`/videos/${encodeURIComponent(id)}/analytics`):id,channel:text(r.channelTitle)||null,status,views:integer(r.viewCount),providerComments:integer(r.commentCount),recordedComments:stored??(threads!==null&&replies!==null?threads+replies:null),threads,replies,likes:available?integer(r.likes_count):null,recordedAuthors:available?integer(r.authors_count):null,decodedAuthors:decodedCounts.get(Number(r.comment_pk))??null,latestComment:available?text(r.latest_time)||null:null,observedAt:available?text(r.mtime??r.ctime)||null:null};});
+ return {...table('留言者跨影片參與排行',[{key:'author',label:'留言者'},{key:'videoCount',label:'參與影片數',kind:'number'}],ranked,q,{updatedAt:latest(...complete.filter(r=>payloads.has(Number(r.comment_pk))).flatMap(r=>[r.mtime,r.ctime])),sections:[{key:'video-comments',title:'影片留言收錄明細',columns:[{key:'rank',label:'來源序',kind:'number'},{key:'video',label:'影片'},{key:'channel',label:'頻道'},{key:'status',label:'收錄狀態'},{key:'views',label:'累計觀看',kind:'number'},{key:'providerComments',label:'YouTube 留言總數',kind:'number'},{key:'recordedComments',label:'收錄留言',kind:'number'},{key:'threads',label:'主留言',kind:'number'},{key:'replies',label:'回覆',kind:'number'},{key:'likes',label:'留言獲讚',kind:'number'},{key:'recordedAuthors',label:'紀錄作者數',kind:'number'},{key:'decodedAuthors',label:'辨識作者數',kind:'number'},{key:'latestComment',label:'最新留言',kind:'datetime'},{key:'observedAt',label:'收錄更新',kind:'datetime'}],rows:diagnostics}],metrics:[{label:'所選來源影片',value:selected.length,unit:'部'},{label:'完整擷取影片',value:complete.length,unit:'部'},{label:'作者資料無法解析',value:malformed,unit:'部'}],filters:[...(channelId?[{key:'hours',label:'最近小時數',type:'number' as const,value:String(hours)},{key:'min',label:'最低累計觀看',type:'number' as const,value:String(min)}]:[]),{key:'sourceLimit',label:'來源影片上限',type:'number',value:String(sourceLimit)}],notes:['參與影片數按精確作者 ID 與影片 ID 去重，不是留言則數。僅完整批次可參與排名；缺少收錄資料保留空值，YouTube 留言總數不等於本機收錄數。',channelId?'頻道來源按發佈時間及最低觀看門檻篩選，依累計觀看排序；尚未收錄與未完成的影片另列狀態。':'分類來源依完整留言批次的收錄時間排序，使用批次所屬頻道分類；沿用原標籤留言頁行為，hours/min 不參與篩選。',`來源最多 ${sourceLimit} 部${truncated?'，還有更多符合來源未納入':''}；來源上限與作者排名分頁分開控制。`]}),evidenceCoverage:{sourceMode:channelId?'recent-channel-videos':'recent-category-comment-batches',selectedVideos:selected.length,sourceLimit,sourceTruncated:truncated,completeBatches:complete.length,pendingBatches:selected.filter(r=>r.comment_pk&&text(r.pageToken)).length,missingBatches:selected.filter(r=>!r.comment_pk).length,malformedAuthorBatches:malformed,changedSources:changed,decodedAuthorEntries:entries,invalidAuthorEntries:invalid}};
+}
+export function registerComments(register:Register,reader:Reader,clock:()=>Date){register('/channels/:id/comments',(p,q,identity)=>commentParticipationReport(reader,clock,q,positiveId(p.id),identity));register('/tags/comments',(_p,q)=>commentParticipationReport(reader,clock,q));register('/tags/:id/comments',(p,q)=>commentParticipationReport(reader,clock,{...q,tagid:mergeTagId(q.tagid,positiveId(p.id))}));}

@@ -1,0 +1,293 @@
+import FollowButton from './reader/FollowButton';
+import TableScroller from './TableScroller';
+import {table} from '@/lib/table-styles';
+import {reportStyle as ui} from '@/lib/report-styles';
+import Link from "next/link";
+import {
+    api,
+    type VocabularyData,
+    type Search,
+    type VideoTagEvidenceData,
+} from "@/lib/api";
+import { count, dateTime, first } from "@/lib/format";
+import {
+    Heading,
+    DataNotice,
+    Unavailable,
+    Empty,
+    Metric,
+    Pagination,
+    Tabs,
+} from "./ReportUI";
+import { splitEvidence } from "@/lib/evidence";
+export async function VocabularyReport({
+    search,
+    path,
+}: {
+    search: Search;
+    path: string;
+}) {
+    const result = await api<VocabularyData>("vocabulary", search);
+    if (!result.ok)
+        return <Unavailable status={result.status} title="共同標籤詞彙" />;
+    const { data, meta } = result.response;
+    return (
+        <>
+            <Heading
+                title="共同標籤詞彙"
+                description="沿用新文易數持續維護的新聞標籤，作為跨平台探索的共同詞彙。"
+                meta={meta}
+            />
+            <DataNotice meta={meta} />
+            <Tabs
+                active={path}
+                items={[
+                    { href: path, label: "共同內容詞彙" },
+                    { href: "/tags", label: "頻道分類" },
+                ]}
+            />
+            <aside className={ui.note}>
+                <p>
+                    詞彙來自{" "}
+                    <a href="https://tag.observe.tw">新文易數 tag.observe.tw</a>{" "}
+                    已觀測文章的標籤；來源系統可能使用媒體原生標籤或規則補標，無法逐詞確認是否由記者標註。
+                    {data.coverage === "all-current-indexed-article-tags"
+                        ? "本次涵蓋上游目前已索引文章的標籤，不代表全部可能詞彙或完整人工分類詞典。"
+                        : "目前是指定文章時間窗的觀測詞彙，並非完整詞庫。"}
+                    {!data.upstreamSnapshotConsistent &&
+                        "同步期間的上游資料可能更新。"}
+                </p>
+            </aside>
+            <div className="metrics">
+                <Metric label="觀測詞彙" value={count(data.total)} unit="個" />
+                {data.window ? (
+                    <>
+                        <Metric
+                            label="文章時間窗起點"
+                            value={dateTime(data.window.since)}
+                        />
+                        <Metric
+                            label="文章時間窗終點"
+                            value={dateTime(data.window.until)}
+                        />
+                    </>
+                ) : (
+                    <Metric
+                        label="同步範圍"
+                        value={
+                            data.coverage === "all-current-indexed-article-tags"
+                                ? "目前已索引文章"
+                                : "未記錄"
+                        }
+                    />
+                )}
+                <Metric
+                    label="本機同步發布"
+                    value={dateTime(data.publishedAt)}
+                />
+            </div>
+            <form action={path} className={ui.form}>
+                <label className={ui.label}>
+                    搜尋詞彙
+                    <input className={ui.input}
+                        type="search"
+                        name="q"
+                        defaultValue={first(search.q) || ""}
+                        placeholder="搜尋人物、地點或議題"
+                    />
+                </label>
+                <button type="submit" className={ui.primary}>
+                    搜尋
+                </button>
+            </form>
+            {data.rows.length ? (
+                <TableScroller card label="共同詞彙表格，可左右捲動">
+                    <table className="w-full text-left text-sm">
+                        <thead className="bg-(--table-head-bg) text-xs text-zinc-600 dark:text-zinc-400">
+                            <tr>
+                                <th className={table.leadHead}>內容詞彙</th>
+                                <th className={table.num}>新聞文章數</th>
+                                <th className={table.cell}>觀測媒體</th>
+                                <th className={table.cell}>跨平台探索</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                            {data.rows.map((term) => (
+                                <tr className={table.row} key={term.key}>
+                                    <td className={table.lead}>
+                                        <strong className={table.leadBox}>{term.term}</strong>
+                                    </td>
+                                    <td className={table.num}>
+                                        {count(term.articleCount)}
+                                    </td>
+                                    <td className={table.cell}>
+                                        <div className="tags">
+                                            {term.media
+                                                .slice(0, 6)
+                                                .map((name) => (
+                                                    <span
+                                                        className={ui.tag}
+                                                        key={name}
+                                                    >
+                                                        {name}
+                                                    </span>
+                                                ))}
+                                            {term.media.length > 6 && (
+                                                <span className={ui.tag}>
+                                                    另 {term.media.length - 6}{" "}
+                                                    個
+                                                </span>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className={table.cell}>
+                                        <div className="board-actions"><FollowButton kind="tag" target={term.term}/>
+                                            <Link
+                                                className={ui.link}
+                                                href={`/keywords/${encodeURIComponent(term.term)}/videos`}
+                                            >
+                                                搜尋影片 →
+                                            </Link>
+                                            <Link
+                                                className={ui.link}
+                                                href={`/boards?${new URLSearchParams({ keyword: term.term })}`}
+                                            >
+                                                建立觀測看板 →
+                                            </Link>
+                                            <a
+                                                className={ui.link}
+                                                href={`https://tag.observe.tw/tag/${encodeURIComponent(term.term)}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                            >
+                                                新聞來源 ↗
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </TableScroller>
+            ) : (
+                <Empty
+                    title="尚無符合條件的共同詞彙"
+                    description={
+                        data.version
+                            ? "請調整搜尋條件。"
+                            : "尚未完成共同詞彙同步；不使用排行榜前幾名代替完整的觀測時間窗。"
+                    }
+                />
+            )}
+            <Pagination collection={data} search={search} path={path} />
+            {data.version && (
+                <details
+                    style={{
+                        marginTop: 16,
+                        fontSize: 12,
+                        color: "var(--muted)",
+                    }}
+                >
+                    <summary>同步版本與範圍</summary>
+                    <p style={{ overflowWrap: "anywhere" }}>
+                        版本：{data.version}
+                        <br />
+                        範圍：
+                        {data.coverage === "all-current-indexed-article-tags"
+                            ? "上游目前已索引文章的標籤"
+                            : "文章時間窗內已觀測到的標籤"}
+                        ；
+                        {data.upstreamSnapshotConsistent
+                            ? "上游提供版本固定的快照。"
+                            : "上游讀取不保證同一時間的完整快照。"}
+                    </p>
+                </details>
+            )}
+        </>
+    );
+}
+export async function VideoTagEvidence({ videoId }: { videoId: string }) {
+    const result = await api<VideoTagEvidenceData>(
+        `videos/${encodeURIComponent(videoId)}/tags`,
+    );
+    if (!result.ok)
+        return (
+            <aside className={ui.note}>
+                <p>共同標籤的比對證據暫時無法讀取。</p>
+            </aside>
+        );
+    const { data } = result.response;
+    const statuses = {
+        "not-synchronized": "共同詞彙尚未同步",
+        "not-matched": "這支影片尚未比對共同詞彙",
+        matched: "已比對共同詞彙",
+        stale: "影片內容或詞彙版本已更新，以下是前次比對結果",
+    };
+    return (
+        <section className={ui.panel}>
+            <h2 className="text-base font-semibold">共同標籤與比對依據</h2>
+            <p>
+                {statuses[data.status] ?? "比對狀態尚未確認"}。
+                {data.matchedAt && `比對時間：${dateTime(data.matchedAt)}。`}
+                詞彙來源為 <Link href="/vocabulary">新文易數共同詞彙</Link>
+                ；文字命中不代表事件歸屬或立場。
+            </p>
+            {data.rows.length ? (
+                <div className="board-list">
+                    {data.rows.map((evidence, index) => {
+                        const parts = splitEvidence(evidence);
+                        return (
+                            <article key={`${evidence.key}-${index}`}>
+                                <div className="card-meta">
+                                    <Link
+                                        className={ui.tag}
+                                        href={`/keywords/${encodeURIComponent(evidence.term)}/videos`}
+                                    >
+                                        {evidence.term}
+                                    </Link>
+                                    <span>
+                                        {evidence.field === "title"
+                                            ? "影片標題"
+                                            : evidence.field === "description"
+                                              ? "影片說明"
+                                              : "來源文字"}
+                                    </span>
+                                </div>
+                                <p
+                                    style={{
+                                        marginTop: 8,
+                                        overflowWrap: "anywhere",
+                                    }}
+                                >
+                                    {parts.before}
+                                    <mark
+                                        style={{
+                                            background: "var(--tint)",
+                                            color: "var(--accent)",
+                                        }}
+                                    >
+                                        {parts.match}
+                                    </mark>
+                                    {parts.after}
+                                </p>
+                            </article>
+                        );
+                    })}
+                </div>
+            ) : (
+                data.status === "matched" && (
+                    <p>本次沒有精確文字命中；這不表示影片沒有相關主題。</p>
+                )
+            )}
+            <details>
+                <summary className="muted" style={{ fontSize: 12 }}>
+                    比對版本
+                </summary>
+                <p style={{ fontSize: 12, overflowWrap: "anywhere" }}>
+                    {data.version || "尚無版本"} ·
+                    以標題與說明的原始文字位置保留證據。
+                </p>
+            </details>
+        </section>
+    );
+}
