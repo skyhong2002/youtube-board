@@ -46,3 +46,13 @@ assumptions, not measured operating budgets. Public default is excerpts and
 summaries, with full transcripts private unless the user explicitly changes
 that boundary. Back up before production schema writes; test, review and deploy
 the completed stage after the current handoffs.
+
+Upstream update (tag commit `0cee94c`): an approved `x-service-token` now uses
+6,000 requests/minute per service, with a9,000/minute shared services cap.
+Invalid/absent tokens retain the anonymous60/minute limit. Configure the supplied
+local protected credential into the approved vocabulary worker's Dokploy secret
+environment after frontend cutover; never put it into queue payloads, public web
+configuration, review packets or Git. Support TAG_SERVICE_TOKEN or a protected
+file, keep one concurrent request and bounded Retry-After handling for all429
+responses including the shared services cap. Conservative100ms pacing remains
+well below the new allowance. Public rendering still reads local snapshots.

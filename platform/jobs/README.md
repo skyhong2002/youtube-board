@@ -90,15 +90,33 @@ Pre-release full snapshots lacking `upstreamManifest`/`localPayloadChecksum` are
 
 Both article-window scans and full-snapshot HTTP reads use the same rate policy.
 Anonymous requests default to1,100ms between starts (including the first request
-of each new client); no personal key is required. Optional `TAG_SOURCE_API_KEY`
-or `TAG_SOURCE_API_KEY_FILE` supplies `x-api-key` to the fixed HTTPS tag origin
-only. Configure exactly one; protect the env/file in runtime configuration and
-never put the key in a CLI argument, plan, queue envelope, URL or review packet.
-Key files contain one ASCII key with an optional final newline, at most4KiB.
-The keyed default/minimum is100ms. Optional `TAG_SOURCE_INTERVAL_MS` can slow either
-mode; values below its floor fail closed. Redirects are rejected.
+of each new client); no credential is required. For the site's own approved
+worker, `TAG_SERVICE_TOKEN` or `TAG_SERVICE_TOKEN_FILE` supplies `x-service-token`.
+The upstream own-service allowance is6,000/minute per service and9,000/minute
+across services; missing or invalid credentials remain in the60/minute anonymous
+bucket. The client conservatively defaults to100ms (at most600 starts/minute),
+not the quota edge, and keeps one serialized request stream.
 
-Only429 retries automatically, at most twice after the initial request. Integer
+Optional personal `TAG_SOURCE_API_KEY` or `TAG_SOURCE_API_KEY_FILE` remains
+supported via `x-api-key`. Configure exactly one nonempty auth source across
+all four variables; conflicting personal/service or env/file settings are
+rejected rather than silently choosing a credential. Headers go only to the
+fixed HTTPS tag origin and redirects are rejected. No secret file is discovered
+automatically; the operator must explicitly configure its protected mount path.
+Protect env/files in runtime configuration and never put credentials in CLI
+arguments, plans, queue envelopes, URLs or review packets. Files contain one
+ASCII token with an optional final newline, at most4KiB.
+
+Both authenticated modes have a100ms default/minimum. Optional
+`TAG_SOURCE_INTERVAL_MS` can slow any mode; values below its floor fail closed.
+If upstream reports `x-ratelimit-limit:60`, the same client slows to at least
+1,100ms for later starts (including retries); it never speeds up based on quota
+headers or replaces the configured credential. This limits invalid-token
+fallback traffic without logging credentials or interpreting error bodies.
+
+Only429 retries automatically, at most twice after the initial request. The same
+policy applies to per-service and services-global quota responses; no body or
+scope parsing is needed. Integer
 seconds and HTTP-date `Retry-After` values are honored, alongside the pacing floor;
 missing/malformed headers use a bounded exponential fallback. A requested
 cooldown above60seconds stops rather than retrying before the upstream deadline.

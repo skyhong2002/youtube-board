@@ -52,3 +52,35 @@ it('article and full-snapshot body errors cannot echo secret-bearing upstream di
  const a=expect(article.page({since:'2026-10-10T00:00:00Z',until:'2026-10-11T00:00:00Z'},null)).rejects.toThrow(/^Tag source body read failed or exceeds cap$/),b=expect(snapshot.current()).rejects.toThrow(/^Vocabulary body read failed or exceeds byte cap$/);
  await vi.advanceTimersByTimeAsync(100);await Promise.all([a,b]);
 });
+
+it('service tokens use their dedicated fixed-origin header, serialized100ms floor, and reject conflicting auth',async()=>{
+ vi.useFakeTimers();vi.setSystemTime(0);const times:number[]=[],fetcher=vi.fn<typeof fetch>(async()=>{times.push(Date.now());return new Response('{}');}),client=new TagHttpClient(fetcher,{serviceToken:'fixture-service-token'});
+ const pending=Promise.all([client.get(url),client.get(url),client.get(url)]);await vi.advanceTimersByTimeAsync(300);await pending;expect(times).toEqual([100,200,300]);
+ for(const[requested,init]of fetcher.mock.calls){expect(new URL(String(requested)).origin).toBe('https://tag.observe.tw');expect(init?.headers).toHaveProperty('x-service-token','fixture-service-token');expect(init?.headers).not.toHaveProperty('x-api-key');expect(init?.redirect).toBe('error');}
+ for(const bad of ['https://elsewhere.invalid/api/v1/articles','http://tag.observe.tw/api/v1/articles','https://tag.observe.tw.evil/api/v1/articles','https://user:pass@tag.observe.tw/api/v1/articles'])await expect(client.get(bad)).rejects.toThrow('URL');expect(fetcher).toHaveBeenCalledTimes(3);
+ expect(()=>new TagHttpClient(fetcher,{apiKey:'fixture-key',serviceToken:'fixture-service-token'})).toThrow('only one');expect(()=>new TagHttpClient(fetcher,{serviceToken:'fixture-service-token',intervalMs:99})).toThrow('100');
+});
+it('service env/file credentials are exclusive, bounded, sanitized and never auto-discovered',async()=>{
+ const directory=await mkdtemp(join(tmpdir(),'tag-service-test-')),file=join(directory,'token');try{
+  await writeFile(file,'fixture-service-file\r\n',{mode:0o600});expect(await tagHttpOptions({TAG_SERVICE_TOKEN:'fixture-service-env'})).toEqual({serviceToken:'fixture-service-env'});expect(await tagHttpOptions({TAG_SERVICE_TOKEN_FILE:file})).toEqual({serviceToken:'fixture-service-file'});
+  for(const conflict of [{TAG_SERVICE_TOKEN:'fixture-env',TAG_SERVICE_TOKEN_FILE:file},{TAG_SERVICE_TOKEN:'fixture-env',TAG_SOURCE_API_KEY:'fixture-key'},{TAG_SERVICE_TOKEN_FILE:file,TAG_SOURCE_API_KEY_FILE:file}])await expect(tagHttpOptions(conflict)).rejects.toThrow(/^Configure only one tag authentication source$/);
+  await expect(tagHttpOptions({TAG_SERVICE_TOKEN:'private\nfixture'})).rejects.toThrow(/^Invalid tag service token configuration$/);
+  await expect(tagHttpOptions({TAG_SERVICE_TOKEN_FILE:directory})).rejects.toThrow(/^Cannot read protected tag service token file$/);
+  await expect(tagHttpOptions({TAG_SERVICE_TOKEN_FILE:join(directory,'absent')})).rejects.toThrow(/^Cannot read protected tag service token file$/);
+  await writeFile(file,'x'.repeat(4099));await expect(tagHttpOptions({TAG_SERVICE_TOKEN_FILE:file})).rejects.toThrow(/^Cannot read protected tag service token file$/);
+  await writeFile(file,'');await expect(tagHttpOptions({TAG_SERVICE_TOKEN_FILE:file})).rejects.toThrow(/^Invalid tag service token configuration$/);
+  expect(await tagHttpOptions({TAG_SERVICE_TOKEN:'fixture-service',TAG_SOURCE_INTERVAL_MS:'1100'})).toEqual({serviceToken:'fixture-service',intervalMs:1100});
+ }finally{await rm(directory,{recursive:true,force:true});}
+});
+it.each(['service','services-global'])('service429 honors Retry-After for %s scope without parsing bodies',async scope=>{
+ vi.useFakeTimers();vi.setSystemTime(0);const times:number[]=[],first=new Response(JSON.stringify({scope,private:'must-not-read'}),{status:429,headers:{'retry-after':'2'}});const body=vi.spyOn(first,'json');const cancel=vi.spyOn(first.body!,'cancel');const fetcher=vi.fn<typeof fetch>(async()=>{times.push(Date.now());return times.length===1?first:new Response('{}');});
+ const done=new TagHttpClient(fetcher,{serviceToken:'fixture-service'}).get(url);await vi.advanceTimersByTimeAsync(2100);expect((await done).ok).toBe(true);expect(times).toEqual([100,2100]);expect(body).not.toHaveBeenCalled();expect(cancel).toHaveBeenCalledTimes(1);
+});
+it.each(['apiKey','serviceToken'] as const)('reported anonymous limit slows %s to1100ms without changing credentials',async kind=>{
+ vi.useFakeTimers();vi.setSystemTime(0);const times:number[]=[],fetcher=vi.fn<typeof fetch>(async()=>{times.push(Date.now());return new Response('{}',{headers:{'x-ratelimit-limit':times.length===1?'60':'6000'}});}),client=new TagHttpClient(fetcher,{[kind]:'fixture-auth'});
+ const done=Promise.all([client.get(url),client.get(url),client.get(url)]);await vi.advanceTimersByTimeAsync(2300);await done;expect(times).toEqual([100,1200,2300]);
+});
+it('anonymous fallback on429 retains its1100ms floor even with immediate Retry-After',async()=>{
+ vi.useFakeTimers();vi.setSystemTime(0);const times:number[]=[],fetcher=vi.fn<typeof fetch>(async()=>{times.push(Date.now());return times.length===1?new Response('unread',{status:429,headers:{'retry-after':'0','x-ratelimit-limit':'60'}}):new Response('{}');});
+ const done=new TagHttpClient(fetcher,{serviceToken:'fixture-service'}).get(url);await vi.advanceTimersByTimeAsync(1200);expect((await done).ok).toBe(true);expect(times).toEqual([100,1200]);
+});
