@@ -1,3 +1,4 @@
+import {keywordVideoCache} from './keyword-video-cache.js';
 import {createHash} from 'node:crypto';
 import {eventReport} from './event-report.js';
 import {VIDEO_LIST_MAX} from '../../../shared/video-listing.js';
@@ -32,6 +33,7 @@ const channelSelect = sql `c.u_id,c.youtube_id,c.title,c.thumbnails,c.descriptio
   CASE WHEN n.u_id IS NULL THEN c.viewCount ELSE n.viewCount END AS viewCount,CASE WHEN n.u_id IS NULL THEN c.subscriberCount ELSE n.subscriberCount END AS subscriberCount,
   CASE WHEN n.u_id IS NULL THEN c.videoCount ELSE n.videoCount END AS videoCount,n.view_week,n.view_month,n.sub_week,n.sub_month,n.video_week,n.video_month,n.views_pred_week,n.views_pred_month,n.tags,n.mtime AS count_mtime`;
 export function reports(reader: Reader, clock: () => Date = () => new Date()): ReportService {
+    const cachedKeywordVideos=keywordVideoCache<VideoCollection>({cacheable:(value,query)=>query.cursor===undefined&&value.totalStatus!=='unavailable'});
     const names = async () => new Map((await reader.rows(sql `SELECT tag_id,tag_name FROM urt_tag ORDER BY tag_id`)).map(r => [integer(r.tag_id) ?? 0, text(r.tag_name)]));
     const channelWhere = (query: Query): SQL => {
         const term = search(query.q);
@@ -150,7 +152,7 @@ export function reports(reader: Reader, clock: () => Date = () => new Date()): R
     };
     const aiDays = async (query: Query = {}) => readAiDaily(reader,query);
     const api: ReportService = {
-        channels: channelsRows, videos: videoRows, live: liveRows, tags: tagRows, aiDays,
+        channels: channelsRows, videos: (query={},scope)=>query.keyword===undefined?videoRows(query,scope):cachedKeywordVideos(query,scope,()=>videoRows(query,scope)), live: liveRows, tags: tagRows, aiDays,
         channel: async (id) => {
             const r = (await reader.rows(sql `SELECT ${channelSelect} FROM urt_channel c LEFT JOIN urt_count n ON n.u_id=c.u_id WHERE c.u_id=${id} AND (c.flag_del IS NULL OR c.flag_del<1) LIMIT 1`))[0];
             if (!r)

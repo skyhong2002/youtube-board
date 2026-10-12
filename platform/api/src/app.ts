@@ -1,3 +1,4 @@
+import {registerPublicV1Cache} from './public-v1-cache.js';
 import {trustedProxies} from './trusted-proxy.js';
 import {RateLimitError} from './rate-limit.js';
 import {enrichPublicMedia} from './reports/media.js';
@@ -46,6 +47,7 @@ interface AppOptions {
 }
 export function buildApp(options: AppOptions = {}) {
     const app = Fastify({ logger: false, trustProxy: trustedProxies(process.env.AUTH_TRUSTED_PROXY_CIDRS), requestTimeout: 15000, bodyLimit: 16384 }), reader = options.reader ?? createReader(options.databaseUrl ?? process.env.DATABASE_URL), clock = options.clock ?? (() => new Date()), service = reports(reader, clock);
+    registerPublicV1Cache(app);
     app.addHook('onSend', async (_request, reply, payload) => { reply.header('Strict-Transport-Security','max-age=31536000'); return payload; });
     const meta = (data: unknown): ReportMeta => ({ schemaVersion: 1, requestedAt: clock().toISOString(), updatedAt: deepUpdatedAt(data), timezone: 'Asia/Taipei', source: 'mariadb', dataset: options.dataset ?? (process.env.DATASET_KIND === 'fixture' ? 'fixture' : 'unknown'), coverage: {}, warnings: [] });
     registerMediaAssets(app);
