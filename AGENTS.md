@@ -4,6 +4,21 @@ These notes are for coding agents and maintainers working inside this repository
 
 ## Project Scope
 
+### Current production state (2026-10-12)
+
+The public `youtube.observe.tw` frontend switched to TypeScript at08:44:29UTC
+(16:44:29Taipei), after read-only live acceptance. The user confirmed production
+Google login, My Dashboard and logout work. Dokploy stack
+`youtube-board-ts-6oukfq` runs the separate TS frontend and maintenance responder;
+Laravel still owns **all** background workflows and source writes. The TS report
+account is SELECT-only against source views; its account/session state uses the
+separate `youtube_board_ts` schema. `/ops` remains routed to Laravel. No scheduler
+ownership has transferred. See `platform/docs/frontend-cutover-execution-2026-10-12.md`
+for exact release, checks, rollback and subsequent handoff records; older Laravel
+web-serving notes below are historical. Preserve the original scheduler image
+until each approved workflow handoff. User authorization covers gradual full
+handoff, provided verified backups protect the database.
+
 ### Active rewrite direction (2026-10-11)
 
 The user authorized a complete TypeScript replacement aligned with tag.observe.tw,
