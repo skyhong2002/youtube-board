@@ -339,7 +339,7 @@ export async function ReportPage({
         const topics=data.topics?.length?data.topics:data.topic?[data.topic]:[],cover=data.videos.find(v=>/^[A-Za-z0-9_-]{11}$/.test(v.id));
         return <div className="space-y-8">
             <EventHeader title={data.title||route.title} breadcrumb={<><Link href="/ai/days" className="hover:underline">AI 議題</Link> / {data.idKind==='daily'?'每日彙整':'儲存分析'} #{data.id}</>} description={`分析日期：${data.date||"未記錄"}。請搭配來源影片閱讀 AI 整理結果；來源分組不代表已證實為同一事件。`} updatedAt={meta.updatedAt}
-                cover={cover?{videoId:cover.id,title:cover.title,channelTitle:cover.channelTitle}:null}
+                cover={cover?{videoId:cover.id,title:cover.title,channelTitle:cover.channelTitle,channel:{channelId:cover.channelId,channelTitle:cover.channelTitle,channelAvatar:cover.channelAvatar??null}}:null}
                 tags={[...new Set(topics.flatMap(t=>t.keywords))].slice(0,12)}
                 stats={[{label:'本地來源影片',value:count(data.videos.length)},{label:'來源分組',value:count(topics.length)},{label:'可呈現分析',value:count(data.analyses.length)}]}
                 jumps={[["source-evidence","分組依據"],["source-videos","來源影片"],["stored-analysis","儲存分析"]]}/>

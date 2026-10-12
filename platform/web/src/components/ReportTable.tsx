@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import {ChannelAvatar} from './ChannelAvatar';
+import {ChannelSourceList,cellSources} from './ChannelSource';
 import {VideoThumbnail} from './VideoThumbnail';
 import {MissingObservation} from './ObservationValue';
 import TableScroller from './TableScroller';
@@ -16,7 +17,8 @@ export function ReportTable({columns,rows,label}:{columns:ReportColumn[];rows:Re
 }
 function Cell({value,column,lead=false}:{value:ReportValue|ReportCell|undefined;column:ReportColumn;lead?:boolean}){
  const cell=value!==null&&typeof value==='object'?value:{value:value??null};
- const href=safeReportHref(cell.href);
+ const sources=cellSources(cell);
+ const href=sources?undefined:safeReportHref(cell.href);
  const text=(cell.value===null||(typeof cell.value==='number'&&!Number.isFinite(cell.value)))
   ?<MissingObservation/>
   :column.kind==='date'||column.kind==='datetime'
@@ -28,9 +30,10 @@ function Cell({value,column,lead=false}:{value:ReportValue|ReportCell|undefined;
      :cell.value;
  // One line per cell: long text is cut with an ellipsis and keeps the full text as its title.
  const clip=lead?tableStyle.leadText+' inline-block align-top sm:max-w-xs':tableStyle.clip;
- const label=typeof text==='string'&&!numericColumn(column)?<span className={clip} title={text}>{text}</span>:text;
+ // Source names share that one clipped line; each keeps its own icon and the list keeps the full title.
+ const label=sources?<ChannelSourceList sources={sources} className={clip}/>:typeof text==='string'&&!numericColumn(column)?<span className={clip} title={text}>{text}</span>:text;
  const row='inline-flex min-w-0 max-w-full items-center gap-2 align-top';
- const media=cell.media&&<span className={(lead?tableStyle.leadExtra+' ':'')+'shrink-0'}>{cell.media.kind==='channel'?<ChannelAvatar avatar={cell.media.avatar} title={typeof cell.value==='string'?cell.value:undefined} size={20}/>:<VideoThumbnail videoId={cell.media.videoId} width={48} height={27}/>}</span>;
+ const media=!sources&&cell.media&&<span className={(lead?tableStyle.leadExtra+' ':'')+'shrink-0'}>{cell.media.kind==='channel'?<ChannelAvatar avatar={cell.media.avatar} title={typeof cell.value==='string'?cell.value:undefined} size={20}/>:<VideoThumbnail videoId={cell.media.videoId} width={48} height={27}/>}</span>;
  const content=media?<span className={row}>{media}{label}</span>:label;
  const rendered=href?(href.startsWith('/')
   ?<Link className={ui.link+(media?'':' '+row)} href={href}>{content}</Link>

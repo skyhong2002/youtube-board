@@ -11,12 +11,14 @@ import {ObservationValue} from './ObservationValue';
 import {table} from '@/lib/table-styles';
 import {reportStyle as ui} from '@/lib/report-styles';
 import {VideoThumbnail} from './VideoThumbnail';
+import {ChannelSourceLabel,hasSource} from './ChannelSource';
 function Chart({title,points,unit}:{title:string;points:AnalyticsPoint[];unit:string}){return <section><SectionHeading title={title}/><div className="panel"><TimeChart points={points} label={title} unit={unit}/></div></section>;}
 export async function VideoAnalytics({apiPath,search,path}:{apiPath:string;search:Search;path:string}){
  const result=await api<VideoAnalyticsData>(apiPath,search);if(!result.ok){if(result.status===404)notFound();return <Unavailable title="影片觀測分析" status={result.status}/>;}
- const {data,meta}=result.response,c=data.comments;
+ const {data,meta}=result.response,c=data.comments,channel={channelId:data.channelId,channelTitle:data.channelTitle,channelAvatar:data.channelAvatar??null};
  return <>
-  <Heading title={data.title+' · 觀測分析'} description={data.channelTitle||'歷次公開統計、直播與留言來源'} meta={meta}/><DataNotice meta={meta}/>
+  <Heading title={data.title+' · 觀測分析'} description="歷次公開統計、直播與留言來源" meta={meta}/>
+  {hasSource(channel)&&<p className="-mt-3 mb-4 text-sm text-zinc-600 dark:text-zinc-400"><ChannelSourceLabel source={channel} size={20}/></p>}<DataNotice meta={meta}/>
   <Tabs items={[{href:`/videos/${encodeURIComponent(data.id)}`,label:'影片概覽'},{href:path,label:'觀測分析'}]} active={path}/>
   <Link href={`/videos/${encodeURIComponent(data.id)}`} aria-label="返回影片概覽"><VideoThumbnail videoId={data.id} title={data.title} width={160} height={90}/></Link>
   <form key={data.limit} action={path} className={ui.form}><label className={ui.label}>每組顯示筆數<input className={ui.input} name="limit" type="number" min="1" max="200" defaultValue={data.limit}/></label><button className={ui.primary}>套用</button></form>
