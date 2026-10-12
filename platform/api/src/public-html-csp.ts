@@ -11,6 +11,7 @@ const SHELL_TIME = 'requestAnimationFrame(function(){$RT=performance.now()});';
 // Deliberately version-pinned: a renderer upgrade must update/review these fixtures.
 const BOUNDARY_HELPER = "$RB=[];$RV=function(a){$RT=performance.now();for(var b=0;b<a.length;b+=2){var c=a[b],e=a[b+1];null!==e.parentNode&&e.parentNode.removeChild(e);var f=c.parentNode;if(f){var g=c.previousSibling,h=0;do{if(c&&8===c.nodeType){var d=c.data;if(\"/$\"===d||\"/&\"===d)if(0===h)break;else h--;else\"$\"!==d&&\"$?\"!==d&&\"$~\"!==d&&\"$!\"!==d&&\"&\"!==d||h++}d=c.nextSibling;f.removeChild(c);c=d}while(c);for(;e.firstChild;)f.insertBefore(e.firstChild,c);g.data=\"$\";g._reactRetry&&requestAnimationFrame(g._reactRetry)}}a.length=0};\n$RC=function(a,b){if(b=document.getElementById(b))(a=document.getElementById(a))?(a.previousSibling.data=\"$~\",$RB.push(a,b),2===$RB.length&&(\"number\"!==typeof $RT?requestAnimationFrame($RV.bind(null,$RB)):(a=performance.now(),setTimeout($RV.bind(null,$RB),2300>a&&2E3<a?2300-a:$RT+300-a)))):b.parentNode.removeChild(b)};";
 const SEGMENT_HELPER = "$RS=function(a,b){a=document.getElementById(a);b=document.getElementById(b);for(a.parentNode.removeChild(a);a.firstChild;)b.parentNode.insertBefore(a.firstChild,b);b.parentNode.removeChild(b)};";
+const CLIENT_RENDER_HELPER = '$RX=function(b,c,d,e,f){var a=document.getElementById(b);a&&(b=a.previousSibling,b.data="$!",a=a.dataset,null!=c&&(a.dgst=c),d&&(a.msg=d),e&&(a.stck=e),f&&(a.cstck=f),b._reactRetry&&b._reactRetry())};;';
 
 export class PublicHtmlPolicyError extends Error {
   constructor(readonly code: string) {
@@ -43,6 +44,28 @@ function helperCall(source: string, name: '$RC' | '$RS'): boolean {
     ? /^B:[0-9a-f]+$/.test(first) && /^S:[0-9a-f]+$/.test(second)
     : /^S:[0-9a-f]+$/.test(first) && /^P:[0-9a-f]+$/.test(second);
 }
+function clientRenderCall(source: string): boolean {
+  if (!source.startsWith('$RX(') || !source.endsWith(')')) return false;
+  let args: unknown;
+  try { args = JSON.parse(`[${source.slice(4, -1)}]`); } catch { return false; }
+  // Production emits only a boundary and optional opaque digest. Never allow
+  // development error messages/stacks, expressions, or arbitrary element IDs.
+  return Array.isArray(args) && (args.length === 1 || args.length === 2)
+    && typeof args[0] === 'string' && /^B:[0-9a-f]{1,16}$/.test(args[0])
+    && (args.length === 1 || (typeof args[1] === 'string' && clientRenderDigest(args[1])));
+}
+function clientRenderDigest(value:string):boolean{
+  if(/^[A-Za-z0-9_-]{1,128}$/.test(value)||/^NEXT_HTTP_ERROR_FALLBACK;(401|403|404)$/.test(value))return true;
+  const redirect=/^NEXT_REDIRECT;(replace|push);(\/[^;]{0,1023});(303|307|308);$/.exec(value);
+  if(!redirect)return false;
+  const path=redirect[2]!;
+  // Only local URLs. Reject encoded separators/control bytes too, so browser
+  // normalization cannot turn a permitted local path into another origin.
+  let decoded:string;
+  try{decoded=decodeURIComponent(path);}catch{return false;}
+  return !/[\\\u0000-\u0020\u007f]/.test(path)&&!/[\\;\u0000-\u0020\u007f]/.test(decoded)
+    &&!path.startsWith('//')&&!decoded.startsWith('//')&&!/%(?:25|2f|5c)/i.test(path);
+}
 
 /**
  * Couple an HTML entity to a strict CSP. This is a private trusted-Next boundary,
@@ -52,7 +75,7 @@ function helperCall(source: string, name: '$RC' | '$RS'): boolean {
 export function securePublicHtml(
   html: Buffer,
   options: { assets: ReadonlyMap<string, string>; themeScript: string },
-): { body: Buffer; csp: string } {
+): { body: Buffer; csp: string; clientRenderFailed: boolean } {
   if (html.byteLength > MAX_HTML_BYTES) reject('HTML_TOO_LARGE');
   let source: string;
   try { source = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(html); }
@@ -71,6 +94,7 @@ export function securePublicHtml(
   let flightStarted = false;
   let boundaryDeclared = false;
   let segmentDeclared = false;
+  let clientRenderFailed = false;
   let themeSeen = false;
   let shellSeen = false;
 
@@ -122,6 +146,12 @@ export function securePublicHtml(
       segmentDeclared = true;
       return true;
     }
+    if (text.startsWith(CLIENT_RENDER_HELPER)) {
+      if (clientRenderFailed || !clientRenderCall(text.slice(CLIENT_RENDER_HELPER.length))) return false;
+      clientRenderFailed = true;
+      return true;
+    }
+    if (clientRenderFailed && clientRenderCall(text)) return true;
     return (boundaryDeclared && helperCall(text, '$RC')) || (segmentDeclared && helperCall(text, '$RS'));
   }
 
@@ -184,5 +214,5 @@ export function securePublicHtml(
   for (const edit of edits) source = source.slice(0, edit.start) + edit.value + source.slice(edit.end);
   const body = Buffer.from(source, 'utf8');
   if (body.byteLength > MAX_HTML_BYTES) reject('HTML_TOO_LARGE');
-  return { body, csp };
+  return { body, csp, clientRenderFailed };
 }

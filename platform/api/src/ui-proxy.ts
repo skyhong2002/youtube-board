@@ -7,15 +7,18 @@ import { validImageOptimizationQuery } from '../../shared/image-policy.js';
 import {securePublicHtml} from './public-html-csp.js';
 import {PRIVATE_CACHE, PUBLIC_RENDER_HEADER, publicMarkerMatches,publicHtmlTtl, publicHtmlVary, publicCacheControl,upstreamPublicPolicy,acceptsGzip} from './public-html.js';
 import {INTERNAL_RENDER_HEADER,isInternalRenderPath} from '../../shared/public-render-contract.js';
+import {unavailableResponder,type UnavailableAssets} from './ui-unavailable.js';
 const gzipAsync=promisify(gzip);
 
-export type HtmlSecurityOptions = {assets:ReadonlyMap<string,string>;themeScript:string};
+export type HtmlSecurityOptions = {assets:ReadonlyMap<string,string>;themeScript:string}&UnavailableAssets;
 
 /** The gateway owns API/ops namespaces; the exact read-only console page reaches Next. */
 export async function registerUiProxy(app: FastifyInstance, options: { origin: string; htmlSecurity?:HtmlSecurityOptions }) {
   const origin = new URL(options.origin);
   if (!['http:', 'https:'].includes(origin.protocol) || origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) throw new Error('Invalid UI origin');
   const slots=new HtmlRenderSlots();
+  const unavailable=unavailableResponder(options.htmlSecurity??{});
+  if(unavailable.css)app.get('/errors/unavailable.css',(_request,reply)=>reply.header('Cache-Control','public, max-age=300, no-transform').header('X-Content-Type-Options','nosniff').type('text/css; charset=utf-8').send(unavailable.css));
   await app.register(proxy, {
     upstream: origin.origin,
     prefix: '/',
@@ -42,9 +45,10 @@ export async function registerUiProxy(app: FastifyInstance, options: { origin: s
       done();
     },
     replyOptions: {
+      ...(options.htmlSecurity?{retryDelay:()=>null,onError(reply){if(!reply.sent&&!reply.request.raw.aborted)unavailable.send(reply);}}:{}),
       rewriteRequestHeaders: (request, headers) => {
         const safe = {...headers};
-        for (const name of ['authorization','cookie','proxy-authorization',PUBLIC_RENDER_HEADER,INTERNAL_RENDER_HEADER,'x-yt-public-render','x-nonce','content-security-policy','content-security-policy-report-only']) delete safe[name];
+        for (const name of ['authorization','cookie','proxy-authorization','x-api-key','x-service-token',PUBLIC_RENDER_HEADER,INTERNAL_RENDER_HEADER,'x-yt-public-render','x-nonce','content-security-policy','content-security-policy-report-only']) delete safe[name];
         if(options.htmlSecurity && !request.url.startsWith('/_next/') && request.headers.rsc===undefined) {
           safe['accept-encoding']='identity';
           // A 304/206 without its entity cannot be paired with a regenerated hash
@@ -55,6 +59,12 @@ export async function registerUiProxy(app: FastifyInstance, options: { origin: s
       },
       ...(options.htmlSecurity ? {onResponse(request, reply, upstream) {
         const security=options.htmlSecurity!;
+        const fail=()=>{
+          upstream.stream.once('error',()=>{});
+          upstream.stream.destroy();
+          if(!reply.sent&&!request.raw.aborted)unavailable.send(reply);
+        };
+        if(reply.statusCode>=500){fail();return;}
         const marker=reply.getHeader(PUBLIC_RENDER_HEADER);
         reply.removeHeader(PUBLIC_RENDER_HEADER);
         const type=String(reply.getHeader('content-type')??'');
@@ -71,12 +81,6 @@ export async function registerUiProxy(app: FastifyInstance, options: { origin: s
           }
           reply.send(upstream.stream); return;
         }
-        const fail=()=>{
-          upstream.stream.destroy();
-          for(const name of ['content-length','content-encoding','etag','content-security-policy-report-only','location']) reply.removeHeader(name);
-          reply.code(502).header('Cache-Control',PRIVATE_CACHE).header('Content-Security-Policy',"default-src 'none'; frame-ancestors 'self'; base-uri 'none'; object-src 'none'")
-            .type('text/plain; charset=utf-8').send('Public page temporarily unavailable.');
-        };
         if(reply.getHeader('content-encoding') && reply.getHeader('content-encoding')!=='identity') {fail();return;}
         // An upstream can error while waiting for a bounded buffer slot, before
         // the async iterator attaches its own listener.
@@ -90,11 +94,7 @@ export async function registerUiProxy(app: FastifyInstance, options: { origin: s
           try {
             release=await slots.acquire(waiting.signal);
             if(!release){
-              upstream.stream.destroy();
-              for(const name of ['content-length','content-encoding','etag','content-security-policy-report-only'])reply.removeHeader(name);
-              if(!request.raw.aborted)reply.code(503).header('Cache-Control',PRIVATE_CACHE).header('Retry-After','1')
-                .header('Content-Security-Policy',"default-src 'none'; frame-ancestors 'self'; base-uri 'none'; object-src 'none'")
-                .type('text/plain').send('Public page temporarily busy.');
+              fail();
               return;
             }
             const chunks:Buffer[]=[];let size=0;
@@ -107,7 +107,7 @@ export async function registerUiProxy(app: FastifyInstance, options: { origin: s
             const vary=publicHtmlVary(reply.getHeader('vary'));
             const ttl=publicHtmlTtl(request);
             const upstreamPolicy=upstreamPublicPolicy(reply.getHeader('cache-control'),reply.getHeader('age'));
-            const shareable=reply.statusCode===200 && publicMarkerMatches(marker,request.url) && ttl!==null && upstreamPolicy!==null &&
+            const shareable=reply.statusCode===200 && !result.clientRenderFailed && publicMarkerMatches(marker,request.url) && ttl!==null && upstreamPolicy!==null &&
               String(reply.getHeader('x-nextjs-cache')??'').toUpperCase()!=='STALE' && !reply.hasHeader('set-cookie') && vary!=='*';
             for(const name of ['content-length','content-encoding','etag','age','content-security-policy-report-only']) reply.removeHeader(name);
             reply.header('Content-Security-Policy',result.csp).header('Vary',vary)

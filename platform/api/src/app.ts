@@ -159,7 +159,7 @@ export function buildApp(options: AppOptions = {}) {
         const message = error instanceof BadQuery || error instanceof NotFound ? error.message : code === 503 ? 'Dashboard data source is unavailable. Check the database connection and access permissions.' : 'The request could not be completed.';
         if (code === 500)
             process.stderr.write(`youtube-board-api: internal request error${error instanceof DataQueryFailed ? ' [' + error.driverCode + ']' : ''}\n`);
-        reply.code(code).header('Cache-Control', 'no-store').send({ error: { code: key, message } });
+        reply.code(code).header('Cache-Control', 'no-store').send(_request.url.startsWith('/api/v1/') ? { error: message, code: key } : { error: { code: key, message } });
     });
     app.addHook('onClose', async () => reader.close());
     return app;

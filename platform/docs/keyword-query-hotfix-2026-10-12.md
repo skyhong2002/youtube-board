@@ -9,3 +9,13 @@
 API typecheck及隔離MariaDB兩組35個測試通過；修正測試fixture使用與正式匯入相同的詞條鍵。Codex獨立審查通過，採納補上證據ID的BINARY防護。
 
 部署只更換API service.ts，保留既有編譯前端、環境、權限、路由與Laravel scheduler。沒有資料庫DDL/DML，也不啟動比對工作。部署後的實際驗收另行記錄；新品質比對、API文件與前端失敗狀態屬後續批次。
+
+## 正式部署驗收
+
+2026-10-12 13:06 UTC，commit `a12c546` 已透過 Dokploy image-only 更新，映像固定為 `sha256:4149a56ad4d20ae8721d448d980b6eab69b8d2cd4620aa90ff73f42e93a0c590`。31項隔離 canary 檢查通過；映像來源、API檔案雜湊、編譯前端完整樹、既有 runtime 設定均驗證。
+
+公開 HTTPS 驗收：新聞 API 574ms、沈伯洋 API 525ms，皆200、50筆，總數分別5120與1194；相同期間頁面855ms與831ms，皆200。`/auth/me`與`/my`保留private/no-store；tag/blog均200；Laravel scheduler仍是原容器，未重新啟動。這些是單次端對端量測，不是負載測試。
+
+回退只需在TS compose把web與account-maintenance的image改回前一個固定映像 `sha256:a4bb06fa67b25a5d7736250a4ad578cec8da75c8cc4a8b613dca772b1f2a7812` 並部署；不還原資料、不更動Laravel。
+
+後續仍需完成首次讀取失敗的中文錯誤畫面與串流CSP整合驗收；本次僅宣告查詢逾時修正完成。

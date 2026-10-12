@@ -21,6 +21,7 @@ function producerLiteral(name: string): string {
 }
 const boundary = producerLiteral('completeBoundaryScriptFunctionOnly');
 const segment = producerLiteral('completeSegmentScript1Full').slice(0, -5);
+const clientRender = producerLiteral('clientRenderScript1Full').slice(0, -5);
 
 describe('public HTML hash CSP', () => {
   it('hashes audited inline scripts and attaches build SRI to external scripts', () => {
@@ -107,6 +108,39 @@ describe('public HTML hash CSP', () => {
   });
   it('accepts installed React helpers and subsequent literal calls with changing IDs', () => {
     expect(() => secure(script(boundary + '$RC("B:1a","S:2b")') + script('$RC("B:2","S:3")') + script(segment + '$RS("S:f","P:0")') + script('$RS("S:10","P:a")'))).not.toThrow();
+  });
+  it('accepts the pinned production failed boundary and flags its uncacheable error state', () => {
+    const fixture = readFileSync(new URL('./fixtures/react-production-failed-boundary.html', import.meta.url));
+    expect(fixture.toString()).toContain(clientRender + '$RX("B:0","synthetic-error")');
+    const result = securePublicHtml(fixture, opts);
+    expect(result.body).toEqual(fixture);
+    expect(result.clientRenderFailed).toBe(true);
+    expect(result.csp).toContain(digest(clientRender + '$RX("B:0","synthetic-error")'));
+    expect(secure(script(theme)).clientRenderFailed).toBe(false);
+    expect(secure(script(clientRender + '$RX("B:a")') + script('$RX("B:1","12345678")')).clientRenderFailed).toBe(true);
+  });
+  it.each([
+    '$RX("B:0","123")', clientRender,
+    clientRender + '$RX("B:0","123");alert(1)',
+    clientRender + '$RX("B:0",evil())',
+    clientRender + '$RX("B:0","123","private error")',
+    clientRender + '$RX("B:0",null)',
+    clientRender + '$RX("B:0","line\\nfeed")',
+    clientRender + '$RX("other-element","123")',
+    clientRender + '$RX("B:00000000000000000","123")',
+    clientRender + `$RX("B:0","${'a'.repeat(129)}")`,
+    clientRender.replace('a.dgst=c', 'alert(c)') + '$RX("B:0","123")',
+  ])('rejects malformed or unpinned failed-boundary helpers %#', text => {
+    expect(() => secure(script(text))).toThrow('UNKNOWN_INLINE_SCRIPT');
+  });
+  it('rejects duplicate client-render helper declarations', () => {
+    expect(() => secure(script(clientRender + '$RX("B:0")').repeat(2))).toThrow('UNKNOWN_INLINE_SCRIPT');
+  });
+  it.each(['NEXT_HTTP_ERROR_FALLBACK;401','NEXT_HTTP_ERROR_FALLBACK;403','NEXT_HTTP_ERROR_FALLBACK;404','NEXT_REDIRECT;replace;/channels/8;307;','NEXT_REDIRECT;push;/keywords/%E5%8F%B0%E7%81%A3?days=7;303;','NEXT_REDIRECT;replace;/;308;'])('accepts bounded local Next control digest: %s',value=>{
+    expect(secure(script(clientRender+`$RX("B:0",${JSON.stringify(value)})`)).clientRenderFailed).toBe(true);
+  });
+  it.each(['NEXT_HTTP_ERROR_FALLBACK;500','NEXT_REDIRECT;replace;https://example.com;307;','NEXT_REDIRECT;replace;//example.com;307;','NEXT_REDIRECT;replace;/\\example.com;307;','NEXT_REDIRECT;replace;/%2fexample.com;307;','NEXT_REDIRECT;replace;/%255cexample.com;307;','NEXT_REDIRECT;replace;/x%0ay;307;','NEXT_REDIRECT;replace;/x%3by;307;','NEXT_REDIRECT;replace;/x;200;','NEXT_REDIRECT;evil;/x;307;','NEXT_REDIRECT;replace;relative;307;',`NEXT_REDIRECT;replace;/${'a'.repeat(1024)};307;`])('rejects unsupported Next control digest %#',value=>{
+    expect(()=>secure(script(clientRender+`$RX("B:0",${JSON.stringify(value)})`))).toThrow('UNKNOWN_INLINE_SCRIPT');
   });
   it.each([
     '$RC("B:0","S:0")', boundary + '$RC("B:0","S:0");alert(1)',

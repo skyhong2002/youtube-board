@@ -44,14 +44,20 @@ export function publicApiUrl(base: string, path: string, search: Search = {}): s
 export function deterministicPartial(status: number, code: string): boolean {
     return [400, 404, 410, 422].includes(status) || code === "INVALID_RESPONSE" || code === "NOT_PUBLIC";
 }
+const errorCode = /^[A-Z][A-Z0-9_]{0,63}$/;
+/** Error code from either the public v1 envelope `{error: string, code?: string}` or the
+ * older structured `{error: {code}}`. Anything else (prose, raw detail) is not trusted. */
+function publicErrorCode(body: unknown): string {
+    const value = body as { error?: unknown; code?: unknown } | null;
+    const code = typeof value?.error === "string" ? value.code
+        : typeof value?.error === "object" && value.error !== null ? (value.error as { code?: unknown }).code
+        : undefined;
+    return typeof code === "string" && errorCode.test(code) ? code : "API_UNAVAILABLE";
+}
 export async function readPublicResponse<T>(response: Response): Promise<Result<T>> {
     if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        return {
-            ok: false,
-            status: response.status,
-            code: typeof body?.error?.code === "string" ? body.error.code : "API_UNAVAILABLE",
-        };
+        const body = await response.json().catch(() => null);
+        return { ok: false, status: response.status, code: publicErrorCode(body) };
     }
     const body = await response.json().catch(() => null);
     if (typeof body !== "object" || body === null || !("data" in body) || body.meta?.schemaVersion !== 1)

@@ -5,6 +5,7 @@ import {createHash} from 'node:crypto';
 import {gunzipSync} from 'node:zlib';
 import {Readable} from 'node:stream';
 import {setTimeout as delay} from 'node:timers/promises';
+import {readFileSync} from 'node:fs';
 it('serves API locally and forwards UI/assets without forwarding ops credentials', async () => {
   const ui = Fastify(); ui.get('/page', request => ({ auth: request.headers.authorization ?? null, cookie: request.headers.cookie ?? null, render: request.headers['x-youtube-board-render'] ?? null }));
   ui.get('/ops/ingestion', request => ({ console: true, auth: request.headers.authorization ?? null }));
@@ -41,6 +42,7 @@ it('publishes atomic hash CSP HTML but keeps credentials, Flight, Set-Cookie, er
     if(request.url==='/channels/wildcard')reply.header('Vary','*');
     if(request.url==='/channels/private')reply.header('Cache-Control','private, no-store');
     if(request.url==='/channels/stale')reply.header('x-nextjs-cache','STALE');
+    if(request.url==='/channels/failed-boundary')return reply.type('text/html').send(readFileSync(new URL('./fixtures/react-production-failed-boundary.html',import.meta.url)));
     if(request.headers.rsc)return reply.type('text/x-component').send('flight');
     if(request.url==='/channels/burst')return reply.type('text/html').send(Readable.from((async function*(){yield html.slice(0,20);await delay(40);yield html.slice(20);})()));
     return reply.type('text/html').send(request.url==='/channels/injected'?html.replace('</body>','<script>alert(1)</script></body>'):html);
@@ -56,6 +58,11 @@ it('publishes atomic hash CSP HTML but keeps credentials, Flight, Set-Cookie, er
     expect(publicPage.headers['content-security-policy']).toContain(hash);
     expect(publicPage.body).toContain(`integrity="${hash}"`);
     expect(publicPage.headers['x-youtube-board-public-render']).toBeUndefined();
+    const failedBoundary=await app.inject('/channels/failed-boundary');
+    expect(failedBoundary.statusCode).toBe(200);
+    expect(failedBoundary.body).toContain('$RX(');
+    expect(failedBoundary.headers['content-security-policy']).toContain("'strict-dynamic'");
+    expect(failedBoundary.headers['cache-control']).toBe('private, no-store, no-transform');
     for(const url of ['/channels?sort=view','/my','/manage','/login','/channels/cookie','/channels/error','/channels/wildcard','/channels/private','/channels/stale']) {
       const response=await app.inject(url);expect(response.headers['cache-control']).toBe('private, no-store, no-transform');
     }
@@ -63,7 +70,7 @@ it('publishes atomic hash CSP HTML but keeps credentials, Flight, Set-Cookie, er
       const response=await app.inject({url:'/channels',headers});expect(response.headers['cache-control']).toBe('private, no-store, no-transform');
     }
     const denied=await app.inject('/channels/injected');
-    expect(denied.statusCode).toBe(502);expect(denied.body).not.toContain('alert(1)');
+    expect(denied.statusCode).toBe(503);expect(denied.body).not.toContain('alert(1)');
     expect(denied.headers['cache-control']).toBe('private, no-store, no-transform');
     expect((await app.inject('/render-filtered/channels')).statusCode).toBe(404);
     expect((await app.inject('/%63hannels?limit=5')).statusCode).toBe(404);
