@@ -1,7 +1,7 @@
 import {notFound} from 'next/navigation';
 import {enablePublicRevalidation} from '@/lib/api';
 import EventList from '../../../events/EventList';
-// ISR entry for query-free `/events` (proxy rewrite); see render-isr/home for why the
+// ISR entry for query-free `/events` (proxy-selected beforeFiles rewrite); see render-isr/home for why the
 // segment is dynamic with no build-time params.
 export const revalidate=60;
 export const dynamicParams=true;

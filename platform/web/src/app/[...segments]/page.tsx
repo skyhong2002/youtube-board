@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { decodeReportSegments, resolveRoute } from "@/lib/routes";
 import { ReportPage } from "@/lib/report-pages";
 import { enablePublicRevalidation } from "@/lib/api";
-// Canonical, query-free report: params-only ISR. The proxy rewrites every query
+// Canonical, query-free report: params-only ISR. The proxy routes every query
 // variant to /render-filtered/report, which keeps the dynamic semantics.
 export const revalidate = 60;
 export const dynamicParams = true;

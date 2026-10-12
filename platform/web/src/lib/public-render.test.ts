@@ -5,38 +5,94 @@ import {join} from 'node:path';
 import {publicRenderDecision,withoutTransportParams,ISR_HOME_PATH,ISR_EVENTS_PATH,FILTERED_REPORT_PREFIX} from './public-render';
 import {PUBLIC_DATA_REVALIDATE,PublicDataError,deterministicPartial,publicApiUrl,publicDataClass,readPublicResponse,requireSuccess} from './public-data';
 import {tagEvidenceRenderable} from './evidence';
-import {PUBLIC_RENDER_REVALIDATE_SECONDS,THEME_SCRIPT,isInternalRenderPath} from '../../../shared/public-render-contract';
+import {INTERNAL_RENDER_HEADER,PUBLIC_RENDER_REVALIDATE_SECONDS,REPORT_FAMILIES,THEME_SCRIPT,internalRenderRewrites,isInternalRenderPath} from '../../../shared/public-render-contract';
+import {resolveRoute} from './routes';
 const decide=(path:string,method?:string)=>publicRenderDecision(new URL(path,'http://local'),method);
 const source=(file:string)=>{for(const root of [process.cwd(),join(process.cwd(),'web'),join(process.cwd(),'platform/web')]){const path=join(root,file);if(existsSync(path))return readFileSync(path,'utf8');}throw new Error('missing '+file);};
 test('route decisions: canonical eligible, every query variant dynamic, internals blocked',()=>{
- assert.deepEqual(decide('/'),{kind:'render',rewrite:ISR_HOME_PATH,eligible:'home'});
- assert.deepEqual(decide('/?a=1'),{kind:'render',rewrite:ISR_HOME_PATH+'?a=1',eligible:null});
- assert.deepEqual(decide('/events'),{kind:'render',rewrite:ISR_EVENTS_PATH,eligible:'events'});
- assert.deepEqual(decide('/events?page=2'),{kind:'render',rewrite:null,eligible:null});
- assert.deepEqual(decide('/mayor/cities/taipei/people/%E7%8E%8B'),{kind:'render',rewrite:null,eligible:'report'});
- assert.deepEqual(decide('/tags/8/videos?or=1,2'),{kind:'render',rewrite:FILTERED_REPORT_PREFIX+'/tags/8/videos?or=1,2',eligible:null});
- assert.deepEqual(decide('/videos','POST'),{kind:'render',rewrite:null,eligible:null});
+ assert.deepEqual(decide('/'),{kind:'render',target:'home',eligible:'home'});
+ assert.deepEqual(decide('/?a=1'),{kind:'render',target:'home',eligible:null});
+ assert.deepEqual(decide('/events'),{kind:'render',target:'events',eligible:'events'});
+ assert.deepEqual(decide('/events?page=2'),{kind:'render',target:null,eligible:null});
+ assert.deepEqual(decide('/mayor/cities/taipei/people/%E7%8E%8B'),{kind:'render',target:null,eligible:'report'});
+ assert.deepEqual(decide('/tags/8/videos?or=1,2'),{kind:'render',target:'filtered',eligible:null});
+ assert.deepEqual(decide('/videos','POST'),{kind:'render',target:null,eligible:null});
  // Unknown, malformed or non-report paths are never eligible.
  for(const path of ['/videos/','/keywords/%E4%ZZ/videos','/arbitrary','/feeds/videos.xml','/boards','/my/saved','/compare/titles'])assert.equal((decide(path) as {eligible?:unknown}).eligible??null,null,path);
  for(const path of ['/render-isr','/render-isr/home/x','/RENDER-FILTERED/report/videos','/render%2Dfiltered/report/videos'])assert.equal(decide(path).kind,'blocked',path);
  assert.equal(isInternalRenderPath('/render-isr-extra'),false);assert.equal(isInternalRenderPath('/rendering'),false);
  assert.deepEqual(PUBLIC_RENDER_REVALIDATE_SECONDS,{home:60,events:60,event:60,report:60});
 });
+/** Replays next.config beforeFiles rewrites with the pinned Next router helpers
+ * (filesystem.js getPathMatch options, matchHas, prepareDestination) on the raw request
+ * path, after the proxy's request-header override has been applied. */
+async function routed(path:string,header:string|null){
+ const {getPathMatch}=await import('next/dist/shared/lib/router/utils/path-match.js');
+ const {matchHas,prepareDestination}=await import('next/dist/shared/lib/router/utils/prepare-destination.js');
+ const {modifyRouteRegex}=await import('next/dist/lib/redirect-status.js');
+ const url=new URL(path,'http://127.0.0.1:38111'),query:Record<string,string>=Object.fromEntries(url.searchParams);
+ const req={headers:header===null?{}:{[INTERNAL_RENDER_HEADER]:header}};
+ for(const rule of internalRenderRewrites()){
+  const params=getPathMatch(rule.source,{strict:true,removeUnnamedParams:true,regexModifier:(regex:string)=>modifyRouteRegex(regex)})(url.pathname);
+  if(!params)continue;
+  const has=matchHas(req as never,query,rule.has,[]);if(!has)continue;
+  const {parsedDestination}=prepareDestination({appendParamsToQuery:true,destination:rule.destination,params:{...params,...has},query});
+  // Relative destination: Next keeps it inside the same router pass (no protocol, no re-entry).
+  assert.equal(parsedDestination.protocol??null,null);
+  return {pathname:parsedDestination.pathname as string,query:parsedDestination.query as Record<string,unknown>};
+ }
+ return {pathname:url.pathname,query};
+}
+test('proxy targets resolve through Next rewrites to the right route tree with the original query',async()=>{
+ const via=async(path:string)=>{const decision=decide(path);assert.equal(decision.kind,'render');return routed(path,(decision as {target:string|null}).target);};
+ const cases:[string,string,Record<string,string>][]=[
+  ['/',ISR_HOME_PATH,{}],
+  ['/?utm=x',ISR_HOME_PATH,{utm:'x'}],
+  ['/?_rsc=abc',ISR_HOME_PATH,{_rsc:'abc'}],
+  ['/events',ISR_EVENTS_PATH,{}],
+  ['/events?_rsc=abc',ISR_EVENTS_PATH,{_rsc:'abc'}],
+  ['/events?q=a&_rsc=abc','/events',{q:'a',_rsc:'abc'}],
+  ['/channels','/channels',{}],
+  ['/channels?_rsc=abc','/channels',{_rsc:'abc'}],
+  ['/channels?limit=5',FILTERED_REPORT_PREFIX+'/channels',{limit:'5'}],
+  ['/channels?sort=x&_rsc=abc',FILTERED_REPORT_PREFIX+'/channels',{sort:'x',_rsc:'abc'}],
+  ['/vocabulary?q=a',FILTERED_REPORT_PREFIX+'/vocabulary',{q:'a'}],
+  ['/keywords/%E4%BA%A4%E9%80%9A/videos?days=7',FILTERED_REPORT_PREFIX+'/keywords/%E4%BA%A4%E9%80%9A/videos',{days:'7'}],
+  // Literal percent and encoded slash terms stay byte-identical (decoded once by the page).
+  ['/keywords/%2541/videos?days=7',FILTERED_REPORT_PREFIX+'/keywords/%2541/videos',{days:'7'}],
+  ['/keywords/A%2FB/days?x=1',FILTERED_REPORT_PREFIX+'/keywords/A%2FB/days',{x:'1'}],
+  ['/mayor/cities/taipei/people/%E7%8E%8B/days/2026-10-11?type=tags_video',FILTERED_REPORT_PREFIX+'/mayor/cities/taipei/people/%E7%8E%8B/days/2026-10-11',{type:'tags_video'}],
+  ['/events/0d4c9e8a-1b2c-4d5e-8f90-123456789abc?utm=x','/events/0d4c9e8a-1b2c-4d5e-8f90-123456789abc',{utm:'x'}],
+ ];
+ for(const [path,pathname,query] of cases){const result=await via(path);assert.equal(result.pathname,pathname,path);assert.deepEqual({...result.query},query,path);}
+ // Every report family the proxy can mark as filtered has a matching rewrite source.
+ for(const family of REPORT_FAMILIES)assert.equal((await routed(`/${family}?x=1`,'filtered')).pathname,`${FILTERED_REPORT_PREFIX}/${family}`,family);
+ // Without the proxy's header (or with the wrong value) nothing is rewritten.
+ for(const [path,header] of [['/',null],['/',"filtered"],['/events','home'],['/channels?x=1',null],['/channels?x=1','home'],['/api/ops/x','filtered'],['/auth/me','filtered']] as const)
+  assert.equal((await routed(path,header)).pathname,new URL(path,'http://n').pathname,`${path} ${header}`);
+});
+test('next.config carries exactly the contract rewrites in beforeFiles',async()=>{
+ const {default:config}=await import('../../next.config');
+ const rewrites=await config.rewrites!() as {beforeFiles:unknown[];afterFiles:unknown[];fallback:unknown[]};
+ assert.deepEqual(rewrites.beforeFiles,internalRenderRewrites());
+ assert.deepEqual(rewrites.fallback,[]);
+ assert.ok(REPORT_FAMILIES.every(family=>(resolveRoute([family])??resolveRoute([family,'1'])??resolveRoute([family,'x','videos'])??resolveRoute([family,'days'])??resolveRoute([family,'current'])??resolveRoute([family,'authors','x']))!==null),'every contract family resolves a report');
+});
 test('event detail is eligible only as a bare lowercase UUID and never rewritten',()=>{
  const id='0d4c9e8a-1b2c-4d5e-8f90-123456789abc';
- assert.deepEqual(decide('/events/'+id),{kind:'render',rewrite:null,eligible:'event'});
- assert.deepEqual(decide('/events/'+id+'?page=2'),{kind:'render',rewrite:null,eligible:null});
- assert.deepEqual(decide('/events/'+id,'POST'),{kind:'render',rewrite:null,eligible:null});
+ assert.deepEqual(decide('/events/'+id),{kind:'render',target:null,eligible:'event'});
+ assert.deepEqual(decide('/events/'+id+'?page=2'),{kind:'render',target:null,eligible:null});
+ assert.deepEqual(decide('/events/'+id,'POST'),{kind:'render',target:null,eligible:null});
  for(const path of ['/events/'+id.toUpperCase(),'/events/123','/events/'+id+'/extra'])assert.equal((decide(path) as {eligible?:unknown}).eligible??null,null,path);
 });
 test('_rsc is transport only: same route tree as the canonical URL, never eligible, never an API filter',()=>{
- assert.deepEqual(decide('/channels?_rsc=abc'),{kind:'render',rewrite:null,eligible:null});
- assert.deepEqual(decide('/channels?sort=x&_rsc=abc'),{kind:'render',rewrite:FILTERED_REPORT_PREFIX+'/channels?sort=x&_rsc=abc',eligible:null});
- assert.deepEqual(decide('/?_rsc=abc'),{kind:'render',rewrite:ISR_HOME_PATH+'?_rsc=abc',eligible:null});
- assert.deepEqual(decide('/events?_rsc=abc'),{kind:'render',rewrite:ISR_EVENTS_PATH+'?_rsc=abc',eligible:null});
- assert.deepEqual(decide('/events?q=a&_rsc=abc'),{kind:'render',rewrite:null,eligible:null});
+ assert.deepEqual(decide('/channels?_rsc=abc'),{kind:'render',target:null,eligible:null});
+ assert.deepEqual(decide('/channels?sort=x&_rsc=abc'),{kind:'render',target:'filtered',eligible:null});
+ assert.deepEqual(decide('/?_rsc=abc'),{kind:'render',target:'home',eligible:null});
+ assert.deepEqual(decide('/events?_rsc=abc'),{kind:'render',target:'events',eligible:null});
+ assert.deepEqual(decide('/events?q=a&_rsc=abc'),{kind:'render',target:null,eligible:null});
  // Only the exact transport key is ignored.
- assert.equal((decide('/channels?_RSC=abc') as {rewrite:string|null}).rewrite,FILTERED_REPORT_PREFIX+'/channels?_RSC=abc');
+ assert.equal((decide('/channels?_RSC=abc') as {target:string|null}).target,'filtered');
  assert.deepEqual(withoutTransportParams({_rsc:'abc',sort:'x',tag:['1','2']}),{sort:'x',tag:['1','2']});
  assert.equal(publicApiUrl('http://api/api/v1','channels',{_rsc:'abc',sort:'x'}),'http://api/api/v1/channels?sort=x');
  assert.equal(publicApiUrl('http://api/api/v1','channels',{_rsc:'abc'}),'http://api/api/v1/channels');

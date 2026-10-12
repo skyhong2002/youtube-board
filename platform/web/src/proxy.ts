@@ -4,7 +4,7 @@ import { legacyRedirect } from "../../shared/legacy-redirects";
 import { reportRequestStatus } from "./lib/request-status";
 import { validImageOptimizationQuery } from "../../shared/image-policy";
 import { publicRenderDecision, type RenderDecision } from "./lib/public-render";
-import { PUBLIC_RENDER_HEADER, THEME_SCRIPT } from "../../shared/public-render-contract";
+import { INTERNAL_RENDER_HEADER, PUBLIC_RENDER_HEADER, THEME_SCRIPT } from "../../shared/public-render-contract";
 // The gateway owns the final script policy (fixed inline hashes + build SRI). HTML may be
 // shared ISR output, so nothing here is per-request: no nonce, no script 'unsafe-inline'.
 // The enforced fallback only carries directives that cannot break Next scripts.
@@ -15,14 +15,16 @@ const themeHash = createHash("sha256").update(THEME_SCRIPT).digest("base64");
 // log violations. The gateway removes both CSP headers and enforces the full policy;
 // production traffic never reaches Next without it.
 const reportOnlyPolicy = `default-src 'self'; script-src 'self' 'sha256-${themeHash}' 'strict-dynamic'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}; ${baseDirectives}`;
-// Never let a client choose a nonce Next would copy into scripts, or pre-mark eligibility.
-const untrustedRequestHeaders = ["x-nonce", "content-security-policy", "content-security-policy-report-only", PUBLIC_RENDER_HEADER];
+// Never let a client choose a nonce Next would copy into scripts, pre-mark eligibility or
+// pick an internal render target.
+const untrustedRequestHeaders = ["x-nonce", "content-security-policy", "content-security-policy-report-only", PUBLIC_RENDER_HEADER, INTERNAL_RENDER_HEADER];
 function securedResponse(request: NextRequest, decision: Extract<RenderDecision, { kind: "render" }>) {
     const headers = new Headers(request.headers);
     for (const name of untrustedRequestHeaders) headers.delete(name);
-    const response = decision.rewrite
-        ? NextResponse.rewrite(new URL(decision.rewrite, request.url), { request: { headers } })
-        : NextResponse.next({ request: { headers } });
+    // No NextResponse.rewrite (see INTERNAL_RENDER_HEADER): the override header selects a
+    // relative next.config beforeFiles rewrite inside the same router pass.
+    if (decision.target) headers.set(INTERNAL_RENDER_HEADER, decision.target);
+    const response = NextResponse.next({ request: { headers } });
     response.headers.set("Content-Security-Policy", baseDirectives);
     response.headers.set("Content-Security-Policy-Report-Only", reportOnlyPolicy);
     response.headers.delete(PUBLIC_RENDER_HEADER);
