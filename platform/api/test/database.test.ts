@@ -109,12 +109,12 @@ describe.skipIf(!url)('isolated MariaDB synthetic fixtures', () => {
         }
     });
     it('keyword count and pagination validate source identity and text, independent of stats time', async () => {
-        const r = await app.inject('/api/v1/keywords/' + encodeURIComponent('交通') + '/videos?channelIds=990001,990002&limit=1');
+        const r = await app.inject('/api/v1/keywords/' + encodeURIComponent('交通') + '/videos?from=2026-10-01&channelIds=990001,990002&limit=1');
         expect(r.statusCode).toBe(200);
         expect(r.json().data.total).toBe(1);
         expect(r.json().data.rows.map((v: any) => v.id)).toEqual(['FixtureAa01']);
         expect(r.json().meta.coverage).toMatchObject({ vocabularyVersion: 'api-test-v1', sourceVideos: 4, freshVideos: 1, staleVideos: 2, unprocessedVideos: 1, keywordMatchedVideos: 1 });
-        const page = await app.inject('/api/v1/keywords/' + encodeURIComponent('交通') + '/videos?channelIds=990001,990002&limit=1&offset=1');
+        const page = await app.inject('/api/v1/keywords/' + encodeURIComponent('交通') + '/videos?from=2026-10-01&channelIds=990001,990002&limit=1&offset=1');
         expect(page.json().data.rows).toEqual([]);
         expect(page.json().data.total).toBe(1);
     });
@@ -198,9 +198,11 @@ async function seedEvidence(url: string) {
         await db.execute("DELETE FROM ts_video_tag_matches WHERE vocabulary_version='api-test-v1'");
         const [videos] = await db.query<any[]>("SELECT pk,videoId,title,description FROM urt_video WHERE videoId IN ('FixtureAa01','Fixtureaa01','FixtureLive')");
         for (const v of videos) {
-            await db.execute("INSERT INTO ts_video_tag_matches(video_id,vocabulary_version,source_pk,source_text_sha256,source_observed_at,rule_version,evidence_count)VALUES(?,'api-test-v1',?,?,'2026-10-10 00:00:00','test',1)", [v.videoId, v.videoId === 'FixtureLive' ? 0 : v.pk, sourceTextFingerprint(v.videoId === 'Fixtureaa01' ? 'stale title' : v.title, v.description)]);
-            await db.execute("INSERT INTO ts_video_tag_evidence(video_id,vocabulary_version,term_key,term,source,field_name,start_offset,end_offset,matched_text,snippet,snippet_start,rule_version)VALUES(?,'api-test-v1',?,'交通','https://tag.observe.tw','title',0,2,'交通','交通',0,'test')", [v.videoId, createHash('sha256').update('https://tag.observe.tw\0交通').digest('hex')]);
+            await db.execute("INSERT INTO ts_video_tag_matches(video_id,vocabulary_version,source_pk,source_text_sha256,source_observed_at,rule_version,evidence_count)VALUES(?,'api-test-v1',?,?,'2026-10-10 00:00:00','exact-text-v1',1)", [v.videoId, v.videoId === 'FixtureLive' ? 0 : v.pk, sourceTextFingerprint(v.videoId === 'Fixtureaa01' ? 'stale title' : v.title, v.description)]);
+            await db.execute("INSERT INTO ts_video_tag_evidence(video_id,vocabulary_version,term_key,term,source,field_name,start_offset,end_offset,matched_text,snippet,snippet_start,rule_version)VALUES(?,'api-test-v1',?,'交通','https://tag.observe.tw','title',0,2,'交通','交通',0,'exact-text-v1')", [v.videoId, createHash('sha256').update('https://tag.observe.tw\0交通').digest('hex')]);
         }
+        const trafficKey=createHash('sha256').update('https://tag.observe.tw\0交通').digest('hex');
+        await db.execute("INSERT INTO ts_vocabulary_terms(run_id,term_key,term,article_count,payload)VALUES('api-test-v1',?,'交通',1,?) ON DUPLICATE KEY UPDATE payload=VALUES(payload)",[trafficKey,JSON.stringify({key:trafficKey,term:'交通',articleCount:1,media:[]})]);
         await db.execute("INSERT INTO ts_vocabulary_terms(run_id,term_key,term,article_count,payload)VALUES('api-test-v1',?,'Opus新聞',1,?) ON DUPLICATE KEY UPDATE payload=VALUES(payload)", ['b'.repeat(64), JSON.stringify({ key: 'b'.repeat(64), term: 'Opus新聞', articleCount: 1, media: [] })]);
     }
     finally {

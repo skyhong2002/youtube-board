@@ -66,3 +66,21 @@ it('hashes only immutable local JS files and refuses symlink escape',async()=>{
     await expect(publicScriptManifest(root)).rejects.toThrow('symlink');
   } finally {await rm(root,{recursive:true,force:true});}
 });
+
+it('registers canonical bracket URLs only for immutable dynamic-route chunks',async()=>{
+ const root=await mkdtemp(path.join(tmpdir(),'yt-sri-webpack-'));
+ try{await mkdir(path.join(root,'chunks','[...segments]'),{recursive:true});await writeFile(path.join(root,'chunks','[...segments]','page.js'),'window.route=true;');
+  const manifest=await publicScriptManifest(root);expect(manifest.size).toBe(2);expect(manifest.get('/_next/static/chunks/%5B...segments%5D/page.js')).toBe(manifest.get('/_next/static/chunks/[...segments]/page.js'));
+  expect(manifest.has('/_next/static/chunks/%255B...segments%255D/page.js')).toBe(false);
+ }finally{await rm(root,{recursive:true,force:true});}
+});
+
+it('rejects immutable URL alias collisions and preserves optional catch-all encoding',async()=>{
+ const root=await mkdtemp(path.join(tmpdir(),'yt-sri-alias-'));
+ try{
+  await mkdir(path.join(root,'chunks','[locale]','[[...slug]]'),{recursive:true});await writeFile(path.join(root,'chunks','[locale]','[[...slug]]','page.js'),'a()');
+  const result=await publicScriptManifest(root);expect(result.size).toBe(2);expect(result.get('/_next/static/chunks/%5Blocale%5D/%5B%5B...slug%5D%5D/page.js')).toBe(result.get('/_next/static/chunks/[locale]/[[...slug]]/page.js'));
+  await mkdir(path.join(root,'chunks','%5Blocale%5D','%5B%5B...slug%5D%5D'),{recursive:true});await writeFile(path.join(root,'chunks','%5Blocale%5D','%5B%5B...slug%5D%5D','page.js'),'different()');
+  await expect(publicScriptManifest(root)).rejects.toThrow('alias collision');
+ }finally{await rm(root,{recursive:true,force:true});}
+});

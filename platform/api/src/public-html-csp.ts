@@ -29,7 +29,9 @@ function validDigest(value: string): boolean {
 }
 function staticScriptUrl(src: string): boolean {
   if (!src.startsWith('/_next/static/') || !src.endsWith('.js')) return false;
-  return src.slice(1).split('/').every(segment => segment !== '.' && segment !== '..' && /^[A-Za-z0-9_.()[\]-]+$/.test(segment));
+  // Permit only canonical encoded route brackets, not general URL decoding.
+  const literal=src.replaceAll('%5B','[').replaceAll('%5D',']');
+  return literal.slice(1).split('/').every(segment => segment !== '.' && segment !== '..' && /^[A-Za-z0-9_.()[\]-]+$/.test(segment));
 }
 function helperCall(source: string, name: '$RC' | '$RS'): boolean {
   const prefix = `${name}(`;

@@ -14,6 +14,7 @@ function reader(sourceQuality: unknown): Reader {
             return [{ id: 'published-quality', source_meta: JSON.stringify(snapshot) }] as unknown as T[];
         }
         if (sql.includes('SELECT r.id,r.snapshot FROM ts_vocabulary_current')) return [{ id: 'published-quality', snapshot: JSON.stringify(snapshot) }] as unknown as T[];
+        if (sql.includes('SELECT c.run_id FROM ts_vocabulary_current')) return [{run_id:'published-quality'}] as unknown as T[];
         if (sql.includes('today_source_videos')) return [{ source_videos: 0, unprocessed: 0, fresh: 0, stale: 0, latest_match: null, today_source_videos: 0, today_unprocessed: 0, today_fresh: 0, today_stale: 0, today_latest_match: null }] as unknown as T[];
         return [];
     }, close: async () => {} };

@@ -217,3 +217,12 @@ describe('public HTML hash CSP', () => {
     expect(result.csp.split(assetHash).length).toBe(2);
   });
 });
+
+it('hashes webpack dynamic-route URLs only when explicitly present in immutable manifest',()=>{
+ const url='/_next/static/chunks/app/%5B...segments%5D/page.js';
+ const options={themeScript:theme,assets:new Map([[url,assetHash]])};
+ const result=securePublicHtml(html(`<link rel="preload" as="script" href="${url}"><script src="${url}"></script>`),options);
+ expect(result.body.toString().match(/integrity=/g)).toHaveLength(2);expect(result.csp).toContain("'strict-dynamic'");
+ for(const invalid of [url.replace('%5B','%5b'),url.replace('%5B','['),url.replace('%5D',']'),url.replace('%5B','%5B%5B'),url.replace('%5B','%255B'),url.replace('%5B','%2F'),url+'?x=1',url.replace('page.js','other.js')])expect(()=>securePublicHtml(html(`<script src="${invalid}"></script>`),options)).toThrow('UNKNOWN_EXTERNAL_SCRIPT');
+ expect(()=>securePublicHtml(html(`<script src="${url}"></script>`),opts)).toThrow('UNKNOWN_EXTERNAL_SCRIPT');
+});

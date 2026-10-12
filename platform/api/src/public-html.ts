@@ -20,7 +20,13 @@ export async function publicScriptManifest(root: string): Promise<ReadonlyMap<st
         const filename = path.join(root,name), stat = await lstat(filename);
         if (!stat.isFile() || stat.size > 16*1024*1024 || (bytes += stat.size) > 64*1024*1024) throw new Error('Static scripts exceed byte budget');
         const body = await readFile(filename);
-        assets.set('/_next/static/'+name, 'sha256-'+createHash('sha256').update(body).digest('base64'));
+        const url='/_next/static/'+name,digest='sha256-'+createHash('sha256').update(body).digest('base64');
+        if(assets.has(url)&&assets.get(url)!==digest)throw new Error('Static script alias collision');
+        assets.set(url,digest);
+        // Webpack encodes dynamic route brackets in script URLs. Register only
+        // that canonical spelling of an actual immutable file, never a URL fetch.
+        const encoded=url.replaceAll('[','%5B').replaceAll(']','%5D');
+        if(encoded!==url){if(assets.has(encoded)&&assets.get(encoded)!==digest)throw new Error('Static script alias collision');if(assets.size>=2048)throw new Error('Static script manifest exceeds budget');assets.set(encoded,digest);}
       }
     }
   }
