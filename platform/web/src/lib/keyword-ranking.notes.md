@@ -42,3 +42,10 @@ joined consistently. Body foreground/background use tag's unlayered token rule.
 Private execution receipts: `platform/.local/f2/opus-ui-evidence-result.json` and
 `platform/.local/f2/opus-ui-token-result.json`. These are implementation receipts,
 not independent visual approvals. New-SHA screenshots/review remain required.
+
+Thumbnail fallback (`components/VideoThumbnail.tsx`): one canonical `mqdefault.jpg`
+request, no retries or variants. The wrapper exposes `data-thumbnail-src` (the original
+public URL, kept after failure) and `data-thumbnail-state` = missing | pending | loaded |
+error. Only `loaded` (naturalWidth > 0) is a real image; the placeholder SVG is never one.
+Lazy images not yet requested (empty currentSrc) stay `pending` at hydration. These
+attributes support evidence capture; they do not replace checking the rendered image.

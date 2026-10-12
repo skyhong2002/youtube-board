@@ -4,7 +4,10 @@ import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {firstGrapheme,localAvatarSource} from './media-presentation';
 import {ChannelAvatar,avatarWebpSrcSet,nextAvatarStage} from '../components/ChannelAvatar';
-import {VideoThumbnail} from '../components/VideoThumbnail';
+import {VideoThumbnail,settledThumbnailState} from '../components/VideoThumbnail';
+import {ImageConfigContext} from 'next/dist/shared/lib/image-config-context.shared-runtime';
+import {imageConfigDefault} from 'next/dist/shared/lib/image-config';
+import config from '../../next.config';
 import type {ChannelAvatar as Asset} from '../../../shared/media-assets';
 import {VIDEO_BOX_ASPECT,VIDEO_PICTURE_SIZES,VIDEO_SOURCE,coverWidthFactor} from '../app/_home/video-picture-sizes';
 // Resolves a `sizes` attribute at a viewport width, for the subset of syntax VIDEO_PICTURE_SIZES uses.
@@ -80,5 +83,18 @@ test('invalid video identities render fixed non-network placeholders',()=>{
  for(const id of ['','../../bad','https://example.test/asset','too-long-to-be-a-video-id']){
   const html=renderToStaticMarkup(createElement(VideoThumbnail,{videoId:id,width:96,height:54}));
   assert.doesNotMatch(html,/<img|https:/);assert.match(html,/width:96px;height:54px;min-width:96px/);assert.match(html,/aria-hidden="true"/);
+  assert.match(html,/data-thumbnail-state="missing"/);assert.doesNotMatch(html,/data-thumbnail-src/);
  }
+});
+test('a valid thumbnail starts pending with its one canonical public source and is never reported loaded before decoding',()=>{
+ const html=renderToStaticMarkup(createElement(ImageConfigContext.Provider,{value:{...imageConfigDefault,...config.images}},createElement(VideoThumbnail,{videoId:'dQw4w9WgXcQ',width:48,height:27})));
+ assert.match(html,/data-thumbnail-state="pending"/);assert.match(html,/data-thumbnail-src="https:\/\/i\.ytimg\.com\/vi\/dQw4w9WgXcQ\/mqdefault\.jpg"/);
+ assert.equal(html.match(/<img/g)?.length,1);assert.match(html,/loading="lazy"/);assert.doesNotMatch(html,/hqdefault|maxresdefault|sddefault/);
+});
+test('hydration settles only finished requests: lazy unrequested stays pending, naturalWidth decides loaded vs error',()=>{
+ assert.equal(settledThumbnailState(null),null);
+ assert.equal(settledThumbnailState({complete:true,naturalWidth:0,currentSrc:''}),null);
+ assert.equal(settledThumbnailState({complete:false,naturalWidth:0,currentSrc:'https://x/a.jpg'}),null);
+ assert.equal(settledThumbnailState({complete:true,naturalWidth:320,currentSrc:'/_next/image?url=a'}),'loaded');
+ assert.equal(settledThumbnailState({complete:true,naturalWidth:0,currentSrc:'/_next/image?url=a'}),'error');
 });
