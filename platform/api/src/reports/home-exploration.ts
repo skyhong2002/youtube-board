@@ -32,20 +32,25 @@ export async function homeExploration(reader:Reader,now:Date):Promise<HomeExplor
   const base={...keywordBase,...(quality?{sourceQuality:quality}:{}),vocabularyCoverage,vocabularyWindow:typeof window.since==='string'&&typeof window.until==='string'?{since:window.since,until:window.until}:null,version,reason:null};
   if(!version)return {keywords:{...base,status:'not-synchronized'},keywordToday:{...base,from:todayBase.from,status:'not-synchronized'}};
   const scope=sql`v.publishedAt>=${from} AND v.publishedAt<=${to}`,fresh=sql`m.source_pk=v.pk AND BINARY m.source_text_sha256=BINARY ${videoTextDigest()}`;
-  // One bounded-date source scan per query, not one query per term or a second full window scan.
+  // Materialize fresh videos before expanding evidence: hash source text once per
+  // matched source row, and join evidence using matching ASCII columns. DISTINCT
+  // prevents derived-table merge/repeated hashing. Both source scans stay date-bounded.
+  // Aggregate using narrow term IDs; hydrate immutable term text
+  // for at most forty results per window, not for every evidence occurrence.
   // Partition before limiting so today can surface terms outside the weekly top forty.
   const[terms,coverage]=await Promise.all([
-   reader.rows(sql`SELECT * FROM (
-    SELECT window_key,term_key,term,COUNT(*) AS videos,COUNT(viewCount) AS measured_videos,SUM(viewCount) AS views,
+   reader.rows(sql`SELECT ranked.*,(SELECT label.term FROM ts_video_tag_evidence label WHERE label.vocabulary_version=${version} AND label.term_key=ranked.term_key ORDER BY label.video_id LIMIT 1) AS term FROM (
+    SELECT window_key,term_key,COUNT(*) AS videos,COUNT(viewCount) AS measured_videos,SUM(viewCount) AS views,
      ROW_NUMBER() OVER(PARTITION BY window_key ORDER BY COUNT(*) DESC,term_key) AS row_rank
-    FROM (SELECT DISTINCT v.pk,v.publishedAt,e.term_key,e.term,CASE WHEN v.viewCount>=0 THEN v.viewCount ELSE NULL END AS viewCount
-     FROM urt_video v
-     JOIN ts_video_tag_matches m ON m.video_id=v.videoId AND BINARY m.video_id=BINARY v.videoId AND m.vocabulary_version=${version}
-     JOIN ts_video_tag_evidence e ON e.video_id=v.videoId AND BINARY e.video_id=BINARY v.videoId AND e.vocabulary_version=${version}
-     WHERE ${scope} AND ${fresh}) matched
+    FROM (SELECT DISTINCT fv.pk,fv.publishedAt,e.term_key,fv.viewCount
+     FROM (SELECT DISTINCT v.pk,v.publishedAt,m.video_id,m.vocabulary_version,CASE WHEN v.viewCount>=0 THEN v.viewCount ELSE NULL END AS viewCount
+      FROM urt_video v
+      STRAIGHT_JOIN ts_video_tag_matches m ON m.video_id=CONVERT(v.videoId USING ascii) AND BINARY m.video_id=BINARY v.videoId AND m.vocabulary_version=${version}
+      WHERE ${scope} AND ${fresh}) fv
+     STRAIGHT_JOIN ts_video_tag_evidence e ON e.video_id=fv.video_id AND e.vocabulary_version=fv.vocabulary_version AND BINARY e.video_id=BINARY fv.video_id) matched
     CROSS JOIN (SELECT 'week' AS window_key UNION ALL SELECT 'today') windows
     WHERE window_key='week' OR publishedAt>=${today}
-    GROUP BY window_key,term_key,term
+    GROUP BY window_key,term_key
    ) ranked WHERE row_rank<=40 ORDER BY window_key,row_rank`),
    reader.rows(sql`SELECT COUNT(*) AS source_videos,COALESCE(SUM(m.video_id IS NULL),0) AS unprocessed,COALESCE(SUM(m.video_id IS NOT NULL AND (${fresh})),0) AS fresh,COALESCE(SUM(m.video_id IS NOT NULL AND NOT(${fresh})),0) AS stale,MAX(CASE WHEN ${fresh} THEN UNIX_TIMESTAMP(m.matched_at)*1000 ELSE NULL END) AS latest_match,
     COALESCE(SUM(v.publishedAt>=${today}),0) AS today_source_videos,
@@ -53,7 +58,7 @@ export async function homeExploration(reader:Reader,now:Date):Promise<HomeExplor
     COALESCE(SUM(v.publishedAt>=${today} AND m.video_id IS NOT NULL AND (${fresh})),0) AS today_fresh,
     COALESCE(SUM(v.publishedAt>=${today} AND m.video_id IS NOT NULL AND NOT(${fresh})),0) AS today_stale,
     MAX(CASE WHEN v.publishedAt>=${today} AND (${fresh}) THEN UNIX_TIMESTAMP(m.matched_at)*1000 ELSE NULL END) AS today_latest_match
-    FROM urt_video v LEFT JOIN ts_video_tag_matches m ON m.video_id=v.videoId AND BINARY m.video_id=BINARY v.videoId AND m.vocabulary_version=${version} WHERE ${scope}`),
+    FROM urt_video v LEFT JOIN ts_video_tag_matches m ON m.video_id=CONVERT(v.videoId USING ascii) AND BINARY m.video_id=BINARY v.videoId AND m.vocabulary_version=${version} WHERE ${scope}`),
   ]);
   const c=coverage[0]??{};
   const summary=(window:'week'|'today'):HomeKeywordSummary=>{

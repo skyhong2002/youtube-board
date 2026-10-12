@@ -101,3 +101,36 @@ requests were adopted. Suspected base principal overwrite and partial-vocabulary
 publication were disproved by the actual archive/code and restore tests. Codex
 independently reviewed implementation, including the cross-profile lock gap,
 which is now fixed. Private review packets and results remain ignored.
+
+
+## First vocabulary publication and bounded evidence activation
+
+At 2026-10-12 11:58 UTC the complete 2026-10-11 Taipei article window published
+as `youtube-first-20261011`: 17,954 observed terms, six source occurrences with
+zero-width/edge-space normalization, and one unsupported-control occurrence
+quarantined with original text/reason. Both API and rendered keywords disclose
+those counts. This is `observed-article-window`, not the full upstream dictionary
+or a claim that every tag was journalist-authored. The first 100 matches and
+subsequent bounded batches used the isolated TS-only recent worker; by 12:03 UTC
+3,100 markers held 181,193 evidence occurrences, with zero source-table writes
+and zero external inference/YouTube calls. The daily reservation remains 20,000;
+this evidence does not claim full seven-day coverage or scheduled activation.
+
+Production growth exposed a real homepage query timeout: a mixed UTF-8/ASCII
+video-ID join could not use the marker primary key. The corrected query retains
+byte-exact, source-PK and current-text fingerprint guards, materializes only
+fresh date-bounded videos, aggregates narrow term identifiers, then loads labels
+for at most 80 ranked results. A SELECT-only test against the report principal
+at 3,100 markers measured 688 ms for both ranked windows and 294 ms for coverage;
+all 80 ranked rows matched the prior equivalent query. Concurrent Laravel inserts
+changed only source/unprocessed counts. Larger batches require new measurements;
+the five-second statement ceiling remains unchanged. No source index, schema,
+privilege or runtime-budget change is needed. The report principal cannot EXPLAIN
+views, as expected; query-plan assertions run on the isolated MariaDB fixture.
+
+The backend-only `7beed19` release was proven to preserve compiled Next artifacts
+and runtime configuration byte-for-byte, passed 29 private canary checks, and
+changed only the immutable frontend image reference. Public/anonymous responses
+retain hash CSP and cacheability, `/auth/me` and `/my` remain private/no-store.
+Laravel scheduler identity remained unchanged. Release and rollback manifests,
+rendered source-quality evidence and timing results are stored outside Git.

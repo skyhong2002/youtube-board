@@ -64,6 +64,33 @@ describe.skipIf(!url)('homepage maintained vocabulary and source metrics with Ma
   await db.execute("UPDATE urt_video SET mtime='2035-01-08 12:00:00' WHERE BINARY videoId=BINARY ?",[ids[0]]);expect((await homeExploration(reader,now)).keywords.rows[0]?.videoCount).toBe(2);
   await db.execute("UPDATE urt_video SET title='edited' WHERE BINARY videoId=BINARY ?",[ids[0]]);try{const result=await homeExploration(reader,now);expect(result.keywords.rows[0]?.videoCount).toBe(1);expect(result.keywords.staleVideos).toBe(2);}finally{await db.execute('UPDATE urt_video SET title=? WHERE BINARY videoId=BINARY ?',[term,ids[0]]);}
  });
+ it('source PK drift stays stale and case-only marker identities never match another video',async()=>{
+  const [rows]=await db.query<RowDataPacket[]>('SELECT pk FROM urt_video WHERE BINARY videoId=BINARY ?',[ids[0]]),pk=rows[0]!.pk;
+  await db.execute('UPDATE ts_video_tag_matches SET source_pk=0 WHERE video_id=? AND vocabulary_version=?',[ids[0],run]);
+  try{const result=await homeExploration(reader,now);expect(result.keywords).toMatchObject({freshVideos:1,staleVideos:2,unprocessedVideos:1});expect(result.keywords.rows[0]?.videoCount).toBe(1);}finally{await db.execute('UPDATE ts_video_tag_matches SET source_pk=? WHERE video_id=? AND vocabulary_version=?',[pk,ids[0],run]);}
+  const caseId=ids[0]!.replace('HM','hm');
+  await db.execute("INSERT INTO ts_video_tag_matches(video_id,vocabulary_version,source_pk,source_text_sha256,rule_version,evidence_count) VALUES(?,?,?,?,'fixture',1)",[caseId,run,pk,sourceTextFingerprint(term,term)]);
+  await db.execute("INSERT INTO ts_video_tag_evidence(video_id,vocabulary_version,term_key,term,source,field_name,start_offset,end_offset,matched_text,snippet,snippet_start,rule_version) VALUES(?,?,?,?,'https://tag.observe.tw','title',0,5,?,?,0,'fixture')",[caseId,run,key,term,term,term]);
+  try{const result=await homeExploration(reader,now);expect(result.keywords).toMatchObject({sourceVideos:4,freshVideos:2,staleVideos:1,unprocessedVideos:1});expect(result.keywords.rows[0]?.videoCount).toBe(2);}finally{await db.execute('DELETE FROM ts_video_tag_matches WHERE video_id=? AND vocabulary_version=?',[caseId,run]);}
+ });
+ it('materializes fresh videos before evidence fanout and preserves indexed cross-charset coverage lookup',async()=>{
+  const dialect=new MySqlDialect(),queries:Array<{sql:string;params:unknown[]}>=[];
+  await homeExploration({rows:async query=>{const q=dialect.sqlToQuery(query);if(q.sql.includes('ts_video_tag_matches'))queries.push(q);return reader.rows(query);},close:async()=>{}},now);
+  expect(queries).toHaveLength(2);
+  for(const query of queries){
+   const [plan]=await db.query<RowDataPacket[]>('EXPLAIN '+query.sql,query.params);
+   if(query.sql.includes('AS source_videos')){
+    expect(plan.find(r=>r.table==='m')).toMatchObject({type:'eq_ref',key:'PRIMARY'});
+   }else{
+    expect(plan.find(r=>r.table==='v')?.select_type).toBe('DERIVED');
+    expect(plan.find(r=>r.table==='m')).toMatchObject({select_type:'DERIVED',type:'eq_ref',key:'PRIMARY'});
+    expect(plan.find(r=>r.table==='e')).toMatchObject({type:'ref',key:'PRIMARY'});
+    expect(plan.find(r=>r.table==='label')?.key).toBe('version_term');
+    expect((query.sql.match(/SHA2\(/g)??[])).toHaveLength(1);
+    expect(query.sql).toContain('SELECT DISTINCT v.pk,v.publishedAt,m.video_id');
+   }
+  }
+ });
  it('freshness includes fresh scanned videos without ranked terms and uses exact TIMESTAMP epoch',async()=>{
   const[r]=await db.query<RowDataPacket[]>('SELECT pk FROM urt_video WHERE BINARY videoId=BINARY ?',[ids[2]]);
   await db.execute("INSERT INTO ts_video_tag_matches(video_id,vocabulary_version,source_pk,source_text_sha256,matched_at,rule_version,evidence_count) VALUES(?,?,?,?,'2035-01-08 04:00:00','fixture',0)",[ids[2],run,r[0]!.pk,sourceTextFingerprint(term,term)]);
