@@ -1,6 +1,6 @@
 # Cutover readiness — 2026-10-12
 
-The latest user authorization permits frontend deployment followed by individual writer handoffs, subject to preserving the production database. **See the newer [execution record](frontend-cutover-execution-2026-10-12.md): the frontend briefly switched and was rolled back after direct API probes found report SQL timeouts.** Dokploy API access, independent TS schema/accounts and candidate services are now established. Background ownership remains Laravel. The evidence below describes the earlier frozen candidate, not completion of live acceptance.
+The latest user authorization permits frontend deployment followed by individual writer handoffs, subject to preserving the production database. **The [frontend execution record](frontend-cutover-execution-2026-10-12.md) now confirms accepted TS public routing at2026-10-12 08:44:29UTC, followed by successful user-confirmed Google login, My Dashboard and logout.** Dokploy access, separate TS state schema/accounts and least-privilege frontend services are established. Background ownership remains Laravel; no TS job has been activated. The evidence below includes the earlier frozen candidate and must be read with the newer production execution record.
 
 ## Completed evidence
 

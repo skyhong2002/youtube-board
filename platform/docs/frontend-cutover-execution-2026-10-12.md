@@ -1,10 +1,11 @@
 # Frontend cutover execution — 2026-10-12
 
-**Current state: public traffic has been rolled back to Laravel.** The TS
-candidate remains healthy, its independent state schema is preserved, and
-account routes return private/no-store maintenance503. No background workflow
-has transferred ownership. The rollback is intentional while two report SQL
-timeouts are corrected; it is not a Google account failure.
+**Current state: TS public frontend is live and accepted.** Public routing was
+restored to TS at2026-10-12 08:44:29UTC /16:44:29 Taipei after repaired candidate
+acceptance. The user subsequently confirmed production Google login, My Dashboard
+and logout all work. Laravel background workflows remain the sole writers; no
+workflow ownership has transferred. The earlier rollback and repairs below are
+historical evidence, not the current account-service state.
 
 ## Deployment and database protection
 
@@ -167,3 +168,39 @@ Indexed-page final local gate: all six workspace/runtime typechecks passed;
 87 API files /665 tests passed with MariaDB enabled and no skipped tests. Web
 suite99 tests passed, including actual rendered unknown-total pagination,
 keyword headings, RSS scope and explicit refinement help for bounded searches.
+
+
+## Accepted frontend restoration and human OAuth proof
+
+- Public cutover: **2026-10-12 08:44:29UTC /16:44:29 Taipei**.
+- Commit58357d5, immutable image
+  `sha256:2bc1039b1dd4038b1a557b608c1593857d56bb215c97a3d908ed066528f622b0`.
+- Candidate and public:27page/endpoints passed,78legacy redirects passed;
+  exact API-to-rendered table checks passed for search, taxonomy videos, live
+  channels, directory and taxonomy ranking. All page rows linked to matching
+  API identities. Four concurrent requests passed; public search156–166ms,
+  taxonomy video1,064ms, live channels245ms. Full public sweep max2,382ms.
+- CSP nonce/body agreement and per-request renewal, no-store HTML, HSTS,
+  RSS/sitemap/robots verified again. Mobile390px dark search showed50rows,
+  honest unknown-total pagination, loaded images and no viewport overflow.
+- Public OAuth start checked08:44:46UTC:302toGoogle with exact production
+  callback,S256/state/nonce and Secure/HttpOnly/SameSite __Host cookie.
+- **Human production OAuth acceptance completed2026-10-12, youtube.observe.tw**:
+  the user explicitly reported login, My Dashboard and logout all normal.
+  The two authorized admin emails are configured and verified in the running
+  candidate; this does not separately claim every admin-write action was tested.
+- Original Laravel scheduler task retained, no TS worker/provider/notification
+  activated. The documented one-step rollback remains available and preserves
+  TS account state through the separate maintenance responder.
+
+Private evidence: live-paired-reports.json, live-pages.json,
+live-redirects.json, production-oauth-start-repaired.json in .local/dokploy.
+Screenshot: browser-screenshot-youtube-observe-tw-mv50b4jh-23e46b41.png.
+
+Post-switch isolation check: tag.observe.tw and blog.observe.tw both200; the
+Laravel deployment webhook path still responds405toGET through the preserved
+ops router. At08:48:06UTC the read-only source probe showed urt_count.mtime
+16:45:58Taipei, after the16:44:29frontend switch, while the original scheduler
+task remained running27hours and every TS background gate remained disabled.
+Thus source writes continued under Laravel after frontend cutover. The old
+urt_video.mtime is not used to claim successful provider statistics polling.
