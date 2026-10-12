@@ -1,259 +1,150 @@
 import Fastify from 'fastify';
-import {type SQL} from 'drizzle-orm';
 import {MySqlDialect} from 'drizzle-orm/mysql-core';
-import {describe, expect, it} from 'vitest';
-import {DataQueryFailed, DataSourceUnavailable, type Reader, type Row} from '../src/db/client.js';
-import {createSitemaps, registerSitemaps} from '../src/seo/sitemaps.js';
-
-const NOW = Date.parse('2026-10-12T12:00:00Z');
-const DATE = '2026-10-11T01:02:03Z';
-const epoch = Date.parse('2026-10-10T10:00:00Z');
-const dialect = new MySqlDialect();
-type Query = ReturnType<typeof dialect.sqlToQuery>;
-function fixture(overrides: {maxima?: Row; vocabulary?: false | Row; events?: boolean; rows?: Row[]; run?: (query: Query) => Row[] | Promise<Row[]> | undefined} = {}) {
-    const queries: Query[] = [];
-    const reader: Reader = {
-        async rows<T extends Row>(statement: SQL) {
-            const query = dialect.sqlToQuery(statement); queries.push(query);
-            const custom = await overrides.run?.(query); if (custom !== undefined) return custom as T[];
-            if (query.sql.includes('SELECT MAX(u_id)')) return [overrides.maxima ?? {channels: 50001, videos: 2, tags: 1}] as T[];
-            if (query.sql.includes('ts_vocabulary_current')) {
-                if (overrides.vocabulary === false) throw new DataQueryFailed('ER_NO_SUCH_TABLE');
-                return [overrides.vocabulary ?? {id: 'run-one', snapshot_bytes: 256, published_epoch: epoch}] as T[];
-            }
-            if (query.sql.startsWith('SELECT JSON_EXTRACT(snapshot')) return [{separate_terms: overrides.vocabulary && 'separate_terms' in overrides.vocabulary ? overrides.vocabulary.separate_terms : true, embedded_terms: 1}] as unknown as T[];
-            if (query.sql.includes('LIMIT 0')) return [];
-            if (query.sql.includes('WHERE 1=0')) {
-                if (overrides.events === false) throw new DataQueryFailed('ER_NO_SUCH_TABLE');
-                return [];
-            }
-            return (overrides.rows ?? []) as T[];
-        },
-        async close() {},
-    };
-    return {reader, queries};
+import {describe,expect,it} from 'vitest';
+import type {SQL} from 'drizzle-orm';
+import {DataQueryFailed,DataSourceUnavailable,type Reader,type Row} from '../src/db/client.js';
+import {buildApp} from '../src/app.js';
+import {createSitemaps,registerSitemaps,type SitemapOptions} from '../src/seo/sitemaps.js';
+const NOW=Date.parse('2026-10-12T12:00:00Z'),RELEASE='2026-10-11T01:02:03Z',STAMP='2026-10-11 12:00:00';
+const dialect=new MySqlDialect();
+type Query=ReturnType<typeof dialect.sqlToQuery>;
+type Kind='channels'|'videos'|'tags';
+function fixture(input:Partial<Record<Kind,Row[]>>={}){
+ const data:Record<Kind,Row[]>={channels:[],videos:[],tags:[],...input};
+ const queries:Query[]=[];let failure:Error|undefined,wait:Promise<void>|undefined;
+ const reader:Reader={async rows<T extends Row>(sql:SQL){const q=dialect.sqlToQuery(sql);queries.push(q);if(wait)await wait;if(failure)throw failure;
+  const kind:Kind=q.sql.includes('urt_channel')?'channels':q.sql.includes('urt_video')?'videos':'tags',key=kind==='channels'?'u_id':kind==='videos'?'pk':'tag_id';
+  const rows=[...data[kind]].sort((a,b)=>Number(a[key])-Number(b[key]));
+  if(q.sql.includes('AS ceiling'))return (rows.length?[{ceiling:rows.at(-1)![key]}]:[]) as unknown as T[];
+  const [after,ceiling,limit]=q.params.map(Number);const newest=new Map<string,number>();if(kind==='videos')for(const row of rows)newest.set(String(row.videoId),Number(row.pk));
+  return rows.filter(row=>Number(row[key])>after!&&Number(row[key])<=ceiling!&&(kind!=='channels'||row.flag_del==null||Number(row.flag_del)<1)&&(kind!=='tags'||row.del_flag==null||Number(row.del_flag)<1)&&(kind!=='videos'||(row.title!=='Private video'&&row.title!=='Deleted video'&&Number(row.pk)===newest.get(String(row.videoId))))).slice(0,limit).map(row=>({...row,cursor_id:row[key]})) as unknown as T[];
+ },async close(){}};
+ return {reader,queries,data,setFailure(error?:Error){failure=error;},setWait(promise?:Promise<void>){wait=promise;}};
 }
-const options = {now: () => NOW, staticLastModified: DATE};
-function urls(body: string) { return [...body.matchAll(/<loc>(.*?)<\/loc>/g)].map(m => m[1]); }
-function leafQueries(queries: Query[]) { return queries.filter(q => !q.sql.includes('SELECT MAX(u_id)') && !q.sql.includes('ts_vocabulary_current') && !q.sql.startsWith('SELECT JSON_EXTRACT(snapshot') && !q.sql.includes('LIMIT 0') && !q.sql.includes('WHERE 1=0')); }
+const options:SitemapOptions={now:()=>NOW,staticLastModified:RELEASE,pauseMs:0};
+const urls=(body:string)=>[...body.matchAll(/<loc>(.*?)<\/loc>/g)].map(m=>m[1]!);
+const dates=(body:string)=>[...body.matchAll(/<lastmod>(.*?)<\/lastmod>/g)].map(m=>m[1]!);
+const video=(pk:number,extra:Row={}):Row=>({pk,videoId:'Video'+String(pk).padStart(6,'0'),title:'Public',ctime:STAMP,mtime:STAMP,...extra});
+const tick=()=>new Promise(resolve=>setImmediate(resolve));
 
-describe('bounded canonical sitemap inventory', () => {
-    it('uses indexed MAX endpoints and fixed official URLs with 256 prefix buckets, never Host or wall-clock lastmod', async () => {
-        const {reader, queries} = fixture(); const maps = createSitemaps(reader, options);
-        const body = await maps.read();
-        expect(body).toContain('<sitemapindex'); expect(urls(body)).toHaveLength(517);
-        expect(urls(body)).toContain('https://youtube.observe.tw/sitemaps/channels/2.xml');
-        expect(urls(body)).toContain('https://youtube.observe.tw/sitemaps/keywords/ff.xml');
-        expect(urls(body)).toContain('https://youtube.observe.tw/sitemaps/events/00.xml');
-        expect(body).not.toContain('<lastmod>');
-        expect(queries[0]!.sql).toContain('MAX(pk)');
-        expect(queries.map(q => q.sql).join('\n')).not.toMatch(/COUNT\(|OFFSET|SELECT \*/);
-        const statics = await maps.read('static', '1');
-        expect(urls(statics)).toContain('https://youtube.observe.tw/api');
-        expect(urls(statics)).not.toContain('https://youtube.observe.tw/api/status');
-        expect(urls(statics).every(url => url && !url.includes('?') && (url.endsWith('.tw/') || !url.endsWith('/')))).toBe(true);
-        expect(statics.match(/<lastmod>/g)).toHaveLength(urls(statics).length);
-        expect(statics).toContain('<lastmod>2026-10-11T01:02:03.000Z</lastmod>');
-        expect(queries).toHaveLength(5);
-    });
-    it('does not invent static release dates and rejects future or overflowing source dates', async () => {
-        for (const date of [undefined, '2027-01-01T00:00:00Z', '2026-02-30T00:00:00Z', 'now']) {
-            const {reader} = fixture(); const maps = createSitemaps(reader, {now: () => NOW, staticLastModified: date});
-            expect(await maps.read()).not.toContain('/static/');
-            await expect(maps.read('static', '1')).rejects.toMatchObject({statusCode: 404});
-        }
-    });
-    it('ranges by integer PK including sparse IDs and excludes inactive/deleted identities without OFFSET', async () => {
-        const {reader, queries} = fixture({rows: [{u_id: 50001, tag_id: 1, mtime: '2026-10-11 12:00:00', ctime: '2026-01-01 00:00:00'}]});
-        const maps = createSitemaps(reader, options);
-        expect(await maps.read('channels', '2')).toContain('/channels/50001');
-        expect(await maps.read('tags', '1')).toContain('/tags/1/channels');
-        const [channels, tags] = leafQueries(queries);
-        expect(channels!.sql).toContain('(c.flag_del IS NULL OR c.flag_del<1)');
-        expect(channels!.sql).toContain('c.u_id>? AND c.u_id<=?');
-        expect(channels!.params).toEqual([50000, 100000, 50001]);
-        expect(tags!.sql).toContain('(del_flag IS NULL OR del_flag<1)');
-        expect(tags!.params).toEqual([0, 50000, 50001]);
-    });
-    it('uses source modification/creation time, ignores future schedule time, and selects latest byte-exact valid video IDs', async () => {
-        const {reader, queries} = fixture({rows: [
-            {videoId: 'Abc_def-123', title: 'normal', mtime: '2026-10-11 12:00:00', stime: '2027-10-11 12:00:00'},
-            {videoId: 'Abc_def-1234', title: 'normal', mtime: '2026-10-11 12:00:00'},
-            {videoId: 'Abc_def-125', title: 'Private video', mtime: '2026-10-11 12:00:00'},
-            {videoId: 'Abc_def-126', title: 'Deleted video', mtime: '2026-10-11 12:00:00'},
-            {videoId: 'Abc_def-127', title: 'normal', mtime: '2027-10-11 12:00:00'},
-            {videoId: 'Abc_def-128', title: 'normal', mtime: '0000-00-00 00:00:00'},
-            {videoId: 'Abc_def-129', title: 'normal', mtime: '2026-02-30 12:00:00'},
-            {videoId: 'Abc_def-130', title: 'normal', mtime: null, ctime: '2026-01-01 08:00:00'},
-        ]});
-        const body = await createSitemaps(reader, options).read('videos', '1');
-        expect(urls(body)).toEqual(['https://youtube.observe.tw/videos/Abc_def-123', 'https://youtube.observe.tw/videos/Abc_def-130']);
-        expect(body).toContain('<lastmod>2026-10-11T04:00:00.000Z</lastmod>');
-        expect(body).toContain('<lastmod>2026-01-01T00:00:00.000Z</lastmod>');
-        const [query] = leafQueries(queries);
-        expect(query!.sql).toContain('newer.videoId=v.videoId AND BINARY newer.videoId=BINARY v.videoId AND newer.pk>v.pk');
-        expect(query!.sql).not.toContain('stime');
-        expect(query!.sql).toContain("(v.title IS NULL OR v.title NOT IN ('Private video','Deleted video'))");
-        expect(query!.sql.split(' FROM ')[0]).toBe('SELECT v.pk,v.videoId,v.mtime,v.ctime');
-    });
-    it('uses indexed term buckets and maintained publication time without changing original term identity', async () => {
-        const rows = ['新聞 & AI', `a<b>"'`, 'A/B', 'A\\B', 'tag%', 'a%41', '.', '..', '\ud800', '\u0000', '😀'.repeat(121)].map((term, i) => ({term, term_key: 'ab' + String(i).padStart(62, '0')}));
-        rows.push({...rows[0]!});
-        const {reader, queries} = fixture({rows}); const body = await createSitemaps(reader, options).read('keywords', 'ab');
-        expect(urls(body)).toHaveLength(3);
-        expect(body).toContain('/keywords/%E6%96%B0%E8%81%9E%20%26%20AI/videos');
-        expect(body).toContain('/keywords/a%3Cb%3E%22&apos;/videos');
-        expect(body).not.toContain('/keywords/A%2FB/videos');
-        expect(body).toContain('/keywords/tag%25/videos');
-        expect(body).toContain('<lastmod>2026-10-10T10:00:00.000Z</lastmod>');
-        const [query] = leafQueries(queries);
-        expect(query!.sql).toContain('run_id=? AND term_key>=? AND term_key<? ORDER BY term_key LIMIT ?');
-        expect(query!.params).toEqual(['run-one', 'ab', 'ac', 50001]);
-        expect(queries.find(q => q.sql.includes('ts_vocabulary_current'))!.sql).toContain('UNIX_TIMESTAMP(r.published_at)*1000');
-    });
-    it('requires a reliable publication lastmod for either stored vocabulary format', async () => {
-        for (const vocabulary of [{id: 'missing-date', snapshot_bytes: 256, separate_terms: true, published_epoch: null}, {id: 'future', snapshot_bytes: 256, separate_terms: true, published_epoch: NOW + 1}]) {
-            const {reader} = fixture({vocabulary}); const maps = createSitemaps(reader, options);
-            expect(await maps.read()).not.toContain('/sitemaps/keywords/');
-            await expect(maps.read('keywords', '00')).rejects.toMatchObject({statusCode: 404});
-        }
-    });
-    it('includes the current bounded embedded observation pool without claiming a complete canonical vocabulary', async () => {
-        const f = fixture({vocabulary: {id: 'observed-window', snapshot_bytes: 1024, separate_terms: false, published_epoch: epoch}, rows: [{term_key: 'ab' + '0'.repeat(62), term: '原標籤'}]});
-        const maps = createSitemaps(f.reader, options);
-        expect(await maps.read()).toContain('/sitemaps/keywords/ab.xml');
-        expect(await maps.read('keywords', 'ab')).toContain(encodeURIComponent('原標籤'));
-        expect(f.queries.some(q => q.sql.includes('ts_vocabulary_terms'))).toBe(false);
-        const query = leafQueries(f.queries)[0]!;
-        expect(query.sql).toContain("JSON_TABLE(r.snapshot,'$.terms[*]'");
-        expect(query.sql).toContain("r.id=? AND r.status='published' AND t.term_key>=? AND t.term_key<?");
-        expect(query.params).toEqual(['observed-window', 'ab', 'ac', 50001]);
-    });
-    it('checks the embedded snapshot byte budget before any JSON parsing and refuses overfull pools', async () => {
-        const large = fixture({vocabulary: {id: 'too-large', snapshot_bytes: 8000001, published_epoch: epoch}});
-        await expect(createSitemaps(large.reader, options).read()).rejects.toMatchObject({statusCode: 503});
-        expect(large.queries.some(q => q.sql.includes('JSON_'))).toBe(false);
-        const many = fixture({run: q => q.sql.startsWith('SELECT JSON_EXTRACT(snapshot') ? [{separate_terms: false, embedded_terms: 50001}] : undefined});
-        await expect(createSitemaps(many.reader, options).read()).rejects.toMatchObject({statusCode: 503});
-        expect(leafQueries(many.queries)).toHaveLength(0);
-    });
-    it('requires canonical unmerged UUIDs, reads UTC editorial dates and caps ff without a LIKE scan', async () => {
-        const id = 'ff000000-0000-4000-8000-000000000000';
-        const {reader, queries} = fixture({rows: [{id, mtime: '2026-10-11 12:00:00.123'}, {id: id.toUpperCase(), mtime: '2026-10-11 12:00:00'}]});
-        const body = await createSitemaps(reader, options).read('events', 'ff');
-        expect(urls(body)).toEqual([`https://youtube.observe.tw/events/${id}`]);
-        expect(body).toContain('2026-10-11T12:00:00.123Z');
-        const [query] = leafQueries(queries);
-        expect(query!.sql).toContain('merged_into IS NULL AND id>=? AND id<? ORDER BY id LIMIT ?');
-        expect(query!.params).toEqual(['ff', 'g', 50001]);
-    });
-    it('omits absent optional schema but never disguises timeouts, permission errors or drift as an empty inventory', async () => {
-        const {reader} = fixture({vocabulary: false, events: false}); const maps = createSitemaps(reader, options);
-        const index = await maps.read(); expect(index).not.toContain('/keywords/'); expect(index).not.toContain('/events/');
-        const statics = await maps.read('static', '1'); expect(statics).not.toContain('.tw/keywords<'); expect(statics).not.toContain('.tw/events<');
-        for (const error of [new DataSourceUnavailable(), new DataQueryFailed('ER_BAD_FIELD_ERROR')]) {
-            const f = fixture({run: query => { if (query.sql.includes('ts_vocabulary_current')) throw error; return undefined; }});
-            await expect(createSitemaps(f.reader, options).read()).rejects.toBe(error);
-        }
-        const f = fixture({run: query => { if (query.sql.includes('ts_editorial_audit_events')) throw new DataQueryFailed('ER_NO_SUCH_TABLE'); return undefined; }});
-        expect(await createSitemaps(f.reader, options).read()).not.toContain('/events/');
-    });
-    it('rejects noncanonical/unknown/out-of-inventory pages without a leaf query', async () => {
-        const {reader, queries} = fixture(); const maps = createSitemaps(reader, options);
-        for (const [kind, page] of [['private', '1'], ['channels', '0'], ['channels', '01'], ['channels', '3'], ['videos', '-1'], ['videos', '9007199254740991'], ['events', 'FF'], ['keywords', '1'], ['static', '2']]) await expect(maps.read(kind, page)).rejects.toMatchObject({statusCode: 404});
-        expect(leafQueries(queries)).toHaveLength(0);
-    });
-    it('fails safely at the URL count and XML byte cap instead of truncating an oversized bucket', async () => {
-        const many = fixture({rows: Array.from({length: 50001}, () => ({term_key: 'a'.repeat(64), term: 'same'}))});
-        await expect(createSitemaps(many.reader, options).read('keywords', 'aa')).rejects.toMatchObject({statusCode: 503});
-        const large = fixture({rows: Array.from({length: 4500}, (_, i) => ({term_key: 'aa' + String(i).padStart(62, '0'), term: '新'.repeat(230) + i}))});
-        await expect(createSitemaps(large.reader, options).read('keywords', 'aa')).rejects.toMatchObject({statusCode: 503});
-        const hugeIndex = fixture({maxima: {channels: 2147483647, videos: 2147483647, tags: 1}});
-        await expect(createSitemaps(hugeIndex.reader, options).read()).rejects.toMatchObject({statusCode: 503});
-    });
+describe('atomic prepared sitemap families',()=>{
+ it('uses sparse keysets rather than ID buckets and indexes only nonempty prepared children with truthful lastmod',async()=>{
+  const f=fixture({channels:[{u_id:1,mtime:STAMP},{u_id:60_000_001,mtime:'2026-10-12 12:00:00'}],videos:[video(61_500_001,{videoId:'SparseVid01'})],tags:[{tag_id:108,ctime:STAMP}]});
+  const maps=createSitemaps(f.reader,{...options,batchSize:1});await maps.prepare();const body=await maps.read();
+  expect(urls(body)).toEqual(['https://youtube.observe.tw/sitemaps/static/1.xml','https://youtube.observe.tw/sitemaps/channels/1.xml','https://youtube.observe.tw/sitemaps/videos/1.xml','https://youtube.observe.tw/sitemaps/tags/1.xml']);
+  expect(dates(body)).toEqual(['2026-10-11T01:02:03.000Z','2026-10-12T04:00:00.000Z','2026-10-11T04:00:00.000Z','2026-10-11T04:00:00.000Z']);
+  expect(urls(await maps.read('channels','1'))).toEqual(['https://youtube.observe.tw/channels/1','https://youtube.observe.tw/channels/60000001']);
+  expect(f.queries.every(q=>!q.sql.includes('OFFSET')&&!q.sql.includes('MAX('))).toBe(true);
+  for(const q of f.queries.filter(q=>!q.sql.includes('AS ceiling')))expect(q.params.at(-1)).toBe(1);
+  expect(f.queries.find(q=>q.sql.includes('c.u_id>')&&q.params[0]==='1')?.params).toEqual(['1','60000001',1]);
+  expect(await maps.read('static','1')).not.toContain('https://youtube.observe.tw/api<');
+ });
+ it('splits exactly 50000+1 accepted URLs into two nonempty pages, independent of PK gaps',async()=>{
+  const f=fixture({videos:Array.from({length:50001},(_,i)=>video(i+1))});const maps=createSitemaps(f.reader,{now:()=>NOW,pauseMs:0});await maps.prepare();
+  expect(urls(await maps.read())).toHaveLength(2);expect(urls(await maps.read('videos','1'))).toHaveLength(50000);expect(urls(await maps.read('videos','2'))).toHaveLength(1);
+  const rows=f.queries.filter(q=>q.sql.includes('v.pk>'));expect(rows).toHaveLength(11);expect(rows.every(q=>q.params.at(-1)===5000)).toBe(true);
+ });
+ it('splits at the XML byte limit instead of truncating eligible URLs',async()=>{
+  const f=fixture({videos:Array.from({length:10},(_,i)=>video(i+1))});const maps=createSitemaps(f.reader,{now:()=>NOW,maxPageBytes:1100});await maps.prepare();
+  const children=urls(await maps.read());expect(children.length).toBeGreaterThan(1);const entries:string[]=[];
+  for(let n=1;n<=children.length;n++){const body=await maps.read('videos',String(n));expect(Buffer.byteLength(body)).toBeLessThanOrEqual(1100);expect(urls(body).length).toBeGreaterThan(0);entries.push(...urls(body));}
+  expect(entries).toHaveLength(10);expect(new Set(entries).size).toBe(10);
+ });
+ it('omits invalid dates, future scheduling dates, invalid IDs, deleted/private rows and old duplicate identities',async()=>{
+  const f=fixture({channels:[{u_id:1,ctime:STAMP,flag_del:1},{u_id:2,ctime:'0000-00-00 00:00:00'}],tags:[{tag_id:1,ctime:STAMP,del_flag:1}],videos:[
+   video(1,{mtime:null,ctime:null,stime:'2027-01-01 00:00:00'}),video(2,{mtime:'2026-02-30 00:00:00',ctime:null}),video(3,{mtime:'2027-01-01 00:00:00',ctime:null}),video(4,{title:'Private video'}),video(5,{title:'Deleted video'}),video(6,{videoId:'invalid'}),video(7,{videoId:'Duplicate01'}),video(8,{videoId:'Duplicate01'}),video(9,{videoId:'duplicate01',stime:'2027-01-01 00:00:00'}),
+  ]});const maps=createSitemaps(f.reader,{now:()=>NOW,pauseMs:0});await maps.prepare();
+  expect(urls(await maps.read())).toEqual(['https://youtube.observe.tw/sitemaps/videos/1.xml']);
+  const body=await maps.read('videos','1');expect(urls(body)).toEqual(['https://youtube.observe.tw/videos/Duplicate01','https://youtube.observe.tw/videos/duplicate01']);expect(body).not.toContain('2027');
+  const q=f.queries.find(q=>q.sql.includes('v.pk>'))!;expect(q.sql).toContain('BINARY newer.videoId=BINARY v.videoId AND newer.pk>v.pk');expect(q.sql).toContain("v.title NOT IN ('Private video','Deleted video')");expect(q.sql.split(' FROM ')[0]).not.toContain('title');expect(q.sql).not.toContain('stime');
+ });
+ it('stores completed XML compressed with a distinct plaintext cap and returns validated full XML on decompression',async()=>{
+  const f=fixture({videos:Array.from({length:1000},(_,i)=>video(i+1))}),metrics:unknown[]=[];
+  const maps=createSitemaps(f.reader,{now:()=>NOW,pauseMs:0,maxGenerationBytes:10_000,maxGenerationPlaintextBytes:200_000,onDiagnostic:r=>metrics.push(r)});
+  await maps.prepare();const body=await maps.read('videos','1');expect(urls(body)).toHaveLength(1000);expect(Buffer.byteLength(body)).toBeGreaterThan(100_000);
+  expect(metrics).toEqual([expect.objectContaining({code:'SITEMAP_PREPARED',rows:1000,pages:1})]);
+  const metric=metrics[0] as {compressedBytes:number;plaintextBytes:number};expect(metric.compressedBytes).toBeLessThanOrEqual(10_000);expect(metric.plaintextBytes).toBeGreaterThan(100_000);
+  const tight=createSitemaps(f.reader,{now:()=>NOW,pauseMs:0,maxGenerationBytes:1000});await expect(tight.prepare()).rejects.toMatchObject({statusCode:503});expect(tight.ready()).toBe(false);
+ });
+ it('queues 32 distinct compressed pages behind one active decode and coalesces same-page callers',async()=>{
+  const f=fixture({videos:Array.from({length:34},(_,i)=>video(i+1))});const maps=createSitemaps(f.reader,{now:()=>NOW,pauseMs:0,maxPageUrls:1});await maps.prepare();
+  const reads=f.queries.length,first=maps.read('videos','1'),same=maps.read('videos','1');
+  const queued=Array.from({length:32},(_,i)=>maps.read('videos',String(i+2)));
+  const overflow=maps.read('videos','34'),unknown=maps.read('videos','999');
+  const results=await Promise.allSettled([first,same,...queued,overflow,unknown]);
+  expect(results.slice(0,34).every(result=>result.status==='fulfilled')).toBe(true);
+  expect(results[0]).toEqual(results[1]);
+  expect(results[34]).toMatchObject({status:'rejected',reason:{statusCode:503}});
+  expect(results[35]).toMatchObject({status:'rejected',reason:{statusCode:404}});
+  expect(await maps.read('videos','34')).toContain('/videos/Video000034');expect(f.queries).toHaveLength(reads);
+ });
+ it('never invents release/entry dates and omits unavailable inventories rather than empty bucket links',async()=>{
+  for(const date of [undefined,'2027-01-01T00:00:00Z','2026-02-30T00:00:00Z','now']){const f=fixture();const maps=createSitemaps(f.reader,{now:()=>NOW,staticLastModified:date});await maps.prepare();expect(urls(await maps.read())).toEqual([]);}
+  const f=fixture();const maps=createSitemaps(f.reader,options);await maps.prepare();expect(urls(await maps.read())).toHaveLength(1);expect(f.queries).toHaveLength(3);expect(f.queries.some(q=>q.sql.includes('ts_'))).toBe(false);
+ });
+ it('admits only one cold preparation, never starts SQL for unknown child requests, and backs off failed generations',async()=>{
+  let resolve!:()=>void,clock=NOW;const f=fixture({videos:[video(1)]});f.setWait(new Promise(r=>{resolve=r;}));const maps=createSitemaps(f.reader,{now:()=>clock,retryMs:100});
+  await expect(maps.read('videos','999')).rejects.toMatchObject({statusCode:503});expect(f.queries).toHaveLength(0);
+  await expect(maps.read()).rejects.toMatchObject({statusCode:503});await expect(maps.read()).rejects.toMatchObject({statusCode:503});expect(f.queries).toHaveLength(1);
+  f.setFailure(new DataSourceUnavailable());resolve();await tick();const reads=f.queries.length;
+  await expect(maps.read()).rejects.toMatchObject({statusCode:503});expect(f.queries).toHaveLength(reads);
+  clock+=101;f.setFailure();f.setWait();await maps.prepare();expect(urls(await maps.read())).toHaveLength(1);
+  const after=f.queries.length;for(const [kind,page] of [['videos','999'],['keywords','00'],['events','ff'],['videos','01'],['videos','0'],['private','1']])await expect(maps.read(kind,page)).rejects.toMatchObject({statusCode:404});expect(f.queries).toHaveLength(after);
+ });
+ it('publishes atomically, serves the last complete family while refreshing, and retains removed old children for the index TTL',async()=>{
+  let clock=NOW;const f=fixture({videos:[video(1),video(2),video(3)]});const maps=createSitemaps(f.reader,{now:()=>clock,ttlMs:100,maxPageUrls:2});await maps.prepare();const oldIndex=await maps.read(),oldSecond=await maps.read('videos','2');
+  let resolve!:()=>void;f.setWait(new Promise(r=>{resolve=r;}));clock+=101;f.data.videos=[video(1)];
+  expect(await maps.read()).toBe(oldIndex);expect(await maps.read('videos','2')).toBe(oldSecond);const pending=maps.prepare();
+  resolve();await pending;expect(urls(await maps.read())).toHaveLength(1);expect(await maps.read('videos','2')).toBe(oldSecond);
+  clock+=101;await expect(maps.read('videos','2')).rejects.toMatchObject({statusCode:404});
+ });
+ it('retains the last good complete family on refresh failure with no fabricated successful timestamp',async()=>{
+  let clock=NOW;const f=fixture({videos:[video(1)]});const maps=createSitemaps(f.reader,{now:()=>clock,ttlMs:100,retryMs:100});await maps.prepare();const oldIndex=await maps.read(),oldChild=await maps.read('videos','1');
+  clock+=101;f.setFailure(new DataQueryFailed('ER_BAD_FIELD_ERROR'));await expect(maps.prepare()).rejects.toMatchObject({driverCode:'ER_BAD_FIELD_ERROR'});
+  const reads=f.queries.length;expect(await maps.read()).toBe(oldIndex);expect(await maps.read('videos','1')).toBe(oldChild);expect(f.queries).toHaveLength(reads);
+ });
+ it('fails the whole staging generation on row, time or total-byte limits and validates cursor progress',async()=>{
+  for(const limits of [{maxGenerationRows:1},{maxGenerationBytes:200},{maxGenerationPlaintextBytes:200},{maxGenerationMs:1,budgetNow:(()=>{let n=0;return()=>n++;})()}]){const f=fixture({videos:[video(1),video(2)]});const maps=createSitemaps(f.reader,{now:()=>NOW,...limits});await expect(maps.prepare()).rejects.toMatchObject({statusCode:503});await expect(maps.read('videos','1')).rejects.toMatchObject({statusCode:503});}
+  const f=fixture();const broken:Reader={async rows(q){if(dialect.sqlToQuery(q).sql.includes('AS ceiling'))return [{ceiling:1}] as never;return [{cursor_id:0,u_id:1,mtime:STAMP}] as never;},close:f.reader.close};await expect(createSitemaps(broken,{now:()=>NOW,pauseMs:0}).prepare()).rejects.toMatchObject({driverCode:'INVALID_SITEMAP_CURSOR'});
+ });
 });
 
-describe('bounded sitemap caching and Fastify transport', () => {
-    it('coalesces index and child misses, refreshes metadata/XML after one hour and never caches errors', async () => {
-        let clock = NOW; const {reader, queries} = fixture(); const maps = createSitemaps(reader, {now: () => clock, staticLastModified: DATE});
-        const [a, b] = await Promise.all([maps.read(), maps.read()]); expect(a).toBe(b); expect(queries).toHaveLength(5);
-        await Promise.all([maps.read('channels', '1'), maps.read('channels', '1')]); expect(leafQueries(queries)).toHaveLength(1);
-        clock += 3599999; await maps.read(); await maps.read('channels', '1'); expect(queries).toHaveLength(6);
-        clock += 2; await maps.read(); await maps.read('channels', '1'); expect(queries).toHaveLength(12);
-        let broken = true;
-        const failed = fixture({run: query => { if (broken && query.sql.includes('SELECT MAX(u_id)')) throw new DataSourceUnavailable(); return undefined; }});
-        const retry = createSitemaps(failed.reader, options);
-        await expect(retry.read()).rejects.toBeInstanceOf(DataSourceUnavailable); broken = false;
-        expect(await retry.read()).toContain('<sitemapindex');
-    });
-    it('retains all 512 tiny hash buckets, bounds ready keys at 600 and in-flight misses at four', async () => {
-        let resolve!: (rows: Row[]) => void;
-        const gate = new Promise<Row[]>(r => { resolve = r; });
-        const f = fixture({run: query => query.sql.includes('SELECT MAX(u_id)') ? gate : undefined});
-        const maps = createSitemaps(f.reader, options);
-        const work = ['00', '01', '02', '03'].map(page => maps.read('keywords', page));
-        await expect(maps.read('keywords', '04')).rejects.toMatchObject({statusCode: 503});
-        resolve([{channels: 4_450_000, videos: 1, tags: 1}]); await Promise.all(work);
-        expect(f.queries.filter(q => q.sql.includes('SELECT MAX(u_id)'))).toHaveLength(1);
-        for (let i = 4; i < 256; i++) await maps.read('keywords', i.toString(16).padStart(2, '0'));
-        for (let i = 0; i < 256; i++) await maps.read('events', i.toString(16).padStart(2, '0'));
-        const buckets = leafQueries(f.queries).length;
-        expect(buckets).toBe(512);
-        // Touch 00 after all 512 buckets: it must still be retained and becomes MRU.
-        await maps.read('keywords', '00'); expect(leafQueries(f.queries)).toHaveLength(buckets);
-        for (let i = 1; i <= 89; i++) await maps.read('channels', String(i));
-        const before = leafQueries(f.queries).length;
-        await maps.read('channels', '89'); await maps.read('keywords', '00');
-        expect(leafQueries(f.queries)).toHaveLength(before);
-        // 601 documents crossed the key cap; the untouched oldest bucket 01 was evicted.
-        await maps.read('keywords', '01'); expect(leafQueries(f.queries)).toHaveLength(before + 1);
-    });
-    it('enforces the independent 32 MiB byte budget even with only five large cached buckets', async () => {
-        const f = fixture({rows: Array.from({length: 3700}, (_, i) => ({term_key: 'aa' + String(i).padStart(62, '0'), term: '新'.repeat(210) + i}))});
-        const maps = createSitemaps(f.reader, options);
-        let size = 0;
-        for (let i = 0; i < 5; i++) {
-            const body = await maps.read('keywords', i.toString(16).padStart(2, '0'));
-            size = Buffer.byteLength(body);
-            expect(size).toBeLessThanOrEqual(8 * 1024 * 1024);
-        }
-        expect(size * 4).toBeLessThanOrEqual(32 * 1024 * 1024);
-        expect(size * 5).toBeGreaterThan(32 * 1024 * 1024);
-        const before = leafQueries(f.queries).length;
-        await maps.read('keywords', '04'); expect(leafQueries(f.queries)).toHaveLength(before);
-        await maps.read('keywords', '00'); expect(leafQueries(f.queries)).toHaveLength(before + 1);
-    });
-    it('GET/HEAD serve XML with a one-hour anonymous shared policy and identity-aware Vary', async () => {
-        const app = Fastify(); const {reader} = fixture(); registerSitemaps(app, reader, options);
-        try {
-            for (const method of ['GET', 'HEAD'] as const) {
-                const response = await app.inject({method, url: '/sitemap.xml', headers: {host: 'attacker.invalid'}});
-                expect(response.statusCode).toBe(200); expect(response.headers['content-type']).toBe('application/xml; charset=utf-8');
-                expect(response.headers['cache-control']).toBe('public, max-age=0, s-maxage=3600');
-                expect(response.headers.vary).toBe('Cookie, Authorization, X-Api-Key, RSC');
-                expect(response.body).not.toContain('attacker.invalid'); if (method === 'HEAD') expect(response.body).toBe('');
-            }
-            const leaf = await app.inject('/sitemaps/static/1.xml'); expect(leaf.statusCode).toBe(200); expect(leaf.body).toContain('<urlset');
-            for (const headers of [{cookie: ''}, {authorization: 'Bearer opaque'}, {'x-api-key': 'opaque'}, {rsc: '1'}]) {
-                const response = await app.inject({url: '/sitemap.xml', headers}); expect(response.statusCode).toBe(200); expect(response.headers['cache-control']).toBe('private, no-store');
-            }
-            for (const path of ['/sitemap.xml?q=x', '/sitemaps/static/1.xml?q=', '/sitemaps/private/1.xml', '/sitemaps/channels/01.xml']) {
-                const response = await app.inject(path); expect(response.statusCode).toBe(path.includes('?') ? 400 : 404); expect(response.headers['cache-control']).toBe('no-store');
-            }
-        } finally { await app.close(); }
-    });
-    it('keeps Set-Cookie responses private and preserves wildcard Vary', async () => {
-        const app = Fastify(); const {reader} = fixture();
-        app.addHook('onRequest', async (_request, reply) => { reply.header('Set-Cookie', 'session=opaque').header('Vary', '*'); });
-        registerSitemaps(app, reader, options);
-        try { const response = await app.inject('/sitemap.xml'); expect(response.headers['cache-control']).toBe('private, no-store'); expect(response.headers.vary).toBe('*'); }
-        finally { await app.close(); }
-    });
-    it('returns no-store 503 on transport failures and 500 on query defects, with sanitized bodies', async () => {
-        for (const [error, status] of [[new DataSourceUnavailable(), 503], [new DataQueryFailed('ER_BAD_FIELD_ERROR'), 500]] as const) {
-            const app = Fastify(); const f = fixture({run: () => { throw error; return undefined; }}); registerSitemaps(app, f.reader, options);
-            try { const response = await app.inject('/sitemap.xml'); expect(response.statusCode).toBe(status); expect(response.headers['cache-control']).toBe('no-store'); expect(response.body).toBe('{"error":"Sitemap unavailable."}'); expect(response.headers['retry-after']).toBe(status === 503 ? '60' : undefined); }
-            finally { await app.close(); }
-        }
-    });
+describe('sitemap snapshot transport',()=>{
+ it('exposes only fully prepared index children, all GET/HEAD 200 nonempty XML with true dates and safe shared headers',async()=>{
+  const f=fixture({channels:[{u_id:1,mtime:STAMP}],videos:[video(1)],tags:[{tag_id:1,ctime:STAMP}]});const app=Fastify();const controller=registerSitemaps(app,f.reader,{...options,onDiagnostic:()=>{}});
+  try{
+   const first=await app.inject('/sitemap.xml');expect(first.statusCode).toBe(503);expect(first.headers['retry-after']).toBe('60');expect(first.headers['cache-control']).toBe('no-store');
+   await controller.prepare();const index=await app.inject('/sitemap.xml');expect(index.statusCode).toBe(200);expect(dates(index.body)).toHaveLength(urls(index.body).length);
+   for(const loc of urls(index.body))for(const method of ['GET','HEAD'] as const){const r=await app.inject({method,url:new URL(loc).pathname,headers:{host:'untrusted.invalid'}});expect(r.statusCode).toBe(200);expect(r.headers['content-type']).toBe('application/xml; charset=utf-8');expect(r.headers['cache-control']).toBe('public, max-age=0, s-maxage=3600');if(method==='GET'){expect(urls(r.body).length).toBeGreaterThan(0);expect(dates(r.body)).toHaveLength(urls(r.body).length);expect(r.body).not.toContain('untrusted.invalid');}else expect(r.body).toBe('');}
+   const parallel=await Promise.all(urls(index.body).map(loc=>app.inject(new URL(loc).pathname)));
+   expect(parallel.every(reply=>reply.statusCode===200&&urls(reply.body).length>0)).toBe(true);
+   const count=f.queries.length;
+   for(const url of ['/sitemaps/keywords/00.xml','/sitemaps/events/ff.xml','/sitemaps/videos/ff.xml','/sitemaps/videos/999.xml']){const r=await app.inject(url);expect(r.statusCode).toBe(404);expect(r.headers['cache-control']).toBe('no-store');}
+   expect(f.queries).toHaveLength(count);
+   for(const headers of [{cookie:''},{authorization:'Bearer opaque'},{'x-api-key':'opaque'},{rsc:'1'}])expect((await app.inject({url:'/sitemap.xml',headers})).headers['cache-control']).toBe('private, no-store');
+   expect((await app.inject('/sitemap.xml?q=x')).statusCode).toBe(400);
+  }finally{await app.close();}
+ });
+ it('warms at runtime startup and keeps /ready closed until publication even when only cached-index children are requested',async()=>{
+  let resolve!:()=>void;const f=fixture({videos:[video(1)]});f.setWait(new Promise(r=>{resolve=r;}));const app=buildApp({reader:f.reader,sitemapWarmup:true,clock:()=>new Date(NOW)});
+  try{
+   expect((await app.inject('/sitemaps/videos/1.xml')).statusCode).toBe(503);expect(f.queries.length).toBe(1);
+   expect((await app.inject('/ready')).statusCode).toBe(503);
+   resolve();f.setWait();
+   let ready=503;for(let n=0;n<30&&ready!==200;n++){await new Promise(r=>setTimeout(r,10));ready=(await app.inject('/ready')).statusCode;}
+   expect(ready).toBe(200);const child=await app.inject('/sitemaps/videos/1.xml');expect(child.statusCode).toBe(200);expect(urls(child.body)).toHaveLength(1);
+  }finally{await app.close();}
+ });
+ it('logs bounded preparation failure codes without SQL/messages and preserves cold schema failure as 500',async()=>{
+  const f=fixture();f.setFailure(new DataQueryFailed('ER_BAD_FIELD_ERROR'));const records:unknown[]=[];const app=Fastify();const controller=registerSitemaps(app,f.reader,{...options,onDiagnostic:r=>records.push(r)});
+  try{
+   await expect(controller.prepare()).rejects.toMatchObject({driverCode:'ER_BAD_FIELD_ERROR'});expect(controller.ready()).toBe(false);
+   const r=await app.inject('/sitemap.xml');expect(r.statusCode).toBe(500);expect(r.headers['cache-control']).toBe('no-store');expect(r.body).not.toContain('ER_BAD_FIELD_ERROR');
+   expect(records).toEqual([expect.objectContaining({code:'SITEMAP_PREPARATION_FAILED',reason:'ER_BAD_FIELD_ERROR'})]);expect(JSON.stringify(records)).not.toContain('SELECT');
+  }finally{await app.close();}
+ });
+ it('keeps failed preparations sanitized and no-store without repeatedly scanning the source',async()=>{
+  const f=fixture();f.setFailure(new DataSourceUnavailable());const app=Fastify();const controller=registerSitemaps(app,f.reader,{...options,onDiagnostic:()=>{}});
+  try{expect((await app.inject('/sitemap.xml')).statusCode).toBe(503);await tick();const reads=f.queries.length;const r=await app.inject('/sitemap.xml');expect(r.statusCode).toBe(503);expect(r.body).toBe('{"error":"Sitemap unavailable."}');expect(r.headers['cache-control']).toBe('no-store');expect(f.queries).toHaveLength(reads);}finally{await app.close();}
+ });
 });

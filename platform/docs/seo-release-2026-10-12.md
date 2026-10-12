@@ -4,7 +4,7 @@ This release adds absolute canonical URLs to the existing public frontend, inclu
 
 Frontend implementation: Claude Opus 5.5. Codex integration and independent review. The release deliberately preserves the currently published vocabulary matching rules and original Laravel writer ownership; pending keyword quality, API keys and UTC API serialization are separate work.
 
-The gateway now serves a sitemap index and bounded static/channel/video/tag/keyword/event children. Every URL entry has a source-derived `lastmod`; index entries do not invent modification times. See [sitemap details](sitemaps.md). Crawler diagnostics record canonical route shapes, response status/bytes, bounded UA product/version labels and validated Cloudflare ray IDs, never queries, cookies, auth headers or raw user-agent strings.
+The initial gateway sitemap implementation served static/channel/video/tag/keyword/event buckets; the corrective release below replaces this inventory. Every URL entry has a source-derived `lastmod`; index entries do not invent modification times. See [sitemap details](sitemaps.md). Crawler diagnostics record canonical route shapes, response status/bytes, bounded UA product/version labels and validated Cloudflare ray IDs, never queries, cookies, auth headers or raw user-agent strings.
 
 Structured data is escaped JSON-LD and never a script trust root. Hash CSP, SRI, HSTS and private response protections remain. GA4 code is present but **disabled in this build**; the measurement ID is absent from generated client JS. Enabling analytics requires a subsequent browser transport check proving safe automatic page-view fields. No manual `page_view` is sent. A verified one-time server callback receipt is still needed for the login event.
 
@@ -31,6 +31,26 @@ The index `https://youtube.observe.tw/sitemap.xml` returned 200 for GET and HEAD
 | `/sitemaps/keywords/00.xml` | 61 |
 | `/sitemaps/events/00.xml` | 0 |
 
-Every sampled URL entry had lastmod; empty historical PK/hash buckets are valid and contain no invented URLs. Sample channel/video/tag/keyword URLs returned 200. Sitemap responses were Cloudflare DYNAMIC, with origin shared-cache headers ready; no Cloudflare rules changed. Homepage requests returned HIT with Age 30/32/33 and total response times 219/214/216 ms. ISR STALE responses retained public one-second shared TTL and matching hash CSP. Browser inspection at 390px confirmed the canonical and no page-wide horizontal overflow. Crawler log entries for the synthetic Google-InspectionTool checks were observed on the running container, with bounded route shapes and no query strings.
+**Rejected acceptance:** this sampled check missed empty historical PK/hash buckets and absent child inventories. The 1,745-child index did not meet acceptance and must not be treated as a successful sitemap release. GSC still reported Couldn’t fetch; URL Inspection success is separate. Sample channel/video/tag/keyword URLs returned 200. Sitemap responses were Cloudflare DYNAMIC, with origin shared-cache headers ready; no Cloudflare rules changed. Homepage requests returned HIT with Age 30/32/33 and total response times 219/214/216 ms. ISR STALE responses retained public one-second shared TTL and matching hash CSP. Browser inspection at 390px confirmed the canonical and no page-wide horizontal overflow. Crawler log entries for the synthetic Google-InspectionTool checks were observed on the running container, with bounded route shapes and no query strings.
 
 Known separate issue: the first arbitrary keyword sample (`建議`) briefly returned a sanitized 503; retry was 200. Another uncached all-history keyword API reached its existing five-second query deadline. This is a pre-existing keyword selection/coverage cost issue, tracked for a focused backend fix; the passing canonical round does not prove every keyword query meets the latency target. No GA events are claimed as live: analytics remains disabled pending real gtag history privacy verification.
+
+## Corrective release
+
+Replace ID-range/hash buckets with paced keyset reads and chunks of actual URL entries.
+Only complete nonempty static/channel/video/tag children are advertised, each with
+lastmod and explicit count/byte bounds. Keyword/event detail inventories are omitted
+until ready. Startup preparation gates readiness; compressed storage and bounded
+reads avoid retaining full plaintext generations. Failure retains the last good
+inventory. See [sitemap details](sitemaps.md).
+
+The same backend-only release avoids all-history keyword queries scanning the
+video archive: evidence candidates use the indexed term lookup and video primary
+identity, while unbounded coverage is explicitly not calculated. Bounded coverage
+failures return clear partial metadata without caching a misleading zero.
+
+Independent Codex review accepted the corrected memory/startup/diagnostic controls.
+Image-only rollback targets the previous 27bba6f image
+`sha256:82378eb881e3005ff7f361a0ce6b0a529aceab502bc03220a68f75e8d11edd17`.
+No schema, grants, routes, secrets or workflow ownership change. Full canary and
+post-deployment inventory evidence must be recorded before claiming completion.

@@ -1,43 +1,51 @@
+import {gzip,gunzip} from 'node:zlib';
+import {promisify} from 'node:util';
+import {setTimeout as delay} from 'node:timers/promises';
 import {sql, type SQL} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
 import {DataQueryFailed, DataSourceUnavailable, type Reader, type Row} from '../db/client.js';
 
+const gzipAsync=promisify(gzip),gunzipAsync=promisify(gunzip);
 const ORIGIN = 'https://youtube.observe.tw';
-const PAGE_SIZE = 50_000;
-const SNAPSHOT_BYTES = 8_000_000;
-const XML_BYTES = 8 * 1024 * 1024;
-const CACHE_BYTES = 32 * 1024 * 1024;
-const CACHE_KEYS = 600;
-const CACHE_TTL = 3_600_000;
-const MAX_PENDING = 4;
-const kinds = ['static', 'channels', 'videos', 'keywords', 'tags', 'events'] as const;
+const NS = 'http://www.sitemaps.org/schemas/sitemap/0.9';
+const XML_HEAD = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="${NS}">`;
+const XML_TAIL = '</urlset>';
+const kinds = ['static','channels','videos','tags'] as const;
 type Kind = typeof kinds[number];
-type NumericKind = 'channels' | 'videos' | 'tags';
 const staticPaths = [
     '/', '/videos', '/channels', '/tags', '/keywords', '/events', '/groups', '/mayor',
     '/ai/days', '/ai/hours', '/ai/periods', '/ai/aspects', '/live/current', '/live/channels',
-    '/live/hours', '/live/tags', '/live/periods', '/live/trends/daily', '/compare/titles', '/about', '/api',
+    '/live/hours', '/live/tags', '/live/periods', '/live/trends/daily', '/compare/titles', '/about',
 ] as const;
 export interface SitemapOptions {
-    /** Explicit source-content release timestamp, never request/startup time. */
+    /** Explicit source-content release timestamp; never the request/build clock. */
     staticLastModified?: string;
     now?: () => number;
+    /** Monotonic deadline clock; independently injectable for deterministic tests. */
+    budgetNow?: () => number;
+    ttlMs?: number;
+    retryMs?: number;
+    batchSize?: number;
+    maxPageUrls?: number;
+    maxPageBytes?: number;
+    /** Retained compressed XML cap; plaintext is separately budgeted. */
+    maxGenerationBytes?: number;
+    maxGenerationPlaintextBytes?: number;
+    pauseMs?: number;
+    onDiagnostic?: (record:SitemapDiagnostic)=>void;
+    maxGenerationRows?: number;
+    maxGenerationMs?: number;
 }
-interface Inventory {
-    pages: Record<NumericKind, number>;
-    vocabulary: boolean;
-    keywords: {runId: string; lastmod: string; separate: boolean} | null;
-    events: boolean;
-}
-interface Entry {path: string; lastmod: string}
+export interface SitemapDiagnostic {code:'SITEMAP_PREPARED'|'SITEMAP_PREPARATION_FAILED';reason?:string;rows:number;pages:number;compressedBytes:number;plaintextBytes:number;durationMs:number}
+interface Document {compressed:Buffer;bytes:number;lastmod:string;urls:number}
+interface Snapshot {index:string;children:ReadonlyMap<string,Document>;expires:number}
+interface Entry {path:string;lastmod:string}
 class SitemapFailure extends Error {
-    constructor(readonly statusCode: number, message: string) { super(message); }
+    constructor(readonly statusCode:number,message:string){super(message);}
 }
-const notFound = () => new SitemapFailure(404, 'Sitemap not found.');
-const overBudget = () => new SitemapFailure(503, 'Sitemap read capacity exceeded.');
-function optionalMissing(error: unknown): boolean {
-    return error instanceof DataQueryFailed && error.driverCode === 'ER_NO_SUCH_TABLE';
-}
+const notFound=()=>new SitemapFailure(404,'Sitemap not found.');
+const unavailable=()=>new SitemapFailure(503,'Sitemap snapshot is preparing or unavailable.');
+const overBudget=()=>new SitemapFailure(503,'Sitemap snapshot exceeds its preparation budget.');
 function positiveId(value: unknown): string | null {
     const s = String(value ?? '');
     return /^[1-9]\d*$/.test(s) && Number.isSafeInteger(Number(s)) ? s : null;
@@ -65,183 +73,164 @@ function modified(row: Row, zone: 'taipei' | 'utc', now: number): string | null 
 function escapeXml(value: string): string {
     return value.replace(/[<>&"']/g, char => ({'<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;'}[char]!));
 }
-function xmlDocument(root: 'urlset' | 'sitemapindex', fragments: Iterable<string>): string {
-    const head = `<?xml version="1.0" encoding="UTF-8"?>\n<${root} xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`;
-    const tail = `</${root}>`;
-    let bytes = Buffer.byteLength(head + tail), count = 0;
-    const parts = [head];
-    for (const fragment of fragments) {
-        bytes += Buffer.byteLength(fragment);
-        if (++count > PAGE_SIZE || bytes > XML_BYTES) throw overBudget();
-        parts.push(fragment);
-    }
-    return parts.join('') + tail;
-}
-function urlset(entries: Iterable<Entry>): string {
-    // Convert lazily: the byte cap stops encoding before building a potentially
-    // 100 MiB collection of percent-encoded labels. Identity dedupe is page-local.
-    return xmlDocument('urlset', (function* () {
-        const seen = new Set<string>();
-        for (const entry of entries) {
-            if (seen.has(entry.path)) continue;
-            seen.add(entry.path);
-            yield `<url><loc>${escapeXml(ORIGIN + entry.path)}</loc><lastmod>${entry.lastmod}</lastmod></url>`;
-        }
-    })());
-}
-function bucketBounds(page: string): [string, string] {
-    return [page, page === 'ff' ? 'g' : (parseInt(page, 16) + 1).toString(16).padStart(2, '0')];
-}
-function keywordPath(term: unknown): string | null {
-    if (typeof term !== 'string' || !term || term.length > 240 || term === '.' || term === '..' || term.includes('/') || term.includes('\\') || /[\u0000-\u001f\u007f-\u009f]|%[0-9a-f]{2}/i.test(term)) return null;
-    try { return `/keywords/${encodeURIComponent(term)}/videos`; } catch { return null; }
-}
 
-/** One instance per gateway: bounded immutable public inventory, independent of identity.
- * Metadata and XML share the four-miss gate; metadata uses a separate single-flight slot
- * inside it so four simultaneous child requests cannot deadlock awaiting metadata. */
-export function createSitemaps(reader: Reader, options: SitemapOptions = {}) {
-    const now = options.now ?? Date.now;
-    const cache = new Map<string, {body: string; expires: number; bytes: number}>();
-    const pending = new Map<string, Promise<string>>();
-    let bytes = 0;
-    let metadata: {value: Inventory; expires: number} | undefined;
-    let metadataPending: Promise<Inventory> | undefined;
-    const drop = (key: string) => { const old = cache.get(key); if (old) { bytes -= old.bytes; cache.delete(key); } };
-    async function inventory(): Promise<Inventory> {
-        if (metadata && metadata.expires > now()) return metadata.value;
-        if (metadataPending) return metadataPending;
-        metadataPending = (async () => {
-            // Each scalar MAX is an indexed endpoint lookup, including sparse PK ranges.
-            const [maxima] = await reader.rows(sql`SELECT (SELECT MAX(u_id) FROM urt_channel) AS channels,(SELECT MAX(pk) FROM urt_video) AS videos,(SELECT MAX(tag_id) FROM urt_tag) AS tags`);
-            const pages = {} as Inventory['pages'];
-            for (const kind of ['channels', 'videos', 'tags'] as const) {
-                const max = maxima?.[kind];
-                if (max !== null && max !== undefined && !positiveId(max)) throw new DataQueryFailed('INVALID_SITEMAP_MAX_ID');
-                pages[kind] = Math.ceil(Number(max ?? 0) / PAGE_SIZE);
-                if (pages[kind] > PAGE_SIZE) throw overBudget();
-            }
-            let vocabulary = false;
-            let keywords: Inventory['keywords'] = null;
-            try {
-                // Measure before JSON parsing: embedded window snapshots have an explicit
-                // publication budget; full exports keep only their small metadata here.
-                const [run] = await reader.rows(sql`SELECT r.id,OCTET_LENGTH(r.snapshot) AS snapshot_bytes,UNIX_TIMESTAMP(r.published_at)*1000 AS published_epoch FROM ts_vocabulary_current c JOIN ts_vocabulary_runs r ON r.id=c.run_id WHERE c.source=${'https://tag.observe.tw'} AND r.status='published' LIMIT 1`);
-                vocabulary = true;
-                if (run) {
-                    const size = Number(run.snapshot_bytes);
-                    if (run.snapshot_bytes == null || !Number.isSafeInteger(size) || size < 0) throw new DataQueryFailed('INVALID_VOCABULARY_SNAPSHOT_SIZE');
-                    if (size > SNAPSHOT_BYTES) throw overBudget();
-                    const [shape] = await reader.rows(sql`SELECT JSON_EXTRACT(snapshot,'$.termsStoredSeparately') AS separate_terms,JSON_LENGTH(snapshot,'$.terms') AS embedded_terms FROM ts_vocabulary_runs WHERE id=${run.id} AND status='published' LIMIT 1`);
-                    const separate = ['true', '1'].includes(String(shape?.separate_terms));
-                    if (separate) await reader.rows(sql`SELECT term_key FROM ts_vocabulary_terms LIMIT 0`);
-                    else if (Number(shape?.embedded_terms ?? 0) > PAGE_SIZE) throw overBudget();
-                    const epoch = Number(run.published_epoch);
-                    if (shape && typeof run.id === 'string' && run.id && run.published_epoch != null && Number.isFinite(epoch) && epoch > 0 && epoch <= now()) {
-                        keywords = {runId: run.id, lastmod: new Date(epoch).toISOString(), separate};
-                    }
-                }
-            } catch (error) { if (!optionalMissing(error)) throw error; vocabulary = false; keywords = null; }
-            let events = false;
-            try {
-                // Event detail requires these tables. Constant false prevents data reads.
-                await reader.rows(sql`SELECT e.id FROM ts_editorial_events e,ts_editorial_sources s,ts_editorial_links l,ts_editorial_audit a,ts_editorial_audit_events ae WHERE 1=0`);
-                events = true;
-            } catch (error) { if (!optionalMissing(error)) throw error; }
-            const value = {pages, vocabulary, keywords, events};
-            metadata = {value, expires: now() + CACHE_TTL};
-            return value;
-        })();
-        try { return await metadataPending; } finally { metadataPending = undefined; }
+/** Entire read-only family is prepared once and published atomically. Children
+ * never initiate SQL; arbitrary client page numbers cannot drive database scans.
+ * A refresh failure retains the last complete snapshot and retries after cooldown. */
+export function createSitemaps(reader:Reader,options:SitemapOptions={}){
+    const now=options.now??Date.now,budgetNow=options.budgetNow??(()=>performance.now());
+    const ttlMs=options.ttlMs??3_600_000,retryMs=options.retryMs??60_000;
+    const batchSize=options.batchSize??5_000,maxPageUrls=options.maxPageUrls??50_000;
+    const maxPageBytes=options.maxPageBytes??8*1024*1024;
+    const maxGenerationBytes=options.maxGenerationBytes??32*1024*1024,maxGenerationPlaintextBytes=options.maxGenerationPlaintextBytes??128*1024*1024,pauseMs=options.pauseMs??100;
+    const maxGenerationRows=options.maxGenerationRows??1_000_000,maxGenerationMs=options.maxGenerationMs??120_000;
+    for(const [value,max] of [[ttlMs,86_400_000],[retryMs,3_600_000],[batchSize,5_000],[maxPageUrls,50_000],[maxPageBytes,8*1024*1024],[maxGenerationBytes,32*1024*1024],[maxGenerationPlaintextBytes,128*1024*1024],[maxGenerationRows,2_000_000],[maxGenerationMs,300_000]]){
+        if(!Number.isSafeInteger(value)||value!<1||value!>max!)throw new Error('Invalid sitemap snapshot budget');
     }
-    async function build(kind?: Kind, page?: string): Promise<string> {
-        const info = await inventory();
-        const staticDate = absoluteDate(options.staticLastModified, now());
-        if (kind === undefined) {
-            const paths: string[] = [];
-            if (staticDate) paths.push('/sitemaps/static/1.xml');
-            for (const name of ['channels', 'videos', 'tags'] as const) {
-                for (let n = 1; n <= info.pages[name]; n++) {
-                    if (paths.length >= PAGE_SIZE) throw overBudget();
-                    paths.push(`/sitemaps/${name}/${n}.xml`);
-                }
-            }
-            for (const name of ['keywords', 'events'] as const) {
-                if (!info[name]) continue;
-                for (let n = 0; n < 256; n++) paths.push(`/sitemaps/${name}/${n.toString(16).padStart(2, '0')}.xml`);
-            }
-            // Index pointers have no fabricated modification timestamp; URL entries do.
-            return xmlDocument('sitemapindex', paths.map(path => `<sitemap><loc>${ORIGIN}${path}</loc></sitemap>`));
-        }
-        if (kind === 'static') {
-            if (page !== '1' || !staticDate) throw notFound();
-            return urlset(staticPaths.filter(path => (path !== '/events' || info.events) && (path !== '/keywords' || info.vocabulary)).map(path => ({path, lastmod: staticDate})));
-        }
-        let query: SQL;
-        if (kind === 'keywords' || kind === 'events') {
-            if (!page || !/^[a-f0-9]{2}$/.test(page) || !info[kind]) throw notFound();
-            const [lower, upper] = bucketBounds(page);
-            query = kind === 'keywords'
-                ? info.keywords!.separate
-                    ? sql`SELECT term_key,term FROM ts_vocabulary_terms WHERE run_id=${info.keywords!.runId} AND term_key>=${lower} AND term_key<${upper} ORDER BY term_key LIMIT ${PAGE_SIZE + 1}`
-                    : sql`SELECT t.term_key,t.term FROM ts_vocabulary_runs r,JSON_TABLE(r.snapshot,'$.terms[*]' COLUMNS(term_key VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin PATH '$.key',term VARCHAR(480) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin PATH '$.term')) t WHERE r.id=${info.keywords!.runId} AND r.status='published' AND t.term_key>=${lower} AND t.term_key<${upper} ORDER BY t.term_key LIMIT ${PAGE_SIZE + 1}`
-                : sql`SELECT id,updated_at AS mtime,created_at AS ctime FROM ts_editorial_events WHERE merged_into IS NULL AND id>=${lower} AND id<${upper} ORDER BY id LIMIT ${PAGE_SIZE + 1}`;
-        } else {
-            const n = Number(page);
-            if (!page || !/^[1-9]\d*$/.test(page) || !Number.isSafeInteger(n) || n > info.pages[kind]) throw notFound();
-            const lower = (n - 1) * PAGE_SIZE, upper = n * PAGE_SIZE;
-            query = kind === 'channels'
-                ? sql`SELECT c.u_id,c.mtime,c.ctime FROM urt_channel c WHERE c.u_id>${lower} AND c.u_id<=${upper} AND (c.flag_del IS NULL OR c.flag_del<1) ORDER BY c.u_id LIMIT ${PAGE_SIZE + 1}`
-                : kind === 'tags'
-                    ? sql`SELECT tag_id,mtime,ctime FROM urt_tag WHERE tag_id>${lower} AND tag_id<=${upper} AND (del_flag IS NULL OR del_flag<1) ORDER BY tag_id LIMIT ${PAGE_SIZE + 1}`
-                    : sql`SELECT v.pk,v.videoId,v.mtime,v.ctime FROM urt_video v WHERE v.pk>${lower} AND v.pk<=${upper} AND (v.title IS NULL OR v.title NOT IN ('Private video','Deleted video')) AND NOT EXISTS (SELECT 1 FROM urt_video newer WHERE newer.videoId=v.videoId AND BINARY newer.videoId=BINARY v.videoId AND newer.pk>v.pk) ORDER BY v.pk LIMIT ${PAGE_SIZE + 1}`;
-        }
-        const rows = await reader.rows(query);
-        if (rows.length > PAGE_SIZE) throw overBudget();
-        return urlset((function* (): Generator<Entry> {
-        for (const row of rows) {
-            let path: string | null = null;
-            let lastmod = modified(row, kind === 'events' ? 'utc' : 'taipei', now());
-            if (kind === 'channels') { const id = positiveId(row.u_id); if (id) path = `/channels/${id}`; }
-            if (kind === 'tags') { const id = positiveId(row.tag_id); if (id) path = `/tags/${id}/channels`; }
-            if (kind === 'videos' && typeof row.videoId === 'string' && /^[A-Za-z0-9_-]{11}$/.test(row.videoId) && row.title !== 'Private video' && row.title !== 'Deleted video') path = `/videos/${row.videoId}`;
-            if (kind === 'events' && typeof row.id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(row.id)) path = `/events/${row.id}`;
-            if (kind === 'keywords' && typeof row.term_key === 'string' && /^[0-9a-f]{64}$/.test(row.term_key)) {
-                path = keywordPath(row.term);
-                // This is publication of maintained tag metadata, not YouTube observation time.
-                lastmod = info.keywords!.lastmod;
-            }
-            if (path && lastmod) yield {path, lastmod};
-        }
-        })());
+    if(!Number.isSafeInteger(pauseMs)||pauseMs<0||pauseMs>1000)throw new Error('Invalid sitemap pacing');
+    let current:Snapshot|undefined,previous:{children:ReadonlyMap<string,Document>;until:number}|undefined,pending:Promise<void>|undefined,nextAttempt=0;
+    let failedStatus:500|503=503,decodeActive=false;
+    // One active gunzip plus at most 32 queued distinct documents. Same-page
+    // callers share one promise; queued entries retain compressed bytes only.
+    const decodes=new Map<Document,Promise<string>>();
+    const decodeQueue:{document:Document;resolve:(body:string)=>void;reject:(error:unknown)=>void}[]=[];
+    async function drainDecodeQueue():Promise<void>{
+        if(decodeActive)return;
+        const entry=decodeQueue.shift();if(!entry)return;
+        decodeActive=true;
+        try{
+            const buffer=await gunzipAsync(entry.document.compressed,{maxOutputLength:maxPageBytes});
+            if(buffer.byteLength!==entry.document.bytes)throw new DataQueryFailed('INVALID_SITEMAP_XML_SIZE');
+            entry.resolve(buffer.toString('utf8'));
+        }catch(error){entry.reject(error);}
+        finally{decodes.delete(entry.document);decodeActive=false;void drainDecodeQueue();}
     }
+    function decode(document:Document):Promise<string>{
+        const existing=decodes.get(document);if(existing)return existing;
+        if(decodes.size>=33)return Promise.reject(unavailable());
+        let resolve!:(body:string)=>void,reject!:(error:unknown)=>void;
+        const promise=new Promise<string>((yes,no)=>{resolve=yes;reject=no;});
+        decodes.set(document,promise);decodeQueue.push({document,resolve,reject});
+        void drainDecodeQueue();return promise;
+    }
+    let stats={rows:0,pages:0,compressedBytes:0,plaintextBytes:0,durationMs:0};
+    const emit=(record:SitemapDiagnostic)=>{try{options.onDiagnostic?.(record);}catch{/* Diagnostic failures cannot affect publication. */}};
+    async function generate():Promise<Snapshot>{
+        const started=budgetNow(),children=new Map<string,Document>();
+        let totalBytes=0,totalPlaintext=0,scanned=0,batches=0;
+        stats={rows:0,pages:0,compressedBytes:0,plaintextBytes:0,durationMs:0};
+        const check=()=>{stats.durationMs=Math.max(0,Math.round(budgetNow()-started));if(stats.durationMs>maxGenerationMs)throw overBudget();};
+        const read=async(query:SQL)=>{check();const rows=await reader.rows(query);check();return rows;};
+        function pages(kind:Kind){
+            let number=0,parts:string[]=[],urls=0,bytes=Buffer.byteLength(XML_HEAD+XML_TAIL),lastmod='';
+            const flush=async()=>{
+                if(!urls)return;
+                check();
+                const body=XML_HEAD+parts.join('')+XML_TAIL,plainBytes=bytes,pageLastmod=lastmod,pageUrls=urls;
+                // Release fragment arrays before async compression; only one page
+                // is ever compressed at a time and no completed plaintext is retained.
+                parts=[];urls=0;bytes=Buffer.byteLength(XML_HEAD+XML_TAIL);lastmod='';
+                const compressed=await gzipAsync(body,{level:1});check();
+                if(totalBytes+compressed.byteLength>maxGenerationBytes||totalPlaintext+plainBytes>maxGenerationPlaintextBytes)throw overBudget();
+                totalBytes+=compressed.byteLength;totalPlaintext+=plainBytes;
+                children.set(`${kind}/${++number}`,{compressed,bytes:plainBytes,lastmod:pageLastmod,urls:pageUrls});
+                stats.pages=children.size;stats.compressedBytes=totalBytes;stats.plaintextBytes=totalPlaintext;
+            };
+            return {
+                async add(entry:Entry){
+                    check();
+                    const fragment=`<url><loc>${escapeXml(ORIGIN+entry.path)}</loc><lastmod>${entry.lastmod}</lastmod></url>`,size=Buffer.byteLength(fragment);
+                    if(size+Buffer.byteLength(XML_HEAD+XML_TAIL)>maxPageBytes)throw overBudget();
+                    if(urls===maxPageUrls||bytes+size>maxPageBytes)await flush();
+                    if(totalPlaintext+bytes+size>maxGenerationPlaintextBytes)throw overBudget();
+                    parts.push(fragment);urls++;bytes+=size;if(entry.lastmod>lastmod)lastmod=entry.lastmod;
+                },flush,
+            };
+        }
+        const staticDate=absoluteDate(options.staticLastModified,now());
+        if(staticDate){const out=pages('static');for(const path of staticPaths)await out.add({path,lastmod:staticDate});await out.flush();}
+        // Snapshot ceiling is one indexed endpoint lookup, not a bucket inventory.
+        // It keeps concurrent inserts from extending a generation indefinitely.
+        for(const kind of ['channels','videos','tags'] as const){
+            const table=kind==='channels'?'urt_channel':kind==='videos'?'urt_video':'urt_tag';
+            const column=kind==='channels'?'u_id':kind==='videos'?'pk':'tag_id';
+            const endpoint=(await read(sql`SELECT ${sql.identifier(column)} AS ceiling FROM ${sql.identifier(table)} ORDER BY ${sql.identifier(column)} DESC LIMIT 1`))[0]?.ceiling;
+            if(endpoint===null||endpoint===undefined)continue;
+            const high=positiveId(endpoint);if(!high)throw new DataQueryFailed('INVALID_SITEMAP_SOURCE_ID');
+            let cursor='0';const out=pages(kind);
+            while(Number(cursor)<Number(high)){
+                let query:SQL;
+                if(kind==='channels')query=sql`SELECT c.u_id AS cursor_id,c.u_id,c.mtime,c.ctime FROM urt_channel c WHERE c.u_id>${cursor} AND c.u_id<=${high} AND (c.flag_del IS NULL OR c.flag_del<1) ORDER BY c.u_id LIMIT ${batchSize}`;
+                else if(kind==='tags')query=sql`SELECT tag_id AS cursor_id,tag_id,mtime,ctime FROM urt_tag WHERE tag_id>${cursor} AND tag_id<=${high} AND (del_flag IS NULL OR del_flag<1) ORDER BY tag_id LIMIT ${batchSize}`;
+                else query=sql`SELECT v.pk AS cursor_id,v.pk,v.videoId,v.mtime,v.ctime FROM urt_video v WHERE v.pk>${cursor} AND v.pk<=${high} AND (v.title IS NULL OR v.title NOT IN ('Private video','Deleted video')) AND NOT EXISTS (SELECT 1 FROM urt_video newer WHERE newer.videoId=v.videoId AND BINARY newer.videoId=BINARY v.videoId AND newer.pk>v.pk) ORDER BY v.pk LIMIT ${batchSize}`;
+                if(batches++>0&&pauseMs)await delay(pauseMs);
+                const rows=await read(query);
+                if(rows.length>batchSize)throw new DataQueryFailed('INVALID_SITEMAP_BATCH_SIZE');
+                if(!rows.length)break;
+                stats.rows=scanned+=rows.length;
+                if(scanned>maxGenerationRows)throw overBudget();
+                for(const row of rows){
+                    const id=positiveId(row.cursor_id);
+                    if(!id||Number(id)<=Number(cursor)||Number(id)>Number(high))throw new DataQueryFailed('INVALID_SITEMAP_CURSOR');
+                    cursor=id;
+                    const lastmod=modified(row,'taipei',now());if(!lastmod)continue;
+                    let path:string|null=null;
+                    if(kind==='channels'&&positiveId(row.u_id))path=`/channels/${row.u_id}`;
+                    if(kind==='tags'&&positiveId(row.tag_id))path=`/tags/${row.tag_id}/channels`;
+                    if(kind==='videos'&&typeof row.videoId==='string'&&/^[A-Za-z0-9_-]{11}$/.test(row.videoId)&&row.title!=='Private video'&&row.title!=='Deleted video')path=`/videos/${row.videoId}`;
+                    if(path)await out.add({path,lastmod});
+                }
+                if(rows.length<batchSize)break;
+            }
+            await out.flush();
+        }
+        check();
+        if(children.size>50_000)throw overBudget();
+        const index=`<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="${NS}">${[...children].map(([key,doc])=>`<sitemap><loc>${ORIGIN}/sitemaps/${key}.xml</loc><lastmod>${doc.lastmod}</lastmod></sitemap>`).join('')}</sitemapindex>`;
+        if(Buffer.byteLength(index)>8*1024*1024||totalBytes+Buffer.byteLength(index)>maxGenerationBytes||totalPlaintext+Buffer.byteLength(index)>maxGenerationPlaintextBytes)throw overBudget();
+        stats.compressedBytes=totalBytes+Buffer.byteLength(index);stats.plaintextBytes=totalPlaintext+Buffer.byteLength(index);check();
+        return {index,children,expires:now()+ttlMs};
+    }
+    function prepare():Promise<void>{
+        if(pending)return pending;
+        if(current&&current.expires>now())return Promise.resolve();
+        if(now()<nextAttempt)return Promise.reject(unavailable());
+        pending=generate().then(snapshot=>{
+            const orphaned=new Map<string,Document>();
+            if(current)for(const[key,doc]of current.children)if(!snapshot.children.has(key))orphaned.set(key,doc);
+            previous=orphaned.size?{children:orphaned,until:now()+ttlMs}:undefined;
+            current=snapshot;nextAttempt=0;emit({code:'SITEMAP_PREPARED',...stats});
+        }).catch(error=>{
+            nextAttempt=now()+retryMs;
+            failedStatus=error instanceof DataSourceUnavailable||error instanceof SitemapFailure&&error.statusCode===503?503:500;
+            const reason=error instanceof DataQueryFailed&&/^[A-Z][A-Z0-9_]{0,79}$/.test(error.driverCode)?error.driverCode:error instanceof SitemapFailure?'SITEMAP_CAPACITY':failedStatus===503?'SITEMAP_DATA_SOURCE_UNAVAILABLE':'SITEMAP_QUERY_FAILED';
+            emit({code:'SITEMAP_PREPARATION_FAILED',reason,...stats});throw error;
+        }).finally(()=>{pending=undefined;});
+        return pending;
+    }
+    function refresh(){if(!pending&&now()>=nextAttempt)void prepare().catch(()=>{/* No incomplete generation or error details are published. */});}
     return {
-        async read(kind?: string, page?: string): Promise<string> {
-            // Bound cardinality before cache/pending admission and reject noncanonical paths.
-            if (kind !== undefined && (!kinds.includes(kind as Kind) || !page || !/^(?:[1-9]\d{0,4}|[a-f0-9]{2})$/.test(page))) throw notFound();
-            const key = kind === undefined ? 'index' : `${kind}/${page}`;
-            const hit = cache.get(key);
-            if (hit && hit.expires > now()) { cache.delete(key); cache.set(key, hit); return hit.body; }
-            drop(key);
-            const work = pending.get(key);
-            if (work) return work;
-            if (pending.size >= MAX_PENDING) throw overBudget();
-            const promise = build(kind as Kind | undefined, page).then(body => {
-                const size = Buffer.byteLength(body);
-                for (const [oldKey, value] of cache) if (value.expires <= now()) drop(oldKey);
-                while (cache.size >= CACHE_KEYS || bytes + size > CACHE_BYTES) drop(cache.keys().next().value!);
-                cache.set(key, {body, expires: Math.min(now() + CACHE_TTL, metadata?.expires ?? Infinity), bytes: size}); bytes += size;
-                return body;
-            }).finally(() => { pending.delete(key); });
-            pending.set(key, promise);
-            return promise;
+        /** Explicit warm-up for the canary/operator, never a new write-capable job. */
+        prepare,start:refresh,ready:()=>current!==undefined,
+        async read(kind?:string,page?:string):Promise<string>{
+            if(kind!==undefined&&(!kinds.includes(kind as Kind)||!page||!/^[1-9]\d{0,4}$/.test(page)))throw notFound();
+            if(!current){if(kind===undefined)refresh();throw new SitemapFailure(failedStatus,'Sitemap snapshot is not prepared.');}
+            // Capture one complete family before a background refresh can publish.
+            const snapshot=current;
+            if(kind===undefined){if(snapshot.expires<=now())refresh();return snapshot.index;}
+            if(previous&&previous.until<=now())previous=undefined;
+            const child=snapshot.children.get(`${kind}/${page}`)??previous?.children.get(`${kind}/${page}`);
+            if(!child)throw notFound();
+            return decode(child);
         },
     };
 }
 
 /** Register before the frontend wildcard proxy. Fastify supplies matching HEAD routes. */
-export function registerSitemaps(app: FastifyInstance, reader: Reader, options: SitemapOptions = {}): void {
-    const sitemaps = createSitemaps(reader, options);
+export function registerSitemaps(app: FastifyInstance, reader: Reader, options: SitemapOptions = {}) {
+    const sitemaps = createSitemaps(reader, {...options,onDiagnostic:options.onDiagnostic??(record=>{
+        if(!process.stderr.writableNeedDrain)process.stderr.write(JSON.stringify(record)+'\n');
+    })});
     app.register(async scoped => {
         scoped.addHook('onSend', async (request, reply, payload) => {
             const vary = new Map(String(reply.getHeader('Vary') ?? '').split(',').map(v => v.trim()).filter(Boolean).map(v => [v.toLowerCase(), v]));
@@ -266,4 +255,5 @@ export function registerSitemaps(app: FastifyInstance, reader: Reader, options: 
         scoped.get('/sitemap.xml', handler);
         scoped.get('/sitemaps/:kind/:page.xml', handler);
     });
+    return sitemaps;
 }

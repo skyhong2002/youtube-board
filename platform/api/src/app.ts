@@ -1,4 +1,4 @@
-import {registerPublicV1Cache} from './public-v1-cache.js';
+import {registerPublicV1Cache,markPublicV1Partial} from './public-v1-cache.js';
 import {trustedProxies} from './trusted-proxy.js';
 import {registerCrawlerLog} from './seo/crawler-log.js';
 import {registerSitemaps} from './seo/sitemaps.js';
@@ -43,6 +43,8 @@ export const routeRegistry = [
 ] as const;
 interface AppOptions {
     reader?: Reader;
+    /** Runtime startup readiness waits for a complete read-only sitemap family. */
+    sitemapWarmup?: boolean;
     databaseUrl?: string;
     dataset?: 'fixture' | 'live' | 'unknown';
     clock?: () => Date;
@@ -51,7 +53,8 @@ export function buildApp(options: AppOptions = {}) {
     const app = Fastify({ logger: false, trustProxy: trustedProxies(process.env.AUTH_TRUSTED_PROXY_CIDRS), requestTimeout: 15000, bodyLimit: 16384 }), reader = options.reader ?? createReader(options.databaseUrl ?? process.env.DATABASE_URL), clock = options.clock ?? (() => new Date()), service = reports(reader, clock);
     registerPublicV1Cache(app);
     registerCrawlerLog(app);
-    registerSitemaps(app,reader,{staticLastModified:'2026-10-12T14:00:00.000Z',now:()=>+clock()});
+    const sitemaps=registerSitemaps(app,reader,{staticLastModified:'2026-10-12T14:00:00.000Z',now:()=>+clock()});
+    if(options.sitemapWarmup)app.addHook('onReady',async()=>{sitemaps.start();});
     app.addHook('onSend', async (_request, reply, payload) => { reply.header('Strict-Transport-Security','max-age=31536000'); return payload; });
     const meta = (data: unknown): ReportMeta => ({ schemaVersion: 1, requestedAt: clock().toISOString(), updatedAt: deepUpdatedAt(data), timezone: 'Asia/Taipei', source: 'mariadb', dataset: options.dataset ?? (process.env.DATASET_KIND === 'fixture' ? 'fixture' : 'unknown'), coverage: {}, warnings: [] });
     registerMediaAssets(app);
@@ -66,6 +69,8 @@ export function buildApp(options: AppOptions = {}) {
             const m = meta(data), record = object(data);
             if (record.evidenceCoverage && typeof record.evidenceCoverage === 'object')
                 m.coverage = record.evidenceCoverage as ReportMeta['coverage'];
+            if(m.coverage.coverageStatus==='unavailable'){markPublicV1Partial(reply);m.warnings.push('比對涵蓋統計暫時無法取得；影片仍依有效比對證據顯示，未取得的統計不代表零。');}
+            if(m.coverage.coverageStatus==='not-calculated')m.warnings.push('全歷史查詢不計算全站比對涵蓋統計；影片與符合筆數依有效比對證據提供，可指定日期範圍查看涵蓋統計。');
             if(channel)m.coverage={...m.coverage,...channelIdentityCoverage(channel)};
             if (path === '/vocabulary' || path === '/keywords') {
                 m.updatedAt = text(record.publishedAt) || null;
@@ -91,6 +96,7 @@ export function buildApp(options: AppOptions = {}) {
     app.get('/up', async () => ({ status: 'ok', service: 'youtube-board-api' }));
     app.get('/healthz', async () => ({ status: 'ok', service: 'youtube-board-api' }));
     app.get('/ready', async (_req, reply) => {
+        if(options.sitemapWarmup&&!sitemaps.ready()){sitemaps.start();return reply.code(503).send({status:'preparing'});}
         try {
             await reader.rows(sql `SELECT 1 AS available`);
             return { status: 'ready' };

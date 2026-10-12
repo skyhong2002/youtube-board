@@ -12,7 +12,7 @@ import {fileURLToPath} from 'node:url';
 import {loadUnavailableAssets} from '../api/src/ui-unavailable.js';
 
 const databases=frontendDatabases(process.env);
-const app = buildApp();
+const app = buildApp({sitemapWarmup:true});
 const auth=await registerAuth(app,{databaseUrl:databases.auth,env:{...process.env,DATABASE_URL:databases.auth}});
 await registerReaderAccounts(app,auth,{databaseUrl:databases.auth});
 let stopping = false;
