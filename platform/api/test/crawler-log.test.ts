@@ -36,3 +36,61 @@ it('bounds log volume, summarizes suppression, and contains sink failures',async
  const broken=Fastify();registerCrawlerLog(broken,{emit:()=>{throw Error('sink');}});broken.get('/sitemap.xml',async()=> 'ok');
  try{expect((await broken.inject('/sitemap.xml')).statusCode).toBe(200);}finally{await broken.close();}
 });
+
+it('counts final streamed and compressed body bytes over real HTTP, including robots and no-body responses',async()=>{
+ const {Readable}=await import('node:stream');
+ const {gzipSync,brotliCompressSync}=await import('node:zlib');
+ const {request}=await import('node:http');
+ const body=Buffer.from('User-agent: *\nDisallow: /my\n'.repeat(80));
+ const records:any[]=[],app=Fastify();registerCrawlerLog(app,{emit:r=>records.push(r)});
+ app.get('/robots.txt',async(req,reply)=>{
+  const encoding=req.headers['accept-encoding'];
+  const data=encoding==='gzip'?gzipSync(body):encoding==='br'?brotliCompressSync(body):body;
+  if(encoding==='gzip'||encoding==='br')reply.header('Content-Encoding',encoding);
+  return reply.type('text/plain').send(Readable.from([data.subarray(0,7),data.subarray(7)]));
+ });
+ app.get('/sitemap.xml',async()=> '中文 XML');
+ app.addHook('onSend',async(req,reply,payload)=>{
+  if(req.url==='/sitemap.xml') {reply.removeHeader('content-length');return Buffer.from('最終 XML');}return payload;
+ });
+ app.get('/empty',async(_req,reply)=>reply.code(204).send());
+ app.get('/unchanged',async(_req,reply)=>reply.code(304).send());
+ const origin=await app.listen({port:0,host:'127.0.0.1'});
+ const get=(path:string,method='GET',encoding='identity')=>new Promise<number>((resolve,reject)=>{
+  request(origin+path,{method,headers:{'Accept-Encoding':encoding,'User-Agent':'Googlebot/2.1','cf-ipcountry':'TW','cf-ray':'abcdeffedcba1234-KIX'}},r=>{
+   let size=0;r.on('data',(b:Buffer)=>{size+=b.length;});r.on('end',()=>resolve(size));r.on('error',reject);
+  }).on('error',reject).end();
+ });
+ try{
+  for(const encoding of ['identity','gzip','br']) {
+   const size=await get('/robots.txt','GET',encoding);
+   expect(size).toBe((encoding==='gzip'?gzipSync(body):encoding==='br'?brotliCompressSync(body):body).length);
+   expect(records.at(-1)).toMatchObject({bytes:size,completed:true,cfCountry:'TW',cfColo:'KIX'});
+  }
+  for(const [path,method] of [['/robots.txt','HEAD'],['/empty','GET'],['/unchanged','GET']]){
+   expect(await get(path!,method)).toBe(0);expect(records.at(-1)).toMatchObject({bytes:0,completed:true});
+  }
+  const size=await get('/sitemap.xml');expect(size).toBe(Buffer.byteLength('最終 XML'));expect(records.at(-1).bytes).toBe(size);
+ }finally{await app.close();}
+});
+
+it('records aborted streams once as incomplete without retaining raw headers',async()=>{
+ const {request}=await import('node:http');const {Readable}=await import('node:stream');
+ const app=Fastify(),records:any[]=[];let closed=false;
+ registerCrawlerLog(app,{emit:r=>records.push(r)});
+ app.get('/robots.txt',async(_req,reply)=>{
+  const stream=new Readable({read(){this.push('first');this._read=()=>{};}});
+  stream.on('close',()=>{closed=true;});return reply.send(stream);
+ });
+ const origin=await app.listen({port:0,host:'127.0.0.1'});
+ try {
+  await new Promise<void>((resolve,reject)=>{
+   const req=request(origin+'/robots.txt',{headers:{'cf-ray':'injected-token','cf-ipcountry':'private-value'}},res=>{
+    res.once('data',()=>{res.destroy();resolve();});
+   });req.on('error',reject);req.end();
+  });
+  for(let n=0;n<100&&!records.length;n++)await new Promise(r=>setTimeout(r,5));
+  expect(records).toHaveLength(1);expect(records[0]).toMatchObject({bytes:5,completed:false,cfRay:null,cfCountry:null,cfColo:null});
+  expect(closed).toBe(true);
+ }finally{await app.close();}
+});

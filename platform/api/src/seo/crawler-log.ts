@@ -1,10 +1,11 @@
-import type {FastifyInstance,FastifyRequest} from 'fastify';
+import type {FastifyInstance} from 'fastify';
+import {createCrawlerLogSink} from './crawler-log-sink.js';
 
 interface CrawlerRecord {
   code:'CRAWLER_RESPONSE';at:string;method:string;path:string;
-  status:number;bytes:number|null;userAgent:string;cfRay:string|null;
+  status:number;bytes:number;completed:boolean;userAgent:string;cfRay:string|null;cfCountry:string|null;cfColo:string|null;
 }
-interface Options {emit?:(record:CrawlerRecord|{code:'CRAWLER_LOG_SUPPRESSED';count:number})=>void;clock?:()=>Date;limit?:number}
+interface Options {emit?:(record:CrawlerRecord|{code:'CRAWLER_LOG_SUPPRESSED';count:number})=>void;clock?:()=>Date;limit?:number;directory?:string}
 const sitemap=/^\/(?:robots\.txt|sitemap\.xml|sitemaps\/(?:static|channels|videos|tags)\/[1-9]\d{0,4}\.xml|sitemaps\/(?:keywords|events)\/[a-f0-9]{2}\.xml)$/;
 const bots=/Googlebot|Google-InspectionTool/i;
 
@@ -35,31 +36,50 @@ export function crawlerUserAgent(value:unknown):string {
 export function registerCrawlerLog(app:FastifyInstance,options:Options={}) {
   const clock=options.clock??(()=>new Date()),limit=options.limit??300;
   if(!Number.isSafeInteger(limit)||limit<1||limit>1000)throw Error('Invalid crawler log budget');
-  const emit=options.emit??(record=>{if(!process.stderr.writableNeedDrain)process.stderr.write(JSON.stringify(record)+'\n');});
+  const directory=options.directory??process.env.CRAWLER_LOG_DIRECTORY;
+  const sink=directory?createCrawlerLogSink({directory}):undefined;
+  if(sink)app.addHook('onClose',async()=>{await sink.close();});
+  const emit=options.emit??(record=>{
+    sink?.emit(record);
+    if(!process.stderr.writableNeedDrain)process.stderr.write(JSON.stringify(record)+'\n');
+  });
   let window=-1,used=0,suppressed=0;
-  const selected=new WeakMap<FastifyRequest,{path:string;userAgent:string;cfRay:string|null;bytes:number|null}>();
-  app.addHook('onRequest',async request=>{
+  app.addHook('onRequest',async(request,reply)=>{
     const rawAgent=request.headers['user-agent'];
-    const userAgent=crawlerUserAgent(rawAgent);
     if(!sitemap.test(request.url.split('?')[0]!)&&!bots.test(typeof rawAgent==='string'?rawAgent.slice(0,512):''))return;
-    const ray=request.headers['cf-ray'];
-    selected.set(request,{path:crawlerPath(request.url),userAgent,cfRay:typeof ray==='string'&&/^[a-f0-9]{16,32}(?:-[A-Z]{3})?$/.test(ray)?ray:null,bytes:null});
-  });
-  app.addHook('onSend',async(request,_reply,payload)=>{
-    const record=selected.get(request);
-    if(record&&typeof payload==='string')record.bytes=Buffer.byteLength(payload);
-    else if(record&&Buffer.isBuffer(payload))record.bytes=payload.byteLength;
-    return payload;
-  });
-  app.addHook('onResponse',async(request,reply)=>{
-    const record=selected.get(request);if(!record)return;selected.delete(request);
-    const at=clock(),bucket=Math.floor(+at/60000);if(!Number.isFinite(bucket))return;
-    try {
-      if(bucket!==window){if(suppressed)emit({code:'CRAWLER_LOG_SUPPRESSED',count:suppressed});window=bucket;used=0;suppressed=0;}
-      if(used>=limit){suppressed=Math.min(2147483647,suppressed+1);return;}used++;
-      const length=reply.getHeader('content-length'),parsed=typeof length==='number'?length:typeof length==='string'&&/^\d+$/.test(length)?Number(length):null;
-      const bytes=request.method==='HEAD'||reply.statusCode===204||reply.statusCode===304?0:parsed!==null&&Number.isSafeInteger(parsed)&&parsed>=0?parsed:record.bytes;
-      emit({code:'CRAWLER_RESPONSE',at:at.toISOString(),method:/^[A-Z]{1,16}$/.test(request.method)?request.method:'OTHER',path:record.path,status:reply.statusCode,bytes,userAgent:record.userAgent,cfRay:record.cfRay});
-    }catch{/* Observability must never change a public response. */}
+    const ray=request.headers['cf-ray'],country=request.headers['cf-ipcountry'];
+    const cfRay=typeof ray==='string'&&/^[a-f0-9]{16,32}(?:-[A-Z]{3})?$/.test(ray)?ray:null;
+    const record={path:crawlerPath(request.url),userAgent:crawlerUserAgent(rawAgent),cfRay,
+      cfCountry:typeof country==='string'&&/^[A-Z]{2}$/.test(country)?country:null,
+      cfColo:cfRay?.match(/-([A-Z]{3})$/)?.[1]??null};
+    // Count only final encoded body chunks, after all Fastify hooks/proxy and
+    // compression. Never inspect/copy bodies or count HTTP framing and headers.
+    // Preserve ServerResponse overloads, return values and backpressure.
+    const raw=reply.raw,write=raw.write,end=raw.end;
+    let bytes=0,ending=false,emitted=false;
+    const length=(chunk:unknown,encoding:unknown)=>typeof chunk==='string'?Buffer.byteLength(chunk,typeof encoding==='string'?encoding as BufferEncoding:undefined):ArrayBuffer.isView(chunk)?chunk.byteLength:0;
+    raw.write=function(this:typeof raw,...args:Parameters<typeof write>) {
+      const size=ending?0:length(args[0],args[1]);bytes+=size;
+      try{return Reflect.apply(write,this,args);}catch(error){bytes-=size;throw error;}
+    } as typeof write;
+    raw.end=function(this:typeof raw,...args:Parameters<typeof end>) {
+      const size=length(args[0],args[1]);bytes+=size;ending=true;
+      try{return Reflect.apply(end,this,args);}catch(error){bytes-=size;throw error;}finally{ending=false;}
+    } as typeof end;
+    const finish=(completed:boolean)=>{
+      if(emitted)return;emitted=true;
+      const at=clock(),bucket=Math.floor(+at/60000);if(!Number.isFinite(bucket))return;
+      try {
+        if(bucket!==window){if(suppressed)emit({code:'CRAWLER_LOG_SUPPRESSED',count:suppressed});window=bucket;used=0;suppressed=0;}
+        if(used>=limit){suppressed=Math.min(2147483647,suppressed+1);return;}used++;
+        const noBody=request.method==='HEAD'||raw.statusCode===204||raw.statusCode===304||raw.statusCode<200;
+        emit({code:'CRAWLER_RESPONSE',at:at.toISOString(),method:/^[A-Z]{1,16}$/.test(request.method)?request.method:'OTHER',...record,
+          status:raw.statusCode,bytes:noBody?0:bytes,completed});
+      }catch{/* Observability must never change a public response. */}
+    };
+    raw.once('finish',()=>finish(true));
+    // A disconnected response is explicitly incomplete: bytes then describes
+    // submitted body chunks, not proof they all reached the remote client.
+    raw.once('close',()=>finish(raw.writableFinished));
   });
 }
