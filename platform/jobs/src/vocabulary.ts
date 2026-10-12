@@ -5,9 +5,11 @@ export const VOCABULARY_JOB = 'tags.vocabulary.sync';
 export interface Window { since: string; until: string }
 export interface SourceArticle {
   id: string; media: string; publishedAt: string; tags: string[];
-  /** Exact upstream array retained in staging when U+200B/edge-space normalization changes a tag. */
+  /** Exact upstream array retained in staging when normalization or quarantine changes the accepted tags. */
   sourceTags?: string[];
+  rejectedTags?: Array<{ raw: string; reason: 'unsupported-control-character' }>;
 }
+export interface VocabularySourceQuality { normalizedTags: number; rejectedTags: number; articlesWithRejectedTags: number }
 export interface ArticlePage { articles: SourceArticle[]; nextCursor: string | null }
 export interface VocabularyTerm { key: string; term: string; articleCount: number; media: string[]; provenance: 'upstream-article-tag-origin-unspecified'; upstreamId?: string; upstream?: ExportTerm }
 export interface VocabularySnapshot {
@@ -16,6 +18,8 @@ export interface VocabularySnapshot {
   upstreamSnapshotId?: string; upstreamGeneratedAt?: string; upstreamChecksum?: string;
   termsStoredSeparately?: boolean; termCount?: number; upstreamManifest?: ExportManifest; localPayloadChecksum?: string;
   terms: VocabularyTerm[];
+  /** Counts of source tag occurrences; absent on snapshots published before quality accounting. */
+  sourceQuality?: VocabularySourceQuality;
 }
 export interface SyncRun { id: string; window: Window; cursor: string | null; pages: number; status: 'scanning' | 'ready' | 'published' }
 export interface VocabularyStore {
@@ -38,6 +42,21 @@ export function aggregateTerms(articles: SourceArticle[]): VocabularyTerm[] {
     entry.count++; entry.media.add(article.media); terms.set(term, entry);
   }
   return [...terms.entries()].map(([term, v]) => ({ key: termKey(term), term, articleCount: v.count, media: [...v.media].sort(), provenance: 'upstream-article-tag-origin-unspecified' as const })).sort((a, b) => a.key.localeCompare(b.key));
+}
+/** Derive from retained staged evidence, including older pages without quality fields.
+ * Normalization counts accepted occurrences, not unique published terms. */
+export function aggregateSourceQuality(articles: SourceArticle[]): VocabularySourceQuality {
+  const quality: VocabularySourceQuality = { normalizedTags: 0, rejectedTags: 0, articlesWithRejectedTags: 0 };
+  for (const article of articles) {
+    const rejected = article.rejectedTags?.length ?? 0;
+    quality.rejectedTags += rejected;
+    if (rejected) quality.articlesWithRejectedTags++;
+    for (const raw of article.sourceTags ?? []) {
+      const supported = raw.replaceAll('\u200B', '');
+      if (!/[\p{Cc}\p{Cf}]/u.test(supported) && supported.trim() !== raw) quality.normalizedTags++;
+    }
+  }
+  return quality;
 }
 /** No publication on failure/cap. Call again with the same id/window to resume. */
 export async function synchronizeVocabulary(input: { id: string; window: Window; maxPages: number; source: ArticleSource; store: VocabularyStore; assertOwnership: () => Promise<void> }): Promise<{ status: 'incomplete'; run: SyncRun } | { status: 'published'; snapshot: VocabularySnapshot }> {

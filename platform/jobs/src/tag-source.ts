@@ -37,20 +37,28 @@ export class TagArticleSource implements ArticleSource {
       if (!(at >= Date.parse(window.since) && at < Date.parse(window.until))) throw new Error('Tag article outside requested window');
       const originalTags = a.tags;
       if (originalTags.length > 500) throw new Error('Invalid tag source terms');
-      const tags = originalTags.map((raw: unknown) => {
+      const rejectedTags: Array<{ raw: string; reason: 'unsupported-control-character' }> = [];
+      const tags: string[] = [];
+      let changed = false;
+      for (const raw of originalTags as unknown[]) {
         // Bound the original input too: normalization must not bypass ingestion caps.
         if (typeof raw !== 'string' || raw.length > 240) throw new Error('Invalid tag source terms');
         // U+200B is the sole supported format-character exception. Check other
         // controls before trim(), which would otherwise silently erase tabs/BOM.
         const withoutZeroWidthSpace = raw.replaceAll('\u200B', '');
-        if (/[\p{Cc}\p{Cf}]/u.test(withoutZeroWidthSpace)) throw new Error('Invalid tag source terms');
+        if (/[\p{Cc}\p{Cf}]/u.test(withoutZeroWidthSpace)) {
+          rejectedTags.push({ raw, reason: 'unsupported-control-character' });
+          changed = true;
+          continue;
+        }
         const term = withoutZeroWidthSpace.trim();
         if (!term) throw new Error('Invalid tag source terms');
-        return term;
-      });
-      const changed = tags.some((term, index) => term !== originalTags[index]);
+        tags.push(term);
+        if (term !== raw) changed = true;
+      }
       return { id: String(a.id), media: a.media, publishedAt: a.publishedAt, tags,
-        ...(changed ? { sourceTags: originalTags as string[] } : {}) };
+        ...(changed ? { sourceTags: originalTags as string[] } : {}),
+        ...(rejectedTags.length ? { rejectedTags } : {}) };
     });
     const nextCursor = data.nextCursor as string | null;
     if (nextCursor && (!/^\d{1,15}_\d{1,19}$/.test(nextCursor) || !articles.length)) throw new Error('Invalid continuation cursor');

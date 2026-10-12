@@ -185,7 +185,7 @@ export interface AiEventData {
     evidenceCoverage:ReportMeta['coverage'];
 }
 /** Fresh YouTube title/description evidence, ranked by video count; at most 40 cloud terms. */
-export type HomeKeywordSummary = { vocabularyCoverage:'observed-article-window'|'all-current-indexed-article-tags'|'unavailable';vocabularyWindow:{since:string;until:string}|null;source:'https://tag.observe.tw';version:string|null;status:'synchronized'|'not-synchronized'|'unavailable';reason:string|null;from:string;to:string;updatedAt:string|null;rows:{key:string;term:string;videoCount:number;views:number|null;unknownViewVideos:number}[];sourceVideos:number|null;freshVideos:number|null;staleVideos:number|null;unprocessedVideos:number|null;metric:'current-cumulative-views-of-window-published-videos' };
+export type HomeKeywordSummary = { sourceQuality?:VocabularySourceQuality; vocabularyCoverage:'observed-article-window'|'all-current-indexed-article-tags'|'unavailable';vocabularyWindow:{since:string;until:string}|null;source:'https://tag.observe.tw';version:string|null;status:'synchronized'|'not-synchronized'|'unavailable';reason:string|null;from:string;to:string;updatedAt:string|null;rows:{key:string;term:string;videoCount:number;views:number|null;unknownViewVideos:number}[];sourceVideos:number|null;freshVideos:number|null;staleVideos:number|null;unprocessedVideos:number|null;metric:'current-cumulative-views-of-window-published-videos' };
 export interface HomeExploration {
     categories: { status:'available'|'unavailable';reason:string|null;rows:TagRow[];summary:{visibleCategories:number|null;channelMemberships:number|null;uniqueChannels:number|null;weeklyViews:number|null;overlapping:true};updatedAt:string|null;minimumWeeklyViews:10 };
     /** Seven inclusive Taipei calendar dates through response to. */
@@ -241,6 +241,7 @@ export interface VocabularyTerm {
     media: string[];
     provenance: 'upstream-article-tag-origin-unspecified';
 }
+export interface VocabularySourceQuality { normalizedTags: number; rejectedTags: number; articlesWithRejectedTags: number }
 export interface VocabularyData extends Collection<VocabularyTerm> {
     version: string | null;
     source: 'https://tag.observe.tw';
@@ -252,6 +253,7 @@ export interface VocabularyData extends Collection<VocabularyTerm> {
     publishedAt: string | null;
     coverage: 'observed-article-window' | 'all-current-indexed-article-tags';
     upstreamSnapshotConsistent: boolean;
+    sourceQuality?: VocabularySourceQuality;
 }
 export interface VideoTagEvidenceData {
     videoId: string;

@@ -1,6 +1,6 @@
 import { assertVocabularyBudget } from './vocabulary-budget.js';
 import type { Connection, RowDataPacket } from 'mysql2/promise';
-import { aggregateTerms, SOURCE, validateWindow, type ArticlePage, type SourceArticle, type SyncRun, type VocabularySnapshot, type VocabularyStore, type Window } from './vocabulary.js';
+import { aggregateSourceQuality, aggregateTerms, SOURCE, validateWindow, type ArticlePage, type SourceArticle, type SyncRun, type VocabularySnapshot, type VocabularyStore, type Window } from './vocabulary.js';
 export class MysqlVocabularyStore implements VocabularyStore {
   constructor(private readonly db: Connection) {}
   private async run(id: string, lock = false): Promise<SyncRun> {
@@ -42,7 +42,8 @@ export class MysqlVocabularyStore implements VocabularyStore {
       }
       if (run.status !== 'ready') throw new Error('Incomplete vocabulary cannot be published');
       const [rows] = await this.db.query<RowDataPacket[]>('SELECT payload FROM ts_vocabulary_stage WHERE run_id = ?', [id]);
-      const snapshot: VocabularySnapshot = { id, source: SOURCE, window: run.window, publishedAt: new Date().toISOString(), coverage: 'observed-article-window', upstreamSnapshotConsistent: false, terms: aggregateTerms(rows.map(row => JSON.parse(row.payload) as SourceArticle)) };
+      const articles = rows.map(row => JSON.parse(row.payload) as SourceArticle);
+      const snapshot: VocabularySnapshot = { id, source: SOURCE, window: run.window, publishedAt: new Date().toISOString(), coverage: 'observed-article-window', upstreamSnapshotConsistent: false, terms: aggregateTerms(articles), sourceQuality: aggregateSourceQuality(articles) };
       assertVocabularyBudget(snapshot.terms);
       // Do not let a resumed older window displace a newer completed observation.
       const [current] = await this.db.query<RowDataPacket[]>('SELECT r.window_until, r.snapshot FROM ts_vocabulary_current c JOIN ts_vocabulary_runs r ON r.id = c.run_id WHERE c.source = ? FOR UPDATE', [SOURCE]);

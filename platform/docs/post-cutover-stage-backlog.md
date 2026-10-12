@@ -16,6 +16,32 @@ must work. Daily synchronization uses one-day incremental windows; historical
 backfill is batched across minute boundaries. Public rendering continues to use
 the local published snapshot and never calls tag synchronously.
 
+## Public API documentation and access (queued after vocabulary/avatars)
+
+The user's 2026-10-12 addition requires the same public API approach as the pinned
+tag source, not a separate documentation system. Implement a single OpenAPI source,
+`/api/v1/openapi.json`, generated `docs/api.md`, a matching `/api/` website and
+content-negotiated `/api/status`. Test specification, generated docs and actual
+routes together. Frontend documentation/navigation/footer work goes to Opus;
+Codex owns specification, routes, auth, limits and deployment.
+
+Match tag's public GET/HEAD, UTF-8 JSON, wildcard public CORS, UTC timestamps with
+Taipei calendar-day windows, `limit`/`cursor`/`nextCursor`/`hours`/`q` conventions,
+60 requests/minute per IP and rate headers. Add personally issued API keys in the
+reader account UI: SHA-256 storage, `x-api-key`, 1,000/minute. Keep account/private
+RSS/admin data outside the public API. Keyed/authorized responses must not enter
+shared caches; anonymous cache TTLs and recommended polling must reflect freshness.
+Document errors/status codes, URL encoding, no trailing slash, v1 compatibility,
+YouTube source copyright and RSS. Preserve existing consumers when reconciling
+the current report envelope/error shape with tag's public API conventions.
+
+Include executable curl+jq and JavaScript examples (with cursor pagination) for
+keywords, channel rankings/latest videos, event source comparisons and live video.
+List all 36 legacy PHP API mappings; any intentional retirement returns 410 with
+a v1 replacement. Deploy and verify the three documentation/status URLs plus the
+examples. The analogous blog requirements remain assigned to its own project;
+do not mutate tag/blog production while implementing this repository's API.
+
 ## Transcript stage
 
 Plan and review the phase before assigning file boundaries. Add versioned TS

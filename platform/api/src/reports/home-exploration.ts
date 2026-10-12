@@ -2,6 +2,7 @@ import {sql} from 'drizzle-orm';
 import {DataSourceUnavailable,type Reader,type Row} from '../db/client.js';
 import type {HomeExploration,HomeKeywordSummary,TagRow} from '../contracts.js';
 import {integer,tagIds,text,object,taipeiDate,taipeiSql,timestamp,latest} from './normalize.js';
+import {vocabularySourceQuality} from './vocabulary-quality.js';
 import {videoTextDigest} from './video-digest.js';
 class HomeSectionUnavailable extends Error {constructor(public reason:'source-cap'|'precision'){super(reason);}}
 function measuredCount(value:unknown){const result=integer(value);if(result===null||result<0)throw new HomeSectionUnavailable('precision');return result;}
@@ -25,9 +26,10 @@ export async function homeExploration(reader:Reader,now:Date):Promise<HomeExplor
   if(counts.length>100000)throw new HomeSectionUnavailable('source-cap');return homeCategories(counts,new Map(names.map(n=>[integer(n.tag_id)??0,text(n.tag_name)])));
  };
  const keywordTask=async():Promise<Pick<HomeExploration,'keywords'|'keywordToday'>>=>{
-  const versions=await reader.rows(sql`SELECT r.id,JSON_OBJECT('coverage',JSON_EXTRACT(r.snapshot,'$.coverage'),'window',JSON_EXTRACT(r.snapshot,'$.window')) AS source_meta FROM ts_vocabulary_current c JOIN ts_vocabulary_runs r ON r.id=c.run_id AND r.status='published' WHERE c.source='https://tag.observe.tw' LIMIT 1`),version=versions[0]?text(versions[0].id):null;
+  const versions=await reader.rows(sql`SELECT r.id,JSON_OBJECT('coverage',JSON_EXTRACT(r.snapshot,'$.coverage'),'window',JSON_EXTRACT(r.snapshot,'$.window'),'sourceQuality',JSON_EXTRACT(r.snapshot,'$.sourceQuality')) AS source_meta FROM ts_vocabulary_current c JOIN ts_vocabulary_runs r ON r.id=c.run_id AND r.status='published' WHERE c.source='https://tag.observe.tw' LIMIT 1`),version=versions[0]?text(versions[0].id):null;
   const snapshot=object(versions[0]?.source_meta),window=object(snapshot.window),vocabularyCoverage=version?(snapshot.coverage==='all-current-indexed-article-tags'?'all-current-indexed-article-tags' as const:'observed-article-window' as const):'unavailable' as const;
-  const base={...keywordBase,vocabularyCoverage,vocabularyWindow:typeof window.since==='string'&&typeof window.until==='string'?{since:window.since,until:window.until}:null,version,reason:null};
+  const quality=vocabularySourceQuality(snapshot.sourceQuality);
+  const base={...keywordBase,...(quality?{sourceQuality:quality}:{}),vocabularyCoverage,vocabularyWindow:typeof window.since==='string'&&typeof window.until==='string'?{since:window.since,until:window.until}:null,version,reason:null};
   if(!version)return {keywords:{...base,status:'not-synchronized'},keywordToday:{...base,from:todayBase.from,status:'not-synchronized'}};
   const scope=sql`v.publishedAt>=${from} AND v.publishedAt<=${to}`,fresh=sql`m.source_pk=v.pk AND BINARY m.source_text_sha256=BINARY ${videoTextDigest()}`;
   // One bounded-date source scan per query, not one query per term or a second full window scan.

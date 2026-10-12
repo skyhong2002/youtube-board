@@ -52,9 +52,11 @@ describe('bounded article-tag normalization', () => {
     expect(page.articles[0]).not.toHaveProperty('sourceTags');
   });
 
-  it.each(['\tAI', 'AI\n', '\rAI', '\u0000AI', 'AI\u007F', '\u0085AI', '\u200CAI', 'AI\u200D', '\u200EAI', '\u202EAI', 'AI\u202C', '\u2066AI\u2069', '\uFEFFAI', '\u00ADAI'])('rejects non-exempt controls before trimming: %j', async raw => {
-    await expect(read([raw])).rejects.toThrow('Invalid tag source terms');
-    await expect(read(['\u200B' + raw + '\u200B'])).rejects.toThrow('Invalid tag source terms');
+  it.each(['\tAI', 'AI\n', '\rAI', '\u0000AI', 'AI\u007F', '\u0085AI', '\u200CAI', 'AI\u200D', '\u200EAI', '\u202EAI', 'AI\u202C', '\u2066AI\u2069', '\uFEFFAI', '\u00ADAI'])('quarantines non-exempt controls without stripping them: %j', async raw => {
+    for (const value of [raw, '\u200B' + raw + '\u200B']) {
+      const page = await read([value, '有效標籤']);
+      expect(page.articles[0]).toMatchObject({ tags: ['有效標籤'], sourceTags: [value, '有效標籤'], rejectedTags: [{ raw: value, reason: 'unsupported-control-character' }] });
+    }
   });
 
   it.each(['', '   ', '\u200B', ' \u200B \u200B '])('rejects tags empty after normalization: %j', async raw => {
@@ -63,6 +65,16 @@ describe('bounded article-tag normalization', () => {
 
   it.each([null, 42, {}, ['AI']])('rejects non-string tags: %j', async raw => {
     await expect(read([raw])).rejects.toThrow('Invalid tag source terms');
+  });
+
+  it('quarantines the observed 28-unit record-separator shape and retains valid neighboring terms', async () => {
+    const raw = 'a'.repeat(13) + '\u001E' + 'b'.repeat(14);
+    expect(raw).toHaveLength(28);
+    const page = await read([raw, 'AI', ' 台灣\u200B '], { id: 51930928 });
+    expect(page.articles[0]).toMatchObject({ id: '51930928', tags: ['AI', '台灣'], sourceTags: [raw, 'AI', ' 台灣\u200B '], rejectedTags: [{ raw, reason: 'unsupported-control-character' }] });
+    expect(aggregateTerms(page.articles).map(t => t.term).sort()).toEqual(['AI', '台灣'].sort());
+    await expect(read([raw, null])).rejects.toThrow('Invalid tag source terms');
+    await expect(read([raw, '\u200B '])).rejects.toThrow('Invalid tag source terms');
   });
 
   it('retains the raw 240-unit limit even when normalization would shorten input', async () => {

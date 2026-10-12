@@ -29,6 +29,7 @@ import Fastify from 'fastify';
 import { sql } from 'drizzle-orm';
 import { createReader, DataSourceUnavailable, DataQueryFailed, type Reader } from './db/client.js';
 import { reports } from './reports/service.js';
+import { addVocabularyQualityNotice } from './reports/vocabulary-quality.js';
 import { vocabulary, videoTagEvidence } from './reports/vocabulary.js';
 import { BadQuery, NotFound, mergeTagId, positiveId, videoId, type Query } from './reports/query.js';
 import { latest, integer, text, object } from './reports/normalize.js';
@@ -63,10 +64,11 @@ export function buildApp(options: AppOptions = {}) {
             if (path === '/vocabulary' || path === '/keywords') {
                 m.updatedAt = text(record.publishedAt) || null;
                 m.coverage = { scope: text(record.coverage), totalTerms: integer(record.total), upstreamSnapshotConsistent: record.upstreamSnapshotConsistent === true };
+                addVocabularyQualityNotice(m, record.sourceQuality);
                 m.warnings.push(record.coverage === 'all-current-indexed-article-tags' ? '上游目前已索引文章完整詞彙快照；來源未逐詞區分記者、編輯或規則補標。' : '觀測期間文章標籤；不代表上游完整詞典，來源未逐詞區分記者、編輯或規則補標。');
             }
             if (path === '/home') {
-                const exploration=object(record.exploration);for(const key of ['categories','keywords'])if(object(exploration[key]).status==='unavailable')m.warnings.push(key==='categories'?'分類統計目前無法完整讀取。':'關鍵字統計目前無法完整讀取。');
+                const exploration=object(record.exploration);addVocabularyQualityNotice(m,object(exploration.keywords).sourceQuality);for(const key of ['categories','keywords'])if(object(exploration[key]).status==='unavailable')m.warnings.push(key==='categories'?'分類統計目前無法完整讀取。':'關鍵字統計目前無法完整讀取。');
             }
             if (path === '/ai/days') {
                 m.coverage = { ...m.coverage, rawVideoRows: integer(record.rawVideoRows), sourceChannels: integer(record.sourceChannels), channels: integer(record.channels) };
