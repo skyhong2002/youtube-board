@@ -75,7 +75,7 @@ export default function SiteNavigation({variant}:{variant:'desktop'|'mobile'}) {
             <div className="flex flex-wrap gap-1">
               {group.links.map(({ href, short }) => {
                 const exact = pathname === href || pathname === href+'/';
-                const current = exact || pathname.startsWith(href+'/') || (href === '/keywords' && ['/vocabulary','/tags'].some(p=>pathname.startsWith(p))) || (href === '/live/current' && pathname.startsWith('/live/')) || (href === '/ai/days' && pathname.startsWith('/ai/'));
+                const current = exact || pathname.startsWith(href+'/') || (href === '/keywords' && ['/vocabulary','/compare/titles'].some(p=>pathname.startsWith(p))) || (href === '/live/current' && pathname.startsWith('/live/')) || (href === '/ai/days' && ['/ai/','/events'].some(p=>pathname.startsWith(p)));
                 return (
                   <Link
                     key={href}

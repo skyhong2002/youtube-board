@@ -24,6 +24,9 @@ import {
     Tabs,
 } from "./ReportUI";
 import { TimeChart } from "./Charts";
+import { MayorShare, MayorSwitcher } from "./MayorShare";
+import { cities } from "../../../shared/city-definitions";
+const MAYOR_SHARE_NOTE='近 7 日媒體聲量占比：每個日期彙整當日及前 6 日；同日所有候選人的占比合計為 100%。卡片顯示期間內最新一天的占比與原始量。';
 export async function ExpandedReport({
     apiPath,
     path,
@@ -49,6 +52,7 @@ export async function ExpandedReport({
         rejectMalformedPayload();
         return <Unavailable status={502} title={title} />;
     }
+    const mayorCity = path === "/mayor" ? String((Array.isArray(search.city) ? search.city[0] : search.city) || "taipei").trim().toLowerCase() : path.match(/^\/mayor\/cities\/([^/]+)$/)?.[1]?.toLowerCase();
     const filters = data.filters || [],
         known = new Set(filters.map((filter) => filter.key));
     return (
@@ -62,11 +66,12 @@ export async function ExpandedReport({
             {family==='live'&&<LiveCoverageNotice coverage={meta.coverage}/> }
             <Tabs items={familyTabs(path,search,meta.coverage)} active={path} />
             {path==='/tags/compare'&&<ComparisonControls search={search} points={data.series?.[0]?.points}/> }
+            {mayorCity && cities[mayorCity] ? <MayorSwitcher city={mayorCity} search={search} /> : null}
             {data.navigation?.length ? <Tabs label="報表切換" active={path} items={data.navigation.flatMap(item => {
                 const href = safeReportHref(item.href);
                 return href ? [{ href, label: item.label, active: item.active === true }] : [];
             })} /> : null}
-            {data.notes?.length ? (
+            {!mayorCity && data.notes?.length ? (
                 <aside className={ui.note}>
                     {data.notes.map((note, index) => (
                         <p key={index}>{note}</p>
@@ -207,6 +212,7 @@ export async function ExpandedReport({
                     </section>
                 </>
             ) : null}
+            {mayorCity && data.series?.length ? <MayorShare city={mayorCity} series={data.series} search={search} /> : null}
             {data.series?.map((series, index) => (
                 <section key={`${series.name}-${index}`}>
                     <SectionHeading title={series.name} />
@@ -240,6 +246,12 @@ export async function ExpandedReport({
                 <Empty />
             ) : null}
             <Pagination collection={data} search={search} path={path} />
+            {mayorCity ? (
+                <section aria-label="本頁資料來源與計算方式" className="mt-10 border-t border-zinc-200 pt-6 text-xs leading-6 text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">
+                    <h2 className="mb-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">本頁資料來源與計算方式</h2>
+                    {[MAYOR_SHARE_NOTE, ...(data.notes ?? [])].map((note, index) => <p key={index}>{note}</p>)}
+                </section>
+            ) : null}
         </>
     );
 }

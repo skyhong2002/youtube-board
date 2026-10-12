@@ -50,7 +50,8 @@ test('every generated tab is a supported public report route',async()=>{
  const {resolveRoute}=await import('./routes');
  for(const path of ['/channels/8','/channels/8/ai/days','/tags','/tags/102/channels','/tags/compare','/keywords/'+encodeURIComponent('交通%41')+'/videos','/groups/tags_economy','/groups/position','/live/current','/ai/days/2026-10-11/blue','/ai/days/45/events','/ai/events/999/people']){
   const tabs=familyTabs(path,path.includes('/45/')?{event:'事件'}:{});
-  for(const tab of tabs){const segments=new URL(tab.href,'http://local').pathname.split('/').filter(Boolean).map(decodeURIComponent);assert.ok(resolveRoute(segments),tab.href);}
+  // /events and /compare/titles are dedicated app pages outside the report catch-all.
+  for(const tab of tabs){const pathname=new URL(tab.href,'http://local').pathname;if(['/events','/compare/titles'].includes(pathname))continue;assert.ok(resolveRoute(pathname.split('/').filter(Boolean).map(decodeURIComponent)),tab.href);}
  }
 });
 

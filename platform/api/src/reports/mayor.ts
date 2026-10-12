@@ -66,7 +66,7 @@ export function mayorObservations(dates:string[],candidates:string[],source:Pick
  for(const candidate of candidates)row[`${candidate}：占比`]=buckets.length?(total>0.000001?Number(row[candidate])/total*100:0):null;return row;});
 }
 export function registerMayor(register:Register,reader:Reader,clock:()=>Date){
- const report=async(inputKey:string,q:Query,cityControl=true)=>{const key=inputKey.trim().toLowerCase(),city=Object.hasOwn(cities,key)?cities[key]:undefined;if(!city)throw new NotFound();
+ const report=async(inputKey:string,q:Query)=>{const key=inputKey.trim().toLowerCase(),city=Object.hasOwn(cities,key)?cities[key]:undefined;if(!city)throw new NotFound();
  const now=clock(),requestClock=()=>now,candidates=Object.keys(city.candidates),requestedMetric=mayorMetric(q.type);
  let period=mayorPeriod(q,requestClock),metric=requestedMetric,source=await readBuckets(reader,period,metric),rows=mayorObservations(period.dates,candidates,source),fallbackDate:string|null=null;
  const hasData=()=>rows.some(row=>candidates.some(candidate=>Number(row[candidate])>0.000001));
@@ -75,10 +75,9 @@ export function registerMayor(register:Register,reader:Reader,clock:()=>Date){
  const incomplete=rows.filter(row=>Number(row.observedBuckets)<28).length;
  return{...table(city.label+'人物提及觀測',[{key:'date',label:'日期',kind:'date'},...candidates.flatMap(c=>[{key:c,label:c,kind:'number' as const},{key:`${c}：占比`,label:`${c} 占比 %`,kind:'number' as const}]),{key:'observedBuckets',label:'已觀測分類日桶',kind:'number'}],rows,q,{
  updatedAt:latest(...source.records.flatMap(r=>[r.mtime,r.ctime])),series:candidates.map(c=>({name:c,unit:METRICS[metric],points:rows.map(r=>({time:String(r.date),value:r[c] as number|null}))})),
- navigation:cityControl?undefined:[{label:'切換縣市',href:'/mayor?city='+encodeURIComponent(key)+'&from='+period.from+'&to='+period.to+'&type='+metric}],
- filters:[...(cityControl?[{key:'city',label:'縣市',type:'select' as const,value:key,options:Object.entries(cities).map(([value,c])=>({value,label:c.label}))}]:[]),{key:'type',label:'觀測度量',type:'select',value:metric,options:Object.entries(METRICS).map(([value,label])=>({value,label}))},{key:'from',label:'開始日期',type:'date',value:period.from},{key:'to',label:'結束日期',type:'date',value:period.to},{key:'days',label:'預設天數',type:'number',value:String(period.days)},{key:'today',label:'回溯天數',type:'number',value:q.today===undefined?'':String(period.today)}],
+ filters:[{key:'type',label:'觀測度量',type:'select',value:metric,options:Object.entries(METRICS).map(([value,label])=>({value,label}))},{key:'from',label:'開始日期',type:'date',value:period.from},{key:'to',label:'結束日期',type:'date',value:period.to},{key:'days',label:'預設天數',type:'number',value:String(period.days)},{key:'today',label:'回溯天數',type:'number',value:q.today===undefined?'':String(period.today)}],
  notes:[cacheLineageNote,...cacheWindowNotes(source.records),'人物名單沿用 2026-05-28 維護版本，不代表最新提名狀態。','顯示四類頻道的七日原始提及量，分類可重疊；這不是支持度、民調或不重複觀眾。占比為該人物的原始量除以名單中所有人物的原始量；沿用目前 Laravel 計算，不套用政治立場權重。',`觀測期間 ${period.from}～${period.to}；${incomplete} 個日期未具備完整 28 個分類日桶。快取缺值、無效或發布暫停均保留空缺。`,...(fallbackDate?[`預設期間無人物提及，改用最新快取日期 ${fallbackDate}。`]:[]),...(metric!==requestedMetric?['觀看引用缺少人物提及，依原報表改用影片引用；度量已同步更新。']:[])]
  }),evidenceCoverage:{...source.coverage,from:period.from,to:period.to,metric,requestedMetric,fallbackDate,partialWindowDates:incomplete,dataAvailable:hasData()}};
  };
- register('/mayor',(_p,q)=>report(text(q.city)||'taipei',q));register('/mayor/cities/:city',(p,q)=>report(p.city,q,false));
+ register('/mayor',(_p,q)=>report(text(q.city)||'taipei',q));register('/mayor/cities/:city',(p,q)=>report(p.city,q));
 }

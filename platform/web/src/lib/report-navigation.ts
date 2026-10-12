@@ -61,6 +61,8 @@ export function familyTabs(path:string,search:Search={},coverage?:ReportMeta['co
  if(family==='live'){base='/live';parts=[['current','即時直播'],['days','每日直播'],['periods','期間'],['hours','逐時'],['channels','頻道'],['tags','分類'],['continuous','連續直播'],['trends/daily','每日趨勢'],['walls/news','直播電視牆']];}
  if(family==='ai'){base='/ai';parts=[['days','每日議題'],['hours','每小時'],['periods','跨日議題'],['aspects','觀點比較'],['days/prompt','提示詞預覽']];}
  const tabs=parts.map(([part,label])=>({href:reportHref(base+(part?'/'+part:''),search,path),label}));
+ if(family==='ai')tabs.push({href:'/events',label:'事件時間軸'});
+ if(family==='keywords'&&id)tabs.push({href:'/compare/titles',label:'標題寫法'});
  if(family==='tags'||family==='keywords'&&id)tabs.push({href:reportHref('/tags/compare',{...search,...(family==='keywords'?{tags:decodeSegment(id!)}:/^\d+$/.test(id??'')?{tagid:[...new Set([id!,...(scalar(search.tagid)||'').split(',').filter(Boolean)])].join(',')}:{})},path),label:'詞彙比較'});
  return tabs;
 }
