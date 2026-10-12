@@ -94,3 +94,50 @@ it('records aborted streams once as incomplete without retaining raw headers',as
   expect(closed).toBe(true);
  }finally{await app.close();}
 });
+
+it('verifies only the trusted ingress client and never trusts cf-verified-bot or logs its raw identity',async()=>{
+ const calls:Array<[string,unknown]>=[],records:any[]=[],app=Fastify({trustProxy:['127.0.0.1']});
+ const verifier={verify:(ip:string,agent:unknown)=>{calls.push([ip,agent]);return ip==='66.249.66.1';},close:async()=>{}};
+ registerCrawlerLog(app,{verifier,emit:r=>records.push(r)});app.get('/robots.txt',async()=> 'ok');
+ try {
+  await app.inject({url:'/robots.txt',remoteAddress:'127.0.0.1',headers:{'x-forwarded-for':'104.16.0.1','cf-connecting-ip':'66.249.66.1','user-agent':'Googlebot/2.1'}});
+  expect(calls[0]).toEqual(['66.249.66.1','Googlebot/2.1']);expect(records[0].verified).toBe(true);
+  await app.inject({url:'/robots.txt',remoteAddress:'198.51.100.2',headers:{'x-forwarded-for':'66.249.66.1','cf-connecting-ip':'66.249.66.1','cf-verified-bot':'true','user-agent':'Googlebot/2.1'}});
+  expect(calls[1]?.[0]).toBe('198.51.100.2');expect(records[1].verified).toBe(false);
+  expect(JSON.stringify(records)).not.toMatch(/66\.249|198\.51|104\.16/);
+ }finally{await app.close();}
+});
+it('finishes HTTP without waiting for DNS and emits bounded verification afterward',async()=>{
+ let resolve!:(verified:boolean)=>void;
+ const pending=new Promise<boolean>(r=>{resolve=r;}),records:any[]=[],app=Fastify();
+ registerCrawlerLog(app,{emit:r=>records.push(r),verifier:{verify:()=>pending,close:async()=>{resolve(false);}}});app.get('/robots.txt',async()=> 'ok');
+ try {
+  expect((await app.inject({url:'/robots.txt',headers:{'user-agent':'Googlebot/2.1'}})).statusCode).toBe(200);
+  expect(records).toHaveLength(0);resolve(true);await pending;await Promise.resolve();
+  expect(records).toHaveLength(1);expect(records[0]).toMatchObject({verified:true,completed:true,bytes:2});
+ }finally{await app.close();}
+});
+it('identifies operator verification probes separately and cannot promote their claimed Google identity',async()=>{
+ const records:any[]=[],app=Fastify();registerCrawlerLog(app,{emit:r=>records.push(r)});app.get('/channels',async()=> 'ok');
+ try{
+  await app.inject({url:'/channels',headers:{'user-agent':'youtube-board-verify/1.0 Googlebot/2.1','cf-verified-bot':'true'}});
+  expect(records).toHaveLength(1);expect(records[0]).toMatchObject({verified:false,userAgent:'youtube-board-verify/1.0 Googlebot/2.1'});
+ }finally{await app.close();}
+});
+
+it('cancels pending DNS and persists its unverified result before closing the file sink',async()=>{
+ const {mkdtemp,readFile,rm}=await import('node:fs/promises'),{tmpdir}=await import('node:os'),{join}=await import('node:path');
+ const {createGoogleCrawlerVerifier}=await import('../src/seo/google-crawler-verifier.js');
+ const directory=await mkdtemp(join(tmpdir(),'crawler-close-test-'));
+ let finishReverse!:(names:string[])=>void,cancelled=0;
+ const verifier=createGoogleCrawlerVerifier({resolver:()=>({reverse:()=>new Promise(r=>{finishReverse=r;}),resolve4:async()=>['66.249.66.1'],resolve6:async()=>[],cancel:()=>{cancelled++;}})});
+ const app=Fastify();registerCrawlerLog(app,{directory,verifier});app.get('/robots.txt',async()=> 'ok');
+ try{
+  const response=await app.inject({url:'/robots.txt',remoteAddress:'66.249.66.1',headers:{'user-agent':'Googlebot/2.1'}});
+  expect(response.statusCode).toBe(200);await app.close();expect(cancelled).toBeGreaterThan(0);
+  const before=await readFile(join(directory,'crawler.jsonl'),'utf8'),rows=before.trim().split('\n').map(x=>JSON.parse(x));
+  expect(rows).toHaveLength(1);expect(rows[0]).toMatchObject({verified:false,bytes:2,completed:true});
+  finishReverse(['crawl.googlebot.com']);await new Promise(r=>setTimeout(r,5));
+  expect(await readFile(join(directory,'crawler.jsonl'),'utf8')).toBe(before);
+ }finally{await app.close();await rm(directory,{recursive:true,force:true});}
+});

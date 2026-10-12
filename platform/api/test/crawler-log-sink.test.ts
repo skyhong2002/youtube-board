@@ -7,7 +7,7 @@ import {createCrawlerLogSink,type CrawlerLogEntry} from '../src/seo/crawler-log-
 const temporary:string[]=[];
 async function directory(){const dir=await mkdtemp(join(tmpdir(),'crawler-sink-test-'));temporary.push(dir);return dir;}
 afterEach(async()=>{for(const dir of temporary.splice(0))await rm(dir,{recursive:true,force:true});});
-const record=(n=0):CrawlerLogEntry=>({code:'CRAWLER_RESPONSE',at:'2026-10-13T00:00:00.000Z',method:'GET',path:'/robots.txt',status:200,bytes:n,userAgent:'Googlebot/2.1',cfRay:null,cfCountry:'TW',cfColo:'TPE',completed:true});
+const record=(n=0):CrawlerLogEntry=>({code:'CRAWLER_RESPONSE',at:'2026-10-13T00:00:00.000Z',method:'GET',path:'/robots.txt',status:200,bytes:n,userAgent:'Googlebot/2.1',cfRay:null,cfCountry:'TW',cfColo:'TPE',completed:true,verified:false});
 
 describe('bounded persistent crawler log',()=>{
   it('persists safe JSONL with restrictive modes and survives reopen',async()=>{
@@ -19,7 +19,7 @@ describe('bounded persistent crawler log',()=>{
     const reopened=createCrawlerLogSink({directory:dir});
     reopened.emit(record(234));await reopened.close();
     const lines=(await readFile(join(dir,'crawler.jsonl'),'utf8')).trim().split('\n').map(line=>JSON.parse(line));
-    expect(lines.map(line=>line.bytes)).toEqual([123,234]);
+    expect(lines.map(line=>line.bytes)).toEqual([123,234]);expect(lines.map(line=>line.verified)).toEqual([false,false]);
     expect(lines[0]).not.toHaveProperty('ip');expect(lines[0]).not.toHaveProperty('authorization');
   });
   it('rotates within the file-count and byte caps across restarts',async()=>{

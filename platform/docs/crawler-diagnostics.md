@@ -2,9 +2,9 @@
 
 The TS gateway emits `CRAWLER_RESPONSE` for `/robots.txt`, the sitemap index and
 supported children, and requests identifying themselves as Googlebot or
-Google-InspectionTool. This is operational evidence, **not proof of Googlebot
-identity**: user-agent, country and ray headers can be spoofed when reaching an
-origin directly. Cloudflare cache hits do not reach this gateway.
+Google-InspectionTool. A crawler name alone is **not proof of Googlebot identity**: user-agent,
+country and ray headers can be spoofed when reaching an origin directly. The
+`verified` field separately records bounded forward-confirmed reverse DNS. Cloudflare cache hits do not reach this gateway.
 
 ## Storage and limits
 
@@ -45,6 +45,15 @@ power-loss durability guarantee.
 - `completed`: true on response finish, false on early close. For an incomplete
   response, bytes is only bytes submitted; it cannot prove remote receipt.
 - `userAgent`: only known crawler/browser product/version tokens, not the raw UA.
+  Acceptance requests use `youtube-board-verify/1.0`, never a Google crawler UA.
+- `verified`: true only for a Google crawler UA whose trusted ingress client IP
+  passes reverse DNS to a boundary-matched `googlebot.com` or `google.com` name
+  and forward DNS resolves back to that same IPv4/IPv6 address. Caller-supplied
+  `cf-verified-bot` is ignored; no trusted Cloudflare header rewrite has been
+  established. Verification is bounded, cached and separate from HTTP completion.
+  Timeout, saturation, DNS failure and ordinary browsers/verifiers yield false.
+  Old records without the field remain unverified; they are never upgraded.
+  IPs and DNS names exist only briefly in bounded process memory, never in logs.
 - `cfRay`: strictly validated ray value; `cfColo`: its three-letter suffix as
   received at the origin. Cloudflare may use a different colo suffix in the
   client response (observed KIX at origin, TPE at client for the same ray ID);
@@ -56,8 +65,15 @@ response bodies are included. On an unchanged production host, an operator can
 read recent records with:
 
 ```sh
-ssh skyhong.tw 'sudo tail -n 100 /var/lib/youtube-board-ts/crawler-logs/crawler.jsonl'
+ssh skyhong.tw 'sudo python3 -' < platform/tools/summarize-crawler-logs.py
 ```
+
+The summary includes all retained discovery requests with agent category and
+`verified`, and a separate `verifiedGooglebotChildSitemaps` list. Only entries
+from that verified list can be reported as Googlebot fetching child sitemaps.
+The summarizer reads all rotations without changing permissions or exposing IPs
+or full UAs. Historical acceptance probes before this policy used a Google UA;
+they are unverified test traffic, not Google evidence.
 
 Check rotations too when correlating a GSC submission. A missing entry does not
 prove Google never requested it: edge caching, log suppression, transport failure

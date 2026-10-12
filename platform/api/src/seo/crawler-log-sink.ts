@@ -6,7 +6,7 @@ import {spawn,type ChildProcess} from 'node:child_process';
 export type CrawlerLogEntry = {
   code:'CRAWLER_RESPONSE';at:string;method:string;path:string;status:number;
   bytes:number|null;userAgent:string;cfRay:string|null;
-  cfCountry?:string|null;cfColo?:string|null;completed?:boolean;
+  cfCountry?:string|null;cfColo?:string|null;completed?:boolean;verified?:boolean;
 }|{code:'CRAWLER_LOG_SUPPRESSED';count:number};
 type Diagnostic={code:'CRAWLER_LOG_SINK_ERROR'|'CRAWLER_LOG_SINK_DROPPED';count:number;dropped:number};
 interface Options {
@@ -125,7 +125,7 @@ export function createCrawlerLogSink(options:Options) {
       const safe=record.code==='CRAWLER_LOG_SUPPRESSED'
         ?{code:record.code,count:record.count}
         :record.code==='CRAWLER_RESPONSE'
-          ?{code:record.code,at:record.at,method:record.method,path:record.path,status:record.status,bytes:record.bytes,userAgent:record.userAgent,cfRay:record.cfRay,cfCountry:record.cfCountry,cfColo:record.cfColo,completed:record.completed}
+          ?{code:record.code,at:record.at,method:record.method,path:record.path,status:record.status,bytes:record.bytes,userAgent:record.userAgent,cfRay:record.cfRay,cfCountry:record.cfCountry,cfColo:record.cfColo,completed:record.completed,verified:record.verified}
           :null;
       if(!safe){drop();return;}
       const line=Buffer.from(JSON.stringify(safe)+'\n');
