@@ -209,6 +209,7 @@ Database service notes:
 - Backup status verified 2026-10-12: Dokploy-managed S3 backups are not configured, but host `nas-backup.timer` runs `/usr/local/bin/nas-backup run` daily around20:25 UTC to GGSS-NAS. The YouTube job is `/etc/nas-backup/jobs/youtube-board.sh`; `sudo nas-backup snapshots youtube-board` lists retained snapshots and `nas-backup restore <job> <dir>` restores to an isolated directory. The existing logical job uses `--single-transaction`, which does not guarantee a consistent snapshot of this database's MyISAM tables. Before writer handoff or destructive migration, make an additional consistent mixed-engine backup, preserve existing snapshots, keep an offhost copy, and restore/verify tables and rows in isolation. Never log the backed-up Dokploy `.env`.
 - Database service resource limits are currently 1 GB memory limit, 256 MB memory reservation, 2 CPU limit, and 1 CPU reservation.
 - Consistent cutover backup completed 2026-10-12 04:47 UTC: 66 tables, 596,386,781-byte archive, independent off-host and NAS copies, successful full isolated restore with 11 exact manifest comparisons. See `platform/docs/production-backup-2026-10-12.md` for SHA-256 and retrieval proof. This evidence does not itself mean frontend or writer cutover has occurred.
+- Follow-up protection verified 2026-10-12: source + TS consistent archive, 597,107,386 bytes, NAS snapshot `23eee332`, full isolated restore with 22 manifest matches and 65 restricted-account checks. See `platform/docs/production-prewriter-backup-2026-10-12.md`, including exceptional host-wrapper recovery. At 09:47 UTC the recurring job was extended to both schemas, TS runtime env and scoped DB principal exports; its first post-change backup/restore verification is pending. It still uses `--single-transaction`, not a MyISAM-consistency guarantee.
 - Do not use Dokploy "Rebuild Database" unless a fresh backup and rollback plan have been verified.
 
 phpMyAdmin service notes:
@@ -245,6 +246,8 @@ Production scheduler status:
 - To adjust production polling, follow `docs/deployment.md` and `docs/legacy-inventory/scheduler-activation.md`; require an exact `INGESTION_SCHEDULED_WRITE_ALLOWLIST`, a rollback plan, and explicit operator approval before adding new write/API jobs.
 
 Deployment operations:
+
+- Current freeze (2026-10-12 09:48 UTC): retained Laravel application's Dokploy Auto Deploy and only its GitHub deployment-relay push hook are disabled and read-back verified. This prevents TS/docs pushes from automatically running Laravel startup migrations. Manual reviewed deployments remain available; do not force-update the retained scheduler as a side effect. The unrelated Telegram GitHub integration remains enabled. Historical automatic deployment descriptions below do not override this freeze.
 
 - Prefer Dokploy Deploy/Reload/Rebuild controls for production changes.
 - The web service Deployments tab exposes a Dokploy deploy webhook URL; do not paste the full URL into commits, issues, logs, or chat unless explicitly rotating/reconfiguring secrets.
