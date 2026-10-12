@@ -20,7 +20,9 @@ it('rejects optimizer abuse at gateway before forwarding and passes valid reques
   const app = Fastify();
   try {
     await registerUiProxy(app, { origin: `http://127.0.0.1:${addr.port}` });
-    for (const path of ['/_next/image?url=/api/v1/home&w=320&q=75', '/_next%2Fimage?url=/auth/me&w=320&q=75']) expect((await app.inject(path)).statusCode).toBe(400);
+    expect((await app.inject('/_next/image?url=/api/v1/home&w=320&q=75')).statusCode).toBe(400);
+    // Encoded route-family aliases are rejected before reaching any optimizer.
+    expect((await app.inject('/_next%2Fimage?url=/auth/me&w=320&q=75')).statusCode).toBe(404);
     expect(forwarded).toBe(0);
     expect((await app.inject('/_next/image?' + new URLSearchParams({ url: canonical, w: '320', q: '75' }))).json()).toEqual({ synthetic: true });
     expect(forwarded).toBe(1);

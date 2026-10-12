@@ -42,8 +42,11 @@ queries, credentials and RSC. No additional rule or forced TTL is required.
 - New mandatory Trusted Types was deferred: compatibility with the pinned Next
   renderer is not established, and the existing nonce policy already used
   strict-dynamic. This release preserves that protection with verified hashes.
-- Full pre-final suite: 851 passed, 492 DB-dependent/skipped tests. No DB behavior
-  changed. Final frontend delta: 140 passed; gateway/CSP/slot tests: 66 passed;
+- Final suite, including the API rerun: 853 passed, 492 DB-dependent/skipped tests.
+  The initial full run found one old image-path test expecting 400 for an encoded
+  route-family alias; it now explicitly expects the gateway's earlier 404 rejection
+  and still asserts zero optimizer forwarding. All 432 API tests passed on rerun.
+  No DB behavior changed. Frontend: 140 passed; gateway/CSP/slot tests: 66 passed;
   all workspace typechecks and production Next build passed.
 - Actual standalone build: home MISS then HIT; events/channels/live 200;
   channels?limit=5 returned exactly five rows and private/no-store; /my private;
