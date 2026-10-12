@@ -1,6 +1,7 @@
 # Recurring consistent backup runbook
 
-**Status: proposed, not installed or executed.** This is a prerequisite for final
+**Status: multi-schema controller implemented and rehearsed locally; recurrence
+not installed or executed in production.** This is a prerequisite for final
 retirement of Laravel writers. The [verified cutover backup](production-backup-2026-10-12.md)
 protects the original source snapshot. The existing `nas-backup.timer` remains
 unchanged; its `--single-transaction` dump cannot guarantee MyISAM consistency.
@@ -9,41 +10,37 @@ acceptance checks below.
 
 ## Required implementation before scheduling
 
-`tools/backup/consistent-logical.sh` currently accepts **one schema only**. It
-holds FTWRL in a separate monitored connection and dumps with
-`--skip-lock-tables`. Running it twice does **not** create one consistent point
-for source and TS state. A reviewed multi-schema controller/host adapter and
-local failure rehearsal are still required; this document does not add them.
-
-The target is one dump invocation covering both physical schemas under one
-global read lock. The command shape, to be invoked only by that bounded
-controller, is:
+`tools/backup/consistent-logical.sh` accepts repeated `--database` options.
+It extends the existing external FTWRL holder and independent watchdog; it does
+not move lock ownership into mariadb-dump. One dump invocation includes source,
+TS state and optional facade schemas while the same holder also protects all
+eleven manifests per schema. Schema inventory/order, manifest hashes, UTC lock
+markers and archive hash accompany the sealed artifact. See
+[controller usage](../tools/backup/README.md).
 
 ```bash
-mariadb-dump --defaults-extra-file=/run/secrets/youtube-backup.cnf \
-  --lock-all-tables --quick --hex-blob --routines --events --triggers \
-  --skip-add-locks --skip-comments --no-tablespaces \
-  --databases youtube_board youtube_board_ts > database.sql.partial
+# Illustrative physical schema names; confirm actual names/dependencies first.
+bash tools/backup/consistent-logical.sh --execute \
+  --database=youtube_board --database=youtube_board_ts \
+  --database=youtube_board_worker --output=/private/fresh-combined-snapshot \
+  --max-seconds=180 --lock-wait-seconds=5
 ```
 
-Use a private, fresh output directory (`umask 077`); the credential path above
-is a proposed protected mount, not a claim about an existing host file. Do not
-combine this with `--single-transaction` or separate per-schema dump commands.
-Include any deployed worker-facade schema definitions in the same recovery set;
-its views do not contain a second copy of source/state data. Inventory actual
-schema names and cross-schema dependencies before implementation.
+Credentials come only from `MYSQL_PWD` or a protected `BACKUP_DEFAULTS_FILE`.
+The script invokes one `mariadb-dump --databases ... --skip-lock-tables` while
+its separate monitored connection holds FTWRL. Do not add `--lock-all-tables`
+or `--single-transaction`: either would confuse this explicitly external lock
+lifecycle. All manifests finish before release; raw dump compression, hash and
+seal work follow verified holder disappearance. Every schema must be present;
+partial dumps or manifest errors invalidate the whole recovery set.
 
-Unlike the current tool, `--lock-all-tables` makes the **dump connection** own
-the lock. Its watchdog must positively identify that connection and prove it
-has gone after termination; copying the current holder-session KILL logic is
-insufficient. It must also capture each schema's eleven comparison manifests
-under the same lock before release. A dump that releases its own lock before
-manifest collection does not meet that requirement. Resolve and rehearse this
-lifecycle in the adapter before scheduling; manifests collected after writers
-resume are not the backup baseline. An alternative reviewed extension of the
-existing external FTWRL design can meet the consistency requirement, but must
-explicitly document its different lock ownership and use a single multi-schema
-dump while holding that lock.
+Repeated runs share a nonblocking host flock (`BACKUP_LOCK_FILE`, default
+`/run/lock/youtube-board-consistent-backup.lock`). The watchdog retains it after
+controller death through its deadline/release check, preventing an overlapping
+capture. Maintenance must adopt the same lock path. The controller still does
+not pause/resume application writers, install NAS hooks, schedule a timer or
+assert an available disk-space budget: those host-adapter steps require measured
+runtime owners, local review and production approval before recurrence.
 
 ## Execution window and failure release
 
@@ -128,10 +125,17 @@ this proposal does not change existing NAS retention.
 
 ## Restore drill and acceptance
 
-Before enabling recurrence, run the new controller on a local mixed-engine,
-two-schema fixture with concurrent cross-schema writes. Verify coherent source
-and state, and release/invalidation after deadline, controller SIGKILL and lost
-transport. Then complete one approved production capture, NAS retrieval and full
+The local rehearsal covers a mixed-engine two-physical-schema fixture and a
+third facade schema, concurrent single-statement cross-schema updates, all 33
+restored manifests, archive/manifest hashes, overlap rejection, later-schema
+manifest failure, invalid checksum, deadline, controller SIGKILL and lost Docker
+transport. Additional failure proofs cover overlap rejection after controller
+death, watchdog expiry after UNLOCK but before the release marker, and a missing
+facade DEFINER making an actual restored view read fail despite matching logical
+manifests. Restore principal identities and grants from protected recovery
+configuration and test live view reads; a manifest match is insufficient. Run `bash tools/backup/rehearse-local.sh /tmp/fresh-unique-result` after
+controller changes and retain private results. This is local protocol evidence,
+not production pause/drain, capacity, throughput or NAS-hook validation. Then complete one approved production capture, NAS retrieval and full
 isolated restore. Keep recurrence and final writer retirement pending until this
 evidence exists.
 
