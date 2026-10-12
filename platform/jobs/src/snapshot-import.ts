@@ -1,6 +1,6 @@
+import {tagHttpOptions} from './tag-http.js';
 import { createHash } from 'node:crypto';
 import type { Connection, RowDataPacket, ResultSetHeader } from 'mysql2/promise';
-import { setTimeout as delay } from 'node:timers/promises';
 import { connectDatabase, withWriterLock } from './database.js';
 import { assertExecute, executionPolicy } from './policy.js';
 import { SOURCE, termKey, VOCABULARY_JOB, type VocabularySnapshot } from './vocabulary.js';
@@ -20,7 +20,7 @@ function verifyRun(row: RowDataPacket, manifest: ExportManifest) {
  * A retry re-downloads pinned pages (bounded by maxPages); insert is idempotent.
  * No source changes or production writes are inferred by constructing this helper.
  */
-export async function importSnapshot(db: Connection, source: SnapshotSource, maxPages: number, ownership: () => Promise<void>, wait = async () => delay(300)) {
+export async function importSnapshot(db: Connection, source: SnapshotSource, maxPages: number, ownership: () => Promise<void>, wait = async () => {}) {
   if (!Number.isSafeInteger(maxPages) || maxPages < 1 || maxPages > 500) throw new Error('maxPages must be 1–500');
   await ownership();
   const manifest = validateManifest(await source.current());
@@ -84,6 +84,6 @@ export async function importSnapshot(db: Connection, source: SnapshotSource, max
 export async function executeSnapshotImport(env: NodeJS.ProcessEnv, maxPages: number) {
   assertExecute(SNAPSHOT_IMPORT_JOB, executionPolicy(env, 'execute'));
   const db = await connectDatabase(env);
-  try { return await withWriterLock(db, VOCABULARY_JOB, check => importSnapshot(db, new HttpSnapshotSource(), maxPages, check)); }
+  try { return await withWriterLock(db, VOCABULARY_JOB, async check => importSnapshot(db, new HttpSnapshotSource(fetch,await tagHttpOptions(env)), maxPages, check)); }
   finally { await db.end(); }
 }

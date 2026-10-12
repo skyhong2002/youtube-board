@@ -1,3 +1,4 @@
+import {VOCABULARY_JOB} from './vocabulary.js';
 import {schedulerNamespace,partitionedQueues} from './queue-scope.js';
 import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
@@ -49,6 +50,7 @@ const local = (date: Date) => new Date(date.getTime() + 8 * 3600000);
 const sql = (date: Date) => local(date).toISOString().slice(0, 19).replace('T', ' ');
 export function scheduleInput(schedule: Schedule, date: Date): WorkflowInput {
   const options = { ...schedule.options };
+  if(schedule.workflow===VOCABULARY_JOB&&(schedule.window!=='previous-day'||['since','until'].some(k=>Object.hasOwn(options,k))))throw new Error('Scheduled vocabulary sync requires an automatic previous-day window');
   if (schedule.window) {
     if (['from', 'to', 'date'].some(k => Object.hasOwn(options, k))) throw new Error('Automatic windows cannot override explicit dates');
     const shifted = local(date);
@@ -56,7 +58,8 @@ export function scheduleInput(schedule: Schedule, date: Date): WorkflowInput {
     const midnight = hour - shifted.getUTCHours() * 3600000;
     const end = schedule.window === 'previous-hour' ? hour : midnight;
     const start = end - (schedule.window === 'previous-hour' ? 3600000 : 86400000);
-    if (schedule.window === 'yesterday-date') options.date = sql(new Date(start)).slice(0, 10);
+    if(schedule.workflow===VOCABULARY_JOB){options.since=new Date(start).toISOString();options.until=new Date(end).toISOString();}
+    else if (schedule.window === 'yesterday-date') options.date = sql(new Date(start)).slice(0, 10);
     else { options.from = sql(new Date(start)); options.to = sql(new Date(end - 1000)); }
   }
   return validateWorkflowInput(schedule.workflow, { options });

@@ -13,7 +13,7 @@ npm run start -w @youtube-board/jobs -- vocabulary:sync --id=window-20261010 --s
 
 The second command defaults to **no network / no writes**. Add `--execute` to actually synchronize after explicitly setting `APP_ENV=local`, `TS_INGESTION_ENABLED=true` and `TS_INGESTION_OWNERS=tags.vocabulary.sync`. Local database host must be loopback/the compose DB and the database name must end in `_rewrite`. Database defaults: `127.0.0.1:23306`, `youtube_board_rewrite`, user `youtube_rewrite`; password is supplied via `DB_PASSWORD`. Redis defaults to `redis://127.0.0.1:26379`.
 
-Caps return incomplete (exit 2), preserve the staged cursor, and leave the published snapshot unchanged. Re-run with the same id and exact window to resume. Published run ids are idempotent and make zero additional source requests. Pages fail closed on invalid payloads. New ids intentionally re-observe corrections in a window. Source calls are capped/rate-spaced and timeout; no aggressive retries in the HTTP client.
+Caps return incomplete (exit 2), preserve the staged cursor, and leave the published snapshot unchanged. Re-run with the same id and exact window to resume. Published run ids are idempotent and make zero additional source requests. Pages fail closed on invalid payloads. New ids intentionally re-observe corrections in a window. Source calls use a shared fixed-origin paced client: anonymous starts are at least1,100ms apart; an optional personal API key allows a100ms minimum. HTTP429 alone permits at most two bounded Retry-After retries; interruptions keep checkpoints and the current published snapshot. See the rate-limit runbook below.
 
 `worker --execute` and `vocabulary:sync ... --enqueue` also require `TS_SCHEDULER_ENABLED=true`. Production execution additionally requires `TS_INGESTION_PRODUCTION_ENABLED=true`, an exact `TS_INGESTION_WRITE_ALLOWLIST` entry and `TS_INGESTION_OWNERS` recording operator-approved ownership transfer. TS ownership config is an operator assertion, **not an interlock against the existing Laravel scheduler**; disable the corresponding old writer before transfer. The connection-scoped MariaDB lock serializes TS writers and disappears when its connection dies. Writes use that same connection. Do not enable new production jobs as part of deploying these files.
 
@@ -84,3 +84,61 @@ Full-export verification retains the complete upstream manifest and raw per-term
 Interrupted full imports deliberately replay all pinned pages, revalidating every digest; the checkpoint records progress, not a promise of network resume. Incomplete rows remain unreachable from the current pointer. No automatic retention/deletion runs; operator-reviewed cleanup may remove abandoned scanning runs and their terms after confirming no worker holds the vocabulary lock. Dense input above the 10,000 candidate evidence limit fails the whole item without publishing partial matches.
 
 Pre-release full snapshots lacking `upstreamManifest`/`localPayloadChecksum` are intentionally not silently adopted. No such production snapshots were published (the export endpoint is not deployed). If an isolated development fixture contains one, explicitly remove its current pointer and test-owned evidence/terms/run, then re-import the source export after review. Existing observed-window snapshots remain compatible.
+
+
+## Upstream pacing, daily windows and historical batches
+
+Both article-window scans and full-snapshot HTTP reads use the same rate policy.
+Anonymous requests default to1,100ms between starts (including the first request
+of each new client); no personal key is required. Optional `TAG_SOURCE_API_KEY`
+or `TAG_SOURCE_API_KEY_FILE` supplies `x-api-key` to the fixed HTTPS tag origin
+only. Configure exactly one; protect the env/file in runtime configuration and
+never put the key in a CLI argument, plan, queue envelope, URL or review packet.
+Key files contain one ASCII key with an optional final newline, at most4KiB.
+The keyed default/minimum is100ms. Optional `TAG_SOURCE_INTERVAL_MS` can slow either
+mode; values below its floor fail closed. Redirects are rejected.
+
+Only429 retries automatically, at most twice after the initial request. Integer
+seconds and HTTP-date `Retry-After` values are honored, alongside the pacing floor;
+missing/malformed headers use a bounded exponential fallback. A requested
+cooldown above60seconds stops rather than retrying before the upstream deadline.
+Response bodies from errors are discarded, never logged. Shutdown cancels waits
+and in-flight requests. Network failures and other statuses are not retried by
+the HTTP client. These are per-writer limits: keep the existing shared vocabulary
+DB lock and one consumer; other services sharing the same outgoing IP/key also
+consume the upstream quota. The HTTP retry count is separate from the durable
+page cap, and retries request the exact same cursor without staging twice.
+
+The scheduler now accepts this **example only**, not an installed schedule:
+
+```json
+{"version":1,"timezone":"Asia/Taipei","schedules":[{"id":"tag-vocabulary-daily","workflow":"tags.vocabulary.sync","cron":"17 3 * * *","window":"previous-day","options":{"max-pages":20}}]}
+```
+
+It derives the previous Taipei day as an exclusive `[since, until)` UTC window;
+other automatic windows or fixed dates are rejected for this recurring workflow.
+The existing ownership, production, scheduled-execution and allowlist gates still
+apply. Generic scheduling translates into the existing resumable vocabulary queue
+envelope. Repeated ticks do not retry failed vocabulary runs: inspect and explicitly
+resume their original ID/window through `vocabulary:sync --enqueue`. A day exceeding
+the page cap remains unpublished until resumed. Daily windows observe published
+articles, not an upstream edit/deletion stream; periodically re-observe old days
+with a new plan ID to pick up late corrections. Full snapshots retain precedence.
+
+Generate an offline historical plan (at most366days) from `platform`:
+
+```sh
+npm run start -w @youtube-board/jobs -- vocabulary:plan --id=history-20261012 --since=2026-10-01T00:00:00+08:00 --until=2026-10-12T00:00:00+08:00 --max-pages=20
+```
+
+The plan splits at Taipei midnight, caps each invocation to20pages, assigns stable
+run IDs and specifies a60second cooldown **between invocations, including resumed
+batches**. It performs no fetch, DB write or queue submission and has no execute
+flag. The authorized operator/agent executes one planned window at a time using
+the existing `vocabulary:sync` command; if incomplete, resume that exact ID/window
+before advancing. Observe the plan's cooldown rather than enqueueing every window
+at once. Reusing a plan ID resumes work; a new ID intentionally re-observes it.
+The plan does not merge observed windows into a canonical full dictionary.
+
+No production schedule, sync, upstream export or key has been enabled by these
+changes. Public rendering reads only the locally published vocabulary.

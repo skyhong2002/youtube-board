@@ -1,3 +1,4 @@
+import {planVocabularyBackfill} from './vocabulary-plan.js';
 import { assertReportCacheSchema } from './report-schema.js';
 import { handleMediaCli } from './media-cli.js';
 import { handleCacheCli } from './cache-cli.js';
@@ -54,12 +55,16 @@ async function main() {
   if (await handleCacheCli(args, process.env)) return;
   if (await handleAiCli(args, process.env)) return;
   if (await handleYoutubeCli(args, process.env)) return;
+  if(command==='vocabulary:plan'){
+    const seen=new Set<string>();for(const arg of args.slice(1)){const match=/^--(id|since|until|max-pages)=(.+)$/.exec(arg);if(!match||seen.has(match[1]!))throw new Error('Invalid vocabulary plan argument');seen.add(match[1]!);}
+    return console.log(JSON.stringify(planVocabularyBackfill(option('id')??'',{since:option('since')??'',until:option('until')??''},Number(option('max-pages')??20)),null,2));
+  }
   if (command === 'vocabulary:import') {
     const maxPages = Number(option('max-pages') ?? 100);
     if (!args.includes('--execute')) return console.log(JSON.stringify({ mode: 'dry-run', workflow: SNAPSHOT_IMPORT_JOB, maxPages, source: 'https://tag.observe.tw/api/v1/vocabulary/snapshots/current', externalCalls: 0, writes: 0 }));
     return console.log(JSON.stringify(await executeSnapshotImport(process.env, maxPages)));
   }
-  if (command === 'help') return console.log('Commands: vocabulary:sync --id=RUN --since=ISO --until=ISO [--max-pages=20] [--execute|--enqueue]; videos:match [--after-pk=0] [--limit=100] [--version=ID] [--execute]; vocabulary:match --snapshot=FILE --title=TEXT; migrate --execute; worker --execute. Default sync is an offline dry-run.');
+  if (command === 'help') return console.log('Commands: vocabulary:plan --id=PLAN --since=ISO --until=ISO [--max-pages=20]; vocabulary:sync --id=RUN --since=ISO --until=ISO [--max-pages=20] [--execute|--enqueue]; videos:match [--after-pk=0] [--limit=100] [--version=ID] [--execute]; vocabulary:match --snapshot=FILE --title=TEXT; migrate --execute; worker --execute. Default sync is an offline dry-run.');
   if (command === 'vocabulary:match') {
     const snapshot = JSON.parse(await readFile(option('snapshot') ?? '', 'utf8')) as VocabularySnapshot;
     return console.log(JSON.stringify(matchVocabulary({ title: option('title') ?? '', description: option('description') ?? '' }, snapshot), null, 2));

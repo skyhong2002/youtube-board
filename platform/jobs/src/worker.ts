@@ -1,3 +1,4 @@
+import {tagHttpOptions} from './tag-http.js';
 import {assertQueueJob,consumerQueue,partitionedQueues,workflowQueueName} from './queue-scope.js';
 import { registeredWorkflows, executeRegisteredWorkflow, validateWorkflowInput, type WorkflowInput } from './workflow-registry.js';
 import { Queue, Worker, type Job } from 'bullmq';
@@ -20,7 +21,7 @@ export async function executeVocabulary(input: VocabularyJobInput, env: NodeJS.P
   assertExecute(VOCABULARY_JOB, executionPolicy(env, 'execute', scheduled));
   const db = await connectDatabase(env);
   try {
-    return await withWriterLock(db, VOCABULARY_JOB, assertOwnership => synchronizeVocabulary({ ...input, source: new TagArticleSource(), store: new MysqlVocabularyStore(db), assertOwnership }));
+    return await withWriterLock(db, VOCABULARY_JOB, async assertOwnership => synchronizeVocabulary({ ...input, source: new TagArticleSource(fetch,await tagHttpOptions(env)), store: new MysqlVocabularyStore(db), assertOwnership }));
   } finally { await db.end(); }
 }
 export function redisConnection(env: NodeJS.ProcessEnv, blocking = false) {
@@ -45,7 +46,7 @@ export function startWorker(env: NodeJS.ProcessEnv) {
   }, { connection: redis, concurrency: 1, maxStalledCount: 0, limiter: { max: 1, duration: 1000 } });
   return { worker, close: async () => { await worker.close(); await redis.quit(); } };
 }
-export async function enqueueVocabulary(input: VocabularyJobInput, env: NodeJS.ProcessEnv) {
+export async function enqueueVocabulary(input: VocabularyJobInput, env: NodeJS.ProcessEnv, retryFailed=true) {
   input = validateVocabularyInput(input);
   assertExecute(VOCABULARY_JOB, executionPolicy(env, 'execute', true));
   const queueName=workflowQueueName(VOCABULARY_JOB,env),redis = redisConnection(env);
@@ -61,6 +62,7 @@ export async function enqueueVocabulary(input: VocabularyJobInput, env: NodeJS.P
     if (existing) {
       if (JSON.stringify(existing.data.window) !== JSON.stringify(input.window)) throw new QueueInputConflict('Queued run id is already bound to a different window');
       if (await existing.getState() === 'failed') {
+        if(!retryFailed)throw new QueueInputConflict('Previous vocabulary run failed; explicitly resume its retained checkpoint','FAILED_REQUIRES_RESUME',jobId);
         if (await redis.get(retryLock) !== owner) throw new QueueInputConflict('Submission lease lost; inspect this same run ID', 'SUBMISSION_UNOBSERVED', jobId);
         await existing.updateData(input);
         if (await redis.get(retryLock) !== owner) throw new QueueInputConflict('Submission lease lost; inspect this same run ID', 'SUBMISSION_UNOBSERVED', jobId);
@@ -98,6 +100,7 @@ async function bindQueuedInput(redis: Redis, jobId: string, input: unknown) {
 export async function enqueueWorkflow(name: string, runId: string, raw: unknown, env: NodeJS.ProcessEnv) {
   if (!/^[A-Za-z0-9_-]{1,100}$/.test(runId)) throw new Error('Invalid workflow run ID');
   const input = validateWorkflowInput(name, raw);
+  if(name===VOCABULARY_JOB)return enqueueVocabulary({id:runId,window:{since:String(input.options.since),until:String(input.options.until)},maxPages:Number(input.options['max-pages']??20)},env,false);
   assertExecute(name, executionPolicy(env, 'execute', true));
   if (name === 'ai.daily') assertExecute('ai.channel', executionPolicy(env, 'execute', true));
   const queueName=workflowQueueName(name,env),redis = redisConnection(env), queue = new Queue<WorkflowInput>(queueName, { connection: redis });

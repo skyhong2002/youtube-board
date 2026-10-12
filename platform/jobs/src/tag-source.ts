@@ -1,20 +1,17 @@
-import { workflowShutdownSignal } from '../../shared/shutdown.js';
+import {TagHttpClient,type TagHttpOptions} from './tag-http.js';
 import { SOURCE, validateWindow, type ArticlePage, type ArticleSource, type Window } from './vocabulary.js';
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
-/** Public endpoint only. No credentials, bodies, or rankings are ingested. */
+/** Fixed upstream endpoint; only public article metadata/tags are ingested. */
 export class TagArticleSource implements ArticleSource {
-  private lastRequest = 0;
-  constructor(private readonly fetcher: typeof fetch = fetch, private readonly delayMs = 500) {}
+  private readonly http:TagHttpClient;
+  constructor(fetcher: typeof fetch = fetch, options:TagHttpOptions={}) { this.http=new TagHttpClient(fetcher,options); }
   async page(window: Window, cursor: string | null): Promise<ArticlePage> {
     validateWindow(window);
     if (cursor !== null && !/^\d{1,15}_\d{1,19}$/.test(cursor)) throw new Error('Invalid stored source cursor');
     const url = new URL('/api/v1/articles', SOURCE);
     url.search = new URLSearchParams({ since: window.since, until: window.until, limit: '200', ...(cursor ? { cursor } : {}) }).toString();
-    const pause = Math.max(0, this.lastRequest + this.delayMs - Date.now());
-    if (pause) await new Promise(resolve => setTimeout(resolve, pause));
-    this.lastRequest = Date.now();
-    const response = await this.fetcher(url, { signal: AbortSignal.any([AbortSignal.timeout(30000), workflowShutdownSignal()]), redirect: 'error', headers: { Accept: 'application/json', 'User-Agent': 'YouTubeBoard/TypeScript-vocabulary-sync' } });
-    if (!response.ok) throw new Error(`Tag source request failed (HTTP ${response.status})`);
+    const response = await this.http.get(url);
+    if (!response.ok) { await response.body?.cancel().catch(()=>{}); throw new Error(`Tag source request failed (HTTP ${response.status})`); }
     if (!response.body) throw new Error('Tag source response is empty');
     const reader = response.body.getReader();
     const chunks: Uint8Array[] = [];
@@ -27,9 +24,10 @@ export class TagArticleSource implements ArticleSource {
         if (bytes > 4000000) throw new Error('Tag source response exceeds cap');
         chunks.push(part.value);
       }
-    } finally { await reader.cancel().catch(() => undefined); }
+    } catch {throw new Error('Tag source body read failed or exceeds cap');}
+    finally { await reader.cancel().catch(() => undefined); }
     const text = Buffer.concat(chunks).toString('utf8');
-    const data: unknown = JSON.parse(text);
+    let data:unknown;try{data=JSON.parse(text);}catch{throw new Error('Invalid tag source JSON');}
     if (!record(data) || !Array.isArray(data.articles) || data.articles.length > 200 || !(data.nextCursor === null || typeof data.nextCursor === 'string')) throw new Error('Invalid tag source page');
     const query = data.query;
     if (!record(query) || Date.parse(String(query.since)) !== Date.parse(window.since) || Date.parse(String(query.until)) !== Date.parse(window.until)) throw new Error('Tag source changed requested window');

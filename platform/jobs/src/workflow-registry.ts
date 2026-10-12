@@ -1,3 +1,4 @@
+import {VOCABULARY_JOB,validateWindow} from './vocabulary.js';
 import { youtubeCommands, executeYoutubeWorkflow, validateYoutubeArguments, youtubeResultState } from './youtube-cli.js';
 import { executeAiWorkflow, validateAiArguments } from './ai-cli.js';
 import { derivedCommands, derivedFields } from './ai-derived-cli.js';
@@ -40,6 +41,7 @@ for (const [command, job] of Object.entries(cacheCommands)) definitions[job] = {
 for (const [command, job] of Object.entries(notificationCommands)) definitions[job] = { command, kind: 'notification', ...notificationFields[job]! };
 export const registeredWorkflows = [...Object.keys(definitions), SNAPSHOT_IMPORT_JOB, VIDEO_EVIDENCE_JOB];
 function optionSchema(name: string) {
+  if(name===VOCABULARY_JOB)return {values:['since','until','max-pages'],flags:[] as string[]};
   if (name === SNAPSHOT_IMPORT_JOB) return { values: ['max-pages'], flags: [] as string[] };
   if (name === VIDEO_EVIDENCE_JOB) return { values: ['after-pk', 'limit', 'version', 'changed-since'], flags: [] as string[] };
   if (!Object.hasOwn(definitions, name)) throw new Error('Unregistered workflow');
@@ -62,6 +64,10 @@ export function validateWorkflowInput(name: string, raw: unknown): WorkflowInput
   if (definitions[name]?.kind === 'cache') validateCacheArguments(cliArgs(definitions[name]!, normalized));
   if (definitions[name]?.kind === 'notification') validateNotificationArguments(cliArgs(definitions[name]!, normalized));
   if (definitions[name]?.kind === 'media') validateMediaArguments(cliArgs(definitions[name]!, normalized));
+  if(name===VOCABULARY_JOB){
+    validateWindow({since:String(normalized.since??''),until:String(normalized.until??'')});
+    const maxPages=Number(normalized['max-pages']??20);if(!Number.isSafeInteger(maxPages)||maxPages<1||maxPages>1000)throw new Error('Invalid vocabulary page cap');
+  }
   if (name === SNAPSHOT_IMPORT_JOB && (!Number.isSafeInteger(Number(normalized['max-pages'] ?? 100)) || Number(normalized['max-pages'] ?? 100) < 1 || Number(normalized['max-pages'] ?? 100) > 500)) throw new Error('Invalid full snapshot page cap');
   if (name === VIDEO_EVIDENCE_JOB) {
     for (const [key, fallback, min, max] of [['after-pk', 0, 0, Number.MAX_SAFE_INTEGER], ['limit', 100, 1, 1000]] as const) { const value = Number(normalized[key] ?? fallback); if (!Number.isSafeInteger(value) || value < min || value > max) throw new Error('Invalid match bound'); }

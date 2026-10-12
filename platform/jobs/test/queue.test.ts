@@ -76,3 +76,14 @@ it('partitioned producers and consumers construct the same workflow queue and re
  await expect(consume({name:'youtube.channels.stats',data:{options:{limit:1}}})).rejects.toThrow('does not match consumer');
  await handle.close();
 });
+
+it('scheduled vocabulary input uses the existing resumable queue envelope and exact ownership gates',async()=>{
+ const options={since:input.window.since,until:input.window.until,'max-pages':20};
+ await expect(enqueueWorkflow('tags.vocabulary.sync','daily-slot',{options},{...env,TS_INGESTION_OWNERS:''})).rejects.toThrow('ownership');expect(mocks.queueConstruct).not.toHaveBeenCalled();
+ mocks.getJob.mockResolvedValue(undefined);await enqueueWorkflow('tags.vocabulary.sync','daily-slot',{options},env);
+ expect(mocks.add.mock.calls[0]?.[0]).toBe('tags.vocabulary.sync');expect(mocks.add.mock.calls[0]?.[1]).toEqual({id:'daily-slot',window:input.window,maxPages:20});expect(mocks.add.mock.calls[0]?.[2]).toMatchObject({attempts:1});
+});
+it('a repeated scheduler tick cannot implicitly retry a failed vocabulary checkpoint',async()=>{
+ const existing={data:input,getState:vi.fn().mockResolvedValue('failed'),retry:vi.fn(),updateData:vi.fn()};mocks.getJob.mockResolvedValue(existing);
+ await expect(enqueueWorkflow('tags.vocabulary.sync',input.id,{options:{since:input.window.since,until:input.window.until}},env)).rejects.toMatchObject({code:'FAILED_REQUIRES_RESUME'});expect(existing.retry).not.toHaveBeenCalled();expect(existing.updateData).not.toHaveBeenCalled();
+});

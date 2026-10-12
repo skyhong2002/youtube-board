@@ -82,17 +82,17 @@ describe('writer execution policy', () => {
 describe('public source contract', () => {
   it('validates the source window and does not invent manual tag attribution', async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ query: window, articles: [{ ...article('1', ['台灣']), id: 1 }], nextCursor: null })));
-    const page = await new TagArticleSource(fetcher, 0).page(window, null);
+    const page = await new TagArticleSource(fetcher).page(window, null);
     expect(page.articles[0]?.id).toBe('1'); expect(String(fetcher.mock.calls[0]?.[0])).toContain('/api/v1/articles?');
     expect(aggregateTerms(page.articles)[0]?.provenance).toBe('upstream-article-tag-origin-unspecified');
   });
   it('rejects malformed ids, changed windows and upstream failures', async () => {
     const bad = vi.fn().mockResolvedValue(new Response(JSON.stringify({ query: window, articles: [{ ...article('1', ['台灣']), id: Number.MAX_SAFE_INTEGER + 1 }], nextCursor: null })));
-    await expect(new TagArticleSource(bad, 0).page(window, null)).rejects.toThrow('article');
+    await expect(new TagArticleSource(bad).page(window, null)).rejects.toThrow('article');
     const wrong = vi.fn().mockResolvedValue(new Response(JSON.stringify({ query: { ...window, until: '2026-10-12T00:00:00Z' }, articles: [], nextCursor: null })));
-    await expect(new TagArticleSource(wrong, 0).page(window, null)).rejects.toThrow('window');
+    await expect(new TagArticleSource(wrong).page(window, null)).rejects.toThrow('window');
     const unavailable = vi.fn().mockResolvedValue(new Response('', { status: 429 }));
-    await expect(new TagArticleSource(unavailable, 0).page(window, null)).rejects.toThrow('429');
+    await expect(new TagArticleSource(unavailable,{maxRetries:0}).page(window, null)).rejects.toThrow('429');
   });
 });
 
@@ -102,5 +102,5 @@ it('requires timezone-qualified windows rather than host-local dates', () => {
 });
 it('rejects source cursors that revisit or skip away from the actual last article', async () => {
   const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ query: window, articles: [{ ...article('1', ['台灣']), id: 1 }], nextCursor: '1791594000000_9' })));
-  await expect(new TagArticleSource(fetcher, 0).page(window, null)).rejects.toThrow('continuation');
+  await expect(new TagArticleSource(fetcher).page(window, null)).rejects.toThrow('continuation');
 });

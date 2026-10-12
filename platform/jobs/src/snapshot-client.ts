@@ -1,4 +1,4 @@
-import { workflowShutdownSignal } from '../../shared/shutdown.js';
+import {TagHttpClient,type TagHttpOptions} from './tag-http.js';
 import { createHash } from 'node:crypto';
 import { SOURCE } from './vocabulary.js';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -53,11 +53,11 @@ export function validatePage(raw: unknown, manifest: ExportManifest, index: numb
   return raw as unknown as ExportPage;
 }
 export class HttpSnapshotSource implements SnapshotSource {
-  constructor(private readonly request: typeof fetch = fetch) {}
+  private readonly http:TagHttpClient;
+  constructor(request: typeof fetch = fetch,options:TagHttpOptions={}) {this.http=new TagHttpClient(request,options);}
   private async json(path: string): Promise<unknown> {
-    // No arbitrary base URL and no forwarded credential: this is the public tag API.
-    const response = await this.request(`${SOURCE}/api/v1/vocabulary/${path}`, { redirect: 'error', signal: AbortSignal.any([AbortSignal.timeout(20000), workflowShutdownSignal()]), headers: { Accept: 'application/json' } });
-    if (!response.ok) throw new Error(`Vocabulary export HTTP ${response.status}; published local version retained`);
+    const response = await this.http.get(`${SOURCE}/api/v1/vocabulary/${path}`,20000);
+    if (!response.ok) {await response.body?.cancel().catch(()=>{});throw new Error(`Vocabulary export HTTP ${response.status}; published local version retained`);}
     if (!response.body) throw new Error('Vocabulary export returned an empty body');
     const chunks: Uint8Array[] = []; let bytes = 0;
     const reader = response.body.getReader();
@@ -68,7 +68,8 @@ export class HttpSnapshotSource implements SnapshotSource {
         if (bytes > 2_000_000) { await reader.cancel(); throw new Error('Vocabulary page exceeds byte cap'); }
         chunks.push(part.value);
       }
-    } finally { reader.releaseLock(); }
+    } catch {throw new Error('Vocabulary body read failed or exceeds byte cap');}
+    finally { await reader.cancel().catch(()=>{}); reader.releaseLock(); }
     try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); }
     catch { throw new Error('Invalid vocabulary export JSON'); }
   }
