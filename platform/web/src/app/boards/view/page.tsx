@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { api, type Search, type Collection, type VideoRow } from "@/lib/api";
+import {VideoSearchReadHint} from "@/components/VideoSearchReadHint";
+import { api, type Search, type VideoCollection } from "@/lib/api";
 import { boardApiQuery, boardFeedUrl, boardSearch, parseBoardRequest } from "@/lib/boards";
 import { Heading, Unavailable, DataNotice, Pagination } from "@/components/ReportUI";
 import { VideoTable } from "@/components/DataViews";
@@ -11,8 +12,8 @@ export default async function Board({ searchParams }: { searchParams: Promise<Se
     if (!parsed) return <Unavailable status={400} title="看板篩選條件無效" />;
     const { board, offset } = parsed;
     const name = board.name || "自訂觀測看板";
-    const result = await api<Collection<VideoRow>>("videos", boardApiQuery(board, 50, offset));
-    if (!result.ok) return <Unavailable status={result.status} title={name} />;
+    const result = await api<VideoCollection>("videos", boardApiQuery(board, 50, offset));
+    if (!result.ok) return <><Unavailable status={result.status} title={name} />{result.status===503&&board.query&&<><VideoSearchReadHint/><Link href={`/boards?${new URLSearchParams(boardSearch(board))}`}>調整這個看板的篩選條件</Link></>}</>;
     const { data, meta } = result.response;
     const description = [
         board.channelIds ? `篩選 ${board.channelIds.split(",").length} 個頻道` : "全部觀測頻道",

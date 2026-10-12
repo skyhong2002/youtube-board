@@ -29,6 +29,7 @@ test("RSS escapes source text and preserves original video identity and observat
         ),
     );
     assert.ok(feed.includes("開發驗證資料"));
+    assert.ok(feed.includes("一頁 YouTube 影片，最多 100 部"));
     assert.ok(!feed.includes("<script>"));
 });
 test("RSS does not fabricate a build date when source observation time is unknown", () => {

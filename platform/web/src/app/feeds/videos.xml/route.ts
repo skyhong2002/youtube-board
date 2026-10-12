@@ -1,4 +1,4 @@
-import { api, type Collection, type VideoRow } from "@/lib/api";
+import { api, type VideoCollection } from "@/lib/api";
 import { boardApiQuery, boardUrl, parseBoardRequest } from "@/lib/boards";
 import { videoFeed, feedOrigin } from "@/lib/feed";
 export const dynamic = "force-dynamic";
@@ -7,7 +7,7 @@ export async function GET(request: Request) {
     const parsed = parseBoardRequest(url.searchParams);
     if (!parsed) return new Response("Invalid board filters", { status: 400, headers: { "Cache-Control": "no-store" } });
     const { board: scope, offset } = parsed;
-    const result = await api<Collection<VideoRow>>("videos", boardApiQuery(scope, 100, offset));
+    const result = await api<VideoCollection>("videos", boardApiQuery(scope, 100, offset));
     if (!result.ok && result.status >= 400 && result.status < 500) return new Response("Video request could not be served", { status: result.status, headers: { "Cache-Control": "no-store" } });
     if (!result.ok)
         return new Response("Video data is temporarily unavailable", {

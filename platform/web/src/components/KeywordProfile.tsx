@@ -1,6 +1,6 @@
 import type {ReactNode} from 'react';
 import Link from 'next/link';
-import type {Collection,ReportMeta,VideoRow} from '@/lib/api';
+import type {VideoCollection,ReportMeta,VideoRow} from '@/lib/api';
 import {compact,count,dateTime} from '@/lib/format';
 import {ChannelAvatar} from './ChannelAvatar';
 import {VideoThumbnail} from './VideoThumbnail';
@@ -10,7 +10,7 @@ import FollowButton from './reader/FollowButton';
 /** Layout from tag.observe.tw tag/[tag] and ArticleResults at afe0a653.
  * Keep API ranking and scope; a page of videos cannot establish global facets. */
 export function KeywordProfile({keyword,description,data,meta,notice,tabs,filters,pagination}:{
- keyword:string;description:string;data:Collection<VideoRow>;meta:ReportMeta;
+ keyword:string;description:string;data:VideoCollection;meta:ReportMeta;
  notice:ReactNode;tabs:ReactNode;filters:ReactNode;pagination:ReactNode;
 }){
  return <div className="space-y-6">
@@ -37,7 +37,7 @@ export function KeywordProfile({keyword,description,data,meta,notice,tabs,filter
    </aside>
    <div className="min-w-0 space-y-4">
     <div className="space-y-1">
-     <h2 className="text-lg font-semibold tracking-tight">符合共同標籤的影片 <span className="text-sm font-normal text-zinc-500">{count(data.total)} 部</span></h2>
+     <h2 className="text-lg font-semibold tracking-tight">符合共同標籤的影片 <span className="text-sm font-normal text-zinc-500">{data.total===null?(data.totalStatus==='unavailable'?'總數暫時無法取得':'總數未計算'):`${count(data.total)} 部`}</span></h2>
      <p className="text-sm text-zinc-600 dark:text-zinc-400">詞彙使用 tag.observe.tw 現行比對證據；往前 7 日涵蓋今天加前七天。日數、日期與小時條件會同時套用。</p>
     </div>
     <KeywordVideoList rows={data.rows}/>

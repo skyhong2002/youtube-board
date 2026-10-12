@@ -130,3 +130,40 @@ the API suite passed666 tests across87 files with isolated MariaDB enabled and
 zero skipped tests. The independent focused change suites also passed. An earlier
 run overlapped an in-progress test edit and was discarded; the final run used the
 frozen report files.
+
+## Second candidate result — remains on Laravel
+
+Commit `0132fc5` was built on ARM64 and deployed to both separate TS services;
+runtime image ID is
+`sha256:b167129fe10f36c9d579f9ac30562c31180bbea2a1c3aba9d6211c5c80cdefb3`.
+Both are healthy with the expected read-only root/tmpfs/media mounts, and the
+two authorized admin addresses are confirmed in the running allowlist. Public
+routing remains Laravel; private maintenance is retained. Only the header-based
+candidate routes were added back for verification.
+
+The repaired production live-channel API passed in243ms (253 total channels,
+50 page rows). However exact video text search still intermittently reaches the
+5s SQL limit. A bounded read-only profile measured4,845ms for the text COUNT
+alone across672,010 source rows and about1GB of MyISAM data; the compact
+count/page aggregate took4,971ms and its bounded primary-key payload took8ms.
+The source view is ALGORITHM=MERGE; this is not a materialized-view artifact.
+Tag102 listing also failed under contention, then passed in2,447ms in isolation.
+No further public cutover occurred. Clone speedup evidence does not override
+these failed production acceptance checks.
+
+Next repair separates exact indexed page retrieval from expensive total counts.
+Any unavailable total must be represented explicitly, with honest UI copy and
+previous/next navigation; no estimated count or silently narrowed date range is
+acceptable. A boundary query must preserve full-history membership, null ordering
+and primary-key ties. This deliberate pagination difference requires focused
+contract/UI tests and fresh production acceptance before another switch.
+
+The indexed boundary/payload formulation was subsequently probed read-only on
+the production DB: `台灣`51-row lookahead completed in13ms (8ms boundary), and
+taxonomy102 in4ms. This is SQL evidence, not yet deployed application acceptance.
+See [the explicit pagination contract and remaining bounds](video-list-search.md).
+
+Indexed-page final local gate: all six workspace/runtime typechecks passed;
+87 API files /665 tests passed with MariaDB enabled and no skipped tests. Web
+suite99 tests passed, including actual rendered unknown-total pagination,
+keyword headings, RSS scope and explicit refinement help for bounded searches.

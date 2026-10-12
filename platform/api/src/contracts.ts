@@ -85,6 +85,11 @@ export interface LiveRow extends VideoRow {
     }[];
     tags: ChannelTag[];
 }
+export interface VideoCollection extends Omit<Collection<VideoRow>,'total'> {
+    total: number | null;
+    hasNext: boolean;
+    totalStatus: 'exact' | 'not-computed' | 'unavailable';
+}
 export interface Collection<T> {
     evidenceCoverage?: ReportMeta['coverage'];
     rows: T[];

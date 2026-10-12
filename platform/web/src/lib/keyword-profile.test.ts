@@ -15,7 +15,15 @@ test('keyword article rows preserve API rank order, exact IDs, null metrics and 
 });
 test('keyword profile retains incomplete evidence and supplied controls while empty rows never claim zero YouTube coverage',()=>{
  const meta:ReportMeta={schemaVersion:1,requestedAt:'2026-10-12T00:00:00Z',updatedAt:null,timezone:'Asia/Taipei',source:'mariadb',dataset:'fixture',warnings:[],coverage:{status:'synchronized',vocabularyVersion:'test-v1',sourceVideos:8,freshVideos:3,staleVideos:2,unprocessedVideos:3,keywordMatchedVideos:0}};
- const html=renderToStaticMarkup(createElement(KeywordProfile,{keyword:'交通%41',description:'範圍說明',data:{rows:[],total:0,limit:50,offset:50},meta,notice:createElement('p',null,'合成資料提醒'),tabs:createElement('nav',null,'報表分頁'),filters:createElement('input',{name:'q',defaultValue:'保留條件'}),pagination:createElement('a',{href:'?offset=0'},'上一頁')}));
+ const html=renderToStaticMarkup(createElement(KeywordProfile,{keyword:'交通%41',description:'範圍說明',data:{rows:[],total:0,limit:50,offset:50,hasNext:false,totalStatus:'exact'},meta,notice:createElement('p',null,'合成資料提醒'),tabs:createElement('nav',null,'報表分頁'),filters:createElement('input',{name:'q',defaultValue:'保留條件'}),pagination:createElement('a',{href:'?offset=0'},'上一頁')}));
  for(const label of ['交通%41','test-v1','來源文字已變動','尚未比對','空列表不能視為沒有相關影片','合成資料提醒','報表分頁','保留條件','上一頁','更新於 未記錄'])assert.ok(html.includes(label),label);
  assert.match(html,/lg:grid-cols-\[minmax\(0,1fr\)_18rem\]/);assert.match(html,/lg:order-2/);assert.match(html,/比對不完整，不代表 YouTube 沒有相關內容/);assert.doesNotMatch(html,/皆已完成有效比對|來自 0 家|未收錄影片 0/);
+});
+
+test('keyword profile never converts an uncounted or unavailable video total to zero',()=>{
+ const meta:ReportMeta={schemaVersion:1,requestedAt:'2026-10-12T00:00:00Z',updatedAt:null,timezone:'Asia/Taipei',source:'mariadb',dataset:'fixture',warnings:[],coverage:{}};
+ for(const totalStatus of ['not-computed','unavailable'] as const){
+  const html=renderToStaticMarkup(createElement(KeywordProfile,{keyword:'交通',description:'範圍說明',data:{rows:[],total:null,limit:50,offset:0,hasNext:false,totalStatus},meta,notice:null,tabs:null,filters:null,pagination:null}));
+  assert.ok(html.includes(totalStatus==='not-computed'?'總數未計算':'總數暫時無法取得'));assert.doesNotMatch(html,/0 部|— 部/);
+ }
 });

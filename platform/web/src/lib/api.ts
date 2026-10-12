@@ -5,17 +5,8 @@ export type Search = Record<string, string | string[] | undefined>;
 export type Result<T> =
     | { ok: true; response: ApiResponse<T> }
     | { ok: false; status: number; code: string };
-export function queryString(search: Search, allow?: string[]) {
-    const query = new URLSearchParams();
-    for (const [key, value] of Object.entries(search)) {
-        if (allow && !allow.includes(key)) continue;
-        if (Array.isArray(value))
-            value.forEach((item) => query.append(key, item));
-        else if (value !== undefined) query.set(key, value);
-    }
-    const encoded = query.toString();
-    return encoded ? `?${encoded}` : "";
-}
+import {queryString} from './query-string';
+export {queryString} from './query-string';
 export async function api<T>(
     path: string,
     search: Search = {},

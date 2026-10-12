@@ -34,7 +34,7 @@ export function videoFeed({
             ? new Date(value).toUTCString()
             : null;
     const built = date(updatedAt);
-    return `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>${xml(title)}${fixture ? "（開發驗證資料）" : ""}</title><link>${xml(link)}</link><description>觀測範圍內的 YouTube 影片；不代表全站影片。${fixture ? "此環境使用合成驗證資料。" : ""}</description><language>zh-TW</language>${built ? `<lastBuildDate>${xml(built)}</lastBuildDate>` : ""}${rows.map((row) => `<item><title>${xml(row.title)}</title><link>${xml(youtubeUrl(row.youtubeUrl) || link)}</link><guid isPermaLink="false">youtube:${xml(row.id)}</guid><description>${xml(`${row.channelTitle}：${row.description.slice(0, 600)}`)}</description>${date(row.publishedAt) ? `<pubDate>${xml(date(row.publishedAt)!)}</pubDate>` : ""}</item>`).join("")}</channel></rss>`;
+    return `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>${xml(title)}${fixture ? "（開發驗證資料）" : ""}</title><link>${xml(link)}</link><description>目前篩選範圍的一頁 YouTube 影片，最多 100 部；不代表全部符合結果或全站影片。${fixture ? "此環境使用合成驗證資料。" : ""}</description><language>zh-TW</language>${built ? `<lastBuildDate>${xml(built)}</lastBuildDate>` : ""}${rows.map((row) => `<item><title>${xml(row.title)}</title><link>${xml(youtubeUrl(row.youtubeUrl) || link)}</link><guid isPermaLink="false">youtube:${xml(row.id)}</guid><description>${xml(`${row.channelTitle}：${row.description.slice(0, 600)}`)}</description>${date(row.publishedAt) ? `<pubDate>${xml(date(row.publishedAt)!)}</pubDate>` : ""}</item>`).join("")}</channel></rss>`;
 }
 
 export function feedOrigin(

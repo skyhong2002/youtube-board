@@ -1,5 +1,6 @@
 import {EventHeader} from '@/components/EventHeader';
 import {ChannelProfile} from '@/components/ChannelProfile';
+import {VideoSearchReadHint} from '@/components/VideoSearchReadHint';
 import {KeywordProfile} from '@/components/KeywordProfile';
 import TableScroller from '@/components/TableScroller';
 import {ChannelAvatar} from '@/components/ChannelAvatar';
@@ -23,6 +24,7 @@ import {
     type ChannelRow,
     type ChannelData,
     type VideoRow,
+    type VideoCollection,
     type VideoData,
     type LiveRow,
     type AiDaysData,
@@ -175,9 +177,9 @@ export async function ReportPage({
             route.kind,
         )
     ) {
-        const result = await api<Collection<VideoRow>>(route.apiPath, search);
+        const result = await api<VideoCollection>(route.apiPath, search);
         if (!result.ok)
-            return <Failure status={result.status} title={route.title} />;
+            return <><Failure status={result.status} title={route.title} />{result.status===503&&first(search.q)?.trim()&&<><VideoSearchReadHint/><ReportFilters mode="videos" search={search} path={path}/></>}</>;
         const { data, meta } = result.response;
         if(route.kind==='keyword-videos'&&route.id)return <KeywordProfile keyword={route.id} description={route.description} data={data} meta={meta}
             notice={<DataNotice meta={meta}/>}

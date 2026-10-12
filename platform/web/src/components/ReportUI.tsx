@@ -2,8 +2,7 @@ import SectionTabs from './SectionTabs';
 import {currentTab} from '@/lib/report-navigation';
 import {ChannelArchiveNotice} from './ChannelArchiveNotice';
 import Link from 'next/link';
-import type {ReportMeta,Search,Collection} from '@/lib/api';
-import {queryString} from '@/lib/api';
+import type {ReportMeta} from '@/lib/api';
 import {dateTime,count} from '@/lib/format';
 import {reportStyle as ui} from '@/lib/report-styles';
 export function Heading({title,description,eyebrow,meta}:{title:string;description?:string;eyebrow?:string;meta?:ReportMeta}){
@@ -22,4 +21,4 @@ export function Metric({label,value,unit,detail}:{label:string;value:React.React
 export function SectionHeading({title,href,label='查看全部 →'}:{title:string;href?:string;label?:string}){return <div className="mb-3 mt-6 flex flex-wrap items-end justify-between gap-3"><h2 className="scroll-mt-20 text-base font-semibold">{title}</h2>{href&&<Link className={'text-sm '+ui.link} href={href}>{label}</Link>}</div>;}
 /** Same interaction and classes as mother SectionTabs; preserve URL query state in callers. */
 export function Tabs({items,active,label='報表選單'}:{items:{href:string;label:string;active?:boolean}[];active:string;label?:string}){if(!items.length)return null;return <SectionTabs label={label} className="mb-4" tabs={items.map(item=>({href:item.href,label:item.label,current:currentTab(item.href,active,item.active)}))}/>;}
-export function Pagination({collection,search,path}:{collection:Pick<Collection<unknown>,'total'|'limit'|'offset'>;search:Search;path:string}){const {total,limit,offset}=collection;if(total<=limit&&offset===0)return null;return <nav className="my-4 flex flex-wrap items-center justify-between gap-3 text-sm" aria-label="頁碼"><p className="text-zinc-600 dark:text-zinc-400">共 {count(total)} 筆{offset<total?` · 第 ${count(offset+1)}–${count(Math.min(offset+limit,total))} 筆`:' · 目前頁面沒有資料'}</p><div className="flex gap-5">{offset>0&&<Link className={ui.link} href={`${path}${queryString({...search,offset:String(Math.max(0,offset-limit))})}`} scroll={false}>← 上一頁</Link>}{offset+limit<total&&<Link className={ui.link} href={`${path}${queryString({...search,offset:String(offset+limit)})}`} scroll={false}>下一頁 →</Link>}</div></nav>;}
+export {Pagination} from './Pagination';

@@ -12,6 +12,7 @@ function fixture(flag:number|null|'missing'){
  const reader:Reader={close:async()=>{},rows:async<T extends Row>(query:SQL)=>{
   const {sql}=dialect.sqlToQuery(query);statements.push(sql);
   if(sql.includes(identitySql))return (flag==='missing'?[]:[{u_id:8,title:'保留頻道',flag_del:flag}]) as unknown as T[];
+  if(sql.includes('MIN(boundary.'))return [{selected:0,nulls:0,cutoff:null}] as unknown as T[];
   if(sql.includes('COUNT('))return [{total:0,n:0}] as unknown as T[];
   return [];
  }};

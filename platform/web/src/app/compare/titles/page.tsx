@@ -4,7 +4,7 @@ import {VideoThumbnail} from "@/components/VideoThumbnail";
 import {
     api,
     type Search,
-    type Collection,
+    type VideoCollection,
     type VideoRow,
     type VideoData,
 } from "@/lib/api";
@@ -22,7 +22,7 @@ export default async function Compare({
     const leftId = first(search.left),
         rightId = first(search.right);
     const [list, left, right] = await Promise.all([
-        api<Collection<VideoRow>>("videos", { limit: "50" }),
+        api<VideoCollection>("videos", { limit: "50" }),
         leftId ? api<VideoData>(`videos/${encodeURIComponent(leftId)}`) : null,
         rightId
             ? api<VideoData>(`videos/${encodeURIComponent(rightId)}`)
