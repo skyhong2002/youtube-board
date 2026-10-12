@@ -1,3 +1,4 @@
+import { RECENT_VIDEO_EVIDENCE_COMMAND, validateRecentArguments, matchRecentVideoBatch } from './recent-video-evidence.js';
 import {planVocabularyBackfill} from './vocabulary-plan.js';
 import { assertReportCacheSchema } from './report-schema.js';
 import { handleMediaCli } from './media-cli.js';
@@ -69,6 +70,7 @@ async function main() {
     const snapshot = JSON.parse(await readFile(option('snapshot') ?? '', 'utf8')) as VocabularySnapshot;
     return console.log(JSON.stringify(matchVocabulary({ title: option('title') ?? '', description: option('description') ?? '' }, snapshot), null, 2));
   }
+  if (command === RECENT_VIDEO_EVIDENCE_COMMAND) return console.log(JSON.stringify(await matchRecentVideoBatch(validateRecentArguments(args), process.env)));
   if (command === 'videos:match') return console.log(JSON.stringify(await matchVideoBatch({ afterPk: Number(option('after-pk') ?? 0), limit: Number(option('limit') ?? 100), ...(option('version') ? { version: option('version') } : {}), ...(option('changed-since') ? { changedSince: option('changed-since') } : {}), execute: args.includes('--execute') }, process.env), null, 2));
   if (command === 'migrate') {
     if (process.env.TS_WORKER_SCHEMA_MODE || process.env.DB_DATABASE?.startsWith('youtube_board_ts_worker')) throw new Error('Worker facade migrations are forbidden');

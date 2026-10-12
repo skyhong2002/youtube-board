@@ -1,3 +1,4 @@
+import { RECENT_VIDEO_EVIDENCE_JOB, validateRecentInput, matchRecentVideoBatch } from './recent-video-evidence.js';
 import {VOCABULARY_JOB,validateWindow} from './vocabulary.js';
 import { youtubeCommands, executeYoutubeWorkflow, validateYoutubeArguments, youtubeResultState } from './youtube-cli.js';
 import { executeAiWorkflow, validateAiArguments } from './ai-cli.js';
@@ -39,10 +40,11 @@ for (const kind of ['channel', 'daily', 'hourly']) definitions[`ai.${kind}`] = {
 for (const [command, job] of Object.entries(derivedCommands)) definitions[job] = { command, kind: 'ai', ...derivedFields[job] };
 for (const [command, job] of Object.entries(cacheCommands)) definitions[job] = { command, kind: 'cache', ...cacheFields[job]! };
 for (const [command, job] of Object.entries(notificationCommands)) definitions[job] = { command, kind: 'notification', ...notificationFields[job]! };
-export const registeredWorkflows = [...Object.keys(definitions), SNAPSHOT_IMPORT_JOB, VIDEO_EVIDENCE_JOB];
+export const registeredWorkflows = [...Object.keys(definitions), SNAPSHOT_IMPORT_JOB, VIDEO_EVIDENCE_JOB, RECENT_VIDEO_EVIDENCE_JOB];
 function optionSchema(name: string) {
   if(name===VOCABULARY_JOB)return {values:['since','until','max-pages'],flags:[] as string[]};
   if (name === SNAPSHOT_IMPORT_JOB) return { values: ['max-pages'], flags: [] as string[] };
+  if (name === RECENT_VIDEO_EVIDENCE_JOB) return { values: ['limit', 'daily-limit'], flags: [] as string[] };
   if (name === VIDEO_EVIDENCE_JOB) return { values: ['after-pk', 'limit', 'version', 'changed-since'], flags: [] as string[] };
   if (!Object.hasOwn(definitions, name)) throw new Error('Unregistered workflow');
   return definitions[name]!;
@@ -69,8 +71,9 @@ export function validateWorkflowInput(name: string, raw: unknown): WorkflowInput
     const maxPages=Number(normalized['max-pages']??20);if(!Number.isSafeInteger(maxPages)||maxPages<1||maxPages>1000)throw new Error('Invalid vocabulary page cap');
   }
   if (name === SNAPSHOT_IMPORT_JOB && (!Number.isSafeInteger(Number(normalized['max-pages'] ?? 100)) || Number(normalized['max-pages'] ?? 100) < 1 || Number(normalized['max-pages'] ?? 100) > 500)) throw new Error('Invalid full snapshot page cap');
+  if (name === RECENT_VIDEO_EVIDENCE_JOB) validateRecentInput({limit: Number(normalized.limit ?? 100), dailyLimit: Number(normalized['daily-limit'] ?? 5000), execute: true});
   if (name === VIDEO_EVIDENCE_JOB) {
-    for (const [key, fallback, min, max] of [['after-pk', 0, 0, Number.MAX_SAFE_INTEGER], ['limit', 100, 1, 1000]] as const) { const value = Number(normalized[key] ?? fallback); if (!Number.isSafeInteger(value) || value < min || value > max) throw new Error('Invalid match bound'); }
+    for (const [key, fallback, min, max] of [['after-pk', 0, 0, Number.MAX_SAFE_INTEGER], ['limit', 100, 1, 500]] as const) { const value = Number(normalized[key] ?? fallback); if (!Number.isSafeInteger(value) || value < min || value > max) throw new Error('Invalid match bound'); }
     if (normalized['changed-since'] !== undefined && (!/(?:Z|[+-]\d\d:\d\d)$/.test(String(normalized['changed-since'])) || !Number.isFinite(Date.parse(String(normalized['changed-since']))))) throw new Error('Invalid matching timestamp');
     if (normalized.version !== undefined && !/^[A-Za-z0-9_-]{1,100}$/.test(String(normalized.version))) throw new Error('Invalid vocabulary version');
   }
@@ -89,6 +92,7 @@ export async function executeRegisteredWorkflow(name: string, raw: unknown, env:
   assertExecute(name, executionPolicy(env, 'execute', true));
   if (name === 'ai.daily') assertExecute('ai.channel', executionPolicy(env, 'execute', true));
   if (name === SNAPSHOT_IMPORT_JOB) return executeSnapshotImport(env, Number(input.options['max-pages'] ?? 100));
+  if (name === RECENT_VIDEO_EVIDENCE_JOB) return matchRecentVideoBatch({limit: Number(input.options.limit ?? 100), dailyLimit: Number(input.options['daily-limit'] ?? 5000), execute: true}, env);
   if (name === VIDEO_EVIDENCE_JOB) return matchVideoBatch({ afterPk: Number(input.options['after-pk'] ?? 0), limit: Number(input.options.limit ?? 100), ...(input.options.version ? { version: String(input.options.version) } : {}), ...(input.options['changed-since'] ? { changedSince: String(input.options['changed-since']) } : {}), execute: true }, env);
   const args = workflowArgs(name, input);
   if (definitions[name]!.kind === 'media') return executeMediaWorkflow(args, env, true);

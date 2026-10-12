@@ -75,6 +75,63 @@ Verification: `npm test -w @youtube-board/jobs` is offline by default. Set `JOBS
 
 ## YouTube workflows
 
+### Durable recent-video vocabulary matching
+
+`videos:match:recent --limit=100 --daily-limit=5000` previews the actual next
+batch using the current published vocabulary. It makes no external requests and
+writes no evidence or journal state. Add `--execute` only with ownership of
+`tags.videos.match.recent` and the normal execution gates. Production needs that
+exact workflow in both ownership and write allowlists; the one-off
+`tags.videos.match` permission does not authorize it.
+
+The first invocation pins a seven-day Taipei `publishedAt` window ending at its
+start time, the vocabulary version and descending `(publishedAt, pk)` cursor.
+Later invocations resume that window. A newly published vocabulary restarts from
+the newest videos even if the old sweep was incomplete. Completed same-version
+sweeps wait six hours or the next Taipei date after completion before opening a
+new window. This is a rolling publication window, not an `mtime` correction scan
+or proof of historical coverage. Missing publication timestamps and older videos
+need separately authorized backfills. Only the newest exact, case-sensitive
+source copy of a video is eligible.
+
+Each batch is capped at500 videos (default100). The daily cap defaults to5000
+and accepts1–50000. The first reservation fixes that Taipei day's maximum;
+raising later CLI options cannot expand it, while a smaller invocation limit
+restricts that invocation. Reservations include retries and invalid rows and
+are committed before evidence processing. A crash may consume unused capacity;
+it never refunds uncertain work. Vocabulary changes share the same budget.
+Midnight stops processing before the next video, and the next invocation resumes
+with a new day's ledger. Exhausted budget reports incomplete coverage explicitly.
+The source query has a five-second SQL deadline; the daily cap measures video
+attempts, not evidence inserts or a guaranteed total wall-clock runtime.
+
+Evidence commits before cursor advancement, so a failure retries idempotently.
+Both matchers share the existing `tags.videos.match` database lock. The durable
+checkpoint (`recent-window-v1`) and daily ledgers (`recent-budget-YYYY-MM-DD`)
+use `ts_job_runs` under the new workflow key. Corrupt state fails closed; no
+automatic ledger cleanup or manual cursor resets are part of this workflow.
+
+No migration is needed. Bootstrap the **new** worker profile
+`tags.videos.match.recent` through `tools/worker-schema.mjs`: it inherits the
+one-off matcher's read-only source/vocabulary and evidence permissions and adds
+only SELECT/INSERT/UPDATE on `ts_job_runs`. Existing one-off grants remain
+unchanged. Do not reuse a principal with mismatched grants; startup verifies the
+exact profile. Source tables remain read-only.
+
+Example recurring configuration, requiring explicit activation:
+
+```json
+{"version":1,"timezone":"Asia/Taipei","schedules":[{"id":"recent-video-evidence","workflow":"tags.videos.match.recent","cron":"*/5 * * * *","options":{"limit":100,"daily-limit":20000}}]}
+```
+
+Run vocabulary synchronization first; only published versions become eligible.
+The matcher returns `awaiting-vocabulary` until one exists. Subsequent ticks
+discover a changed version automatically, so the schedule contains no static
+version, timestamp or primary-key cursor. The20000 example is an operator-chosen
+ceiling, not the default. This code installs no schedule and transfers no Laravel
+source writer. Observed article-window vocabulary keeps that limited provenance
+even when a matching window completes.
+
 Video statistics, live polling and tag uploads backfill are now executable via the jobs CLI, using the client/quota/writer implementation in [ingestion](../ingestion/README.md). They remain absent from recurring schedules and require their own exact ownership/write gates. Other unported workflows remain listed in `src/ports.ts`.
 
 Integration tests now default to the dedicated `youtube_board_test_rewrite` database. `platform/shared/test-database.ts` rejects the preview database and non-loopback hosts. Tests seed their own vocabulary and source fixtures; existing preview data is not a test dependency.

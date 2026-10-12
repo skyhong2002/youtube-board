@@ -1735,6 +1735,18 @@
         ]
       },
       "dependencies": []
+    },
+    "tags.videos.match.recent": {
+      "tables": {
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ]
+      },
+      "dependencies": [
+        "tags.videos.match"
+      ]
     }
   }
 }
