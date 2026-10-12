@@ -1,4 +1,4 @@
-import type { ChannelAvatar } from '../../shared/media-assets.js';
+import type { ChannelAvatar,ChannelSource } from '../../shared/media-assets.js';
 import type { ChannelRanking } from '../../shared/channel-ranking.js';
 import type { VideoCommentSummary } from './video-analytics-contracts.js';
 import type { ReportData } from './report-contracts.js';
@@ -165,7 +165,7 @@ export interface AiDaysData {
     lineage?: { state:'immutable-snapshot'|'snapshot-unavailable';runId:string|null };
 }
 export interface EventCitation {
-    id:string|null;rawId:string;media:string;href:string|null;
+    id:string|null;rawId:string;media:string;href:string|null;sourceChannel?:ChannelSource;
     verification:'snapshot'|'stored-reference'|'missing'|'invalid'|'outside-snapshot';
 }
 export interface EventAnalysis {
@@ -173,9 +173,9 @@ export interface EventAnalysis {
     lineage?:{state:'immutable-snapshot'|'legacy-unrecorded';runId:string|null;dailyResultSha256:string|null;sourceChanged:boolean;sourceVideos:{id:string;title:string;channelId:number;media:string}[]};
 }
 export interface EventPresentation {
-    summaries:{analysisId:number;title:string;description:string;keywords:string[];media:string[];facts:{headline:string;citation:EventCitation}[];opinions:{stance:string;intensity:string;content:string;citation:EventCitation}[]}[];
+    summaries:{analysisId:number;title:string;description:string;keywords:string[];media:string[];sourceChannels?:ChannelSource[];facts:{headline:string;citation:EventCitation}[];opinions:{stance:string;intensity:string;content:string;citation:EventCitation}[]}[];
     people:{analysisId:number;mainSubject:string;groups:{kind:'supporting'|'opposing'|'other';rows:{person:string;role:string;stance:string;strength:string;description:string;citations:EventCitation[]}[]}[]} | null;
-    media:{analysisId:number;mainSubject:string;all:string[];groups:{kind:'supporting'|'opposing'|'other';rows:{media:string;stance:string;strength:string;description:string}[]}[]} | null;
+    media:{analysisId:number;mainSubject:string;all:string[];sourceChannels?:ChannelSource[];groups:{kind:'supporting'|'opposing'|'other';rows:{media:string;sourceChannel?:ChannelSource;stance:string;strength:string;description:string}[]}[]} | null;
 }
 export interface AiEventData {
     id:number;dailyId:number;title:string;date:string|null;topic:TopicRow|null;topics:TopicRow[];idKind:'daily'|'event';

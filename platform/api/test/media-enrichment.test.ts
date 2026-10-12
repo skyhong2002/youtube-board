@@ -31,6 +31,11 @@ describe('public media presentation enrichment',()=>{
   expect(data.channel.avatar).toEqual(avatar(1));expect(data.channel.thumbnail).toBe(avatar(1).url);expect(data.videos.every(v=>v.channelAvatar?.url===avatar(1).url)).toBe(true);
   expect(data.live[0]?.channelAvatar).toEqual(avatar(1));expect(data.evidence[0]).toHaveProperty('channelAvatar',avatar(2));expect(data.rows[0]?.source).toHaveProperty('media',{kind:'channel',channelId:2,avatar:avatar(2)});expect(data.rows[1]?.source).toHaveProperty('media',{kind:'video',videoId:'Abcdef123_-',thumbnail:'https://i.ytimg.com/vi/Abcdef123_-/mqdefault.jpg'});
  });
+ it('batch-enriches nested account/editorial/citation sources and analytics without videoIds arrays',async()=>{
+  const db=reader([{u_id:1,youtube_id:a},{u_id:2,youtube_id:b}]),cache=lookup([1,2]);
+  const data={saved:{sourceChannel:{channelId:1,channelTitle:'saved',youtubeChannelId:a,channelAvatar:null}},citation:{sourceChannel:{channelId:2,channelTitle:'citation',channelAvatar:null}},analytics:{channelId:1,channelTitle:'analytics',youtubeChannelId:a},cell:{value:'same',sources:[{channelId:2,channelTitle:'hourly',channelAvatar:null}]},unresolved:{channelId:null,channelTitle:'same',channelAvatar:null}};
+  await enrichPublicMedia(db.reader,data,cache);expect(db.queries).toHaveLength(1);expect(cache.avatars).toHaveBeenCalledTimes(1);expect(data.saved.sourceChannel.channelAvatar).toEqual(avatar(1));expect(data.citation.sourceChannel.channelAvatar).toEqual(avatar(2));expect(data.analytics).toHaveProperty('channelAvatar',avatar(1));expect(data.cell.sources[0]?.channelAvatar).toEqual(avatar(2));expect(data.unresolved.channelAvatar).toBeNull();
+ });
  it('does not confuse case-sensitive channel identities or reassign old videos to current brands',async()=>{
   const db=reader([{u_id:1,youtube_id:a.toLowerCase()}]),cache=lookup([1]);const data={video:videoRow(),channel:channel({u_id:1,youtube_id:a},new Map())};await enrichPublicMedia(db.reader,data,cache);expect(data.video.channelAvatar).toBeNull();expect(data.channel.avatar).toBeNull();
  });

@@ -6,7 +6,7 @@ import type {Register} from '../src/reports/table.js';
 import {accountTargets,accountFeed} from '../src/reader/feed.js';
 import {registerFilterOptions} from '../src/reports/filter-options.js';
 import type {FilterOptions} from '../../shared/filter-options.js';
-const cache=vi.hoisted(()=>({readChannelAvatars:vi.fn()}));
+const cache=vi.hoisted(()=>({readChannelAvatars:vi.fn(),readCachedChannelIds:vi.fn(async()=>new Set([1]))}));
 vi.mock('../../shared/media-cache/index.js',()=>cache);
 const dialect=new MySqlDialect(),channelId='UC'+'a'.repeat(22),revision='a'.repeat(64),avatar={url:`/media/channels/1/${revision}.png`,revision,width:192,height:192,cachedAt:'2026-10-12T00:00:00.000Z'};
 function mock(respond:(sql:string)=>Row[]){const queries:ReturnType<MySqlDialect['sqlToQuery']>[]=[];const reader:Reader={rows:async<T extends Row>(q:SQL)=>{const query=dialect.sqlToQuery(q);queries.push(query);return respond(query.sql) as T[];},close:async()=>{}};return {reader,queries};}
@@ -33,4 +33,9 @@ it('failed optional cache leaves target availability and labels intact',async()=
 it('reader feed constructs canonical video images without another query or cache read',async()=>{
  const db=mock(q=>q.includes('SELECT kind,target')?[{kind:'channel',target:'1'}]:q.includes('FROM urt_video')?[{videoId:'Abcdef123_-',title:'Video',publishedAt:'2026-10-12 08:00:00',mtime:'2026-10-12 08:00:00',thumbnails:'https://unsafe.invalid'}]:[]);
  const data=await accountFeed(db.reader,1,()=>new Date('2026-10-12T05:00:00Z'));expect(data.items[0]?.thumbnail).toBe('https://i.ytimg.com/vi/Abcdef123_-/mqdefault.jpg');expect(cache.readChannelAvatars).not.toHaveBeenCalled();expect(db.queries).toHaveLength(3);expect(JSON.stringify(data)).not.toContain('unsafe.invalid');
+});
+
+it('reader feed source metadata uses one identity query and one cache batch for many videos',async()=>{
+ const db=mock(q=>q.includes('SELECT kind,target')?[{kind:'channel',target:'1'}]:q.includes('FROM urt_video')?Array.from({length:30},()=>({videoId:'Abcdef123_-',u_id:1,youtubeChannelId:channelId,channelTitle:'Source',title:'Video',publishedAt:'2026-10-12 08:00:00'})):q.includes('FROM urt_channel')?[{u_id:1,youtube_id:channelId}]:[]);
+ const data=await accountFeed(db.reader,1,()=>new Date('2026-10-12T05:00:00Z'));expect(data.items).toHaveLength(30);expect(data.items.every(i=>i.sourceChannel?.channelId===1&&i.sourceChannel.channelAvatar?.url===avatar.url)).toBe(true);expect(cache.readChannelAvatars).toHaveBeenCalledOnce();expect(db.queries).toHaveLength(4);
 });

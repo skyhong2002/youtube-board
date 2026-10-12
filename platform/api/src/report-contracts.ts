@@ -1,6 +1,7 @@
-import type { ChannelAvatar } from '../../shared/media-assets.js';
+import type { ChannelAvatar,ChannelSource } from '../../shared/media-assets.js';
 export type ReportValue = string | number | boolean | null;
 export interface ReportCell {
+    sources?: ChannelSource[];
     media?: { kind: 'channel'; channelId: number; avatar: ChannelAvatar | null } | { kind: 'video'; videoId: string; thumbnail: string | null };
     value: ReportValue;
     href?: string;

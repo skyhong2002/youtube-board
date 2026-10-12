@@ -1,3 +1,5 @@
+import type {ChannelSource} from '../../../shared/media-assets.js';
+import {readVideoChannels} from './channel-sources.js';
 import {canonicalVideoThumbnail} from '../../../shared/media-assets.js';
 import {sql} from 'drizzle-orm';
 import type {Reader} from '../db/client.js';
@@ -31,7 +33,12 @@ export function registerEditorialPublic(register:Register,reader:Reader){
   const changes=sequences.length?await reader.rows(sql`SELECT action,created_at,before_json,after_json FROM ts_editorial_audit WHERE sequence IN (${sql.join(sequences.map(n=>sql`${n}`),sql`,`)}) ORDER BY sequence DESC`):[];
   const current=(await reader.rows(sql`SELECT version,merged_into FROM ts_editorial_events WHERE id=${id}`))[0];
   if(!current||current.merged_into!==null||String(current.version)!==String(row.version))throw Object.assign(new Error('Editorial event changed during this read. Retry the request.'),{statusCode:409});
-  return {updatedAt:utc(row.updated_at),requestedId,canonicalId:id,event:{...row,created_at:utc(row.created_at),updated_at:utc(row.updated_at)},sources:sources.map(s=>({...s,...(s.kind==='video'?{thumbnail:canonicalVideoThumbnail(String(s.source_id))}:{}),published_at:utc(s.published_at),observed_at:utc(s.observed_at),provenance:decode(s.provenance_json),provenance_json:undefined})),history:changes.map(c=>({action:c.action,at:utc(c.created_at),before:decode(c.before_json).events,after:decode(c.after_json).events})),historyLimit:100,association:'operator-reviewed',metricPolicy:'news-and-youtube-separate'};
+  const videoChannels=await readVideoChannels(reader,sources.filter(s=>s.kind==='video').map(s=>String(s.source_id))).catch(()=>new Map());
+  return {updatedAt:utc(row.updated_at),requestedId,canonicalId:id,event:{...row,created_at:utc(row.created_at),updated_at:utc(row.updated_at)},sources:sources.map(s=>({...s,...(s.kind==='video'?{thumbnail:canonicalVideoThumbnail(String(s.source_id)),sourceChannel:capturedVideoSource(videoChannels.get(String(s.source_id)),decode(s.provenance_json).channelId)}:{}),published_at:utc(s.published_at),observed_at:utc(s.observed_at),provenance:decode(s.provenance_json),provenance_json:undefined})),history:changes.map(c=>({action:c.action,at:utc(c.created_at),before:decode(c.before_json).events,after:decode(c.after_json).events})),historyLimit:100,association:'operator-reviewed',metricPolicy:'news-and-youtube-separate'};
  });
 }
 function utc(v:unknown){if(v===null||v===undefined)return null;if(v instanceof Date)return v.toISOString();if(typeof v==='string'&&/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d(?:\.\d{1,6})?$/.test(v))return new Date(v.replace(' ','T')+'Z').toISOString();throw new Error('Editorial timestamp format invalid');}
+
+function capturedVideoSource(source:ChannelSource|undefined,captured:unknown):ChannelSource|null{
+ return typeof captured==='string'&&/^UC[A-Za-z0-9_-]{22}$/.test(captured)&&source?.youtubeChannelId===captured?source:null;
+}

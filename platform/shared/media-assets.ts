@@ -1,5 +1,7 @@
 /** Public presentation metadata, independent of report/source freshness. */
 export interface ChannelAvatar {url:string;revision:string;width:192;height:192;cachedAt:string}
+/** A display label is unresolved unless its explicit source identifies one local channel. */
+export interface ChannelSource {channelId:number|null;channelTitle:string;channelAvatar:ChannelAvatar|null;youtubeChannelId?:string}
 export interface ChannelAvatarIdentity {id:number;channelId:string}
 export const AVATAR_SIZE=192 as const;
 export const isChannelAssetId=(id:unknown):id is number=>typeof id==='number'&&Number.isSafeInteger(id)&&id>0;

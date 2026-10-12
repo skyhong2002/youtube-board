@@ -32,8 +32,8 @@ export async function enrichPublicMedia<T>(reader:Reader,data:T,lookup:MediaLook
   }else if(typeof row.youtubeChannelId==='string'&&typeof row.id==='string'&&typeof row.youtubeUrl==='string'){
    row.thumbnail=canonicalVideoThumbnail(row.id);
    add(row.channelId,row.youtubeChannelId,avatar=>{row.channelAvatar=avatar;});
-  }else if(positive(row.channelId)&&typeof row.channelTitle==='string'&&Array.isArray(row.videoIds)){
-   add(row.channelId,null,avatar=>{row.channelAvatar=avatar;});
+  }else if(positive(row.channelId)&&typeof row.channelTitle==='string'){
+   add(row.channelId,row.youtubeChannelId,avatar=>{row.channelAvatar=avatar;});
   }
   if('value' in row&&typeof row.href==='string'){
    const id=channelIdFromHref(row.href),videoId=videoIdFromHref(row.href);
