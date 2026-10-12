@@ -71,3 +71,43 @@ After deployment record actual CF MISS/HIT, Age, TTFB and matching inline/SRI
 hashes. Verify no injected beacon, private variants not HIT, /auth/me and /my
 private/no-store, HSTS, normal client navigation, sister sites 200 and unchanged
 Laravel scheduler. Local ISR HIT alone is not evidence of Cloudflare HIT.
+
+## Production acceptance (2026-10-12 11:02–11:07 UTC)
+
+Runtime commit `ed562f7` is deployed as immutable image
+`sha256:16e4919992cafd66706ed9cfee050cdb222fa9f6af8d132b2701cf763266316d`.
+Commit `38c153e` only adjusts the regression test and this validation record;
+the tested runtime code is identical. Dokploy reports the rollout completed and
+the web container is healthy. Environment, routing, database grants/schema and
+background ownership were unchanged. Laravel's existing scheduler stayed running.
+
+- Read-only production canary: **29/29 passed**, 42 bounded requests, 13 actual
+  script assets verified; temporary containers removed. The initial test's
+  assumption that a synthetic `_rsc` value returns 200 was corrected to require
+  Next's exact 307 canonicalization followed by uncached 200 Flight.
+- Cloudflare: actual **BYPASS → MISS → HIT** captured without changing its rule.
+  MISS TTFB 0.170s, subsequent HIT 0.131s; another sequence showed HIT with
+  Age 22 → 25 → 28. Before deployment three samples were BYPASS, 0.437–0.673s.
+  These are small operational samples, not a load benchmark. Expired Next ISR
+  entries deliberately bypass edge caching while regeneration completes.
+- Public HTML has `s-maxage=60, stale-while-revalidate=60, no-transform`, enforced
+  strict hash CSP and HSTS `max-age=31536000`. All delivered inline hashes and
+  13 actual external asset hashes matched; no analytics beacon was injected.
+  Eight unchanged content-addressed JS files retained older immutable edge cache
+  headers; their bytes still matched SRI/CSP. New origin assets add no-transform.
+- Cookie, Authorization, query, RSC, `/my`, `/auth/me` and management variants
+  returned private/no-store and Cloudflare DYNAMIC. `/manage`'s exact redirect
+  to `/manage/editorial` and Next's RSC redirect also remained uncached.
+- Google start: 302 to Google, PKCE S256, exact production callback, no-store.
+  No human OAuth completion was attempted by the agent during this release.
+- Production Chromium: homepage hydration and client navigation to channels
+  succeeded; all external scripts had SRI, console/CSP violations were empty;
+  390px dark capture had no document overflow. Tag and blog both returned 200.
+
+Previous image for image-only rollback:
+`sha256:7cbabf33b8c686714eab533c8ff2f87ef040d62095d73703a07ee0562e10f5e2`.
+The guarded rollback helper and pre-update compose copy are retained privately
+with deployment evidence. An edge may retain the new anonymous homepage during
+its 60+60-second lifetime after rollback; preserve release assets or purge only
+that URL when an immediate cache rollback is required. Future releases must
+account for cached HTML referencing the previous release's immutable assets.
