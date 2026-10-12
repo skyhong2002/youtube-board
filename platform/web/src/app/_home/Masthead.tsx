@@ -18,7 +18,7 @@ export default function Masthead({edition,cloud,caption}:{edition:string;cloud:R
     <h1 id="home-masthead"><span className="sr-only">有影儀表板</span><img src="/brand/family/logo-light.svg" className={`${styles.mastheadCloudMark} dark:hidden`} alt="" aria-hidden="true"/><img src="/brand/family/logo-dark.svg" className={`${styles.mastheadCloudMark} hidden dark:block`} alt="" aria-hidden="true"/></h1>
     <p className={styles.mastheadTagline}>同一件事，各台怎麼說</p>
     <p className={styles.edition}>{edition}</p>
-    <Link href="/keywords" className={styles.mastheadCloudLink}>詞彙觀測 →</Link>
+    <Link href="/keywords" className={styles.mastheadCloudLink}>熱門標籤排行 →</Link>
    </div>
   </div>
   {caption}

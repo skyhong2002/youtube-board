@@ -1,7 +1,9 @@
 import type {ReactNode} from 'react';
 import Link from 'next/link';
 import type {VideoCollection,ReportMeta,VideoRow} from '@/lib/api';
-import {compact,count,dateTime} from '@/lib/format';
+import {count,dateTime} from '@/lib/format';
+import {DESCRIPTION_TEMPLATE_NOTE,DISPLAY_EXCLUSION_NOTE,EVIDENCE_FIELD_LABELS,NO_VIEWS,TAG_SOURCE_ATTRIBUTION,evidenceParts,keywordEvidenceOf,viewsText} from '@/lib/keyword-ranking';
+import MethodDisclosure from './MethodDisclosure';
 import {ChannelAvatar} from './ChannelAvatar';
 import {VideoThumbnail} from './VideoThumbnail';
 import {KeywordEvidenceNotice} from './KeywordEvidenceNotice';
@@ -9,9 +11,11 @@ import FollowButton from './reader/FollowButton';
 
 /** Layout from tag.observe.tw tag/[tag] and ArticleResults at afe0a653.
  * Keep API ranking and scope; a page of videos cannot establish global facets. */
-export function KeywordProfile({keyword,description,data,meta,notice,tabs,filters,pagination}:{
+type Period={from:string|null;to:string|null;days:string|null};
+const periodLabel=(p:Period|undefined)=>p?.from||p?.to?`發布日期 ${p.from??'不限'} 至 ${p.to??'不限'}（台北時間）`:p?.days&&/^\d+$/.test(p.days)?`往前 ${p.days} 日發布（含今天共 ${Number(p.days)+1} 個台北日曆日）`:p?.days?`往前 ${p.days} 日發布`:'全部已收錄期間';
+export function KeywordProfile({keyword,description,data,meta,notice,tabs,filters,pagination,period}:{
  keyword:string;description:string;data:VideoCollection;meta:ReportMeta;
- notice:ReactNode;tabs:ReactNode;filters:ReactNode;pagination:ReactNode;
+ notice:ReactNode;tabs:ReactNode;filters:ReactNode;pagination:ReactNode;period?:Period;
 }){
  return <div className="space-y-6">
   <header className="flex flex-wrap items-baseline justify-between gap-3">
@@ -20,10 +24,16 @@ export function KeywordProfile({keyword,description,data,meta,notice,tabs,filter
     <p className="max-w-4xl text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{description}</p>
     <p className="text-sm text-zinc-600 dark:text-zinc-400">更新於 {dateTime(meta.updatedAt)} · 台北時間</p>
    </div>
-   <Link href="/vocabulary" className="text-sm text-brand-700 hover:underline dark:text-brand-400">共同詞彙 →</Link>
+   <div className="flex gap-4 text-sm"><Link href="/keywords" className="text-brand-700 hover:underline dark:text-brand-400">熱門標籤排行 →</Link><a href="#method" className="text-brand-700 hover:underline dark:text-brand-400">怎麼算 ⓘ</a></div>
   </header>
   {notice}
   {tabs}
+  <dl className="grid gap-x-4 gap-y-1 rounded-xl border border-zinc-300 bg-white p-4 text-sm sm:grid-cols-[6rem_minmax(0,1fr)] dark:border-zinc-800 dark:bg-zinc-900" aria-label="來源、期間與比對方式">
+   <dt className="text-zinc-500">來源</dt><dd><Link className="text-brand-700 hover:underline dark:text-brand-400" href="/vocabulary">{TAG_SOURCE_ATTRIBUTION}</Link></dd>
+   <dt className="text-zinc-500">期間</dt><dd>{periodLabel(period)}</dd>
+   <dt className="text-zinc-500">方式</dt><dd>標籤文字比對影片標題與說明，不是 AI 判讀；字幕尚未取得</dd>
+   <dt className="text-zinc-500">涵蓋</dt><dd>見「收錄與比對範圍」；未比對的影片不在列表中</dd>
+  </dl>
   <section className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]" aria-label="共同標籤影片與比對範圍">
    <aside className="min-w-0 space-y-4 lg:order-2">
     <section className="space-y-3" aria-label="影片來源範圍">
@@ -38,13 +48,32 @@ export function KeywordProfile({keyword,description,data,meta,notice,tabs,filter
    <div className="min-w-0 space-y-4">
     <div className="space-y-1">
      <h2 className="text-lg font-semibold tracking-tight">符合共同標籤的影片 <span className="text-sm font-normal text-zinc-500">{data.total===null?(data.totalStatus==='unavailable'?'總數暫時無法取得':'總數未計算'):`${count(data.total)} 部`}</span></h2>
-     <p className="text-sm text-zinc-600 dark:text-zinc-400">詞彙使用 tag.observe.tw 現行比對證據；往前 7 日涵蓋今天加前七天。日數、日期與小時條件會同時套用。</p>
+     <p className="text-sm text-zinc-600 dark:text-zinc-400">詞彙使用 tag.observe.tw 現行比對證據；「往前 N 日」包含今天與前 N 天，共 N+1 個台北日曆日（往前 7 日為 8 個日曆日）；指定起訖日期時以實際起訖日為準。日數、日期與小時條件會同時套用。</p>
     </div>
     <KeywordVideoList rows={data.rows}/>
     {pagination}
    </div>
   </section>
+  <MethodDisclosure>
+   <p>{TAG_SOURCE_ATTRIBUTION}。共同標籤「{keyword}」以文字比對影片標題與說明；命中不代表事件歸屬或立場。字幕尚未取得，不列入比對。</p>
+   <p>每支影片最多顯示 3 段命中片段，標示來自標題、說明或字幕；沒有片段時顯示「沒有命中片段」，不另行補寫。完整比對依據在影片頁的「共同標籤與比對依據」。</p>
+   <p>{DISPLAY_EXCLUSION_NOTE}</p>
+   <p>{DESCRIPTION_TEMPLATE_NOTE}</p>
+   <p>列表與片段只是符合條件的影片例子，不能用來推算整體比例或全站失真程度；有效比對的影片比例只代表比對完成度。</p>
+   <p>累計觀看為取得當時的公開觀測值，不是期間增量；{NO_VIEWS}的影片不當作 0。</p>
+  </MethodDisclosure>
  </div>;
+}
+function Evidence({row,href}:{row:VideoRow;href:string}){
+ const evidence=keywordEvidenceOf(row);
+ if(!evidence?.length)return <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">沒有命中片段</p>;
+ return <ul className="mt-1 space-y-0.5 text-sm text-zinc-600 dark:text-zinc-400" aria-label="命中片段">{evidence.map((e,i)=>{
+  const parts=evidenceParts(e),label=EVIDENCE_FIELD_LABELS[e.field]??'來源文字',empty=!parts.before&&!parts.match&&!parts.after;
+  return <li key={i} className="flex min-w-0 items-baseline gap-1.5">
+   <span className="shrink-0 rounded bg-zinc-100 px-1.5 text-[11px] leading-5 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">{label}</span>
+   {empty?<span className="text-xs">{e.field==='caption'?'字幕尚未取得':'沒有命中片段'}</span>:<span className="min-w-0 truncate" title={parts.before+parts.match+parts.after}>{parts.before}<mark className="bg-brand-50 text-brand-800 dark:bg-brand-950 dark:text-brand-300">{parts.match}</mark>{parts.after}</span>}
+  </li>;
+ })}<li><Link href={`${href}#keyword-evidence`} className="text-xs text-brand-700 hover:underline dark:text-brand-400">查看影片比對依據 →</Link></li></ul>;
 }
 
 export function KeywordVideoList({rows}:{rows:VideoRow[]}){
@@ -58,8 +87,8 @@ export function KeywordVideoList({rows}:{rows:VideoRow[]}){
      <span aria-hidden="true">·</span><time dateTime={row.publishedAt??undefined} className="tabular-nums">{dateTime(row.publishedAt)}</time>
     </p>
     <h3 className="mt-1 break-words text-[15px] font-medium leading-6 [overflow-wrap:anywhere]"><Link href={href} className="line-clamp-3 hover:text-brand-700 dark:hover:text-brand-400" title={title}>{title}</Link></h3>
-    {row.description&&<p className="mt-0.5 line-clamp-2 break-words text-sm text-zinc-600 dark:text-zinc-400 [overflow-wrap:anywhere]">{row.description}</p>}
-    <dl className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-zinc-500 dark:text-zinc-400">{[['累計觀看',compact(row.views)],['喜歡',count(row.likes)],['留言',count(row.comments)]].map(([label,value])=><div className="flex gap-1" key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+    <Evidence row={row} href={href}/>
+    <dl className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-zinc-500 dark:text-zinc-400">{[['累計觀看',viewsText(row.views)],['喜歡',count(row.likes)],['留言',count(row.comments)]].map(([label,value])=><div className="flex gap-1" key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
    </div>
    <Link href={href} aria-label={`觀看影片：${title}`} className="mt-1 shrink-0 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"><VideoThumbnail videoId={row.id} title={title} width={96} height={54}/></Link>
   </li>;

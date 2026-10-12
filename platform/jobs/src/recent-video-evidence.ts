@@ -1,3 +1,5 @@
+import {loadDescriptionTemplateProfiles} from './description-templates.js';
+import {MATCH_RULE} from '../../shared/youtube-match-policy.js';
 import { createHash } from 'node:crypto';
 import type { Connection, RowDataPacket } from 'mysql2/promise';
 import { taipeiSql } from '@youtube-board/ingestion';
@@ -5,21 +7,22 @@ import { connectDatabase, withWriterLock } from './database.js';
 import { assertExecute, executionPolicy } from './policy.js';
 import { loadVocabularySnapshot } from './load-vocabulary.js';
 import { SOURCE } from './vocabulary.js';
-import { evidenceForVideo, storeVideoEvidence, VIDEO_EVIDENCE_JOB, type VideoInput } from './video-evidence.js';
+import { evidenceForVideo, storeVideoEvidence, storeUnavailableVideoQuality, VIDEO_EVIDENCE_JOB, type VideoInput } from './video-evidence.js';
 
 export const RECENT_VIDEO_EVIDENCE_JOB = 'tags.videos.match.recent';
 export const RECENT_VIDEO_EVIDENCE_COMMAND = 'videos:match:recent';
 export const RECENT_CHECKPOINT = 'recent-window-v1';
+export const recentCheckpointKey=(version?:string)=>version===undefined?RECENT_CHECKPOINT:'recent-candidate-'+createHash('sha256').update(version).digest('hex');
 const DAY = 86_400_000, REFRESH_MS = 6 * 3_600_000;
 interface Cursor { publishedAt: string; pk: number }
 export interface RecentCheckpoint {
-  schemaVersion: 1; generation: string; vocabularyVersion: string;
+  schemaVersion: 1|2; ruleVersion?:string; generation: string; vocabularyVersion: string;
   windowFrom: string; windowUntil: string; startedAt: string;
   cursor: Cursor | null; processed: number; written: number; unchanged: number; invalid: number;
   completedAt: string | null;
 }
 interface Budget { schemaVersion: 1; date: string; limit: number; reserved: number }
-export interface RecentMatchInput { limit: number; dailyLimit: number; execute: boolean }
+export interface RecentMatchInput { version?:string; limit: number; dailyLimit: number; execute: boolean }
 const integer = (value: unknown, min: number, max: number): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= min && value <= max;
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const iso = (value: unknown): value is string => typeof value === 'string' && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
@@ -28,28 +31,29 @@ function sqlTime(value: unknown): value is string {
   const date = new Date(value.replace(' ', 'T') + 'Z');
   return Number.isFinite(+date) && date.toISOString().slice(0, 19).replace('T', ' ') === value.slice(0, 19);
 }
-const generation = (version: string, from: string, until: string) => createHash('sha256').update(JSON.stringify([version, from, until])).digest('hex');
+const generation = (version: string, from: string, until: string,rule?:string) => createHash('sha256').update(JSON.stringify(rule?[version,from,until,rule]:[version, from, until])).digest('hex');
 export function validateRecentInput(input: RecentMatchInput): RecentMatchInput {
-  if (!integer(input.limit, 1, 500) || !integer(input.dailyLimit, 1, 50_000) || typeof input.execute !== 'boolean') throw new Error('Recent matching requires limit1–500 and daily-limit1–50000');
+  if (!integer(input.limit, 1, 500) || !integer(input.dailyLimit, 1, 50_000) || typeof input.execute !== 'boolean' || (input.version!==undefined&&(typeof input.version!=='string'||!/^[A-Za-z0-9_-]{1,100}$/.test(input.version)))) throw new Error('Recent matching requires limit1–500 and daily-limit1–50000');
   return input;
 }
 export function validateRecentArguments(args: string[]): RecentMatchInput {
   if (args[0] !== RECENT_VIDEO_EVIDENCE_COMMAND) throw new Error('Invalid recent matching command');
-  const options = new Map<string, number>(); let mode: string | undefined;
+  const options = new Map<string, number>(); let mode: string | undefined,version:string|undefined;
   for (const arg of args.slice(1)) {
     if (arg === '--execute' || arg === '--dry-run') { if (mode) throw new Error('Choose one recent matching mode'); mode = arg; continue; }
+    if(arg.startsWith('--version=')){if(version!==undefined)throw new Error('Duplicate recent matching version');version=arg.slice(10);continue;}
     const match = /^--(limit|daily-limit)=(\d+)$/.exec(arg);
     if (!match || options.has(match[1]!)) throw new Error('Invalid recent matching option');
     options.set(match[1]!, Number(match[2]));
   }
-  return validateRecentInput({ limit: options.get('limit') ?? 100, dailyLimit: options.get('daily-limit') ?? 5000, execute: mode === '--execute' });
+  return validateRecentInput({ limit: options.get('limit') ?? 100, dailyLimit: options.get('daily-limit') ?? 5000, execute: mode === '--execute',...(version===undefined?{}:{version}) });
 }
 export function parseRecentCheckpoint(raw: string): RecentCheckpoint {
   let value: unknown; try { value = JSON.parse(raw); } catch { throw new Error('Invalid recent matching checkpoint'); }
-  if (!record(value) || value.schemaVersion !== 1 || typeof value.vocabularyVersion !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(value.vocabularyVersion)
+  if (!record(value) || (value.schemaVersion!==1&&value.schemaVersion!==2) || (value.schemaVersion===1?value.ruleVersion!==undefined:typeof value.ruleVersion!=='string'||!/^[a-z0-9-]{1,40}$/.test(value.ruleVersion)) || typeof value.vocabularyVersion !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(value.vocabularyVersion)
     || !sqlTime(value.windowFrom) || !sqlTime(value.windowUntil) || !iso(value.startedAt)
     || value.windowFrom !== taipeiSql(new Date(Date.parse(value.startedAt) - 7 * DAY)) || value.windowUntil !== taipeiSql(new Date(value.startedAt))
-    || value.generation !== generation(value.vocabularyVersion, value.windowFrom, value.windowUntil)
+    || value.generation !== generation(value.vocabularyVersion, value.windowFrom, value.windowUntil,value.ruleVersion as string|undefined)
     || !['processed', 'written', 'unchanged', 'invalid'].every(key => integer(value[key], 0, Number.MAX_SAFE_INTEGER))
     || Number(value.processed) !== Number(value.written) + Number(value.unchanged) + Number(value.invalid)
     || !(value.completedAt === null || iso(value.completedAt) && Date.parse(value.completedAt) >= Date.parse(value.startedAt))) throw new Error('Invalid recent matching checkpoint');
@@ -66,12 +70,13 @@ function parseBudget(raw: string, date: string): Budget {
 export function planRecentWindow(previous: RecentCheckpoint | null, version: string, now: Date) {
   if (!Number.isFinite(+now) || !/^[A-Za-z0-9_-]{1,100}$/.test(version)) throw new Error('Invalid recent matching anchor');
   if (previous && +now < Date.parse(previous.completedAt ?? previous.startedAt)) throw new Error('Recent matching clock moved backwards');
-  const sameVersion = previous?.vocabularyVersion === version;
+  const sameVocabulary=previous?.vocabularyVersion===version,sameRule=previous?.schemaVersion===2&&previous.ruleVersion===MATCH_RULE;
+  const sameVersion = sameVocabulary&&sameRule;
   if (sameVersion && previous.completedAt === null) return { checkpoint: previous, action: 'resume' as const };
   if (sameVersion && previous.completedAt && +now - Date.parse(previous.completedAt) < REFRESH_MS && taipeiSql(now).slice(0, 10) === taipeiSql(new Date(previous.completedAt)).slice(0, 10)) return { checkpoint: previous, action: 'up-to-date' as const };
   const from = taipeiSql(new Date(+now - 7 * DAY)), until = taipeiSql(now);
-  const checkpoint: RecentCheckpoint = { schemaVersion: 1, generation: generation(version, from, until), vocabularyVersion: version, windowFrom: from, windowUntil: until, startedAt: now.toISOString(), cursor: null, processed: 0, written: 0, unchanged: 0, invalid: 0, completedAt: null };
-  return { checkpoint, action: previous && !sameVersion ? 'new-vocabulary' as const : 'new-window' as const };
+  const checkpoint: RecentCheckpoint = { schemaVersion: 2,ruleVersion:MATCH_RULE, generation: generation(version, from, until,MATCH_RULE), vocabularyVersion: version, windowFrom: from, windowUntil: until, startedAt: now.toISOString(), cursor: null, processed: 0, written: 0, unchanged: 0, invalid: 0, completedAt: null };
+  return { checkpoint, action: previous && !sameVocabulary ? 'new-vocabulary' as const : previous&&!sameRule?'new-rule' as const:'new-window' as const };
 }
 async function journal(db: Connection, key: string) {
   const [rows] = await db.query<RowDataPacket[]>('SELECT status,result FROM ts_job_runs WHERE job_key=? AND execution_key=?', [RECENT_VIDEO_EVIDENCE_JOB, key]);
@@ -81,8 +86,8 @@ async function journal(db: Connection, key: string) {
 async function save(db: Connection, key: string, status: string, value: unknown) {
   await db.execute('INSERT INTO ts_job_runs(job_key,execution_key,status,result) VALUES(?,?,?,?) ON DUPLICATE KEY UPDATE status=VALUES(status),result=VALUES(result)', [RECENT_VIDEO_EVIDENCE_JOB, key, status, JSON.stringify(value)]);
 }
-async function checkpoint(db: Connection, value: RecentCheckpoint) {
-  await save(db, RECENT_CHECKPOINT, value.completedAt ? 'completed' : 'running', value);
+async function checkpoint(db: Connection, value: RecentCheckpoint,key:string) {
+  await save(db, key, value.completedAt ? 'completed' : 'running', value);
 }
 /** Durable continuation lives in the existing TS journal, separate from source
  * ingestion. The first reservation fixes a day's upper budget; lowering a later
@@ -95,10 +100,11 @@ export async function continueRecentMatching(db: Connection, input: RecentMatchI
   validateRecentInput(input);
   if (!Number.isFinite(+now)) throw new Error('Invalid recent matching clock');
   const day = taipeiSql(now).slice(0, 10), budgetKey = `recent-budget-${day}`;
-  const [current] = await db.query<RowDataPacket[]>('SELECT c.run_id FROM ts_vocabulary_current c JOIN ts_vocabulary_runs r ON r.id=c.run_id WHERE c.source=? AND r.status=?', [SOURCE, 'published']);
+  const [current] = input.version?[[{run_id:input.version}]]:await db.query<RowDataPacket[]>('SELECT c.run_id FROM ts_vocabulary_current c JOIN ts_vocabulary_runs r ON r.id=c.run_id WHERE c.source=? AND r.status=?', [SOURCE, 'published']);
   if (!current.length) return { mode: input.execute ? 'execute' : 'dry-run', status: 'awaiting-vocabulary', action: 'awaiting-vocabulary', processed: 0, results: [] as Array<{pk:number;status:string;count:number}>, checkpoint: null, budget: null, vocabularyVersion: null, window: null, generation: null, refreshHours: 6, externalCalls: 0, sourceWrites: 0 };
   if (current.length !== 1 || typeof current[0]!.run_id !== 'string') throw new Error('Invalid current vocabulary identity');
-  const saved = await journal(db, RECENT_CHECKPOINT), prior = saved ? parseRecentCheckpoint(saved.result) : null;
+  const checkpointKey=recentCheckpointKey(input.version);
+  const saved = await journal(db, checkpointKey), prior = saved ? parseRecentCheckpoint(saved.result) : null;
   if (saved && saved.status !== (prior!.completedAt ? 'completed' : 'running')) throw new Error('Recent matching checkpoint status mismatch');
   const plan = planRecentWindow(prior, current[0]!.run_id, now), state = structuredClone(plan.checkpoint);
   const savedBudget = await journal(db, budgetKey), budget = savedBudget ? parseBudget(savedBudget.result, day) : { schemaVersion: 1 as const, date: day, limit: input.dailyLimit, reserved: 0 };
@@ -110,25 +116,27 @@ export async function continueRecentMatching(db: Connection, input: RecentMatchI
     processed, results, checkpoint: state, budget: { date: day, limit: cap, reserved: budget.reserved, remaining: Math.max(0, cap - budget.reserved) },
     externalCalls: 0, sourceWrites: 0, refreshHours: 6,
   });
+  const snapshot = await loadVocabularySnapshot(db, state.vocabularyVersion);
+  if(snapshot.matchingRule!==MATCH_RULE)return summary('awaiting-quality-vocabulary');
+  if (snapshot.id !== state.vocabularyVersion) throw new Error('Vocabulary identity mismatch');
   if (plan.action === 'up-to-date') return summary('up-to-date');
   if (!available) {
-    if (input.execute && plan.action !== 'resume') { await ownership(); await checkpoint(db, state); }
+    if (input.execute && plan.action !== 'resume') { await ownership(); await checkpoint(db, state,checkpointKey); }
     return summary('daily-budget-exhausted');
   }
-  const snapshot = await loadVocabularySnapshot(db, state.vocabularyVersion);
-  if (snapshot.id !== state.vocabularyVersion) throw new Error('Vocabulary identity mismatch');
   const take = Math.min(input.limit, available), cursor = state.cursor;
   // Use the publication index and exact source identity. Duplicate older source
   // rows must not overwrite evidence for a newer copy of the same video ID.
-  const [rows] = await db.query<RowDataPacket[]>(`SET STATEMENT max_statement_time=5 FOR SELECT v.pk,v.videoId,v.title,v.description,v.mtime,v.publishedAt FROM urt_video v
+  const [rows] = await db.query<RowDataPacket[]>(`SET STATEMENT max_statement_time=5 FOR SELECT v.pk,v.u_id,v.videoId,v.title,v.description,v.mtime,v.publishedAt FROM urt_video v
     WHERE v.publishedAt>=? AND v.publishedAt<? ${cursor ? 'AND (v.publishedAt<? OR (v.publishedAt=? AND v.pk<?))' : ''}
     AND NOT EXISTS (SELECT 1 FROM urt_video newer WHERE newer.videoId=v.videoId AND BINARY newer.videoId=BINARY v.videoId AND newer.pk>v.pk)
     ORDER BY v.publishedAt DESC,v.pk DESC LIMIT ?`, [state.windowFrom, state.windowUntil, ...(cursor ? [cursor.publishedAt, cursor.publishedAt, cursor.pk] : []), take + 1]);
   const selected = rows.slice(0, take), more = rows.length > take;
+  const profiles=await loadDescriptionTemplateProfiles(db,selected.map(row=>Number(row.u_id)).filter(id=>Number.isSafeInteger(id)&&id>0),state.windowUntil);
   if (input.execute) {
     await ownership();
     await db.beginTransaction();
-    try { budget.reserved += selected.length; await save(db, budgetKey, 'reserved', budget); await checkpoint(db, state); await db.commit(); }
+    try { budget.reserved += selected.length; await save(db, budgetKey, 'reserved', budget); await checkpoint(db, state,checkpointKey); await db.commit(); }
     catch (error) { await db.rollback().catch(() => {}); throw error; }
   }
   const results: Array<{ pk: number; status: string; count: number }> = [];
@@ -138,21 +146,21 @@ export async function continueRecentMatching(db: Connection, input: RecentMatchI
     const pk = Number(row.pk);
     if (!integer(pk, 1, Number.MAX_SAFE_INTEGER) || !sqlTime(row.publishedAt) || row.publishedAt < state.windowFrom || row.publishedAt >= state.windowUntil
       || state.cursor && (row.publishedAt > state.cursor.publishedAt || row.publishedAt === state.cursor.publishedAt && pk >= state.cursor.pk)) throw new Error('Invalid recent matching source order');
-    const video: VideoInput = { pk, videoId: row.videoId, title: row.title ?? '', description: row.description ?? '', observedAt: row.mtime ?? null };
-    let result: { status: string; count: number };
-    try { result = { status: 'preview', count: evidenceForVideo(video, snapshot).evidence.length }; }
-    catch { result = { status: 'invalid', count: 0 }; }
+    const video: VideoInput = { channelId:Number(row.u_id),pk, videoId: row.videoId, title: row.title ?? '', description: row.description ?? '', observedAt: row.mtime ?? null };
+    let result: { status: string; count: number;reason?:string };const profile=profiles.get(video.channelId);
+    try { if(!profile?.profile)throw new Error('Unavailable template profile');result = { status: 'preview', count: evidenceForVideo(video, snapshot,profile.profile).evidence.length }; }
+    catch { const reason=profile?.reason??'invalid-matching-input';if(input.execute)await storeUnavailableVideoQuality(db,video,snapshot,reason);result = { status: 'invalid', count: 0,reason }; }
     if (result.status === 'invalid') state.invalid++;
-    else if (input.execute) { result = await storeVideoEvidence(db, video, snapshot); if (result.status === 'written') state.written++; else state.unchanged++; }
+    else if (input.execute) { result = await storeVideoEvidence(db, video, snapshot,profile!.profile!); if (result.status === 'written') state.written++; else state.unchanged++; }
     else state.unchanged++; // Preview progress is returned only; no durable accounting changes.
     state.processed++; state.cursor = { publishedAt: row.publishedAt, pk };
-    if (input.execute) { await ownership(); await checkpoint(db, state); }
+    if (input.execute) { await ownership(); await checkpoint(db, state,checkpointKey); }
     results.push({ pk, ...result });
   }
   if (!more) {
     state.completedAt = clock().toISOString();
     if (Date.parse(state.completedAt) < +now) throw new Error('Recent matching clock moved backwards');
-    if (input.execute) { await ownership(); await checkpoint(db, state); }
+    if (input.execute) { await ownership(); await checkpoint(db, state,checkpointKey); }
   }
   return { ...summary(more ? input.execute && budget.reserved >= cap ? 'daily-budget-exhausted' : 'incomplete' : 'complete', selected.length, results), coverage: snapshot.coverage, wouldReserve: input.execute ? 0 : selected.length };
 }

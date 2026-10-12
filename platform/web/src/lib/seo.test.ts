@@ -33,7 +33,8 @@ test('private pages are noindex; query variants are noindex and canonical to the
   assert.deepEqual(filtered.robots,{index:false,follow:true},path);assert.equal(filtered.alternates?.canonical,absoluteUrl(reportCanonicalPath(segments)),path);
   assert.equal(filtered.alternates?.canonical,reportMetadata(value,segments).alternates?.canonical,path);assert.doesNotMatch(String(filtered.alternates?.canonical),/\?/,path);
  }
- assert.equal(filteredReportMetadata(route('/vocabulary').route,['vocabulary']).alternates?.canonical,'https://youtube.observe.tw/keywords');
+ assert.equal(filteredReportMetadata(route('/vocabulary').route,['vocabulary']).alternates?.canonical,'https://youtube.observe.tw/vocabulary');
+ assert.equal(filteredReportMetadata(route('/keywords').route,['keywords']).alternates?.canonical,'https://youtube.observe.tw/keywords');
  for(const file of ['src/app/my/layout.tsx','src/app/login/page.tsx','src/app/manage/page.tsx','src/app/boards/page.tsx','src/app/boards/view/page.tsx','src/app/ops/ingestion/page.tsx','src/app/observe/opt-out/page.tsx'])
   assert.match(source(file),/index:false|privateMetadata\(/,file);
  assert.match(source('src/app/events/page.tsx'),/metadata=filteredEventsMetadata\(\)/);
@@ -53,7 +54,10 @@ test('report titles are descriptive and unique per public path; names come only 
  const keyword=route('/keywords/%E4%BA%A4%E9%80%9A/videos');assert.equal(reportTitle(keyword.route,keyword.segments),'「交通」影片');
 });
 test('report metadata canonicalizes aliases and keeps prompt and comment-author pages out of the index',()=>{
- const vocab=route('/vocabulary');assert.equal(reportCanonicalPath(vocab.segments),'/keywords');assert.equal(reportMetadata(vocab.route,vocab.segments).alternates?.canonical,'https://youtube.observe.tw/keywords');
+ const vocab=route('/vocabulary');assert.equal(reportCanonicalPath(vocab.segments),'/vocabulary');assert.equal(reportMetadata(vocab.route,vocab.segments).alternates?.canonical,'https://youtube.observe.tw/vocabulary');
+ const ranking=route('/keywords');assert.equal(ranking.route.kind,'keyword-ranking');assert.equal(reportMetadata(ranking.route,ranking.segments).alternates?.canonical,'https://youtube.observe.tw/keywords');
+ const vocabCrumbs=reportBreadcrumbs(vocab.route,vocab.segments);assert.deepEqual(vocabCrumbs.map(c=>c.path),['/','/vocabulary']);assert.equal(vocabCrumbs[1]!.name,'詞彙觀測');assert.ok(vocabCrumbs.every(c=>c.path!=='/keywords'));
+ assert.deepEqual(reportBreadcrumbs(ranking.route,ranking.segments).map(c=>c.path),['/','/keywords']);
  const encoded=route('/keywords/%E4%BA%A4%E9%80%9A/videos');assert.equal(reportMetadata(encoded.route,encoded.segments).alternates?.canonical,'https://youtube.observe.tw/keywords/%E4%BA%A4%E9%80%9A/videos');
  for(const path of ['/channels/12/prompt','/comments/authors/someone']){const {route:value,segments}=route(path);const metadata=reportMetadata(value,segments);assert.deepEqual(metadata.robots,{index:false,follow:true},path);assert.equal(metadata.alternates?.canonical,absoluteUrl(path),path);}
  const crumbs=reportBreadcrumbs(route('/channels/12/videos').route,route('/channels/12/videos').segments,{kind:'channel',title:'某新聞台'});

@@ -19,6 +19,22 @@ const channel=object({id:{type:'integer'},youtubeId:str,title:str,thumbnail:null
 const live=object({...video.properties as Record<string,Schema>,currentViewers:num,todayPeak:num,allTimePeak:nullableNumber,startedAt:nullableTime,trend:array(object({time:time,value:num})),tags:array(ref('ChannelTag'))});
 const vocabularyTerm=object({key:str,term:str,articleCount:count,media:array(str),provenance:{const:'upstream-article-tag-origin-unspecified'}});
 const keywordSummary=object({sourceQuality:quality,vocabularyCoverage:enumString('observed-article-window','all-current-indexed-article-tags','unavailable'),vocabularyWindow:{anyOf:[object({since:time,until:time}),{type:'null'}]},source:{const:'https://tag.observe.tw'},version:nullableString,status:enumString('synchronized','not-synchronized','unavailable'),reason:nullableString,from:time,to:time,updatedAt:nullableTime,rows:array(object({key:str,term:str,videoCount:count,views:nullableNumber,unknownViewVideos:count})),sourceVideos:nullableNumber,freshVideos:nullableNumber,staleVideos:nullableNumber,unprocessedVideos:nullableNumber,metric:{const:'current-cumulative-views-of-window-published-videos'}},['vocabularyCoverage','vocabularyWindow','source','version','status','from','to','updatedAt','rows','sourceVideos','freshVideos','staleVideos','unprocessedVideos','metric']);
+// Additive F2 fields stay optional so existing v1 fixtures and clients remain valid.
+(video.properties as Record<string,Schema>).keywordEvidence={...array(object({term:str,field:enumString('title','description','caption'),snippet:str,start:count,end:count,snippetStart:count})),maxItems:3,description:'At most three fresh matching snippets for each of the first fifty keyword-result videos; offsets are UTF-16 positions in the original source. Absence means enrichment unavailable.'};
+(vocabularyTerm.properties as Record<string,Schema>).displayExclusion={...nullableString,description:'Explainable display exclusion code; null means eligible. Original vocabulary terms and evidence are retained.'};
+Object.assign(keywordSummary.properties as Record<string,Schema>,{
+ rankingMethod:{const:'youtube-channel-weighted-decay-v1',description:'Title weight 3, description-only weight 1; per-channel geometric decay 1, 0.5, 0.25…, with title matches first.'},
+ riseMethod:{const:'equal-duration-heat-delta'},ruleVersion:enumString('exact-text-v1','youtube-quality-v2'),
+ comparison:{anyOf:[object({from:time,to:time,complete:bool,sourceVideos:count,freshVideos:count,staleVideos:count,unprocessedVideos:count}),{type:'null'}]},
+ exclusions:{anyOf:[object({scope:{const:'fresh-window-matched-terms'},terms:count,reasons:{type:'object',additionalProperties:count},policyCommit:str,youtubePolicyVersion:str}),{type:'null'}]},
+});
+const keywordRow=((keywordSummary.properties as Record<string,Schema>).rows.items as Schema).properties as Record<string,Schema>;
+Object.assign(keywordRow,{
+ sourceTerms:array(object({key:str,term:str})),heatScore:{...num,minimum:0},rise:{...nullableNumber,description:'Current minus prior equal-duration heat; null when either period lacks complete matching coverage.'},
+ trend:array(object({date:{type:'string',format:'date'},heat:nullableNumber})),titleVideos:count,descriptionOnlyVideos:count,channelCount:count,
+ knownViews:{...count,description:'Subtotal of measured cumulative views only, not the full total when views is null.'},measuredViewVideos:count,
+ representativeVideoId:nullableString,thumbnail:nullableString,channel:{anyOf:[object({id:count,name:str,thumbnail:nullableString}),{type:'null'}]},
+});
 export const SCHEMAS:Record<string,Schema>={
  ReportMeta:object({schemaVersion:{const:1},requestedAt:time,updatedAt:nullableTime,timezone:{const:'Asia/Taipei'},source:{const:'mariadb'},dataset:enumString('fixture','live','unknown'),coverage,warnings:array(str)}),
  ApiError:object({error:str,code:str},['error']),

@@ -57,8 +57,8 @@ export function resolveRoute(segments: string[]): ReportRoute | null {
     if (full === "videos") return route("影片觀測", "videos");
     if (full === "tags/videos") return route("分類影片", "videos");
     if (full === "tags") return route("頻道分類", "tags");
-    if (full === "keywords" || full === "vocabulary")
-        return route("共同標籤詞彙", "vocabulary");
+    if (full === "keywords") return route("熱門標籤排行", "keyword-ranking");
+    if (full === "vocabulary") return route("共同標籤詞彙", "vocabulary");
     if (/^ai\/days\/\d+\/events\/history$/.test(full)) return route("跨日來源脈絡", "extended");
     if (/^ai\/events\/\d+\/wall$/.test(full)) return route("議題來源影片牆", "live-wall");
     if (/^live\/walls\/(news|china|alternate)$/.test(full)) return route("四窗直播", "live-wall");

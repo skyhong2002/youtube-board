@@ -1,5 +1,7 @@
 import type {HomeExploration,HomeKeywordSummary} from '../../../api/src/contracts';
 import {compact,count,dateTime} from './format';
+import {heatLabel,rankingBasis,riseLabel,viewsSummary} from './keyword-ranking';
+export {keywordCoverageLabel} from './keyword-ranking';
 /** A homepage edition is source time, never request/render time. */
 export function homeEdition(updatedAt:string|null,aiDate:string|null){
  for(const value of [updatedAt,aiDate]){if(!value)continue;const formatted=dateTime(value,true);if(formatted!=='未記錄')return `觀測資料 ${formatted}`;}
@@ -47,18 +49,18 @@ export function keywordRangeLabel(summary:Pick<HomeKeywordSummary,'from'|'to'>,w
  return `${window==='today'?'今日':'近七個日曆日'}發布：${dateTime(summary.from)} 至 ${dateTime(summary.to)}`;
 }
 export function keywordUpdatedLabel(summary:Pick<HomeKeywordSummary,'updatedAt'>){return summary.updatedAt?`比對更新 ${dateTime(summary.updatedAt)}`:'比對更新時間未記錄';}
-export function keywordCoverageLabel(summary:Pick<HomeKeywordSummary,'freshVideos'|'sourceVideos'|'unprocessedVideos'|'staleVideos'>){
- return `有效比對 ${count(summary.freshVideos)}／${count(summary.sourceVideos)} 支；待比對 ${count(summary.unprocessedVideos)} 支、來源文字已變動 ${count(summary.staleVideos)} 支`;
-}
 export function vocabularyCoverageLabel(summary:Pick<HomeKeywordSummary,'vocabularyCoverage'>|null){
  return summary?.vocabularyCoverage==='observed-article-window'?'目前詞彙取自上游文章觀測窗口，不代表完整詞庫。':summary?.vocabularyCoverage==='all-current-indexed-article-tags'?'目前使用上游已索引的完整標籤快照。':'共同詞彙目前尚無可確認的同步資料。';
 }
 /** Current cumulative views of the window's videos; null stays unknown, never zero. */
 export function keywordViewsLabel(row:Pick<HomeKeywordRow,'views'|'unknownViewVideos'>){
- return row.views===null?`未知（${count(row.unknownViewVideos)} 支尚無觀看值）`:`${compact(row.views)} 次${row.unknownViewVideos>0?`（另 ${count(row.unknownViewVideos)} 支尚無觀看值）`:''}`;
+ return row.views===null?`無觀看值（${count(row.unknownViewVideos)} 支）`:`${compact(row.views)} 次${row.unknownViewVideos>0?`（另 ${count(row.unknownViewVideos)} 支無觀看值）`:''}`;
 }
-/** Every ranked term (at most forty), weighted by its matched video count. */
+/** Every ranked term (at most forty) in API order, sized by heat; builds without the
+ * weighted method keep sizing by matched video count and say so. */
 export function homeKeywordCloudWords(rows:HomeKeywordRow[],summary:HomeKeywordSummary,window:KeywordWindow){
- const range=keywordRangeLabel(summary,window);
- return rows.filter(r=>r.videoCount>0).map((r,i)=>({label:r.term,count:r.videoCount,href:keywordVideosHref(r.term,summary),ariaLabel:`${r.term}，${period(window)} ${count(r.videoCount)} 支已比對影片`,tone:i<3?'brand' as const:'strong' as const,card:{rows:[['影片',`${count(r.videoCount)} 支`],['目前累計觀看',keywordViewsLabel(r)],['範圍',range],['比對','共同詞彙比對標題與說明']] as [string,string][]}}));
+ const range=keywordRangeLabel(summary,window),ranked=rows.filter(r=>r.videoCount>0),heat=rankingBasis(summary,ranked)==='heat';
+ return ranked.map((r,i)=>({label:r.term,count:heat?r.heatScore:r.videoCount,href:keywordVideosHref(r.term,summary),ariaLabel:heat?`${r.term}，${period(window)}熱度 ${heatLabel(r)}，${count(r.videoCount)} 支已比對影片`:`${r.term}，${period(window)} ${count(r.videoCount)} 支已比對影片`,tone:i<3?'brand' as const:'strong' as const,card:{rows:(heat
+  ?[['熱度',heatLabel(r)],['升溫',riseLabel(r,summary).text],['影片',`${count(r.videoCount)} 支・${count(r.channelCount)} 個頻道`],['目前累計觀看',viewsSummary(r)],['範圍',range]]
+  :[['影片',`${count(r.videoCount)} 支`],['目前累計觀看',keywordViewsLabel(r)],['範圍',range],['比對','共同詞彙比對標題與說明']]) as [string,string][]}}));
 }

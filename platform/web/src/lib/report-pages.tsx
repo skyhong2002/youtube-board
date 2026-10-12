@@ -33,7 +33,10 @@ import {
     type TagRow,
     type KeywordRow,
     type TopicRow,
+    type HomeData,
 } from "./api";
+import { KeywordRankingView } from "@/components/KeywordRanking";
+import { keywordTabs } from "@/components/VocabularyReport";
 import { first, compact, count, dateTime, youtubeUrl } from "./format";
 import {reportFilterPath,type ReportRoute} from "./routes";
 import {
@@ -161,6 +164,17 @@ export async function ReportPage({
     if (route.kind === "live-wall") return <LiveWall apiPath={route.apiPath} search={search} path={path} />;
     if (route.kind === "vocabulary")
         return <VocabularyReport search={search} path={path} />;
+    if (route.kind === "keyword-ranking") {
+        // Same public `home` read as the homepage, so both share one revalidated cache entry.
+        const result = await api<HomeData>("home");
+        if (!result.ok)
+            return <Failure status={result.status} title={route.title} />;
+        const { data, meta } = result.response;
+        return <KeywordRankingView exploration={data.exploration ?? {}} meta={meta}
+            initial={first(search.window) === "today" ? "today" : "week"}
+            notice={<DataNotice meta={meta} />}
+            tabs={<Tabs active={path} items={keywordTabs} />} />;
+    }
     if (["channels", "tag-channels"].includes(route.kind)) {
         const result = await api<import("@/lib/api").ChannelCollection>(route.apiPath, search);
         if (!result.ok)
@@ -192,6 +206,7 @@ export async function ReportPage({
             return <><Failure status={result.status} title={route.title} />{result.status===503&&first(search.q)?.trim()&&<><VideoSearchReadHint/><ReportFilters mode="videos" search={search} path={path}/></>}</>;
         const { data, meta } = result.response;
         if(route.kind==='keyword-videos'&&route.id)return <KeywordProfile keyword={route.id} description={route.description} data={data} meta={meta}
+            period={{from:first(search.from)??null,to:first(search.to)??null,days:first(search.days)??null}}
             notice={<DataNotice meta={meta}/>}
             tabs={<Tabs items={familyTabs(path,search,meta.coverage)} active={path}/>}
             filters={<ReportFilters mode="videos" search={search} path={path}/>}

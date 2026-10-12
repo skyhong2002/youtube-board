@@ -1,0 +1,33 @@
+import {asciiCaseFold} from './ascii-case.js';
+import noEqual from './tag-no-equal-tags.json' with {type:'json'};
+import {isTagNoise} from './tag-noise.js';
+/** Policies copied from tag-visuals 748978854035050c4de56e365ab94c178f4ddbe0.
+ * Display exclusions never delete vocabulary terms or matching evidence. */
+export const MATCH_RULE='youtube-quality-v2' as const;
+export const MATCH_FIELD_WEIGHTS={title:3,description:1} as const;
+export const TAG_POLICY_SOURCE={repository:'tag-visuals',commit:'748978854035050c4de56e365ab94c178f4ddbe0',files:['app/src/tag-noise.ts','app/data/no-equal-tags.json','app/src/v1/media-keywords.ts']} as const;
+const excluded=new Set<string>([...noEqual.tags,'國際','生活','政治','財經','兩岸','社會','地方','體育','娛樂','科技','新聞']);
+export const YOUTUBE_DISPLAY_POLICY_VERSION='youtube-platform-display-v1' as const;
+/** Operator-authorized display exclusions only. Terms and match evidence stay intact. */
+export const YOUTUBE_PLATFORM_DISPLAY_TERMS=['YouTube','FB','Facebook','IG','Instagram','LINE','訂閱','會員','下載','連結','分享','直播','LIVE','影片','全新','主播','頻道','節目','平台','資訊','家'] as const;
+const youtubeDisplayExcluded=new Set(YOUTUBE_PLATFORM_DISPLAY_TERMS.map(asciiCaseFold));
+export type TagDisplayExclusion='youtube-platform-or-promotion'|'upstream-length'|'upstream-no-equal-or-category'|'upstream-tag-noise'|'upstream-number-or-date'|'upstream-nonword';
+/** Exact media-keywords policy, including JS string length and case-sensitive noEqual. */
+export function tagDisplayExclusion(term:string):TagDisplayExclusion|null{
+ const value=term.trim();
+ if(youtubeDisplayExcluded.has(asciiCaseFold(value)))return 'youtube-platform-or-promotion';
+ if(value.length<2||value.length>30)return 'upstream-length';
+ if(excluded.has(value))return 'upstream-no-equal-or-category';
+ if(isTagNoise(value))return 'upstream-tag-noise';
+ if(/^\d+(?:年|月|日)?$/.test(value))return 'upstream-number-or-date';
+ if(!/[\p{L}\p{N}]/u.test(value))return 'upstream-nonword';
+ return null;
+}
+/** Only a display grouping key; never a replacement source label or evidence key. */
+export function tagDisplayGroup(term:string):string{return asciiCaseFold(term);}
+
+/** Immutable snapshot metadata selects readers; legacy data remains usable before cutover. */
+export function matchingRuleForSnapshot(snapshot:{matchingRule?:unknown}):'exact-text-v1'|typeof MATCH_RULE {
+ if(snapshot.matchingRule===undefined||snapshot.matchingRule==='exact-text-v1')return 'exact-text-v1';
+ if(snapshot.matchingRule===MATCH_RULE)return MATCH_RULE;throw new Error('Unknown vocabulary matching rule');
+}

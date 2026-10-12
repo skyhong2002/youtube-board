@@ -5,7 +5,8 @@
  * still fill the gaps between large ones; a spiral samples too sparsely far
  * from the centre for a few hundred terms.
  * The text-only subset of the parent site's lib/word-cloud.mts, including the
- * masthead's hole/clear boxes; the YouTube homepage weights are matched video counts.
+ * masthead's hole/clear boxes; the YouTube homepage weights are keyword heat scores
+ * (matched video counts while the API has not published heat).
  */
 export interface CloudTerm {
   label: string;

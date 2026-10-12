@@ -257,7 +257,9 @@
   .rankBody { flex: 1; flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
   .rankBody small { white-space: nowrap; }
   .rankTrend { flex-direction: row; align-items: center; gap: 8px; }
-  .journalists a { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto; align-items: center; padding: 10px 12px; }
+  /* The name may take up to ~55% so the category cell keeps room for a one-line ellipsis. */
+  .journalists a { grid-template-columns: fit-content(55%) minmax(0, 1fr) auto; grid-template-rows: auto; align-items: center; padding: 10px 12px; }
+  .journalistName > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .journalistOutlets { grid-row: 1; grid-column: 2; }
   .journalistCount { grid-row: 1; grid-column: 3; flex-direction: row; align-items: baseline; gap: 6px; }
 }
@@ -346,7 +348,8 @@
 .cloudCaption { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 12px; margin-top: 8px; }
 .cloudCaption .panelNote { flex-basis: 100%; }
 
-.journalistOutlets { font-size: 11px; color: var(--muted); }
+/* Category names stay on one line, cut with an ellipsis (full text in title); never one character per line. */
+.journalistOutlets { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--muted); }
 /* Channel activity: the cached avatar shares the name's line centre. */
 .journalistName { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .journalistName > span:last-child { min-width: 0; overflow-wrap: anywhere; }

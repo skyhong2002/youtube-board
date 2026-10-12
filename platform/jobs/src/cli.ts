@@ -1,3 +1,4 @@
+import {handleQualityCli} from './quality-cli.js';
 import { RECENT_VIDEO_EVIDENCE_COMMAND, validateRecentArguments, matchRecentVideoBatch } from './recent-video-evidence.js';
 import {planVocabularyBackfill} from './vocabulary-plan.js';
 import { assertReportCacheSchema } from './report-schema.js';
@@ -26,6 +27,7 @@ const args = process.argv.slice(2);
 const command = args[0] ?? 'help';
 const option = (name: string) => args.find(a => a.startsWith(`--${name}=`))?.slice(name.length + 3);
 async function main() {
+  if(await handleQualityCli(args,process.env))return;
   if (command === 'scheduler:tick') {
     const seen = new Set<string>();
     for (const arg of args.slice(1)) {

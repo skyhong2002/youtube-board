@@ -5,10 +5,14 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import type {HomeKeywordSummary} from '../../../api/src/contracts';
 import {homeEdition,homeKeywordCloudWords,homeKeywordState,homeKeywordSummary,keywordVideosHref,keywordViewsLabel,visibleHomeKeywords} from './home-presentation';
 import {KeywordWindowPane,KeywordWindowProvider,KeywordWindowSwitch} from '../app/_home/KeywordWindow';
-const summary=(patch:Partial<HomeKeywordSummary>={}):HomeKeywordSummary=>({vocabularyCoverage:'observed-article-window',vocabularyWindow:null,source:'https://tag.observe.tw',version:'run-1',status:'synchronized',reason:null,from:'2026-10-06T00:00:00+08:00',to:'2026-10-12T09:30:00+08:00',updatedAt:'2026-10-12T01:00:00.000Z',rows:[],sourceVideos:10,freshVideos:8,staleVideos:1,unprocessedVideos:1,metric:'current-cumulative-views-of-window-published-videos',...patch});
-const row=(i:number,patch:Partial<HomeKeywordSummary['rows'][number]>={}):HomeKeywordSummary['rows'][number]=>({key:`k${i}`,term:`詞${i}`,videoCount:50-i,views:1000*i,unknownViewVideos:0,...patch});
+type Row=HomeKeywordSummary['rows'][number];
+const summary=(patch:Partial<HomeKeywordSummary>={}):HomeKeywordSummary=>({vocabularyCoverage:'observed-article-window',vocabularyWindow:null,source:'https://tag.observe.tw',version:'run-1',status:'synchronized',reason:null,from:'2026-10-06T00:00:00+08:00',to:'2026-10-12T09:30:00+08:00',updatedAt:'2026-10-12T01:00:00.000Z',rows:[],sourceVideos:10,freshVideos:8,staleVideos:1,unprocessedVideos:1,metric:'current-cumulative-views-of-window-published-videos',rankingMethod:'youtube-channel-weighted-decay-v1',riseMethod:'equal-duration-heat-delta',ruleVersion:'youtube-quality-v2',comparison:null,exclusions:null,...patch});
+const row=(i:number,patch:Partial<Row>={}):Row=>({key:`k${i}`,term:`詞${i}`,sourceTerms:[{key:`k${i}`,term:`詞${i}`}],videoCount:50-i,views:1000*i,unknownViewVideos:0,knownViews:1000*i,measuredViewVideos:50-i,heatScore:100-i,channelCount:3,titleVideos:1,descriptionOnlyVideos:49-i,rise:null,trend:[],representativeVideoId:null,thumbnail:null,channel:null,...patch});
+/** A pre-F2 API: no method flags and rows without heat. Typed loosely on purpose; the UI must still read it honestly. */
+const legacySummary=(patch:Partial<HomeKeywordSummary>={})=>{const {rankingMethod:_m,riseMethod:_r,ruleVersion:_v,comparison:_c,exclusions:_e,...rest}=summary(patch);return rest as unknown as HomeKeywordSummary;};
+const legacyRow=(i:number,patch:Partial<Pick<Row,'views'|'unknownViewVideos'>>={})=>({key:`k${i}`,term:`詞${i}`,videoCount:50-i,views:1000*i,unknownViewVideos:0,...patch}) as unknown as Row;
 test('home edition uses recorded observation time with Taipei dates and a neutral missing state',()=>{assert.match(homeEdition('2026-10-10T18:00:00Z','2026-10-08'),/2026\/10\/11/);assert.match(homeEdition(null,'2026-10-08'),/2026\/10\/08/);assert.equal(homeEdition(null,null),'持續觀察 YouTube 公共討論');assert.equal(homeEdition('invalid',null),'持續觀察 YouTube 公共討論');});
-test('unavailable or unsynchronized home vocabulary never exposes old rows as current',()=>{const rows=[{key:'news',term:'新聞',videoCount:3,views:null,unknownViewVideos:3}];assert.deepEqual(visibleHomeKeywords({status:'unavailable',rows}),[]);assert.deepEqual(visibleHomeKeywords({status:'not-synchronized',rows}),[]);assert.equal(visibleHomeKeywords({status:'synchronized',rows}),rows);});
+test('unavailable or unsynchronized home vocabulary never exposes old rows as current',()=>{const rows=[row(1,{key:'news',term:'新聞',videoCount:3,views:null,unknownViewVideos:3,measuredViewVideos:0,knownViews:0})];assert.deepEqual(visibleHomeKeywords({status:'unavailable',rows}),[]);assert.deepEqual(visibleHomeKeywords({status:'not-synchronized',rows}),[]);assert.equal(visibleHomeKeywords({status:'synchronized',rows}),rows);});
 test('today and week are read from their own summaries; an older API without keywordToday is unknown, not empty',()=>{
  const week=summary({rows:[row(1)]}),today=summary({from:'2026-10-12T00:00:00+08:00',rows:[row(2)]});
  assert.equal(homeKeywordSummary({keywords:week,keywordToday:today},'today'),today);
@@ -37,15 +41,25 @@ test('keyword links keep the selected Taipei publication dates',()=>{
  assert.equal(keywordVideosHref('x',{from:'invalid',to:'2026-10-12T00:00:00+08:00'}),'/keywords/x/videos');
  assert.equal(keywordVideosHref('x',null),'/keywords/x/videos');
 });
-test('the cloud keeps all forty ranked terms weighted by video count and unknown views are never zero',()=>{
- const rows=Array.from({length:40},(_,i)=>row(i+1));rows[5]={...rows[5]!,views:null,unknownViewVideos:2};
+test('the cloud keeps all forty ranked terms sized by heat; a null view total is 無觀看值 with a labelled subtotal',()=>{
+ const rows=Array.from({length:40},(_,i)=>row(i+1));rows[5]={...rows[5]!,views:null,unknownViewVideos:2,measuredViewVideos:rows[5]!.videoCount-2};
  const words=homeKeywordCloudWords(rows,summary({from:'2026-10-12T00:00:00+08:00',rows}),'today');
- assert.equal(words.length,40);assert.deepEqual(words.map(w=>w.count),rows.map(r=>r.videoCount));
+ assert.equal(words.length,40);assert.deepEqual(words.map(w=>w.count),rows.map(r=>r.heatScore));
  assert.ok(words.every(w=>w.href.endsWith('?from=2026-10-12&to=2026-10-12')));
  assert.deepEqual(words.map(w=>w.tone).slice(0,4),['brand','brand','brand','strong']);
- const unknown=words[5]!.card.rows.find(([k])=>k==='目前累計觀看')?.[1];assert.match(unknown??'',/未知（2 支尚無觀看值）/);
- assert.equal(keywordViewsLabel({views:0,unknownViewVideos:0}),'0 次');
+ const unknown=words[5]!.card.rows.find(([k])=>k==='目前累計觀看')?.[1]??'';assert.match(unknown,/^無觀看值（已知小計 .+ 次・2 支缺值）$/);
+ assert.equal(words[0]!.card.rows.find(([k])=>k==='熱度')?.[1],'99.0');assert.equal(words[0]!.card.rows.find(([k])=>k==='升溫')?.[1],'資料不足');
  assert.ok(words.every(w=>w.card.rows.every(([,v])=>!/AI|增量|文章/.test(v))));
+});
+test('legacy summaries without the weighted method keep video-count sizing and never claim heat',()=>{
+ const rows=Array.from({length:40},(_,i)=>legacyRow(i+1));rows[5]=legacyRow(6,{views:null,unknownViewVideos:2});
+ const words=homeKeywordCloudWords(rows,legacySummary({from:'2026-10-12T00:00:00+08:00',rows}),'today');
+ assert.equal(words.length,40);assert.deepEqual(words.map(w=>w.count),rows.map(r=>r.videoCount));
+ assert.ok(words.every(w=>!w.card.rows.some(([k])=>k==='熱度'||k==='升溫')));
+ const unknown=words[5]!.card.rows.find(([k])=>k==='目前累計觀看')?.[1];assert.match(unknown??'',/無觀看值（2 支）/);assert.doesNotMatch(unknown??'',/^0/);
+ assert.equal(keywordViewsLabel({views:0,unknownViewVideos:0}),'0 次');
+ // Heat present on rows but no method flag: still not labelled as heat.
+ const flagless=homeKeywordCloudWords([row(1)],legacySummary({rows:[row(1)]}),'week');assert.equal(flagless[0]!.count,row(1).videoCount);
 });
 test('the window switch is a labelled radio group and only the selected pane renders',()=>{
  const panes=(extra?:ReactNode)=>createElement(Fragment,null,extra,createElement(KeywordWindowPane,{window:'today',children:'TODAY-PANE'}),createElement(KeywordWindowPane,{window:'week',children:'WEEK-PANE'}));

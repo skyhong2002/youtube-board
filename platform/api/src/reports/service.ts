@@ -1,4 +1,8 @@
-import {keywordCandidateSource, latestKeywordVideo} from './keyword-candidates.js';
+import {homeResultCache} from './home-result-cache.js';
+import {matchingRuleForSnapshot} from '../../../shared/youtube-match-policy.js';
+import {maintainedKeywordIdentities} from './keyword-alias.js';
+import {enrichKeywordEvidence} from './keyword-evidence.js';
+import {keywordCandidateSource, keywordIdentityPredicate, latestKeywordVideo} from './keyword-candidates.js';
 import {keywordVideoCache} from './keyword-video-cache.js';
 import {createHash} from 'node:crypto';
 import {eventReport} from './event-report.js';
@@ -34,6 +38,7 @@ const channelSelect = sql `c.u_id,c.youtube_id,c.title,c.thumbnails,c.descriptio
   CASE WHEN n.u_id IS NULL THEN c.viewCount ELSE n.viewCount END AS viewCount,CASE WHEN n.u_id IS NULL THEN c.subscriberCount ELSE n.subscriberCount END AS subscriberCount,
   CASE WHEN n.u_id IS NULL THEN c.videoCount ELSE n.videoCount END AS videoCount,n.view_week,n.view_month,n.sub_week,n.sub_month,n.video_week,n.video_month,n.views_pred_week,n.views_pred_month,n.tags,n.mtime AS count_mtime`;
 export function reports(reader: Reader, clock: () => Date = () => new Date()): ReportService {
+    const cachedHome=homeResultCache();
     const cachedKeywordVideos=keywordVideoCache<VideoCollection>({cacheable:(value,query)=>query.cursor===undefined&&value.totalStatus!=='unavailable'&&value.evidenceCoverage?.coverageStatus!=='unavailable'});
     const names = async () => new Map((await reader.rows(sql `SELECT tag_id,tag_name FROM urt_tag ORDER BY tag_id`)).map(r => [integer(r.tag_id) ?? 0, text(r.tag_name)]));
     const channelWhere = (query: Query): SQL => {
@@ -81,18 +86,20 @@ export function reports(reader: Reader, clock: () => Date = () => new Date()): R
       ${hours === null ? sql `` : sql `AND v.publishedAt>=${taipeiSql(new Date(now.getTime() - hours * 3600000))}`}
       ${min === null ? sql `` : sql `AND v.viewCount>=${min}`}
       ${dayFrom===null?sql``:sql`AND v.publishedAt>=${dayFrom+' 00:00:00'} AND v.publishedAt<=${taipeiDate(now)+' 23:59:59'}`}`;
-        const version = keyword ? text((await reader.rows(sql `SELECT c.run_id FROM ts_vocabulary_current c JOIN ts_vocabulary_runs r ON r.id=c.run_id AND r.status='published' WHERE c.source='https://tag.observe.tw' LIMIT 1`))[0]?.run_id) || null : null;
+        const pinned = keyword ? (await reader.rows(sql `SELECT c.run_id,JSON_UNQUOTE(JSON_EXTRACT(r.snapshot,'$.matchingRule')) AS matching_rule FROM ts_vocabulary_current c JOIN ts_vocabulary_runs r ON r.id=c.run_id AND r.status='published' WHERE c.source='https://tag.observe.tw' LIMIT 1`))[0] : undefined;
+        const version=pinned?text(pinned.run_id)||null:null,rule=matchingRuleForSnapshot({matchingRule:pinned?.matching_rule??undefined});
         if (keyword && !version)
             return { rows: [], total: 0, hasNext:false,totalStatus:'exact',limit, offset, evidenceCoverage: { status: 'not-synchronized', vocabularyVersion: null } };
-        const fresh = sql `m.source_pk=v.pk AND BINARY m.source_text_sha256=BINARY ${videoTextDigest()}`;
+        const fresh = sql `m.rule_version=${rule} AND m.source_pk=v.pk AND BINARY m.source_text_sha256=BINARY ${videoTextDigest()}`;
         // utf8mb4_bin still uses PAD SPACE equality; an upstream label with a
         // trailing space must not match another exact vocabulary identity.
         const keywordKey=keyword?createHash('sha256').update('https://tag.observe.tw\0'+keyword).digest('hex'):null;
-        const evidence = sql `EXISTS(SELECT 1 FROM ts_video_tag_evidence e WHERE e.video_id=m.video_id AND BINARY e.video_id=BINARY m.video_id AND e.vocabulary_version=${version} AND e.term_key=${keywordKey} AND BINARY e.term=BINARY ${keyword})`;
+        const identities=keyword&&version?await maintainedKeywordIdentities(reader,version,keyword):[];
+        const evidence = sql `EXISTS(SELECT 1 FROM ts_video_tag_evidence e WHERE e.video_id=m.video_id AND BINARY e.video_id=BINARY m.video_id AND e.vocabulary_version=${version} AND e.rule_version=${rule} AND ${keywordIdentityPredicate(identities)})`;
         const where = sql `${scope} ${keyword ? sql `AND EXISTS(SELECT 1 FROM ts_video_tag_matches m WHERE m.video_id=CONVERT(v.videoId USING ascii) AND BINARY m.video_id=BINARY v.videoId AND m.vocabulary_version=${version} AND ${fresh} AND ${evidence}) AND ${latestKeywordVideo()}` : sql ``}`;
         const fields=sql`v.pk,v.videoId,v.u_id,LEFT(v.channelId,128) AS channelId,LEFT(v.channelTitle,256) AS channelTitle,LEFT(v.title,512) AS title,LEFT(v.thumbnails,2048) AS thumbnails,v.publishedAt,v.viewCount,v.likeCount,v.commentCount,v.dislikeCount,v.mtime,v.ctime,LEFT(n.tags,4096) AS tags`;
         const order=sql`${sql.identifier('v')}.${sql.identifier(column)} DESC,v.pk DESC`;
-        const source=keyword ? keywordCandidateSource(version!, keywordKey!, keyword) : sql`FROM urt_video v LEFT JOIN urt_count n ON n.u_id=v.u_id`;
+        const source=keyword ? keywordCandidateSource(version!, keywordKey!, keyword,identities) : sql`FROM urt_video v LEFT JOIN urt_count n ON n.u_id=v.u_id`;
         const selection=async():Promise<{rows:Row[];hasNext:boolean}>=>{
             // The single-column metric index can stop at the requested boundary.
             // Include every tie at that boundary before applying the original pk
@@ -126,7 +133,7 @@ export function reports(reader: Reader, clock: () => Date = () => new Date()): R
         const coverage=async():Promise<Row[]|null>=>{
             if(!keyword)return [];
             if(omitHistoricalCoverage)return null;
-            try{return await reader.rows(sql `SELECT COUNT(*) AS sourceVideos,COALESCE(SUM(m.video_id IS NULL),0) AS unprocessedVideos,COALESCE(SUM(m.video_id IS NOT NULL AND (${fresh})),0) AS freshVideos,COALESCE(SUM(m.video_id IS NOT NULL AND NOT(${fresh})),0) AS staleVideos FROM urt_video v LEFT JOIN urt_count n ON n.u_id=v.u_id LEFT JOIN ts_video_tag_matches m ON m.video_id=CONVERT(v.videoId USING ascii) AND BINARY m.video_id=BINARY v.videoId AND m.vocabulary_version=${version} WHERE ${scope}`);}
+            try{return await reader.rows(sql `SELECT COUNT(*) AS sourceVideos,COALESCE(SUM(m.video_id IS NULL),0) AS unprocessedVideos,COALESCE(SUM(m.video_id IS NOT NULL AND (${fresh})),0) AS freshVideos,COALESCE(SUM(m.video_id IS NOT NULL AND NOT(${fresh})),0) AS staleVideos FROM urt_video v LEFT JOIN urt_count n ON n.u_id=v.u_id LEFT JOIN ts_video_tag_matches m ON m.video_id=CONVERT(v.videoId USING ascii) AND BINARY m.video_id=BINARY v.videoId AND m.vocabulary_version=${version} WHERE ${scope} AND ${latestKeywordVideo()}`);}
             catch(error){if(error instanceof DataSourceUnavailable)return null;throw error;}
         };
         const [selected, counted, coverageRows] = await Promise.all([selection(),count(),coverage()]);
@@ -134,6 +141,7 @@ export function reports(reader: Reader, clock: () => Date = () => new Date()): R
         const c = coverageRows?.[0];
         const listingScope=keyword?'keyword':requestedScope??(channelId!==null?'channel':idList(query.tagid).length||idList(query.or).length||idList(query.not).length?'taxonomy':'general');
         const enriched=await enrichVideoListings(reader,rows,listingScope,listingScope==='taxonomy'?await names():new Map());
+        if(keyword&&version)await enrichKeywordEvidence(reader,enriched,version,rule,identities);
         return { rows: enriched, total,hasNext,totalStatus, limit, offset,evidenceCoverage:{totalStatus,...(keyword? { status: 'synchronized', vocabularyVersion: version, coverageStatus:omitHistoricalCoverage?'not-calculated':coverageRows===null?'unavailable':'available',sourceVideos:coverageRows===null?null:integer(c?.sourceVideos) ?? 0, freshVideos:coverageRows===null?null:integer(c?.freshVideos) ?? 0, staleVideos:coverageRows===null?null:integer(c?.staleVideos) ?? 0, unprocessedVideos:coverageRows===null?null:integer(c?.unprocessedVideos) ?? 0, keywordMatchedVideos: total }:{})} };
     };
     const liveRows = (query: Query = {}) => currentLive(reader,query,clock,names);
@@ -191,11 +199,11 @@ export function reports(reader: Reader, clock: () => Date = () => new Date()): R
             return { video: video(r), commentSummary:summarizeVideoComments(comments[0]), durationSeconds: integer(durations[0]?.duration), captionAvailable: caption == null ? null : caption === 'true' || caption === '1', history: [...history.values()].sort((a, b) => a.date.localeCompare(b.date)), liveHistory: [...liveHistory.values()].sort((a, b) => a.time.localeCompare(b.time)) };
         },
         aiEvent: (id,event)=>eventReport(reader,aiDays,id,event),
-        home: async () => {
+        home: () => cachedHome(async () => {
             const [channels, tags, live, days, exploration, totals] = await Promise.all([channelsRows({ limit: '12' }), tagRows({ limit: '20' }).then(v => ({rows:v.rows,status:'available' as const})).catch(error => {if(error?.statusCode===422)return {rows:[],status:'bounded' as const};throw error;}), liveRows({ limit: '20' }), aiDays(), homeExploration(reader, clock()), reader.rows(sql `SELECT (SELECT COUNT(*) FROM urt_channel WHERE flag_del IS NULL OR flag_del<1) AS channels,(SELECT COUNT(*) FROM urt_video) AS videos,(SELECT COALESCE(SUM(view_week),0) FROM urt_count) AS weeklyViews,(SELECT COUNT(DISTINCT u_id) FROM urt_video_live WHERE actualEndTime IS NULL AND concurrentViewers>0 AND mtime>=${taipeiSql(new Date(clock().getTime() - 3600000))}) AS liveChannels,(SELECT COALESCE(SUM(concurrentViewers),0) FROM urt_video_live WHERE actualEndTime IS NULL AND concurrentViewers>0 AND mtime>=${taipeiSql(new Date(clock().getTime() - 3600000))}) AS liveViewers`)]);
             const t = totals[0] ?? {};
             return { exploration, summary: { channels: integer(t.channels) ?? 0, videos: integer(t.videos) ?? 0, weeklyViews: integer(t.weeklyViews) ?? 0, liveChannels: integer(t.liveChannels) ?? 0, liveViewers: integer(t.liveViewers) ?? 0 }, channels: channels.rows, tags: tags.rows, tagsStatus:tags.status, live: live.rows, events: days.rows, aiDate: days.date };
-        },
+        }),
     };
     return api;
 }

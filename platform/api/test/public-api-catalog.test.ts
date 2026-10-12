@@ -49,6 +49,13 @@ describe('public catalog and OpenAPI contracts',()=>{
   expect(SCHEMAS.VideoCollection).not.toHaveProperty('properties.nextCursor');
   expect(renderApiDocs()).not.toContain('每分鐘1000次');
  });
+ it('validates additive F2 evidence without coercing unknown views',()=>{
+  const endpoint=PUBLIC_ENDPOINTS.find(e=>e.path==='/api/v1/videos')!,validate=responseValidator(endpoint),example=structuredClone(endpoint.example) as {data:{rows:Record<string,unknown>[]}};
+  const row=example.data.rows[0]!;row.views=null;row.keywordEvidence=[{term:'交通',field:'title',snippet:'城市交通規劃',start:2,end:4,snippetStart:0}];
+  expect(validate(example),JSON.stringify(validate.errors)).toBe(true);expect(row.views).toBeNull();
+  row.keywordEvidence=Array(4).fill((row.keywordEvidence as unknown[])[0]);expect(validate(example)).toBe(false);
+  row.keywordEvidence=[{term:'交通',field:'invented',snippet:'城市交通規劃',start:2,end:4,snippetStart:0}];expect(validate(example)).toBe(false);
+ });
  it('shared field traversal resolves refs and terminates recursive schemas',()=>{const fields=openApiFields(ref('VideoCollection'),SCHEMAS);expect(fields).toContainEqual(expect.objectContaining({path:'rows[].publishedAt',type:'string | null',required:true}));expect(openApiFields(ref('Loop'),{Loop:{type:'object',properties:{next:ref('Loop')}}})).toContainEqual(expect.objectContaining({path:'next',type:'recursive reference'}));});
  it('standalone registration does not require auth, provider probes or a database URL',async()=>{const app=Fastify();registerApiMetadata(app,{meta:()=>({...EXAMPLE_META} as ReportMeta)});try{expect((await app.inject('/api/v1')).statusCode).toBe(200);}finally{await app.close();}});
 });

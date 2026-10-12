@@ -976,6 +976,7 @@ The machine-readable spec is authoritative for complete constraints. Additive fi
 | `rows[].comments` | number \| null | yes |  |
 | `rows[].updatedAt` | string \| null | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
 | `rows[].youtubeUrl` | string | yes |  |
+| `rows[].keywordEvidence` | array | no | At most three fresh matching snippets for each of the first fifty keyword-result videos; offsets are UTF-16 positions in the original source. Absence means enrichment unavailable. |
 | `total` | integer \| null | yes |  |
 | `limit` | integer | yes |  |
 | `offset` | integer | yes |  |
@@ -1032,6 +1033,7 @@ The machine-readable spec is authoritative for complete constraints. Additive fi
 | `rows[].articleCount` | integer | yes |  |
 | `rows[].media` | array | yes |  |
 | `rows[].provenance` | string | yes |  |
+| `rows[].displayExclusion` | string \| null | no | Explainable display exclusion code; null means eligible. Original vocabulary terms and evidence are retained. |
 | `total` | integer | yes |  |
 | `limit` | integer | yes |  |
 | `offset` | integer | yes |  |
@@ -1158,6 +1160,11 @@ The machine-readable spec is authoritative for complete constraints. Additive fi
 | `exploration.keywords.staleVideos` | number \| null | yes |  |
 | `exploration.keywords.unprocessedVideos` | number \| null | yes |  |
 | `exploration.keywords.metric` | string | yes |  |
+| `exploration.keywords.rankingMethod` | string | no | Title weight 3, description-only weight 1; per-channel geometric decay 1, 0.5, 0.25…, with title matches first. |
+| `exploration.keywords.riseMethod` | string | no |  |
+| `exploration.keywords.ruleVersion` | string | no |  |
+| `exploration.keywords.comparison` | union | no |  |
+| `exploration.keywords.exclusions` | union | no |  |
 | `exploration.keywordToday` | object | yes |  |
 | `exploration.keywordToday.sourceQuality` | object | no |  |
 | `exploration.keywordToday.vocabularyCoverage` | string | yes |  |
@@ -1175,6 +1182,11 @@ The machine-readable spec is authoritative for complete constraints. Additive fi
 | `exploration.keywordToday.staleVideos` | number \| null | yes |  |
 | `exploration.keywordToday.unprocessedVideos` | number \| null | yes |  |
 | `exploration.keywordToday.metric` | string | yes |  |
+| `exploration.keywordToday.rankingMethod` | string | no | Title weight 3, description-only weight 1; per-channel geometric decay 1, 0.5, 0.25…, with title matches first. |
+| `exploration.keywordToday.riseMethod` | string | no |  |
+| `exploration.keywordToday.ruleVersion` | string | no |  |
+| `exploration.keywordToday.comparison` | union | no |  |
+| `exploration.keywordToday.exclusions` | union | no |  |
 | `exploration.categories` | object | yes |  |
 | `exploration.categories.status` | string | yes |  |
 | `exploration.categories.reason` | string \| null | yes |  |

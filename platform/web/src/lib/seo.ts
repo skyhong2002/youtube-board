@@ -49,8 +49,8 @@ export type Crumb = { name: string; path: string };
 const FAMILY_ROOTS: Record<string, Crumb> = {
   videos: { name: '影片觀測', path: '/videos' },
   channels: { name: '頻道觀測', path: '/channels' },
-  keywords: { name: '共同標籤詞彙', path: '/keywords' },
-  vocabulary: { name: '共同標籤詞彙', path: '/keywords' },
+  keywords: { name: '熱門標籤排行', path: '/keywords' },
+  vocabulary: { name: '詞彙觀測', path: '/vocabulary' },
   tags: { name: '頻道分類', path: '/tags' },
   live: { name: '即時直播觀測', path: '/live/current' },
   ai: { name: '每日公共議題', path: '/ai/days' },
@@ -67,8 +67,8 @@ const GROUP_SECTIONS: Record<string, string> = { ranking: '排行', trends: '趨
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const reportPath = (segments: string[]) => '/' + segments.map(encodeURIComponent).join('/');
-/** One indexable URL per report: the keywords alias points at /keywords. */
-export const reportCanonicalPath = (segments: string[]) => segments.length === 1 && segments[0] === 'vocabulary' ? '/keywords' : reportPath(segments);
+/** One indexable URL per report. /keywords (ranking) and /vocabulary (original pool) are distinct pages. */
+export const reportCanonicalPath = (segments: string[]) => reportPath(segments);
 /** Account-free but not worth indexing: prompt previews and per-person comment pages. */
 export const reportIndexable = (route: ReportRoute, segments: string[]) => route.kind !== 'prompt-preview' && segments[0] !== 'comments';
 

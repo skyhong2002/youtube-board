@@ -20,6 +20,14 @@ import {
     Tabs,
 } from "./ReportUI";
 import { splitEvidence, tagEvidenceRenderable } from "@/lib/evidence";
+import { DESCRIPTION_TEMPLATE_NOTE, TAG_SOURCE_ATTRIBUTION, displayExclusionLabel } from "@/lib/keyword-ranking";
+import MethodDisclosure from "./MethodDisclosure";
+/** Shared by /keywords (ranking) and /vocabulary (complete original pool). */
+export const keywordTabs = [
+    { href: "/keywords", label: "熱門標籤排行" },
+    { href: "/vocabulary", label: "原始詞彙池" },
+    { href: "/tags", label: "頻道分類" },
+];
 export async function VocabularyReport({
     search,
     path,
@@ -39,18 +47,12 @@ export async function VocabularyReport({
                 meta={meta}
             />
             <DataNotice meta={meta} />
-            <Tabs
-                active={path}
-                items={[
-                    { href: path, label: "共同內容詞彙" },
-                    { href: "/tags", label: "頻道分類" },
-                ]}
-            />
+            <Tabs active={path} items={keywordTabs} />
             <aside className={ui.note}>
                 <p>
-                    詞彙來自{" "}
-                    <a href="https://tag.observe.tw">新文易數 tag.observe.tw</a>{" "}
-                    已觀測文章的標籤；來源系統可能使用媒體原生標籤或規則補標，無法逐詞確認是否由記者標註。
+                    <a className={ui.link} href="https://tag.observe.tw">{TAG_SOURCE_ATTRIBUTION}</a>
+                    。詞彙為已觀測文章的標籤；來源系統可能使用媒體原生標籤或規則補標，無法逐詞確認是否由記者標註。
+                    這裡列出完整的原始詞彙池，包含不列入熱門標籤排行的詞；排除只影響排行顯示，詞彙與比對證據不會刪除。
                     {data.coverage === "all-current-indexed-article-tags"
                         ? "本次涵蓋上游目前已索引文章的標籤，不代表全部可能詞彙或完整人工分類詞典。"
                         : "目前是指定文章時間窗的觀測詞彙，並非完整詞庫。"}
@@ -107,6 +109,7 @@ export async function VocabularyReport({
                             <tr>
                                 <th className={table.leadHead}>內容詞彙</th>
                                 <th className={table.num}>新聞文章數</th>
+                                <th className={table.cell}>排行顯示</th>
                                 <th className={table.cell}>觀測媒體</th>
                                 <th className={table.cell}>跨平台探索</th>
                             </tr>
@@ -121,6 +124,9 @@ export async function VocabularyReport({
                                     </td>
                                     <td className={table.num}>
                                         {count(term.articleCount)}
+                                    </td>
+                                    <td className={table.cell + (term.displayExclusion ? " text-amber-800 dark:text-amber-300" : " text-zinc-600 dark:text-zinc-400")}>
+                                        {displayExclusionLabel(term.displayExclusion)}
                                     </td>
                                     <td className={table.cell}>
                                         <div className="flex items-center gap-1.5">
@@ -182,29 +188,16 @@ export async function VocabularyReport({
                 />
             )}
             <Pagination collection={data} search={search} path={path} />
-            {data.version && (
-                <details
-                    style={{
-                        marginTop: 16,
-                        fontSize: 12,
-                        color: "var(--muted)",
-                    }}
-                >
-                    <summary>同步版本與範圍</summary>
-                    <p style={{ overflowWrap: "anywhere" }}>
-                        版本：{data.version}
-                        <br />
-                        範圍：
-                        {data.coverage === "all-current-indexed-article-tags"
-                            ? "上游目前已索引文章的標籤"
-                            : "文章時間窗內已觀測到的標籤"}
-                        ；
-                        {data.upstreamSnapshotConsistent
-                            ? "上游提供版本固定的快照。"
-                            : "上游讀取不保證同一時間的完整快照。"}
-                    </p>
-                </details>
-            )}
+            <MethodDisclosure>
+                <p>{TAG_SOURCE_ATTRIBUTION}。{data.coverage === "all-current-indexed-article-tags"
+                    ? "範圍為上游目前已索引文章的標籤。"
+                    : `範圍為上游文章時間窗${data.window ? `（${dateTime(data.window.since)} 至 ${dateTime(data.window.until)}）` : ""}內已觀測到的標籤，不是新文易數全部歷史文章的完整標籤庫。`}
+                    {data.upstreamSnapshotConsistent ? "上游提供版本固定的快照。" : "上游讀取不保證同一時間的完整快照。"}</p>
+                <p>「排行顯示」說明這個詞能否列入熱門標籤排行。不列入的原因包括：新聞分類詞或上游排除詞、上游判定的雜訊標籤、純數字或日期、長度不在 2–30 字、不含文字或數字，以及 YouTube 平台或宣傳用語。這些規則沿用 tag.observe.tw 的標籤顯示規則；被排除的詞仍完整保留在這份詞彙池，比對證據也不刪除。</p>
+                <p>{DESCRIPTION_TEMPLATE_NOTE}</p>
+                {data.sourceQuality && <p>上游標籤正規化：保留 {count(data.sourceQuality.normalizedTags)} 個、捨棄 {count(data.sourceQuality.rejectedTags)} 個格式不符的標籤（涉及 {count(data.sourceQuality.articlesWithRejectedTags)} 篇文章）。</p>}
+                <p style={{ overflowWrap: "anywhere" }}>同步版本：{data.version || "尚未同步"}</p>
+            </MethodDisclosure>
         </>
     );
 }
@@ -218,7 +211,7 @@ export async function VideoTagEvidence({ videoId }: { videoId: string }) {
     );
     if (!result.ok || !tagEvidenceRenderable(result.response.data))
         return (
-            <aside className={ui.note}>
+            <aside id="keyword-evidence" className={ui.note + " scroll-mt-20"}>
                 <p>共同標籤的比對證據暫時無法讀取。</p>
             </aside>
         );
@@ -230,7 +223,7 @@ export async function VideoTagEvidence({ videoId }: { videoId: string }) {
         stale: "影片內容或詞彙版本已更新，以下是前次比對結果",
     };
     return (
-        <section className={ui.panel}>
+        <section id="keyword-evidence" className={ui.panel + " scroll-mt-20"}>
             <h2 className="text-base font-semibold">共同標籤與比對依據</h2>
             <p>
                 {statuses[data.status] ?? "比對狀態尚未確認"}。
@@ -256,7 +249,9 @@ export async function VideoTagEvidence({ videoId }: { videoId: string }) {
                                             ? "影片標題"
                                             : evidence.field === "description"
                                               ? "影片說明"
-                                              : "來源文字"}
+                                              : evidence.field === "caption"
+                                                ? "字幕"
+                                                : "來源文字"}
                                     </span>
                                 </div>
                                 <p

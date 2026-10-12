@@ -17,6 +17,7 @@ export interface VocabularySnapshot {
   coverage: 'observed-article-window' | 'all-current-indexed-article-tags'; upstreamSnapshotConsistent: boolean; becameCurrent?: boolean;
   upstreamSnapshotId?: string; upstreamGeneratedAt?: string; upstreamChecksum?: string;
   termsStoredSeparately?: boolean; termCount?: number; upstreamManifest?: ExportManifest; localPayloadChecksum?: string;
+  matchingRule?:'exact-text-v1'|'youtube-quality-v2';
   terms: VocabularyTerm[];
   /** Counts of source tag occurrences; absent on snapshots published before quality accounting. */
   sourceQuality?: VocabularySourceQuality;

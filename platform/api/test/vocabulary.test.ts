@@ -9,14 +9,14 @@ describe('published vocabulary and source evidence', () => {
     it('keywords alias keeps the same freshness and provenance as vocabulary', async () => { const row = { id: 'window-v1', snapshot: JSON.stringify({ terms: [], publishedAt: '2026-10-11T00:00:00Z', coverage: 'observed-article-window' }) }, app = buildApp({ reader: queueReader([[row], [row]]), dataset: 'fixture', clock: () => new Date('2026-10-11T00:00:00Z') }); const a = (await app.inject('/api/v1/vocabulary')).json(), b = (await app.inject('/api/v1/keywords')).json(); expect(a.meta).toEqual(b.meta); expect(a.meta.dataset).toBe('fixture'); expect(a.meta.updatedAt).toBeTruthy(); expect(a.meta.warnings[0]).toContain('來源未逐詞'); await app.close(); });
     it('source fingerprint is shared with matcher and title changes mark historical evidence stale', async () => {
         for (const stale of [false, true]) {
-            const title = stale ? 'new title' : 'original', reader = queueReader([[{ pk: 1, videoId: 'Aa', title, description: 'description' }], [{ run_id: 'v1' }], [{ source_pk: 1, matched_epoch: Date.parse('2026-10-11T00:00:00Z'), source_text_sha256: sourceTextFingerprint('original', 'description') }], []]);
+            const title = stale ? 'new title' : 'original', reader = queueReader([[{ pk: 1, videoId: 'Aa', title, description: 'description' }], [{ run_id: 'v1' }], [{ source_pk: 1, rule_version:'exact-text-v1', matched_epoch: Date.parse('2026-10-11T00:00:00Z'), source_text_sha256: sourceTextFingerprint('original', 'description') }], []]);
             const r = await videoTagEvidence(reader, 'Aa');
             expect(r.status).toBe(stale ? 'stale' : 'matched');
             expect(r.matchedAt).toBe('2026-10-11T00:00:00.000Z');
         }
     });
     it('does not show evidence when there is no published current run', async () => { const r = await videoTagEvidence(queueReader([[{ pk: 1, videoId: 'Aa', title: 'title', description: '' }], []]), 'Aa'); expect(r.status).toBe('not-synchronized'); expect(r.rows).toEqual([]); });
-    it('a null evidence timestamp is not the Unix epoch', async () => { const r = await videoTagEvidence(queueReader([[{ pk: 1, videoId: 'Aa', title: 'title', description: '' }], [{ run_id: 'v1' }], [{ source_pk: 1, matched_epoch: null, source_text_sha256: sourceTextFingerprint('title', '') }], []]), 'Aa'); expect(r.matchedAt).toBeNull(); });
+    it('a null evidence timestamp is not the Unix epoch', async () => { const r = await videoTagEvidence(queueReader([[{ pk: 1, videoId: 'Aa', title: 'title', description: '' }], [{ run_id: 'v1' }], [{ source_pk: 1, rule_version:'exact-text-v1', matched_epoch: null, source_text_sha256: sourceTextFingerprint('title', '') }], []]), 'Aa'); expect(r.matchedAt).toBeNull(); });
     it('keyword list explicitly identifies missing synchronization', async () => {
         const app = buildApp({ reader: queueReader([[]]) });
         try {

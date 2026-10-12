@@ -6,10 +6,12 @@ import {reports} from '../src/reports/service.js';
 import {buildApp} from '../src/app.js';
 import {keywordCandidateSource} from '../src/reports/keyword-candidates.js';
 const dialect=new MySqlDialect();
-function fixture(options:{coverageError?:Error;selectionError?:Error;empty?:boolean}={}){
+function fixture(options:{coverageError?:Error;selectionError?:Error;empty?:boolean;quality?:boolean}={}){
  const queries:Array<ReturnType<typeof dialect.sqlToQuery>>=[];
  const reader:Reader={async rows<T extends Row>(q:SQL){const query=dialect.sqlToQuery(q);queries.push(query);let rows:Row[]=[];
-  if(query.sql.includes('SELECT c.run_id'))rows=[{run_id:'published-v1'}];
+  if(query.sql.includes('SELECT c.run_id'))rows=[{run_id:'published-v1',...(options.quality?{matching_rule:'youtube-quality-v2'}:{})}];
+  else if(query.sql.includes('AS alias_snapshot_bytes'))rows=[{alias_snapshot_bytes:500,separate_terms:'true'}];
+  else if(query.sql.includes('SELECT term_key,term FROM ts_vocabulary_terms'))rows=[{term_key:'a'.repeat(64),term:'AI'},{term_key:'b'.repeat(64),term:'ai'},{term_key:'c'.repeat(64),term:'rare'}];
   else if(query.sql.includes('AS sourceVideos')){if(options.coverageError)throw options.coverageError;rows=[{sourceVideos:1000000,freshVideos:1,staleVideos:2,unprocessedVideos:999997}];}
   else if(query.sql.includes('MIN(boundary')){if(options.selectionError)throw options.selectionError;rows=[{cutoff:options.empty?null:'2026-10-11 00:00:00',selected:options.empty?0:1,nulls:0}];}
   else if(query.sql.startsWith('SELECT COUNT(*) AS total'))rows=[{total:options.empty?0:1}];
@@ -31,7 +33,7 @@ it('uses candidate-first source for selection and count without requiring a date
  expect(selection).toHaveLength(3);
  for(const q of selection){
   expect(q.sql).toContain('FROM (SELECT DISTINCT e.video_id');expect(q.sql).toContain('m.source_pk=v.pk');expect(q.sql).toContain('BINARY m.source_text_sha256=BINARY SHA2');
-  expect(q.sql).toContain('AND BINARY e.term=BINARY ?');expect(q.sql).toContain('newer.pk>v.pk');expect(q.sql).toContain('BINARY newer.videoId=BINARY v.videoId');expect(q.sql).not.toContain('rule_version=');
+  expect(q.sql).toContain('AND BINARY e.term=BINARY ?');expect(q.sql).toContain('newer.pk>v.pk');expect(q.sql).toContain('BINARY newer.videoId=BINARY v.videoId');expect(q.sql).toContain('rule_version=');
  }
  const boundary=selection.find(q=>q.sql.includes('MIN(boundary'))!;expect(boundary.params.at(-1)).toBe(51);
  const rows=selection.find(q=>q.sql.startsWith('SELECT v.pk'))!;expect(rows.params.slice(-2)).toEqual([51,0]);
@@ -68,4 +70,11 @@ it('omits all-history coverage without scanning, preserving exact cached rows an
  const f=fixture({coverageError:new Error('must never scan')});const service=reports(f.reader);
  for(let i=0;i<2;i++){const result=await service.videos({keyword:'rare'});expect(result.total).toBe(1);expect(result.evidenceCoverage).toMatchObject({coverageStatus:'not-calculated',sourceVideos:null,keywordMatchedVideos:1});}
  expect(f.queries.some(q=>q.sql.includes('AS sourceVideos'))).toBe(false);expect(f.queries.filter(q=>q.sql.includes('MIN(boundary'))).toHaveLength(1);
+});
+
+it.each([false,true])('rule quality=%s resolves actual case-alias pool keys and retains candidate-first freshness guards',async quality=>{
+ const f=fixture({quality});await reports(f.reader).videos({keyword:'Ai'});
+ const queries=f.queries.filter(q=>q.sql.includes('MIN(boundary')||q.sql.startsWith('SELECT COUNT(*) AS total'));
+ expect(queries).toHaveLength(2);
+ for(const q of queries){expect(q.sql).toContain('SELECT DISTINCT e.video_id');expect(q.sql).toContain('STRAIGHT_JOIN urt_video v ON v.videoId=CONVERT');expect(q.params).toContain('a'.repeat(64));expect(q.params).toContain('b'.repeat(64));expect(q.params).toContain('AI');expect(q.params).toContain('ai');expect(q.params).toContain(quality?'youtube-quality-v2':'exact-text-v1');expect(q.params).not.toContain('Ai');}
 });

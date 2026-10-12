@@ -1,19 +1,20 @@
 import { expect, it } from 'vitest';
-import { randomUUID } from 'node:crypto';
+import { randomUUID,createHash } from 'node:crypto';
 import type { Connection, RowDataPacket } from 'mysql2/promise';
 import { isolatedTestEnv } from '../../shared/test-database.js';
 import { connectDatabase, withWriterLock } from '../src/database.js';
 import { SOURCE, aggregateTerms, type VocabularySnapshot } from '../src/vocabulary.js';
-import { VIDEO_EVIDENCE_JOB } from '../src/video-evidence.js';
-import { RECENT_VIDEO_EVIDENCE_JOB, RECENT_CHECKPOINT, validateRecentArguments, validateRecentInput, planRecentWindow, parseRecentCheckpoint, continueRecentMatching, matchRecentVideoBatch } from '../src/recent-video-evidence.js';
+import { VIDEO_EVIDENCE_JOB,VIDEO_QUALITY_JOB } from '../src/video-evidence.js';
+import { RECENT_VIDEO_EVIDENCE_JOB, RECENT_CHECKPOINT, recentCheckpointKey, validateRecentArguments, validateRecentInput, planRecentWindow, parseRecentCheckpoint, continueRecentMatching, matchRecentVideoBatch } from '../src/recent-video-evidence.js';
 import { validateWorkflowInput } from '../src/workflow-registry.js';
 import { planSchedules, type ScheduleConfig } from '../src/scheduler.js';
 const now = new Date('2090-01-10T04:00:00.000Z');
 const input = { limit: 2, dailyLimit: 20, execute: true };
-it('bounds CLI and queue arguments and refuses an operator-pinned version/window bypass', () => {
+it('bounds CLI candidate selection while queue ownership retains its narrow option allowlist', () => {
   expect(validateRecentArguments(['videos:match:recent'])).toEqual({ limit: 100, dailyLimit: 5000, execute: false });
   expect(validateRecentArguments(['videos:match:recent', '--limit=500', '--daily-limit=20000', '--execute'])).toEqual({ limit: 500, dailyLimit: 20000, execute: true });
-  for (const args of [['--limit=501'], ['--limit=0'], ['--daily-limit=50001'], ['--version=old'], ['--after-pk=0'], ['--execute', '--dry-run'], ['--limit=1', '--limit=2']]) expect(() => validateRecentArguments(['videos:match:recent', ...args])).toThrow();
+  for (const args of [['--limit=501'], ['--limit=0'], ['--daily-limit=50001'], ['--version=../old'], ['--version='], ['--version=a','--version=b'], ['--after-pk=0'], ['--execute', '--dry-run'], ['--limit=1', '--limit=2']]) expect(() => validateRecentArguments(['videos:match:recent', ...args])).toThrow();
+  expect(validateRecentArguments(['videos:match:recent','--version=candidate_v2'])).toMatchObject({version:'candidate_v2'});
   expect(() => validateRecentInput({ ...input, execute: 'true' as unknown as boolean })).toThrow();
   expect(() => validateWorkflowInput(RECENT_VIDEO_EVIDENCE_JOB, { options: { limit: 501 } })).toThrow();
   expect(() => validateWorkflowInput(VIDEO_EVIDENCE_JOB, { options: { limit: 501 } })).toThrow();
@@ -56,7 +57,7 @@ async function fixture(work: (value: Fixture) => Promise<void>) {
   await db.execute('DELETE FROM ts_job_runs WHERE job_key=?', [RECENT_VIDEO_EVIDENCE_JOB]);
   const publish = async (id: string) => {
     versions.push(id);
-    const snapshot: VocabularySnapshot = { id, source: SOURCE, window: { since: '2090-01-08T16:00:00.000Z', until: '2090-01-09T16:00:00.000Z' }, publishedAt: now.toISOString(), coverage: 'observed-article-window', upstreamSnapshotConsistent: false, terms: aggregateTerms([{ id: '1', media: 'cna', publishedAt: '2090-01-09T00:00:00.000Z', tags: ['台灣'] }]) };
+    const snapshot: VocabularySnapshot = { id, source: SOURCE, window: { since: '2090-01-08T16:00:00.000Z', until: '2090-01-09T16:00:00.000Z' }, publishedAt: now.toISOString(), matchingRule:'youtube-quality-v2', coverage: 'observed-article-window', upstreamSnapshotConsistent: false, terms: aggregateTerms([{ id: '1', media: 'cna', publishedAt: '2090-01-09T00:00:00.000Z', tags: ['台灣'] }]) };
     await db.execute('INSERT INTO ts_vocabulary_runs(id,window_since,window_until,status,snapshot) VALUES(?,?,?,?,?)', [id, snapshot.window!.since, snapshot.window!.until, 'published', JSON.stringify(snapshot)]);
     await db.execute('INSERT INTO ts_vocabulary_current(source,run_id) VALUES(?,?) ON DUPLICATE KEY UPDATE run_id=VALUES(run_id)', [SOURCE, id]);
   };
@@ -67,7 +68,7 @@ async function fixture(work: (value: Fixture) => Promise<void>) {
   try { await publish(version); await work({ db, version, base, publish, add, run }); }
   finally {
     await db.execute('DELETE FROM urt_video WHERE pk>=? AND pk<?', [base, base + 100]);
-    for (const id of versions) await db.execute('DELETE FROM ts_video_tag_matches WHERE vocabulary_version=?', [id]);
+    for (const id of versions) {await db.execute("DELETE FROM ts_job_runs WHERE job_key=? AND JSON_UNQUOTE(JSON_EXTRACT(result,'$.vocabularyVersion'))=?",[VIDEO_QUALITY_JOB,id]);await db.execute('DELETE FROM ts_video_tag_matches WHERE vocabulary_version=?', [id]);}
     if (previous[0]) await db.execute('UPDATE ts_vocabulary_current SET run_id=? WHERE source=?', [previous[0].run_id, SOURCE]);
     else await db.execute('DELETE FROM ts_vocabulary_current WHERE source=?', [SOURCE]);
     for (const id of versions) await db.execute('DELETE FROM ts_vocabulary_runs WHERE id=?', [id]);
@@ -77,6 +78,14 @@ async function fixture(work: (value: Fixture) => Promise<void>) {
   }
 }
 const dbIt = it.skipIf(process.env.JOBS_DB_TEST !== '1');
+dbIt('rule upgrade restarts old continuation without resetting its consumed daily budget',async()=>fixture(async({db,add,run,version,base})=>{
+ await add(1,'2090-01-09 10:00:00');await add(2,'2090-01-09 11:00:00');
+ const first=await run({limit:1});expect(first.budget?.reserved).toBe(1);
+ const state={...first.checkpoint!,schemaVersion:1,ruleVersion:undefined};state.generation=createHash('sha256').update(JSON.stringify([state.vocabularyVersion,state.windowFrom,state.windowUntil])).digest('hex');
+ await db.execute('UPDATE ts_job_runs SET result=? WHERE job_key=? AND execution_key=?',[JSON.stringify(state),RECENT_VIDEO_EVIDENCE_JOB,RECENT_CHECKPOINT]);
+ await db.execute("UPDATE ts_video_tag_matches SET rule_version='exact-text-v1' WHERE vocabulary_version=?",[version]);
+ const second=await run({limit:1});expect(second.action).toBe('new-rule');expect(second.results).toMatchObject([{pk:base+2,status:'written'}]);expect(second.budget?.reserved).toBe(2);expect(second.checkpoint?.processed).toBe(1);
+}));
 dbIt('persists publication/tie cursors across batches, bounds Taipei timestamps and ignores old mtime', async () => fixture(async ({ db, add, run, base }) => {
   await add(1, '2090-01-03 12:00:00'); await add(2, '2090-01-09 10:00:00'); await add(3, '2090-01-09 10:00:00');
   await add(4, '2090-01-03 11:59:59'); await add(5, '2090-01-10 12:00:00');
@@ -118,7 +127,7 @@ dbIt('does not continue charged work across Taipei midnight and advances malform
   await add(1, '2090-01-09 10:00:00'); await add(2, '2090-01-09 11:00:00', 'invalid-id');
   const at = new Date('2090-01-10T15:59:59.000Z'); let calls = 0;
   const first = await run({}, at, undefined, () => ++calls === 1 ? at : new Date('2090-01-10T16:00:00.000Z'));
-  expect(first.status).toBe('day-boundary'); expect(first.results).toEqual([{ pk: base + 2, status: 'invalid', count: 0 }]); expect(first.budget?.reserved).toBe(2);
+  expect(first.status).toBe('day-boundary'); expect(first.results).toEqual([{ pk: base + 2, status: 'invalid', count: 0,reason:'invalid-matching-input' }]); expect(first.budget?.reserved).toBe(2);
   const second = await run({}, new Date('2090-01-10T16:00:00.000Z')); expect(second.results?.[0]?.pk).toBe(base + 1); expect(second.budget?.reserved).toBe(1); expect(second.checkpoint?.invalid).toBe(1);
 }));
 dbIt('retains a no-vocabulary waiting state without creating journals or false completion', async () => fixture(async ({ db, run }) => {
@@ -149,3 +158,20 @@ dbIt('shares the one-off writer lock so both matchers cannot publish concurrentl
     expect((await run({}, now, contender)).status).toBe('complete');
   } finally { await contender.end(); }
 }));
+it('isolates candidate checkpoints while sharing the ordinary daily reservation and immutable cap',async()=>{
+ const seen:Array<{query:string;params:unknown[]}>=[],writes:Array<unknown[]>=[];
+ const snapshot={id:'candidate-v2',source:SOURCE,terms:[],matchingRule:'youtube-quality-v2'};
+ const db={query:async(query:string,params:unknown[])=>{
+  seen.push({query,params});
+  if(query.includes('SELECT snapshot'))return [[{snapshot:JSON.stringify(snapshot)}]];
+  if(params.includes('recent-budget-2090-01-10'))return [[{status:'reserved',result:JSON.stringify({schemaVersion:1,date:'2090-01-10',limit:20,reserved:20})}]];
+  return [[]];
+ },execute:async(_query:string,params:unknown[])=>{writes.push(params);return [{}];}} as unknown as Connection;
+ const result=await continueRecentMatching(db,{...input,version:snapshot.id,dailyLimit:50000},now,async()=>{});
+ expect(result.status).toBe('daily-budget-exhausted');expect(result.budget).toMatchObject({limit:20,reserved:20,remaining:0});
+ expect(seen.some(r=>r.query.includes('ts_vocabulary_current'))).toBe(false);
+ expect(seen.some(r=>r.params.includes(recentCheckpointKey(snapshot.id)))).toBe(true);
+ expect(seen.some(r=>r.params.includes(RECENT_CHECKPOINT))).toBe(false);
+ expect(writes).toHaveLength(1);expect(writes[0]?.[1]).toBe(recentCheckpointKey(snapshot.id));
+ expect(recentCheckpointKey()).toBe(RECENT_CHECKPOINT);expect(recentCheckpointKey('other')).not.toBe(recentCheckpointKey(snapshot.id));
+});

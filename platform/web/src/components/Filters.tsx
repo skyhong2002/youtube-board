@@ -71,7 +71,7 @@ export function ReportFilters({
                         <label className={ui.label}>最近開始直播（小時）<input className={ui.input} name="hours" type="number" min="1" max="168" defaultValue={first(search.hours)||''} placeholder="不限開始時間" /></label>
                     </>)}
                     {mode === "videos" && (<>
-                        {keywordVideos&&<label className={ui.label}>關鍵字往前日數<input className={ui.input} name="days" type="number" min="1" max="90" defaultValue={first(search.days)||''} placeholder="不限；7 表示今天加前七天" /></label>}
+                        {keywordVideos&&<label className={ui.label}>關鍵字往前日數<input className={ui.input} name="days" type="number" min="1" max="90" defaultValue={first(search.days)||''} placeholder="不限；7 表示含今天共 8 個日曆日" /></label>}
                         <label className={ui.label}>排序<select className={ui.input} name="column" defaultValue={first(search.column)||'publishedAt'}><option value="publishedAt">最新發布</option><option value="viewCount">觀看數</option><option value="likeCount">喜歡數</option><option value="commentCount">留言數</option></select></label>
                         <label className={ui.label}>最近幾小時<input className={ui.input} name="hours" type="number" min="1" max="8760" defaultValue={first(search.hours)||''} placeholder="不限期間" /></label>
                         <label className={ui.label}>至少觀看數<input className={ui.input} name="min" type="number" min="0" max="9007199254740991" defaultValue={first(search.min)||''} placeholder="不限" /></label>

@@ -1732,6 +1732,11 @@
           "SELECT",
           "INSERT",
           "DELETE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
         ]
       },
       "dependencies": []

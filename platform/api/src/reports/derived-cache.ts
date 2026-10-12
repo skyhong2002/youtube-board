@@ -1,3 +1,5 @@
+import {matchingRuleForSnapshot} from '../../../shared/youtube-match-policy.js';
+import {keywordTextContains} from './keyword-alias.js';
 import {sql} from 'drizzle-orm';
 import {DataSourceUnavailable,type Reader,type Row} from '../db/client.js';
 import {idList,tagFilter,type Query} from './query.js';
@@ -17,8 +19,8 @@ export async function loadDerivedSource(reader:Reader,q:Query,from:string,to:str
  const coverage=initialDerivedCoverage(keyword),result:DerivedSource={videos:[],channelCount:0,coverage};
  try {
  if(!keyword&&!idList(q.tagid).length&&!idList(q.or).length){coverage.status='taxonomy-required';return result;}
- const current=()=>reader.rows(sql`SELECT r.id,JSON_EXTRACT(r.snapshot,'$.coverage') AS coverage FROM ts_vocabulary_current c JOIN ts_vocabulary_runs r ON r.id=c.run_id AND r.status='published' WHERE c.source=${SOURCE} LIMIT 1`);
- const pin=(await current())[0];if(!pin)return result;coverage.version=text(pin.id);coverage.coverage=text(pin.coverage).replace(/^"|"$/g,'');if(!['observed-article-window','all-current-indexed-article-tags'].includes(coverage.coverage)){coverage.status='invalid-vocabulary';return result;}
+ const current=()=>reader.rows(sql`SELECT r.id,JSON_EXTRACT(r.snapshot,'$.coverage') AS coverage,JSON_UNQUOTE(JSON_EXTRACT(r.snapshot,'$.matchingRule')) AS matching_rule FROM ts_vocabulary_current c JOIN ts_vocabulary_runs r ON r.id=c.run_id AND r.status='published' WHERE c.source=${SOURCE} LIMIT 1`);
+ const pin=(await current())[0];if(!pin)return result;const rule=matchingRuleForSnapshot({matchingRule:pin.matching_rule??undefined});coverage.version=text(pin.id);coverage.coverage=text(pin.coverage).replace(/^"|"$/g,'');if(!['observed-article-window','all-current-indexed-article-tags'].includes(coverage.coverage)){coverage.status='invalid-vocabulary';return result;}
  const readChannels=()=>reader.rows(sql`SELECT c.u_id FROM urt_channel c LEFT JOIN urt_count n ON n.u_id=c.u_id WHERE (c.flag_del IS NULL OR c.flag_del<1) AND ${tagFilter(q)} ORDER BY c.u_id LIMIT 5001`);
  // Keyword fallback selects only potential literal matches before any payload/hash
  // budget. Unmatched unrelated videos cannot suppress every keyword on the site.
@@ -29,7 +31,7 @@ export async function loadDerivedSource(reader:Reader,q:Query,from:string,to:str
  const channelScope=keyword?sql`EXISTS(SELECT 1 FROM urt_channel c LEFT JOIN urt_count n ON n.u_id=c.u_id WHERE c.u_id=v.u_id AND (c.flag_del IS NULL OR c.flag_del<1) AND ${tagFilter(q)})`:sql`v.u_id IN (${sql.join(channels.map(r=>sql`${r.u_id}`),sql`,`)})`;
  // LOCATE over binary strings treats %, _ and Unicode literally; final matching
  // still requires fresh maintained-vocabulary evidence (no substring substitution).
- const keywordScope=keyword?sql`AND (LOCATE(CAST(${keyword} AS BINARY),CAST(COALESCE(v.title,'') AS BINARY))>0 OR LOCATE(CAST(${keyword} AS BINARY),CAST(COALESCE(v.description,'') AS BINARY))>0)`:sql``;
+ const keywordScope=keyword?sql`AND (${keywordTextContains(sql`v.title`,keyword)} OR ${keywordTextContains(sql`v.description`,keyword)})`:sql``;
  const where=sql`${channelScope} AND v.publishedAt>=${from+' 00:00:00'} AND v.publishedAt<=${cutoff} ${keywordScope}`;
  const size=(await reader.rows(sql`SELECT COUNT(*) AS n,COALESCE(SUM(bytes),0) AS bytes FROM (SELECT OCTET_LENGTH(COALESCE(title,''))+OCTET_LENGTH(COALESCE(description,'')) AS bytes FROM urt_video v WHERE ${where} LIMIT ${MAX_VIDEOS+1}) bounded`))[0];
  if(Number(size?.n)>MAX_VIDEOS||Number(size?.bytes)>MAX_BYTES)throw new ReportReadBound('Derived cache video budget exceeded');
@@ -39,7 +41,7 @@ export async function loadDerivedSource(reader:Reader,q:Query,from:string,to:str
  for(const v of sources){const id=text(v.videoId);if(!/^[A-Za-z0-9_-]{11}$/.test(id)||ids.has(id)){coverage.status='invalid-source-identity';return result;}ids.add(id);
   if(v.viewCount===null||v.viewCount===undefined)coverage.unknownViewVideos++;else if(integer(v.viewCount)===null||Number(v.viewCount)<0){coverage.invalidViewVideos++;coverage.unknownViewVideos++;if(needsViews){coverage.status='invalid-source-views';return result;}}
   if(v.source_pk===null||v.source_pk===undefined){coverage.unmatchedVideos++;continue;}
-  if(Number(v.source_pk)!==Number(v.pk)||v.source_hash!==v.source_text_sha256||v.rule_version!=='exact-text-v1'){coverage.staleVideos++;continue;}
+  if(Number(v.source_pk)!==Number(v.pk)||v.source_hash!==v.source_text_sha256||v.rule_version!==rule){coverage.staleVideos++;continue;}
   const count=integer(v.evidence_count);if(count===null||count<0){coverage.status='invalid-evidence';return result;}evidenceCount+=count;coverage.freshVideos++;
  }
  if(coverage.freshVideos!==sources.length){coverage.status=keyword?'unavailable':'incomplete-evidence';coverage.reason='incomplete-evidence';return result;}if(evidenceCount>MAX_EVIDENCE)throw new ReportReadBound('Derived cache evidence cap exceeded');
@@ -48,9 +50,9 @@ export async function loadDerivedSource(reader:Reader,q:Query,from:string,to:str
  if(Number(evidenceSize?.n)>MAX_EVIDENCE||Number(evidenceSize?.bytes)>MAX_BYTES)throw new ReportReadBound('Derived cache evidence budget exceeded');
  const evidence=await reader.rows(sql`SELECT e.video_id,e.term,e.field_name,e.rule_version,e.source FROM ts_video_tag_evidence e WHERE ${scope} ORDER BY e.video_id,e.field_name,e.start_offset,e.term_key LIMIT ${MAX_EVIDENCE+1}`);
  if(evidence.length>MAX_EVIDENCE||evidence.reduce((n,r)=>n+Buffer.byteLength(text(r.term)),0)>MAX_BYTES)throw new ReportReadBound('Derived cache evidence budget exceeded');
- const groups=new Map<string,MetricVideo['matches']>();for(const e of evidence){if(e.rule_version!=='exact-text-v1'||e.source!==SOURCE||!['title','description'].includes(text(e.field_name))||!text(e.term)||[...text(e.term)].length>240){coverage.status='invalid-evidence';return result;}const matches=groups.get(text(e.video_id))??[];matches.push({term:text(e.term),field:e.field_name as 'title'|'description'});groups.set(text(e.video_id),matches);}
+ const groups=new Map<string,MetricVideo['matches']>();for(const e of evidence){if(e.rule_version!==rule||e.source!==SOURCE||!['title','description'].includes(text(e.field_name))||!text(e.term)||[...text(e.term)].length>240){coverage.status='invalid-evidence';return result;}const matches=groups.get(text(e.video_id))??[];matches.push({term:text(e.term),field:e.field_name as 'title'|'description'});groups.set(text(e.video_id),matches);}
  if(sources.some(v=>(groups.get(text(v.videoId))?.length??0)!==Number(v.evidence_count))){coverage.status='evidence-changed';return result;}
- const [after,sourceAfter,channelsAfter]=await Promise.all([current(),readSources(),keyword?Promise.resolve([]):readChannels()]);if(JSON.stringify(channelsAfter)!==JSON.stringify(channels)){coverage.status='taxonomy-changed';return result;}if(text(after[0]?.id)!==coverage.version||text(after[0]?.coverage)!==text(pin.coverage)){coverage.status='vocabulary-changed';return result;}if(JSON.stringify(sourceAfter)!==JSON.stringify(sources)){coverage.status='source-changed';return result;}
+ const [after,sourceAfter,channelsAfter]=await Promise.all([current(),readSources(),keyword?Promise.resolve([]):readChannels()]);if(JSON.stringify(channelsAfter)!==JSON.stringify(channels)){coverage.status='taxonomy-changed';return result;}if(text(after[0]?.id)!==coverage.version||text(after[0]?.coverage)!==text(pin.coverage)||text(after[0]?.matching_rule)!==text(pin.matching_rule)){coverage.status='vocabulary-changed';return result;}if(JSON.stringify(sourceAfter)!==JSON.stringify(sources)){coverage.status='source-changed';return result;}
  coverage.updatedAt=latest(...sources.flatMap(v=>[v.mtime,v.ctime,v.match_epoch===null?null:new Date(Number(v.match_epoch)).toISOString()]));coverage.status='ready';
  result.videos=sources.map(v=>({videoId:text(v.videoId),uId:Number(v.u_id),publishedAt:text(v.publishedAt),viewCount:integer(v.viewCount)===null||Number(v.viewCount)<0?null:v.viewCount,matches:groups.get(text(v.videoId))??[]}));return result;
  } catch(error) {

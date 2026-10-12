@@ -11,7 +11,16 @@ const row=(id:string,title:string,views:number|null):VideoRow=>({id,title,views,
 test('keyword article rows preserve API rank order, exact IDs, null metrics and escaped source text',()=>{
  const html=renderToStaticMarkup(createElement(ImageConfigContext.Provider,{value:{...imageConfigDefault,...config.images}},createElement(KeywordVideoList,{rows:[row('AbCdEfGh123','高觀看先列',999),row('abCdEfGh123','較新影片後列',null)]})));
  assert.ok(html.indexOf('高觀看先列')<html.indexOf('較新影片後列'));assert.match(html,/href="\/videos\/AbCdEfGh123"/);assert.match(html,/href="\/videos\/abCdEfGh123"/);assert.match(html,/href="\/channels\/42"/);
- assert.match(html,/<dt>累計觀看<\/dt><dd>—<\/dd>/);assert.match(html,/<dt>喜歡<\/dt><dd>—<\/dd>/);assert.match(html,/<dt>留言<\/dt><dd>0<\/dd>/);assert.match(html,/&lt;script&gt;escaped description/);assert.doesNotMatch(html,/<script>|<table/);
+ assert.match(html,/<dt>累計觀看<\/dt><dd>無觀看值<\/dd>/);assert.match(html,/<dt>喜歡<\/dt><dd>—<\/dd>/);assert.match(html,/<dt>留言<\/dt><dd>0<\/dd>/);assert.doesNotMatch(html,/<dt>累計觀看<\/dt><dd>0<\/dd>/);assert.doesNotMatch(html,/<script>|<table/);
+ // Without API keywordEvidence nothing is fabricated from the description.
+ assert.equal(html.match(/沒有命中片段/g)?.length,2);assert.doesNotMatch(html,/escaped description/);
+});
+test('keyword evidence shows field badges, bounded marked snippets, a caption gap and the video evidence link',()=>{
+ const withEvidence={...row('AbCdEfGh123','有片段',5),keywordEvidence:[{term:'交通',field:'title',snippet:'<b>今日交通</b>新聞',start:10,end:12,snippetStart:5},{term:'交通',field:'caption',snippet:'',start:0,end:0,snippetStart:0},{term:'交通',field:'description',snippet:'x'.repeat(300)+'交通',start:300,end:302,snippetStart:0},{term:'多餘',field:'title',snippet:'第四段',start:0,end:2,snippetStart:0}]};
+ const html=renderToStaticMarkup(createElement(ImageConfigContext.Provider,{value:{...imageConfigDefault,...config.images}},createElement(KeywordVideoList,{rows:[withEvidence as VideoRow]})));
+ assert.match(html,/>標題<\/span>/);assert.match(html,/>字幕<\/span>/);assert.match(html,/字幕尚未取得/);assert.match(html,/<mark[^>]*>交通<\/mark>/);
+ assert.match(html,/&lt;b&gt;今日/);assert.doesNotMatch(html,/第四段/);assert.ok(!html.includes('x'.repeat(120)));
+ assert.match(html,/href="\/videos\/AbCdEfGh123#keyword-evidence"/);
 });
 test('keyword profile retains incomplete evidence and supplied controls while empty rows never claim zero YouTube coverage',()=>{
  const meta:ReportMeta={schemaVersion:1,requestedAt:'2026-10-12T00:00:00Z',updatedAt:null,timezone:'Asia/Taipei',source:'mariadb',dataset:'fixture',warnings:[],coverage:{status:'synchronized',vocabularyVersion:'test-v1',sourceVideos:8,freshVideos:3,staleVideos:2,unprocessedVideos:3,keywordMatchedVideos:0}};
