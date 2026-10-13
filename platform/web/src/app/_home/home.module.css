@@ -137,6 +137,8 @@
   --chip: var(--color-zinc-800);
 }
 :global([data-theme="dark"]) .other { background: var(--color-zinc-400); color: var(--color-zinc-950); }
+/* Keyword ranking rise: emerald-700 is too dark on the zinc-900 panel; same hue, dark-surface step. */
+:global([data-theme="dark"]) .rankUp { color: var(--color-emerald-400); }
 @media (max-width: 1000px) {
   .columns { grid-template-columns: minmax(0, 1.9fr) minmax(220px, 1fr); }
   .center { grid-column: 1; grid-row: 1 / span 2; }

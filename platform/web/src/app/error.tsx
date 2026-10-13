@@ -5,14 +5,18 @@ import { reportStyle as ui } from "../lib/report-styles";
  * digest are never rendered. */
 export default function ErrorPage({
     reset,
+    retry: nextRetry,
     unstable_retry,
 }: {
     error: Error & { digest?: string };
     reset?: () => void;
+    /** Stable since Next 16.3 (refreshes the router, then resets the boundary). */
+    retry?: () => void;
+    /** Next 16.2 name for the same function. */
     unstable_retry?: () => void;
 }) {
     // Server data must be re-read: prefer Next's retry, else reload instead of a client-only reset.
-    const retry = unstable_retry ?? (() => (typeof window === "undefined" ? reset?.() : window.location.reload()));
+    const retry = nextRetry ?? unstable_retry ?? (() => (typeof window === "undefined" ? reset?.() : window.location.reload()));
     return (
         <section className="mx-auto my-8 max-w-2xl rounded-lg border border-dashed border-zinc-300 p-6 text-center sm:p-8 dark:border-zinc-700" role="alert">
             <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">資料暫時無法讀取</h1>

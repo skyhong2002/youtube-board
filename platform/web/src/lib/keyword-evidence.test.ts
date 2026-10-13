@@ -40,7 +40,8 @@ const withResults=(coverage:ReportMeta['coverage'],visibleCount:number|null|unde
 const EMPTY_WORDING=/空列表|沒有符合這個共同標籤|沒有已收錄影片/;
 test('listed rows and a counted total are never described as an empty result, whatever the coverage',()=>{
  // The reviewed case: 1137 counted results, 50 on this page, coverage absent or partial.
- for(const coverage of [{},{status:'unknown'},{...complete,vocabularyVersion:null},{...complete,freshVideos:5,staleVideos:3,unprocessedVideos:4,keywordMatchedVideos:0},{...complete,keywordMatchedVideos:null},complete,{...complete,sourceVideos:0,freshVideos:0}]){
+ const cases:ReportMeta['coverage'][]=[{},{status:'unknown'},{...complete,vocabularyVersion:null},{...complete,freshVideos:5,staleVideos:3,unprocessedVideos:4,keywordMatchedVideos:0},{...complete,keywordMatchedVideos:null},complete,{...complete,sourceVideos:0,freshVideos:0}];
+ for(const coverage of cases){
   const html=withResults(coverage,50,1137);
   assert.doesNotMatch(html,EMPTY_WORDING,JSON.stringify(coverage));
   assert.match(html,/目前條件共 1,137 部符合・本頁顯示 50 部。/);

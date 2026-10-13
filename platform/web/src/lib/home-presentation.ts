@@ -24,17 +24,35 @@ export function homeKeywordSummary(exploration:Partial<Record<'keywords'|'keywor
  const summary=value as Partial<HomeKeywordSummary>;
  return Array.isArray(summary.rows)&&['synchronized','not-synchronized','unavailable'].includes(summary.status as string)?summary as HomeKeywordSummary:null;
 }
+/** Machine-readable state behind the message (marked as data-keyword-state). Only `empty` is a
+ * confirmed successful read with no ranked rows in the stated scope; `unknown`, `unavailable`,
+ * `not-synchronized`, `not-computed` (collected, a measured 0 matched) and `completion-unknown`
+ * (collected, matched count not reported) never mean "none". */
+export type KeywordStateKind='listed'|'empty'|'unknown'|'unavailable'|'not-synchronized'|'not-computed'|'completion-unknown';
+/** A reported count: a non-negative safe integer. null, an omitted field or a malformed value is unknown, never 0. */
+const reported=(value:unknown):value is number=>typeof value==='number'&&Number.isSafeInteger(value)&&value>=0;
 /** Rows to draw, or the one truthful sentence explaining why there are none. */
-export function homeKeywordState(summary:HomeKeywordSummary|null,window:KeywordWindow):{rows:HomeKeywordRow[];message:string|null}{
- if(!summary)return {rows:[],message:`目前的資料服務尚未提供${period(window)}關鍵字摘要；狀態未知，不代表沒有相關影片。`};
- if(summary.status==='unavailable')return {rows:[],message:`${period(window)}關鍵字觀測目前無法完整讀取。`};
- if(summary.status==='not-synchronized')return {rows:[],message:'共同詞彙尚未同步，等待來源資料；目前無法比對影片。'};
+export function homeKeywordState(summary:HomeKeywordSummary|null,window:KeywordWindow):{rows:HomeKeywordRow[];message:string|null;kind:KeywordStateKind}{
+ if(!summary)return {rows:[],kind:'unknown',message:`目前的資料服務尚未提供${period(window)}關鍵字摘要；狀態未知，不代表沒有相關影片。`};
+ if(summary.status==='unavailable')return {rows:[],kind:'unavailable',message:`${period(window)}關鍵字觀測目前無法完整讀取。`};
+ if(summary.status==='not-synchronized')return {rows:[],kind:'not-synchronized',message:'共同詞彙尚未同步，等待來源資料；目前無法比對影片。'};
  const rows=visibleHomeKeywords(summary).filter(r=>r.videoCount>0);
- if(rows.length)return {rows,message:null};
- if(summary.sourceVideos===null)return {rows,message:`${period(window)}尚無可確認的比對結果。`};
- if(summary.sourceVideos===0)return {rows,message:`${period(window)}尚無收錄的發布影片。`};
- if(!summary.freshVideos)return {rows,message:`${period(window)}收錄 ${count(summary.sourceVideos)} 支影片，尚無完成比對的影片；沒有比對資料不代表沒有相關影片。`};
- return {rows,message:`${period(window)}已完成比對 ${count(summary.freshVideos)} 支影片，尚未出現共同詞彙。`};
+ if(rows.length)return {rows,kind:'listed',message:null};
+ if(!reported(summary.sourceVideos))return {rows,kind:'unknown',message:`${period(window)}尚無可確認的比對結果。`};
+ if(summary.sourceVideos===0)return {rows,kind:'empty',message:`${period(window)}尚無收錄的發布影片。`};
+ // Completion count missing (null, omitted by an older build, or malformed): progress is unknown, not "none matched".
+ if(!reported(summary.freshVideos))return {rows,kind:'completion-unknown',message:`${period(window)}收錄 ${count(summary.sourceVideos)} 支影片，完成比對的影片數未提供；比對進度未知，不代表沒有相關影片。`};
+ if(summary.freshVideos===0)return {rows,kind:'not-computed',message:`${period(window)}收錄 ${count(summary.sourceVideos)} 支影片，尚無完成比對的影片；沒有比對資料不代表沒有相關影片。`};
+ return {rows,kind:'empty',message:`${period(window)}已完成比對 ${count(summary.freshVideos)} 支影片，尚未出現共同詞彙。`};
+}
+/** Empty-row message for the lower 頻道分類觀測 band (categories after the top three). Rows are only
+ * drawn for status 'available'; only that status may say "no records". 'unavailable' is a failed read,
+ * and a missing/unrecognised status stays unknown — neither is ever presented as zero. */
+export type CategoryBandStateKind='empty'|'unavailable'|'unknown';
+export function homeCategoryBandState(status:unknown):{kind:CategoryBandStateKind;message:string}{
+ if(status==='available')return {kind:'empty',message:'已列分類以外，尚無其他分類紀錄。'};
+ if(status==='unavailable')return {kind:'unavailable',message:'分類統計目前無法讀取；不代表沒有分類紀錄。'};
+ return {kind:'unknown',message:'分類統計狀態未知；不代表沒有分類紀錄。'};
 }
 function taipeiDay(value:string|null|undefined){
  if(!value)return null;const time=Date.parse(value);

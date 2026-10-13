@@ -12,6 +12,7 @@ import Sparkline from './Sparkline';
 import {VideoThumbnail} from './VideoThumbnail';
 import {ChannelAvatar} from './ChannelAvatar';
 import MethodDisclosure from './MethodDisclosure';
+import LinkPending from './LinkPending';
 
 const REGION='keyword-ranking-table';
 const riseTone={up:'font-medium text-brand-700 dark:text-brand-400',down:'text-zinc-600 dark:text-zinc-400',flat:'text-zinc-500',missing:'text-xs text-zinc-400'} as const;
@@ -51,7 +52,7 @@ function RankingPane({view:v,priority}:{view:View;priority:boolean}){
   {s&&<p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">{keywordRangeLabel(s,v.window)} · {keywordCoverageLabel(s)} · {keywordUpdatedLabel(s)}{v.rows.length>0&&` · 列出 ${count(v.rows.length)} 個標籤`}</p>}
   {s&&v.rows.length>0&&v.basis!=='heat'&&<aside className={ui.note}><p>這個期間的資料服務尚未提供加權熱度，以下依已比對影片數排序；熱度、升溫與走勢顯示「{INSUFFICIENT}」。</p></aside>}
   {s?.comparison&&!s.comparison.complete&&v.rows.length>0&&<aside className={ui.note}><p>前一段等長期間的比對涵蓋不完整，升溫顯示「{INSUFFICIENT}」，不以 0 代替。</p></aside>}
-  {s&&v.rows.length?<KeywordRankingTable rows={v.rows} summary={s} window={v.window} basis={v.basis} priority={priority}/>:<p role="status" className="rounded-xl border border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">{v.message??`${v.label}範圍與比對狀態未知。`}</p>}
+  {s&&v.rows.length?<KeywordRankingTable rows={v.rows} summary={s} window={v.window} basis={v.basis} priority={priority}/>:<p role="status" className="rounded-xl border border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400" data-keyword-state={v.kind}>{v.message??`${v.label}範圍與比對狀態未知。`}</p>}
  </>;
 }
 export function KeywordRankingTable({rows,summary,window,basis,priority=false}:{rows:RankingRow[];summary:NonNullable<View['summary']>;window:KeywordWindow;basis:View['basis'];priority?:boolean}){
@@ -83,7 +84,8 @@ export function KeywordRankingTable({rows,summary,window,basis,priority=false}:{
         {row.representativeVideoId
          ?<Link href={`/videos/${encodeURIComponent(row.representativeVideoId)}`} tabIndex={-1} aria-hidden="true" className={`${table.leadExtra} shrink-0`}><VideoThumbnail videoId={row.representativeVideoId} width={48} height={27} priority={priority&&index===0}/></Link>
          :<span className={`${table.leadExtra} shrink-0`}><VideoThumbnail videoId={null} width={48} height={27}/></span>}
-        <Link href={keywordVideosHref(row.term,summary)} className={`${table.leadText} font-medium text-brand-700 hover:underline dark:text-brand-400`} title={row.term}>{row.term}</Link>
+        {/* The term truncates in its own span so the fixed-size pending hint stays visible inside the link. */}
+        <Link href={keywordVideosHref(row.term,summary)} className="inline-flex min-w-0 max-w-full items-center gap-1 font-medium text-brand-700 hover:underline dark:text-brand-400" title={row.term}><span className={table.leadText}>{row.term}</span><LinkPending/></Link>
        </div>
        {aliases.length>1&&<span className={`${table.leadExtra} text-xs text-zinc-500`} title={`合併寫法：${aliases.map(a=>a.term).join('、')}`}>{aliases.length} 種寫法</span>}
       </div>

@@ -3,7 +3,9 @@ import test from 'node:test';
 import {Fragment,createElement,type ReactNode} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import type {HomeKeywordSummary} from '../../../api/src/contracts';
-import {homeEdition,homeKeywordCloudWords,homeKeywordState,homeKeywordSummary,keywordVideosHref,keywordViewsLabel,visibleHomeKeywords} from './home-presentation';
+import {readFileSync} from 'node:fs';
+import {join} from 'node:path';
+import {homeCategoryBandState,homeEdition,homeKeywordCloudWords,homeKeywordState,homeKeywordSummary,keywordVideosHref,keywordViewsLabel,visibleHomeKeywords} from './home-presentation';
 import {KeywordWindowPane,KeywordWindowProvider,KeywordWindowSwitch} from '../app/_home/KeywordWindow';
 import {KeywordRankingView} from '../components/KeywordRanking';
 import type {ReportMeta} from '../../../api/src/contracts';
@@ -34,6 +36,18 @@ test('empty keyword states stay distinct and truthful',()=>{
  // Video-only surface: no article/news wording in any empty state.
  for(const s of [null,summary({status:'unavailable'}),summary({status:'not-synchronized'}),summary({sourceVideos:0}),summary({freshVideos:0}),summary()])assert.doesNotMatch(homeKeywordState(s,'week').message??'',/文章|新聞|篇/);
  const ok=homeKeywordState(summary({rows:[row(1)]}),'week');assert.equal(ok.message,null);assert.equal(ok.rows.length,1);
+});
+test('lower category band: unavailable is a failed read, unknown stays unknown, only available may say no records',()=>{
+ const available=homeCategoryBandState('available'),unavailable=homeCategoryBandState('unavailable');
+ assert.equal(available.kind,'empty');assert.match(available.message,/已列分類以外，尚無其他分類紀錄/);
+ assert.equal(unavailable.kind,'unavailable');assert.match(unavailable.message,/無法讀取/);assert.doesNotMatch(unavailable.message,/尚無/);
+ for(const status of [undefined,null,'','pending',{}]){const s=homeCategoryBandState(status);assert.equal(s.kind,'unknown');assert.match(s.message,/狀態未知/);assert.doesNotMatch(s.message,/尚無/);}
+ for(const s of [available,unavailable,homeCategoryBandState(undefined)])assert.doesNotMatch(s.message,/\d/);
+ // Source wiring (no live render): both lower-band empty rows use the status-aware state, never a fixed "no records".
+ const source=readFileSync(join(process.cwd(),'src/app/_home/HomePage.tsx'),'utf8');
+ assert.doesNotMatch(source,/>尚無分類紀錄。</);
+ assert.match(source,/categoryBand=homeCategoryBandState\(discovery\.categories\.status\)/);
+ assert.match(source,/\{!rows\.length&&<li className=\{styles\.muted\} data-category-state=\{categoryBand\.kind\}>\{categoryBand\.message\}<\/li>\}/);
 });
 test('keyword links keep the selected Taipei publication dates',()=>{
  assert.equal(keywordVideosHref('台積電',summary()),'/keywords/%E5%8F%B0%E7%A9%8D%E9%9B%BB/videos?from=2026-10-06&to=2026-10-12');

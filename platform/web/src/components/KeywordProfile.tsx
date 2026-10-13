@@ -8,6 +8,7 @@ import {ChannelAvatar} from './ChannelAvatar';
 import {VideoThumbnail} from './VideoThumbnail';
 import {KeywordEvidenceNotice} from './KeywordEvidenceNotice';
 import FollowButton from './reader/FollowButton';
+import LinkPending from './LinkPending';
 
 /** Layout from tag.observe.tw tag/[tag] and ArticleResults at afe0a653.
  * Keep API ranking and scope; a page of videos cannot establish global facets. */
@@ -26,7 +27,7 @@ export function KeywordProfile({keyword,description,data,meta,notice,tabs,filter
     <p className="max-w-4xl text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{description}</p>
     <p className="text-sm text-zinc-600 dark:text-zinc-400">更新於 {dateTime(meta.updatedAt)} · 台北時間</p>
    </div>
-   <div className="flex gap-4 text-sm"><Link href="/keywords" className="text-brand-700 hover:underline dark:text-brand-400">熱門標籤排行 →</Link><a href="#method" className="text-brand-700 hover:underline dark:text-brand-400">怎麼算 ⓘ</a></div>
+   <div className="flex gap-4 text-sm"><Link href="/keywords" className="inline-flex items-center gap-1 text-brand-700 hover:underline dark:text-brand-400">熱門標籤排行 →<LinkPending/></Link><a href="#method" className="text-brand-700 hover:underline dark:text-brand-400">怎麼算 ⓘ</a></div>
   </header>
   {notice}
   {tabs}
@@ -51,7 +52,7 @@ export function KeywordProfile({keyword,description,data,meta,notice,tabs,filter
     <h2 className="text-lg font-semibold tracking-tight">符合共同標籤的影片 <span className="text-sm font-normal text-zinc-500">{data.total===null?(data.totalStatus==='unavailable'?'總數暫時無法取得':'總數未計算'):`${count(data.total)} 部`}</span></h2>
     <p className="text-sm text-zinc-600 dark:text-zinc-400">{MATCH_CAVEAT}</p>
     {/* A page past the results is not "no matches": the counted total says otherwise. */}
-    {!data.rows.length&&data.total!==null&&data.total>0?<p className="rounded-lg border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400" data-keyword-results="page-empty">這一頁沒有可呈現的影片，但目前條件共 {count(data.total)} 部符合；請改看其他頁碼。</p>:<KeywordVideoList rows={data.rows}/>}
+    {!data.rows.length&&data.total!==null&&data.total>0?<p className="rounded-lg border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400" data-keyword-results="page-empty">這一頁沒有可呈現的影片，但目前條件共 {count(data.total)} 部符合；請改看其他頁碼。</p>:<KeywordVideoList rows={data.rows} total={data.total}/>}
     {pagination}
    </div>
   </section>
@@ -59,7 +60,7 @@ export function KeywordProfile({keyword,description,data,meta,notice,tabs,filter
    <p>{TAG_SOURCE_ATTRIBUTION}。共同標籤「{keyword}」以文字比對影片標題與說明，不是 AI 判讀；命中不代表事件歸屬或立場，與頻道分類分開。字幕尚未取得，不列入比對。</p>
    <p>僅列出目前詞彙版本與影片標題、說明仍相符的比對結果；待比對或來源文字已變動的影片不會列入，數量見「收錄與比對範圍」。</p>
    <p>期間：「往前 N 日」包含今天與前 N 天，共 N+1 個台北日曆日（往前 7 日為 8 個日曆日）；指定起訖日期時以實際起訖日為準。日數、日期與小時條件會同時套用。</p>
-   <p>每支影片最多顯示 3 段命中片段，標示來自標題、說明或字幕；沒有片段時顯示「沒有命中片段」，不另行補寫。完整比對依據在影片頁的「共同標籤與比對依據」。</p>
+   <p>每支影片最多顯示 3 段命中片段，標示來自標題、說明或字幕；沒有片段時顯示「沒有命中片段」，片段的來源文字缺漏時顯示「來源文字未提供」，不另行補寫。完整比對依據在影片頁的「共同標籤與比對依據」。</p>
    <p>{DISPLAY_EXCLUSION_NOTE}</p>
    <p>{DESCRIPTION_TEMPLATE_NOTE}</p>
    <p>列表與片段只是符合條件的影片例子，不能用來推算整體比例或全站失真程度；有效比對的影片比例只代表比對完成度。</p>
@@ -74,19 +75,22 @@ function Evidence({row,href}:{row:VideoRow;href:string}){
   const parts=evidenceParts(e),label=EVIDENCE_FIELD_LABELS[e.field]??'來源文字',empty=!parts.before&&!parts.match&&!parts.after;
   return <li key={i} className="flex min-w-0 items-baseline gap-1.5">
    <span className="shrink-0 rounded bg-zinc-100 px-1.5 text-[11px] leading-5 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">{label}</span>
-   {/* One line. The trailing context gives way first, then the leading context is clipped
+   {/* A match whose source text did not arrive is still a match: say the text is missing, never "no match".
+       Otherwise one line: the trailing context gives way first, then the leading context is clipped
        from its start (justify-end overflows leftwards), so the mark itself stays visible. */}
-   {empty?<span className="text-xs">{e.field==='caption'?'字幕尚未取得':'沒有命中片段'}</span>:<span className="flex min-w-0 whitespace-nowrap" title={e.snippet}>
+   {empty?<span className="text-xs">{e.field==='caption'?'字幕尚未取得':'來源文字未提供'}</span>:<span className="flex min-w-0 whitespace-nowrap" title={e.snippet}>
     {parts.before&&<span className="flex min-w-0 shrink justify-end overflow-hidden"><span>{parts.before}</span></span>}
     {parts.match?<mark className="max-w-full shrink-0 truncate bg-brand-50 text-brand-800 dark:bg-brand-950 dark:text-brand-300">{parts.match}</mark>:null}
     {parts.after&&<span className="min-w-0 flex-1 shrink-[1000] truncate">{parts.after}</span>}
    </span>}
   </li>;
- })}<li><Link href={`${href}#keyword-evidence`} className="text-xs text-brand-700 hover:underline dark:text-brand-400">查看影片比對依據 →</Link></li></ul>;
+ })}<li><Link href={`${href}#keyword-evidence`} className="inline-flex items-center gap-1 text-xs text-brand-700 hover:underline dark:text-brand-400">查看影片比對依據 →<LinkPending/></Link></li></ul>;
 }
 
-export function KeywordVideoList({rows}:{rows:VideoRow[]}){
- if(!rows.length)return <p className="rounded-lg border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">目前沒有可呈現的符合影片。請參考比對範圍；尚未收錄或比對不完整，不代表 YouTube 沒有相關內容。</p>;
+/** `total` (when the caller has one) only marks the empty state: a counted 0 is a confirmed empty
+ * read in the stated scope, null is uncounted. Neither claims YouTube has no such videos. */
+export function KeywordVideoList({rows,total}:{rows:VideoRow[];total?:number|null}){
+ if(!rows.length)return <p role="status" data-keyword-list-state={total===0?'none':total===null?'uncounted':undefined} className="rounded-lg border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">目前沒有可呈現的符合影片。請參考比對範圍；尚未收錄或比對不完整，不代表 YouTube 沒有相關內容。</p>;
  return <ul className="divide-y divide-zinc-200 dark:divide-zinc-800" aria-label="符合共同標籤的影片列表">{rows.map(row=>{
   const href=`/videos/${encodeURIComponent(row.id)}`,title=row.title||'影片標題尚未取得';
   return <li key={row.id} className="flex items-start gap-3 py-3">
