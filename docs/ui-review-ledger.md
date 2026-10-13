@@ -493,3 +493,10 @@ UI修正successor將只從e137父樹選入4d7dc12的11份reviewed UI code/test�
 獨立實際tree-boundary review已接受70529cff的20檔範圍與review hash-binding，原檔 `mint-successor-70529cff-independent-boundary-review-final.json`，SHA256 `bf0e3513334bf4f57eba094deae061bfe0adb18549880a9c78598c14c891ae14`，UTC2026-10-13T09:07:27.867088Z，既有GPT-6.1 Sol reviewer。完整path/model/SHA/時間見JSON；source接受不等於部署或UI接受。APP源碼70529cff固定，但APP BUILD_ID/digest、OPS exact runtime SHA/digest均null/unverified；隔離API與executor STOP/admission guard仍pending。釋放Mint鎖不能提升ready。
 
 OPS／APP pending欄位另有獨立addendum，path見JSON `mintQueue.runtimeHandoffIndependentAddendum`；SHA256 `e5be92ac2915015d9182d37f66815fce96d33e2752dc8ee57f51c72599293e08`，UTC2026-10-13T09:09:40.418863Z。此追加只記來源review，不更動候選SHA、不提升任何ready或pass。
+
+
+## 原生 executor 離線準備（不是 ready）
+
+[五項執行前待辦](../platform/docs/mint-executor-prerequisites-2026-10-13.md)已完成獨立文件review；receipt、model、UTC與hash見JSON `mintOfflineAudits.executorPrerequisites`。原guard audit的model欄位未確定exact serving identifier，保留原文，不算GPT-6.1 UI review；本文件另由既有GPT-6.1 Sol reviewer核對。local STOP回讀修正正在另批實作；source/test獨立驗收前仍pending。它不等於remote native executor／cross-host lease／OPS readiness，不改APP70529來源，也未啟動任何main、build或capture。
+
+local STOP補丁已由作者之外的GPT-6.1 Sol完成final-byte source review，root獨立重跑30項mock、in-memory syntax與diff check通過。訊號後需要兩份穩定的stopped/exited觀測，未知／失敗明示STOP-unconfirmed；main不能只因group變空就釋放未確認STOP的guardian。receipt path/model/UTC/hash見JSON `mintOfflineAudits.executorPrerequisites.localStopSourceReview`，原finding與原author receipt保留。此補丁是準備分支的local工具，不混入APP70529；未測真實Linux停止、native remote executor、跨機lease或OPS readiness。五項待辦文件是本批補丁完成前的審查快照；最新source狀態以本段與JSON為準，runtime gate仍pending。

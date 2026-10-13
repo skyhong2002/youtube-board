@@ -2,6 +2,8 @@
 
 This does not control Docker/BuildKit daemon work or remote packaging. Those stages
 need their own host-side guard, and must not be launched through this wrapper.
+This local STOP readback does not implement a cross-host lease/admission reservation,
+APP/OPS identity or isolated-readiness verifier, or a native remote executor adapter.
 No work or probes occur on import. A paused process is never automatically resumed.
 """
 import argparse
@@ -17,6 +19,7 @@ import subprocess
 import time
 
 GIB = 1024 ** 3
+PROCESS_STATES = frozenset('RSDTtZXIWPK')
 SITES = {'tag': 'https://tag.observe.tw/', 'blog': 'https://blog.observe.tw/', 'youtube': 'https://youtube.observe.tw/'}
 GATE_BASELINE = json.loads(Path(__file__).with_name('performance-gate-baseline.json').read_text())
 SITE_LIMITS = {site: max(2, 2 * GATE_BASELINE['sites'][site]['medianSeconds']) for site in SITES}
@@ -118,12 +121,106 @@ def owned_members(group):
     return members
 
 
-def signal_owned(group, sig, members=owned_members, signal_group=os.killpg):
+def owned_states(group, tracked=()):
+    """Read Linux (starttime, state) for the owned session/group and its descendants.
+
+    Tracked identities must not escape or be reused. New members/descendants are
+    checked too. This cannot contain an unknown process orphaned outside the
+    session before the first snapshot; remote/daemon containment remains unsupported.
+    """
+    if not isinstance(group, int) or group <= 0 or group in (os.getpgrp(), os.getsid(0)):
+        raise RuntimeError('Refuse readback: owned session mismatch')
+    records = {}
+    for path in Path('/proc').iterdir():
+        if not path.name.isdecimal():
+            continue
+        try:
+            fields = (path / 'stat').read_text().rsplit(')', 1)[1].split()
+            state, parent, process_group, session, started = fields[0], int(fields[1]), int(fields[2]), int(fields[3]), int(fields[19])
+            if len(state) != 1 or started < 0:
+                raise ValueError('Invalid process identity')
+            records[int(path.name)] = (parent, process_group, session, started, state)
+        except (FileNotFoundError, ProcessLookupError):
+            continue  # A vanished task performs no more work.
+        except (OSError, ValueError, IndexError) as error:
+            raise RuntimeError('Owned stop readback unavailable') from error
+    admitted = set(tracked) | {pid for pid, row in records.items() if row[1] == group or row[2] == group}
+    # Catch a child that changed its process group/session while its parent is
+    # still identifiable. Never signal the escaped process or a shared daemon.
+    while True:
+        children = {pid for pid, row in records.items() if row[0] in admitted}
+        if children <= admitted:
+            break
+        admitted.update(children)
+    states = {}
+    for pid in admitted:
+        row = records.get(pid)
+        if row is None:
+            continue
+        _, process_group, session, started, state = row
+        if process_group != group or session != group or pid in tracked and started != tracked[pid][0]:
+            raise RuntimeError('Refuse stop confirmation: escaped or reused owned identity')
+        if state not in PROCESS_STATES:
+            raise RuntimeError('Unknown owned process state')
+        if state != 'Z':
+            states[pid] = (started, state)
+    return states
+
+
+def confirm_owned_stopped(group, initial, readback=owned_states, timeout=1.0, interval=0.05,
+                          clock=time.monotonic, sleep=time.sleep):
+    """Bounded readback, requiring two stable stopped/exited snapshots.
+
+    False/unknown never establishes a physical pause. IO/clock/sleep are injectable
+    so tests never inspect /proc, signal processes, sleep or start main/probes.
+    """
+    if not initial or not math.isfinite(timeout) or not 0 < timeout <= 2 or not math.isfinite(interval) or not 0.01 <= interval <= timeout:
+        return False
+    tracked = dict(initial)
+    started_at = clock()
+    if not math.isfinite(started_at):
+        return False
+    deadline = started_at + timeout
+    previous = None
+    last_time = started_at
+    for _ in range(math.ceil(timeout / interval) + 2):
+        current = readback(group, tracked)
+        for pid, identity in current.items():
+            if not isinstance(pid, int) or pid <= 0 or not isinstance(identity, tuple) or len(identity) != 2:
+                raise RuntimeError('Invalid owned stop readback')
+            started, state = identity
+            if not isinstance(started, int) or started < 0 or state not in PROCESS_STATES:
+                raise RuntimeError('Unknown owned process state')
+            if pid in tracked and started != tracked[pid][0]:
+                raise RuntimeError('Refuse stop confirmation: reused owned identity')
+        tracked.update(current)
+        surviving = {pid: identity for pid, identity in current.items() if identity[1] != 'Z'}
+        now = clock()
+        if not math.isfinite(now) or now < last_time or now > deadline:
+            return False
+        last_time = now
+        stopped = all(identity[1] in ('T', 't') for identity in surviving.values())
+        identities = {pid: identity[0] for pid, identity in surviving.items()}
+        if stopped and previous == identities:
+            return True
+        previous = identities if stopped else None
+        if now >= deadline:
+            return False
+        sleep(min(interval, deadline - now))
+    return False
+
+
+def signal_owned(group, sig, members=owned_members, signal_group=os.killpg,
+                 readback=owned_states, confirm=confirm_owned_stopped):
     if not members(group):
         return False
+    initial = readback(group) if sig == signal.SIGSTOP else None
+    if sig == signal.SIGSTOP and not initial:
+        return False
     try:
-        signal_group(group, sig)
-        return True
+        if signal_group(group, sig) is False:
+            return False
+        return confirm(group, initial, readback) if sig == signal.SIGSTOP else True
     except ProcessLookupError:
         return False
 
@@ -135,14 +232,18 @@ class Monitor:
         self.probe, self.log, self.send, self.competitors = probe, log, send, competitors
         self.cancel_resume = cancel_resume
         self.paused = False
+        self.stop_confirmed = False
         self.stop_requested = False
         self.resume_requested = False
 
     def pause(self, failures):
         self.paused = True  # Remain fail-closed even if audit IO itself fails.
         self.resume_requested = False
+        self.stop_confirmed = False
         try:
-            self.send(self.group, signal.SIGSTOP)
+            if self.send(self.group, signal.SIGSTOP) is not True:
+                raise RuntimeError('Owned STOP was not confirmed')
+            self.stop_confirmed = True
         except Exception:
             failures = [*failures, 'STOP-unconfirmed-operator-recovery-required']
             # Preserve guardian/lock; never broaden signals to unrelated processes.
@@ -151,7 +252,8 @@ class Monitor:
             except OSError:
                 pass
         try:
-            self.log('paused', failures=failures, processGroup=self.group)
+            self.log('paused' if self.stop_confirmed else 'STOP-unconfirmed', failures=failures,
+                     processGroup=self.group, stopConfirmed=self.stop_confirmed)
         except Exception:
             pass
 
@@ -164,7 +266,10 @@ class Monitor:
                 return
             if self.paused:
                 # An out-of-band SIGCONT does not silently disable monitoring.
-                self.send(self.group, signal.SIGSTOP)
+                if self.send(self.group, signal.SIGSTOP) is not True:
+                    self.pause(['STOP-readback-failed'])
+                    return
+                self.stop_confirmed = True
                 if not self.resume_requested:
                     return
                 self.resume_requested = False
@@ -174,8 +279,10 @@ class Monitor:
                     blocked.append('competing-build')
                 self.log('explicit-resume-preflight', sample=current, failures=blocked)
                 if not blocked and not self.cancel_resume():
-                    self.send(self.group, signal.SIGCONT)
+                    if self.send(self.group, signal.SIGCONT) is not True:
+                        raise RuntimeError('Owned resume dispatch failed')
                     self.paused = False
+                    self.stop_confirmed = False
                 return
             self.resume_requested = False  # A request made before a failure is not recovery approval.
             current = self.probe()
@@ -185,6 +292,15 @@ class Monitor:
                 self.pause(blocked)
         except Exception:
             self.pause(['monitor-failure'])
+
+
+def safe_to_finish(members, monitor):
+    """Empty ordinary membership cannot release an unresolved STOP reservation.
+
+    Keep the guardian/local flock alive after false/failed ownership readback;
+    group disappearance alone is not proof that an escaped executor stopped.
+    """
+    return not members and (not monitor.paused or monitor.stop_confirmed is True)
 
 
 def main():
@@ -257,7 +373,7 @@ def main():
             while True:
                 try:
                     leader_exited = process.poll() is not None
-                    if not owned_members(process.pid):
+                    if safe_to_finish(owned_members(process.pid), monitor):
                         break
                     monitor.stop_requested |= requests['stop']
                     monitor.resume_requested |= requests['resume']

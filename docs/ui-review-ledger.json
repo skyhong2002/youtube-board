@@ -34569,7 +34569,8 @@
       "UIApproval": false,
       "runtimeApproval": false,
       "deploymentApproval": false
-    }
+    },
+    "localGuardianPreparation": "Reviewed source-only STOP/readback/finish fix on preparation branch; APP70529 unchanged. Does not fill OPS runtime identity or native executor readiness."
   },
   "mintOfflineFollowup": {
     "updatedAt": "2026-10-13T07:23:55.213365+00:00",
@@ -35254,6 +35255,45 @@
       "candidateSHAOption": "syntax-only; source/runtime binding separately required",
       "captureBudget": "Inclusive retained-evidence inventory required; historical49,932,059 +stopped5,222,891 if disjoint +planned246MB exceeds300MB by1,154,950; reduce complete executable variant groups, no deletion/reset.",
       "firstEnvelopeIsNotFullSiteReview": true
+    },
+    "executorPrerequisites": {
+      "APPSourceSHA": "70529cff13b6b7f5b3e0571a229e2b61660f9df4",
+      "OPSRuntimeSHA": null,
+      "document": "platform/docs/mint-executor-prerequisites-2026-10-13.md",
+      "audit": {
+        "path": "/home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/guard-prerequisite-audit-20261013T091022Z/review.json",
+        "sha256": "30efa5c88a533de0f6f23bb884ddd9ad919a8b7c54248a628a61e179f4dd7643",
+        "modelProvenance": "GPT-6 (Codex; inherited parent model, exact serving identifier not exposed)",
+        "countsAsGPT61UIReview": false
+      },
+      "documentIndependentReview": {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/mint-executor-prerequisites-independent-doc-review-final.json",
+        "sha256": "f8ed28838863a1358fb78cbd041a4095a4731233cedc6151a3f1ced304c29257",
+        "model": "gpt-6.1-sol",
+        "executionUTC": "2026-10-13T09:17:45.545263Z"
+      },
+      "scope": "offline source/prerequisite audit only",
+      "localStopReadbackFollowup": "Scoped local source fix independently accepted,30 mocks passed; full native executor and runtime acceptance still pending",
+      "nativeArm64ExecutorGuardReady": false,
+      "UIApproval": false,
+      "executionAllowed": false,
+      "localStopSourceReview": {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/local-stop-readback-root-independent-final-20261013.json",
+        "sha256": "6775a5225866104bf7d727a8c846af49a8b93dbfd8e34f6f638810ed7ffd6f44",
+        "model": "gpt-6.1-sol",
+        "reviewer": "/root",
+        "executionUTC": "2026-10-13T09:29:29.219569+00:00",
+        "fileHashes": {
+          "platform/tools/guarded-next-build.py": "78a95b5f621dab840d7089bfe1d9c1f3ed040e1acdb932ed1e33a4963c0cf272",
+          "platform/tools/guarded-next-build.test.py": "da1d3b016bd1d559dde476b931fdcdd4c562be2fcc7c8fe00a610544459c210e"
+        },
+        "testsPassed": 30,
+        "sourcePatchAccepted": true,
+        "runtimeApproval": false,
+        "UIApproval": false,
+        "remoteExecutorReady": false,
+        "deploymentApproval": false
+      }
     }
   },
   "historicalFindingsOnly654": {
