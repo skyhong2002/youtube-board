@@ -35314,6 +35314,19 @@
       "reviewedAt": "2026-10-13T09:59:29.065474+00:00",
       "documentSha256": "e3d49be6d160fd7ea306ee52bb9d992ecdb159079cf662b956d7ba21609ace87",
       "scope": "Document facts against actual receipts; preserves absent argv/filesystemID/serverSQL evidence limitations; no runtime/UI approval"
+    },
+    "nativeExecutorLifecycleSourceReview": {
+      "model": "gpt-6.1-sol",
+      "reviewer": "/root/capture_source_review",
+      "reviewPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/native-arm64-executor-v2-independent-source-review.json",
+      "sha256": "85cdae69fd2c2ca89651c4c60da5a0aef61c335423b735e6850075895aefb0f0",
+      "reviewedAt": "2026-10-13T10:06:38.587252+00:00",
+      "sourceSha256": "3b0156b42d83803f1017f64916d70f909bc447fc8afbde8cd152d09164622813",
+      "testsSha256": "fcda4cfa9b42581d23acbf146a69a22301a2428ba276ec183dd9a67382ba39e6",
+      "tests": "29 independent mocks passed; parent independently reran29; in-memory syntax passed",
+      "scope": "No default backend/CLI; cgroup/STOP/terminal contracts mocked only. Actual IO/auth/cgroup writer/native launcher/global reservation/watchdog/package remain pending.",
+      "executionPermission": false,
+      "reservationReleaseAllowed": false
     }
   },
   "historicalFindingsOnly654": {
