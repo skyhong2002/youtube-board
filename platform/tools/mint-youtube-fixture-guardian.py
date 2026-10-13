@@ -118,6 +118,7 @@ def load_pinned(path, sha256, name):
 KEYWORD_POLICY_COMMIT = '7b4321f85ab6f7e8f541dcacd8f4975f0b8cd8de'
 EXECUTION_SOURCES = tuple('platform/tools/' + name for name in (
     'mint-youtube-fixture-guardian.py', 'mint-youtube-api-fixture.py',
+    'mint-youtube-source-review.py',
     'mint-youtube-fixture-authority.py', 'mint-youtube-fixture-gate.py',
     'native-arm64-admission.py', 'native-arm64-readonly-relay.py',
     'native-arm64-probe-collector.py', 'mint-youtube-api-worker.mjs')) + (
@@ -151,7 +152,10 @@ def validate_execution_pins(config, review):
     require(source_review.get('schema') == 'yt-fixture-source-review-v1' and source_review.get('sourceApproved') is True and source_review.get('appSha') == APP and source_review.get('opsSha') == config['fixture']['opsSha'], 'EXECUTION_SOURCE_REVIEW_BINDING_REQUIRED')
     require(source_review.get('dependencyTreeSha256') == pins['dependencyTreeSha256'] and all(source_review.get(field + 'Sha256') == expected for field, expected in tools.items()), 'EXECUTION_DEPENDENCY_REVIEW_BINDING_REQUIRED')
     # Bind the actual returned independent transcript; never synthesize approval.
-    json_private(source_review['reviewReceipt'], source_review['reviewReceiptSha256'])
+    require(source_review.get('sourcePins') == sources, 'SOURCE_TRANSCRIPT_PIN_BINDING_REQUIRED')
+    validator = load_pinned(root / 'platform/tools/mint-youtube-source-review.py', sources['platform/tools/mint-youtube-source-review.py'], 'yt_source_review_contract')
+    transcript = json_private(source_review['reviewReceipt'], source_review['reviewReceiptSha256'])
+    validator.validate_transcript(transcript, config['fixture']['opsSha'], APP, sources, utc())
     require(config['fixture'].get('sourceReceiptSha256') == pins['sourceReceiptSha256'] and config['fixture'].get('dependencyTreeSha256') == pins['dependencyTreeSha256'], 'FIXTURE_EXECUTION_PIN_BINDING_REQUIRED')
 
 

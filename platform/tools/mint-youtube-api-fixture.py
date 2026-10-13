@@ -30,6 +30,9 @@ spec.loader.exec_module(admission)
 gate_spec = importlib.util.spec_from_file_location('yt_fixture_gate', HERE / 'mint-youtube-fixture-gate.py')
 gate = importlib.util.module_from_spec(gate_spec)
 gate_spec.loader.exec_module(gate)
+review_spec = importlib.util.spec_from_file_location('yt_fixture_source_review', HERE / 'mint-youtube-source-review.py')
+source_review = importlib.util.module_from_spec(review_spec)
+review_spec.loader.exec_module(source_review)
 APP_SHA = admission.APP_SHA
 LOCK_PATH = admission.LOCK_PATH
 DB_NAME = 'youtube_board_test_rewrite'
@@ -162,6 +165,13 @@ def verify_source(config, c):
             receipt['reviewedBy'] != '/root/f2_visual_sol', 'INDEPENDENT_SOURCE_REVIEW_REQUIRED')
     review = canonical(receipt['reviewReceipt'])
     require(hashlib.sha256(review.read_bytes()).hexdigest() == receipt.get('reviewReceiptSha256'), 'SOURCE_REVIEW_RECEIPT_MISMATCH')
+    source_pins = receipt.get('sourcePins')
+    source_review.validate_transcript(private_json(review), c.ops_sha, APP_SHA, source_pins, utc())
+    require(isinstance(source_pins, dict) and source_pins.get('platform/tools/mint-youtube-source-review.py') == hashlib.sha256((HERE / 'mint-youtube-source-review.py').read_bytes()).hexdigest(), 'SOURCE_VALIDATOR_PIN_REQUIRED')
+    for name, pin in source_pins.items():
+        require(isinstance(name, str) and name.startswith('platform/') and '..' not in Path(name).parts, 'SOURCE_PIN_PATH_REQUIRED')
+        source = canonical(config['opsRoot']) / name
+        require(source.is_file() and not source.is_symlink() and source.resolve().is_relative_to(canonical(config['opsRoot'])) and hashlib.sha256(source.read_bytes()).hexdigest() == pin, 'SOURCE_TRANSCRIPT_BYTE_PIN_MISMATCH')
     for key, pin in [('appRoot', APP_SHA), ('opsRoot', c.ops_sha)]:
         head, digest = source_tree(canonical(config[key]))
         require(head == pin and digest == receipt.get(key + 'TreeSha256'), 'EXACT_SOURCE_TREE_MISMATCH')

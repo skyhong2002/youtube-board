@@ -22,6 +22,7 @@ def module(name, file):
 guardian = module('yt_guardian_test', 'mint-youtube-fixture-guardian.py')
 fixture = module('yt_fixture_guardian_test', 'mint-youtube-api-fixture.py')
 relay = module('yt_relay_guardian_test', 'native-arm64-readonly-relay.py')
+review_contract = module('guardian_review_contract', 'mint-youtube-source-review.py')
 bridge = module('guardian_bridge_cases', 'mint-youtube-fixture-gate.test.py')
 NOW = bridge.cases.NOW
 CONFIG = {'schema': 'yt-fixture-guardian-config-v1', 'estimatedSetupBytes': 1024,
@@ -70,10 +71,15 @@ class GuardianMocks(unittest.TestCase):
                    'opsSha':config['fixture']['opsSha'],'dependencyTreeSha256':'b'*64,
                    'reviewReceipt':'/isolated/actual-review.json','reviewReceiptSha256':'c'*64,
                    **{name+'Sha256':sha for name in pins['toolPins']}}
+        receipt['sourcePins']=copy.deepcopy(pins['sourcePins'])
         return config, {'executionPins':copy.deepcopy(pins)}, receipt
 
     def check_execution_config(self, config, review, receipt, source_bytes=b'synthetic-source-or-tool'):
-        with patch.object(Path,'is_file',return_value=True),patch.object(Path,'is_symlink',return_value=False),patch.object(Path,'read_bytes',return_value=source_bytes),patch.object(guardian,'json_private',side_effect=[receipt,{'syntheticReviewOnly':True}]) as read:
+        transcript={'schema':'yt-independent-source-review-v1','scope':review_contract.SCOPE,'verdict':'pass','findings':[],
+                    'range':{'head':config['fixture']['opsSha']},'appSha':guardian.APP,'reviewer':{'agent':'/root/capture_source_review','model':'gpt-6.1-sol'},
+                    'observedAt':NOW.isoformat(),'sourceSha256':copy.deepcopy(config['executionPins']['sourcePins']),
+                    'boundaries':{'sourceOnly':True,'runtimeAccepted':False,'admissionGranted':False}}
+        with patch.object(guardian,'load_pinned',return_value=review_contract),patch.object(guardian,'utc',return_value=NOW),patch.object(Path,'is_file',return_value=True),patch.object(Path,'is_symlink',return_value=False),patch.object(Path,'read_bytes',return_value=source_bytes),patch.object(guardian,'json_private',side_effect=[receipt,transcript]) as read:
             guardian.validate_execution_pins(config,review)
             self.assertEqual(read.call_args_list[0].args,('/isolated/source.json','a'*64))
             self.assertEqual(read.call_args_list[1].args,('/isolated/actual-review.json','c'*64))

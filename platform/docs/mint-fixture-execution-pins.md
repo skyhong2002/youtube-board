@@ -43,3 +43,23 @@ identity, and submit exact commands plus a fresh three-host probe to babysit.
 No lock or service is acquired during this preparation. Native ABI compatibility,
 runtime stability and UI acceptance remain pending; hashes alone prove none of
 those outcomes.
+
+## Actual independent transcript contract
+
+The pinned source-review JSON must itself use schema
+`yt-independent-source-review-v1`, scope `mint-youtube-fixture-source-only`,
+`verdict: pass` and an empty `findings` array. It must bind `range.head` to the
+exact OPS commit, `appSha` to frozen APP, and every `sourceSha256` entry to
+`executionPins.sourcePins`. The fixed independent reviewer is
+`/root/capture_source_review`, model `gpt-6.1-sol` or `claude-opus-5-5`.
+`observedAt` must be valid UTC and not in the future. `boundaries.sourceOnly`
+is true; `runtimeAccepted` and `admissionGranted` are false. The wrapper source
+receipt repeats `sourcePins`; its metadata cannot overrule a denied transcript.
+Both guardian and standalone fixture validate the actual returned transcript.
+
+The installed dependency graph now follows internal links and hashes their
+reachable bytes, including ignored APP-root node_modules. Escapes from APP root,
+unreadable/dangling links, filesystem traversal errors, changing file bytes or
+changing directory membership reject. Cycles are deduplicated under the same
+file/byte caps. All real dependency hashes must be regenerated for this algorithm;
+previous hashes remain historical evidence and are not overwritten.
