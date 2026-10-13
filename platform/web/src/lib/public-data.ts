@@ -70,3 +70,18 @@ export function requireSuccess<T>(result: Result<T>): ApiResponse<T> {
     if (!result.ok) throw new PublicDataError(result.status, result.code);
     return result.response;
 }
+const HOME_SECTIONS = ["categories", "keywords", "keywordToday"] as const;
+/** The public `home` read answers 200 with an exploration section marked `unavailable`
+ * when its source read failed. Dynamic renders show that partial state; the shared ISR
+ * cache must not keep it, so the cached read throws and Next keeps the previous good
+ * entry. Missing sections (older API) and `not-synchronized` or empty results pass. */
+export function requireCompleteHome<T>(response: ApiResponse<T>): ApiResponse<T> {
+    const exploration = (response.data as { exploration?: unknown } | null)?.exploration;
+    if (typeof exploration !== "object" || exploration === null) return response;
+    for (const key of HOME_SECTIONS) {
+        const section = (exploration as Record<string, unknown>)[key];
+        if (typeof section === "object" && section !== null && (section as { status?: unknown }).status === "unavailable")
+            throw new PublicDataError(503, "HOME_SECTION_UNAVAILABLE");
+    }
+    return response;
+}

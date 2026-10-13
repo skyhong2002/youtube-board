@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {existsSync,readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {publicRenderDecision,queryVariantRobots,withoutTransportParams,ISR_HOME_PATH,ISR_EVENTS_PATH,FILTERED_REPORT_PREFIX} from './public-render';
-import {PUBLIC_DATA_REVALIDATE,PublicDataError,deterministicPartial,publicApiUrl,publicDataClass,readPublicResponse,requireSuccess} from './public-data';
+import {PUBLIC_DATA_REVALIDATE,PublicDataError,deterministicPartial,publicApiUrl,publicDataClass,readPublicResponse,requireCompleteHome,requireSuccess} from './public-data';
 import {tagEvidenceRenderable} from './evidence';
 import {INTERNAL_RENDER_HEADER,PUBLIC_RENDER_REVALIDATE_SECONDS,REPORT_FAMILIES,THEME_SCRIPT,internalRenderRewrites,isInternalRenderPath} from '../../../shared/public-render-contract';
 import {resolveRoute} from './routes';
@@ -145,6 +145,29 @@ test('non-2xx and malformed payloads fail; degraded but successful DTOs pass thr
  assert.deepEqual(requireSuccess(ok),degraded);
  for(const failed of [{ok:false,status:503,code:'API_UNAVAILABLE'},{ok:false,status:502,code:'INVALID_RESPONSE'},{ok:false,status:404,code:'NOT_FOUND'}] as const)
   assert.throws(()=>requireSuccess(failed),(error:unknown)=>error instanceof PublicDataError&&error.status===failed.status&&error.code===failed.code);
+});
+test('ISR home cache rejects a 200 home with any unavailable exploration section; dynamic reads keep it',async()=>{
+ const section=(status:string,rows:unknown[]=[])=>({status,reason:status==='unavailable'?'source read failed':null,rows});
+ const home=(exploration:unknown)=>({data:{exploration,summary:{channels:1}},meta});
+ const complete={categories:section('available',[{id:1}]),keywords:section('synchronized',[{key:'k'}]),keywordToday:section('synchronized',[{key:'k'}])};
+ for(const key of ['categories','keywords','keywordToday'] as const){
+  const degraded=home({...complete,[key]:section('unavailable')});const before=JSON.stringify(degraded);
+  const result=await readPublicResponse(json(degraded));assert.deepEqual(result,{ok:true,response:degraded},key);
+  assert.deepEqual(requireSuccess(result),degraded,key);
+  assert.throws(()=>requireCompleteHome(requireSuccess(result)),(error:unknown)=>error instanceof PublicDataError&&error.status===503&&error.code==='HOME_SECTION_UNAVAILABLE'&&deterministicPartial(error.status,error.code)===false,key);
+  assert.equal(JSON.stringify(degraded),before,key);
+ }
+ // Complete, empty, never-imported and older payloads without the sections stay cacheable.
+ for(const body of [home(complete),home({categories:section('available'),keywords:section('synchronized'),keywordToday:section('synchronized')}),
+  home({...complete,keywords:section('not-synchronized'),keywordToday:section('not-synchronized')}),home({categories:section('available')}),home({}),home(null),{data:{summary:{channels:1}},meta},{data:null,meta}])
+  assert.equal(requireCompleteHome(body as never),body,JSON.stringify(body));
+ // Wiring: only the exact public home URL built by publicApiUrl is checked, inside the cached read.
+ const text=source('src/lib/api.ts');
+ assert.match(text,/requireSuccess\(await read<unknown>\(url\)\);\s*return url === publicApiUrl\(apiBase\(\), "home"\) \? requireCompleteHome\(response\) : response;/);
+ assert.match(text,/unstable_cache\(cacheable,/);
+ const base='http://127.0.0.1:4100/api/v1',homeUrl=publicApiUrl(base,'home');
+ for(const [path,search] of [['home',{window:'today'}],['keywords/home/videos',{}],['channels/home',{}],['vocabulary',{}]] as const)assert.notEqual(publicApiUrl(base,path,search),homeUrl,path);
+ assert.match(text,/if \(!isr\) return read<T>\(url\);/);
 });
 test('ISR route files use literal segment config, no request data and no build-time params',()=>{
  for(const file of ['src/app/[...segments]/page.tsx','src/app/render-isr/home/[edition]/page.tsx','src/app/render-isr/events/[edition]/page.tsx','src/app/events/[id]/page.tsx']){

@@ -38,7 +38,7 @@
 .ranking a:hover { background: var(--tint); }
 .rank { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .rankBody { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.rankBody strong { font-size: 14px; font-weight: 500; color: var(--accent); overflow-wrap: anywhere; }
+.rankBody strong { font-size: 14px; font-weight: 500; color: var(--accent); }
 .readerTitle { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .rankBody small { font-size: 11px; color: var(--muted); }
 .burst { font-size: 11px; color: var(--accent); margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }

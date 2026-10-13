@@ -3,7 +3,7 @@ import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { notFound } from "next/navigation";
 import type { ApiResponse } from "../../../api/src/contracts";
-import { PUBLIC_DATA_REVALIDATE, PublicDataError, deterministicPartial, publicApiUrl, publicDataClass, readPublicResponse, requireSuccess, type PublicDataClass } from "./public-data";
+import { PUBLIC_DATA_REVALIDATE, PublicDataError, deterministicPartial, publicApiUrl, publicDataClass, readPublicResponse, requireCompleteHome, requireSuccess, type PublicDataClass } from "./public-data";
 export type * from "../../../api/src/contracts";
 export type Search = Record<string, string | string[] | undefined>;
 export type Result<T> =
@@ -39,11 +39,16 @@ async function read<T>(url: string): Promise<Result<T>> {
     }
 }
 // Only successful payloads are stored: a thrown read is never cached, and a stale entry
-// keeps being served while its background refresh fails.
+// keeps being served while its background refresh fails. The public home read must also
+// be complete (see requireCompleteHome); its URL is built by the same publicApiUrl.
+async function cacheable(url: string): Promise<ApiResponse<unknown>> {
+    const response = requireSuccess(await read<unknown>(url));
+    return url === publicApiUrl(apiBase(), "home") ? requireCompleteHome(response) : response;
+}
 const revalidated = Object.fromEntries(
     (Object.keys(PUBLIC_DATA_REVALIDATE) as PublicDataClass[]).map((kind) => [
         kind,
-        unstable_cache(async (url: string) => requireSuccess(await read<unknown>(url)), ["public-api", kind], {
+        unstable_cache(cacheable, ["public-api", kind], {
             revalidate: PUBLIC_DATA_REVALIDATE[kind],
             tags: ["public-api", `public-api:${kind}`],
         }),

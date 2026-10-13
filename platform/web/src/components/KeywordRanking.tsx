@@ -39,7 +39,7 @@ export function KeywordRankingView({exploration,meta,notice,tabs,initial='week'}
   {tabs}
   <KeywordWindowProvider initial={initial}>
    <KeywordWindowSwitch name="keyword-ranking-window" className="" controls={REGION} legend="排行期間"/>
-   <div id={REGION} className="space-y-3">{views.map(v=><KeywordWindowPane key={v.window} window={v.window}><RankingPane view={v} priority={v.window===initial}/></KeywordWindowPane>)}</div>
+   <div id={REGION}>{views.map(v=><KeywordWindowPane key={v.window} window={v.window} region className="space-y-3"><RankingPane view={v} priority={v.window===initial}/></KeywordWindowPane>)}</div>
    <p className="text-sm"><Link className={ui.link} href="/vocabulary">原始詞彙池（含不列入排行的詞與原因）→</Link></p>
    <MethodDisclosure>{views.map(v=><KeywordWindowPane key={v.window} window={v.window}>{keywordMethodNotes(v.summary,v.basis).map((note,i)=><p key={i}>{note}</p>)}</KeywordWindowPane>)}</MethodDisclosure>
   </KeywordWindowProvider>

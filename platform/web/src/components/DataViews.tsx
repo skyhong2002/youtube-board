@@ -29,31 +29,37 @@ function ChannelCell({ id, title, avatar }: { id: number; title: string; avatar?
     </Link>;
 }
 const channelColumns = {viewCount:'views',subscriberCount:'subscribers',videoCount:'videoCount',view_week:'weeklyViews',view_month:'monthlyViews',views_pred_week:'estimatedWeeklyViews',views_pred_month:'estimatedMonthlyViews',sub_week:'weeklySubscribers',sub_month:'monthlySubscribers',video_week:'weeklyVideos',video_month:'monthlyVideos'} as const;
+/** The channel name is the one lead text allowed to wrap: on phones up to two lines inside the
+ *  9.5rem / 5.5rem lead (full name in the link title); from sm up it stays one clipped line. */
+const channelName = `${table.leadText} max-sm:line-clamp-2 max-sm:whitespace-normal max-sm:[overflow-wrap:anywhere] sm:max-w-xs`;
 export function ChannelTable({ rows, offset=0, ranking }: { rows: ChannelRow[];offset?:number;ranking?:ChannelRanking }) {
     if (!rows.length) return <Empty title="尚無符合條件的頻道" />;
+    // As tag.observe.tw's ranking: the sorted metric sits right after the name, so phones see it
+    // without scrolling; every other metric follows in its usual order, none dropped or repeated.
+    const sorts = ranking ? [...CHANNEL_SORTS.filter(([key]) => key === ranking.column), ...CHANNEL_SORTS.filter(([key]) => key !== ranking.column)] : [];
     return (
         <TableScroller card label="頻道排行表，可左右捲動">
             <table className={table.nowrap} style={ranking?{minWidth:1780}:undefined}>
                 <thead>
                     <tr>
                         <th className={table.leadHead}>頻道</th>
-                        {ranking ? <>{CHANNEL_SORTS.map(([key,label])=><th key={key} className="number" aria-sort={ranking.column===key?'descending':undefined}>{label}{ranking.column===key&&<span aria-hidden="true"> ↓</span>}</th>)}<th className="number">近月估計差距</th></> : <><th className="number">訂閱人數</th><th className="number">近七日觀看增量</th><th className="number">累計影片</th></>}
+                        {ranking ? <>{sorts.map(([key,label])=><th key={key} className="number" aria-sort={ranking.column===key?'descending':undefined}>{label}{ranking.column===key&&<span aria-hidden="true"> ↓</span>}</th>)}<th className="number">近月估計差距</th></> : <><th className="number">訂閱人數</th><th className="number">近七日觀看增量</th><th className="number">累計影片</th></>}
                     </tr>
                 </thead>
                 <tbody>
                     {rows.map((row, index) => (
                         <tr key={row.id} className={table.row}>
                             <td className={table.lead}>
-                              {/* One line. Phones show only the avatar and name (as tag.observe.tw media rows); rank and categories appear from sm up. */}
+                              {/* Phones show only the avatar and name (as tag.observe.tw media rows), the name wrapping to two lines; rank and categories appear from sm up. */}
                               <div className={`${table.leadBox} flex items-center gap-2`}>
                                 <span className={`${table.leadWide} shrink-0 text-xs tabular-nums text-zinc-400`}>{String(offset+index+1).padStart(2,'0')}</span>
                                 <Link className="flex min-w-0 items-center gap-2 font-medium hover:underline" href={`/channels/${row.id}`} title={row.title || undefined}><ChannelAvatar avatar={row.avatar} title={row.title} size={24}/>
-                                    <span className={`${table.leadText} sm:max-w-xs`}>{row.title || "頻道名稱尚未取得"}</span>
+                                    <span className={channelName}>{row.title || "頻道名稱尚未取得"}</span>
                                 </Link>
                                 {row.tags.length > 0 && <TagLine lead tags={row.tags} href={(tag) => `/tags/${tag.id}/channels`}/>}
                               </div>
                             </td>
-                            {ranking ? <>{CHANNEL_SORTS.map(([key])=><td key={key} className="number">{count(row[channelColumns[key]])}</td>)}<td className="number">{count(row.monthlyEstimateGap)}</td></> : <><td className="number">{compact(row.subscribers)}</td><td className="number">{compact(row.weeklyViews)}</td><td className="number">{count(row.videoCount)}</td></>}
+                            {ranking ? <>{sorts.map(([key])=><td key={key} className="number">{count(row[channelColumns[key]])}</td>)}<td className="number">{count(row.monthlyEstimateGap)}</td></> : <><td className="number">{compact(row.subscribers)}</td><td className="number">{compact(row.weeklyViews)}</td><td className="number">{count(row.videoCount)}</td></>}
                         </tr>
                     ))}
                 </tbody>
@@ -138,8 +144,9 @@ export function LiveTable({ rows,offset=0 }: { rows: LiveRow[];offset?:number })
                     {rows.map((row, index) => (
                         <tr key={row.id} className={table.row}>
                             <td className={table.lead}>
-                              {/* One line. Desktop: rank, thumbnail, title. Phones: the channel avatar and name lead
-                                  the same video link (many live titles share a prefix), then the title; full text in title. */}
+                              {/* One line. Desktop: rank, thumbnail, title. Phones: only the channel avatar marks the
+                                  source (many live titles share a prefix) so the title keeps the lead; the channel name
+                                  is in its own column, and the full text stays in the link title. */}
                               <div className={`${table.leadBox} flex items-center gap-2`}>
                                 <span className={`${table.leadWide} shrink-0 text-xs tabular-nums text-zinc-400`}>{String(offset+index+1).padStart(2,'0')}</span>
                                 <span className={`${table.leadWide} shrink-0`}><VideoThumbnail videoId={row.id} width={48} height={27}/></span>
@@ -148,7 +155,7 @@ export function LiveTable({ rows,offset=0 }: { rows: LiveRow[];offset?:number })
                                     href={`/videos/${encodeURIComponent(row.id)}`}
                                 >
                                     <span className="shrink-0 sm:hidden"><ChannelAvatar avatar={row.channelAvatar} title={row.channelTitle} size={16}/></span>
-                                    <span className={table.leadText}><span className="sm:hidden">{row.channelTitle || "頻道名稱尚未取得"} · </span>{row.title || "直播標題尚未取得"}</span>
+                                    <span className={table.leadText}>{row.title || "直播標題尚未取得"}</span>
                                 </Link>
                               </div>
                             </td>

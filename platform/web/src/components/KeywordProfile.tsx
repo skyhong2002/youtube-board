@@ -40,7 +40,7 @@ export function KeywordProfile({keyword,description,data,meta,notice,tabs,filter
    <aside className="min-w-0 space-y-4 lg:order-2">
     <section className="space-y-3" aria-label="影片來源範圍">
      <h2 className="text-sm font-medium text-zinc-600 dark:text-zinc-400">收錄與比對範圍</h2>
-     <KeywordEvidenceNotice coverage={meta.coverage} subject={keyword} compact/>
+     <KeywordEvidenceNotice coverage={meta.coverage} subject={keyword} compact visibleCount={data.rows.length} total={data.total}/>
     </section>
     <details className="rounded-xl border border-zinc-300 bg-white dark:border-zinc-800 dark:bg-zinc-900">
      <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-zinc-700 focus-visible:outline-2 focus-visible:outline-brand-600 dark:text-zinc-300">篩選影片與日期</summary>
@@ -50,7 +50,8 @@ export function KeywordProfile({keyword,description,data,meta,notice,tabs,filter
    <div className="min-w-0 space-y-4">
     <h2 className="text-lg font-semibold tracking-tight">符合共同標籤的影片 <span className="text-sm font-normal text-zinc-500">{data.total===null?(data.totalStatus==='unavailable'?'總數暫時無法取得':'總數未計算'):`${count(data.total)} 部`}</span></h2>
     <p className="text-sm text-zinc-600 dark:text-zinc-400">{MATCH_CAVEAT}</p>
-    <KeywordVideoList rows={data.rows}/>
+    {/* A page past the results is not "no matches": the counted total says otherwise. */}
+    {!data.rows.length&&data.total!==null&&data.total>0?<p className="rounded-lg border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400" data-keyword-results="page-empty">這一頁沒有可呈現的影片，但目前條件共 {count(data.total)} 部符合；請改看其他頁碼。</p>:<KeywordVideoList rows={data.rows}/>}
     {pagination}
    </div>
   </section>

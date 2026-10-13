@@ -49,6 +49,25 @@ test('keyword profile retains incomplete evidence and supplied controls while em
  assert.match(html,/lg:grid-cols-\[minmax\(0,1fr\)_18rem\]/);assert.match(html,/lg:order-2/);assert.match(html,/比對不完整，不代表 YouTube 沒有相關內容/);assert.doesNotMatch(html,/皆已完成有效比對|來自 0 家|未收錄影片 0/);
 });
 
+test('a profile listing counted results passes its real counts to the coverage notice and never reads as empty',()=>{
+ const meta:ReportMeta={schemaVersion:1,requestedAt:'2026-10-12T00:00:00Z',updatedAt:null,timezone:'Asia/Taipei',source:'mariadb',dataset:'live',warnings:[],coverage:{}};
+ const rows=[row('AbCdEfGh123','第一部',10),row('BbCdEfGh123','第二部',null)];
+ const html=renderToStaticMarkup(createElement(ImageConfigContext.Provider,{value:{...imageConfigDefault,...config.images}},createElement(KeywordProfile,{keyword:'交通',description:'範圍說明',data:{rows,total:1137,limit:50,offset:0,hasNext:true,totalStatus:'exact'},meta,notice:null,tabs:null,filters:null,pagination:null})));
+ assert.match(html,/目前條件共 1,137 部符合・本頁顯示 2 部。/);
+ assert.doesNotMatch(html,/空列表|沒有符合這個共同標籤|目前沒有可呈現的符合影片/);
+ // Coverage metrics the API did not send stay unknown.
+ assert.ok(html.includes('<dt>符合標籤</dt><dd>未提供</dd>'));
+ assert.match(html,/比對涵蓋範圍未完整提供，列出的結果可能不完整/);
+});
+test('a page past the counted results says so instead of claiming no matching videos',()=>{
+ const meta:ReportMeta={schemaVersion:1,requestedAt:'2026-10-12T00:00:00Z',updatedAt:null,timezone:'Asia/Taipei',source:'mariadb',dataset:'live',warnings:[],coverage:{status:'synchronized',vocabularyVersion:'v2',sourceVideos:5000,freshVideos:5000,staleVideos:0,unprocessedVideos:0,keywordMatchedVideos:1137}};
+ const html=renderToStaticMarkup(createElement(KeywordProfile,{keyword:'交通',description:'範圍說明',data:{rows:[],total:1137,limit:50,offset:1150,hasNext:false,totalStatus:'exact'},meta,notice:null,tabs:null,filters:null,pagination:createElement('a',{href:'?offset=1100'},'上一頁')}));
+ assert.equal(html.match(/data-keyword-results="page-empty"/g)?.length,2);
+ assert.match(html,/這一頁沒有可呈現的影片，但目前條件共 1,137 部符合；請改看其他頁碼。/);
+ assert.doesNotMatch(html,/目前沒有可呈現的符合影片|空列表|沒有符合這個共同標籤/);
+ assert.ok(html.includes('上一頁'));assert.ok(html.includes('<dt>符合標籤</dt><dd>1,137 部</dd>'));
+});
+
 test('keyword profile never converts an uncounted or unavailable video total to zero',()=>{
  const meta:ReportMeta={schemaVersion:1,requestedAt:'2026-10-12T00:00:00Z',updatedAt:null,timezone:'Asia/Taipei',source:'mariadb',dataset:'fixture',warnings:[],coverage:{}};
  for(const totalStatus of ['not-computed','unavailable'] as const){

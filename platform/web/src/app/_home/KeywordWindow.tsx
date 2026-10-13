@@ -12,13 +12,16 @@ export function KeywordWindowProvider({initial=DEFAULT_KEYWORD_WINDOW,children}:
  const [selected,select]=useState<KeywordWindow>(initial);
  return <Selection value={{selected,select}}>{children}</Selection>;
 }
-export function KeywordWindowPane({window,children}:{window:KeywordWindow;children:ReactNode}){
- return useContext(Selection).selected===window?children:null;
+/** Renders the selected window's children unchanged. Only the content of an aria-controls region
+ * opts in with `region`, which wraps it in one marked box styled by the caller's `className`. */
+export function KeywordWindowPane({window,region=false,className,children}:{window:KeywordWindow;region?:boolean;className?:string;children:ReactNode}){
+ if(useContext(Selection).selected!==window)return null;
+ return region?<div className={className} data-keyword-window-pane={window}>{children}</div>:children;
 }
 /** Native radios: arrow keys move between windows. Each section carries its own synchronized copy. */
 export function KeywordWindowSwitch({name,className='mb-3',controls=KEYWORD_REGIONS,legend='關鍵字期間（同時切換熱門關鍵字排行與文字雲）'}:{name:string;className?:string;controls?:string;legend?:string}){
  const {selected,select}=useContext(Selection);
- return <fieldset className={`min-w-0 ${className}`}>
+ return <fieldset className={`min-w-0 ${className}`} data-keyword-window-selected={selected}>
   <legend className="sr-only">{legend}</legend>
   <div className="inline-flex rounded-full border border-zinc-300 bg-white p-0.5 text-xs dark:border-zinc-800 dark:bg-zinc-900">
    {KEYWORD_WINDOWS.map(({value,label})=><label key={value} className="cursor-pointer">

@@ -7,6 +7,7 @@ import {imageConfigDefault} from 'next/dist/shared/lib/image-config';
 import config from '../../next.config';
 import {ChannelTable,LiveTable,VideoTable} from '../components/DataViews';
 import {ReportTable} from '../components/ReportTable';
+import {CHANNEL_SORTS,type ChannelRanking} from '../../../shared/channel-ranking';
 import {reportLeadIndex} from './report-table';
 import type {ChannelRow,LiveRow,VideoRow} from '../../../api/src/contracts';
 import type {ReportCell,ReportColumn,ReportValue} from './report-contract';
@@ -85,16 +86,38 @@ const anchor=(attrs:Record<string,string>)=>'<a '+Object.entries(attrs).map(([ke
 const heads=(html:string)=>[...html.matchAll(/<th(?:\s[^>]*)?>([^<]*)/g)].map(m=>m[1]);
 const thumb48=thumbIn('table-lead-extra max-sm:hidden shrink-0');
 
-test('channel ranking row is one line: rank, avatar, clipped name and inline categories that yield on scroll',()=>{
+const channelName='min-w-0 max-w-full truncate max-sm:line-clamp-2 max-sm:whitespace-normal max-sm:[overflow-wrap:anywhere] sm:max-w-xs';
+test('channel ranking row: rank, avatar, name (the one lead text that wraps on phones) and inline categories that yield on scroll',()=>{
  const html=render(createElement(ChannelTable,{rows:[channel],offset:9}));
  assert.match(html,/<table class="whitespace-nowrap"/);
  assert.match(headClass(html,'頻道'),/table-lead sticky/);
  // Phones keep only avatar + name in the 9.5rem lead: rank and categories are hidden at rest below sm, shown from sm up.
  assert.match(html,/<div class="table-lead-box min-w-0 flex items-center gap-2"><span class="table-lead-extra max-sm:hidden shrink-0 text-xs tabular-nums text-zinc-400">10<\/span>/);
  assert.doesNotMatch(html.match(/<a [^>]*href="\/channels\/8"[^>]*>/)![0],/max-sm:hidden/);
- assert.match(html,new RegExp(`${anchor({title:longTitle,href:'/channels/8'})}<span class="inline-flex shrink-0[^>]*>[\\s\\S]*?<span class="min-w-0 max-w-full truncate sm:max-w-xs">${longTitle}</span>`));
+ // Below sm the name may wrap to two lines in the capped lead; from sm up it is one clipped line. The full name stays in the link title.
+ assert.match(html,new RegExp(`${anchor({title:longTitle,href:'/channels/8'})}<span class="inline-flex shrink-0[^>]*>[\\s\\S]*?<span class="${escape(channelName)}">${longTitle}</span>`));
+ // Only the name wraps: the table stays nowrap and the number cells carry no wrapping class.
+ assert.deepEqual(html.match(/<td class="number">[^<]*<\/td>/g),['<td class="number">2</td>','<td class="number">4</td>','<td class="number">3</td>']);
+ assert.equal(html.match(/whitespace-normal/g)?.length,1);
+ assert.deepEqual(heads(html),['頻道','訂閱人數','近七日觀看增量','累計影片']);
  assert.match(html,new RegExp(`<span class="table-lead-extra max-sm:hidden min-w-0 max-w-full truncate shrink-3 text-xs text-zinc-500 sm:max-w-48" title="新聞、政治">${anchor({href:'/tags/3/channels'})}新聞</a>、${anchor({href:'/tags/4/channels'})}政治</a></span>`));
  assert.doesNotMatch(html,/class="tags/);
+ bodyRows(html).forEach(assertOneLineRow);
+});
+test('ranked channel table puts the sorted metric right after the name and keeps every other metric once',()=>{
+ const ranking={column:'view_week',scope:'directory',min:null,minMetric:'views'} satisfies ChannelRanking;
+ const html=render(createElement(ChannelTable,{rows:[channel],ranking}));
+ const labels=CHANNEL_SORTS.map(([,label])=>label),selected=labels[CHANNEL_SORTS.findIndex(([key])=>key==='view_week')]!;
+ const order=heads(html);
+ assert.deepEqual(order,['頻道',selected,...labels.filter(label=>label!==selected),'近月估計差距']);
+ assert.equal(new Set(order).size,order.length);
+ // The header and its value stay paired: the first metric cell is weeklyViews (4), then views (1), subscribers (2), videos (3).
+ const cells=[...html.matchAll(/<td class="number">([^<]*)<\/td>/g)].map(m=>m[1]);
+ assert.equal(cells.length,labels.length+1);assert.deepEqual(cells.slice(0,4),['4','1','2','3']);
+ assert.match(html,/<th class="number" aria-sort="descending">近七日觀看增量<span aria-hidden="true"> ↓<\/span><\/th>/);
+ assert.equal(html.match(/aria-sort=/g)?.length,1);
+ // Each other sort still leads when chosen, so no metric is reachable only by scrolling past a fixed order.
+ for(const [key,label] of CHANNEL_SORTS)assert.equal(heads(render(createElement(ChannelTable,{rows:[channel],ranking:{...ranking,column:key}})))[1],label);
  bodyRows(html).forEach(assertOneLineRow);
 });
 
@@ -115,9 +138,11 @@ test('live row is one line: rank and thumbnail yield in the lead; channel, categ
  assert.deepEqual(heads(html),['直播 / 頻道','同時在線','今日高峰','歷史高峰','頻道','頻道分類','更新時間','原始來源']);
  assert.match(html,/<div class="table-lead-box min-w-0 flex items-center gap-2"><span class="table-lead-extra max-sm:hidden shrink-0 text-xs tabular-nums text-zinc-400">01<\/span>/);
  assert.match(html,thumb48);
- // Phones lead with the source (avatar + channel name) on the same video link, then the title; one truncating line.
- assert.match(html,new RegExp(`${anchor({class:'flex min-w-0 items-center gap-1.5 font-medium hover:underline sm:max-w-xs',title:`來源頻道 · ${longTitle}`,href:'/videos/AbCdEfGh123'})}<span class="shrink-0 sm:hidden"><span class="inline-flex shrink-0[^>]*>[\\s\\S]*?</span></span><span class="min-w-0 max-w-full truncate"><span class="sm:hidden">來源頻道 · </span>${longTitle}</span></a>`));
- assert.match(html,/href="\/channels\/8"/);
+ // Phones mark the source with only the channel avatar, so the title owns the lead; one truncating line.
+ assert.match(html,new RegExp(`${anchor({class:'flex min-w-0 items-center gap-1.5 font-medium hover:underline sm:max-w-xs',title:`來源頻道 · ${longTitle}`,href:'/videos/AbCdEfGh123'})}<span class="shrink-0 sm:hidden"><span class="inline-flex shrink-0[^>]*>[\\s\\S]*?</span></span><span class="min-w-0 max-w-full truncate">${longTitle}</span></a>`));
+ // The visible channel name lives only in the channel column, always beside its avatar.
+ assert.equal(html.match(/>來源頻道</g)?.length,1);
+ assert.match(html,new RegExp(`<td>${anchor({class:'flex min-w-0 items-center gap-1.5 hover:underline',title:'來源頻道',href:'/channels/8'})}<span class="inline-flex shrink-0[^>]*>[\\s\\S]*?<span class="${clip}">來源頻道</span></a></td>`));
  assert.match(html,new RegExp(`<span class="${clip} text-xs text-zinc-500" title="新聞">${anchor({href:'/live/current?tagid=3'})}新聞</a></span>`));
  assert.match(html,/20<small class="ml-1.5">部分取樣<\/small>/);
  assert.match(html,/href="https:\/\/www.youtube.com\/watch\?v=AbCdEfGh123"/);

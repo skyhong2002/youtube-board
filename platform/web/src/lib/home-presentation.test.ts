@@ -5,6 +5,8 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import type {HomeKeywordSummary} from '../../../api/src/contracts';
 import {homeEdition,homeKeywordCloudWords,homeKeywordState,homeKeywordSummary,keywordVideosHref,keywordViewsLabel,visibleHomeKeywords} from './home-presentation';
 import {KeywordWindowPane,KeywordWindowProvider,KeywordWindowSwitch} from '../app/_home/KeywordWindow';
+import {KeywordRankingView} from '../components/KeywordRanking';
+import type {ReportMeta} from '../../../api/src/contracts';
 type Row=HomeKeywordSummary['rows'][number];
 const summary=(patch:Partial<HomeKeywordSummary>={}):HomeKeywordSummary=>({vocabularyCoverage:'observed-article-window',vocabularyWindow:null,source:'https://tag.observe.tw',version:'run-1',status:'synchronized',reason:null,from:'2026-10-06T00:00:00+08:00',to:'2026-10-12T09:30:00+08:00',updatedAt:'2026-10-12T01:00:00.000Z',rows:[],sourceVideos:10,freshVideos:8,staleVideos:1,unprocessedVideos:1,metric:'current-cumulative-views-of-window-published-videos',rankingMethod:'youtube-channel-weighted-decay-v1',riseMethod:'equal-duration-heat-delta',ruleVersion:'youtube-quality-v2',comparison:null,exclusions:null,...patch});
 const row=(i:number,patch:Partial<Row>={}):Row=>({key:`k${i}`,term:`詞${i}`,sourceTerms:[{key:`k${i}`,term:`詞${i}`}],videoCount:50-i,views:1000*i,unknownViewVideos:0,knownViews:1000*i,measuredViewVideos:50-i,heatScore:100-i,channelCount:3,titleVideos:1,descriptionOnlyVideos:49-i,rise:null,trend:[],representativeVideoId:null,thumbnail:null,channel:null,...patch});
@@ -70,4 +72,32 @@ test('the window switch is a labelled radio group and only the selected pane ren
  assert.match(html,/WEEK-PANE/);assert.doesNotMatch(html,/TODAY-PANE/);
  const today=renderToStaticMarkup(createElement(KeywordWindowProvider,{initial:'today',children:panes()}));
  assert.match(today,/TODAY-PANE/);assert.doesNotMatch(today,/WEEK-PANE/);
+});
+// Server markup only: these markers let a browser check observe which period is shown; switching itself is not exercised here.
+test('every switch names the selected period; ordinary panes add nothing and only opted-in regions are marked',()=>{
+ const pane=(window:'today'|'week',tag:string,region?:boolean)=>createElement(KeywordWindowPane,{key:window+tag,window,...(region?{region,className:'contents'}:{}),children:createElement(tag,null,`${window.toUpperCase()}-${tag}`)});
+ const tree=(initial?:'today'|'week')=>renderToStaticMarkup(createElement(KeywordWindowProvider,{initial,children:createElement(Fragment,null,createElement(KeywordWindowSwitch,{name:'a'}),createElement(KeywordWindowSwitch,{name:'b',className:''}),pane('today','p'),pane('week','p'),createElement('section',{id:'region'},pane('today','ol',true),pane('week','ol',true)))}));
+ for(const window of ['today','week'] as const){
+  const html=tree(window),other=window==='today'?'week':'today',label=window.toUpperCase();
+  assert.equal(html.match(new RegExp(`<fieldset [^>]*data-keyword-window-selected="${window}"`,'g'))?.length,2);
+  assert.doesNotMatch(html,new RegExp(`data-keyword-window-selected="${other}"|data-keyword-window-pane="${other}"|${other.toUpperCase()}-`));
+  // An ordinary pane (caption, method note) returns its children exactly, with no box or marker.
+  assert.match(html,new RegExp(`</fieldset><p>${label}-p</p><section`));
+  // The controlled region holds one marked box around exactly the selected content.
+  assert.equal(html.match(/data-keyword-window-pane=/g)?.length,1);
+  assert.match(html,new RegExp(`<section id="region"><div class="contents" data-keyword-window-pane="${window}"><ol>${label}-ol</ol></div></section>`));
+ }
+ assert.match(tree(),/data-keyword-window-selected="week"/);
+});
+test('/keywords uses the same pane and switch markers for its table and method notes',()=>{
+ const meta:ReportMeta={schemaVersion:1,requestedAt:'2026-10-12T00:00:00Z',updatedAt:null,timezone:'Asia/Taipei',source:'mariadb',dataset:'fixture',warnings:[],coverage:{}};
+ for(const initial of ['today','week'] as const){
+  const html=renderToStaticMarkup(createElement(KeywordRankingView,{exploration:{},meta,initial})),other=initial==='today'?'week':'today';
+  assert.match(html,new RegExp(`<fieldset [^>]*data-keyword-window-selected="${initial}"`));
+  // Only the aria-controls region is marked; its box spaces the pane's children itself. The method
+  // notes stay plain paragraphs under the disclosure.
+  assert.equal(html.match(/data-keyword-window-pane=/g)?.length,1);
+  assert.doesNotMatch(html,new RegExp(`data-keyword-window-pane="${other}"`));
+  assert.match(html,new RegExp(`<div id="keyword-ranking-table"><div class="space-y-3" data-keyword-window-pane="${initial}"><p role="status"`));
+ }
 });

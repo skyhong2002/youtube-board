@@ -1,3 +1,4 @@
+import type {HomeDiagnosticCallback,HomeDiagnostic} from './home-diagnostics.js';
 import {latestKeywordVideo} from './keyword-candidates.js';
 import {canonicalVideoThumbnail} from '../../../shared/media-assets.js';
 import {sql} from 'drizzle-orm';
@@ -18,8 +19,10 @@ export function homeCategories(records:Row[],names:Map<number,string>){
  const weeklyViews=rows.reduce((n,r)=>n+r.weeklyViews,0);if(!Number.isSafeInteger(weeklyViews))throw new HomeSectionUnavailable('precision');
  return {status:'available' as const,reason:null,rows,summary:{visibleCategories:rows.length,channelMemberships:rows.reduce((n,r)=>n+r.channels,0),uniqueChannels:unique.size,weeklyViews,overlapping:true as const},updatedAt:latest(...records.map(r=>r.mtime)),minimumWeeklyViews:10 as const};
 }
-export async function homeExploration(reader:Reader,now:Date):Promise<HomeExploration>{
+export async function homeExploration(reader:Reader,now:Date,diagnostic?:HomeDiagnosticCallback):Promise<HomeExploration>{
  const to=taipeiSql(now),date=taipeiDate(now),today=date+' 00:00:00',from=new Date(Date.parse(date+'T00:00:00Z')-6*86400000).toISOString().slice(0,10)+' 00:00:00';
+ const emit=(section:HomeDiagnostic['section'],stage:HomeDiagnostic['stage'],reason:HomeDiagnostic['reason'])=>{try{diagnostic?.({section,stage,reason,UTC:now.toISOString()});}catch{/* Optional diagnostics cannot fail the report. */}};
+ let keywordStage:HomeDiagnostic['stage']='vocabulary',keywordDiagnosticReason:HomeDiagnostic['reason']|undefined;
  let activeRule:'exact-text-v1'|typeof MATCH_RULE='exact-text-v1';
  const keywordBase={vocabularyCoverage:'unavailable' as const,vocabularyWindow:null,source:'https://tag.observe.tw' as const,version:null,from:timestamp(from)!,to:timestamp(to)!,updatedAt:null,rows:[],sourceVideos:null,freshVideos:null,staleVideos:null,unprocessedVideos:null,metric:'current-cumulative-views-of-window-published-videos' as const,rankingMethod:KEYWORD_RANKING_METHOD,riseMethod:KEYWORD_RISE_METHOD,ruleVersion:activeRule,comparison:null,exclusions:null};
  const todayBase={...keywordBase,from:timestamp(today)!};
@@ -33,7 +36,7 @@ export async function homeExploration(reader:Reader,now:Date):Promise<HomeExplor
   const snapshot=object(versions[0]?.source_meta),window=object(snapshot.window),vocabularyCoverage=version?(snapshot.coverage==='all-current-indexed-article-tags'?'all-current-indexed-article-tags' as const:'observed-article-window' as const):'unavailable' as const;
   const quality=vocabularySourceQuality(snapshot.sourceQuality),rule=matchingRuleForSnapshot({matchingRule:snapshot.matchingRule??undefined});activeRule=rule;
   const base={...keywordBase,...(quality?{sourceQuality:quality}:{}),ruleVersion:rule,vocabularyCoverage,vocabularyWindow:typeof window.since==='string'&&typeof window.until==='string'?{since:window.since,until:window.until}:null,version,reason:null};
-  if(!version)return {keywords:{...base,status:'not-synchronized'},keywordToday:{...base,from:todayBase.from,status:'not-synchronized'}};
+  if(!version){emit('keywords','vocabulary','not-synchronized');return {keywords:{...base,status:'not-synchronized'},keywordToday:{...base,from:todayBase.from,status:'not-synchronized'}};}
   const at=(value:string)=>Date.parse(value.replace(' ','T')+'+08:00'),shift=(value:string,ms:number)=>taipeiSql(new Date(at(value)+ms));
   const windows=[{key:'week',from,to},{key:'today',from:today,to},
    {key:'prior-week',from:shift(from,-(at(to)-at(from)+1000)),to:shift(from,-1000)},
@@ -43,6 +46,7 @@ export async function homeExploration(reader:Reader,now:Date):Promise<HomeExplor
   const fresh=sql`m.source_pk=v.pk AND BINARY m.rule_version=BINARY ${rule} AND BINARY m.source_text_sha256=BINARY ${videoTextDigest()}`;
   // Hash the bounded source window once. Only identifiers, timestamps and
   // numeric metrics cross the boundary; title/description never leave SQL.
+  keywordStage='video-source';
   const sources=await reader.rows(sql`SELECT v.pk,v.u_id,v.publishedAt,m.video_id,m.vocabulary_version,
    CASE WHEN v.viewCount>=0 THEN v.viewCount ELSE NULL END AS viewCount,
    1 AS source_videos,(m.video_id IS NULL) AS unprocessed,CASE WHEN ${fresh} THEN 1 ELSE 0 END AS fresh,UNIX_TIMESTAMP(m.matched_at)*1000 AS matched_epoch
@@ -67,6 +71,7 @@ export async function homeExploration(reader:Reader,now:Date):Promise<HomeExplor
   const freshSources=freshSourceRows(evidenceFrom);
   // This bounded labels-only scan applies the exact case-sensitive upstream
   // exclusions BEFORE LOWER display merging, and preserves all source keys.
+  keywordStage='term-labels';
   const terms=await reader.rows(sql`SELECT DISTINCT e.term_key,e.term
    FROM (${freshSources}) fv STRAIGHT_JOIN ts_video_tag_evidence e FORCE INDEX(PRIMARY) ON e.video_id=CONVERT(fv.video_id USING ascii) AND e.vocabulary_version=${version} AND BINARY e.video_id=BINARY fv.video_id
    WHERE BINARY e.rule_version=BINARY ${rule} LIMIT 25001`);
@@ -84,6 +89,7 @@ export async function homeExploration(reader:Reader,now:Date):Promise<HomeExplor
   // without improving selection, so fetch history only for the two selected top40s.
   // Four-bit memberships split exact partial-day prior boundaries without fanout.
   const rankingWindows=activeWindows.filter(w=>['week','today','prior-week','prior-today'].includes(w.key));
+  keywordStage='ranking';
   const records=display.groups.size?await reader.rows(sql`SELECT counted.window_key,counted.g,SUM(counted.n) AS n,SUM(counted.t) AS t,SUM(counted.m) AS m,SUM(counted.v) AS v,COUNT(*) AS channel_count,
     SUM(6*(1-POW(0.5,counted.t))+2*POW(0.5,counted.t)*(1-POW(0.5,counted.n-counted.t))) AS heat_score,CAST(RIGHT(MAX(counted.representative),20) AS UNSIGNED) AS representative_pk
    FROM (SELECT w.window_key,matched.group_key AS g,matched.u_id AS c,COUNT(*) AS n,SUM(matched.has_title) AS t,COUNT(matched.viewCount) AS m,COALESCE(SUM(matched.viewCount),0) AS v,MAX(CONCAT(matched.has_title,DATE_FORMAT(matched.publishedAt,'%Y%m%d%H%i%s'),LPAD(matched.pk,20,'0'))) AS representative
@@ -94,6 +100,7 @@ export async function homeExploration(reader:Reader,now:Date):Promise<HomeExplor
   const days=windows.slice(4).map(w=>({date:w.key,complete:complete(w.key)})),selected=rankKeywordWindows(records,display,[],comparable);
   const selectedKeys=[...new Set([...selected.week,...selected.today].flatMap(row=>row.sourceTerms.map(t=>t.key)))];
   const completeDays=days.filter(d=>d.complete&&coverageFor(d.date).freshVideos>0).map(d=>d.date);
+  keywordStage='daily-history';
   const daily=selectedKeys.length&&completeDays.length?await reader.rows(sql`SELECT DATE(matched.publishedAt) AS window_key,matched.group_key AS g,matched.u_id AS c,COUNT(*) AS n,SUM(matched.has_title) AS t,COUNT(matched.viewCount) AS m,COALESCE(SUM(matched.viewCount),0) AS v
     FROM (${deduplicated(freshSourceRows(from),sql`AND e.term_key IN (${sql.join(selectedKeys.map(k=>sql`${k}`),sql`,`)}) AND DATE(fv.publishedAt) IN (${sql.join(completeDays.map(d=>sql`${d}`),sql`,`)})`)}) matched
     GROUP BY window_key,g,c LIMIT 20001`):[];
@@ -103,6 +110,7 @@ export async function homeExploration(reader:Reader,now:Date):Promise<HomeExplor
   // provider image URLs never leave this query; the shared media hook supplies
   // channel branding from our cache and video thumbnails use the fixed CDN.
   if(selectedKeys.length){
+   keywordStage='representatives';
    try{
     const chosen=records.filter(r=>(r.window_key==='week'||r.window_key==='today')&&ranking[r.window_key].some(row=>row.key===r.g));
     const pks=[...new Set(chosen.map(r=>measuredCount(r.representative_pk)))];
@@ -117,11 +125,12 @@ export async function homeExploration(reader:Reader,now:Date):Promise<HomeExplor
      row.representativeVideoId=id;row.thumbnail=canonicalVideoThumbnail(id);
      if(channelId!==null&&channelId>0){const name=text(r.channelTitle)||'頻道名稱待補',youtubeId=text(r.channelId);row.channel={id:channelId,name,title:name,youtubeId,youtubeUrl:`https://www.youtube.com/channel/${encodeURIComponent(youtubeId)}`,thumbnail:null,avatar:null};}
     }
-   }catch(error){if(!(error instanceof DataSourceUnavailable))throw error;}
+   }catch(error){if(!(error instanceof DataSourceUnavailable))throw error;emit('keywords','representatives','data-source-unavailable');}
   }
 
+  keywordStage='version-check';
   const [stillCurrent]=await reader.rows(sql`SELECT c.run_id FROM ts_vocabulary_current c JOIN ts_vocabulary_runs r ON r.id=c.run_id AND r.status='published' WHERE c.source='https://tag.observe.tw' LIMIT 1`);
-  if(text(stillCurrent?.run_id)!==version)throw new HomeSectionUnavailable('source-cap');
+  if(text(stillCurrent?.run_id)!==version){keywordDiagnosticReason='version-changed';throw new HomeSectionUnavailable('source-cap');}
   const summary=(window:'week'|'today'):HomeKeywordSummary=>{
    const matchedAt=counts.get(window)?.latest_match,prior=windows.find(w=>w.key==='prior-'+window)!;
    return {...base,from:window==='today'?todayBase.from:base.from,status:'synchronized',rows:ranking[window],exclusions:display.exclusions,
@@ -131,7 +140,7 @@ export async function homeExploration(reader:Reader,now:Date):Promise<HomeExplor
   return {keywords:summary('week'),keywordToday:summary('today')};
  };
  const[categories,keywordWindows]=await Promise.all([
-  categoryTask().catch(error=>({status:'unavailable' as const,reason:unavailable(error),rows:[],summary:{visibleCategories:null,channelMemberships:null,uniqueChannels:null,weeklyViews:null,overlapping:true as const},updatedAt:null,minimumWeeklyViews:10 as const})),
-  keywordTask().catch(error=>{const reason=unavailable(error);return {keywords:{...keywordBase,ruleVersion:activeRule,status:'unavailable' as const,reason},keywordToday:{...todayBase,ruleVersion:activeRule,status:'unavailable' as const,reason}};}),
+  categoryTask().catch(error=>{const reason=unavailable(error);emit('categories','category-source',reason);return {status:'unavailable' as const,reason,rows:[],summary:{visibleCategories:null,channelMemberships:null,uniqueChannels:null,weeklyViews:null,overlapping:true as const},updatedAt:null,minimumWeeklyViews:10 as const};}),
+  keywordTask().catch(error=>{const reason=unavailable(error);emit('keywords',keywordStage,keywordDiagnosticReason??reason);return {keywords:{...keywordBase,ruleVersion:activeRule,status:'unavailable' as const,reason},keywordToday:{...todayBase,ruleVersion:activeRule,status:'unavailable' as const,reason}};}),
  ]);return {categories,...keywordWindows};
 }

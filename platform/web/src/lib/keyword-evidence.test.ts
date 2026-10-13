@@ -36,6 +36,44 @@ test('exact subjects, scope and version are escaped and maintained vocabulary re
  assert.match(html,/href="\/vocabulary"/);assert.match(html,/與頻道分類分開/);assert.match(html,/文字命中不代表事件歸屬或立場/);assert.doesNotMatch(html,/<script>|<img>/);
 });
 
+const withResults=(coverage:ReportMeta['coverage'],visibleCount:number|null|undefined,total:number|null|undefined)=>renderToStaticMarkup(createElement(KeywordEvidenceNotice,{coverage,subject:'交通',compact:true,visibleCount,total}));
+const EMPTY_WORDING=/空列表|沒有符合這個共同標籤|沒有已收錄影片/;
+test('listed rows and a counted total are never described as an empty result, whatever the coverage',()=>{
+ // The reviewed case: 1137 counted results, 50 on this page, coverage absent or partial.
+ for(const coverage of [{},{status:'unknown'},{...complete,vocabularyVersion:null},{...complete,freshVideos:5,staleVideos:3,unprocessedVideos:4,keywordMatchedVideos:0},{...complete,keywordMatchedVideos:null},complete,{...complete,sourceVideos:0,freshVideos:0}]){
+  const html=withResults(coverage,50,1137);
+  assert.doesNotMatch(html,EMPTY_WORDING,JSON.stringify(coverage));
+  assert.match(html,/目前條件共 1,137 部符合・本頁顯示 50 部。/);
+  assert.match(html,/data-keyword-results="listed"/);
+ }
+ // Raw coverage metrics stay as reported; missing ones stay unknown, not filled from the result total.
+ const partial=withResults({...complete,keywordMatchedVideos:null,staleVideos:null},50,1137);
+ assert.ok(partial.includes('<dt>符合標籤</dt><dd>未提供</dd>'));assert.ok(partial.includes('<dt>來源文字已變動</dt><dd>未提供</dd>'));assert.ok(partial.includes('<dt>來源影片</dt><dd>12 部</dd>'));
+ assert.doesNotMatch(partial,/<dd>1,137 部<\/dd>|<dd>50 部<\/dd>/);
+ assert.match(withResults({},50,1137),/比對涵蓋範圍未完整提供，列出的結果可能不完整/);
+ assert.match(withResults({...complete,freshVideos:5,unprocessedVideos:7},50,1137),/結果可能不完整/);
+ assert.match(withResults({...complete,sourceVideos:2000,freshVideos:2000,keywordMatchedVideos:1137},50,1137),/皆已完成目前版本比對；下方只列出/);
+ // Complete coverage that reports zero matches beside listed rows is flagged as inconsistent, not as no-match.
+ assert.match(withResults(complete,50,1137),/涵蓋數量與列出的結果不一致/);
+ assert.match(withResults({status:'not-synchronized'},50,1137),/尚未同步，列出的結果可能不是目前版本/);
+});
+test('rows with an uncounted total report only what is on the page',()=>{
+ const html=withResults({},20,null);
+ assert.match(html,/本頁顯示 20 部。/);assert.doesNotMatch(html,/目前條件共|NaN|—|空列表/);
+ // Unsafe counts are ignored rather than displayed.
+ for(const [visible,total] of [[-1,null],[0.5,null],[Infinity,null],[Number.MAX_SAFE_INTEGER+1,null]] as const)assert.doesNotMatch(withResults({},visible,total),/本頁顯示|目前條件共|data-keyword-results/);
+});
+test('an empty page with a positive total differs from no matches',()=>{
+ const page=withResults({...complete,keywordMatchedVideos:0},0,1137);
+ assert.match(page,/data-keyword-results="page-empty"/);assert.match(page,/這一頁沒有可呈現的影片，但目前條件共 1,137 部符合；請改看其他頁碼。/);
+ assert.doesNotMatch(page,EMPTY_WORDING);assert.doesNotMatch(page,/本頁顯示/);
+ // A counted zero on an empty page is still the existing no-match / incomplete wording.
+ assert.match(withResults(complete,0,0),/目前沒有符合這個共同標籤的影片/);assert.doesNotMatch(withResults(complete,0,0),/data-keyword-results/);
+ assert.match(withResults({},0,null),/無法確認空列表/);
+ // Callers that list nothing (boards) keep the coverage-only explanation.
+ assert.doesNotMatch(render(complete),/data-keyword-results/);
+});
+
 test('positive partial results disclose incompleteness without calling them an empty list',()=>{
  const html=render({...complete,freshVideos:8,staleVideos:3,unprocessedVideos:1,keywordMatchedVideos:2});
  assert.match(html,/結果可能不完整/);assert.doesNotMatch(html,/空列表|皆已完成/);

@@ -1,3 +1,5 @@
+import {writeSync} from 'node:fs';
+import {homeDiagnosticSink} from './reports/home-diagnostics.js';
 import {registerPublicV1Cache,markPublicV1Partial} from './public-v1-cache.js';
 import {trustedProxies} from './trusted-proxy.js';
 import {registerCrawlerLog} from './seo/crawler-log.js';
@@ -54,7 +56,7 @@ interface AppOptions {
     clock?: () => Date;
 }
 export function buildApp(options: AppOptions = {}) {
-    const app = Fastify({ logger: false, trustProxy: trustedProxies(process.env.AUTH_TRUSTED_PROXY_CIDRS), requestTimeout: 15000, bodyLimit: 16384 }), reader = options.reader ?? createReader(options.databaseUrl ?? process.env.DATABASE_URL), clock = options.clock ?? (() => new Date()), service = reports(reader, clock);
+    const app = Fastify({ logger: false, trustProxy: trustedProxies(process.env.AUTH_TRUSTED_PROXY_CIDRS), requestTimeout: 15000, bodyLimit: 16384 }), reader = options.reader ?? createReader(options.databaseUrl ?? process.env.DATABASE_URL), clock = options.clock ?? (() => new Date()), service = reports(reader, clock, homeDiagnosticSink(line=>{writeSync(2,line);}, clock));
     if(options.publicApi!==false)registerPublicApiPolicy(app,{clock,...options.publicApi});
     registerPublicV1Cache(app);
     registerCrawlerLog(app);
@@ -100,6 +102,9 @@ export function buildApp(options: AppOptions = {}) {
             }
             if (path === '/home') {
                 const exploration=object(record.exploration);addVocabularyQualityNotice(m,object(exploration.keywords).sourceQuality);for(const key of ['categories','keywords'])if(object(exploration[key]).status==='unavailable')m.warnings.push(key==='categories'?'分類統計目前無法完整讀取。':'關鍵字統計目前無法完整讀取。');
+                // Preserve the partial API contract, but never let a transient
+                // section failure become a shared cached homepage snapshot.
+                if (['categories','keywords','keywordToday'].some(key=>object(exploration[key]).status==='unavailable')) markPublicV1Partial(reply);
             }
             if (path === '/ai/days') {
                 m.coverage = { ...m.coverage, rawVideoRows: integer(record.rawVideoRows), sourceChannels: integer(record.sourceChannels), channels: integer(record.channels) };
