@@ -36995,6 +36995,112 @@
       }
     ],
     "nextNativeSmokeRequest": "/tmp/babysit/mint-queue/youtube-native-smoke-073985b8-request.json",
-    "limitations": "Source approval only; no artifact, screenshots or runtime/deployment acceptance. Other pages may be reviewed after deployment per user decision; ledger remains pending."
-  }
+    "limitations": "Source approval only; no artifact, screenshots or runtime/deployment acceptance. Other pages may be reviewed after deployment per user decision; ledger remains pending.",
+    "currentProductionImage": "sha256:4f5e2a3ae63629a85f1463f778a7548b8cf53b758b881cb417e5d84f34276ffa",
+    "currentProductionReportedRevision": "7d4d945acfb48c1a4a5d3ff8d8d6cb4097a89826",
+    "mustPersistDokploySuccessorComposeBeforeDeployment": true,
+    "rollbackImageBeforeF2": "sha256:4f5e2a3ae63629a85f1463f778a7548b8cf53b758b881cb417e5d84f34276ffa"
+  },
+  "productionDeploymentHistory": [
+    {
+      "schema": "yt-exceptional-production-deployment-v1",
+      "recordedAt": "2026-10-13T21:03:08.478307+00:00",
+      "deploymentOwner": "a27ec0e6",
+      "ongoingDeploymentOwner": "d7967e77",
+      "authorization": {
+        "source": "user direct authorization reported by babysit",
+        "at": "2026-10-13T20:57:00Z",
+        "exception": true
+      },
+      "deploymentMethod": "direct docker service update; outside Dokploy; performed by a27, not this thread",
+      "image": "sha256:4f5e2a3ae63629a85f1463f778a7548b8cf53b758b881cb417e5d84f34276ffa",
+      "tag": "youtube-board-ts:7d4d945",
+      "revision": "7d4d945acfb48c1a4a5d3ff8d8d6cb4097a89826",
+      "artifactComposition": {
+        "source": "a27 reported; not independently reconstructed by this thread",
+        "baseImage": "sha256:5b7d9171d9633c132766c65abd934c791787693a72b7f016bcd1408097dedadd",
+        "baseRevision": "7eb48f4",
+        "replacedPaths": [
+          "frontend standalone tree",
+          "platform/api/src/reports/mayor.ts"
+        ],
+        "otherFiles": "a27 reports unchanged"
+      },
+      "services": [
+        {
+          "name": "youtube-board-ts-6oukfq_web",
+          "updatedAt": "2026-10-13T20:59:42.571053625Z",
+          "previousImage": "sha256:5b7d9171d9633c132766c65abd934c791787693a72b7f016bcd1408097dedadd"
+        },
+        {
+          "name": "youtube-board-ts-6oukfq_account-maintenance",
+          "updatedAt": "2026-10-13T20:59:57.667726807Z",
+          "previousImage": "sha256:5b7d9171d9633c132766c65abd934c791787693a72b7f016bcd1408097dedadd"
+        }
+      ],
+      "independentReadOnlyConfigCheck": {
+        "observedAt": "2026-10-13T21:03:08.478307+00:00",
+        "exitCode": 0,
+        "verifiedFields": [
+          "service name",
+          "current image",
+          "PreviousSpec image",
+          "UpdatedAt"
+        ],
+        "ssh": "existing strict host pin and existing identity; no keys copied"
+      },
+      "reportedAcceptance": {
+        "reviewer": "babysit",
+        "at": "2026-10-13T21:01:00Z",
+        "serviceTasks": "both 1/1 Running",
+        "http200": [
+          "/",
+          "/keywords",
+          "/mayor",
+          "/mayor/cities/taipei?days=90&to=2026-10-10"
+        ],
+        "browserPrivacy": "website opt-out, GA requests 0 reported by babysit",
+        "taipeiChart": {
+          "蔣萬安": "36.8%",
+          "沈伯洋": "63.2%",
+          "郭璽": "0.0%",
+          "axis": "0–100%",
+          "series": "three lines on one chart"
+        },
+        "screenshots": null,
+        "limitations": "Reported live acceptance only; no independent capture/model transcript attached here. Not successor F2 UI approval."
+      },
+      "dokployDrift": {
+        "storedComposeImage": "sha256:5b7d9171d9633c132766c65abd934c791787693a72b7f016bcd1408097dedadd",
+        "source": "a27 reported",
+        "risk": "Deploying retained Dokploy compose would restore old image and lose mayor change",
+        "requiredNextAction": "Update Dokploy compose image for both services to same checked successor digest before next deploy; read back saved config."
+      },
+      "rollbackPoints": [
+        {
+          "role": "pre-a27 historical",
+          "image": "sha256:5b7d9171d9633c132766c65abd934c791787693a72b7f016bcd1408097dedadd"
+        },
+        {
+          "role": "current production; immediate predecessor for F2",
+          "image": "sha256:4f5e2a3ae63629a85f1463f778a7548b8cf53b758b881cb417e5d84f34276ffa"
+        }
+      ],
+      "reportedRollbackMechanism": "a27 reports both services can service rollback or change image to pre-a27 digest. This records recovery availability, not execution authorization.",
+      "nextDeployment": {
+        "appSha": "073985b8bc4bbcc9ffb5d43c1e1a26060bb8ac4a",
+        "reviewedHistoricalOpsSha": "c04434948c6486499783e1bcde4f8af2167a9262",
+        "containsMayorCommit": true,
+        "gitAncestryVerified": true,
+        "image": null,
+        "buildId": null,
+        "mustDeployThroughDokploy": true,
+        "mustUseSameCandidateArtifact": true,
+        "mustUpdateBothServicesAndPersistCompose": true,
+        "remainingUIReviews": "pending; no route status promoted by this record"
+      },
+      "receiptPath": "/home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/a27-production-deployment-handoff-20261013T2059Z.json",
+      "receiptSha256": "964f9a269ee5699141fcd81b87398e8eb7e5e997674f66c4f87a861adda1072b"
+    }
+  ]
 }

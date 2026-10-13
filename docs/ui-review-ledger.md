@@ -569,3 +569,35 @@ UTC10:10起tag持有全站唯一建置名額；YT不啟動build／共享鎖DB/AP
 ## Latest source checkpoint; candidate review pending
 
 APP `073985b8`, OPS `c0443494` have independent source PASS receipts recorded in the JSON checkpoint. Neither has a new BUILD_ID or actual candidate screenshots. Home (today/week), `/keywords` and the evidence page still need1280/390 candidate captures with DNT and saved zero-GA network evidence, followed by nonauthor review. Every new-artifact UI state remains pending. User now permits remaining pages to be reviewed after deployment; this changes ordering, not acceptance status. Native-runtime smoke exact command and fresh-probe packet are submitted to babysit; no container/build/capture/deploy started.
+
+## Exceptional a27 production deployment (2026-10-13T20:59Z)
+
+Human directly authorized a27ec0e6 at20:57Z; direct service update outside Dokploy.
+Sole ongoing YT deploy owner remains d7967e77; a27 reports no further independent
+deployment. Current image `sha256:4f5e2a3ae63629a85f1463f778a7548b8cf53b758b881cb417e5d84f34276ffa` (tag youtube-board-ts:7d4d945).
+Web UpdatedAt20:59:42.571053625Z; account-maintenance20:59:57.667726807Z.
+This thread verified the full image, previous image and both UpdatedAt fields
+via strict-pinned read-only service inspection.
+
+a27 reports composition: prior7eb48f4 image `sha256:5b7d9171d9633c132766c65abd934c791787693a72b7f016bcd1408097dedadd` plus7d4d945 frontend
+standalone tree and platform/api/src/reports/mayor.ts; other paths unchanged.
+Do not describe this as a separately reproduced homogeneous full build.
+
+Babysit21:01Z reported both1/1 Running; /, /keywords, /mayor,
+/mayor/cities/taipei?days=90&to=2026-10-10 return200; opt-out browser GA0.
+Taipei share chart: 蔣萬安36.8%,沈伯洋63.2%,郭璽0.0%, three lines on0–100% axis.
+No capture paths/model UI transcript attached to this handoff; F2 successor
+acceptance and pending route statuses are unchanged.
+
+Rollback points: pre-a27 `sha256:5b7d9171d9633c132766c65abd934c791787693a72b7f016bcd1408097dedadd`; current production `sha256:4f5e2a3ae63629a85f1463f778a7548b8cf53b758b881cb417e5d84f34276ffa`.
+The current image becomes the immediate rollback target for the F2 release.
+a27 reports service rollback available for both services; no rollback executed.
+Dokploy compose still points to the pre-a27 image according to a27. Do not run
+its retained deploy configuration. Before the next checked Dokploy deployment,
+persist the successor digest for BOTH services in compose and read it back.
+APP `073985b8bc4bbcc9ffb5d43c1e1a26060bb8ac4a` and reviewed historicalOPS `c04434948c6486499783e1bcde4f8af2167a9262` are verified Git descendants
+of `7d4d945acfb48c1a4a5d3ff8d8d6cb4097a89826`. Build/check that successor, deploy the same checked artifact,
+verify mayor plus F2, and preserve both image recovery points.
+
+Private handoff receipt: /home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/a27-production-deployment-handoff-20261013T2059Z.json
+SHA256 `964f9a269ee5699141fcd81b87398e8eb7e5e997674f66c4f87a861adda1072b`. This record is not build/capture/deployment permission.
