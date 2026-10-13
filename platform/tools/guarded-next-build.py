@@ -18,6 +18,7 @@ import time
 
 GIB = 1024 ** 3
 SITES = {'tag': 'https://tag.observe.tw/', 'blog': 'https://blog.observe.tw/', 'youtube': 'https://youtube.observe.tw/'}
+SITE_LIMITS = {'tag': 2, 'blog': 6, 'youtube': 2}
 
 
 def reasons(sample, starting=False, estimate_bytes=0):
@@ -38,8 +39,8 @@ def reasons(sample, starting=False, estimate_bytes=0):
         # Fail closed on timeout, incomplete response, redirects and unknown values.
         if value.get('exitCode') != 0 or value.get('status') != 200:
             failures.append(site + '-response-unavailable')
-        if not isinstance(total, (int, float)) or not math.isfinite(total) or not 0 <= total <= 2:
-            failures.append(site + '-complete-response-over-2s-or-unknown')
+        if not isinstance(total, (int, float)) or not math.isfinite(total) or not 0 <= total <= SITE_LIMITS[site]:
+            failures.append(site + '-complete-response-over-baseline-limit-or-unknown')
     return failures
 
 
@@ -47,10 +48,10 @@ def sample():
     result = {'freeBytes': shutil.disk_usage('/home').free, 'load1': os.getloadavg()[0], 'sites': {}}
     for site, url in SITES.items():
         try:
-            response = subprocess.run(['curl', '--silent', '--show-error', '--max-time', '3',
+            response = subprocess.run(['curl', '--silent', '--show-error', '--max-time', str(SITE_LIMITS[site] + 1),
                                        '--output', '/dev/null', '--user-agent', 'youtube-board-verify/1.0',
                                        '--header', 'DNT: 1', '--write-out', '%{http_code} %{time_total}', url],
-                                      capture_output=True, text=True, timeout=4)
+                                      capture_output=True, text=True, timeout=SITE_LIMITS[site] + 2)
             status, total = response.stdout.split()
             result['sites'][site] = {'exitCode': response.returncode, 'status': int(status), 'totalSeconds': float(total)}
         except (OSError, ValueError, subprocess.TimeoutExpired):
@@ -178,8 +179,8 @@ def main():
     if not math.isfinite(args.estimated_gib) or args.estimated_gib <= 0:
         parser.error('A positive artifact estimate is required')
     notice = json.loads(args.slot_release_receipt.read_text())
-    if notice.get('owner') != 'YT' or notice.get('blogBuildFinished') is not True or not notice.get('operatorMessage'):
-        parser.error('Explicit operator blog-finished slot notice required; thaw alone is insufficient')
+    if notice.get('owner') != 'YT' or not (notice.get('remoteBuildAuthorized') is True or notice.get('blogBuildFinished') is True) or not notice.get('operatorMessage'):
+        parser.error('Explicit operator YT remote-build or blog-finished authorization receipt required')
     root = args.platform_root.resolve(strict=True)
     cli = root / 'node_modules/next/dist/bin/next'
     if not cli.is_file():
@@ -212,7 +213,9 @@ def main():
             record('start-denied', reason='stop-request-or-competing-build')
             return 75
         env = os.environ.copy()
-        env.update(NEXT_TELEMETRY_DISABLED='1', NODE_OPTIONS='--max-old-space-size=2048')
+        # Public measurement ID is build-inlined; preserve the approved production
+        # setting. Candidate hostname/DNT guards and capture network blocks remain.
+        env.update(NEXT_TELEMETRY_DISABLED='1', NEXT_PUBLIC_GA_ID='G-X2G1PLNP7K', NODE_OPTIONS='--max-old-space-size=2048')
         cpu = str(min(os.sched_getaffinity(0)))
         with Path(str(args.log) + '.output').open('x') as output:
             process = subprocess.Popen(['nice', '-n', '19', 'ionice', '-c3', 'taskset', '-c', cpu,

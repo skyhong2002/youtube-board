@@ -30866,9 +30866,8 @@
   "capturePerformancePolicy": {
     "effectiveAt": "2026-10-12T19:40:30Z",
     "maxSharedCaptureBrowserInstances": 2,
-    "maxConcurrentNextDockerBuilds": 1,
+    "maxConcurrentNextDockerBuilds": 2,
     "pauseBeforeBatchWhenOneMinuteLoadExceeds": 12,
-    "pauseBeforeBatchWhenBlogHomepageTTFBSecondsExceeds": 2,
     "timingURLs": [
       "https://tag.observe.tw/",
       "https://blog.observe.tw/",
@@ -30877,7 +30876,23 @@
     "privateGateModule": "/home/deck/.cache/youtube-ui-review/capture-performance-gate.mjs",
     "privateGateLogPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/performance-gate.jsonl",
     "preexistingCaptureLimitation": "Previous completed batches lack before/after measurements; none invented.",
-    "operatorHardStop": true
+    "operatorHardStop": false,
+    "effectiveInstruction": "2026-10-13 two-hour sprint to07:10Z; YT remote build authorized immediately",
+    "buildSlotReleased": true,
+    "buildSlotOrder": null,
+    "buildStartFreeGiB": 40,
+    "buildPauseFreeGiB": 30,
+    "capturePreparationReserveGiB": 40,
+    "captureReserveIsConservativeImplementationChoice": true,
+    "pauseBeforeBatchWhenAnyHomepageTotalSecondsExceeds": {
+      "tag": 2,
+      "blog": 6,
+      "youtube": 2
+    },
+    "pauseOnUnknownTimeoutOr5xx": true,
+    "nextBuildWorkersMaximum": 2,
+    "privateGateModuleStatus": "historical gate retained; new versioned runner pending source review; do not invoke old runner",
+    "remoteYTBuildExcludedFromLocalLimit": true
   },
   "referenceRepositoryEvidence": {
     "path": "/home/deck/.cache/tag-visuals",
@@ -32841,7 +32856,7 @@
   "frozenReleaseRetakePlan": {
     "at": "2026-10-13T02:59:44.292806+00:00",
     "deadlineUTC": "2026-10-13T10:50:00Z",
-    "operatorFreezeActive": true,
+    "operatorFreezeActive": false,
     "priorityOrder": [
       "F2 ranking/evidence states",
       "Y2 maintained relations",
@@ -32910,7 +32925,7 @@
     "singleCandidatePlan": "platform/docs/f2-single-candidate-after-thaw.md",
     "recaptureMatrix": {
       "path": "docs/ui-retake-matrix.json",
-      "sha256": "9ae6889fd7db5a51108d336d402a91ea8c4e58370680a8c6ea2c5935e01a382f",
+      "sha256": "78d2871a9acc4c64ab648e8176ef834237bb14809038269363c04ba15a435c77",
       "generator": "platform/tools/ui-retake-plan.py",
       "summary": {
         "uiEntries": 376,
@@ -32946,7 +32961,7 @@
         "batchCeilingScope": "Includes PNG and all network/reference/metadata evidence; 12 packages at 6MB + 12MB evidence = 84MB, below 90MB. Three inclusive caps total270MB, below300MB.",
         "rule": "Stop before either batch or cumulative cap; do not delete old files or reset cumulative accounting between batches. Rest of matrix remains pending until sufficient explicitly approved budget exists."
       },
-      "status": "待重拍；絕對凍結仍有效",
+      "status": "待新candidate與重拍；遠端YT可立即建置",
       "approval": false
     },
     "singleCandidatePlanReview": {
@@ -32961,8 +32976,9 @@
         "platform/tools/ui-retake-plan.py": "1d36d90a894abd025ad6b808e6d9b21873a9d50f775f3e57d31a24c9664d24fe",
         "docs/ui-retake-matrix.json": "9ae6889fd7db5a51108d336d402a91ea8c4e58370680a8c6ea2c5935e01a382f"
       },
-      "scope": "plan/source only; no authorization to execute or visual approval"
-    }
+      "scope": "Historical exact-hash plan review at6803fc8; subsequent explicit-thaw policy delta has separate review receipt."
+    },
+    "buildSlot": "YT remote build explicitly authorized immediately by two-hour sprint; local max2builds excludesremoteYT"
   },
   "frozenSourceReviews": [
     {
@@ -33652,5 +33668,130 @@
       }
     ],
     "candidateApproval": false
+  },
+  "capturePerformancePolicyHistory": [
+    {
+      "effectiveAt": "2026-10-12T19:40:30Z",
+      "maxSharedCaptureBrowserInstances": 2,
+      "maxConcurrentNextDockerBuilds": 1,
+      "pauseBeforeBatchWhenOneMinuteLoadExceeds": 12,
+      "pauseBeforeBatchWhenBlogHomepageTTFBSecondsExceeds": 2,
+      "timingURLs": [
+        "https://tag.observe.tw/",
+        "https://blog.observe.tw/",
+        "https://youtube.observe.tw/"
+      ],
+      "privateGateModule": "/home/deck/.cache/youtube-ui-review/capture-performance-gate.mjs",
+      "privateGateLogPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/performance-gate.jsonl",
+      "preexistingCaptureLimitation": "Previous completed batches lack before/after measurements; none invented.",
+      "operatorHardStop": true
+    }
+  ],
+  "thawPreparation": {
+    "operatorInstruction": "Explicit thaw at Taipei2026-10-13 12:5x; exact minute not supplied",
+    "slotOrder": [
+      "blog",
+      "YT",
+      "tag"
+    ],
+    "blogCompletionNotificationReceived": false,
+    "buildStarted": false,
+    "captureStarted": false,
+    "candidateStarted": false,
+    "deployed": false,
+    "guardCommit": "9fc25ff",
+    "sourceReview": {
+      "receipt": "/home/deck/.cache/youtube-ui-review/ui_review_2-2026-10-13/guarded-next-build-independent-review.json",
+      "sha256": "0347f809fdc58c211fe8a2ae8b41194e761bef6b9428f3c16a15037fe4fe51eb",
+      "model": "GPT-6.1 Sol",
+      "timeUTC": "2026-10-13T05:01:38.343883+00:00",
+      "reviewedBaseSHA": "6803fc830e57e142c93050ab2afa8d144bcd5c56",
+      "fileHashes": {
+        "platform/tools/guarded-next-build.py": "c3078443b1198105b4d71afbc2e37bed1a4256bc8cc258165541ae32feff8698",
+        "platform/tools/guarded-next-build.test.py": "cf3194dc9514f56b5d9a6c7c879c5e31aa5736d7421b8870ee91ffea22489061"
+      },
+      "testsPassed": 13,
+      "scope": "accepted local-Next guard source/mock scope; no unresolved scoped source blocker",
+      "limitations": [
+        "No realmain/build/probe/process-control/capture/runtime acceptance",
+        "Sampled monitor:5s sleep plus3sequentialcurl subprocesses timeout4s each maydelay detection about17s plusOS scheduling; stop upon detectedbreach, not instantcontinuous guarantee",
+        "SIGKILL/hostcrash cannotretain guardianlock; do not forcekill guardian whileworkowned",
+        "STOP-unconfirmed retainslock and reportsoperatorrecovery; physicalpause notproven when signal/ownershipinspectionfails",
+        "Globalprocess check is best-effort recognizedlocalNext/dockerCLI; cannotmake noncooperatinglaunch raceatomic",
+        "Docker/BuildKitdaemon/remoteimage packaging explicitly not controlled",
+        "Only samevalidatedsetsid processgroup descendants tracked; subprocess escapingitsgroup would need separateguard",
+        "Actualblogfinishedslotnotice stillpending; this review is not execution authorization"
+      ],
+      "addendum": {
+        "model": "GPT-6.1 Sol",
+        "timeUTC": "2026-10-13T05:07:04.995724+00:00",
+        "reviewBaseSHA": "af17245c191a0d25d16b174822d775a3214bc12c",
+        "scope": "Bounded public GA build-env and docs monitor-limit delta; prior13mocktests historical, not rerun",
+        "hashes": {
+          "platform/tools/guarded-next-build.py": "efbc87fe5b333fab0e210be1461bf607c33d3359d1b73b0810885a47892cebc4",
+          "platform/tools/guarded-next-build.test.py": "cf3194dc9514f56b5d9a6c7c879c5e31aa5736d7421b8870ee91ffea22489061",
+          "platform/docs/f2-single-candidate-after-thaw.md": "d5bd9288326b8d60494b398654e65c1e9b26b3fd19b0d8792a0e5012b2317e1f"
+        },
+        "status": "accepted source delta; no unresolved scoped blocker",
+        "assessment": [
+          "Guard delta only public build-inlined NEXT_PUBLIC_GA_ID G-X2G1PLNP7K pluscomment; matches existing private build-reviewed-frontend.py source",
+          "No monitor/processguard behavior change; candidate hostname/DNT guards and capturepreblocks stillrequired",
+          "Docs disclose sampled approximately17s+OSdelay, STOP-unconfirmed physicalpause limitation, SIGKILL/hostfailure limitation",
+          "Docs clarify publicmeasurement ID buildinline and noGAeventtesting claim"
+        ],
+        "binding": "Exact hashes bind reviewed uncommitted delta atop base; priorreview hashes/time retained",
+        "limits": [
+          "No guardmain/probes/build/browser/capture executed",
+          "GA ID configured does not prove GA network suppression; runtime receipt pending",
+          "Blog-finishedslotnotice stillpending"
+        ]
+      }
+    },
+    "runtimeProofPending": true,
+    "nextWorkerCap": {
+      "sourceCommit": "af17245",
+      "workers": 2,
+      "author": "actual claude-opus-5-5",
+      "reviewReceipt": "/home/deck/.cache/youtube-ui-review/ui_core_review-2026-10-13/source-review-build-cpus-final.json",
+      "reviewSHA256": "19334f73b3218a663e8415db10f649a0d093d010578f4e2494afd0763e7f7a4e",
+      "model": "GPT-6.1-Sol",
+      "timeUTC": "2026-10-13T05:03:18.183222+00:00",
+      "sourceSHA256": {
+        "platform/web/next.config.ts": "33dc1f121dc9ce8e216927ef8a5c4c94c35f366ac8c5e297faffaf778704ef35",
+        "platform/web/src/lib/public-render.test.ts": "4080c514b51eef5b337f14a822902c26f8c05986365b8b365ed559689b9f946f"
+      },
+      "focusedTestsPassed": 15,
+      "runtimeVerified": false
+    },
+    "remoteBuildAuthorized": true,
+    "blogCompletionNotificationRequired": false,
+    "sprintDeadlineUTC": "2026-10-13T07:10:00Z",
+    "slotOrderSuperseded": true,
+    "latestGateReview": {
+      "receipt": "/home/deck/.cache/youtube-ui-review/ui_core_review-2026-10-13/source-review-build-guardian-latest-gates.json",
+      "sha256": "d781375efdd1baba044535b3a432178092829dbbc2e53ee648ebc3fc8493fe68",
+      "review": {
+        "model": "GPT-6.1-Sol",
+        "reviewer": "ui_core_review",
+        "timeUTC": "2026-10-13T05:12:30.991419+00:00",
+        "reviewBaseSHA": "9fc25ff",
+        "reviewedSHA": "af17245c191a0d25d16b174822d775a3214bc12c",
+        "reviewedSHAScope": "Compared root uncommitted exact two-file delta against9fc25ff; current HEAD only is context, hashes bind changes.",
+        "sourceSHA256": {
+          "platform/tools/guarded-next-build.py": "0ab388eba53411d46b3d5f78e23451296fa2308d578dbee5e2c9c66d363b412a",
+          "platform/tools/guarded-next-build.test.py": "017494c41a2c43dcaa4d43ab3852321ea014ea1da6efbbbcbd56495dbeea9003"
+        },
+        "sourceAccepted": true,
+        "blockers": [],
+        "assessment": [
+          "SITE_LIMITS tag2/blog6/youtube2 applies complete response inclusive boundary; HTTP200/exitzero required, unknown or timeout deny.",
+          "curl max time and subprocess deadlines match distinct site limits; DNT/customUA retained.",
+          "YT receipt requires literal true remoteBuildAuthorized OR existing literal true blogBuildFinished with ownerYT/operatorMessage; new operator authorization supported.",
+          "Public GA build variable matches parent-reviewed addendum and privacy guards remain unchanged in delta."
+        ],
+        "tests": "Root reported14mockpass; source read only here, no independent rerun or log verification.",
+        "limitations": "No build/probe/browser/capture/staging/runtime actions; remote agent dedicated own-container guardian/runtime behavior not inspected by this source review."
+      }
+    }
   }
 }

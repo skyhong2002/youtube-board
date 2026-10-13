@@ -5,7 +5,7 @@
 操作計畫：[f2-single-candidate-after-thaw.md](../platform/docs/f2-single-candidate-after-thaw.md)。
 逐項矩陣：[ui-retake-matrix.json](ui-retake-matrix.json)，由
 `python3 platform/tools/ui-retake-plan.py --check` 離線檢查與本 ledger 的一對一覆蓋。
-這是待辦清單，不是 capture 或 review 證據；凍結未解除。
+這是待辦清單，不是 capture 或 review 證據。台北10/13 12:5x使用者已明確解凍；最新兩小時衝刺授權YT立即在skyhong-blog建置，不再等待blog。門檻為build/image開始40GiB、執行低於30GiB暫停；tag/YT整頁>2秒、blog>6秒、任一5xx或load>12即停；新capture準備版另保守預留40GiB加批次估計。舊112.5GiB停止線已被這次指示取代。
 
 - 376 個 UI 狀態、110 個 UI route；每項分列亮／暗 × 1280／390，支援的頁面另列今日／近七日。合計 **2,060 個 viewport packages**（一個 package 包含整頁與必要分段），240 項仍需補實際樣本或既有隔離 mock；缺圖、缺權限或缺樣本都維持 pending。
 - 首輪：首頁與 `/keywords` 各兩種期間，`/keywords/沈伯洋/videos` 與 `/keywords/支持/videos` 各兩種期間，`/channels` 原有期間；共 36 個 packages、3 小批。首頁必須在每張整頁與分段前後確認文字雲及排行期間相同、資料世代未變。今日與七日只套用有該功能的區塊，不把頻道近期開始直播條件當成歷史日期範圍。

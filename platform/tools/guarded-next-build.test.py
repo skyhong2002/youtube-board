@@ -29,10 +29,16 @@ class Gates(unittest.TestCase):
 
     def test_every_site_uses_complete_response(self):
         for site in guard.SITES:
-            for delta in [{'totalSeconds': 2.01}, {'status': 503}, {'exitCode': 28}, {'totalSeconds': float('nan')}, {'status': None}]:
+            for delta in [{'totalSeconds': guard.SITE_LIMITS[site] + .01}, {'status': 503}, {'exitCode': 28}, {'totalSeconds': float('nan')}, {'status': None}]:
                 row = good(); row['sites'][site].update(delta)
                 self.assertTrue(guard.reasons(row), (site, delta))
         row = good(); del row['sites']['tag']
+        self.assertTrue(guard.reasons(row))
+
+    def test_relative_blog_limit(self):
+        row = good(); row['sites']['blog']['totalSeconds'] = 6
+        self.assertEqual(guard.reasons(row), [])
+        row['sites']['blog']['totalSeconds'] = 6.01
         self.assertTrue(guard.reasons(row))
 
     def test_load_and_unknown(self):

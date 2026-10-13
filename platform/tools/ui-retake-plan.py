@@ -56,7 +56,7 @@ def create(ledger):
         rows.append({'id': f'ledger-{index:03}', 'ledgerEntryIndex': index, 'route': entry['route'], 'state': entry['state'],
                      'priority': entry['priority'], 'exampleURL': entry.get('exampleURL'),
                      'exampleStatus': 'existing example; candidate origin and data need verification' if entry.get('exampleURL') else 'missing; resolve existing sample or approved isolated mock before capture',
-                     'periods': period, 'viewportVariants': VARIANTS, 'status': 'pending-thaw-and-recapture',
+                     'periods': period, 'viewportVariants': VARIANTS, 'status': 'pending-candidate-and-recapture',
                      'plannedViewportPackages': len(period['variants']) * 4})
     # First permitted envelope targets the original four findings, not a sample claiming full-site completion.
     first = []
@@ -72,7 +72,8 @@ def create(ledger):
                               'urlRule': 'Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.',
                               'batch': len(first) // 12 + 1})
     count = sum(row['plannedViewportPackages'] for row in rows)
-    return {'schemaVersion': 1, 'purpose': 'Planning only; not capture or review evidence', 'operatorFreezeActive': True,
+    return {'schemaVersion': 1, 'purpose': 'Planning only; not capture or review evidence', 'operatorFreezeActive': False,
+            'buildSlot': 'operator sprint authorizes remote YT build immediately; new candidate identity/readiness required before capture',
             'candidateSourceSHA': None, 'candidateSourceRule': 'Pin exact final independently reviewed committed SHA before one build; never use dirty worktree or relabel old PNGs',
             'inventorySource': 'docs/ui-review-ledger.json', 'periodDateRule': 'D = Taipei calendar date frozen at batch start; record resolved UTC bounds; crossing midnight requires re-resolution, never mix fullpage and slices',
             'summary': {'uiEntries': len(rows), 'uiRoutes': len({r['route'] for r in rows}), 'plannedViewportPackages': count,
@@ -92,10 +93,10 @@ def create(ledger):
                            'firstEnvelopeEvidenceReservePerBatchBytes': 12000000,
                            'batchCeilingScope': 'Includes PNG and all network/reference/metadata evidence; 12 packages at 6MB + 12MB evidence = 84MB, below 90MB. Three inclusive caps total270MB, below300MB.',
                            'rule': 'Stop before either batch or cumulative cap; do not delete old files or reset cumulative accounting between batches. Rest of matrix remains pending until sufficient explicitly approved budget exists.'},
-            'captureGates': ['Explicit thaw covering build/staging/capture/probes; no auto-unfreeze',
-                             'Global max 2 browsers, max 1 build; pgrep plus actual process inspection before start',
-                             'Before and after every batch: load<=12; blog totalSeconds<=2, all three sites known non-5xx; timeout/unknown denies',
-                             'Honor 112.5GiB retained capture floor unless operator explicitly supersedes; require estimated batch space above floor',
+            'captureGates': ['Operator sprint authorizes remote YT build immediately; capture waits for verified fresh candidate readiness',
+                             'Global max2 browsers; local max2 builds, remote YT build excluded; pgrep plus actual process inspection before start',
+                             'Before and after every batch: load<=12; homepage totalSeconds tag<=2/blog<=6/youtube<=2 and known non-5xx; timeout/unknown denies',
+                             'New operator build/image start floor40GiB, build pause floor30GiB supersede historical112.5GiB capture floor. Prepared capture policy conservatively reserves40GiB plus estimated batch; this extra margin is implementation choice.',
                              'Independent Playwright DNT=1/GPC; Google/GA/GTM routes installed before first navigation; no synthetic analytics',
                              'Bounded redacted network receipt: allowlisted host/category/outcome only, no headers/cookies/query/body/IP/full UA',
                              'Record SHA, BUILD_ID, pinned digest and runtime artifact proof separately from manifest assertions',
@@ -114,7 +115,7 @@ def validate(plan, ledger):
     assert plan['summary']['uiEntries'] == ledger['summary']['uiEntries']
     assert plan['summary']['uiRoutes'] == ledger['summary']['uiUniqueRoutes']
     assert len(plan['firstEnvelope']) == 36
-    assert all(r['viewportVariants'] == VARIANTS and r['status'] == 'pending-thaw-and-recapture' for r in plan['entries'])
+    assert all(r['viewportVariants'] == VARIANTS and r['status'] == 'pending-candidate-and-recapture' for r in plan['entries'])
     assert periods('/groups/{groupName}/ranking')['variants'][1]['query']['from'] == 'D-7'
     assert periods('/keywords/{keyword}/videos')['variants'][1]['query']['from'] == 'D-6'
     assert periods('/live/current')['control'] == 'n/a-visible-period'
