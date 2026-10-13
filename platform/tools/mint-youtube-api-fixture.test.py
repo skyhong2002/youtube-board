@@ -57,6 +57,20 @@ class FixtureMocks(unittest.TestCase):
             (base/'outside').symlink_to('/etc')
             with self.assertRaisesRegex(ValueError,'EXTERNAL_DEPENDENCY_LINK_DENIED'):fixture.dependency_tree(root)
 
+    def test_linked_ignored_dependency_target_bytes_change_hash(self):
+        with tempfile.TemporaryDirectory(prefix='yt-linked-dependency-mock-') as tmp:
+            root=Path(tmp);base=root/'platform/node_modules';base.mkdir(parents=True)
+            target=root/'node_modules/mock-package';target.mkdir(parents=True)
+            (target/'index.js').write_text('export const fixture=1;')
+            (base/'mock-package').symlink_to('../../node_modules/mock-package')
+            first=fixture.dependency_tree(root)
+            (target/'index.js').write_text('export const fixture=2;')
+            self.assertNotEqual(first,fixture.dependency_tree(root))
+            (target/'cycle').symlink_to('.')
+            self.assertIsInstance(fixture.dependency_tree(root),str)
+            with patch.object(fixture.os,'listdir',side_effect=PermissionError):
+                with self.assertRaises(PermissionError):fixture.dependency_tree(root)
+
     def test_empty_installed_dependency_tree_cannot_supply_an_identity(self):
         with tempfile.TemporaryDirectory(prefix='yt-dependency-mock-') as tmp:
             root=Path(tmp);(root/'platform/node_modules').mkdir(parents=True)

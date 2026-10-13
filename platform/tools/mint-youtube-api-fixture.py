@@ -109,31 +109,45 @@ def source_tree(root):
 
 
 def dependency_tree(root):
-    """Hash installed dependency bytes and internal links; no install or mutation."""
+    """Hash every reachable installed dependency byte, including workspace links."""
     base = root / 'platform/node_modules'
-    require(base.is_dir() and not base.is_symlink() and base.resolve() == base, 'CANONICAL_DEPENDENCY_TREE_REQUIRED')
-    manifest, total = [], 0
-    for directory, dirs, files in os.walk(base, followlinks=False):
-        for name in sorted(dirs + files):
-            path = Path(directory) / name
-            relative = str(path.relative_to(base))
-            require(len(manifest) < 50000, 'DEPENDENCY_FILE_COUNT_CAP')
-            if path.is_symlink():
-                target = path.resolve(strict=True)
-                require(target.is_relative_to(root), 'EXTERNAL_DEPENDENCY_LINK_DENIED')
-                manifest.append([relative, 'link', os.readlink(path)])
-            elif path.is_file():
-                size = path.stat().st_size
-                total += size
-                require(total <= 2 * 1024 ** 3, 'DEPENDENCY_BYTE_CAP')
-                hasher = hashlib.sha256()
-                with path.open('rb') as stream:
-                    for chunk in iter(lambda: stream.read(1048576), b''):
-                        hasher.update(chunk)
-                manifest.append([relative, 'file', hasher.hexdigest()])
-            else:
-                require(path.is_dir(), 'REGULAR_DEPENDENCY_REQUIRED')
-    require(manifest, 'NONEMPTY_DEPENDENCY_TREE_REQUIRED')
+    require(root.is_absolute() and root.resolve() == root and base.is_dir() and not base.is_symlink() and base.resolve() == base, 'CANONICAL_DEPENDENCY_TREE_REQUIRED')
+    manifest, seen, total = [], set(), 0
+    def visit(path):
+        nonlocal total
+        require(len(manifest) < 50000, 'DEPENDENCY_FILE_COUNT_CAP')
+        relative = str(path.relative_to(root))
+        if path.is_symlink():
+            target = path.resolve(strict=True)
+            require(target.is_relative_to(root), 'EXTERNAL_DEPENDENCY_LINK_DENIED')
+            manifest.append([relative, 'link', os.readlink(path), str(target.relative_to(root))])
+            visit(target)  # Ignored APP-root node_modules and workspace bytes count too.
+            return
+        if path in seen:
+            return
+        seen.add(path)
+        before = path.stat()
+        if path.is_file():
+            require(total + before.st_size <= 2 * 1024 ** 3, 'DEPENDENCY_BYTE_CAP')
+            hasher, read = hashlib.sha256(), 0
+            with path.open('rb') as stream:
+                for chunk in iter(lambda: stream.read(1048576), b''):
+                    read += len(chunk)
+                    require(total + read <= 2 * 1024 ** 3, 'DEPENDENCY_BYTE_CAP')
+                    hasher.update(chunk)
+            after = path.stat()
+            require((before.st_dev,before.st_ino,before.st_size,before.st_mtime_ns,before.st_ctime_ns) == (after.st_dev,after.st_ino,after.st_size,after.st_mtime_ns,after.st_ctime_ns) and read == before.st_size, 'STABLE_DEPENDENCY_BYTES_REQUIRED')
+            total += read
+            manifest.append([relative, 'file', hasher.hexdigest()])
+        else:
+            require(path.is_dir(), 'REGULAR_DEPENDENCY_REQUIRED')
+            manifest.append([relative, 'directory'])
+            names = sorted(os.listdir(path))  # Errors propagate, never fabricate emptiness.
+            for name in names:
+                visit(path / name)
+            require(names == sorted(os.listdir(path)), 'STABLE_DEPENDENCY_MEMBERSHIP_REQUIRED')
+    visit(base)
+    require(any(row[1] == 'file' for row in manifest), 'NONEMPTY_DEPENDENCY_TREE_REQUIRED')
     return hashlib.sha256(json.dumps(sorted(manifest), separators=(',', ':')).encode()).hexdigest()
 
 
