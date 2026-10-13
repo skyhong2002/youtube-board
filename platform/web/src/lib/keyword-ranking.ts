@@ -73,6 +73,7 @@ export function vocabularyPoolLabel(summary:Partial<Pick<HomeKeywordSummary,'voc
  return '詞彙池範圍目前未提供。';
 }
 export const TAG_DISPLAY_EXCLUSION_LABELS:Record<string,string>={
+ 'youtube-source-or-platform':'來源或平台名稱',
  'youtube-platform-or-promotion':'YouTube 平台或宣傳用語',
  'upstream-length':'長度不在 2–30 字',
  'upstream-no-equal-or-category':'新聞分類詞或上游排除詞',
@@ -81,7 +82,7 @@ export const TAG_DISPLAY_EXCLUSION_LABELS:Record<string,string>={
  'upstream-nonword':'不含文字或數字',
 };
 /** Two different mechanisms; keep them apart in every method note. */
-export const DISPLAY_EXCLUSION_NOTE='顯示排除：符合標籤顯示規則的詞（上游排除詞、雜訊、純數字或日期、長度不符，以及少數 YouTube 平台或宣傳用語）整詞不列入排行，但仍保留在原始詞彙池與比對證據中。';
+export const DISPLAY_EXCLUSION_NOTE='顯示排除：符合標籤顯示規則的詞（上游排除詞、雜訊、純數字或日期、長度不符，以及核定的來源或平台名稱、少數 YouTube 平台或宣傳用語）整詞不列入排行，但仍保留在原始詞彙池與比對證據中。';
 export const DESCRIPTION_TEMPLATE_NOTE='說明欄樣板：同一頻道說明欄反覆出現的宣傳段落不列入比對。「24小時」這類詞只在這種重複宣傳段落中略過，出現在一般新聞內容時照常計入；這不同於整詞的顯示排除。';
 export const exclusionReasonLabel=(code:string)=>TAG_DISPLAY_EXCLUSION_LABELS[code]??`其他顯示規則（${code}）`;
 /** undefined = API without the field; null = eligible for the ranking. */

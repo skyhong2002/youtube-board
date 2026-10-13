@@ -103,3 +103,9 @@ it('permits exactly25percent invalid channels/videos and reports failures withou
  const profiles=new Map(videos.map(v=>[v.channelId,{profile:buildDescriptionTemplateProfile(v.channelId,[])}]));profiles.set(4,{profile:null as never,reason:'invalid-sample'} as never);
  expect(previewVideoQualityBatch(videos,snapshot,profiles)).toMatchObject({invalidChannels:1,invalidProfileShare:.25,guardedFailureVideoShare:.25,executeAllowed:true});
 });
+
+it('excludes authorized news sources and no-equal terms while retaining named subjects',()=>{
+ for(const term of ['Yahoo','yahoo',' YAHOO ','合作媒體'])expect(tagDisplayExclusion(term)).toBe('youtube-source-or-platform');
+ for(const term of ['美國','民進黨'])expect(tagDisplayExclusion(term)).toBe('upstream-no-equal-or-category');
+ for(const term of ['沈伯洋','川普','台積電'])expect(tagDisplayExclusion(term)).toBeNull();
+});

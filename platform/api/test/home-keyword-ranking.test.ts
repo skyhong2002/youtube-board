@@ -29,7 +29,7 @@ it('combines daily bins before channel decay without resetting saturation at mid
 });
 it('keeps the raw pool immutable while applying authorized platform display exclusions',()=>{
  const raw=[{term_key:'a',term:'YouTube'},{term_key:'b',term:'youtube'},{term_key:'c',term:'沈伯洋'},{term_key:'d',term:'看'}],before=JSON.stringify(raw);
- const d=keywordDisplayMap(raw);expect(d.excluded.sort()).toEqual(['a','b','d']);expect(d.groups.size).toBe(1);expect(JSON.stringify(raw)).toBe(before);expect(d.exclusions.youtubePolicyVersion).toBe('youtube-platform-display-v1');
+ const d=keywordDisplayMap(raw);expect(d.excluded.sort()).toEqual(['a','b','d']);expect(d.groups.size).toBe(1);expect(JSON.stringify(raw)).toBe(before);expect(d.exclusions.youtubePolicyVersion).toBe('youtube-platform-display-v2');
 });
 it('SQL per-window channel aggregates preserve exact JS heat, missing views and rise semantics',()=>{
  const d=keywordDisplayMap([{term_key:'a',term:'OpenAI'}]);
