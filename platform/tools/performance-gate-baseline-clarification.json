@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUTC": "2026-10-13T06:22:55.818153+00:00",
+  "correctedSourceReceipt": "/tmp/babysit/gate-baseline-receipt.md",
+  "correctedReceiptSHA256": "1698e51b45f7a56b8b15bc16eaa24fce5bd5400c377cc1b2102d45d429c27544",
+  "originalReceiptSHA256": "c897d26530db7e78b988b5c8c2614d5baa6a7e1716d8852cdc29f43c612d267b",
+  "originalFrozenReceiptCopy": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/gate-baseline-receipt-frozen-v7.md",
+  "statement": "The blog 3.085-second DYNAMIC time_total includes origin rendering, Cloudflare edge processing and network time; it is not an exact origin render duration. Tag and YT edge timings likewise do not establish origin duration.",
+  "thresholdsUnchangedSeconds": {
+    "tag": 2.0,
+    "blog": 6.17,
+    "youtube": 2.0
+  },
+  "frozenMetadataUnchanged": true,
+  "scope": "Clarification of original receipt wording only; does not rebaseline or change runtime limits."
+}

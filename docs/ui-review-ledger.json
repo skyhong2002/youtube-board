@@ -34011,5 +34011,82 @@
     ],
     "limitations": "Only four named existing remoteJSONdocuments read. No filesystem screenshot search, browser, capture, build, test, deployment, remote modification, cleanup, account login or officialledger changes. No images copied;0bytes against20MB cap. This audit does not independently verify source or frontend proof claims.",
     "ownerInterpretation": "Read-only evidence inventory, not source/artifact verification or visual review. No new a77f84d screenshots existed; every new-SHA visual state remains pending. Historical654 approval cannot transfer. buildStarted=true and candidateStarted=false are sequential stages, not evidence that a candidate is ready."
+  },
+  "queueRelease0604": {
+    "notificationUTC": "2026-10-13T06:04Z",
+    "recordedAt": "2026-10-13T06:16:48.307108+00:00",
+    "owner": "YT",
+    "globalBuildLimit": 1,
+    "sourceSHA": "a77f84d9e5785106bff957a4d3873b6db85af7ea",
+    "stage": "Exact artifact/container verified and core HTTP canary passed; first capture blocked by unknown process inventory, no new screenshots",
+    "thinArchiveBytes": 20039680,
+    "inflatedDeltaBytes": 69260800,
+    "thinArchiveSHA256": "5eea22f07267518538ae0b4e060b0bb40a48d11c6d126c01e05a15998ece6259",
+    "sameArtifactNoRebuild": true,
+    "candidateStarted": true,
+    "newCaptures": 0,
+    "newReviews": 0,
+    "candidateApproval": false,
+    "captureV8SourceEvidence": [
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/capture-headless-shell-v8-author-proof.json",
+        "sha256": "f895794e32ac1a618b10c042e2a765cf2cae01cea07863a55217b82ff16f9e9c"
+      },
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/capture-headless-shell-v8-root-independent-review.json",
+        "sha256": "04d62962acf6acc9302db905126bd366cec9badb634f08321355e771c30a0ec9"
+      }
+    ],
+    "captureV8Changes": "Recognize exact installed chrome-headless-shell basename; seven offline inventory tests pass; both capture hard stops still true",
+    "limits": "Source acceptance does not establish runtime identity, network evidence, or visual approval; all376 new UI states and first36 packages pending",
+    "engineImportCompletedUTC": "2026-10-13T06:18:23Z",
+    "globalBuildSlotReleased": true,
+    "candidateBUILD_ID": "dSzDaU9M4jqYXzUwz7XSr",
+    "artifactFilesVerified": 3414,
+    "coldHomeSeconds": 16.028519238345325,
+    "updatedAt": "2026-10-13T06:32:01.992165+00:00",
+    "canaryFinishedUTC": "2026-10-13T06:22:41.555219+00:00",
+    "runtimeEvidence": [
+      {
+        "path": "/home/deck/Projects/youtube-board-f2/platform/.local/f2/sprint-a77f84d-proof/loaded-proof-addendum.json",
+        "sha256": "1c7b0460a847fddbceac1a1487bcec21f855fa463c2d0365b10bff781f5677d0"
+      },
+      {
+        "path": "/home/deck/Projects/youtube-board-f2/platform/.local/f2/candidate-a77f84d-runtime-proof.json",
+        "sha256": "9539c5ddc9af140722a2512094fcc385a7060cee3574134217aa96abf5f0e7d6"
+      },
+      {
+        "path": "/home/deck/Projects/youtube-board-f2/platform/.local/f2/artifact-a77f84d-all-files.json",
+        "sha256": "0b912abfa7feee274d7e730ef44c2f4f0699e066cc95a13962e70bbcf846e221"
+      },
+      {
+        "path": "/home/deck/Projects/youtube-board-f2/platform/.local/f2/candidate-canary-a77f84d.json",
+        "sha256": "630750c49ba539973989f6500364032b30bd449800913c98091e6edeecfcfe1f"
+      },
+      {
+        "path": "/home/deck/Projects/youtube-board-f2/platform/.local/f2/candidate-a77f84d-cold-readiness.json",
+        "sha256": "1ddf57a9f52444bd27998e8c27c4f256afdddf79769628518185c43a22909411"
+      },
+      {
+        "path": "/home/deck/Projects/youtube-board-f2/platform/.local/f2/candidate-a77f84d-supplemental-http.json",
+        "sha256": "a864dbc4a8bfd7ed6b5aa99a4b95f34e65594ff70b433a57b415196c35313a43"
+      }
+    ]
+  },
+  "baselineClarification1420": {
+    "schemaVersion": 1,
+    "recordedAtUTC": "2026-10-13T06:22:55.818153+00:00",
+    "correctedSourceReceipt": "/tmp/babysit/gate-baseline-receipt.md",
+    "correctedReceiptSHA256": "1698e51b45f7a56b8b15bc16eaa24fce5bd5400c377cc1b2102d45d429c27544",
+    "originalReceiptSHA256": "c897d26530db7e78b988b5c8c2614d5baa6a7e1716d8852cdc29f43c612d267b",
+    "originalFrozenReceiptCopy": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/gate-baseline-receipt-frozen-v7.md",
+    "statement": "The blog 3.085-second DYNAMIC time_total includes origin rendering, Cloudflare edge processing and network time; it is not an exact origin render duration. Tag and YT edge timings likewise do not establish origin duration.",
+    "thresholdsUnchangedSeconds": {
+      "tag": 2.0,
+      "blog": 6.17,
+      "youtube": 2.0
+    },
+    "frozenMetadataUnchanged": true,
+    "scope": "Clarification of original receipt wording only; does not rebaseline or change runtime limits."
   }
 }

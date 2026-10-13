@@ -405,3 +405,15 @@ Ledger仍344個route／591 entries，350 UI中25已review（24 issues、1僅stat
 獨立 GPT-6.1 Sol 盤點原檔 `/home/deck/.cache/youtube-ui-review/root-sprint-review-evidence-1340.json`（7,718 bytes，SHA-256 `7e9b48ddb82a44990abe2dd7ac3859e8388d47140b1998c84b273e3b28f78ad2`）已核對並登錄 JSON。這是既有證據盤點，沒有看新圖，也沒有獨立驗證 source/artifact。`a77f84d` 首輪 36 項全部 pending，首頁、/keywords、/keywords/支持/videos、/channels 均無新版本 pass；candidateApproval=false。不能沿用 654cdf5 的通過狀態。
 
 固定 baseline v7 與對應 guardian／部署收據原始碼的獨立 review 收據為 `frozen-baseline-v7-root-delta-independent-review.json`，SHA-256 `b63a5cb636c27e7d28ae22fd9af816bae5012ed30637ce2399d00e93d5d01e54`；16 項 local guardian mock tests、6 項 capture policy tests 與 syntax checks 通過，無 runtime／視覺驗收。
+
+## 06:04 UTC 建置名額交接後的準備
+
+06:16 UTC 歷史狀態：blog 完成建置後，協調者已將全站唯一名額交給 YT。同一個 a77f84d 產物的薄封存已驗證：20,039,680 bytes、解壓增量 69,260,800 bytes；完整 OCI 保留，沒有重建。匯入暫因既有 BuildKit daemon 的活動狀態待核對而停止，尚無 candidate、capture 或部署。
+
+截圖工具 v8 補上安裝版 `chrome-headless-shell` 的根程序識別；7 項離線測試通過。作者與獨立 GPT-6.1 Sol source review 收據列於 JSON `queueRelease0604.captureV8SourceEvidence`；兩個 hard stop 仍為 true。這不增加任何視覺通過：376 個新候選 UI 狀態與首輪 36 個 packages 仍 pending。
+
+06:18:23 UTC 映像匯入完成，來源與95層diffID/config吻合；全站建置名額已釋出。06:19:06 UTC candidate 啟動，06:21:06 UTC 容器內3,414檔、BUILD_ID `dSzDaU9M4jqYXzUwz7XSr`、Next/React版本與NoNewPrivs逐一核對。冷首頁16.03秒，不能拿暖值宣稱冷啟動改善；其後核心canary於06:22:41 UTC通過（6組快取邊界、7個核心頁與108個script比對），HTTP通過不代表視覺pass。實際proof路徑與hash列於JSON `queueRelease0604.runtimeEvidence`；目前無新截圖或視覺pass。
+
+14:20 收據文字更正：blog 的3.085秒DYNAMIC time_total包含origin渲染、Cloudflare edge及網路，並非精確的origin渲染耗時。guard既有scope已正確；原始凍結收據/hash保留，最新更正hash與原始copy列於 `platform/tools/performance-gate-baseline-clarification.json`，門檻2／6.17／2秒不變。
+
+06:29:59 UTC 首批capture preflight停於程序盤點unknown；三站均200且健康閘門通過，但無法確定瀏覽器根程序數量。沒有釋出capture hard stop、未建立capture envelope、無新PNG。未知盤點仍fail-closed，待既有權限下的唯讀盤點修正與獨立review。
