@@ -18,7 +18,7 @@
 
 ## 唯一候選來源
 
-目前 Mint 候選固定在 `codex/f2-mint-candidate` 的 **`e137c5f0a4c0184fe5bae8330b410eed74a07063`**，從 Git committed tree 建立乾淨輸入，不追隨 branch tip。它以 `65a7ce6` 為父提交，加入已獨立審查的 RSC identity 協商、首頁次要數值換行與對應測試／證據文件。四份 code/test 的 committed bytes 與 review hash 已在 `platform/.local/f2/mint-candidate-reviewed-source-binding.json` 核對。這只有來源證據，尚無此 SHA 的 BUILD_ID、映像或完整 UI review；若有新修正要納入，先另列固定後繼 SHA 並重新審查。
+Mint來源基線為 `e137c5f0a4c0184fe5bae8330b410eed74a07063`。後繼候選從此樹選入 `4d7dc12` 的11份已獨立review UI code/test、最終Y2契約測試及規劃文件；新的jobs／詞庫／worker-permissions修改不混入。執行前以唯一owner的 `/tmp/babysit/mint-queue/youtube.md` 所列exact SHA、對應Git tree proof及獨立boundary review固定來源。`codex/f2-mint-candidate` 只負責提供該commit，不追隨tip或準備分支。e137的四份已review code/test bytes原封保留；其hash-binding證據不代表後繼候選整體通過。所有新BUILD_ID、映像及376個UI狀態均pending。
 
 | 已在同一祖先鏈的提交 | 本批內容 |
 | --- | --- |
@@ -34,7 +34,7 @@
 
 上述四批成果**不需要 cherry-pick 或重新 merge**。執行前以 `git merge-base --is-ancestor` 核對，保存 `git diff --stat 7eb48f4..<release-SHA>` 與完整 diff。這個比較基線是最後已知正式版本，解除凍結後仍要確認實際正式版本；若正式版本已變動，先重做差異與回退基線，不能直接覆蓋。
 
-**排除範圍：**已保存在準備分支 `35a4794` 的 quality jobs、database/writer lock、description templates、recent evidence、worker-permissions 與 quality-report-reader 不在 e137 候選中；其他詞庫匯入後續也另批保存。不得藉本次發布執行 migration 015、grant、新增帳號、開啟 Y2/review/write gates 或替換 background worker。Y2 上游與覆核 schema 未啟用狀態必須可理解；「已記錄」不等於「已套用排名」。
+**排除範圍：**已保存在準備分支 `35a4794` 的 quality jobs、database/writer lock、description templates、recent evidence、worker-permissions 與 quality-report-reader 不在本輪新增的候選差異中（舊baseline已有的F2 jobs來源保留，但不啟動或替換writer）；其他詞庫匯入後續也另批保存。不得藉本次發布執行 migration 015、grant、新增帳號、開啟 Y2/review/write gates 或替換 background worker。Y2 上游與覆核 schema 未啟用狀態必須可理解；「已記錄」不等於「已套用排名」。
 
 ## 容量與時間預算（估算，不是量測結果）
 
