@@ -482,3 +482,14 @@ root16:30的GSC補充與離線source結論另經獨立GPT-6.1 Sol核對，receip
 - 重拍 generator／matrix 已独立source review，可用 `--check --mint-manifest --candidate-sha <exact SHA>` 輸出portable清單；SHA參數只檢查格式，沒有驗證runtime。2060 packages全部pending，240項無resolved example、fixture/readiness均未證。receipt的path/hash/time與限制見JSON `mintOfflineAudits`。
 
 UI修正successor將只從e137父樹選入4d7dc12的11份reviewed UI code/test、最終Y2契約測試和規劃文件；不追隨準備分支tip，不納入parked jobs／worker permissions。所有376新artifact狀態待重拍，完整route通過0。
+
+
+## 固定後繼來源（不含 runtime／視覺通過）
+
+實際後繼 `70529cff13b6b7f5b3e0571a229e2b61660f9df4` 已組成，父鏈為e137 → 1ef45cb1 → 70529cff。相對e137只變更20份檔案：11份UI code/test、最終Y2測試、8份規劃／證據／generator文件。1ef的proof頂層Y2欄位曾因作者重用迴圈變數而誤記GSC文件hash，70529cff的新proof明示更正並保留原檔；Git中的Y2 bytes與reviewBindings始終正確。最終tree-boundary獨立review進行中。
+
+計畫輸出約1.45MB，所有package仍executionAllowed=false，沒有任何新截圖。JSON `mintQueue` 指向exact source proof及planning receipt；它們不能替代實際capture manifest。source之外BUILD_ID／digest／readiness／全站名額均未證，所有376狀態仍待重拍，完整route通過0。
+
+獨立實際tree-boundary review已接受70529cff的20檔範圍與review hash-binding，原檔 `mint-successor-70529cff-independent-boundary-review-final.json`，SHA256 `bf0e3513334bf4f57eba094deae061bfe0adb18549880a9c78598c14c891ae14`，UTC2026-10-13T09:07:27.867088Z，既有GPT-6.1 Sol reviewer。完整path/model/SHA/時間見JSON；source接受不等於部署或UI接受。APP源碼70529cff固定，但APP BUILD_ID/digest、OPS exact runtime SHA/digest均null/unverified；隔離API與executor STOP/admission guard仍pending。釋放Mint鎖不能提升ready。
+
+OPS／APP pending欄位另有獨立addendum，path見JSON `mintQueue.runtimeHandoffIndependentAddendum`；SHA256 `e5be92ac2915015d9182d37f66815fce96d33e2752dc8ee57f51c72599293e08`，UTC2026-10-13T09:09:40.418863Z。此追加只記來源review，不更動候選SHA、不提升任何ready或pass。

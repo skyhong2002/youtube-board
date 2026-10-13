@@ -34437,7 +34437,7 @@
     "routeComplete": false,
     "candidateApproval": false,
     "retakeStatesPending": 376,
-    "scopeNote": "Build baseline remains clean committed tree e137. Reviewed UI followup saved in 4d7dc12100f8cd647f077978beb918d17157633a on preparation branch; does not authorize building preparation branch tip. Parked worker/vocabulary work excluded; successor candidate not yet assembled.",
+    "scopeNote": "Actual candidate70529cff is e137 successor with11reviewedUI files, finalY2test and planning documents. Parked post-e137 worker/vocabulary code excluded. No BUILD_ID/image/runtime or visual pass.",
     "deadline": "No deadline; human canceled18:50window. Continue authorized offline work and queued acceptance until scope is complete.",
     "toolchainReadiness": "coordinator reported Mint ready UTC2026-10-13T08:08, x86_64 Node24.15.0/npm11.12.1; not a current gate probe",
     "buildOrder": [
@@ -34507,6 +34507,68 @@
       "scope": "offline source/doc review only; no new probe or current running-image proof",
       "GSCResolutionClaim": false,
       "UIApproval": false
+    },
+    "candidateSourceSHA": "70529cff13b6b7f5b3e0571a229e2b61660f9df4",
+    "sourceAssemblyProof": {
+      "path": "/home/deck/Projects/youtube-board-f2/platform/.local/f2/mint-successor-70529cff-source-proof.json",
+      "sha256": "beb5eecb277f67a4940c57b4663b293df7b0ac8ebdd82579e8a3fc805627da68",
+      "boundaryReview": "accepted offline source/tree only; no runtime or UI approval",
+      "noBuild": true
+    },
+    "plannedCaptureOutput": {
+      "path": "/home/deck/Projects/youtube-board-f2/platform/.local/f2/mint-successor-70529cff-planning-output-receipt.json",
+      "sha256": "db4efed12ab3b15a431b0036acfdd221abc13b7f0295f7b3aa3a9f3af293b4f8",
+      "actualScreenshots": 0,
+      "executionAllowed": false,
+      "kind": "offline planning; not actual capture manifest"
+    },
+    "runtimeIdentityHandoff": {
+      "APPSourceSHA": "70529cff13b6b7f5b3e0571a229e2b61660f9df4",
+      "OPSRuntimeSHA": null,
+      "OPSReadiness": "pending exact coordinator identity and isolated API wiring",
+      "MintLockReleasedMeansReady": false,
+      "newSMBuildOrCaptureAllowed": false,
+      "reviewerPolicy": "Reuse existing reviewer instances only; no new sub-agents",
+      "requiredBeforeExecution": [
+        "fresh global slot handoff",
+        "exact OPS and APP identity",
+        "isolated API/readiness",
+        "actual executor STOP/admission guard acceptance",
+        "resource/health gates",
+        "inclusive retained-evidence budget"
+      ],
+      "APPBuildID": null,
+      "APPImageDigest": null,
+      "APPRuntimeIdentity": "unverified; source pin is not runtime identity",
+      "OPSRuntimeImageDigest": null,
+      "OPSRuntimeIdentity": "unverified; exact source and image identity pending coordinator proof",
+      "isolatedAPI": "pending",
+      "executorSTOPAdmissionGuard": "pending independent source and actual executor lifecycle acceptance"
+    },
+    "sourceBoundaryIndependentReview": {
+      "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/mint-successor-70529cff-independent-boundary-review-final.json",
+      "sha256": "bf0e3513334bf4f57eba094deae061bfe0adb18549880a9c78598c14c891ae14",
+      "model": "gpt-6.1-sol",
+      "reviewer": "/root/capture_source_review",
+      "executionUTC": "2026-10-13T09:07:27.867088+00:00",
+      "candidateSHA": "70529cff13b6b7f5b3e0571a229e2b61660f9df4",
+      "scope": "actual Git source/tree boundary and offline handoff only",
+      "sourceAssemblyAccepted": true,
+      "UIApproval": false,
+      "deploymentApproval": false,
+      "activationApproval": false,
+      "routeComplete": false
+    },
+    "runtimeHandoffIndependentAddendum": {
+      "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/mint-successor-70529cff-runtime-handoff-independent-addendum.json",
+      "sha256": "e5be92ac2915015d9182d37f66815fce96d33e2752dc8ee57f51c72599293e08",
+      "model": "gpt-6.1-sol",
+      "executionUTC": "2026-10-13T09:09:40.418863+00:00",
+      "scope": "offline explicit handoff metadata only",
+      "candidateSHA": "70529cff13b6b7f5b3e0571a229e2b61660f9df4",
+      "UIApproval": false,
+      "runtimeApproval": false,
+      "deploymentApproval": false
     }
   },
   "mintOfflineFollowup": {
@@ -34924,7 +34986,7 @@
   "mintOfflineAudits": {
     "recordedAtUTC": "2026-10-13T07:49:31.041226+00:00",
     "retainedSourceSHA": "c70a48b35665561d8be32c1b336b21ecb17894f9",
-    "buildCandidateSHA": "e137c5f0a4c0184fe5bae8330b410eed74a07063",
+    "buildCandidateSHA": "70529cff13b6b7f5b3e0571a229e2b61660f9df4",
     "evidence": [
       {
         "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/keyword-review-independent-source-audit-c70a48b.json",
@@ -35042,7 +35104,7 @@
       "recordedAtUTC": "2026-10-13T08:22:53.534349+00:00",
       "preparationBranch": "codex/f2-keyword-quality",
       "candidateBaselineSHA": "e137c5f0a4c0184fe5bae8330b410eed74a07063",
-      "successorSHA": null,
+      "successorSHA": "70529cff13b6b7f5b3e0571a229e2b61660f9df4",
       "sourceReceipts": [
         {
           "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/mayor-coverage-disclosure-independent-source-review-5f4b336.json",
@@ -35096,7 +35158,7 @@
         "Mayor coverage: always-visible incompleteness/non-comparison warning with closed native disclosure for per-date evidence.",
         "Mayor-only opt-in measured-overflow hint moved before long table; keyboard and gradients retained."
       ],
-      "status": "source reviewed; awaiting committed successor artifact and independent Mint retake",
+      "status": "Actual successor source/tree boundary independently accepted; all runtime and UI acceptance pending",
       "captureManifest": null,
       "BUILD_ID": null,
       "UIApproval": false,
