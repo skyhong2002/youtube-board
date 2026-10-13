@@ -6,6 +6,7 @@ import { derivedCommands, derivedFields } from './ai-derived-cli.js';
 import { cacheCommands, cacheFields, executeCacheWorkflow, validateCacheArguments } from './cache-cli.js';
 import { notificationCommands, notificationFields, executeNotificationWorkflow, validateNotificationArguments } from './notification-cli.js';
 import { executeSnapshotImport, SNAPSHOT_IMPORT_JOB } from './snapshot-import.js';
+import { MAX_EXPORT_PAGES } from './snapshot-client.js';
 import { matchVideoBatch, VIDEO_EVIDENCE_JOB } from './video-evidence.js';
 import { executionPolicy, assertExecute } from './policy.js';
 import { MEDIA_AVATAR_JOB, MEDIA_AVATAR_COMMAND, validateMediaArguments, executeMediaWorkflow } from './media-cli.js';
@@ -70,7 +71,7 @@ export function validateWorkflowInput(name: string, raw: unknown): WorkflowInput
     validateWindow({since:String(normalized.since??''),until:String(normalized.until??'')});
     const maxPages=Number(normalized['max-pages']??20);if(!Number.isSafeInteger(maxPages)||maxPages<1||maxPages>1000)throw new Error('Invalid vocabulary page cap');
   }
-  if (name === SNAPSHOT_IMPORT_JOB && (!Number.isSafeInteger(Number(normalized['max-pages'] ?? 100)) || Number(normalized['max-pages'] ?? 100) < 1 || Number(normalized['max-pages'] ?? 100) > 500)) throw new Error('Invalid full snapshot page cap');
+  if (name === SNAPSHOT_IMPORT_JOB && (!Number.isSafeInteger(Number(normalized['max-pages'] ?? 100)) || Number(normalized['max-pages'] ?? 100) < 1 || Number(normalized['max-pages'] ?? 100) > MAX_EXPORT_PAGES)) throw new Error('Invalid full snapshot page cap');
   if (name === RECENT_VIDEO_EVIDENCE_JOB) validateRecentInput({limit: Number(normalized.limit ?? 100), dailyLimit: Number(normalized['daily-limit'] ?? 5000), execute: true});
   if (name === VIDEO_EVIDENCE_JOB) {
     for (const [key, fallback, min, max] of [['after-pk', 0, 0, Number.MAX_SAFE_INTEGER], ['limit', 100, 1, 500]] as const) { const value = Number(normalized[key] ?? fallback); if (!Number.isSafeInteger(value) || value < min || value > max) throw new Error('Invalid match bound'); }

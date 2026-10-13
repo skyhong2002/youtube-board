@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { validateWorkflowInput, workflowArgs, executeRegisteredWorkflow } from '../src/workflow-registry.js';
 import { startWorker } from '../src/worker.js';
+import { SNAPSHOT_IMPORT_JOB } from '../src/snapshot-import.js';
+import { MAX_EXPORT_PAGES } from '../src/snapshot-client.js';
 const env = { APP_ENV: 'test', TS_INGESTION_ENABLED: 'true', TS_SCHEDULER_ENABLED: 'true', TS_INGESTION_OWNERS: 'youtube.videos.stats' };
 describe('registered background workflows', () => {
   it('binds commands by reviewed job name and rejects arbitrary flags/environments', () => {
@@ -18,6 +20,17 @@ describe('registered background workflows', () => {
   });
   it('normalizes option order for durable queue identity', () => {
     expect(validateWorkflowInput('ai.hourly', { options: { to: '2026-10-11 23:59:59', from: '2026-10-11 23:00:00', condition: 'all' } })).toEqual(validateWorkflowInput('ai.hourly', { options: { condition: 'all', from: '2026-10-11 23:00:00', to: '2026-10-11 23:59:59' } }));
+  });
+  it('accepts the full snapshot page count at the queue boundary without expanding defaults or execution gates', async () => {
+    for (const cap of [501, 9467, MAX_EXPORT_PAGES]) {
+      expect(validateWorkflowInput(SNAPSHOT_IMPORT_JOB, { options: { 'max-pages': cap } })).toEqual({ options: { 'max-pages': cap } });
+      expect(validateWorkflowInput(SNAPSHOT_IMPORT_JOB, { options: { 'max-pages': String(cap) } })).toEqual({ options: { 'max-pages': String(cap) } });
+    }
+    expect(validateWorkflowInput(SNAPSHOT_IMPORT_JOB, { options: {} })).toEqual({ options: {} });
+    for (const cap of [0, -1, 1.5, MAX_EXPORT_PAGES + 1, NaN, Infinity, 'invalid']) {
+      expect(() => validateWorkflowInput(SNAPSHOT_IMPORT_JOB, { options: { 'max-pages': cap } })).toThrow();
+    }
+    await expect(executeRegisteredWorkflow(SNAPSHOT_IMPORT_JOB, { options: { 'max-pages': 9467 } }, { APP_ENV: 'test' })).rejects.toThrow();
   });
 });
 
