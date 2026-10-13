@@ -215,6 +215,18 @@ def authority(adapter, config, now):
     return row
 
 
+def validate_reservation_grant(grant,c,now):
+    require(isinstance(grant,dict) and grant.get('schema')=='yt-authoritative-user-slot-observation-v1' and grant.get('origin')=='authoritative-user-session' and grant.get('currentOwner')=='YT' and grant.get('previousOwner')=='tag' and grant.get('scope')=='mint-youtube-synthetic-fixture' and grant.get('coordinationMode')=='human-slot-plus-common-flock-and-durable-registry','CURRENT_RESERVATION_AUTHORITY_REQUIRED')
+    for key in ('appSha','opsSha','owner','generation'):
+        require(grant.get(key)==c.binding()[key],'RESERVATION_GRANT_BINDING_CHANGED')
+    require(isinstance(grant.get('grantMessage'),str) and digest(grant['grantMessage'].encode())==grant.get('grantMessageSha256'),'RESERVATION_GRANT_MESSAGE_CHANGED')
+    try:
+        observed=dt.datetime.fromisoformat(grant['observedAt'].replace('Z','+00:00'))
+        require(observed.tzinfo is not None and 0<=(now-observed).total_seconds()<=30,'FRESH_RESERVATION_GRANT_REQUIRED')
+    except (ValueError,TypeError,KeyError,AttributeError,OverflowError):
+        raise ValueError('FRESH_RESERVATION_GRANT_REQUIRED') from None
+
+
 def setup_bytes(config):
     """Allocated local bytes, deduplicated by device/inode; no file contents read."""
     c = config['fixture']
@@ -246,6 +258,8 @@ def setup_bytes(config):
 
 def packet(fixture, c, grant, health, fd, reservation, now, estimate):
     custody = verify_fd(fd)
+    validate_reservation_grant(grant,c,now)
+    require(reservation.get('grantMessageSha256')==grant['grantMessageSha256'],'RESERVATION_GRANT_RECEIPT_CHANGED')
     require(reservation.get('state') in ('reserved', 'running') and reservation.get('binding') == c.binding() and reservation.get('kernelKey') == custody['kernelKey'], 'ACTUAL_DURABLE_RESERVATION_REQUIRED')
     observations = health.get('_gateObservations')
     health = {host: health[host] for host in fixture.admission.HOSTS if host in health}
@@ -268,6 +282,8 @@ def reserve(c, custody, grant):
     if path.exists():
         # No auto-recovery or silently reused generation after a crash.
         raise ValueError('EXISTING_GLOBAL_RESERVATION_REQUIRES_REVIEWED_RECONCILIATION')
+    validate_reservation_grant(grant,c,utc())
+    require(isinstance(custody,dict) and type(custody.get('inode')) is int and custody['inode']>0 and type(custody.get('holderPid')) is int and custody['holderPid']==os.getpid() and isinstance(custody.get('kernelKey'),str),'ACTUAL_RESERVATION_CUSTODY_REQUIRED')
     row = {'schema': 'yt-fixture-global-reservation-v1', 'binding': c.binding(), 'state': 'reserved', 'createdAt': utc().isoformat(), 'kernelKey': custody['kernelKey'], 'guardian': identity(os.getpid()), 'grantMessageSha256': grant['grantMessageSha256'], 'supervisor': None, 'terminalReceiptSha256': None}
     persist(path, row, exclusive=True)
     return row
@@ -316,6 +332,7 @@ def supervise(config):
     require(Path('/etc/machine-id').read_text().strip() == c.machine_ids[1], 'ACTUAL_MINT_REQUIRED')
     grant = authority(authority_adapter, config, utc())
     setup_bytes(config)
+    grant = authority(authority_adapter, config, utc())  # Inventory can outlive the first observation.
     fd = acquire()
     child = owned = reservation = None
     terminal_sha = None
@@ -336,6 +353,7 @@ def supervise(config):
         deadline = time.monotonic() + 120
         while child.poll() is None:
             require(time.monotonic() < deadline, 'BOUNDED_FIXTURE_DURATION_EXCEEDED')
+            verify_fd(fd)  # Renew only while actual kernel FD custody is intact.
             grant = authority(authority_adapter, config, utc())
             setup_bytes(config)
             health = observe_three_hosts(config, fixture, probe_adapter)

@@ -76,7 +76,7 @@ class GuardianMocks(unittest.TestCase):
             with self.assertRaises(ValueError): guardian.authority(adapter, {**CONFIG, 'operatorExecutionAuthorized': True, 'globalSlot': True}, NOW)
 
     def test_packet_derives_legacy_flags_after_kernel_registry_and_health_checks(self):
-        reservation = {'state': 'running', 'binding': C.binding(), 'kernelKey': CUSTODY['kernelKey']}
+        reservation = {'state': 'running', 'binding': C.binding(), 'kernelKey': CUSTODY['kernelKey'], 'grantMessageSha256': grant()['grantMessageSha256']}
         with patch.object(guardian, 'verify_fd', return_value=CUSTODY):
             row = guardian.packet(fixture, C, grant(), health(), 7, reservation, NOW, 1024)
             self.assertEqual(fixture.binding_failures(row, C, NOW), [])
@@ -87,7 +87,7 @@ class GuardianMocks(unittest.TestCase):
             self.assertNotIn('readiness', row)
 
     def test_health_missing_stale_competing_or_global_browser_three_denies(self):
-        reservation = {'state': 'reserved', 'binding': C.binding(), 'kernelKey': CUSTODY['kernelKey']}
+        reservation = {'state': 'reserved', 'binding': C.binding(), 'kernelKey': CUSTODY['kernelKey'], 'grantMessageSha256': grant()['grantMessageSha256']}
         for change in [lambda rows: rows.pop('SM'), lambda rows: rows['Mint'].update(buildCount=1),
                        lambda rows: rows['skyhong-blog'].update(observedAt=(NOW-dt.timedelta(seconds=31)).isoformat()),
                        lambda rows: [rows[h].update(browserCount=1) for h in fixture.admission.HOSTS],
@@ -99,11 +99,27 @@ class GuardianMocks(unittest.TestCase):
 
     def test_unknown_reservation_or_unheld_fd_never_emits_admission(self):
         for state in ['unknown-retained', 'stop-requested', 'local-terminal-confirmed']:
-            reservation = {'state': state, 'binding': C.binding(), 'kernelKey': CUSTODY['kernelKey']}
+            reservation = {'state': state, 'binding': C.binding(), 'kernelKey': CUSTODY['kernelKey'], 'grantMessageSha256': grant()['grantMessageSha256']}
             with patch.object(guardian, 'verify_fd', return_value=CUSTODY), self.assertRaises(ValueError):
                 guardian.packet(fixture, C, grant(), health(), 7, reservation, NOW, 1024)
         with patch.object(guardian, 'verify_fd', side_effect=ValueError('ACTUAL_KERNEL_FD_CUSTODY_REQUIRED')), self.assertRaises(ValueError):
             guardian.packet(fixture, C, grant(), health(), 7, {}, NOW, 1024)
+
+    def test_renewal_grant_and_reservation_binding_fail_closed(self):
+        reservation={'state':'running','binding':C.binding(),'kernelKey':CUSTODY['kernelKey'],'grantMessageSha256':grant()['grantMessageSha256']}
+        for key,value in (('observedAt',(NOW-dt.timedelta(seconds=31)).isoformat()),('currentOwner','tag'),('opsSha','a'*40)):
+            changed=grant();changed[key]=value
+            with self.subTest(key=key),patch.object(guardian,'verify_fd',return_value=CUSTODY),self.assertRaises(ValueError):
+                guardian.packet(fixture,C,changed,health(),7,reservation,NOW,1024)
+        changed=dict(reservation,grantMessageSha256='0'*64)
+        with patch.object(guardian,'verify_fd',return_value=CUSTODY),self.assertRaisesRegex(ValueError,'RESERVATION_GRANT_RECEIPT_CHANGED'):
+            guardian.packet(fixture,C,grant(),health(),7,changed,NOW,1024)
+
+    def test_reserve_stale_grant_never_persists(self):
+        changed=grant();changed['observedAt']=(NOW-dt.timedelta(seconds=31)).isoformat()
+        with patch.object(Path,'exists',return_value=False),patch.object(guardian,'utc',return_value=NOW),patch.object(guardian,'persist') as saved:
+            with self.assertRaises(ValueError):guardian.reserve(C,CUSTODY,changed)
+            saved.assert_not_called()
 
     def test_fdinfo_must_bind_flock_to_actual_fd_not_merely_same_inode(self):
         s = SimpleNamespace(st_dev=1, st_ino=42, st_mode=0o100600)
@@ -120,7 +136,7 @@ class GuardianMocks(unittest.TestCase):
 
     def test_reservation_is_durable_before_spawn_and_no_child_command_uses_shell(self):
         events = []
-        with patch.object(Path, 'exists', return_value=False), patch.object(guardian, 'identity', return_value={'pid': 123}), patch.object(guardian, 'persist', side_effect=lambda *a, **kw: events.append((a, kw))):
+        with patch.object(Path, 'exists', return_value=False), patch.object(guardian, 'utc', return_value=NOW), patch.object(guardian.os, 'getpid', return_value=CUSTODY['holderPid']), patch.object(guardian, 'identity', return_value={'pid': 123}), patch.object(guardian, 'persist', side_effect=lambda *a, **kw: events.append((a, kw))):
             row = guardian.reserve(C, CUSTODY, grant())
             self.assertEqual(row['state'], 'reserved')
             self.assertIsNone(row['supervisor'])
@@ -184,7 +200,7 @@ class GuardianMocks(unittest.TestCase):
         def spawn(argv, **kw): events.append(('spawn', argv, kw)); return child
         def proc(pid): return {'pid': pid, 'pgid': pid, 'session': pid, 'startTicks': '1'}
         actual_digest = guardian.digest
-        with patch.object(guardian, 'load_pinned', side_effect=[adapter, object(), fixture]), patch.object(Path, 'is_file', return_value=True), patch.object(Path, 'is_symlink', return_value=False), patch.object(Path, 'read_bytes', return_value=b'synthetic-admission-dependency'), patch.object(guardian, 'digest', side_effect=lambda raw: guardian.ADMISSION_SOURCE_SHA256 if raw==b'synthetic-admission-dependency' else actual_digest(raw)), patch.object(fixture, 'verify_source'), patch.object(Path, 'read_text', return_value=C.machine_ids[1]), patch.object(Path, 'exists', return_value=False), patch.object(guardian, 'setup_bytes', return_value=1024), patch.object(guardian, 'acquire', return_value=7), patch.object(guardian, 'verify_fd', return_value=CUSTODY), patch.object(guardian, 'identity', side_effect=proc), patch.object(guardian, 'utc', return_value=NOW), patch.object(guardian, 'persist', side_effect=record), patch.object(guardian, 'observe_three_hosts', return_value=health()), patch.object(fixture.gate, 'packet_health_failures', return_value=[]), patch.object(guardian.subprocess, 'Popen', side_effect=spawn), patch.object(guardian, 'terminal', return_value='d'*64), patch.object(guardian.os, 'close', side_effect=lambda fd: events.append(('close', fd))):
+        with patch.object(guardian, 'load_pinned', side_effect=[adapter, object(), fixture]), patch.object(Path, 'is_file', return_value=True), patch.object(Path, 'is_symlink', return_value=False), patch.object(Path, 'read_bytes', return_value=b'synthetic-admission-dependency'), patch.object(guardian, 'digest', side_effect=lambda raw: guardian.ADMISSION_SOURCE_SHA256 if raw==b'synthetic-admission-dependency' else actual_digest(raw)), patch.object(fixture, 'verify_source'), patch.object(Path, 'read_text', return_value=C.machine_ids[1]), patch.object(Path, 'exists', return_value=False), patch.object(guardian, 'setup_bytes', return_value=1024), patch.object(guardian, 'acquire', return_value=7), patch.object(guardian.os, 'getpid', return_value=CUSTODY['holderPid']), patch.object(guardian, 'verify_fd', return_value=CUSTODY), patch.object(guardian, 'identity', side_effect=proc), patch.object(guardian, 'utc', return_value=NOW), patch.object(guardian, 'persist', side_effect=record), patch.object(guardian, 'observe_three_hosts', return_value=health()), patch.object(fixture.gate, 'packet_health_failures', return_value=[]), patch.object(guardian.subprocess, 'Popen', side_effect=spawn), patch.object(guardian, 'terminal', return_value='d'*64), patch.object(guardian.os, 'close', side_effect=lambda fd: events.append(('close', fd))):
             result = guardian.supervise(config)
         first_reserve = next(i for i, e in enumerate(events) if e[0]=='persist' and e[1]==guardian.REGISTRY)
         launched = next(i for i,e in enumerate(events) if e[0]=='spawn')
