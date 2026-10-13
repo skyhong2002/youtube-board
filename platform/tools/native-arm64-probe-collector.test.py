@@ -1,5 +1,7 @@
 """Offline collector regression mocks; no probes, SSH, locks or builds."""
-import copy,datetime,importlib.util,json,hashlib
+import copy,datetime,importlib.util,json,hashlib,io
+from contextlib import redirect_stdout
+from types import SimpleNamespace
 from pathlib import Path
 import unittest
 spec=importlib.util.spec_from_file_location('collector',Path(__file__).with_name('native-arm64-probe-collector.py'))
@@ -84,6 +86,43 @@ class CollectorTests(unittest.TestCase):
         self.assertTrue(result['unknown'])
         self.assertIsNone(result['result'])
         self.assertNotIn('secret-sentinel',json.dumps(result))
+
+    def test_identity_sentinel_is_discarded_before_final_output(self):
+        script=collector.collector_script('/var/lib/observe-worker/youtube/sources/test','a'*64,'b'*64)
+        collect_text=script[script.index('def collect(name):'):script.index('with concurrent.futures')]
+        final_print=script[script.rindex('print(json.dumps('):]
+        for host in ('SM','Mint'):
+            for field in ('schema','observedHost','machineId','measuredFromMachineId','observedAt'):
+                with self.subTest(host=host,field=field):
+                    payload=copy.deepcopy(SAMPLES[host]);payload[field]='review-sentinel-secret'
+                    self.assertFalse(collector.health_valid(payload,host))
+                    runner=SimpleNamespace(run=lambda *args:(0,json.dumps(payload).encode(),b''))
+                    ns={'helpers':{'utc':lambda:NOW.isoformat(),'decode':json.loads,'BoundedRunner':lambda:runner},
+                        'av':{host:['fixed']},'scripts':{host:'fixed'},'hashlib':hashlib,
+                        'health_valid':collector.health_valid,'json':json}
+                    exec(compile(collect_text,'<mock-collect>','exec'),ns)
+                    row=ns['collect'](host)
+                    self.assertTrue(row['unknown']);self.assertIsNone(row['result'])
+                    ns.update(rows=[row],relay=SimpleNamespace(MINT_ID=relay_cases.relay.MINT_ID),root='/private/test',
+                              actual_pin={},validation={'ok':False},aggregate_result={'ok':False})
+                    out=io.StringIO()
+                    with redirect_stdout(out):exec(compile(final_print,'<mock-final-print>','exec'),ns)
+                    self.assertNotIn('review-sentinel-secret',out.getvalue())
+
+    def test_health_identity_pins_and_UTC_format(self):
+        for host in SAMPLES:
+            sample=copy.deepcopy(SAMPLES[host])
+            self.assertTrue(collector.health_valid(sample,host))
+            other='SM' if host!='SM' else 'Mint'
+            self.assertFalse(collector.health_valid(sample,other))
+            for key,value in (('machineId','0'*32),('measuredFromMachineId','A'*32),
+                              ('observedAt','2026-10-13T14:27:47+01:00'),
+                              ('observedAt','2026-10-13T14:27:47'),
+                              ('observedAt','2026-02-30T14:27:47Z')):
+                bad=copy.deepcopy(sample);bad[key]=value
+                self.assertFalse(collector.health_valid(bad,host))
+            sample['observedAt']='2026-10-13T14:27:47Z'
+            self.assertTrue(collector.health_valid(sample,host))
 
     def test_any_host_curl_56_denies(self):
         for index in range(3):

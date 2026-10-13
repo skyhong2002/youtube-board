@@ -1,12 +1,24 @@
 """Inert three-host collector and aggregate preflight; never grants admission."""
 import datetime
 import math
+import re
 
-AGGREGATE_SOURCE = r'''def health_valid(sample):
+AGGREGATE_SOURCE = r'''def health_valid(sample,expected_host=None):
  keys={'schema','observedHost','machineId','measuredFromMachineId','observedAt','freeBytes','load1','buildCount','buildProcesses','browserCount','browserProcesses','sites'}
  if not isinstance(sample,dict) or set(sample)!=keys:return False
  for key in ('schema','observedHost','machineId','measuredFromMachineId','observedAt'):
   if not isinstance(sample[key],str):return False
+ ids={'SM':'302c2528bd464ad0953cf5fa743b6171','Mint':'f80413057e6d4a179e248e5f8c08cac6','skyhong-blog':'35ead342bacc44dea3633ccd2cc3f309'}
+ host=sample['observedHost']
+ if sample['schema']!='yt-host-health-v1' or host not in ids or expected_host is not None and host!=expected_host:return False
+ for key in ('machineId','measuredFromMachineId'):
+  if not re.fullmatch(r'[0-9a-f]{32}',sample[key]) or sample[key]!=ids[host]:return False
+ timestamp=sample['observedAt']
+ if not re.fullmatch(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?(?:Z|\+00:00)',timestamp):return False
+ try:
+  parsed=datetime.datetime.fromisoformat(timestamp.replace('Z','+00:00'))
+  if parsed.utcoffset()!=datetime.timedelta(0):return False
+ except (ValueError,TypeError,OverflowError):return False
  for key in ('freeBytes','load1'):
   if type(sample[key]) not in (int,float) or not math.isfinite(sample[key]) or sample[key]<0:return False
  build_names={'docker','buildx','docker-buildx','buildctl','node','npm','pnpm','yarn','next','next.js','next-build','build-client','runc','buildkit-runc'}
@@ -57,7 +69,7 @@ def aggregate(rows, now, relay_validation):
    child=relay.get('childReceipt')
    check(host+'.ssh-exit',isinstance(child,dict) and type(child.get('exitCode')) is int and child['exitCode']==0,'leaf-ssh-exit-must-be-zero')
    sample=relay.get('sample')
-  if not health_valid(sample):
+  if not health_valid(sample,host):
    check(host+'.sample',False,'missing-or-nonstrict-health-sample');continue
   samples[host]=sample
   check(host+'.identity',sample.get('schema')=='yt-host-health-v1' and sample.get('observedHost')==host and sample.get('machineId')==ids[host] and sample.get('measuredFromMachineId')==ids[host] and fresh(sample.get('observedAt')),'matching-host-and-fresh-30s-health-required')
@@ -79,7 +91,7 @@ def aggregate(rows, now, relay_validation):
 '''
 exec(compile(AGGREGATE_SOURCE, '<fixed-aggregate>', 'exec'))
 
-COLLECTOR_TEMPLATE = "import pathlib,hashlib,types,sys,json,datetime,concurrent.futures,stat,os\nroot=pathlib.Path('__SOURCE_ROOT__')\nmodules={}\nfor name,pin in [('native-arm64-readonly-relay.py','__RELAY_HASH__'),('native-arm64-admission.py','__ADMISSION_HASH__')]:\n p=root/name;s=p.lstat();data=p.read_bytes()\n if not stat.S_ISREG(s.st_mode) or s.st_uid!=os.getuid() or s.st_mode&0o777!=0o600 or hashlib.sha256(data).hexdigest()!=pin:raise ValueError('Source materialization identity unknown')\n mod=types.ModuleType(name);sys.modules[name]=mod;exec(compile(data,str(p),'exec'),mod.__dict__);modules[name]=mod\nrelay=modules['native-arm64-readonly-relay.py'];native=modules['native-arm64-admission.py']\nhelpers={};exec(compile(relay.COMMON+chr(10)+relay._bindings(),'<reviewedrelayhelpers>','exec'),helpers)\nif helpers['machine'](relay.MINT_ID)!=relay.MINT_ID:raise ValueError('Mint identity mismatch')\nactual_pin=helpers['pin'](relay.SM_KNOWN_HOSTS,relay.SM_PIN)\nscripts={'Mint':native.readonly_script('Mint'),'SM':native.readonly_script('SM'),'relay':relay.mint_script()}\ncontract=types.SimpleNamespace(known_hosts_sha256=(relay.SM_PIN,'',''))\npinevidence={'regular':True,'symlink':False,'ownedByController':True,'mode':actual_pin['mode'],'sha256':actual_pin['sha256']}\nsm_spec=native.readonly_ssh_spec('SM','deck@100.85.214.25',relay.SM_KNOWN_HOSTS,pinevidence,contract)\nav={'SM':sm_spec['argv'],'Mint':['/usr/bin/python3','-c',scripts['Mint']],'relay':['/usr/bin/python3','-c',scripts['relay']]}\ndef collect(name):\n start=helpers['utc']();seconds=30 if name=='relay' else 20\n row={'name':name,'startedAt':start,'finishedAt':None,'argv':av[name],'scriptSha256':hashlib.sha256(scripts[name].encode()).hexdigest(),'timeoutSeconds':seconds,'outputCapBytes':65536,'exitCode':None,'stdoutBytes':None,'stderrBytes':None,'result':None,'unknown':True}\n try:\n  code,stdout,stderr=helpers['BoundedRunner']().run(av[name],seconds)\n  row.update(exitCode=code,stdoutBytes=len(stdout),stderrBytes=len(stderr))\n  if code==0:\n   candidate=helpers['decode'](stdout)\n   valid=relay.validate_receipt(candidate,datetime.datetime.now(datetime.timezone.utc))['ok'] if name=='relay' else health_valid(candidate)\n   if valid:row['result']=candidate;row['unknown']=False\n except Exception:pass\n row['finishedAt']=helpers['utc']()\n return row\nwith concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:\n rows=[f.result() for f in [pool.submit(collect,name) for name in ('SM','Mint','relay')]]\nbyname={row['name']:row for row in rows};validation=relay.validate_receipt(byname['relay']['result'],datetime.datetime.now(datetime.timezone.utc))\nprint(json.dumps({'schema':'yt-actual-mint-three-host-probe-v1','controllerMachineId':relay.MINT_ID,'sourceRoot':str(root),'sourceHashes':{'relay':'__RELAY_HASH__','admission':'__ADMISSION_HASH__'},'mintSmPin':actual_pin,'rows':rows,'relayValidation':validation,'observedAt':helpers['utc'](),'admissionGranted':False,'runtimeReady':False}))\n"
+COLLECTOR_TEMPLATE = "import pathlib,hashlib,types,sys,json,datetime,concurrent.futures,stat,os\nroot=pathlib.Path('__SOURCE_ROOT__')\nmodules={}\nfor name,pin in [('native-arm64-readonly-relay.py','__RELAY_HASH__'),('native-arm64-admission.py','__ADMISSION_HASH__')]:\n p=root/name;s=p.lstat();data=p.read_bytes()\n if not stat.S_ISREG(s.st_mode) or s.st_uid!=os.getuid() or s.st_mode&0o777!=0o600 or hashlib.sha256(data).hexdigest()!=pin:raise ValueError('Source materialization identity unknown')\n mod=types.ModuleType(name);sys.modules[name]=mod;exec(compile(data,str(p),'exec'),mod.__dict__);modules[name]=mod\nrelay=modules['native-arm64-readonly-relay.py'];native=modules['native-arm64-admission.py']\nhelpers={};exec(compile(relay.COMMON+chr(10)+relay._bindings(),'<reviewedrelayhelpers>','exec'),helpers)\nif helpers['machine'](relay.MINT_ID)!=relay.MINT_ID:raise ValueError('Mint identity mismatch')\nactual_pin=helpers['pin'](relay.SM_KNOWN_HOSTS,relay.SM_PIN)\nscripts={'Mint':native.readonly_script('Mint'),'SM':native.readonly_script('SM'),'relay':relay.mint_script()}\ncontract=types.SimpleNamespace(known_hosts_sha256=(relay.SM_PIN,'',''))\npinevidence={'regular':True,'symlink':False,'ownedByController':True,'mode':actual_pin['mode'],'sha256':actual_pin['sha256']}\nsm_spec=native.readonly_ssh_spec('SM','deck@100.85.214.25',relay.SM_KNOWN_HOSTS,pinevidence,contract)\nav={'SM':sm_spec['argv'],'Mint':['/usr/bin/python3','-c',scripts['Mint']],'relay':['/usr/bin/python3','-c',scripts['relay']]}\ndef collect(name):\n start=helpers['utc']();seconds=30 if name=='relay' else 20\n row={'name':name,'startedAt':start,'finishedAt':None,'argv':av[name],'scriptSha256':hashlib.sha256(scripts[name].encode()).hexdigest(),'timeoutSeconds':seconds,'outputCapBytes':65536,'exitCode':None,'stdoutBytes':None,'stderrBytes':None,'result':None,'unknown':True}\n try:\n  code,stdout,stderr=helpers['BoundedRunner']().run(av[name],seconds)\n  row.update(exitCode=code,stdoutBytes=len(stdout),stderrBytes=len(stderr))\n  if code==0:\n   candidate=helpers['decode'](stdout)\n   valid=relay.validate_receipt(candidate,datetime.datetime.now(datetime.timezone.utc))['ok'] if name=='relay' else health_valid(candidate,name)\n   if valid:row['result']=candidate;row['unknown']=False\n except Exception:pass\n row['finishedAt']=helpers['utc']()\n return row\nwith concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:\n rows=[f.result() for f in [pool.submit(collect,name) for name in ('SM','Mint','relay')]]\nbyname={row['name']:row for row in rows};validation=relay.validate_receipt(byname['relay']['result'],datetime.datetime.now(datetime.timezone.utc))\nprint(json.dumps({'schema':'yt-actual-mint-three-host-probe-v1','controllerMachineId':relay.MINT_ID,'sourceRoot':str(root),'sourceHashes':{'relay':'__RELAY_HASH__','admission':'__ADMISSION_HASH__'},'mintSmPin':actual_pin,'rows':rows,'relayValidation':validation,'observedAt':helpers['utc'](),'admissionGranted':False,'runtimeReady':False}))\n"
 
 def collector_script(source_root, relay_hash, admission_hash):
     import re
@@ -89,4 +101,4 @@ def collector_script(source_root, relay_hash, admission_hash):
         if not isinstance(digest,str) or not re.fullmatch(r'[0-9a-f]{64}',digest):raise ValueError('Source hash required')
     script=COLLECTOR_TEMPLATE.replace('__SOURCE_ROOT__',source_root).replace('__RELAY_HASH__',relay_hash).replace('__ADMISSION_HASH__',admission_hash)
     script=script.replace("print(json.dumps({'schema':'yt-actual-mint-three-host-probe-v1'", "aggregate_result=aggregate(rows,datetime.datetime.now(datetime.timezone.utc),validation)\nprint(json.dumps({'aggregate':aggregate_result,'schema':'yt-actual-mint-three-host-probe-v1'")
-    return 'import math,datetime\n'+AGGREGATE_SOURCE+'\n'+script
+    return 'import math,datetime,re\n'+AGGREGATE_SOURCE+'\n'+script
