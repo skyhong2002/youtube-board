@@ -35294,6 +35294,26 @@
         "remoteExecutorReady": false,
         "deploymentApproval": false
       }
+    },
+    "nativeAdmissionPreparationSourceReview": {
+      "sourceCommit": "ba3a129303bc4bfdc432a9b27fe4f788287e90df",
+      "model": "gpt-6.1-sol",
+      "reviewer": "/root/capture_source_review",
+      "reviewPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/native-arm64-admission-v2-independent-source-review.json",
+      "sha256": "24c5aab8f9f75550a1e6690eb7c4545d399efddc33d53e21a672beb23fd43a90",
+      "reviewedAt": "2026-10-13T09:55:48.096364Z",
+      "tests": "30 independent mocks passed; parent independently reran30; no skips",
+      "scope": "Inert source preparation only; actual admission/native executor/STOP/API/runtime not accepted",
+      "executionPermission": false
+    },
+    "runtimePreparationDocReview": {
+      "model": "gpt-6.1-sol",
+      "reviewer": "/root/capture_source_review",
+      "reviewPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/mint-runtime-preparation-independent-doc-evidence-review.json",
+      "sha256": "2d7acd03235bae6bc587d3b40c596d873afa4d78d0113f8d10f7d5f9a59bde0b",
+      "reviewedAt": "2026-10-13T09:59:29.065474+00:00",
+      "documentSha256": "e3d49be6d160fd7ea306ee52bb9d992ecdb159079cf662b956d7ba21609ace87",
+      "scope": "Document facts against actual receipts; preserves absent argv/filesystemID/serverSQL evidence limitations; no runtime/UI approval"
     }
   },
   "historicalFindingsOnly654": {
@@ -35887,5 +35907,44 @@
     "allFindingsRemainOpen": true,
     "newArtifactPass": false,
     "scope": "actual retained light1280/390 images personally reviewed; static-only, old source654, not new candidate acceptance"
+  },
+  "mintRuntimePreparation": {
+    "owner": "d7967e77",
+    "appSha": "70529cff13b6b7f5b3e0571a229e2b61660f9df4",
+    "opsSha": "b4d85dea62ed4e98bece691236ef15fe6e881234",
+    "opsScope": "Reviewed local STOP base; new bootstrap/admission successor not yet committed; never use OPS as APP",
+    "appSourceStage": {
+      "path": "/home/deck/.cache/youtube-ui-review/mint-runtime-2026-10-13/app-source-stage-095015Z.json",
+      "sha256": "810a7bcf972adbf604bc281538a004b065af88f0916194cb077e635ff73573a5",
+      "mintSourcePath": "/var/lib/observe-worker/youtube/sources/app-70529cff",
+      "sourceClean": true,
+      "actualSourceBytes": 20017713,
+      "dependenciesInstalled": false
+    },
+    "realCrossHostProbe": {
+      "path": "/home/deck/.cache/youtube-ui-review/mint-runtime-2026-10-13/cross-host-readonly-094601Z.json",
+      "sha256": "00dc38d20655c5060cdd52ee62956011dd4de2caefcbdbeb04f71f8f75abf0fe",
+      "scope": "Actual Mint to SM pinned SSH; readonly DNT1 full homepage HTML; not readiness or admission",
+      "limitations": "Actual owner tool call used pinned strict argv; original receipt omitted argv/process transcript. Independent audit does not prove invocation from JSON alone; no retroactive raw-record fabrication."
+    },
+    "arm64Capacity": {
+      "path": "/home/deck/.cache/youtube-ui-review/mint-runtime-2026-10-13/arm64-capacity-094636Z.json",
+      "sha256": "1e40b8f11c7e2e83df973db2e4c7c3c671d1d0a40a843ec3faf3387a8b556721",
+      "scope": "Readonly df/memory/docker metadata/buildx version; no build/pull/prune"
+    },
+    "opsRuntimeVerified": false,
+    "appRuntimeVerified": false,
+    "isolatedApiVerified": false,
+    "tagToYtSlotAcknowledged": false,
+    "nativeRemoteExecutorVerified": false,
+    "executionPermission": false,
+    "uiStatus": "all new-artifact UI states pending; historical reviews not transferred",
+    "document": "platform/docs/mint-runtime-preparation-2026-10-13.md",
+    "mariadbToolVersion": {
+      "path": "/home/deck/.cache/youtube-ui-review/mint-runtime-2026-10-13/mariadb-tools-095522Z.json",
+      "sha256": "56bbc428c80adb56e96b4b5ab7457d0f4f399629d608ef776fa5230e4730e550",
+      "version": "10.11.14-MariaDB-0ubuntu0.24.04.1",
+      "scope": "Actual --version only; not SQL/server startup/readiness"
+    }
   }
 }

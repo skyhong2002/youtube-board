@@ -500,3 +500,17 @@ OPS／APP pending欄位另有獨立addendum，path見JSON `mintQueue.runtimeHand
 [五項執行前待辦](../platform/docs/mint-executor-prerequisites-2026-10-13.md)已完成獨立文件review；receipt、model、UTC與hash見JSON `mintOfflineAudits.executorPrerequisites`。原guard audit的model欄位未確定exact serving identifier，保留原文，不算GPT-6.1 UI review；本文件另由既有GPT-6.1 Sol reviewer核對。local STOP回讀修正正在另批實作；source/test獨立驗收前仍pending。它不等於remote native executor／cross-host lease／OPS readiness，不改APP70529來源，也未啟動任何main、build或capture。
 
 local STOP補丁已由作者之外的GPT-6.1 Sol完成final-byte source review，root獨立重跑30項mock、in-memory syntax與diff check通過。訊號後需要兩份穩定的stopped/exited觀測，未知／失敗明示STOP-unconfirmed；main不能只因group變空就釋放未確認STOP的guardian。receipt path/model/UTC/hash見JSON `mintOfflineAudits.executorPrerequisites.localStopSourceReview`，原finding與原author receipt保留。此補丁是準備分支的local工具，不混入APP70529；未測真實Linux停止、native remote executor、跨機lease或OPS readiness。五項待辦文件是本批補丁完成前的審查快照；最新source狀態以本段與JSON為準，runtime gate仍pending。
+
+
+## Mint runtime 小批準備（2026-10-13 UTC 09:46–09:50）
+
+APP70529 固定；OPS 已審基底 b4d85de，新 bootstrap／admission 工具須另經獨立 review。
+Mint 私有 APP source 已固定 exact SHA、Git clean、lockfile hash，20,017,713 bytes；沒有安裝依賴或啟動服務。
+真正的 Mint→SM pinned SSH probe 與 skyhong-blog 容量盤點已保存 path／hash（JSON `mintRuntimePreparation`），
+不以空鎖或當時健康當成名額／readiness。MariaDB10.11.14工具已存在，隔離SQL/API仍未啟動。
+沒有 BUILD_ID、新 image、capture 或部署；376新候選UIstates仍全部pending。
+接線與限制見 [runtime準備紀錄](../platform/docs/mint-runtime-preparation-2026-10-13.md)。
+
+另一個既有 GPT-6.1 Sol instance 已核對本批實測收據／文件，並審查 `ba3a129` admission準備source與30項mock；path／SHA256／UTC記於JSON `mintOfflineAudits`。
+原跨機收據沒有保存argv/process transcript，capacity收據没有filesystem identity，SQL readiness未測，這些限制均保留。
+source／文件審查不增加UI pass，也不授予名額或runtime許可。
