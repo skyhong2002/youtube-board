@@ -2,11 +2,12 @@
 import datetime
 import math
 
-AGGREGATE_SOURCE = r'''def aggregate(rows, now):
+AGGREGATE_SOURCE = r'''def aggregate(rows, now, relay_validation):
  limits={'tag':2.0,'blog':6.17,'youtube':2.0}
  ids={'SM':'302c2528bd464ad0953cf5fa743b6171','Mint':'f80413057e6d4a179e248e5f8c08cac6','skyhong-blog':'35ead342bacc44dea3633ccd2cc3f309'}
  checks=[]
  def check(key,ok,reason):checks.append({'key':key,'ok':bool(ok),'reason':reason})
+ check('relay.strict-validation',isinstance(relay_validation,dict) and relay_validation.get('schema')=='yt-readonly-relay-validation-v1' and relay_validation.get('ok') is True and relay_validation.get('unknown') is False and relay_validation.get('admissionGranted') is False and relay_validation.get('runtimeReady') is False,'strict-relay-validation-must-pass')
  def number(x):return type(x) in (int,float) and math.isfinite(x)
  def fresh(value):
   try:
@@ -63,5 +64,5 @@ def collector_script(source_root, relay_hash, admission_hash):
     for digest in (relay_hash,admission_hash):
         if not isinstance(digest,str) or not re.fullmatch(r'[0-9a-f]{64}',digest):raise ValueError('Source hash required')
     script=COLLECTOR_TEMPLATE.replace('__SOURCE_ROOT__',source_root).replace('__RELAY_HASH__',relay_hash).replace('__ADMISSION_HASH__',admission_hash)
-    script=script.replace("print(json.dumps({'schema':'yt-actual-mint-three-host-probe-v1'", "aggregate_result=aggregate(rows,datetime.datetime.now(datetime.timezone.utc))\nprint(json.dumps({'aggregate':aggregate_result,'schema':'yt-actual-mint-three-host-probe-v1'")
+    script=script.replace("print(json.dumps({'schema':'yt-actual-mint-three-host-probe-v1'", "aggregate_result=aggregate(rows,datetime.datetime.now(datetime.timezone.utc),validation)\nprint(json.dumps({'aggregate':aggregate_result,'schema':'yt-actual-mint-three-host-probe-v1'")
     return 'import math,datetime\n'+AGGREGATE_SOURCE+'\n'+script
