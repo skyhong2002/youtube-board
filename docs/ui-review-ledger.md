@@ -435,3 +435,12 @@ Mint離線準備：實際matching-light tag參考已找到，原capture時間20:
 quality第二批修改已park在35a4794並推到自己的分支，獨立source review及45個mock/offline測試、jobsnoEmit通過，17個DB測試跳過。當前a77artifact不包含該批；啟用仍受syncownership／freshbackup／exactdeployedimplementation／operatorauthorization阻擋。未新增帳號、grant、schema或scheduler動作。
 
 396196c原始碼小修：RSC的合法HTMLfallback同樣協商identity完整entity，再做原hashCSP／SRI及privatecache檢查。作者14個mock測試及API noEmit通過，獨立reviewer另跑13個proxy／cache診斷／publicHTML測試通過。Flightstream及編碼staticbytes保留；真實5xx／不安全inline／不遵守identity仍503。已觀察手機503的精確根因仍未證，不把修復contractgap當實際驗收。新映像／新SHA重拍排隊Mint。
+
+
+## Mint 排隊期間的離線驗證
+
+使用者已取消所有截止窗口，最新 SM 不新增 build／capture／restore 的限制維持。固定 Mint 候選是 `e137c5f0a4c0184fe5bae8330b410eed74a07063`；未建置，376 個新候選 UI 狀態與所有完整 route 仍 pending。
+
+另一個 GPT-6.1 Sol 完成管理員覆核 source audit：58 項 focused mocks 通過，沒有阻擋性 source finding；只核對既有 session-only admin、Origin／CSRF、no-store、record-only 標示及安全輸出，不含 mounted React 互動、真實 SQL 或畫面驗收。原始 receipt 與 model provenance companion 的 path/hash 在 JSON `mintOfflineAudits`。root 另完成前端 279 項及 API 35／51 項離線回歸測試；這些測試有範圍重疊，不合算成新的 UI review 數量。
+
+v11 擷取失敗診斷、無截止的 Mint 發布計畫也完成獨立 source／document review；收據 hash 已登錄。兩個 capture hard stop 維持，沒有新的 capture、BUILD_ID 或部署。已有截圖可继续用於歷史 findings-only review，不轉用為 e137 pass。

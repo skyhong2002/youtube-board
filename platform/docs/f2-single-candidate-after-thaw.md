@@ -1,6 +1,8 @@
 # 解凍後單一候選操作計畫
 
-台北 15:10（UTC 07:10）的衝刺期限已由使用者取消；第二工作窗口到台北 18:50（UTC 10:50），以正確性優先。後續依原始碼、測試、獨立 review、candidate 驗收、小批部署順序執行，不為期限略過驗收。全站同時最多 **1 個建置，包含 skyhong-blog 的 YT 建置**；順序 **blog → YT → tag**，等待協調者通知輪到 YT。blog 首頁效能修正的優先建置例外僅適用 blog，不是 YT 豁免。不得操作 tag-backup 或刪除既有 release、回滾版本、備份、worktree。
+使用者已取消台北 15:10 的衝刺與 18:50 的工作窗口；全部實作、逐頁獨立 review、同一份產物部署及正式畫面驗收完成才算結束。後續依原始碼、測試、獨立 review、candidate 驗收、小批部署順序執行。全站同時最多 **1 個建置，包含 skyhong-blog 的 YT 建置**。不得操作 tag-backup 或刪除既有 release、回滾版本、備份、worktree。
+
+**最新排程優先於本文件較早的解凍紀錄：SM 不新增 build、capture 或 restore，全部排隊到 Mint 準備好。** 已啟動的工具自然完成；原始碼、mock 測試、文件及既有圖片的離線 review 繼續。舊的 06:04 建置名額交接不能授權新的 SM 階段。Mint 交接清單為 `/tmp/babysit/mint-queue/youtube.md`；主機路徑、Node/npm、原生依賴架構、封裝方式與全站名額需重新確認後才能執行。
 
 ## 解凍後新閘門（取代本文件較早的容量門檻）
 
@@ -14,7 +16,7 @@
 
 ## 唯一候選來源
 
-以 `codex/f2-keyword-quality` 最後完成獨立 source review 的**明確 commit**作為 release SHA，從 Git committed tree 建立乾淨輸入；不直接封裝目前 dirty worktree。建置前將完整 SHA 寫入 release receipt，後續不追隨 branch tip。
+目前 Mint 候選固定在 `codex/f2-mint-candidate` 的 **`e137c5f0a4c0184fe5bae8330b410eed74a07063`**，從 Git committed tree 建立乾淨輸入，不追隨 branch tip。它以 `65a7ce6` 為父提交，加入已獨立審查的 RSC identity 協商、首頁次要數值換行與對應測試／證據文件。四份 code/test 的 committed bytes 與 review hash 已在 `platform/.local/f2/mint-candidate-reviewed-source-binding.json` 核對。這只有來源證據，尚無此 SHA 的 BUILD_ID、映像或完整 UI review；若有新修正要納入，先另列固定後繼 SHA 並重新審查。
 
 | 已在同一祖先鏈的提交 | 本批內容 |
 | --- | --- |
@@ -30,7 +32,7 @@
 
 上述四批成果**不需要 cherry-pick 或重新 merge**。執行前以 `git merge-base --is-ancestor` 核對，保存 `git diff --stat 7eb48f4..<release-SHA>` 與完整 diff。這個比較基線是最後已知正式版本，解除凍結後仍要確認實際正式版本；若正式版本已變動，先重做差異與回退基線，不能直接覆蓋。
 
-**排除範圍：**目前未提交的 quality jobs、database/writer lock、description templates、recent evidence、worker-permissions 與 quality-report-reader 等檔案保留原位，不納入映像。不得藉本次發布執行 migration 015、grant、新增帳號、開啟 Y2/review/write gates 或替換 background worker。Y2 上游與覆核 schema 未啟用狀態必須可理解；「已記錄」不等於「已套用排名」。
+**排除範圍：**已保存在準備分支 `35a4794` 的 quality jobs、database/writer lock、description templates、recent evidence、worker-permissions 與 quality-report-reader 不在 e137 候選中；其他詞庫匯入後續也另批保存。不得藉本次發布執行 migration 015、grant、新增帳號、開啟 Y2/review/write gates 或替換 background worker。Y2 上游與覆核 schema 未啟用狀態必須可理解；「已記錄」不等於「已套用排名」。
 
 ## 容量與時間預算（估算，不是量測結果）
 
@@ -52,7 +54,7 @@
 1. 一份固定 SHA source、一份 lockfile、一輪 Next webpack build；接著一次完整 runtime 封裝，不將新 source 疊上旧 server/chunks。若失敗先分析，不連開多個 build。
 2. 記錄 SHA、BUILD_ID、image ID/digest、layer 數、大小及 UTC；逐檔 SHA-256 對照 standalone server、static/server chunks、manifests、app entries、SRI references，並驗證 runtime 解析的 Next/React 檔案來自該份輸出。版本相同或 HTML metadata 相同本身不足以證明一致。
 3. 不沿用 654 的 review 或 artifact proof 當作新 SHA 通過證據。若需修正原始碼，重新固定 SHA 並重做必要 build/review；「單次」是準備目標，不是略過失敗的理由。
-4. 固定 digest；保留 read-only、cap_drop ALL、PID1 no-new-privileges、pids/resources、tmpfs、GA hostname/DNT guards、hash CSP/strict-dynamic、crawler volume target。candidate 用隔離 log 目錄、無 GA ID、無 OAuth 與背景寫入；正式 GA 與原 env 不變。不新增金鑰。
+4. 固定 digest；保留 read-only、cap_drop ALL、PID1 no-new-privileges、pids/resources、tmpfs、GA hostname/DNT guards、hash CSP/strict-dynamic、crawler volume target。candidate 用隔離 log 目錄、無 OAuth 與背景寫入。**同一份產物在建置時保留核准的 NEXT_PUBLIC_GA_ID**，由 candidate hostname、DNT/GPC/automation guard 與啟動前網路封鎖禁止傳輸；不能先以空 ID 建置、再假設 runtime env 能補回 inline 設定。不新增金鑰或合成 GA 事件。
 
 ## Canary 與 review 次序
 
@@ -74,7 +76,9 @@
 
 上線後回報 commit、digest、UTC、實際網址與新圖；等 babysit 正式瀏覽器驗收才標正式可見。此文件不構成解凍、部署或驗收批准。
 
-## 本輪已取得的建置證據
+## 歷史 a77 產物證據（不能作為 e137 的驗收）
+
+下列為 05:44 UTC 等較早階段留下的收據原意。a77 其後於 06:18:23 UTC 匯入、06:19:06 UTC 啟動有限生命週期 candidate，通過核心 HTTP canary；桌機 partial capture 沒有完整手機配對、網路與 coherence 驗收，沒有完整 UI pass。這些狀態與原始證據保存在 ledger，沒有轉用到 e137。
 
 固定來源 `a77f84d9e5785106bff957a4d3873b6db85af7ea` 已完成 Next 編譯及 TypeScript 檢查，BUILD_ID 為 `dSzDaU9M4jqYXzUwz7XSr`；Next 16.3.8、React/React DOM 19.2.8。匯出時目錄時間權限錯誤已透過讀取同一個停止容器的 59,145,151 bytes 產物恢復，沒有重建；988 份已提交來源及 3,414 份 payload 檔案已核對。這不是映像、candidate 或 UI 通過。操作文件／guardian 的最新更正不改寫這份建置身分。詳見私有 `platform/.local/f2/sprint-a77f84d-proof/frontend-proof.json` 及相鄰 manifest。
 

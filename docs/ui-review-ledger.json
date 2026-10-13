@@ -34708,5 +34708,66 @@
       "observed503RootCause": "unproven; missing original branch diagnostics",
       "visualStatus": "pending Mint new SHA BUILD_ID capture; no SM retry"
     }
+  },
+  "mintOfflineAudits": {
+    "recordedAtUTC": "2026-10-13T07:49:31.041226+00:00",
+    "retainedSourceSHA": "c70a48b35665561d8be32c1b336b21ecb17894f9",
+    "buildCandidateSHA": "e137c5f0a4c0184fe5bae8330b410eed74a07063",
+    "evidence": [
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/keyword-review-independent-source-audit-c70a48b.json",
+        "sha256": "091b9b65207e1c7689f5fa4bc50788cd447889be888a6c8f8034aacf5d9d8c12",
+        "model": "gpt-6.1-sol",
+        "recordedTime": "2026-10-13T07:44:00.760111+00:00",
+        "scope": "offline source/document/mock tests only",
+        "UIApproval": false,
+        "routeComplete": false
+      },
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/keyword-review-independent-source-audit-c70a48b-provenance.json",
+        "sha256": "9052d346e6ccd70e7a5927c73d9eb570a79fa5364cadc86c0e826f537325850f",
+        "model": "gpt-6.1-sol",
+        "recordedTime": null,
+        "scope": "offline source/document/mock tests only",
+        "UIApproval": false,
+        "routeComplete": false
+      },
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/capture-failure-diagnostics-v11-root-independent-review.json",
+        "sha256": "b7f9739ae462792e3a9a833368ae245cbd8e1b55eb3ae6ec8cc4bae84d15299d",
+        "model": "gpt-6.1-sol",
+        "recordedTime": "2026-10-13T07:35:51.106670+00:00",
+        "scope": "offline source/document/mock tests only",
+        "UIApproval": false,
+        "routeComplete": false
+      },
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/f2-single-candidate-after-thaw-independent-doc-review-c70a48b.json",
+        "sha256": "cd56b99a697f1cc72b623ea0d761be567a1e216e2113324f977a3eb1db522eb0",
+        "model": "gpt-6.1-sol",
+        "recordedTime": null,
+        "scope": "offline source/document/mock tests only",
+        "UIApproval": false,
+        "routeComplete": false
+      },
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/root-offline-f2-regression-c70a48b-20261013.json",
+        "sha256": "72eef1e4465396463cb64a75482896b8c95472f3a2324f79dcf1a4f1b9771ca9",
+        "model": "gpt-6.1-sol",
+        "recordedTime": "2026-10-13T07:48:09.578166+00:00",
+        "scope": "offline source/document/mock tests only",
+        "UIApproval": false,
+        "routeComplete": false
+      }
+    ],
+    "guardStatus": "SM no new build/capture/restore; Mint readiness and globally coordinated slots required",
+    "deadline": null,
+    "newArtifactStatesPending": 376,
+    "completeRoutes": 0,
+    "limitations": [
+      "Source/mock review cannot promote UI state or transfer historical SHA pass.",
+      "Admin flags/schema/permissions unchanged, no live writes.",
+      "No real GA transmission, runtime or candidate probes."
+    ]
   }
 }
