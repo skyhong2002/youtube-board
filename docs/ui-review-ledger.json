@@ -32471,7 +32471,34 @@
       "5d92387",
       "ba6069d"
     ],
-    "sourcePreparation": "F2, Y2 UI and record-only admin console committed and independently source reviewed; candidate build/capture still forbidden."
+    "sourcePreparation": "F2, Y2 UI and record-only admin console committed and independently source reviewed; candidate build/capture still forbidden.",
+    "committedTreeTypecheck": {
+      "receiptPath": "/home/deck/Projects/youtube-board-f2/platform/.local/f2/committed-source-noemit.json",
+      "receiptSHA256": "8d3e7d0cc086a3cf524ba883b9d4664e2024d55a10e270f8a06468b1846eb4e0",
+      "commit": "893b2ab87e2bb9cfc024942c780907b4c8c3be55",
+      "at": "2026-10-13T03:53:46.101Z",
+      "results": [
+        {
+          "workspace": "api",
+          "diagnostics": 0,
+          "passed": true
+        },
+        {
+          "workspace": "web",
+          "diagnostics": 0,
+          "passed": true
+        }
+      ],
+      "sourceTrees": {
+        "platform/api": "980dae57ee77cad1100d9015f984abd8dd3095b9",
+        "platform/web": "f2b0a956baf9b8169771578d0e9b2a3a63941d00",
+        "platform/jobs": "2cf3a6fbd7aaf52f414028cfc7a7adf5a19de90c",
+        "platform/shared": "c64eb40d3700bb0429d5f18216365d5ba824437c",
+        "platform/runtime": "2d9fa14737d5bf00ce9ad1486f246f58d0844618"
+      },
+      "method": "In-memory git HEAD blobs substitute dirty tracked source; untracked files hidden; no emit/checkout/build/typegen; dependencies and preexisting generated Next types read from existing installation",
+      "limitation": "No new Next typegen/build; existing installed dependencies and generated types. Mock test runs were scoped by exact reviewed hashes, not rerun as a clean physical checkout."
+    }
   },
   "frozenSourceReviews": [
     {

@@ -368,3 +368,5 @@ Ledger仍344個route／591 entries，350 UI中25已review（24 issues、1僅stat
 本次來源盤點固定於`ba6069d1e1430a6a55dfea1a8575f24ff4dd482c`的已提交程式碼，ledger與部署計畫由後續文件commit一併固定；不把尚未commit的worktree當candidate。獨立release-plan review只指出當時UI與文件未提交的發布範圍缺口；UI現已完成提交及各自source review，文件由本commit固定。這是owner逐項對應，不冒稱該plan reviewer驗證過正式runtime。
 
 **接下來仍是待重拍**：376筆下一候選UI項目全部pending，無新SHA／BUILD_ID的截圖。歷史25筆review不變、完整UI route完成0；新F2／Y2／admin source review不能補成視覺pass。解凍必須由使用者明確通知並涵蓋build、candidate staging與capture；單純磁碟恢復或source測試通過都不解除。
+
+已提交樹的補充檢查：`893b2ab`的API與web TypeScript均0 diagnostics。以記憶體中的git HEAD blobs覆蓋14份dirty tracked檔、隱藏5份untracked檔；未修改檔案／建立checkout／emit／typegen／build。收據`platform/.local/f2/committed-source-noemit.json`及source tree IDs記在JSON；仍使用既有安裝依賴與既有Next generated types，不能替代解凍後的正式build。
