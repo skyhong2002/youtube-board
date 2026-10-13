@@ -12,11 +12,14 @@ spec = importlib.util.spec_from_file_location('yt_fixture', Path(__file__).with_
 fixture = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = fixture
 spec.loader.exec_module(fixture)
-now = dt.datetime(2026, 10, 13, 12, tzinfo=dt.timezone.utc)
+bridge_spec = importlib.util.spec_from_file_location('fixture_bridge_cases', Path(__file__).with_name('mint-youtube-fixture-gate.test.py'))
+bridge = importlib.util.module_from_spec(bridge_spec)
+bridge_spec.loader.exec_module(bridge)
+now = bridge.cases.NOW
 config = {'schema': 'yt-fixture-config-v1', 'appSha': fixture.APP_SHA, 'opsSha': 'a' * 40,
           'owner': 'yt-owner', 'generation': 'fixture-01', 'lockfileSha256': 'b' * 64,
           'baseDigest': 'sha256:' + 'c' * 64, 'appRoot': '/isolated/app',
-          'machineIds': ['1' * 32, '2' * 32, '3' * 32], 'knownHostsSha256': ['4' * 64, '5' * 64, '6' * 64],
+          'machineIds': [bridge.cases.relay_cases.relay.SM_ID, bridge.cases.relay_cases.relay.MINT_ID, bridge.cases.relay_cases.relay.BLOG_ID], 'knownHostsSha256': [bridge.cases.relay_cases.relay.SM_PIN, '0' * 64, bridge.cases.relay_cases.relay.BLOG_PIN],
           'admissionPath': '/isolated/admission.json', 'opsRoot': str(fixture.HERE.parents[1]),
           'sourceReceipt': '/isolated/source.json'}
 
@@ -34,16 +37,8 @@ def packet():
          'reservation': {**binding, 'schema': 'yt-reservation-v1', 'durable': True,
                          'held': True, 'releaseRequiresRemoteTerminalProof': True,
                          'observedAt': now.isoformat()}, 'health': {}}
-    for index, host in enumerate(fixture.admission.HOSTS):
-        row = {'schema': 'yt-host-health-v1', 'observedHost': host, 'machineId': c.machine_ids[index],
-               'measuredFromMachineId': c.machine_ids[index], 'observedAt': now.isoformat(),
-               'freeBytes': 80 * fixture.admission.GIB, 'load1': 1, 'buildCount': 0, 'browserCount': 0,
-               'sites': {name: {'exitCode': 0, 'status': 200, 'totalSeconds': 0.1} for name in fixture.admission.SITE_LIMITS}}
-        if host != 'Mint':
-            row['transport'] = {'controller': 'Mint', 'strictPinnedSsh': True,
-                                'knownHostsSha256': c.known_hosts_sha256[index], 'exitCode': 0,
-                                'scriptSha256': hashlib.sha256(fixture.admission.readonly_script(host).encode()).hexdigest()}
-        p['health'][host] = row
+    evidence, _ = bridge.BridgeTests().evidence()
+    p.update(evidence)
     return p
 
 
@@ -62,7 +57,7 @@ class FixtureMocks(unittest.TestCase):
                        lambda p: p['reservation'].update(held=False),
                        lambda p: p['health']['Mint'].update(buildCount=1),
                        lambda p: p['health']['SM'].pop('transport'),
-                       lambda p: p['health']['skyhong-blog']['sites']['blog'].update(totalSeconds=6.18)]:
+                       lambda p: p['health']['skyhong-blog']['sites']['blog'].update(status=503)]:
             p = packet(); change(p)
             self.assertTrue(fixture.binding_failures(p, c, now))
 

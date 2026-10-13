@@ -22,15 +22,16 @@ def module(name, file):
 guardian = module('yt_guardian_test', 'mint-youtube-fixture-guardian.py')
 fixture = module('yt_fixture_guardian_test', 'mint-youtube-api-fixture.py')
 relay = module('yt_relay_guardian_test', 'native-arm64-readonly-relay.py')
-NOW = dt.datetime(2026, 10, 13, 12, tzinfo=dt.timezone.utc)
+bridge = module('guardian_bridge_cases', 'mint-youtube-fixture-gate.test.py')
+NOW = bridge.cases.NOW
 CONFIG = {'schema': 'yt-fixture-guardian-config-v1', 'estimatedSetupBytes': 1024,
           'grantAt': '2026-10-13T11:27:00Z', 'grantMessageId': 'synthetic-only',
           'grantMessageSha256': hashlib.sha256(b'Synthetic grant; not user evidence').hexdigest(),
           'fixture': {'schema': 'yt-fixture-config-v1', 'appSha': guardian.APP, 'opsSha': guardian.OPS,
                       'owner': 'yt-owner', 'generation': 'guardian-mock-01', 'lockfileSha256': 'b' * 64,
                       'baseDigest': 'sha256:' + 'c' * 64, 'appRoot': '/isolated/app', 'serve': False,
-                      'machineIds': ['1' * 32, '2' * 32, '3' * 32],
-                      'knownHostsSha256': ['4' * 64, '5' * 64, '6' * 64]}}
+                      'machineIds': [relay.SM_ID, relay.MINT_ID, relay.BLOG_ID],
+                      'knownHostsSha256': [relay.SM_PIN, '0' * 64, relay.BLOG_PIN]}}
 C = fixture.contract(CONFIG['fixture'])
 CUSTODY = {'device': 1, 'inode': 42, 'kernelKey': '00:01:42', 'holderPid': 123}
 
@@ -45,17 +46,9 @@ def grant():
 
 
 def health():
-    result = {}
-    for i, host in enumerate(fixture.admission.HOSTS):
-        row = {'schema': 'yt-host-health-v1', 'observedHost': host, 'machineId': C.machine_ids[i],
-               'measuredFromMachineId': C.machine_ids[i], 'observedAt': NOW.isoformat(),
-               'freeBytes': 80 * guardian.GIB, 'load1': 1, 'buildCount': 0, 'browserCount': 0,
-               'sites': {name: {'exitCode': 0, 'status': 200, 'totalSeconds': .1} for name in fixture.admission.SITE_LIMITS}}
-        if host != 'Mint':
-            row['transport'] = {'controller': 'Mint', 'strictPinnedSsh': True,
-                                'knownHostsSha256': C.known_hosts_sha256[i], 'exitCode': 0,
-                                'scriptSha256': hashlib.sha256(fixture.admission.readonly_script(host).encode()).hexdigest()}
-        result[host] = row
+    evidence, _ = bridge.BridgeTests().evidence()
+    result = evidence['health']
+    result['_gateObservations'] = evidence['gateObservations']
     return result
 
 
@@ -97,7 +90,7 @@ class GuardianMocks(unittest.TestCase):
         reservation = {'state': 'reserved', 'binding': C.binding(), 'kernelKey': CUSTODY['kernelKey']}
         for change in [lambda rows: rows.pop('SM'), lambda rows: rows['Mint'].update(buildCount=1),
                        lambda rows: rows['skyhong-blog'].update(observedAt=(NOW-dt.timedelta(seconds=31)).isoformat()),
-                       lambda rows: [rows[h].update(browserCount=1) for h in rows],
+                       lambda rows: [rows[h].update(browserCount=1) for h in fixture.admission.HOSTS],
                        lambda rows: rows['SM']['transport'].update(scriptSha256='0' * 64),
                        lambda rows: rows['SM']['sites']['blog'].update(totalSeconds=6.18)]:
             rows = health(); change(rows)
@@ -191,7 +184,7 @@ class GuardianMocks(unittest.TestCase):
         def spawn(argv, **kw): events.append(('spawn', argv, kw)); return child
         def proc(pid): return {'pid': pid, 'pgid': pid, 'session': pid, 'startTicks': '1'}
         actual_digest = guardian.digest
-        with patch.object(guardian, 'load_pinned', side_effect=[adapter, object(), fixture]), patch.object(Path, 'is_file', return_value=True), patch.object(Path, 'is_symlink', return_value=False), patch.object(Path, 'read_bytes', return_value=b'synthetic-admission-dependency'), patch.object(guardian, 'digest', side_effect=lambda raw: guardian.ADMISSION_SOURCE_SHA256 if raw==b'synthetic-admission-dependency' else actual_digest(raw)), patch.object(fixture, 'verify_source'), patch.object(Path, 'read_text', return_value=C.machine_ids[1]), patch.object(Path, 'exists', return_value=False), patch.object(guardian, 'setup_bytes', return_value=1024), patch.object(guardian, 'acquire', return_value=7), patch.object(guardian, 'verify_fd', return_value=CUSTODY), patch.object(guardian, 'identity', side_effect=proc), patch.object(guardian, 'utc', return_value=NOW), patch.object(guardian, 'persist', side_effect=record), patch.object(guardian, 'observe_three_hosts', return_value=health()), patch.object(guardian.subprocess, 'Popen', side_effect=spawn), patch.object(guardian, 'terminal', return_value='d'*64), patch.object(guardian.os, 'close', side_effect=lambda fd: events.append(('close', fd))):
+        with patch.object(guardian, 'load_pinned', side_effect=[adapter, object(), fixture]), patch.object(Path, 'is_file', return_value=True), patch.object(Path, 'is_symlink', return_value=False), patch.object(Path, 'read_bytes', return_value=b'synthetic-admission-dependency'), patch.object(guardian, 'digest', side_effect=lambda raw: guardian.ADMISSION_SOURCE_SHA256 if raw==b'synthetic-admission-dependency' else actual_digest(raw)), patch.object(fixture, 'verify_source'), patch.object(Path, 'read_text', return_value=C.machine_ids[1]), patch.object(Path, 'exists', return_value=False), patch.object(guardian, 'setup_bytes', return_value=1024), patch.object(guardian, 'acquire', return_value=7), patch.object(guardian, 'verify_fd', return_value=CUSTODY), patch.object(guardian, 'identity', side_effect=proc), patch.object(guardian, 'utc', return_value=NOW), patch.object(guardian, 'persist', side_effect=record), patch.object(guardian, 'observe_three_hosts', return_value=health()), patch.object(fixture.gate, 'packet_health_failures', return_value=[]), patch.object(guardian.subprocess, 'Popen', side_effect=spawn), patch.object(guardian, 'terminal', return_value='d'*64), patch.object(guardian.os, 'close', side_effect=lambda fd: events.append(('close', fd))):
             result = guardian.supervise(config)
         first_reserve = next(i for i, e in enumerate(events) if e[0]=='persist' and e[1]==guardian.REGISTRY)
         launched = next(i for i,e in enumerate(events) if e[0]=='spawn')
