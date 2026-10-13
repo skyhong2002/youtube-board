@@ -112,6 +112,16 @@ processes={{}}
 build_processes=[]
 uptime=float(Path('/proc/uptime').read_text().split()[0])
 ticks=os.sysconf('SC_CLK_TCK')
+def skip_options(command,value_options,flag_options):
+ while command and command[0].startswith('-'):
+  option=command[0]
+  if option in value_options:
+   if len(command)<2 or command[1].startswith('-'): raise ValueError('Missing build-client option value')
+   command=command[2:]
+  elif option in flag_options or '=' in option and option.split('=',1)[0] in value_options+flag_options:
+   command=command[1:]
+  else: raise ValueError('Unknown build-client global option')
+ return command
 for p in Path('/proc').iterdir():
  if not p.name.isdecimal(): continue
  try:
@@ -124,18 +134,17 @@ for p in Path('/proc').iterdir():
  executable=names[0] if names else ''
  processes[int(p.name)]=(parent,executable,a,elapsed)
  command=a[1:]
- if executable in ('docker','buildctl','buildx','docker-buildx'):
+ is_buildx=executable in ('buildx','docker-buildx')
+ if executable in ('docker','buildctl'):
   value_options=('--host','-H','--context','-c','--config','--log-level','-l','--tlscacert','--tlscert','--tlskey','--addr','--timeout','--tlsservername')
   flag_options=('--debug','-D','--tls','--tlsverify','--help','-h','--version','-v')
-  while command and command[0].startswith('-'):
-   option=command[0]
-   if option in value_options:
-    if len(command)<2: raise ValueError('Missing build-client option value')
-    command=command[2:]
-   elif option in flag_options or '=' in option and option.split('=',1)[0] in value_options+flag_options:
-    command=command[1:]
-   else: raise ValueError('Unknown build-client global option')
- client=(executable=='docker' and (command[:1]==['build'] or command[:2] in (['buildx','build'],['buildx','bake'],['image','build'])) or executable in ('buildx','docker-buildx') and command[:1] in (['build'],['bake']) or executable=='buildctl' and command[:1]==['build'] or 'next-build' in names or any(x in names for x in ('next','next.js')) and 'build' in a or executable in ('npm','pnpm','yarn') and 'build' in a[1:])
+  command=skip_options(command,value_options,flag_options)
+  if executable=='docker' and command[:1]==['buildx']:
+   is_buildx=True
+   command=command[1:]
+ if is_buildx:
+  command=skip_options(command,('--builder',),('--debug','-D','--help','-h','--version'))
+ client=(is_buildx and command[:1] in (['build'],['bake']) or executable=='docker' and not is_buildx and (command[:1]==['build'] or command[:2]==['image','build']) or executable=='buildctl' and command[:1]==['build'] or 'next-build' in names or any(x in names for x in ('next','next.js')) and 'build' in a or executable in ('npm','pnpm','yarn') and 'build' in a[1:])
  if client:
   build_processes.append({{'pid':int(p.name),'name':executable if executable in ('docker','buildx','docker-buildx','buildctl','node','npm','pnpm','yarn','next','next.js','next-build') else 'build-client','etimes':elapsed}})
  if names and names[0] in ('chrome','chromium','chromium-browser','chrome-headless-shell','google-chrome','google-chrome-stable') and not any(x.startswith('--type=') for x in a): browsers+=1

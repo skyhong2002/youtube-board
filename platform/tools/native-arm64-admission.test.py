@@ -362,6 +362,27 @@ class PreparationTests(unittest.TestCase):
                 row, _ = mocked_probe([argv])
                 self.assertEqual(row['buildCount'], 1)
 
+    def test_buildx_builder_option_before_build(self):
+        for argv in (['docker', 'buildx', '--builder', 'local', 'build', '.'],
+                     ['docker', '--context', 'local', 'buildx', '--builder=local', 'build', '.'],
+                     ['buildx', '--builder', 'local', 'build', '.']):
+            row, _ = mocked_probe([argv])
+            self.assertEqual(row['buildCount'], 1)
+
+    def test_buildx_debug_option_before_build(self):
+        row, _ = mocked_probe([['docker', 'buildx', '--debug', 'build']])
+        self.assertEqual(row['buildCount'], 1)
+        for command in ('use', 'inspect'):
+            row, _ = mocked_probe([['docker', 'buildx', '--debug', command, 'build']])
+            self.assertEqual(row['buildCount'], 0)
+
+    def test_buildx_builder_option_before_bake(self):
+        row, _ = mocked_probe([['docker', 'buildx', '--builder', 'local', 'bake']])
+        self.assertEqual(row['buildCount'], 1)
+        for options in (['--unknown'], ['--builder'], ['--builder', '--debug']):
+            with self.assertRaises(ValueError):
+                mocked_probe([['docker', 'buildx'] + options])
+
     def test_buildkit_runtime_descendants_are_builds(self):
         for runtime in ('runc', 'buildkit-runc'):
             with self.subTest(runtime=runtime):
