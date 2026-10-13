@@ -70,3 +70,32 @@ test('API navigation flags override same-path matching without changing family t
  assert.equal(currentTab('/live/days?date=2026-10-10','/live/days',false),false);
  assert.equal(currentTab('/live/days?date=2026-10-11','/live/days/2026-10-11'),true);
 });
+
+test('taxonomy group live tab targets the hourly taxonomy report, not the content tag-set route',async()=>{
+ const {resolveRoute}=await import('./routes');
+ for(const id of ['media','position']){
+  const tabs=familyTabs('/groups/'+id),live=tabs.find(t=>t.label==='每小時直播');
+  assert.equal(live?.href,`/live/groups/${id}/hours`);
+  assert.ok(!tabs.some(t=>new URL(t.href,'http://local').pathname===`/groups/${id}/live`));
+  assert.ok(resolveRoute(['live','groups',id,'hours']));
+ }
+ assert.ok(!familyTabs('/groups/tags_economy').some(t=>t.href.includes('/hours')));
+ // The content route stays resolvable for direct links and keeps its own period scope.
+ assert.ok(resolveRoute(['groups','media','live']));
+ assert.equal(reportHref('/groups/media/live',{from:'2026-10-01',to:'2026-10-11',view:'media',type:'tags_views'},'/groups/media/trends'),'/groups/media/live?from=2026-10-01&to=2026-10-11');
+});
+test('hourly taxonomy destination carries only a date and drops ranking/trend selectors',()=>{
+ const selection={from:'2026-10-01',to:'2026-10-11',days:'30',type:'tags_video',view:'media',group:'media',tagid:'1',q:'交通',today:'1',diff:'1'};
+ for(const source of ['/groups/media','/groups/media/ranking','/groups/media/trends']){
+  const href=familyTabs(source,selection).find(t=>t.label==='每小時直播')!.href;
+  assert.deepEqual(query(href),{date:'2026-10-11'},source);
+  assert.equal(new URL(href,'http://local').pathname,'/live/groups/media/hours');
+ }
+ assert.deepEqual(query(reportHref('/live/groups/position/hours',{date:'2026-10-09',to:'2026-10-11',type:'count'},'/groups/position/trends')),{date:'2026-10-09'});
+ assert.equal(reportHref('/live/groups/media/hours',{days:'7',type:'tags_views'},'/groups/media/ranking'),'/live/groups/media/hours');
+ assert.equal(reportHref('/live/groups/media/hours',{to:'not-a-date'},'/groups/media'),'/live/groups/media/hours');
+ // Same hourly page keeps its own count/views metric only.
+ assert.deepEqual(query(reportHref('/live/groups/media/hours',{date:'2026-10-11',type:'count',days:'7',from:'2026-10-01'})),{date:'2026-10-11',type:'count'});
+ assert.deepEqual(query(reportHref('/live/groups/media/hours',{date:'2026-10-11',type:'views'})),{date:'2026-10-11',type:'views'});
+ assert.deepEqual(query(reportHref('/live/groups/media/hours',{date:'2026-10-11',type:'tags_video'})),{date:'2026-10-11'});
+});
