@@ -440,7 +440,7 @@ export async function ReportPage({
                         </p>
                     </section>
                 ) : (
-                    <Empty title="尚無歷史觀測" />
+                    <Empty title="尚無歷史觀測" description="本站尚未儲存這部影片的歷史觀測。上方為目前統計，無法據以建立歷史時間序列。" />
                 )}
                 {data.liveHistory.length > 0 && (
                     <>
