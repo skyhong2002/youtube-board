@@ -67,3 +67,9 @@ it('keeps legitimate 24小時 title tags while excluding repeated channel-descri
  expect(result.evidence.map(e=>({term:e.term,field:e.field}))).toEqual([{term:'24小時',field:'title'}]);
  expect(result.quality.excluded).toHaveLength(1);expect(result.quality.excluded[0]?.reasons).toContain('channel-repeated-line');
 });
+
+it('excludes authorized news sources and no-equal terms while retaining named subjects',()=>{
+ for(const term of ['Yahoo','yahoo',' YAHOO ','合作媒體'])expect(tagDisplayExclusion(term)).toBe('youtube-source-or-platform');
+ for(const term of ['美國','民進黨'])expect(tagDisplayExclusion(term)).toBe('upstream-no-equal-or-category');
+ for(const term of ['沈伯洋','川普','台積電'])expect(tagDisplayExclusion(term)).toBeNull();
+});

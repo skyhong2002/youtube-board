@@ -89,3 +89,7 @@ test('ranking table keeps one-line rows, a sticky lead with fixed thumbnails, an
  assert.match(html,/2 種寫法/);assert.match(html,/無觀看值<small[^>]*>（已知小計 3,000 次・1 支缺值）/);assert.doesNotMatch(html,/>3,000 次</);assert.match(html,new RegExp(INSUFFICIENT));assert.match(html,/href="\/channels\/7"/);
  assert.doesNotMatch(html,/>0 次</);
 });
+
+test('labels authorized source exclusions with the specific reason',()=>{
+ assert.equal(displayExclusionLabel('youtube-source-or-platform'),'不列入排行：來源或平台名稱');
+});
