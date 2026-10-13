@@ -30,9 +30,8 @@ No raw invalid identity, extra fields or process argv is echoed by the gate.
 The retained immutable arm64 image sha256:5b7d9171d9633c132766c65abd934c791787693a72b7f016bcd1408097dedadd
 actually contains Node v24.21.0, ABI137, glibc2.36 and loadable sharp0.35.5, with
 sharp-linux-arm64 and sharp-libvips-linux-arm64 packages. The initial smoke failed
-at the exact v24.15.0 check. No receipt/version is rewritten. Before using this
-base in a compiler plan, submit its actual version to babysit; no new base pull
-or runtime change is implicit. Diagnostic receipt SHA256
+at the exact v24.15.0 check. No receipt/version is rewritten. Babysit accepts the existing base under Node major24 plus ABI137; no version
+is rewritten, and no replacement base pull or runtime upgrade is required. Diagnostic receipt SHA256
 9cc44ea6b7a243d84fc9e07b538d51faf2acf34e8a2b8dd96347755824d82d59:
 /home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/approved-native-diagnostic-20261013T200143Z/native-diagnostic-result.json.
 
@@ -57,3 +56,21 @@ or runtime change is implicit. Diagnostic receipt SHA256
 
 This source/document checkpoint performs no probe, build, capture, candidate,
 lock acquisition, container or production mutation.
+
+## Major-version diagnostic checkpoint
+
+Preauthorized read-only diagnostic rerun at2026-10-13T20:12:33Z passes: actual
+Nodev24.21.0, ABI137, Linux/arm64, glibc2.36, sharp0.35.5 loads. Identity policy
+requires Node major24 plus ABI137 (and Linux/arm64); four offline regressions pass.
+Fresh SM/direct-blog probe aggregate.ok=true, temporary container removed,
+production healthy and homepage200. No build or deployment. Exact retained base
+sha256:5b7d9171d9633c132766c65abd934c791787693a72b7f016bcd1408097dedadd
+remains the compiler-plan candidate, without any floating node tag substitution.
+Diagnostic receipt:
+/home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/yt-native-major24-diag-20261013t201227z/native-diagnostic-result.json
+SHA2564d822d358ed31e8f44ad5746809c1dc075354546fa4974f3c5caaa2388597d4a.
+
+SM health-gate source32ab7dc39c2e6aa151772b56c0fe7e548c2ac181 received independent
+GPT-6.1 Sol PASS, receipt003895cee99aef40e9209bc98b141fc82e1562c7cfbde0351ae642ff491852fa
+at /home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/sm-direct-gate-independent-source-review-20261013T201121Z.json.
+This is source-only, not build-slot authority or UI acceptance.
