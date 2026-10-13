@@ -114,6 +114,46 @@ def load_pinned(path, sha256, name):
     return module
 
 
+KEYWORD_POLICY_COMMIT = '7b4321f85ab6f7e8f541dcacd8f4975f0b8cd8de'
+EXECUTION_SOURCES = tuple('platform/tools/' + name for name in (
+    'mint-youtube-fixture-guardian.py', 'mint-youtube-api-fixture.py',
+    'mint-youtube-fixture-authority.py', 'mint-youtube-fixture-gate.py',
+    'native-arm64-admission.py', 'native-arm64-readonly-relay.py',
+    'native-arm64-probe-collector.py', 'mint-youtube-api-worker.mjs')) + (
+    'platform/shared/youtube-match-policy.ts', 'platform/shared/tag-noise.ts',
+    'platform/shared/tag-no-equal-tags.json', 'platform/shared/ascii-case.ts',
+    'platform/web/src/lib/keyword-ranking.ts')
+
+
+def validate_execution_pins(config, review):
+    """Verify reviewed source/tool bytes before any adapter import or flock."""
+    pins = config.get('executionPins')
+    require(isinstance(pins, dict) and set(pins) == {'sourcePins', 'toolPins', 'keywordPolicyCommit', 'sourceReceiptSha256', 'dependencyTreeSha256'}, 'EXACT_EXECUTION_PIN_SCHEMA_REQUIRED')
+    require(review.get('executionPins') == pins, 'EXECUTION_REVIEW_BINDING_REQUIRED')
+    require(pins['keywordPolicyCommit'] == KEYWORD_POLICY_COMMIT, 'KEYWORD_POLICY_SOURCE_COMMIT_REQUIRED')
+    sources, tools = pins['sourcePins'], pins['toolPins']
+    require(isinstance(sources, dict) and set(sources) == set(EXECUTION_SOURCES) and isinstance(tools, dict) and set(tools) == {'nodeBinary', 'mariadbd', 'installDb'}, 'COMPLETE_EXECUTION_PINS_REQUIRED')
+    values = [*sources.values(), *tools.values(), pins['sourceReceiptSha256'], pins['dependencyTreeSha256']]
+    require(all(isinstance(value, str) and re.fullmatch(r'[0-9a-f]{64}', value) for value in values), 'VALID_EXECUTION_HASHES_REQUIRED')
+    root = Path(config['fixture']['opsRoot'])
+    require(root.is_absolute() and root.resolve() == root and root / 'platform/tools/mint-youtube-fixture-guardian.py' == HERE, 'EXECUTION_SOURCE_ROOT_REQUIRED')
+    for name, expected in sources.items():
+        source = root / name
+        require(source.is_file() and not source.is_symlink() and source.resolve().is_relative_to(root) and digest(source.read_bytes()) == expected, 'EXECUTION_SOURCE_HASH_MISMATCH')
+    for field, expected in tools.items():
+        tool = Path(config['fixture'][field])
+        require(tool.is_absolute() and tool.resolve() == tool and tool.is_file() and not tool.is_symlink() and digest(tool.read_bytes()) == expected, 'EXECUTION_TOOL_HASH_MISMATCH')
+    for field, name in (('authorityAdapter', 'mint-youtube-fixture-authority.py'), ('probeAdapter', 'native-arm64-readonly-relay.py'), ('gateAdapter', 'mint-youtube-fixture-gate.py')):
+        require(config[field + 'Path'] == str(root / 'platform/tools' / name) and config[field + 'Sha256'] == sources['platform/tools/' + name], 'EXECUTION_ADAPTER_PIN_MISMATCH')
+    require(config['fixtureSupervisorSha256'] == sources['platform/tools/mint-youtube-api-fixture.py'], 'EXECUTION_SUPERVISOR_PIN_MISMATCH')
+    source_review = json_private(config['fixture']['sourceReceipt'], pins['sourceReceiptSha256'])
+    require(source_review.get('schema') == 'yt-fixture-source-review-v1' and source_review.get('sourceApproved') is True and source_review.get('appSha') == APP and source_review.get('opsSha') == config['fixture']['opsSha'], 'EXECUTION_SOURCE_REVIEW_BINDING_REQUIRED')
+    require(source_review.get('dependencyTreeSha256') == pins['dependencyTreeSha256'] and all(source_review.get(field + 'Sha256') == expected for field, expected in tools.items()), 'EXECUTION_DEPENDENCY_REVIEW_BINDING_REQUIRED')
+    # Bind the actual returned independent transcript; never synthesize approval.
+    json_private(source_review['reviewReceipt'], source_review['reviewReceiptSha256'])
+    require(config['fixture'].get('sourceReceiptSha256') == pins['sourceReceiptSha256'] and config['fixture'].get('dependencyTreeSha256') == pins['dependencyTreeSha256'], 'FIXTURE_EXECUTION_PIN_BINDING_REQUIRED')
+
+
 def reviewed_config(path, review_path, review_sha):
     raw = private_read(path)
     config = json.loads(raw, object_pairs_hook=unique)
@@ -124,6 +164,7 @@ def reviewed_config(path, review_path, review_sha):
     require(config.get('registryPath') == REGISTRY and config.get('lockPath') == LOCK, 'COMMON_COORDINATION_PATHS_REQUIRED')
     require(all(isinstance(config.get(key), str) and len(config[key]) == 64 and all(char in '0123456789abcdef' for char in config[key]) for key in ('authorityAdapterSha256', 'probeAdapterSha256', 'fixtureSupervisorSha256', 'grantMessageSha256', 'gateAdapterSha256')), 'EXACT_SOURCE_AND_GRANT_PINS_REQUIRED')
     require(review.get('authorityAdapterSha256') == config.get('authorityAdapterSha256') and review.get('probeAdapterSha256') == config.get('probeAdapterSha256') and review.get('gateAdapterSha256') == config.get('gateAdapterSha256'), 'ADAPTER_REVIEW_BINDING_REQUIRED')
+    validate_execution_pins(config, review)
     # Config review is an explicit external trust anchor, not authenticated merely
     # by private mode. Reviewer/operator must supply its actual returned byte pin.
     return config

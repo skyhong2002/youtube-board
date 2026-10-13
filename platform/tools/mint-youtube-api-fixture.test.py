@@ -3,6 +3,7 @@ import copy
 import datetime as dt
 import hashlib
 import importlib.util
+import tempfile
 from pathlib import Path
 import sys
 import unittest
@@ -43,6 +44,24 @@ def packet():
 
 
 class FixtureMocks(unittest.TestCase):
+    def test_installed_dependency_bytes_and_links_are_content_bound(self):
+        with tempfile.TemporaryDirectory(prefix='yt-dependency-mock-') as tmp:
+            root=Path(tmp);base=root/'platform/node_modules';base.mkdir(parents=True)
+            module=base/'synthetic.js';module.write_text('export const fixture=1;')
+            first=fixture.dependency_tree(root)
+            module.write_text('export const fixture=2;')
+            self.assertNotEqual(first,fixture.dependency_tree(root))
+            second=fixture.dependency_tree(root)
+            (base/'alias.js').symlink_to('synthetic.js')
+            self.assertNotEqual(second,fixture.dependency_tree(root))
+            (base/'outside').symlink_to('/etc')
+            with self.assertRaisesRegex(ValueError,'EXTERNAL_DEPENDENCY_LINK_DENIED'):fixture.dependency_tree(root)
+
+    def test_empty_installed_dependency_tree_cannot_supply_an_identity(self):
+        with tempfile.TemporaryDirectory(prefix='yt-dependency-mock-') as tmp:
+            root=Path(tmp);(root/'platform/node_modules').mkdir(parents=True)
+            with self.assertRaisesRegex(ValueError,'NONEMPTY_DEPENDENCY_TREE_REQUIRED'):fixture.dependency_tree(root)
+
     def test_separate_fixture_admission_does_not_require_its_own_readiness(self):
         self.assertEqual(fixture.binding_failures(packet(), fixture.contract(config), now), [])
         self.assertNotIn('readiness', packet())

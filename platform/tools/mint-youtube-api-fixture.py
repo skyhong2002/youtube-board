@@ -108,10 +108,41 @@ def source_tree(root):
     return git('rev-parse', 'HEAD').decode().strip(), hashlib.sha256(json.dumps(manifest, separators=(',', ':')).encode()).hexdigest()
 
 
+def dependency_tree(root):
+    """Hash installed dependency bytes and internal links; no install or mutation."""
+    base = root / 'platform/node_modules'
+    require(base.is_dir() and not base.is_symlink() and base.resolve() == base, 'CANONICAL_DEPENDENCY_TREE_REQUIRED')
+    manifest, total = [], 0
+    for directory, dirs, files in os.walk(base, followlinks=False):
+        for name in sorted(dirs + files):
+            path = Path(directory) / name
+            relative = str(path.relative_to(base))
+            require(len(manifest) < 50000, 'DEPENDENCY_FILE_COUNT_CAP')
+            if path.is_symlink():
+                target = path.resolve(strict=True)
+                require(target.is_relative_to(root), 'EXTERNAL_DEPENDENCY_LINK_DENIED')
+                manifest.append([relative, 'link', os.readlink(path)])
+            elif path.is_file():
+                size = path.stat().st_size
+                total += size
+                require(total <= 2 * 1024 ** 3, 'DEPENDENCY_BYTE_CAP')
+                hasher = hashlib.sha256()
+                with path.open('rb') as stream:
+                    for chunk in iter(lambda: stream.read(1048576), b''):
+                        hasher.update(chunk)
+                manifest.append([relative, 'file', hasher.hexdigest()])
+            else:
+                require(path.is_dir(), 'REGULAR_DEPENDENCY_REQUIRED')
+    require(manifest, 'NONEMPTY_DEPENDENCY_TREE_REQUIRED')
+    return hashlib.sha256(json.dumps(sorted(manifest), separators=(',', ':')).encode()).hexdigest()
+
+
 def verify_source(config, c):
     require(canonical(config['opsRoot']) / 'platform/tools' == HERE and
             Path(admission.__file__).resolve() == HERE / 'native-arm64-admission.py', 'EXECUTING_OPS_ROOT_MISMATCH')
-    receipt = private_json(config['sourceReceipt'])
+    receipt_path = canonical(config['sourceReceipt'])
+    require(not receipt_path.is_symlink() and hashlib.sha256(receipt_path.read_bytes()).hexdigest() == config.get('sourceReceiptSha256'), 'PINNED_SOURCE_RECEIPT_REQUIRED')
+    receipt = private_json(receipt_path)
     require(admission.bound(receipt, c) and receipt.get('schema') == 'yt-fixture-source-review-v1' and
             receipt.get('sourceApproved') is True and isinstance(receipt.get('reviewedBy'), str) and
             receipt['reviewedBy'] != '/root/f2_visual_sol', 'INDEPENDENT_SOURCE_REVIEW_REQUIRED')
@@ -121,6 +152,7 @@ def verify_source(config, c):
         head, digest = source_tree(canonical(config[key]))
         require(head == pin and digest == receipt.get(key + 'TreeSha256'), 'EXACT_SOURCE_TREE_MISMATCH')
     require(hashlib.sha256((Path(c.source_root) / 'platform/package-lock.json').read_bytes()).hexdigest() == c.lockfile_sha256, 'APP_LOCKFILE_MISMATCH')
+    require(receipt.get('dependencyTreeSha256') == config.get('dependencyTreeSha256') and dependency_tree(canonical(config['appRoot'])) == config['dependencyTreeSha256'], 'INSTALLED_DEPENDENCY_TREE_MISMATCH')
     for name in ['nodeBinary', 'mariadbd', 'installDb']:
         p = canonical(config[name])
         require(p.is_file() and hashlib.sha256(p.read_bytes()).hexdigest() == receipt.get(name + 'Sha256'), 'RUNTIME_TOOL_PIN_MISMATCH')

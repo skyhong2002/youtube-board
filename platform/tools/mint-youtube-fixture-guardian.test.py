@@ -53,6 +53,56 @@ def health():
 
 
 class GuardianMocks(unittest.TestCase):
+    def execution_config(self):
+        root = guardian.HERE.parents[2]
+        sha = hashlib.sha256(b'synthetic-source-or-tool').hexdigest()
+        pins = {'sourcePins': {name: sha for name in guardian.EXECUTION_SOURCES},
+                'toolPins': {name: sha for name in ('nodeBinary','mariadbd','installDb')},
+                'keywordPolicyCommit': guardian.KEYWORD_POLICY_COMMIT,
+                'sourceReceiptSha256': 'a'*64, 'dependencyTreeSha256': 'b'*64}
+        config = {**copy.deepcopy(CONFIG), 'executionPins': pins, 'fixtureSupervisorSha256': sha}
+        config['fixture'].update(opsRoot=str(root), sourceReceipt='/isolated/source.json',
+                                sourceReceiptSha256='a'*64, dependencyTreeSha256='b'*64,
+                                nodeBinary='/isolated/node',mariadbd='/isolated/mariadbd',installDb='/isolated/install-db')
+        for field, name in (('authorityAdapter','mint-youtube-fixture-authority.py'),('probeAdapter','native-arm64-readonly-relay.py'),('gateAdapter','mint-youtube-fixture-gate.py')):
+            config[field+'Path']=str(root/'platform/tools'/name);config[field+'Sha256']=sha
+        receipt = {'schema':'yt-fixture-source-review-v1','sourceApproved':True,'appSha':guardian.APP,
+                   'opsSha':config['fixture']['opsSha'],'dependencyTreeSha256':'b'*64,
+                   'reviewReceipt':'/isolated/actual-review.json','reviewReceiptSha256':'c'*64,
+                   **{name+'Sha256':sha for name in pins['toolPins']}}
+        return config, {'executionPins':copy.deepcopy(pins)}, receipt
+
+    def check_execution_config(self, config, review, receipt, source_bytes=b'synthetic-source-or-tool'):
+        with patch.object(Path,'is_file',return_value=True),patch.object(Path,'is_symlink',return_value=False),patch.object(Path,'read_bytes',return_value=source_bytes),patch.object(guardian,'json_private',side_effect=[receipt,{'syntheticReviewOnly':True}]) as read:
+            guardian.validate_execution_pins(config,review)
+            self.assertEqual(read.call_args_list[0].args,('/isolated/source.json','a'*64))
+            self.assertEqual(read.call_args_list[1].args,('/isolated/actual-review.json','c'*64))
+
+    def test_execution_pins_bind_tools_dependencies_receipts_and_keyword_successor(self):
+        self.check_execution_config(*self.execution_config())
+
+    def test_execution_pin_change_or_missing_dependency_fails_closed(self):
+        for change in (
+            lambda c:c['executionPins']['sourcePins'].pop('platform/tools/mint-youtube-api-worker.mjs'),
+            lambda c:c['executionPins']['sourcePins'].update({'platform/shared/youtube-match-policy.ts':'0'*64}),
+            lambda c:c['executionPins']['toolPins'].update(nodeBinary='0'*64),
+            lambda c:c['executionPins'].update(keywordPolicyCommit='0'*40),
+            lambda c:c['executionPins'].update(dependencyTreeSha256='0'*64),
+            lambda c:c['fixture'].update(sourceReceiptSha256='0'*64),
+            lambda c:c.update(fixtureSupervisorSha256='0'*64)):
+            config,review,receipt=self.execution_config();change(config)
+            review['executionPins']=copy.deepcopy(config['executionPins'])
+            with self.subTest(config=config),self.assertRaises(ValueError):self.check_execution_config(config,review,receipt)
+
+    def test_stale_config_review_or_source_review_cannot_attest_new_bytes(self):
+        config,review,receipt=self.execution_config()
+        review['executionPins']['keywordPolicyCommit']='0'*40
+        with self.assertRaisesRegex(ValueError,'EXECUTION_REVIEW_BINDING_REQUIRED'):self.check_execution_config(config,review,receipt)
+        config,review,receipt=self.execution_config();receipt['opsSha']='0'*40
+        with self.assertRaisesRegex(ValueError,'EXECUTION_SOURCE_REVIEW_BINDING_REQUIRED'):self.check_execution_config(config,review,receipt)
+        config,review,receipt=self.execution_config()
+        with self.assertRaisesRegex(ValueError,'EXECUTION_SOURCE_HASH_MISMATCH'):self.check_execution_config(config,review,receipt,b'tampered')
+
     def test_default_preview_does_not_read_config_import_adapters_or_acquire_lock(self):
         with patch.object(sys, 'argv', ['guardian']), patch('builtins.print') as output, patch.object(guardian, 'reviewed_config') as review, patch.object(guardian, 'supervise') as supervise, patch.object(guardian, 'acquire') as lock:
             guardian.main()
