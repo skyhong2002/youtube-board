@@ -72,10 +72,13 @@ no current indexed terms; DB exceptions must remain failures, not empty snapshot
 
 Only after that endpoint is released should the downstream operator run
 `vocabulary:import --max-pages=N` preview, choosing N for the published manifest
-(up to 500 pages). Execute requires `tags.vocabulary.import` ownership and the normal
+(up to 20,000 pages, with 500 entries per page). Execute requires
+`tags.vocabulary.import` ownership and the normal
 production gate/allowlist. Both window sync and full import share one writer lock.
-The matching budget can reject a valid but oversized upstream dictionary; rejection
-leaves staged rows unpublished and the previous local version current.
+The offline importer/loader follow-up separates complete pool storage from bounded
+active matching: see [bounded full-pool preparation](vocabulary-full-pool-preparation-2026-10-13.md).
+Oversized active subsets, or large exports without active metadata, fail closed
+and leave the previous local version current. No workflow has been activated.
 
 Rollback: disable export invocation and remove API export-directory configuration
 (HTTP503), keeping immutable historical files. Stop downstream import/matching jobs

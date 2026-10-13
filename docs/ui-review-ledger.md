@@ -446,3 +446,5 @@ quality第二批修改已park在35a4794並推到自己的分支，獨立source r
 v11 擷取失敗診斷、無截止的 Mint 發布計畫也完成獨立 source／document review；收據 hash 已登錄。兩個 capture hard stop 維持，沒有新的 capture、BUILD_ID 或部署。已有截圖可继续用於歷史 findings-only review，不轉用為 e137 pass。
 
 Y2 上游 source audit 固定在 `48bc174`，原 `b8d030c` 契約來源另保留；沒有發現破壞 adapter 的 DTO 變化。新增 200 列／8 層與來源 ID、特殊 UTF-8／一次編碼、合法大回應拒絕而非空成功三組 mock；作者 58 項 focused tests 通過，另一 instance 獨立 review 並執行新增 3 項通過。未改 runtime/cap、未查正式上游或開旗標。source receipt 的 path/hash 在 JSON `mintOfflineAudits.y2ContractFollowup`，沒有增加 UI pass。
+
+完整詞庫匯入器 source preparation 已移除 500 頁限制：完整池上限 20,000 頁，逐頁寫入與 checksum；比對 loader 只查固定活躍集（每批 500），不反覆全池掃描。原始身份與標籤完整保留。獨立 GPT-6.1 Sol source review 與 44 個 mock tests 通過，1 個真實 DB 測試跳過；啟用所需的增量排程、正規化 offset、非活躍原因介面與備份／ownership／runtime 驗收仍未完成。此批另行保存，不進入 F2 UI candidate，也沒有改 serving pointer。詳見 JSON `mintOfflineAudits.vocabularyCapacityPreparation`。

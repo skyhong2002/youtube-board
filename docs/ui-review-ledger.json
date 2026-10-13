@@ -34795,6 +34795,36 @@
       ],
       "UIApproval": false,
       "activationApproval": false
+    },
+    "vocabularyCapacityPreparation": {
+      "scope": "parked source preparation; excluded from UI build candidate",
+      "independentReviewerModel": "gpt-6.1-sol",
+      "testsPassed": 44,
+      "realDBTestsSkipped": 1,
+      "fullPageCap": 20000,
+      "fullTermsCap": 10000000,
+      "DBReadBatch": 500,
+      "rawActiveTermsCap": 100000,
+      "activeBytesCap": 67108864,
+      "metadataBytesCap": 16777216,
+      "evidence": [
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/vocabulary-author-20261013T080633Z/author.json",
+          "sha256": "483713740af8aac40b3a867f20a9627d13ce8e0c21198a7801fe222f69dced12"
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/vocabulary-full-pool-root-independent-source-review-20261013.json",
+          "sha256": "64d509ad631e5c28c168de8ddced4757a531cde6504ba967e1d96e32a288c6ae"
+        }
+      ],
+      "activationApproval": false,
+      "UIApproval": false,
+      "blockers": [
+        "10-minute delta/daily reconciliation checkpoint paths",
+        "versioned NFKC normalization with raw aliases and original offsets",
+        "inactive low-frequency/budget reasons in UI/API",
+        "writer ownership, protected backups and live acceptance"
+      ]
     }
   }
 }
