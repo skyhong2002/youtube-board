@@ -417,3 +417,15 @@ Ledger仍344個route／591 entries，350 UI中25已review（24 issues、1僅stat
 14:20 收據文字更正：blog 的3.085秒DYNAMIC time_total包含origin渲染、Cloudflare edge及網路，並非精確的origin渲染耗時。guard既有scope已正確；原始凍結收據/hash保留，最新更正hash與原始copy列於 `platform/tools/performance-gate-baseline-clarification.json`，門檻2／6.17／2秒不變。
 
 06:29:59 UTC 首批capture preflight停於程序盤點unknown；三站均200且健康閘門通過，但無法確定瀏覽器根程序數量。沒有釋出capture hard stop、未建立capture envelope、無新PNG。未知盤點仍fail-closed，待既有權限下的唯讀盤點修正與獨立review。
+
+06:41:38 UTC v9程序盤點source獨立review及11項mock測試通過；依可讀的comm、argv0、Chromium旗標判斷候選，任何疑似瀏覽器仍須核對exe，未知仍拒絕，不新增權限。06:42:59 UTC實際盤點known=true、0個瀏覽器根程序；新preflight僅因正式YT首頁2.855321秒超過2秒而拒絕。原始兩份拒絕及v9獨立review的路徑／hash列於JSON `queueRelease0604.capturePreflightEvidence`。無新PNG或pass，後續僅在新閘門通過後恢復。
+
+06:45 UTC新閘門通過後，batch001產生首頁今日淺色桌機整頁與5張同buffer切片，共2,534,848 bytes。context關閉後仍有2個fetch缺少terminal事件，收據complete=false／accepted=false；擷取停止、own browser已關閉、空lock保留、原圖不刪。這6張PNG不算完成package；沒有mobile、completed item或完整manifest。獨立reviewer只可用它找視覺問題，不可宣稱pass、zero-GA或關閉原finding。診斷hash／path見JSON `queueRelease0604.partialCaptureStopEvidence`。
+
+06:58 UTC 實際獨立 GPT-6.1 Sol 看圖 review 已返回：首頁今日、淺色、1280，共6張candidate PNG與1張tag參考圖，逐圖觀察和hash均在 `queueRelease0604.partialIndependentImageReview`。兩個可見期間均為今日，未發現新的桌機阻斷性版面問題，但網路收據拒絕、沒有完整coherence manifest／手機畫面，且tag參考只有深色首屏、缺同主題完整來源證據。因此只計findings-only review；不算pass、zero-GA或關閉歷史finding，376個新版本狀態仍pending。
+
+v10網路settlement source由另一GPT-6.1 Sol instance獨立review，23項mock tests、3項syntax checks通過。只有讀取真實pending狀態與有上限等待，未合成terminal事件，也未放寬拒絕條件。既有partial證據與budget保留；僅授權新閘門通過後重試batch001，不自動執行後續批次。source收據路徑／hash見 `queueRelease0604.captureV10SourceEvidence`。
+
+07:04:09–07:04:29 UTC：v10重試在新SM排隊指示送達前已啟動，未中斷而自然exit1。桌機94筆網路生命週期完整，DNT/GPC與Google零attempt／response僅限該收據觀察；手機遇到candidate `/ai/days/:id/events` prefetch503，故仍無手機PNG、completed item或配對manifest。全部partial與lock保留，固定envelope總計5,222,891 bytes。receipt/hash見 `queueRelease0604.v10RetryResult`。不把桌機網路通過當視覺pass；所有376新版本狀態仍pending。
+
+使用者已要求SM不再開新的build／capture／restore，全部排隊等Mint。唯一YT owner交接清單：`/tmp/babysit/mint-queue/youtube.md`。現有candidate依原生命週期自然結束，不在SM重建／重拍；原始碼、mock測試、文件與既有截圖離線review繼續。正式站未部署。

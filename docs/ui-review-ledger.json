@@ -30862,7 +30862,7 @@
     "ui_ledger": "Homepage, keyword/evidence, channels, videos, events, about, API HTML and error states.",
     "ui_review_2": "Live, tags, AI, groups, mayor, account gates, boards, comparisons, remaining public pages and existing-authorized admin/ops. Each reviewer must see the actual screenshots plus tag reference; no implementation self-review."
   },
-  "reviewEvidenceUpdatedAt": "2026-10-12T21:48:02.636107+00:00",
+  "reviewEvidenceUpdatedAt": "2026-10-13T07:02:43.596160+00:00",
   "capturePerformancePolicy": {
     "effectiveAt": "2026-10-12T19:40:30Z",
     "maxSharedCaptureBrowserInstances": 2,
@@ -34018,7 +34018,7 @@
     "owner": "YT",
     "globalBuildLimit": 1,
     "sourceSHA": "a77f84d9e5785106bff957a4d3873b6db85af7ea",
-    "stage": "Exact artifact/container verified and core HTTP canary passed; first capture blocked by unknown process inventory, no new screenshots",
+    "stage": "SM new work queued for Mint by human; already-started batch001v10 naturally exited1 on mobile AI-prefetch503; no accepted paired captures or pass",
     "thinArchiveBytes": 20039680,
     "inflatedDeltaBytes": 69260800,
     "thinArchiveSHA256": "5eea22f07267518538ae0b4e060b0bb40a48d11c6d126c01e05a15998ece6259",
@@ -34044,7 +34044,7 @@
     "candidateBUILD_ID": "dSzDaU9M4jqYXzUwz7XSr",
     "artifactFilesVerified": 3414,
     "coldHomeSeconds": 16.028519238345325,
-    "updatedAt": "2026-10-13T06:32:01.992165+00:00",
+    "updatedAt": "2026-10-13T07:09:50.476148+00:00",
     "canaryFinishedUTC": "2026-10-13T06:22:41.555219+00:00",
     "runtimeEvidence": [
       {
@@ -34071,7 +34071,204 @@
         "path": "/home/deck/Projects/youtube-board-f2/platform/.local/f2/candidate-a77f84d-supplemental-http.json",
         "sha256": "a864dbc4a8bfd7ed6b5aa99a4b95f34e65594ff70b433a57b415196c35313a43"
       }
-    ]
+    ],
+    "capturePreflightEvidence": [
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/capture-batch-001-preflight-denied-20261013T062959Z.json",
+        "sha256": "e606779a44a3e2c0693af49889235cb9f9296c021e61d61c87a68235d31fa423"
+      },
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/capture-browser-inventory-v9-root-independent-review.json",
+        "sha256": "322ac1caf8db9b6a591dc89f646ed393db4a74762cc4ac05e5dde07d951d1dff"
+      },
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/capture-batch-001-v9-pre-release-preflight-20261013T0643Z.json",
+        "sha256": "6118869b3646f7e89f7ac0b37e0695dca6a599d802a6d5b6d1d47abcbd3c8493"
+      }
+    ],
+    "partialCapturePNGFiles": 6,
+    "partialCaptureBytes": 2534848,
+    "completedViewportPackages": 0,
+    "networkEvidenceAccepted": false,
+    "partialCaptureStopEvidence": {
+      "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/capture-batch-001-v9-partial-network-denied-20261013T0647Z.json",
+      "sha256": "a3c80e0622eb8a711f053a7073abe1df11727912871fe7974d3bc8f060c03099"
+    },
+    "partialIndependentImageReview": {
+      "receipt": {
+        "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-13/partial-home-today-desktop-20261013T0654Z/partial-review.json",
+        "sha256": "0f01fe7d2057b40bf4b277f9e44fa0f0c28ab474cc9d6b399525fd0471ea107b"
+      },
+      "transcript": {
+        "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-13/partial-home-today-desktop-20261013T0654Z/partial-review.txt",
+        "sha256": "3e543e23e44d7f2a769547a10efb1497307a567a091d957cf85bc583d1fb55bf"
+      },
+      "model": "GPT-6.1-Sol",
+      "reviewedAtUTC": "2026-10-13T06:58:28.378904+00:00",
+      "candidateIdentity": {
+        "submittedSHA": "a77f84d9e5785106bff957a4d3873b6db85af7ea",
+        "frontendBuildSourceSHA": "a77f84d9e5785106bff957a4d3873b6db85af7ea",
+        "BUILD_ID": "dSzDaU9M4jqYXzUwz7XSr",
+        "imageDigest": "sha256:ee5d4036083b1ee84ae1cc30e2def608328dd721726c195aedd9e8edd79df290",
+        "candidateContainer": "0305b91b089f76512ccd3a8ad5393177b042f650001454b5885fce7f9595bb65",
+        "rootArtifactVerifiedFiles": 3414,
+        "provenance": "Read root/operator-provided source/image/runtime proof receipts; no independent browser or runtime probe by reviewer. Image-to-runtime binding remains supplied association: no completed capture/coherence manifest exists."
+      },
+      "scope": {
+        "route": "/",
+        "period": "today",
+        "viewport": 1280,
+        "theme": "light",
+        "candidateImages": 6,
+        "referenceImages": 1,
+        "fullRoutePass": false
+      },
+      "decision": {
+        "candidateApproval": false,
+        "routeComplete": false,
+        "visualAcceptance": false,
+        "staticVisualPass": false,
+        "priorFindingsClosed": [],
+        "zeroGA": "unproven; partial counters do not establish complete lifecycle or zero outbound",
+        "status": "partial-observation-only"
+      },
+      "images": [
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-thaw-envelope-2026-10-13/batch-001/run-32486317-cb10-4222-aeee-902ef2f0160d/home-today-light-desktop.png",
+          "sha256": "903ddcbe24c49a9722c3a9d654f3e4d344ff6bf0ff73f8c421cfd2983b2a6d48",
+          "bytes": 1142276,
+          "dimensions": [
+            1280,
+            3173
+          ],
+          "personallyViewedVia": "tools.view_image",
+          "detail": "high fullpage, original slices/reference",
+          "transcript": "Viewed fullpage. Both controlled period selectors visibly read 今日. Top cloud includes 機場/沙國/葉門叛軍 and ranking lists corresponding terms. Three-column report is contained within viewport; title, lead image, live cards, category report and footer all render. No visually obvious desktop overflow. Viewer downsizes fullpage; detailed claims use original slices."
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-thaw-envelope-2026-10-13/batch-001/run-32486317-cb10-4222-aeee-902ef2f0160d/home-today-light-desktop-slice-0.png",
+          "sha256": "6b4aceeeca30453b6ab90b6353b3a39d405468a6af3141bbf5363b9b81370895",
+          "bytes": 499410,
+          "dimensions": [
+            1280,
+            800
+          ],
+          "personallyViewedVia": "tools.view_image",
+          "detail": "high fullpage, original slices/reference",
+          "transcript": "Viewed original 1280×800. Both cloud and ranking toggles are visibly 今日. Cloud and logo do not overlap. Cloud note states 今日發布 and a publication interval on2026/10/13; normalization warning is separate. Sidebar first keyword identities 機場/沙國/葉門叛軍 occupy one line; no multi-line keyword splitting observed. Row secondary text includes 資料不足 and ellipsis; incomplete data is not rendered as zero."
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-thaw-envelope-2026-10-13/batch-001/run-32486317-cb10-4222-aeee-902ef2f0160d/home-today-light-desktop-slice-760.png",
+          "sha256": "16f56083ebc7bd0d9014cd74cc56ba50a5e584515bf12cc241f136db9b5d1e6e",
+          "bytes": 466452,
+          "dimensions": [
+            1280,
+            800
+          ],
+          "personallyViewedVia": "tools.view_image",
+          "detail": "high fullpage, original slices/reference",
+          "transcript": "Viewed original. Remaining sidebar terms 飛彈/川普/蔣萬安/對決/襲擊 remain on one line. Footer explains missing comparative coverage and sources. AI event lead has2026-10-12 date,6個頻道,101筆影片引用, separate source logos and citation-count caveat. Channel activity names wrap into readable lines; seven-day view increment labels remain explicit. Right categories also explicitly state近七日增加; this is outside controlled Today cloud/ranking scope."
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-thaw-envelope-2026-10-13/batch-001/run-32486317-cb10-4222-aeee-902ef2f0160d/home-today-light-desktop-slice-1520.png",
+          "sha256": "7098f23c8643c5556fee6d6ea7506913b17a5672005deacc81e8399333ede027",
+          "bytes": 253415,
+          "dimensions": [
+            1280,
+            800
+          ],
+          "personallyViewedVia": "tools.view_image",
+          "detail": "high fullpage, original slices/reference",
+          "transcript": "Viewed original. Lower event rows, personal-watchlist entry, category bars and live-source video titles are contained. Category report explicitly says近七日觀看增量 and跨分類可重複計入，不是全站總觀看量. No page-width overflow/cropped card boundary observed. No interactive behaviors or data-count correctness inferred."
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-thaw-envelope-2026-10-13/batch-001/run-32486317-cb10-4222-aeee-902ef2f0160d/home-today-light-desktop-slice-2280.png",
+          "sha256": "08f4740cdc83a58c9735f69f8c60c23a76a6676c65154baff0292b7194e8ef06",
+          "bytes": 111972,
+          "dimensions": [
+            1280,
+            800
+          ],
+          "personallyViewedVia": "tools.view_image",
+          "detail": "high fullpage, original slices/reference",
+          "transcript": "Viewed original. Observation scope totals, collapsed method disclosure, static data-source note and footer remain legible. 未去重 caveat is present beside concurrent audience total; source note names YouTube and tag.observe.tw. Duplicate source/method entry points are visible but no blocking visual issue found."
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-thaw-envelope-2026-10-13/batch-001/run-32486317-cb10-4222-aeee-902ef2f0160d/home-today-light-desktop-slice-3040.png",
+          "sha256": "3e0cd2a8910e38b8bdf679e8cb273c98f90f564c9eecab9e7b87e4e530be9d68",
+          "bytes": 9129,
+          "dimensions": [
+            1280,
+            133
+          ],
+          "personallyViewedVia": "tools.view_image",
+          "detail": "high fullpage, original slices/reference",
+          "transcript": "Viewed original. Bottom footer copyright and 回到頂端 link are contained; no horizontal overflow visible."
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/reference-home-desktop.png",
+          "sha256": "f58fc4d647850b9243bbe77dcb5cace5cf868cf5ddfef280ebb80279b0456579",
+          "bytes": 745908,
+          "dimensions": [
+            1280,
+            821
+          ],
+          "personallyViewedVia": "tools.view_image",
+          "detail": "high fullpage, original slices/reference",
+          "transcript": "Viewed actual1280×821 historical tag homepage first viewport. DARK theme: orange word cloud around centered logotype, horizontal topnav/search, compact left ranking, central event image and right editorial cards. Candidate follows the same broad three-column/grid hierarchy with red product accents. This reference cannot establish matching light-theme color/contrast parity or fullpage/below-fold parity; supplied reference-captures.json has no matching home entry or capture timestamp."
+        }
+      ],
+      "limitations": [
+        "390Today light",
+        "1280/390Week light",
+        "1280/390Today/Week dark",
+        "completedcapturemanifest",
+        "DOM before/afterperiod andgenerationcoherence",
+        "network lifecyclecompletion",
+        "matchinglighttagreference",
+        "tagbelowfoldreference",
+        "keywordsToday/Weeknormal/unavailable",
+        "支持/沈伯洋actualevidencerows",
+        "channels390identityandactive metric",
+        "loading/empty/error/unknown fixtures",
+        "interactions/navigation/sort/filter/pagination",
+        "authenticated/admin/Y2states"
+      ],
+      "referenceGap": "Supplied tag home reference is dark first viewport, no matching light reference or original timestamp in supplied reference manifest."
+    },
+    "captureV10SourceEvidence": {
+      "independentReview": {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/capture-network-v10-root-independent-review.json",
+        "sha256": "ee7c8cbc775e58eff2689ca28a172f29a893afbc864423f8f15f8d81b4985910"
+      },
+      "authorProof": {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/capture-network-v10-author-proof.json",
+        "sha256": "5e6b22f051a494f0d64d36834e86c7f1240f1302b55c5f3149ce9673bcbae2d4"
+      },
+      "mockTestsPassed": 23,
+      "syntaxChecksPassed": 3,
+      "sourceAcceptanceOnly": true,
+      "newVisualPasses": 0
+    },
+    "newFindingsOnlyReviews": 1,
+    "v10RetryResult": {
+      "receipt": {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/capture-batch-001-v10-retry-partial-503-denied.json",
+        "sha256": "49789e6d7032555b6acc3b2cc21a625b2bf1fb82845c5535e7587c2576eac2dd"
+      },
+      "startedAt": "2026-10-13T07:04:09.995Z",
+      "naturallyEndedAt": "2026-10-13T07:04:29.353Z",
+      "exitCode": 1,
+      "pairedItemsCompleted": 0,
+      "desktopNetworkAcceptedScopedOnly": true,
+      "mobile503": true,
+      "candidateApproval": false,
+      "visualAcceptance": false,
+      "aggregateBytes": 5222891,
+      "manifestCreated": false,
+      "noNewSMBuildCaptureRestore": true,
+      "queuedFor": "Mint"
+    }
   },
   "baselineClarification1420": {
     "schemaVersion": 1,
@@ -34088,5 +34285,16 @@
     },
     "frozenMetadataUnchanged": true,
     "scope": "Clarification of original receipt wording only; does not rebaseline or change runtime limits."
+  },
+  "mintQueue": {
+    "owner": "root YT deploy owner",
+    "handoffPath": "/tmp/babysit/mint-queue/youtube.md",
+    "humanInstruction": "New SM builds/captures/restores queued until Mint ready; already-running tools allowed to end naturally",
+    "noNewSMCapture": true,
+    "routeComplete": false,
+    "candidateApproval": false,
+    "retakeStatesPending": 376,
+    "scopeNote": "Only codex/f2-keyword-quality worktree is the clean handoff target; other retained worktrees are untouched and not claimed clean.",
+    "deadline": "No deadline; human canceled18:50window. Continue authorized offline work and queued acceptance until scope is complete."
   }
 }
