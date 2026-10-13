@@ -31005,7 +31005,7 @@
     "ui_ledger": "Homepage, keyword/evidence, channels, videos, events, about, API HTML and error states.",
     "ui_review_2": "Live, tags, AI, groups, mayor, account gates, boards, comparisons, remaining public pages and existing-authorized admin/ops. Each reviewer must see the actual screenshots plus tag reference; no implementation self-review."
   },
-  "reviewEvidenceUpdatedAt": "2026-10-13T07:02:43.596160+00:00",
+  "reviewEvidenceUpdatedAt": "2026-10-13T09:00:11.200308+00:00",
   "capturePerformancePolicy": {
     "effectiveAt": "2026-10-12T19:40:30Z",
     "maxSharedCaptureBrowserInstances": 2,
@@ -31020,12 +31020,12 @@
     "privateGateLogPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/performance-gate.jsonl",
     "preexistingCaptureLimitation": "Previous completed batches lack before/after measurements; none invented.",
     "operatorHardStop": true,
-    "effectiveInstruction": "Latest explicit user decision: relative timings; global single build including remote; blog then YT then tag; 07:10 sprint canceled.",
+    "effectiveInstruction": "No deadlines. SM no new build/capture/restore. Native arm64 build/package skyhong-blog; Mint capture only. Fresh tag → YT → blog slot handoff required.",
     "buildSlotReleased": false,
     "buildSlotOrder": [
-      "blog",
+      "tag",
       "YT",
-      "tag"
+      "blog"
     ],
     "buildStartFreeGiB": 40,
     "buildPauseFreeGiB": 30,
@@ -31043,7 +31043,7 @@
     "recordedAt": "2026-10-13T05:43:06.302167+00:00",
     "hardStopReason": "New capture awaits verified image/readiness; new image/build phase awaits YT queue notification.",
     "sprintDeadlineUTC": null,
-    "workingWindowEndUTC": "2026-10-13T10:50:00Z",
+    "workingWindowEndUTC": null,
     "frozenBaseline": {
       "schemaVersion": 1,
       "sourceReceipt": "/tmp/babysit/gate-baseline-receipt.md",
@@ -35102,6 +35102,96 @@
       "UIApproval": false,
       "routeComplete": false,
       "sourceFixCommit": "4d7dc12100f8cd647f077978beb918d17157633a"
+    },
+    "vocabularyOwnershipFollowup": {
+      "commit": "5327497",
+      "runtimeFixCommit": "3593ef7",
+      "excludedFromUICandidate": true,
+      "runtimeChangedThisTurn": false,
+      "testFileSHA256": "1010e0e5a9d37d7923aaf8f52a95066e8bf51248a82a6657341d4f7d46c01f1c",
+      "reviewReceipts": [
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/vocabulary-import-ownership-independent-review-and-adversarial-tests-20261013.json",
+          "sha256": "25b18bbc33e0d3e655e73f86a6d08281b9499969d828b8c68728130379b5be6e",
+          "model": "gpt-6.1-sol",
+          "executionUTC": null,
+          "scope": "offline source/mock review only",
+          "UIApproval": false,
+          "routeComplete": false
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/vocabulary-adversarial-tests-root-independent-20261013.json",
+          "sha256": "de32680de7cdfce4189c13fa3c4de1dfee4d0ecbdd3c046e0c53225b84e6956e",
+          "model": "gpt-6.1-sol",
+          "executionUTC": "2026-10-13T08:53:34.945059+00:00",
+          "scope": "offline source/mock review only",
+          "UIApproval": false,
+          "routeComplete": false
+        }
+      ],
+      "tests": {
+        "sixSuitesPassed": 51,
+        "realDBSkipped": 1,
+        "rootTwoFilesPassed": 25,
+        "jobsNoEmit": "passed"
+      },
+      "limits": [
+        "No production import/publication or real MariaDB acceptance.",
+        "Lost connection invalidates same-session lock and transaction. No extra callback after final guard; no claim of detecting arbitrary later RELEASE_LOCK on surviving connection.",
+        "Successful COMMIT with lost acknowledgement remains ambiguous; rollback tests cover rejection before completion."
+      ]
+    },
+    "y2BoundaryFollowup": {
+      "commit": "ce265be",
+      "upstreamSourceSHA": "48bc174bbcddaa3f84d8da65024e328a0b2abc71",
+      "runtimeChanged": false,
+      "enabled": false,
+      "testFileSHA256": "0c6a78840faf11db81305035b99e8a2c702cba720db6841626495a2add752c18",
+      "newCases": 7,
+      "testsPassed": 65,
+      "apiNoEmit": "passed",
+      "reviewReceipts": [
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/y2-independent-audit-20261013T084940Z/review.json",
+          "sha256": "7d957c287fd7a31cebfd4011b697f304e58237157d3deb797bf54ed1a1a2bfd5",
+          "model": "GPT-6 (Codex; inherited parent model, exact serving identifier not exposed)",
+          "executionUTC": null,
+          "scope": "offline source/mock review only",
+          "UIApproval": false,
+          "routeComplete": false
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/y2-added-contract-tests-root-independent-20261013.json",
+          "sha256": "b83790d18a331898f45496c695cca99523567eaf0a8f68d8e9a2c20d99d4425e",
+          "model": "gpt-6.1-sol",
+          "executionUTC": "2026-10-13T08:54:05.136494+00:00",
+          "scope": "offline source/mock review only",
+          "UIApproval": false,
+          "routeComplete": false
+        }
+      ],
+      "scope": "Mock contract only; raw NFKC-equivalent IDs, special characters and split UTF-8 byte-cap boundaries; no live upstream request/activation."
+    },
+    "mintRetakePlanningFollowup": {
+      "reviewReceipts": [
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/mint-retake-plan-root-independent-final-20261013.json",
+          "sha256": "f45bd77c9ea538ec344c192070484c2d33cdfc653325154658e54fcd09f61ba9",
+          "model": "gpt-6.1-sol",
+          "executionUTC": "2026-10-13T08:55:48.174037+00:00",
+          "scope": "offline source/mock review only",
+          "UIApproval": false,
+          "routeComplete": false
+        }
+      ],
+      "matrixSHA256": "29a5a9f2d4055ab648d5ba89aabbe28b912d6c7af5de4c68c537375898c982f6",
+      "generatorSHA256": "344b67710f07a9e18031c675ea4b5d681bf42d945232c3a61c1f5a37e76ce661",
+      "packages": 2060,
+      "unresolvedExampleEntries": 240,
+      "executionAllowed": false,
+      "candidateSHAOption": "syntax-only; source/runtime binding separately required",
+      "captureBudget": "Inclusive retained-evidence inventory required; historical49,932,059 +stopped5,222,891 if disjoint +planned246MB exceeds300MB by1,154,950; reduce complete executable variant groups, no deletion/reset.",
+      "firstEnvelopeIsNotFullSiteReview": true
     }
   },
   "historicalFindingsOnly654": {
