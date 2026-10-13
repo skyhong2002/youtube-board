@@ -123,18 +123,30 @@ for p in Path('/proc').iterdir():
  names=[os.path.basename(x) for x in a]
  executable=names[0] if names else ''
  processes[int(p.name)]=(parent,executable,a,elapsed)
- client=(executable=='docker' and ('build' in a[1:] or 'buildx' in a[1:] and 'bake' in a[1:]) or executable in ('buildx','docker-buildx') and any(x in a[1:] for x in ('build','bake')) or executable=='buildctl' and 'build' in a[1:] or 'next-build' in names or any(x in names for x in ('next','next.js')) and 'build' in a or executable in ('npm','pnpm','yarn') and 'build' in a[1:])
+ command=a[1:]
+ if executable in ('docker','buildctl','buildx','docker-buildx'):
+  value_options=('--host','-H','--context','-c','--config','--log-level','-l','--tlscacert','--tlscert','--tlskey','--addr','--timeout','--tlsservername')
+  flag_options=('--debug','-D','--tls','--tlsverify','--help','-h','--version','-v')
+  while command and command[0].startswith('-'):
+   option=command[0]
+   if option in value_options:
+    if len(command)<2: raise ValueError('Missing build-client option value')
+    command=command[2:]
+   elif option in flag_options or '=' in option and option.split('=',1)[0] in value_options+flag_options:
+    command=command[1:]
+   else: raise ValueError('Unknown build-client global option')
+ client=(executable=='docker' and (command[:1]==['build'] or command[:2] in (['buildx','build'],['buildx','bake'],['image','build'])) or executable in ('buildx','docker-buildx') and command[:1] in (['build'],['bake']) or executable=='buildctl' and command[:1]==['build'] or 'next-build' in names or any(x in names for x in ('next','next.js')) and 'build' in a or executable in ('npm','pnpm','yarn') and 'build' in a[1:])
  if client:
   build_processes.append({{'pid':int(p.name),'name':executable if executable in ('docker','buildx','docker-buildx','buildctl','node','npm','pnpm','yarn','next','next.js','next-build') else 'build-client','etimes':elapsed}})
  if names and names[0] in ('chrome','chromium','chromium-browser','chrome-headless-shell','google-chrome','google-chrome-stable') and not any(x.startswith('--type=') for x in a): browsers+=1
 for pid,(parent,name,a,elapsed) in processes.items():
- if name!='runc': continue
+ if name not in ('runc','buildkit-runc'): continue
  seen=set()
  while parent in processes and parent not in seen:
   seen.add(parent)
   ancestor=processes[parent]
   if ancestor[1]=='buildkitd':
-   build_processes.append({{'pid':pid,'name':'runc','etimes':elapsed}})
+   build_processes.append({{'pid':pid,'name':name,'etimes':elapsed}})
    break
   parent=ancestor[0]
 builds=len(build_processes)

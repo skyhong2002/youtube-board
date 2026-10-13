@@ -68,7 +68,7 @@ def packet(c):
     return p
 
 
-def mocked_probe(argvs, denied=False, response=None):
+def mocked_probe(argvs, denied=False, response=None, parents=None):
     """Execute generated text with every OS/IO module replaced; no live probes."""
     calls = []
     class FakePath:
@@ -84,7 +84,9 @@ def mocked_probe(argvs, denied=False, response=None):
         def read_text(self):
             if self.path == '/proc/uptime': return '1000 1000'
             if self.path.endswith('/stat'):
-                return '100 (mock) ' + ' '.join(['S', '1'] + ['0'] * 17 + ['10000'])
+                pid = int(self.path.split('/')[2])
+                parent = (parents or {}).get(pid, 1)
+                return str(pid) + ' (mock) ' + ' '.join(['S', str(parent)] + ['0'] * 17 + ['10000'])
             return '1' * 32
     def run(argv, **kwargs):
         calls.append((argv, kwargs))
@@ -341,6 +343,34 @@ class PreparationTests(unittest.TestCase):
         self.assertEqual(row['buildCount'], 1)
         self.assertEqual(row['buildProcesses'], [{'pid': 100, 'name': 'docker', 'etimes': 900}])
         self.assertNotIn('sensitive-value', json.dumps(row))
+
+    def test_non_build_subcommands_are_not_builds(self):
+        for argv in (['docker', 'buildx', 'use', 'build'],
+                     ['docker', 'buildx', 'inspect', 'build'],
+                     ['docker', 'logs', 'build'], ['buildx', 'inspect', 'build'],
+                     ['buildctl', 'debug', 'build']):
+            with self.subTest(argv=argv):
+                row, _ = mocked_probe([argv])
+                self.assertEqual(row['buildCount'], 0)
+
+    def test_actual_build_subcommands_are_builds(self):
+        for argv in (['docker', 'build', '.'], ['docker', 'buildx', 'build', '.'],
+                     ['docker', 'image', 'build', '.'], ['buildctl', 'build'],
+                     ['buildx', 'build', '.'], ['docker', '--context', 'local', 'build', '.'],
+                     ['buildctl', '--addr=unix:///mock', 'build']):
+            with self.subTest(argv=argv):
+                row, _ = mocked_probe([argv])
+                self.assertEqual(row['buildCount'], 1)
+
+    def test_buildkit_runtime_descendants_are_builds(self):
+        for runtime in ('runc', 'buildkit-runc'):
+            with self.subTest(runtime=runtime):
+                row, _ = mocked_probe([['buildkitd'], ['shim'], [runtime, 'run', 'mock']],
+                                      parents={101: 100, 102: 101})
+                self.assertEqual(row['buildCount'], 1)
+                self.assertEqual(row['buildProcesses'], [{'pid': 102, 'name': runtime, 'etimes': 900}])
+                unrelated, _ = mocked_probe([['buildkitd'], [runtime, 'run', 'mock']])
+                self.assertEqual(unrelated['buildCount'], 0)
 
     def test_generated_probe_detects_shared_daemon_and_browser_roots(self):
         row, calls = mocked_probe([['/usr/bin/buildkitd'], ['node', '/opt/next', 'build'],
