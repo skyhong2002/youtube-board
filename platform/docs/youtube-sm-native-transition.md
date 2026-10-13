@@ -134,3 +134,26 @@ verify mayor plus F2, and preserve both image recovery points.
 
 Private handoff receipt: /home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/a27-production-deployment-handoff-20261013T2059Z.json
 SHA256 `964f9a269ee5699141fcd81b87398e8eb7e5e997674f66c4f87a861adda1072b`. This record is not build/capture/deployment permission.
+
+## Native compiler command preparation after global slot handoff
+
+YT received the global build slot at2026-10-13T21:08Z. Plan source local commit
+9b409e40d4c4598a3fbf526b3bc6dbc7bbea901f, four offline mocks pass; independent
+review in progress. Fixed APP073/base5b (Node24.21/ABI137). Source6,311,274bytes,
+996tracked files; private source archive estimate8MiB. Additional build/image
+disk estimate6GiB, duration8–20min, compiler2GiB RAM and512MiB tmpfs,2CPUs,
+Nextcpus2, nice19/ionice3. Estimates are not measured results.
+
+Command draft /tmp/babysit/mint-queue/youtube-native-build-073985b8-command-draft.json; not an executable approval request.
+The actual owned-container identity/pause/terminal adapter must be integrated
+for APP073 before start/commit: existing executor is frozenAPP705. Do not bypass
+it or treat stopping the Docker client as stopping compiler daemon work.
+Compiler plan is separated from image commit; package only after exit0 and a new
+checked gate, with new runtimeWORKDIR entirely under the new source tree. Both
+retained image5b and4f remain untouched.
+
+Latest median probe /home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/f2-native-build-preflight-20261013T211356Z/fresh-probe.json
+SHA256829323836ddf8205f3bd98d613d23cc8368b75f5b02bda2a65877375ed895e84,
+aggregate.ok=true; SM medians tag0.068670/blog2.089017/YT0.056200. Home SM59GiB,
+blog92GiB, blogMemAvailable5,964,513,280bytes. This historical sample must refresh
+before execution; no build/container/image/export/capture started by this step.
