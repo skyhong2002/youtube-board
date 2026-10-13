@@ -81,13 +81,17 @@ def mocked_probe(argvs, denied=False, response=None):
             if denied: raise PermissionError('mock unreadable proc')
             i = int(self.path.split('/')[2]) - 100
             return b'\0'.join(x.encode() for x in argvs[i])
-        def read_text(self): return '1' * 32
+        def read_text(self):
+            if self.path == '/proc/uptime': return '1000 1000'
+            if self.path.endswith('/stat'):
+                return '100 (mock) ' + ' '.join(['S', '1'] + ['0'] * 17 + ['10000'])
+            return '1' * 32
     def run(argv, **kwargs):
         calls.append((argv, kwargs))
         return response or SimpleNamespace(returncode=0, stdout='200 0.5')
     modules = {
         'pathlib': SimpleNamespace(Path=FakePath),
-        'os': SimpleNamespace(path=SimpleNamespace(basename=os.path.basename), getloadavg=lambda: (1, 1, 1)),
+        'os': SimpleNamespace(path=SimpleNamespace(basename=os.path.basename), getloadavg=lambda: (1, 1, 1), sysconf=lambda name: 100),
         'shutil': SimpleNamespace(disk_usage=lambda path: SimpleNamespace(free=60 * admission.GIB)),
         'subprocess': SimpleNamespace(run=run, TimeoutExpired=subprocess.TimeoutExpired),
         'datetime': SimpleNamespace(datetime=SimpleNamespace(now=lambda tz: NOW), timezone=datetime.timezone),
@@ -325,11 +329,24 @@ class PreparationTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 admission.readonly_ssh_spec('SM', 'deck@1.2.3.4', '/tmp/pins', bad, self.c)
 
+    def test_idle_buildkitd_is_not_a_build(self):
+        row, _ = mocked_probe([['/usr/bin/buildkitd'],
+                               ['/sbin/docker-init', '--', 'buildkitd-entrypoint'],
+                               ['docker', 'buildx', 'ls']])
+        self.assertEqual(row['buildCount'], 0)
+        self.assertEqual(row['buildProcesses'], [])
+
+    def test_build_client_is_a_build_with_safe_process_details(self):
+        row, _ = mocked_probe([['docker', 'buildx', 'build', '--secret', 'sensitive-value', '.']])
+        self.assertEqual(row['buildCount'], 1)
+        self.assertEqual(row['buildProcesses'], [{'pid': 100, 'name': 'docker', 'etimes': 900}])
+        self.assertNotIn('sensitive-value', json.dumps(row))
+
     def test_generated_probe_detects_shared_daemon_and_browser_roots(self):
         row, calls = mocked_probe([['/usr/bin/buildkitd'], ['node', '/opt/next', 'build'],
                                    ['docker', 'buildx', 'build', '.'], ['next-build'],
                                    ['chrome'], ['chrome', '--type=renderer']])
-        self.assertEqual(row['buildCount'], 4)
+        self.assertEqual(row['buildCount'], 3)
         self.assertEqual(row['browserCount'], 1)
         self.assertEqual(len(calls), 3)
         for argv, kwargs in calls:

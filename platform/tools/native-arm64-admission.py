@@ -98,11 +98,9 @@ def readonly_script(host):
     """Fixed bounded probe text; no caller-provided shell/script or arbitrary URL."""
     require(host in HOSTS, 'Unknown probe host')
     # DNT complete HTML only; no redirect following, JS, cookies, Google or DB.
-    # Scan denial is unknown, never silently a count of zero. An idle shared
-    # buildkitd is conservatively occupied too; a future daemon-aware adapter
-    # must independently establish job ownership rather than relax this check.
-    # No commandlines are
-    # emitted: only counts, machine identity, disk/load and sanitized HTTP metrics.
+    # Scan denial is unknown, never silently a count of zero. Idle BuildKit
+    # daemons are not jobs; clients and daemon-descendant runc processes are.
+    # Matched details contain only PID, controlled name and elapsed seconds.
     return f'''import datetime,json,os,shutil,subprocess
 from pathlib import Path
 sites={SITES!r}
@@ -110,20 +108,43 @@ limits={SITE_LIMITS!r}
 rows={{}}
 builds=0
 browsers=0
+processes={{}}
+build_processes=[]
+uptime=float(Path('/proc/uptime').read_text().split()[0])
+ticks=os.sysconf('SC_CLK_TCK')
 for p in Path('/proc').iterdir():
  if not p.name.isdecimal(): continue
- try: a=[x.decode(errors='replace') for x in (p/'cmdline').read_bytes().split(b'\\0') if x]
+ try:
+  a=[x.decode(errors='replace') for x in (p/'cmdline').read_bytes().split(b'\\0') if x]
+  stat=(p/'stat').read_text().rsplit(')',1)[1].split()
+  parent=int(stat[1])
+  elapsed=max(0,int(uptime-int(stat[19])/ticks))
  except (FileNotFoundError,ProcessLookupError): continue
  names=[os.path.basename(x) for x in a]
- if ('buildkitd' in names or 'next-build' in names or any(x in names for x in ('next','next.js')) and 'build' in a or any(x in names for x in ('docker','buildctl')) and any(x in a for x in ('build','buildx'))): builds+=1
+ executable=names[0] if names else ''
+ processes[int(p.name)]=(parent,executable,a,elapsed)
+ client=(executable=='docker' and ('build' in a[1:] or 'buildx' in a[1:] and 'bake' in a[1:]) or executable in ('buildx','docker-buildx') and any(x in a[1:] for x in ('build','bake')) or executable=='buildctl' and 'build' in a[1:] or 'next-build' in names or any(x in names for x in ('next','next.js')) and 'build' in a or executable in ('npm','pnpm','yarn') and 'build' in a[1:])
+ if client:
+  build_processes.append({{'pid':int(p.name),'name':executable if executable in ('docker','buildx','docker-buildx','buildctl','node','npm','pnpm','yarn','next','next.js','next-build') else 'build-client','etimes':elapsed}})
  if names and names[0] in ('chrome','chromium','chromium-browser','chrome-headless-shell','google-chrome','google-chrome-stable') and not any(x.startswith('--type=') for x in a): browsers+=1
+for pid,(parent,name,a,elapsed) in processes.items():
+ if name!='runc': continue
+ seen=set()
+ while parent in processes and parent not in seen:
+  seen.add(parent)
+  ancestor=processes[parent]
+  if ancestor[1]=='buildkitd':
+   build_processes.append({{'pid':pid,'name':'runc','etimes':elapsed}})
+   break
+  parent=ancestor[0]
+builds=len(build_processes)
 for name,url in sites.items():
  try:
   r=subprocess.run(['/usr/bin/curl','--disable','--silent','--show-error','--max-time',str(limits[name]+1),'--output','/dev/null','--user-agent','youtube-board-verify/1.0','--header','DNT: 1','--header','Accept: text/html','--write-out','%{{http_code}} %{{time_total}}',url],capture_output=True,text=True,timeout=limits[name]+2,env={{'PATH':'/usr/bin:/bin','LANG':'C'}})
   status,total=r.stdout.split()
   rows[name]={{'exitCode':r.returncode,'status':int(status),'totalSeconds':float(total)}}
  except (OSError,ValueError,subprocess.TimeoutExpired): rows[name]={{'exitCode':-1,'status':None,'totalSeconds':None}}
-print(json.dumps({{'schema':'yt-host-health-v1','observedHost':{host!r},'machineId':Path('/etc/machine-id').read_text().strip(),'measuredFromMachineId':Path('/etc/machine-id').read_text().strip(),'observedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'freeBytes':shutil.disk_usage('/home').free,'load1':os.getloadavg()[0],'buildCount':builds,'browserCount':browsers,'sites':rows}}))
+print(json.dumps({{'schema':'yt-host-health-v1','observedHost':{host!r},'machineId':Path('/etc/machine-id').read_text().strip(),'measuredFromMachineId':Path('/etc/machine-id').read_text().strip(),'observedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'freeBytes':shutil.disk_usage('/home').free,'load1':os.getloadavg()[0],'buildCount':builds,'buildProcesses':build_processes,'browserCount':browsers,'sites':rows}}))
 '''
 
 
