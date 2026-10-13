@@ -12,6 +12,9 @@ export function privateRoute(path:string,method:string){
  if(/^\/api\/ops\/(ingestion|workflows)\/(preview|run)$/.test(path))return method==='POST';
  if(path==='/api/ops/editorial'||/^\/api\/ops\/editorial\/events\/[0-9a-f-]{36}$/.test(path))return method==='GET';
  if(/^\/api\/ops\/editorial\/(preview|execute)$/.test(path))return method==='POST';
+ // Keyword review: session-admin only, review-record-only. Exact status/list/detail reads and preview/execute writes.
+ if(path==='/api/ops/keyword-reviews'||path==='/api/ops/keyword-reviews/status'||/^\/api\/ops\/keyword-reviews\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(path))return method==='GET';
+ if(/^\/api\/ops\/keyword-reviews\/(preview|execute)$/.test(path))return method==='POST';
  return false;
 }
 const privateHeaders={'Cache-Control':'private, no-store','X-Robots-Tag':'noindex','Referrer-Policy':'no-referrer','Vary':'Cookie','X-Content-Type-Options':'nosniff'};

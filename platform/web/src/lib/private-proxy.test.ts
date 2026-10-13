@@ -23,6 +23,23 @@ test('private feed never accepts upstream cache/CORS policy or leaks URL in a Lo
  const r=await privateProxy(new Request('http://localhost/feeds/u/'+'a'.repeat(43)+'.xml'),{fetcher:async()=>new Response('<rss/>',{headers:{'content-type':'application/rss+xml','cache-control':'public,max-age=300','access-control-allow-origin':'*'}})});
  assert.equal(r.headers.get('cache-control'),'private, no-store');assert.equal(r.headers.get('referrer-policy'),'no-referrer');assert.equal(r.headers.get('x-robots-tag'),'noindex');assert.equal(r.headers.has('access-control-allow-origin'),false);assert.equal(await r.text(),'<rss/>');
 });
+test('keyword review bridge allows only exact status/list/detail reads and preview/execute writes',async()=>{
+ // Numeric-only UUIDs stay valid; the alphabetic fixture makes the uppercase refusal meaningful.
+ const id='11111111-1111-4111-8111-111111111111',alpha='abcdef01-2345-4abc-9def-0123456789ab',upper=alpha.toUpperCase();
+ assert.notEqual(upper,alpha);
+ for(const [p,m]of [['/api/ops/keyword-reviews','GET'],['/api/ops/keyword-reviews/status','GET'],['/api/ops/keyword-reviews/'+id,'GET'],['/api/ops/keyword-reviews/'+alpha,'GET'],['/api/ops/keyword-reviews/preview','POST'],['/api/ops/keyword-reviews/execute','POST']])assert.equal(privateRoute(p!,m!),true,p);
+ // The public vocabulary API is served directly by production Fastify; there is no dev bridge for it.
+ for(const m of ['GET','POST'])assert.equal(privateRoute('/api/v1/vocabulary',m),false);
+ for(const [p,m]of [['/api/ops/keyword-reviews','POST'],['/api/ops/keyword-reviews/status','POST'],['/api/ops/keyword-reviews/preview','GET'],['/api/ops/keyword-reviews/execute','PUT'],['/api/ops/keyword-reviews/'+id,'DELETE'],['/api/ops/keyword-reviews/'+upper,'GET'],['/api/ops/keyword-reviews/ABCDEF01-2345-4abc-9def-0123456789ab','GET'],['/api/ops/keyword-reviews/'+id+'/audit','GET'],['/api/ops/keyword-reviews/apply','POST'],['/api/ops/keyword-reviews/','GET'],['/api/ops/keyword-reviews/../editorial','GET'],['/api/ops/keyword-reviewsx','GET'],['/api/ops/keyword-reviews/not-a-uuid','GET']])assert.equal(privateRoute(p!,m!),false,p+' '+m);
+ let calls=0;const refused=await privateProxy(new Request('http://localhost/api/ops/keyword-reviews/apply',{method:'POST',body:'{}'}),{fetcher:async()=>{calls++;return new Response();}});
+ assert.equal(refused.status,404);assert.equal(calls,0);assert.equal(refused.headers.get('cache-control'),'private, no-store');assert.equal(refused.headers.get('x-robots-tag'),'noindex');
+ let seen:{url:string;headers:Headers;body:string}|undefined;
+ const r=await privateProxy(new Request('http://localhost/api/ops/keyword-reviews/preview',{method:'POST',body:'{"command":{}}',headers:{cookie:'session=opaque',origin:'http://localhost','sec-fetch-site':'same-origin','x-csrf-token':'csrf','content-type':'application/json'}}),{base:'http://127.0.0.1:4100/api/v1',fetcher:async(input,init)=>{seen={url:String(input),headers:new Headers(init?.headers),body:Buffer.from(init?.body as unknown as Uint8Array).toString()};return Response.json({mode:'preview',applied:false},{headers:{'cache-control':'public, max-age=60'}});}});
+ assert.equal(seen?.url,'http://127.0.0.1:4100/api/ops/keyword-reviews/preview');assert.equal(seen?.headers.get('x-csrf-token'),'csrf');assert.equal(seen?.headers.get('cookie'),'session=opaque');assert.equal(seen?.headers.get('sec-fetch-site'),'same-origin');assert.equal(seen?.headers.has('authorization'),false);assert.equal(seen?.body,'{"command":{}}');
+ assert.equal(r.status,200);assert.equal(r.headers.get('cache-control'),'private, no-store');assert.equal(r.headers.get('referrer-policy'),'no-referrer');assert.equal(r.headers.get('vary'),'Cookie');
+ const list=await privateProxy(new Request('http://localhost/api/ops/keyword-reviews?page=2&version=v1'),{base:'http://127.0.0.1:4100/api/v1',fetcher:async input=>{assert.equal(String(input),'http://127.0.0.1:4100/api/ops/keyword-reviews?page=2&version=v1');return Response.json({rows:[]});}});
+ assert.equal(list.status,200);
+});
 test('operator bridge forwards only fixed workflow endpoints, bearer and JSON unchanged',async()=>{
  for(const [p,m]of [['/api/ops/ingestion/history','GET'],['/api/ops/ingestion','GET'],['/api/ops/workflows/preview','POST'],['/api/ops/workflows/jobs/'+'a'.repeat(64),'GET']])assert.equal(privateRoute(p!,m!),true);
  for(const [p,m]of [['/api/ops/ingestion/history','POST'],['/api/ops/workflows/run','GET'],['/api/ops/workflows/execute','POST'],['/api/ops/anything','GET']])assert.equal(privateRoute(p!,m!),false);
