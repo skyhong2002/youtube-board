@@ -36722,5 +36722,74 @@
     "owner": "tag",
     "rule": "No YT build (including skyhong-blog) or shared-lock DB/API startup until tag release; source/tests/review continue",
     "tagToYtHandoffAcknowledged": false
+  },
+  "remainingScopeDelivery1013": {
+    "document": "platform/docs/youtube-remaining-scope-2026-10-13.md",
+    "documentSha256": "ee55e13ebe5ae58cbc74179c6af954d23504c9195562347b4d58ca813dc99e42",
+    "documentCommit": "d69b3b2c02c4b08ebc1bcf2000dfe76734432b9e",
+    "remainingItemCount": 42,
+    "onlyWaitingForSlotOrUpstream": false,
+    "review": {
+      "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/youtube-remaining-scope-independent-doc-review-final.json",
+      "sha256": "1dcd468076cfc886847bb86c7a6f88ff7e5b15e486241b624e52d37f910b274d",
+      "model": "gpt-6.1-sol",
+      "observedAt": "2026-10-13T10:34:54.346036+00:00",
+      "scope": "offline source/document/planning only; no runtime or UI acceptance"
+    },
+    "queue": "/tmp/babysit/mint-queue/youtube.md",
+    "fixedAppSha": "70529cff13b6b7f5b3e0571a229e2b61660f9df4",
+    "globalSlotOwner": "tag",
+    "runtimeAdmission": false,
+    "newUIApproval": false,
+    "pageCapFix": {
+      "commit": "8ca613e",
+      "review": {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/workflow-snapshot-page-cap-independent-source-review.json",
+        "sha256": "b077eec2771597913097ec338a77ec8fdb18b0005fc96560afc96a9c1cbf8f07",
+        "model": "gpt-6.1-sol",
+        "observedAt": "2026-10-13T10:30:21.534983+00:00",
+        "scope": "offline source/document/planning only; no runtime or UI acceptance"
+      },
+      "tests": {
+        "passed": 23,
+        "integrationSkipped": 3,
+        "failed": 0
+      },
+      "jobsNoEmitPassed": true,
+      "defaultPageCapUnchanged": 100,
+      "explicitUpperBound": 20000,
+      "actualImportRun": false
+    },
+    "retakeBudget": {
+      "commit": "691bc2c",
+      "review": {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/retake-inclusive-budget-independent-source-review-final.json",
+        "sha256": "7c7a5c01fe88335d70c2878e1e1d5640f445ce70e2d409487d4bfcddb09b85ca",
+        "model": "gpt-6.1-sol",
+        "observedAt": "2026-10-13T10:37:52.181974+00:00",
+        "scope": "offline source/document/planning only; no runtime or UI acceptance"
+      },
+      "rootTestsPassed": 9,
+      "generatorCheckPassed": true,
+      "knownRetainedEvidenceBytes": 56717030,
+      "completeCurrentInventory": false,
+      "proposedNewUpperBytes": 198000000,
+      "knownInclusiveUpperBytes": 254717030,
+      "initialCompleteGroups": 7,
+      "initialViewportPackages": 28,
+      "newExecutionAllowed": false,
+      "allNewArtifactStatesPending": 376,
+      "completeRoutes": 0
+    },
+    "draftDocumentStatusCorrection": "V-01 pending-commit text is reviewed historical drafting bytes; source fix subsequently committed8ca613e. Original document bytes are preserved.",
+    "nextOfflineItems": [
+      "R-01 kernel and fixed Docker IO source",
+      "R-02 global coordinator integration",
+      "R-03 dependency runner and fuller fixture states",
+      "R-07 Mint capture adaptation",
+      "V-03 changes and reconciliation",
+      "V-04 normalized matcher raw offset provenance"
+    ],
+    "addendumBoundary": "Separate metadata delivery appendix after retake five-file frozen review; does not replace original reviewed file hashes or modify entries/summary/historical capture budget."
   }
 }

@@ -540,3 +540,12 @@ UTC10:10起tag持有全站唯一建置名額；YT不啟動build／共享鎖DB/AP
 `/keywords/沈伯洋/videos`與`/keywords/支持/videos`各今日／近七日共4組明列postponed：缺少對應核准的隔離真實範例fixture，合成詞不能關閉原finding。其餘2060個Cartesian ledger slots全部仍pending；240項缺example URL，376項fixture setup均未實際驗證；多URL、loading、empty、error、互動、權限及其他補充狀態需另列完整組與預算，不可借預設畫面完成。
 
 實際兩目錄identity盤點收據：`/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-13/retake-retained-identity-inventory.json`，SHA-256 `171101d802b62ea3d79bb87ef32d5f97e0b65086507ff568763d9885601dedb6`。247個distinct regular-file identities，cross-root overlap0；內容相同但各自保留的copy仍各計bytes，hardlink／重複path才按device+inode計一次。此收據只證兩個本機目錄，不能宣稱Mint／全累計scope完整。
+
+
+## 剩餘 scope 交付追加（不提升 UI 驗收）
+
+完整42項清單：[YT剩餘scope](../platform/docs/youtube-remaining-scope-2026-10-13.md)，commit `d69b3b2`，已完整複製至 `/tmp/babysit/mint-queue/youtube.md`。分類含可離線、名額／鎖、上游、操作授權／真人；現在仍有可離線工作，不能說只剩等名額。獨立文件review path/model/UTC/hash見JSON `remainingScopeDelivery1013`。
+
+`8ca613e`修正queue舊500頁上限為共用20,000頁上限，default100及執行gates不變；23項mock通過／3 Redis integration跳過、jobs noEmit通過，另有独立source review。`691bc2c`重拍規劃9項離線測試/generator通過，独立review仅source/planning。已知retained56,717,030＋新上界198,000,000＝254,717,030 bytes，完整累計盤點仍缺；7組28packages全不允許執行。
+
+本追加在五檔retake原hash凍結review後寫入，只加metadata，保留原review的exact bytes binding。APP70529不變；tag仍持全站名額；376個新artifact狀態pending、完整route0，沒有新的PNG、runtime身份、GA外送或部署。
