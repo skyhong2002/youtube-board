@@ -2,7 +2,7 @@ import {expect,it} from 'vitest';
 import {createHash} from 'node:crypto';
 import type {Connection} from 'mysql2/promise';
 import {buildDescriptionTemplateProfile,descriptionExclusions,loadDescriptionTemplateProfiles,templateProfileProof,type TemplateSample} from '../src/description-templates.js';
-import {evidenceForVideo,MATCH_RULE} from '../src/video-evidence.js';
+import {evidenceForVideo,MATCH_RULE,previewVideoQualityBatch,qualityProfileAnchor,storeVideoEvidence,storeUnavailableVideoQuality} from '../src/video-evidence.js';
 import {SOURCE,aggregateTerms,type VocabularySnapshot} from '../src/vocabulary.js';
 import {tagDisplayExclusion,tagDisplayGroup} from '../../shared/youtube-match-policy.js';
 import {planRecentWindow,parseRecentCheckpoint} from '../src/recent-video-evidence.js';
@@ -66,4 +66,40 @@ it('keeps legitimate 24小時 title tags while excluding repeated channel-descri
  const result=evidenceForVideo({channelId:1,pk:1,videoId:'Timing00000',title:'攻擊發生前24小時',description:'24小時新聞不間斷',observedAt:null},snapshot,profile);
  expect(result.evidence.map(e=>({term:e.term,field:e.field}))).toEqual([{term:'24小時',field:'title'}]);
  expect(result.quality.excluded).toHaveLength(1);expect(result.quality.excluded[0]?.reasons).toContain('channel-repeated-line');
+});
+
+it('rejects nonstring provider dates before sorting and distinguishes oversized character samples',async()=>{
+ expect(()=>buildDescriptionTemplateProfile(1,[{...samples()[0]!,publishedAt:new Date() as never},samples()[1]!])).toThrow('date type');
+ const db={query:async()=>[[{u_id:1,pk:1,videoId:'Video123456',publishedAt:'2036-05-01 10:00:00',description:'x'.repeat(20001),description_bytes:20001},{u_id:2,pk:2,videoId:'Video123457',publishedAt:new Date(),description:'x',description_bytes:1}],[]]} as unknown as Connection;
+ const profiles=await loadDescriptionTemplateProfiles(db,[1,2,3],'2036-05-12 12:00:00');
+ expect(profiles.get(1)).toEqual({profile:null,reason:'sample-too-long'});expect(profiles.get(2)).toEqual({profile:null,reason:'invalid-sample'});expect(profiles.get(3)?.profile?.anchor).toBe('2036-05-12 12:00:00');
+});
+it('binds profile proof to a stable snapshot/candidate anchor across resumed invocations',()=>{
+ const s={...snapshot,publishedAt:'2036-05-12T04:00:00.000Z'};
+ expect(qualityProfileAnchor(s)).toBe('2036-05-12 12:00:00');
+ expect(qualityProfileAnchor({...s,qualityCandidate:{preparedAt:'2036-05-13T04:00:00.000Z'}} as typeof s)).toBe('2036-05-13 12:00:00');
+ expect(()=>qualityProfileAnchor(snapshot)).toThrow('immutable');
+ expect(buildDescriptionTemplateProfile(1,samples(),'2036-05-12 12:00:00').digest).not.toBe(buildDescriptionTemplateProfile(1,samples(),'2036-05-13 12:00:00').digest);
+});
+it('reports per-channel causes and exact successful audit byte distribution without storing source text',()=>{
+ const profile=buildDescriptionTemplateProfile(1,[]),video={channelId:1,pk:1,videoId:'Video123456',title:'AI',description:'',observedAt:null};
+ const n=Buffer.byteLength(evidenceForVideo(video,snapshot,profile).qualityJson);
+ const report=previewVideoQualityBatch([video,{...video,pk:2,description:'歡迎訂閱 AI\n'.repeat(2000)},{...video,pk:3,channelId:2}],snapshot,new Map([[1,{profile}],[2,{profile:null,reason:'sample-too-long' as const}]]));
+ expect(report).toMatchObject({videos:3,channels:2,invalidChannels:1,channelReasons:{'sample-too-long':1},videoReasons:{'audit-byte-cap-exceeded':1,'sample-too-long':1},executeAllowed:false,auditBytes:{successful:1,unavailable:2,total:n,p50:n,p95:n,max:n,capPerVideo:262144,selectedWorstCase:786432,oversized:1}});
+ expect(JSON.stringify(report)).not.toContain('歡迎');
+ const healthy=previewVideoQualityBatch([video],snapshot,new Map([[1,{profile}]]));expect(healthy.executeAllowed).toBe(true);
+ const oversizedOnly=previewVideoQualityBatch([{...video,description:'歡迎訂閱 AI\n'.repeat(2000)}],snapshot,new Map([[1,{profile}]]));expect(oversizedOnly).toMatchObject({invalidChannels:0,invalidVideoShare:1,executeAllowed:false});
+});
+it('transaction guard preserves a newer duplicate marker, evidence and audit for both success and unavailable paths',async()=>{
+ const calls:string[]=[],db={beginTransaction:async()=>calls.push('begin'),commit:async()=>calls.push('commit'),rollback:async()=>calls.push('rollback'),query:async(sql:string)=>{calls.push(sql);return [[{source_pk:'9007199254740993'}],[]];},execute:async()=>{throw Error('Must not write');}} as unknown as Connection;
+ const video={channelId:1,pk:1,videoId:'Video123456',title:'AI',description:'',observedAt:null},s={...snapshot,matchingRule:MATCH_RULE};
+ expect(await storeVideoEvidence(db,video,s,buildDescriptionTemplateProfile(1,[]))).toEqual({status:'skipped-older-duplicate',count:0});
+ expect(await storeUnavailableVideoQuality(db,video,s,'invalid-sample')).toEqual({status:'skipped-older-duplicate'});
+ expect(calls.filter(c=>c==='commit')).toHaveLength(2);expect(calls.filter(c=>c.includes('FOR UPDATE'))).toHaveLength(2);expect(calls.some(c=>c.includes('ts_job_runs'))).toBe(false);
+});
+
+it('permits exactly25percent invalid channels/videos and reports failures without payloads',()=>{
+ const videos=Array.from({length:4},(_,i)=>({channelId:i+1,pk:i+1,videoId:'Video123456',title:'AI',description:'',observedAt:null}));
+ const profiles=new Map(videos.map(v=>[v.channelId,{profile:buildDescriptionTemplateProfile(v.channelId,[])}]));profiles.set(4,{profile:null as never,reason:'invalid-sample'} as never);
+ expect(previewVideoQualityBatch(videos,snapshot,profiles)).toMatchObject({invalidChannels:1,invalidProfileShare:.25,guardedFailureVideoShare:.25,executeAllowed:true});
 });

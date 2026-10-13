@@ -18,7 +18,7 @@ export function prepareQualityCandidate(raw:string,spec:QualityCandidateSpec){
 }
 /** Caller holds the existing vocabulary writer lock and enforces execute gates.
  * Published means readable immutable pool; ts_vocabulary_current stays unchanged. */
-export async function stageQualityCandidate(db:Connection,spec:QualityCandidateSpec,ownership:()=>Promise<void>){
+export async function stageQualityCandidate(db:Connection,spec:QualityCandidateSpec,ownership:()=>Promise<void>,audit?:()=>Promise<void>){
  await ownership();await db.beginTransaction();
  try{
   const [parents]=await db.query<RowDataPacket[]>({sql:`SELECT r.id,r.window_since,r.window_until,CASE WHEN OCTET_LENGTH(r.snapshot)<=${MAX_BYTES} THEN r.snapshot ELSE NULL END AS snapshot,r.pages FROM ts_vocabulary_current c JOIN ts_vocabulary_runs r ON r.id=c.run_id WHERE c.source=? AND r.status=? FOR UPDATE`,timeout:5000},[SOURCE,'published']);
@@ -30,9 +30,9 @@ export async function stageQualityCandidate(db:Connection,spec:QualityCandidateS
    if(typeof at!=='string'||!Number.isFinite(Date.parse(at))||new Date(at).toISOString()!==at)throw Error('Invalid existing candidate timestamp');
    const expected={...prepared.snapshot,qualityCandidate:{...prepared.snapshot.qualityCandidate,preparedAt:at}};
    if(existing[0].status!=='published'||JSON.stringify(saved)!==JSON.stringify(expected))throw Error('Quality candidate identity already has different contents');
-   await db.commit();return {status:'already-staged' as const,id:spec.id,parentVersion:spec.parentVersion,termCount:prepared.termCount,servingPointerChanged:false};
+   if(audit)await audit();await db.commit();return {status:'already-staged' as const,id:spec.id,parentVersion:spec.parentVersion,termCount:prepared.termCount,servingPointerChanged:false};
   }
   await ownership();await db.execute({sql:'INSERT INTO ts_vocabulary_runs(id,window_since,window_until,status,pages,checkpoint_cursor,snapshot,published_at) VALUES(?,?,?,?,?,NULL,?,CURRENT_TIMESTAMP(3))',timeout:5000},[spec.id,parent.window_since,parent.window_until,'published',parent.pages,prepared.payload]);
-  await db.commit();return {status:'staged' as const,id:spec.id,parentVersion:spec.parentVersion,termCount:prepared.termCount,parentSnapshotSha256:prepared.parentSnapshotSha256,servingPointerChanged:false};
+  if(audit)await audit();await db.commit();return {status:'staged' as const,id:spec.id,parentVersion:spec.parentVersion,termCount:prepared.termCount,parentSnapshotSha256:prepared.parentSnapshotSha256,servingPointerChanged:false};
  }catch(error){await db.rollback().catch(()=>{});throw error;}
 }

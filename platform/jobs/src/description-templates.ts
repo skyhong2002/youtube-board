@@ -9,14 +9,16 @@ export interface TemplateSample {pk:number;videoId:string;publishedAt:string;des
 export interface DescriptionTemplateProfile {
  ruleVersion:typeof MATCH_RULE;channelId:number;sampleSize:20;minimumSample:8;minimumShare:0.5;
  sample:Array<{pk:number;videoId:string;publishedAt:string;descriptionSha256:string}>;
- sampleCount:number;status:'ready'|'insufficient-sample';repeatedLines:Array<{line:string;count:number}>;digest:string;
+ anchor?:string;sampleCount:number;status:'ready'|'insufficient-sample';repeatedLines:Array<{line:string;count:number}>;digest:string;
 }
-export interface TemplateProfileResult {profile:DescriptionTemplateProfile|null;reason?:'sample-timeout'|'sample-budget-exceeded'|'invalid-sample'}
+export interface TemplateProfileResult {profile:DescriptionTemplateProfile|null;reason?:'sample-timeout'|'sample-budget-exceeded'|'batch-budget-exceeded'|'sample-too-long'|'invalid-sample'}
 const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
 const lineKey=(line:string)=>line.trim().replace(/\s+/gu,' ');
 function lines(text:string){const out:Array<{text:string;start:number;end:number}>=[];const expression=/[^\r\n]+/g;for(const match of text.matchAll(expression))out.push({text:match[0],start:match.index,end:match.index+match[0].length});return out;}
-export function buildDescriptionTemplateProfile(channelId:number,input:TemplateSample[]):DescriptionTemplateProfile{
+export function buildDescriptionTemplateProfile(channelId:number,input:TemplateSample[],anchor?:string):DescriptionTemplateProfile{
  if(!Number.isSafeInteger(channelId)||channelId<1||input.length>TEMPLATE_SAMPLE_SIZE)throw new Error('Invalid channel template sample');
+ if(input.some(row=>typeof row.publishedAt!=='string'))throw new Error('Invalid channel template date type');
+ if(anchor!==undefined&&!/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/.test(anchor))throw new Error('Invalid channel template anchor');
  const seen=new Set<string>(),sample:DescriptionTemplateProfile['sample']=[],counts=new Map<string,number>();
  for(const row of [...input].sort((a,b)=>b.publishedAt.localeCompare(a.publishedAt)||b.pk-a.pk)){
   if(!Number.isSafeInteger(row.pk)||row.pk<1||!/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d(?:\.\d{1,6})?$/.test(row.publishedAt)||typeof row.description!=='string'||row.description.length>MAX_SAMPLE_CHARS||Buffer.byteLength(row.description)>MAX_SAMPLE_BYTES)throw new Error('Invalid channel template sample');
@@ -27,7 +29,7 @@ export function buildDescriptionTemplateProfile(channelId:number,input:TemplateS
  }
  const ready=sample.length>=TEMPLATE_MIN_SAMPLE;
  const repeatedLines=ready?[...counts].filter(([,count])=>count>=sample.length*TEMPLATE_MIN_SHARE).map(([line,count])=>({line,count})).sort((a,b)=>a.line<b.line?-1:a.line>b.line?1:0):[];
- const proof:Omit<DescriptionTemplateProfile,'digest'>={ruleVersion:MATCH_RULE,channelId,sampleSize:TEMPLATE_SAMPLE_SIZE,minimumSample:TEMPLATE_MIN_SAMPLE,minimumShare:TEMPLATE_MIN_SHARE,sample,sampleCount:sample.length,status:ready?'ready':'insufficient-sample',repeatedLines};
+ const proof:Omit<DescriptionTemplateProfile,'digest'>={ruleVersion:MATCH_RULE,channelId,sampleSize:TEMPLATE_SAMPLE_SIZE,minimumSample:TEMPLATE_MIN_SAMPLE,minimumShare:TEMPLATE_MIN_SHARE,...(anchor?{anchor}:{}),sample,sampleCount:sample.length,status:ready?'ready':'insufficient-sample',repeatedLines};
  return {...proof,digest:hash(JSON.stringify({...proof,repeatedLines:repeatedLines.map(({line,count})=>({lineSha256:hash(line),count}))}))};
 }
 export function templateProfileProof(profile:DescriptionTemplateProfile){return {...profile,repeatedLines:profile.repeatedLines.map(({line,count})=>({lineSha256:hash(line),count}))};}
@@ -59,9 +61,9 @@ export async function loadDescriptionTemplateProfiles(db:Connection,channelIds:n
   try{[rows]=await db.query<RowDataPacket[]>('SET STATEMENT max_statement_time=5 FOR '+group.map(()=>select).join(' UNION ALL '),params);}
   catch(error){if((error as {errno?:number})?.errno!==1969)throw error;for(const id of group)profiles.set(id,{profile:null,reason:'sample-timeout'});continue;}
   if(rows.length>group.length*TEMPLATE_SAMPLE_SIZE)throw new Error('Channel template row budget exceeded');
-  for(const row of rows){const id=Number(row.u_id),size=Number(row.description_bytes??0);if(!group.includes(id)||typeof (row.description??'')!=='string')throw new Error('Invalid template response identity');bytes+=Buffer.byteLength(row.description??'');if(!Number.isSafeInteger(size)||size<0||size>MAX_SAMPLE_BYTES)profiles.set(id,{profile:null,reason:'sample-budget-exceeded'});}
-  if(bytes>MAX_BATCH_BYTES){for(const id of ids.slice(offset))profiles.set(id,{profile:null,reason:'sample-budget-exceeded'});break;}
-  for(const id of group){if(profiles.has(id))continue;try{profiles.set(id,{profile:buildDescriptionTemplateProfile(id,rows.filter(r=>Number(r.u_id)===id).map(r=>({pk:Number(r.pk),videoId:r.videoId,publishedAt:r.publishedAt,description:r.description??''})))});}catch{profiles.set(id,{profile:null,reason:'invalid-sample'});}}
+  for(const row of rows){const id=Number(row.u_id),size=Number(row.description_bytes??0);if(!group.includes(id)||typeof (row.description??'')!=='string')throw new Error('Invalid template response identity');bytes+=Buffer.byteLength(row.description??'');if(!Number.isSafeInteger(size)||size<0||size>MAX_SAMPLE_BYTES)profiles.set(id,{profile:null,reason:'sample-budget-exceeded'});else if((row.description??'').length>MAX_SAMPLE_CHARS)profiles.set(id,{profile:null,reason:'sample-too-long'});}
+  if(bytes>MAX_BATCH_BYTES){for(const id of ids.slice(offset))profiles.set(id,{profile:null,reason:'batch-budget-exceeded'});break;}
+  for(const id of group){if(profiles.has(id))continue;try{profiles.set(id,{profile:buildDescriptionTemplateProfile(id,rows.filter(r=>Number(r.u_id)===id).map(r=>({pk:Number(r.pk),videoId:r.videoId,publishedAt:r.publishedAt,description:r.description??''})),anchor)});}catch{profiles.set(id,{profile:null,reason:'invalid-sample'});}}
  }
  return profiles;
 }

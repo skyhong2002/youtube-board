@@ -18,9 +18,10 @@ export async function connectDatabase(env: NodeJS.ProcessEnv): Promise<Connectio
   catch (error) { await db.end(); throw error; }
 }
 /** All job writes use this connection: losing ownership also invalidates the writer connection. */
-export async function withWriterLock<T>(db: Connection, job: string, work: (assertOwnership: () => Promise<void>) => Promise<T>): Promise<T> {
+export async function withWriterLock<T>(db: Connection, job: string, work: (assertOwnership: () => Promise<void>) => Promise<T>,waitSeconds=0): Promise<T> {
+  if(!Number.isSafeInteger(waitSeconds)||waitSeconds<0||waitSeconds>30)throw Error('Invalid writer lock wait');
   const key = 'yt-ts-' + createHash('sha256').update(job).digest('hex').slice(0, 48);
-  const [rows] = await db.query<RowDataPacket[]>('SELECT GET_LOCK(?, 0) AS acquired', [key]);
+  const [rows] = await db.query<RowDataPacket[]>(`SELECT GET_LOCK(?, ${waitSeconds}) AS acquired`, [key]);
   if (Number(rows[0]?.acquired) !== 1) throw new Error('Another TypeScript writer holds this workflow');
   const assertOwnership = async () => {
     workflowShutdownSignal().throwIfAborted();

@@ -1,3 +1,5 @@
+import {loadVocabularySnapshot} from '../src/load-vocabulary.js';
+import {qualityProfileAnchor} from '../src/video-evidence.js';
 import {expect,it} from 'vitest';
 import {prepareQualityCandidate} from '../src/quality-candidate.js';
 import {SOURCE,termKey} from '../src/vocabulary.js';
@@ -49,6 +51,7 @@ it.skipIf(process.env.JOBS_DB_TEST!=='1')('real transactions preserve serving po
   await db.execute('INSERT INTO ts_vocabulary_runs(id,window_since,window_until,status,pages,snapshot) VALUES(?,?,?,?,?,?)',[parentId,original.window.since,original.window.until,'published',1,raw]);
   await db.execute('INSERT INTO ts_vocabulary_current(source,run_id) VALUES(?,?) ON DUPLICATE KEY UPDATE run_id=VALUES(run_id)',[SOURCE,parentId]);
   expect(await stageQualityCandidate(db,localSpec,async()=>{})).toMatchObject({status:'staged'});
+  expect(qualityProfileAnchor(await loadVocabularySnapshot(db,id))).toBe('2026-10-13 03:00:00');
   expect(await stageQualityCandidate(db,{...localSpec,preparedAt:'2026-10-13T00:00:00.000Z'},async()=>{})).toMatchObject({status:'already-staged'});
   const [current]=await db.query<RowDataPacket[]>('SELECT run_id FROM ts_vocabulary_current WHERE source=?',[SOURCE]);expect(current[0]?.run_id).toBe(parentId);
   const [rows]=await db.query<RowDataPacket[]>('SELECT snapshot FROM ts_vocabulary_runs WHERE id=?',[id]);expect(JSON.parse(rows[0]!.snapshot).terms).toEqual(original.terms);

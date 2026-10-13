@@ -1,3 +1,6 @@
+import {loadVocabularySnapshot} from '../src/load-vocabulary.js';
+import {buildDescriptionTemplateProfile} from '../src/description-templates.js';
+import {storeVideoEvidence,matchVideoBatch} from '../src/video-evidence.js';
 import { expect, it } from 'vitest';
 import { randomUUID,createHash } from 'node:crypto';
 import type { Connection, RowDataPacket } from 'mysql2/promise';
@@ -175,3 +178,24 @@ it('isolates candidate checkpoints while sharing the ordinary daily reservation 
  expect(writes).toHaveLength(1);expect(writes[0]?.[1]).toBe(recentCheckpointKey(snapshot.id));
  expect(recentCheckpointKey()).toBe(RECENT_CHECKPOINT);expect(recentCheckpointKey('other')).not.toBe(recentCheckpointKey(snapshot.id));
 });
+dbIt('refuses abnormal invalid profile share before any budget, checkpoint or evidence write',async()=>fixture(async({db,add,run,version,base})=>{
+ await add(1,'2090-01-09 10:00:00');await db.execute('UPDATE urt_video SET description=? WHERE pk=?',['x'.repeat(20001),base+1]);
+ const preview=await run({execute:false});expect(preview).toMatchObject({qualityPreview:{executeAllowed:false,invalidChannels:1,channelReasons:{'sample-too-long':1}},profileAnchor:'2090-01-10 12:00:00'});
+ const blocked=await run();expect(blocked).toMatchObject({status:'quality-preflight-threshold',processed:0,budget:{reserved:0},checkpoint:{cursor:null,processed:0}});
+ const standalone=await matchVideoBatch({version,afterPk:base,limit:1,execute:true},{...isolatedTestEnv(),TS_INGESTION_ENABLED:'true',TS_INGESTION_OWNERS:'tags.videos.match'});expect(standalone).toMatchObject({status:'quality-preflight-threshold',processed:0,nextAfterPk:base});
+ const [journals]=await db.query<RowDataPacket[]>('SELECT job_key FROM ts_job_runs WHERE job_key=? OR (job_key=? AND JSON_UNQUOTE(JSON_EXTRACT(result,\'$.vocabularyVersion\'))=?)',[RECENT_VIDEO_EVIDENCE_JOB,VIDEO_QUALITY_JOB,version]);expect(journals).toHaveLength(0);
+ const [markers]=await db.query<RowDataPacket[]>('SELECT video_id FROM ts_video_tag_matches WHERE vocabulary_version=?',[version]);expect(markers).toHaveLength(0);
+}));
+it('counts skipped older duplicates explicitly while retaining old checkpoint compatibility',()=>{
+ const state={...planRecentWindow(null,'v1',now).checkpoint,processed:1,skippedOlderDuplicate:1,cursor:{publishedAt:'2090-01-09 10:00:00',pk:9}};
+ expect(parseRecentCheckpoint(JSON.stringify(state)).skippedOlderDuplicate).toBe(1);
+ expect(()=>parseRecentCheckpoint(JSON.stringify({...state,skippedOlderDuplicate:2}))).toThrow();
+});
+
+dbIt('records an older-duplicate transaction skip in durable checkpoint accounting',async()=>fixture(async({db,add,run,version,base})=>{
+ await add(1,'2090-01-09 10:00:00');
+ const snapshot=await loadVocabularySnapshot(db,version);
+ await storeVideoEvidence(db,{channelId:1,pk:base+2,videoId:'Recent00001',title:'台灣新聞',description:'',observedAt:null},snapshot,buildDescriptionTemplateProfile(1,[]));
+ const result=await run();expect(result).toMatchObject({status:'complete',checkpoint:{processed:1,written:0,unchanged:0,invalid:0,skippedOlderDuplicate:1},results:[{pk:base+1,status:'skipped-older-duplicate',count:0}]});
+ const [rows]=await db.query<RowDataPacket[]>('SELECT result FROM ts_job_runs WHERE job_key=? AND execution_key=?',[RECENT_VIDEO_EVIDENCE_JOB,RECENT_CHECKPOINT]);expect(parseRecentCheckpoint(rows[0]!.result).skippedOlderDuplicate).toBe(1);
+}));

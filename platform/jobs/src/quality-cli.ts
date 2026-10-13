@@ -1,7 +1,8 @@
-import {readFile,stat} from 'node:fs/promises';
+import {readFile,lstat} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
+import {isAbsolute} from 'node:path';
 import type {RowDataPacket} from 'mysql2/promise';
-import {createReader} from '../../api/src/db/client.js';
+import {createQualityReportReader,assertQualityReportIdentity} from './quality-report-reader.js';
 import {connectDatabase,withWriterLock} from './database.js';
 import {executionPolicy,assertExecute} from './policy.js';
 import {VOCABULARY_JOB,SOURCE} from './vocabulary.js';
@@ -28,32 +29,42 @@ export function validateQualityBackupReceipt(proof:any,sha:string){
  if(!/^[a-f0-9]{64}$/.test(sha)||proof?.status!=='passed'||proof.archiveSha256!==sha||proof.offhost?.archiveSha256Verified!==true||proof.offhost?.host===proof.offhost?.originHost||!proof.offhost?.host||!proof.offhost?.originHost||proof.productionOperations!==false||proof.sourceRowsRestored!==false||proof.rows?.allCountsAndMultisetSha256Exact!==true||proof.principals?.authenticationDefinitionsExact!==true||proof.principals?.grantMultisetsExact!==true||proof.schemaMetadataExact!==true||proof.triggerDefinitionsExact!==true||proof.triggerBehaviorExact!==true||proof.probeRowsRolledBack!==true||proof.cloneRemoved!==true)throw Error('A verified offhost TS backup/restore receipt is required');
  return {archiveSha256:sha,status:'passed' as const};
 }
-async function backupReceipt(path:string|undefined,sha:string|undefined,now:Date){
- if(!path||!sha)throw Error('Execute requires explicit backup proof file and archive SHA256');
- const info=await stat(path);if(!info.isFile()||info.size>1024*1024||+now-info.mtimeMs>6*3600000||info.mtimeMs>+now+60000)throw Error('Backup receipt must be a recent bounded regular file');
- const body=await readFile(path,'utf8');let proof:unknown;try{proof=JSON.parse(body);}catch{throw Error('Backup receipt is not valid JSON');}return {...validateQualityBackupReceipt(proof,sha),receiptSha256:createHash('sha256').update(body).digest('hex')};
+export async function backupReceipt(path:string|undefined,sha:string|undefined,now:Date){
+ if(!path||!sha||!isAbsolute(path))throw Error('Execute requires absolute backup proof file and archive SHA256');
+ const info=await lstat(path);if(!info.isFile()||info.size>1024*1024||+now-info.mtimeMs>6*3600000||info.mtimeMs>+now+60000)throw Error('Backup receipt must be a recent bounded regular file');
+ const body=await readFile(path,'utf8');if(Buffer.byteLength(body)>1024*1024)throw Error('Backup receipt exceeds size cap');let proof:unknown;try{proof=JSON.parse(body);}catch{throw Error('Backup receipt is not valid JSON');}const p=proof as Record<string,unknown>;
+ if(typeof p.database!=='string'||typeof p.capturedAt!=='string'||!Number.isFinite(Date.parse(p.capturedAt))||+now-Date.parse(p.capturedAt)>6*3600000||Date.parse(p.capturedAt)>+now+60000||!p.targetServer||typeof p.targetServer!=='object')throw Error('Backup receipt needs a recent capturedAt and exact database/server target');
+ return {...validateQualityBackupReceipt(proof,sha),database:p.database,capturedAt:p.capturedAt,targetServer:p.targetServer as Record<string,unknown>,receiptSha256:createHash('sha256').update(body).digest('hex')};
 }
 export async function runQualityCommand(args:string[],env:NodeJS.ProcessEnv,now=new Date()){
  const options=qualityArguments(args,now),policy=executionPolicy(env,options.execute?'execute':'dry-run');
- if(options.execute)assertExecute(VOCABULARY_JOB,policy);
- const receipt=options.execute?await backupReceipt(options.backupProof,options.backupSha256,now):null;
+ if(options.execute&&policy.environment==='production'&&(env.TS_WORKER_SCHEMA_MODE!=='facade'||env.TS_WORKER_WORKFLOW!=='tags.vocabulary.quality'))throw Error('Quality execution requires the dedicated reviewed operator facade');
+ if(options.execute){assertExecute(VOCABULARY_JOB,policy);assertExecute('tags.vocabulary.quality-'+options.action,policy);if(options.action==='activate')assertExecute('tags.vocabulary.quality-rollback',policy);}
+ const receipt=options.execute&&options.action!=='rollback'?await backupReceipt(options.backupProof,options.backupSha256,now):null;
  if(options.action==='activate'&&!env.QUALITY_REPORT_DATABASE_URL)throw Error('Activation requires the SELECT-only report database URL');
- const db=await connectDatabase(env),reader=options.action==='activate'?createReader(env.QUALITY_REPORT_DATABASE_URL):null;
+ const db=await connectDatabase(env);let reader:Awaited<ReturnType<typeof createQualityReportReader>>|null=null;
  try{
+  if(receipt){const [rows]=await db.query<RowDataPacket[]>('SELECT @@hostname AS host,@@server_id AS server_id,@@port AS port,DATABASE() AS db');const schema=env.TS_WORKER_SCHEMA_MODE==='facade'?(env.TS_STATE_SCHEMA??'youtube_board_ts'):(env.DB_DATABASE??'youtube_board_rewrite');assertQualityReportIdentity(rows[0]??{},{...receipt.targetServer,db:receipt.database},schema);}
+  if(options.action==='activate')reader=await createQualityReportReader(env,db);
   if(!options.execute){
    const [parents]=await db.query<RowDataPacket[]>({sql:'SELECT r.snapshot FROM ts_vocabulary_current c JOIN ts_vocabulary_runs r ON r.id=c.run_id WHERE c.source=? AND r.id=? AND r.status=? AND OCTET_LENGTH(r.snapshot)<=8388608',timeout:5000},[SOURCE,options.action==='rollback'?options.spec.id:options.spec.parentVersion,'published']);
    if(!parents[0])throw Error('Expected serving vocabulary is unavailable');
    if(options.action==='stage'){const prepared=prepareQualityCandidate(parents[0].snapshot,options.spec);return {mode:'dry-run',action:options.action,id:options.spec.id,parentVersion:options.spec.parentVersion,termCount:prepared.termCount,servingPointerChanged:false};}
    return {mode:'dry-run',action:options.action,id:options.spec.id,parentVersion:options.spec.parentVersion,...(reader?{coverage:await inspectQualityCoverage(reader,options.activation,now)}:{}),servingPointerChanged:false};
   }
+  const audit=async(coverage?:Awaited<ReturnType<typeof inspectQualityCoverage>>)=>{const key=createHash('sha256').update(JSON.stringify([options.action,options.spec.id,now.toISOString()])).digest('hex');
+   const data={schemaVersion:1,action:options.action,id:options.spec.id,parentVersion:options.spec.parentVersion,implementationSha:options.spec.implementationSha,executedAt:now.toISOString(),backupReceipt:receipt,...(coverage?{coverage}:{})};
+   await db.execute('INSERT INTO ts_job_runs(job_key,execution_key,status,result) VALUES(?,?,?,?)',['tags.vocabulary.quality-'+options.action,key,'complete',JSON.stringify(data)]);
+  };
   return await withWriterLock(db,VOCABULARY_JOB,async vocabOwnership=>{
-   if(options.action==='stage')return {...await stageQualityCandidate(db,options.spec,vocabOwnership),backupReceipt:receipt};
+   if(options.action==='stage')return {...await stageQualityCandidate(db,options.spec,vocabOwnership,audit),backupReceipt:receipt};
+   if(options.action==='rollback')return {...await rollbackQualityCandidate(db,options.spec,vocabOwnership,audit),backupReceipt:null};
    return withWriterLock(db,VIDEO_EVIDENCE_JOB,async evidenceOwnership=>{
     const ownership=async()=>{await vocabOwnership();await evidenceOwnership();};
-    const result=options.action==='activate'?await activateQualityCandidate(db,reader!,options.activation,ownership,now):await rollbackQualityCandidate(db,options.spec,ownership);
+    const result=await activateQualityCandidate(db,reader!,options.activation,ownership,now,audit);
     return {...result,backupReceipt:receipt};
    });
-  });
+  },options.action==='rollback'?10:0);
  }finally{await reader?.close();await db.end();}
 }
 export async function handleQualityCli(args:string[],env:NodeJS.ProcessEnv){

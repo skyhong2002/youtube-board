@@ -7,7 +7,7 @@ import { connectDatabase, withWriterLock } from './database.js';
 import { assertExecute, executionPolicy } from './policy.js';
 import { loadVocabularySnapshot } from './load-vocabulary.js';
 import { SOURCE } from './vocabulary.js';
-import { evidenceForVideo, storeVideoEvidence, storeUnavailableVideoQuality, VIDEO_EVIDENCE_JOB, type VideoInput } from './video-evidence.js';
+import { previewVideoQualityBatch,videoQualityFailure,evidenceForVideo, storeVideoEvidence, storeUnavailableVideoQuality, VIDEO_EVIDENCE_JOB, type VideoInput } from './video-evidence.js';
 
 export const RECENT_VIDEO_EVIDENCE_JOB = 'tags.videos.match.recent';
 export const RECENT_VIDEO_EVIDENCE_COMMAND = 'videos:match:recent';
@@ -18,7 +18,7 @@ interface Cursor { publishedAt: string; pk: number }
 export interface RecentCheckpoint {
   schemaVersion: 1|2; ruleVersion?:string; generation: string; vocabularyVersion: string;
   windowFrom: string; windowUntil: string; startedAt: string;
-  cursor: Cursor | null; processed: number; written: number; unchanged: number; invalid: number;
+  cursor: Cursor | null; processed: number; written: number; unchanged: number; invalid: number; skippedOlderDuplicate?:number;
   completedAt: string | null;
 }
 interface Budget { schemaVersion: 1; date: string; limit: number; reserved: number }
@@ -55,7 +55,8 @@ export function parseRecentCheckpoint(raw: string): RecentCheckpoint {
     || value.windowFrom !== taipeiSql(new Date(Date.parse(value.startedAt) - 7 * DAY)) || value.windowUntil !== taipeiSql(new Date(value.startedAt))
     || value.generation !== generation(value.vocabularyVersion, value.windowFrom, value.windowUntil,value.ruleVersion as string|undefined)
     || !['processed', 'written', 'unchanged', 'invalid'].every(key => integer(value[key], 0, Number.MAX_SAFE_INTEGER))
-    || Number(value.processed) !== Number(value.written) + Number(value.unchanged) + Number(value.invalid)
+    || (value.skippedOlderDuplicate!==undefined&&!integer(value.skippedOlderDuplicate,0,Number.MAX_SAFE_INTEGER))
+    || Number(value.processed) !== Number(value.written) + Number(value.unchanged) + Number(value.invalid)+Number(value.skippedOlderDuplicate??0)
     || !(value.completedAt === null || iso(value.completedAt) && Date.parse(value.completedAt) >= Date.parse(value.startedAt))) throw new Error('Invalid recent matching checkpoint');
   if (value.cursor !== null && (!record(value.cursor) || !sqlTime(value.cursor.publishedAt) || !integer(value.cursor.pk, 1, Number.MAX_SAFE_INTEGER)
     || value.cursor.publishedAt < value.windowFrom || value.cursor.publishedAt >= value.windowUntil)) throw new Error('Invalid recent matching cursor');
@@ -110,10 +111,11 @@ export async function continueRecentMatching(db: Connection, input: RecentMatchI
   const savedBudget = await journal(db, budgetKey), budget = savedBudget ? parseBudget(savedBudget.result, day) : { schemaVersion: 1 as const, date: day, limit: input.dailyLimit, reserved: 0 };
   if (savedBudget && savedBudget.status !== 'reserved') throw new Error('Recent matching budget status mismatch');
   const cap = Math.min(input.dailyLimit, budget.limit), available = Math.max(0, cap - budget.reserved);
+  let qualityPreview:ReturnType<typeof previewVideoQualityBatch>|null=null;
   const summary = (status: string, processed = 0, results: Array<{ pk: number; status: string; count: number }> = []) => ({
     mode: input.execute ? 'execute' : 'dry-run', status, action: plan.action, vocabularyVersion: state.vocabularyVersion,
     window: { from: state.windowFrom, until: state.windowUntil, timezone: 'Asia/Taipei', days: 7 }, generation: state.generation,
-    processed, results, checkpoint: state, budget: { date: day, limit: cap, reserved: budget.reserved, remaining: Math.max(0, cap - budget.reserved) },
+    processed, results, qualityPreview,profileAnchor:state.windowUntil,checkpoint: state, budget: { date: day, limit: cap, reserved: budget.reserved, remaining: Math.max(0, cap - budget.reserved) },
     externalCalls: 0, sourceWrites: 0, refreshHours: 6,
   });
   const snapshot = await loadVocabularySnapshot(db, state.vocabularyVersion);
@@ -133,6 +135,8 @@ export async function continueRecentMatching(db: Connection, input: RecentMatchI
     ORDER BY v.publishedAt DESC,v.pk DESC LIMIT ?`, [state.windowFrom, state.windowUntil, ...(cursor ? [cursor.publishedAt, cursor.publishedAt, cursor.pk] : []), take + 1]);
   const selected = rows.slice(0, take), more = rows.length > take;
   const profiles=await loadDescriptionTemplateProfiles(db,selected.map(row=>Number(row.u_id)).filter(id=>Number.isSafeInteger(id)&&id>0),state.windowUntil);
+  qualityPreview=previewVideoQualityBatch(selected.map(row=>({channelId:Number(row.u_id),pk:Number(row.pk),videoId:row.videoId,title:row.title??'',description:row.description??'',observedAt:row.mtime??null})),snapshot,profiles);
+  if(input.execute&&!qualityPreview.executeAllowed)return summary('quality-preflight-threshold');
   if (input.execute) {
     await ownership();
     await db.beginTransaction();
@@ -149,9 +153,10 @@ export async function continueRecentMatching(db: Connection, input: RecentMatchI
     const video: VideoInput = { channelId:Number(row.u_id),pk, videoId: row.videoId, title: row.title ?? '', description: row.description ?? '', observedAt: row.mtime ?? null };
     let result: { status: string; count: number;reason?:string };const profile=profiles.get(video.channelId);
     try { if(!profile?.profile)throw new Error('Unavailable template profile');result = { status: 'preview', count: evidenceForVideo(video, snapshot,profile.profile).evidence.length }; }
-    catch { const reason=profile?.reason??'invalid-matching-input';if(input.execute)await storeUnavailableVideoQuality(db,video,snapshot,reason);result = { status: 'invalid', count: 0,reason }; }
+    catch(error) { const reason=videoQualityFailure(error,profile);const unavailable=input.execute?await storeUnavailableVideoQuality(db,video,snapshot,reason):null;result = { status: unavailable?.status==='skipped-older-duplicate'?unavailable.status:'invalid', count: 0,reason }; }
     if (result.status === 'invalid') state.invalid++;
-    else if (input.execute) { result = await storeVideoEvidence(db, video, snapshot,profile!.profile!); if (result.status === 'written') state.written++; else state.unchanged++; }
+    else if(result.status==='skipped-older-duplicate')state.skippedOlderDuplicate=(state.skippedOlderDuplicate??0)+1;
+    else if (input.execute) { result = await storeVideoEvidence(db, video, snapshot,profile!.profile!); if (result.status === 'written') state.written++; else if(result.status==='skipped-older-duplicate')state.skippedOlderDuplicate=(state.skippedOlderDuplicate??0)+1;else state.unchanged++; }
     else state.unchanged++; // Preview progress is returned only; no durable accounting changes.
     state.processed++; state.cursor = { publishedAt: row.publishedAt, pk };
     if (input.execute) { await ownership(); await checkpoint(db, state,checkpointKey); }

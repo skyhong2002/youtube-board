@@ -1,3 +1,7 @@
+import {createQualityReportReader} from '../src/quality-report-reader.js';
+import {buildDescriptionTemplateProfile} from '../src/description-templates.js';
+import {storeVideoEvidence,VIDEO_QUALITY_JOB} from '../src/video-evidence.js';
+import {loadVocabularySnapshot} from '../src/load-vocabulary.js';
 import {expect,it} from 'vitest';
 import type {Connection,RowDataPacket,ResultSetHeader} from 'mysql2/promise';
 import {randomUUID} from 'node:crypto';
@@ -5,7 +9,7 @@ import {inspectQualityCoverage,activateQualityCandidate,rollbackQualityCandidate
 import {qualityArguments,validateQualityBackupReceipt,runQualityCommand} from '../src/quality-cli.js';
 import {stageQualityCandidate} from '../src/quality-candidate.js';
 import {SOURCE,termKey} from '../src/vocabulary.js';
-import {connectDatabase} from '../src/database.js';
+import {connectDatabase,withWriterLock} from '../src/database.js';
 import {isolatedTestEnv,assertTestDatabaseUrl} from '../../shared/test-database.js';
 import {createReader,type Reader} from '../../api/src/db/client.js';
 import {sourceTextFingerprint} from '../../shared/video-fingerprint.js';
@@ -42,20 +46,35 @@ it.skipIf(process.env.JOBS_DB_TEST!=='1'||!process.env.TEST_DATABASE_URL)('real 
   await db.execute('INSERT INTO ts_vocabulary_runs(id,window_since,window_until,status,pages,snapshot) VALUES(?,?,?,?,?,?)',[parent,raw.window.since,raw.window.until,'published',1,JSON.stringify(raw)]);
   await db.execute('INSERT INTO ts_vocabulary_current(source,run_id) VALUES(?,?) ON DUPLICATE KEY UPDATE run_id=VALUES(run_id)',[SOURCE,parent]);
   await stageQualityCandidate(db,localSpec,async()=>{});
+  await expect(createQualityReportReader({...isolatedTestEnv(),QUALITY_REPORT_DATABASE_URL:process.env.TEST_DATABASE_URL},db)).rejects.toThrow('read-only grants');
   const [insert]=await db.execute<ResultSetHeader>("INSERT INTO urt_video(videoId,u_id,title,ctime,publishedAt,description,viewCount,id,channelId,thumbnails,channelTitle,playlistId,position) VALUES(?,1,'fixture','2037-01-10 11:00:00','2037-01-10 11:00:00','',NULL,'fixture','fixture','','fixture','fixture',0)",[videoId]);
   await db.execute("INSERT INTO ts_video_tag_matches(video_id,vocabulary_version,source_pk,source_text_sha256,rule_version,evidence_count,matched_at) VALUES(?,?,?,?,'youtube-quality-v2',0,'2037-01-10 04:00:00')",[videoId,id,insert.insertId,sourceTextFingerprint('fixture','')]);
   expect(await inspectQualityCoverage(reader,localSpec,now)).toMatchObject({ready:true,sourceVideos:1,freshVideos:1,partial:false});
   await expect(activateQualityCandidate(db,reader,{...localSpec,implementationSha:'b'.repeat(40)},async()=>{},now)).rejects.toThrow('immutable payload');
   const active=await activateQualityCandidate(db,reader,localSpec,async()=>{},now);expect(active).toMatchObject({status:'activated',previousVersion:parent,version:id,servingPointerChanged:true});
   await expect(activateQualityCandidate(db,reader,localSpec,async()=>{},now)).rejects.toThrow('Serving vocabulary changed');
-  expect(await rollbackQualityCandidate(db,localSpec,async()=>{})).toMatchObject({status:'rolled-back'});
+  expect(await withWriterLock(db,'tags.videos.match',async()=>runQualityCommand(['vocabulary:quality:rollback','--id='+id,'--parent='+parent,'--implementation='+spec.implementationSha,'--execute','--backup-proof=/missing-expired-receipt'],{...isolatedTestEnv(),TS_INGESTION_ENABLED:'true',TS_INGESTION_OWNERS:'tags.vocabulary.sync,tags.vocabulary.quality-rollback'},now))).toMatchObject({status:'rolled-back',backupReceipt:null});
   await expect(rollbackQualityCandidate(db,localSpec,async()=>{})).rejects.toThrow('Serving vocabulary changed');
   await db.execute('UPDATE ts_video_tag_matches SET evidence_count=1 WHERE video_id=? AND vocabulary_version=?',[videoId,id]);
   expect(await inspectQualityCoverage(reader,localSpec,now)).toMatchObject({ready:false,freshVideos:0});
   await db.execute("UPDATE ts_video_tag_matches SET evidence_count=0,matched_at='2037-01-09 04:00:00' WHERE video_id=? AND vocabulary_version=?",[videoId,id]);
   expect(await inspectQualityCoverage(reader,localSpec,now)).toMatchObject({ready:false,freshVideos:0});
   const [pointer]=await db.query<RowDataPacket[]>('SELECT run_id FROM ts_vocabulary_current WHERE source=?',[SOURCE]);expect(pointer[0]?.run_id).toBe(parent);
+  const candidate=await loadVocabularySnapshot(db,id),profile=buildDescriptionTemplateProfile(1,[]),v={channelId:1,pk:insert.insertId,videoId,title:'😀 AI測試',description:'第一行\r\n第二行中文',observedAt:null};
+  await db.execute('UPDATE urt_video SET title=?,description=? WHERE pk=?',[v.title,v.description,v.pk]);
+  await db.query("SET time_zone='+08:00'");await db.query('SET timestamp='+String(+now/1000));
+  expect(await storeVideoEvidence(db,v,candidate,profile)).toMatchObject({status:'written'});
+  expect(await inspectQualityCoverage(reader,localSpec,now)).toMatchObject({ready:true,freshVideos:1,scope:'rolling-7d-observed'});
+  await db.execute("UPDATE ts_video_tag_matches SET matched_at='2037-01-09 04:00:00' WHERE video_id=? AND vocabulary_version=?",[videoId,id]);
+  expect(await inspectQualityCoverage(reader,localSpec,now)).toMatchObject({ready:false,freshVideos:0});
+  expect(await storeVideoEvidence(db,v,candidate,profile)).toMatchObject({status:'unchanged'});
+  expect(await inspectQualityCoverage(reader,localSpec,now)).toMatchObject({ready:true,freshVideos:1});
+  await expect(activateQualityCandidate(db,reader,localSpec,async()=>{},now,async()=>{throw Error('audit unavailable');})).rejects.toThrow('audit unavailable');
+  const [afterAuditFailure]=await db.query<RowDataPacket[]>('SELECT run_id FROM ts_vocabulary_current WHERE source=?',[SOURCE]);expect(afterAuditFailure[0]?.run_id).toBe(parent);
+
  }finally{
+  await db.query('SET timestamp=0');await db.query("SET time_zone='+00:00'");
+  await db.execute("DELETE FROM ts_job_runs WHERE (job_key=? AND JSON_UNQUOTE(JSON_EXTRACT(result,'$.vocabularyVersion'))=?) OR (job_key='tags.vocabulary.quality-rollback' AND JSON_UNQUOTE(JSON_EXTRACT(result,'$.id'))=?)",[VIDEO_QUALITY_JOB,id,id]);
   if(saved[0])await db.execute('UPDATE ts_vocabulary_current SET run_id=? WHERE source=?',[saved[0].run_id,SOURCE]);else await db.execute('DELETE FROM ts_vocabulary_current WHERE source=?',[SOURCE]);
   await db.execute('DELETE FROM ts_video_tag_matches WHERE vocabulary_version=?',[id]);await db.execute('DELETE FROM urt_video WHERE BINARY videoId=BINARY ?',[videoId]);await db.execute('DELETE FROM ts_vocabulary_runs WHERE id IN (?,?)',[id,parent]);await reader.close();await db.end();
  }

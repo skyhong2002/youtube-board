@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import type {Connection,RowDataPacket,ResultSetHeader} from 'mysql2/promise';
 import {sql} from 'drizzle-orm';
 import type {Reader} from '../../api/src/db/client.js';
@@ -25,35 +26,39 @@ export async function inspectQualityCoverage(reader:Reader,spec:QualityActivatio
  const total=Number(rows[0]?.source_videos),fresh=Number(rows[0]?.fresh_videos);
  if(!Number.isSafeInteger(total)||!Number.isSafeInteger(fresh)||total<1||total>100000||fresh<0||fresh>total)throw Error('Activation coverage is unavailable or exceeds budget');
  const fraction=fresh/total,ready=fresh>=spec.minFreshVideos&&fraction>=spec.minCoverage;
- return {ready,checkedAt:now.toISOString(),from,until,sourceVideos:total,freshVideos:fresh,coverageFraction:fraction,partial:fresh!==total,minFreshVideos:spec.minFreshVideos,minCoverage:spec.minCoverage,maxAgeHours:spec.maxAgeHours};
+ return {scope:'rolling-7d-observed' as const,ready,checkedAt:now.toISOString(),from,until,sourceVideos:total,freshVideos:fresh,coverageFraction:fraction,partial:fresh!==total,minFreshVideos:spec.minFreshVideos,minCoverage:spec.minCoverage,maxAgeHours:spec.maxAgeHours};
 }
-async function lockedQualityPair(db:Connection,spec:Omit<QualityCandidateSpec,'preparedAt'>,expectedCurrent:string){
+async function lockedQualityPair(db:Connection,spec:Omit<QualityCandidateSpec,'preparedAt'>,expectedCurrent:string,rollback=false){
  const [current]=await db.query<RowDataPacket[]>({sql:'SELECT run_id FROM ts_vocabulary_current WHERE source=? FOR UPDATE',timeout:5000},[SOURCE]);
  if(current.length!==1||current[0]?.run_id!==expectedCurrent)throw Error('Serving vocabulary changed before pointer update');
  const [runs]=await db.query<RowDataPacket[]>({sql:'SELECT id,status,CASE WHEN OCTET_LENGTH(snapshot)<=8388608 THEN snapshot ELSE NULL END AS snapshot FROM ts_vocabulary_runs WHERE id IN (?,?) ORDER BY id FOR UPDATE',timeout:5000},[spec.parentVersion,spec.id]);
  const parent=runs.find(r=>r.id===spec.parentVersion),candidate=runs.find(r=>r.id===spec.id);
  if(parent?.status!=='published'||candidate?.status!=='published'||typeof parent.snapshot!=='string'||typeof candidate.snapshot!=='string')throw Error('Published bounded quality pair is unavailable');
  const saved=JSON.parse(candidate.snapshot),preparedAt=saved?.qualityCandidate?.preparedAt;
+ if(rollback){
+  if(saved?.id!==spec.id||saved?.qualityCandidate?.parentVersion!==spec.parentVersion||saved?.qualityCandidate?.parentSnapshotSha256!==createHash('sha256').update(parent.snapshot).digest('hex'))throw Error('Rollback parent proof differs');
+  return {previousVersion:spec.parentVersion,version:spec.id};
+ }
  const expected=prepareQualityCandidate(parent.snapshot,{...spec,preparedAt});
  if(JSON.stringify(saved)!==JSON.stringify(expected.snapshot))throw Error('Candidate parent, implementation or immutable payload differs');
  return {previousVersion:spec.parentVersion,version:spec.id};
 }
 /** Caller holds BOTH vocabulary and video-evidence writer locks. Source ingestion
  * may continue: coverage is an observed cutoff, not a MyISAM snapshot guarantee. */
-export async function activateQualityCandidate(db:Connection,reader:Reader,spec:QualityActivationSpec,ownership:()=>Promise<void>,now=new Date()){
+export async function activateQualityCandidate(db:Connection,reader:Reader,spec:QualityActivationSpec,ownership:()=>Promise<void>,now=new Date(),audit?:(coverage:Awaited<ReturnType<typeof inspectQualityCoverage>>)=>Promise<void>){
  await ownership();const coverage=await inspectQualityCoverage(reader,spec,now);if(!coverage.ready)throw Error('Candidate has not met the explicit activation coverage threshold');
  await db.beginTransaction();try{
   const pair=await lockedQualityPair(db,spec,spec.parentVersion);await ownership();
   const [result]=await db.execute<ResultSetHeader>({sql:'UPDATE ts_vocabulary_current SET run_id=? WHERE source=? AND run_id=?',timeout:5000},[spec.id,SOURCE,spec.parentVersion]);
   if(result.affectedRows!==1)throw Error('Serving pointer compare-and-swap failed');
-  await db.commit();return {status:'activated' as const,...pair,coverage,servingPointerChanged:true,rollback:{expectedCurrent:spec.id,targetVersion:spec.parentVersion}};
+  if(audit)await audit(coverage);await db.commit();return {status:'activated' as const,...pair,coverage,servingPointerChanged:true,rollback:{expectedCurrent:spec.id,targetVersion:spec.parentVersion}};
  }catch(error){await db.rollback().catch(()=>{});throw error;}
 }
-export async function rollbackQualityCandidate(db:Connection,spec:Omit<QualityCandidateSpec,'preparedAt'>,ownership:()=>Promise<void>){
+export async function rollbackQualityCandidate(db:Connection,spec:Omit<QualityCandidateSpec,'preparedAt'>,ownership:()=>Promise<void>,audit?:()=>Promise<void>){
  await ownership();await db.beginTransaction();try{
-  const pair=await lockedQualityPair(db,spec,spec.id);await ownership();
+  const pair=await lockedQualityPair(db,spec,spec.id,true);await ownership();
   const [result]=await db.execute<ResultSetHeader>({sql:'UPDATE ts_vocabulary_current SET run_id=? WHERE source=? AND run_id=?',timeout:5000},[spec.parentVersion,SOURCE,spec.id]);
   if(result.affectedRows!==1)throw Error('Rollback pointer compare-and-swap failed');
-  await db.commit();return {status:'rolled-back' as const,...pair,servingPointerChanged:true};
+  if(audit)await audit();await db.commit();return {status:'rolled-back' as const,...pair,servingPointerChanged:true};
  }catch(error){await db.rollback().catch(()=>{});throw error;}
 }

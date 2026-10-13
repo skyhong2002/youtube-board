@@ -52,15 +52,16 @@ export function evidenceInsertBatches(videoId:string,version:string,evidence:Sto
  }
  if(batch.length)batches.push(batch);return batches;
 }
-export async function storeVideoEvidence(db: Connection, video: VideoInput, snapshot: VocabularySnapshot,profile:DescriptionTemplateProfile): Promise<{ status: 'written' | 'unchanged'; count: number }> {
+export async function storeVideoEvidence(db: Connection, video: VideoInput, snapshot: VocabularySnapshot,profile:DescriptionTemplateProfile): Promise<{ status: 'written' | 'unchanged' | 'skipped-older-duplicate'; count: number }> {
   if(snapshot.matchingRule!==MATCH_RULE)throw new Error('Quality writes require an explicit candidate vocabulary rule');
   const { sourceHash, evidence,qualityJson } = evidenceForVideo(video, snapshot,profile);
   await db.beginTransaction();
   try {
-    const [existing] = await db.query<RowDataPacket[]>('SELECT source_text_sha256, rule_version, evidence_count FROM ts_video_tag_matches WHERE video_id = ? AND vocabulary_version = ? FOR UPDATE', [video.videoId, snapshot.id]);
+    const [existing] = await db.query<RowDataPacket[]>('SELECT source_pk, source_text_sha256, rule_version, evidence_count FROM ts_video_tag_matches WHERE video_id = ? AND vocabulary_version = ? FOR UPDATE', [video.videoId, snapshot.id]);
+    if(existing[0]&&BigInt(existing[0].source_pk)>BigInt(video.pk)){await db.commit();return {status:'skipped-older-duplicate',count:0};}
     const [audit]=await db.query<RowDataPacket[]>("SELECT JSON_UNQUOTE(JSON_EXTRACT(result,'$.profile.digest')) AS profile_digest FROM ts_job_runs WHERE job_key=? AND execution_key=? AND status='complete'",[VIDEO_QUALITY_JOB,videoQualityKey(snapshot.id,video.videoId)]);
     if (existing[0]?.source_text_sha256 === sourceHash && existing[0]?.rule_version === MATCH_RULE&&audit[0]?.profile_digest===profile.digest) {
-      await db.execute('UPDATE ts_video_tag_matches SET source_pk = ?, source_observed_at = ? WHERE video_id = ? AND vocabulary_version = ?', [video.pk, video.observedAt, video.videoId, snapshot.id]);
+      await db.execute('UPDATE ts_video_tag_matches SET source_pk = ?, source_observed_at = ?, matched_at=CURRENT_TIMESTAMP(3) WHERE video_id = ? AND vocabulary_version = ?', [video.pk, video.observedAt, video.videoId, snapshot.id]);
       await writeQualityAudit(db,snapshot.id,video.videoId,'complete',qualityJson);
       await db.commit(); return { status: 'unchanged', count: existing[0].evidence_count };
     }
@@ -83,10 +84,42 @@ export async function storeUnavailableVideoQuality(db:Connection,video:VideoInpu
   if(!/^[A-Za-z0-9_-]{11}$/.test(video.videoId)||!Number.isSafeInteger(video.pk)||video.pk<1)return;
   const result=JSON.stringify({schemaVersion:1,ruleVersion:MATCH_RULE,status:'unavailable',reason,vocabularyVersion:snapshot.id,videoId:video.videoId,sourcePk:video.pk,sourceHash:sourceTextFingerprint(video.title,video.description)});
   await db.beginTransaction();try{
-    await db.execute("UPDATE ts_video_tag_matches SET rule_version='quality-unavailable-v2' WHERE video_id=? AND vocabulary_version=?",[video.videoId,snapshot.id]);
-    await writeQualityAudit(db,snapshot.id,video.videoId,'unavailable',result);await db.commit();
+    const [existing]=await db.query<RowDataPacket[]>('SELECT source_pk FROM ts_video_tag_matches WHERE video_id=? AND vocabulary_version=? FOR UPDATE',[video.videoId,snapshot.id]);
+    if(existing[0]&&BigInt(existing[0].source_pk)>BigInt(video.pk)){await db.commit();return {status:'skipped-older-duplicate' as const};}
+    // Preserve the newest source identity even if its profile cannot be built:
+    // a later retry of an older duplicate must not resurrect older evidence.
+    await db.execute("INSERT INTO ts_video_tag_matches(video_id,vocabulary_version,source_pk,source_text_sha256,source_observed_at,rule_version,evidence_count) VALUES(?,?,?,?,?,'quality-unavailable-v2',0) ON DUPLICATE KEY UPDATE source_pk=VALUES(source_pk),source_text_sha256=VALUES(source_text_sha256),source_observed_at=VALUES(source_observed_at),rule_version=VALUES(rule_version)",[video.videoId,snapshot.id,video.pk,sourceTextFingerprint(video.title,video.description),video.observedAt]);
+    await writeQualityAudit(db,snapshot.id,video.videoId,'unavailable',result);await db.commit();return {status:'unavailable' as const};
   }catch(error){await db.rollback().catch(()=>{});throw error;}
 }
+/** Candidate preparation time is immutable across dry-run, execute and resumed
+ * batches. Legacy previews use their immutable publication/window timestamp. */
+export function qualityProfileAnchor(snapshot:VocabularySnapshot){
+ const candidate=(snapshot as VocabularySnapshot&{qualityCandidate?:{preparedAt?:unknown}}).qualityCandidate;
+ const value=candidate?.preparedAt??(snapshot.publishedAt||snapshot.window?.until);
+ if(typeof value!=='string'||!Number.isFinite(Date.parse(value)))throw new Error('Matching requires an immutable snapshot profile anchor');
+ return taipeiSql(new Date(value));
+}
+export const MAX_INVALID_PROFILE_SHARE=0.25;
+export function videoQualityFailure(error:unknown,profile?:{reason?:string}){
+ return profile?.reason??(error instanceof Error&&error.message==='Video quality audit exceeds cap'?'audit-byte-cap-exceeded':'invalid-matching-input');
+}
+/** Reports bounded scalar telemetry only: never source text or audit payloads.
+ * Preflight runs before budget reservations or any evidence write. Profile and
+ * audit failures gate execution; malformed source identities retain the existing
+ * bounded skip/advance behavior instead of permanently wedging the cursor. */
+export function previewVideoQualityBatch(videos:VideoInput[],snapshot:VocabularySnapshot,profiles:Map<number,import('./description-templates.js').TemplateProfileResult>){
+ if(videos.length>500)throw new Error('Quality preview row budget exceeded');
+ const bytes:number[]=[],reasons:Record<string,number>={},channelReasons:Record<string,number>={};
+ const channelIds=new Set(videos.map(v=>v.channelId));let invalidChannels=0;
+ for(const id of channelIds){const p=profiles.get(id);if(!p?.profile){invalidChannels++;const reason=p?.reason??'invalid-channel';channelReasons[reason]=(channelReasons[reason]??0)+1;}}
+ for(const video of videos){const profile=profiles.get(video.channelId);try{if(!profile?.profile)throw Error('Unavailable template profile');bytes.push(Buffer.byteLength(evidenceForVideo(video,snapshot,profile.profile).qualityJson));}catch(error){const reason=videoQualityFailure(error,profile);reasons[reason]=(reasons[reason]??0)+1;}}
+ bytes.sort((a,b)=>a-b);const quantile=(p:number)=>bytes.length?bytes[Math.ceil(bytes.length*p)-1]!:null;
+ const invalidProfileShare=channelIds.size?invalidChannels/channelIds.size:0,invalidVideoShare=videos.length?(videos.length-bytes.length)/videos.length:0,guardedFailureVideoShare=videos.length?(videos.length-bytes.length-(reasons['invalid-matching-input']??0))/videos.length:0;
+ return {videos:videos.length,channels:channelIds.size,invalidChannels,channelReasons,videoReasons:reasons,invalidProfileShare,invalidVideoShare,guardedFailureVideoShare,maxInvalidProfileShare:MAX_INVALID_PROFILE_SHARE,maxGuardedFailureVideoShare:MAX_INVALID_PROFILE_SHARE,executeAllowed:invalidProfileShare<=MAX_INVALID_PROFILE_SHARE&&guardedFailureVideoShare<=MAX_INVALID_PROFILE_SHARE,
+ auditBytes:{successful:bytes.length,unavailable:videos.length-bytes.length,total:bytes.reduce((a,b)=>a+b,0),p50:quantile(.5),p95:quantile(.95),max:bytes.at(-1)??null,capPerVideo:VIDEO_QUALITY_MAX_BYTES,selectedWorstCase:videos.length*VIDEO_QUALITY_MAX_BYTES,oversized:reasons['audit-byte-cap-exceeded']??0}};
+}
+function rowVideo(row:RowDataPacket):VideoInput{return {channelId:Number(row.u_id),pk:Number(row.pk),videoId:row.videoId,title:row.title??'',description:row.description??'',observedAt:row.mtime??null};}
 export interface MatchBatchInput { afterPk: number; limit: number; version?: string; changedSince?: string; execute: boolean }
 export async function matchVideoBatch(input: MatchBatchInput, env: NodeJS.ProcessEnv) {
   if (!Number.isSafeInteger(input.afterPk) || input.afterPk < 0 || !Number.isSafeInteger(input.limit) || input.limit < 1 || input.limit > 500) throw new Error('Matching requires nonnegative afterPk and limit 1–500');
@@ -98,18 +131,20 @@ export async function matchVideoBatch(input: MatchBatchInput, env: NodeJS.Proces
     const snapshot = await loadVocabularySnapshot(db, input.version);
     if(input.execute&&snapshot.matchingRule!==MATCH_RULE)throw new Error('Quality writes require an explicit candidate vocabulary rule');
     const [rows] = await db.query<RowDataPacket[]>(`SELECT pk, u_id, videoId, title, description, mtime FROM urt_video WHERE pk > ?${input.changedSince ? ' AND mtime >= ?' : ''} ORDER BY pk ASC LIMIT ?`, [input.afterPk, ...(input.changedSince ? [taipeiSql(new Date(input.changedSince))] : []), input.limit + 1]);
-    const selected=rows.slice(0,input.limit),profiles=await loadDescriptionTemplateProfiles(db,selected.map(row=>Number(row.u_id)).filter(id=>Number.isSafeInteger(id)&&id>0),taipeiSql(new Date()));
+    const selected=rows.slice(0,input.limit),profileAnchor=qualityProfileAnchor(snapshot),profiles=await loadDescriptionTemplateProfiles(db,selected.map(row=>Number(row.u_id)).filter(id=>Number.isSafeInteger(id)&&id>0),profileAnchor);
+    const qualityPreview=previewVideoQualityBatch(selected.map(rowVideo),snapshot,profiles);
+    if(input.execute&&!qualityPreview.executeAllowed)return {mode:policy.mode,status:'quality-preflight-threshold',vocabularyVersion:snapshot.id,profileAnchor,qualityPreview,processed:0,nextAfterPk:input.afterPk,results:[],externalCalls:0};
     const results: { pk: number; videoId: string | null; status: string; count: number; reason?: string }[] = [];
     for (const row of selected) {
       const video: VideoInput = { channelId:Number(row.u_id),pk: Number(row.pk), videoId: row.videoId, title: row.title ?? '', description: row.description ?? '', observedAt: row.mtime ?? null };
       await check();
       let preview: ReturnType<typeof evidenceForVideo>;const profile=profiles.get(video.channelId);
       try { if(!profile?.profile)throw new Error('Unavailable template profile');preview = evidenceForVideo(video, snapshot,profile.profile); }
-      catch { const reason=profile?.reason??'invalid-matching-input';if(input.execute)await storeUnavailableVideoQuality(db,video,snapshot,reason);results.push({ pk: video.pk, videoId: video.videoId ?? null, status: 'invalid', count: 0, reason }); continue; }
+      catch(error) { const reason=videoQualityFailure(error,profile);const unavailable=input.execute?await storeUnavailableVideoQuality(db,video,snapshot,reason):null;results.push({ pk: video.pk, videoId: video.videoId ?? null, status: unavailable?.status==='skipped-older-duplicate'?unavailable.status:'invalid', count: 0, reason }); continue; }
       if (input.execute) results.push({ pk: video.pk, videoId: video.videoId, ...await storeVideoEvidence(db, video, snapshot,profile!.profile!) });
       else results.push({ pk: video.pk, videoId: video.videoId, status: 'preview', count: preview.evidence.length });
     }
-    return { mode: policy.mode, vocabularyVersion: snapshot.id, coverage: snapshot.coverage, processed: results.length, nextAfterPk: rows.length > input.limit ? Number(rows[input.limit - 1]!.pk) : null, results, externalCalls: 0 };
+    return { mode: policy.mode, profileAnchor,qualityPreview,vocabularyVersion: snapshot.id, coverage: snapshot.coverage, processed: results.length, nextAfterPk: rows.length > input.limit ? Number(rows[input.limit - 1]!.pk) : null, results, externalCalls: 0 };
   };
   try { return input.execute ? await withWriterLock(db, VIDEO_EVIDENCE_JOB, work) : await work(async () => {}); }
   finally { await db.end(); }

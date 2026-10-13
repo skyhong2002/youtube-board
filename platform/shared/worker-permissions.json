@@ -1752,6 +1752,17 @@
       "dependencies": [
         "tags.videos.match"
       ]
+    },
+    "tags.vocabulary.quality": {
+      "tables": {
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT"
+        ]
+      },
+      "dependencies": [
+        "tags.vocabulary.sync"
+      ]
     }
   }
 }

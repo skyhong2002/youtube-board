@@ -34,21 +34,23 @@ it.skipIf(process.env.JOBS_DB_TEST !== '1')('evidence writes keep byte-exact vid
       await db.execute("UPDATE ts_vocabulary_runs SET snapshot=JSON_SET(snapshot,'$.matchingRule',?) WHERE id=?",[MATCH_RULE,id]);
       expect(await storeVideoEvidence(db, video, published,profile)).toEqual({ status: 'written', count: 2 });
       expect(await storeVideoEvidence(db, { ...video, pk: 2, observedAt: '2026-10-10 08:00:00' }, published,profile)).toEqual({ status: 'unchanged', count: 2 });
+      expect(await storeVideoEvidence(db,video,published,profile)).toEqual({status:'skipped-older-duplicate',count:0});
+      expect(await storeUnavailableVideoQuality(db,video,published,'sample-timeout')).toEqual({status:'skipped-older-duplicate'});
       const [fresh] = await db.query<RowDataPacket[]>('SELECT source_pk, source_observed_at FROM ts_video_tag_matches WHERE video_id = ? AND vocabulary_version = ?', [video.videoId, published.id]);
       expect(Number(fresh[0]?.source_pk)).toBe(2);
       expect(fresh[0]?.source_observed_at).toBe('2026-10-10 08:00:00.000');
       expect(await storeVideoEvidence(db, { ...video, videoId: 'abcdef12345' }, published,profile)).toEqual({ status: 'written', count: 2 });
-      expect(await storeVideoEvidence(db, { ...video, title: '完全不相干' }, published,profile)).toEqual({ status: 'written', count: 0 });
+      expect(await storeVideoEvidence(db, { ...video,pk:2, title: '完全不相干' }, published,profile)).toEqual({ status: 'written', count: 0 });
       const [markers] = await db.query<RowDataPacket[]>('SELECT video_id, evidence_count FROM ts_video_tag_matches WHERE vocabulary_version = ? ORDER BY video_id', [id]);
       expect(markers.map(m => [m.video_id, m.evidence_count])).toEqual([['Abcdef12345', 0], ['abcdef12345', 2]]);
       const [evidence] = await db.query<RowDataPacket[]>('SELECT video_id FROM ts_video_tag_evidence WHERE vocabulary_version = ?', [id]);
       expect(evidence.map(e => e.video_id)).toEqual(['abcdef12345', 'abcdef12345']);
-      const repeated=buildDescriptionTemplateProfile(1,Array.from({length:8},(_,i)=>({pk:i+1,videoId:'Sample'+String(i).padStart(5,'0'),publishedAt:'2026-10-10 12:00:00',description:'AI'}))),body={...video,description:'AI'};
+      const repeated=buildDescriptionTemplateProfile(1,Array.from({length:8},(_,i)=>({pk:i+1,videoId:'Sample'+String(i).padStart(5,'0'),publishedAt:'2026-10-10 12:00:00',description:'AI'}))),body={...video,pk:2,description:'AI'};
       expect(await storeVideoEvidence(db,body,published,repeated)).toEqual({status:'written',count:2});
       const [audit]=await db.query<RowDataPacket[]>('SELECT result FROM ts_job_runs WHERE job_key=? AND execution_key=?',[VIDEO_QUALITY_JOB,videoQualityKey(id,video.videoId)]);
       const quality=JSON.parse(audit[0]!.result);expect(quality.excluded).toMatchObject([{field:'description',start:0,end:2,text:'AI',reasons:['channel-repeated-line']}]);expect(quality.profile.repeatedLines[0]).not.toHaveProperty('line');
       expect(await storeVideoEvidence(db,body,published,profile)).toEqual({status:'written',count:3});
-      expect(await storeVideoEvidence(db,{...video,title:'😀aI',description:''},published,profile)).toEqual({status:'written',count:1});
+      expect(await storeVideoEvidence(db,{...video,pk:2,title:'😀aI',description:''},published,profile)).toEqual({status:'written',count:1});
       const[aliases]=await db.query<RowDataPacket[]>('SELECT term_key,matched_text,start_offset,end_offset FROM ts_video_tag_evidence WHERE video_id=? AND vocabulary_version=?',[video.videoId,id]);
       const keys=published.terms.filter(t=>t.term==='AI'||t.term==='ai').map(t=>t.key).sort();
       expect(aliases).toHaveLength(1);expect(aliases[0]).toMatchObject({term_key:keys[0],matched_text:'aI',start_offset:2,end_offset:4});
@@ -63,6 +65,19 @@ it.skipIf(process.env.JOBS_DB_TEST !== '1')('evidence writes keep byte-exact vid
       await storeUnavailableVideoQuality(db,body,published,'sample-timeout');
       const[withheld]=await db.query<RowDataPacket[]>('SELECT rule_version FROM ts_video_tag_matches WHERE video_id=? AND vocabulary_version=?',[video.videoId,id]);expect(withheld[0]?.rule_version).toBe('quality-unavailable-v2');
       expect(await storeVideoEvidence(db,body,published,profile)).toEqual({status:'written',count:3});
+      await storeUnavailableVideoQuality(db,{...body,pk:3},published,'sample-timeout');
+      expect(await storeVideoEvidence(db,body,published,profile)).toEqual({status:'skipped-older-duplicate',count:0});
+      const [newest]=await db.query<RowDataPacket[]>('SELECT source_pk,rule_version FROM ts_video_tag_matches WHERE video_id=? AND vocabulary_version=?',[video.videoId,id]);expect(newest[0]).toMatchObject({source_pk:'3',rule_version:'quality-unavailable-v2'});
+      const unrecorded={...body,videoId:'Unknown0001',pk:4};await storeUnavailableVideoQuality(db,unrecorded,published,'invalid-sample');
+      expect(await storeVideoEvidence(db,{...unrecorded,pk:3},published,profile)).toEqual({status:'skipped-older-duplicate',count:0});
+      const boundary={...body,videoId:'Boundary001',pk:4},sourceHash=evidenceForVideo(boundary,published,profile).sourceHash;
+      const empty=JSON.stringify({schemaVersion:1,ruleVersion:MATCH_RULE,status:'unavailable',reason:'',vocabularyVersion:published.id,videoId:boundary.videoId,sourcePk:boundary.pk,sourceHash});
+      const reason='x'.repeat(262144-Buffer.byteLength(empty));
+      await storeUnavailableVideoQuality(db,boundary,published,reason);
+      const [size]=await db.query<RowDataPacket[]>('SELECT OCTET_LENGTH(result) AS bytes FROM ts_job_runs WHERE job_key=? AND execution_key=?',[VIDEO_QUALITY_JOB,videoQualityKey(id,boundary.videoId)]);expect(Number(size[0]?.bytes)).toBe(262144);
+      await expect(storeUnavailableVideoQuality(db,{...boundary,pk:5},published,reason+'x')).rejects.toThrow('audit exceeds cap');
+      const [preserved]=await db.query<RowDataPacket[]>('SELECT source_pk FROM ts_video_tag_matches WHERE video_id=? AND vocabulary_version=?',[boundary.videoId,id]);expect(Number(preserved[0]?.source_pk)).toBe(4);
+
     });
   } finally {
     await db.execute("DELETE FROM ts_job_runs WHERE job_key=? AND JSON_UNQUOTE(JSON_EXTRACT(result,'$.vocabularyVersion'))=?",[VIDEO_QUALITY_JOB,id]);
