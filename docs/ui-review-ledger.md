@@ -448,3 +448,24 @@ v11 擷取失敗診斷、無截止的 Mint 發布計畫也完成獨立 source／
 Y2 上游 source audit 固定在 `48bc174`，原 `b8d030c` 契約來源另保留；沒有發現破壞 adapter 的 DTO 變化。新增 200 列／8 層與來源 ID、特殊 UTF-8／一次編碼、合法大回應拒絕而非空成功三組 mock；作者 58 項 focused tests 通過，另一 instance 獨立 review 並執行新增 3 項通過。未改 runtime/cap、未查正式上游或開旗標。source receipt 的 path/hash 在 JSON `mintOfflineAudits.y2ContractFollowup`，沒有增加 UI pass。
 
 完整詞庫匯入器 source preparation 已移除 500 頁限制：完整池上限 20,000 頁，逐頁寫入與 checksum；比對 loader 只查固定活躍集（每批 500），不反覆全池掃描。原始身份與標籤完整保留。獨立 GPT-6.1 Sol source review 與 44 個 mock tests 通過，1 個真實 DB 測試跳過；啟用所需的增量排程、正規化 offset、非活躍原因介面與備份／ownership／runtime 驗收仍未完成。此批另行保存，不進入 F2 UI candidate，也沒有改 serving pointer。詳見 JSON `mintOfflineAudits.vocabularyCapacityPreparation`。
+
+## Mint ARM 與離線手機修正（2026-10-13）
+
+唯一 owner 是 d7967e77；Mint 工具鏈已由 coordinator 報告就緒，slot 仍未交接（tag → YT → blog）。
+架構策略見 [Mint ARM64 交接](../platform/docs/mint-arm64-handoff-2026-10-13.md)：skyhong-blog 原生 ARM 編譯／封裝、Mint 只拍同一映像。
+隔離 API／readiness 與 executor STOP lifecycle 尚待接好，不能以正式 API 代替。未啟動建置、capture 或部署。
+
+獨立 GPT-6.1 Sol 實際看過舊654的 /videos、/live/current、/mayor、/mayor/cities/taipei 桌機／手機及 tag 參考，
+新增四份 findings-only 歷史頁 review，六個問題仍 open。路徑／SHA256／model／UTC／圖檔 hash 與限制在 JSON `historicalFindingsOnly654`。
+圖檔身分只來自舊 manifest，不作 runtime 套件證明；zero-GA 未證；不提升任何新候選 state。
+
+手機影片／直播改完整標題換行與小縮圖；市長頁保留醒目的覆蓋不全警示，逐日證據用 native disclosure；
+市長寬表的可測量橫捲提示移到表格前，避免讀到底才看見。三批 source 都由作者之外 reviewer 核對 final bytes，
+23 個 focused tests 通過，web noEmit 通過。來源證據在 JSON `mintOfflineAudits.uiSourceFollowup`；
+新 SHA 的密度／深色／圖檔真實載入／橫捲互動都仍待 Mint 重拍，舊 finding 不關閉。
+
+總計351 routes／622 entries；110 UI routes／376 UI states；246 非 UI n/a-ui。
+完整 route 完成0，新候選376 states全部待重拍／獨立review。四份補充歷史 review 不算新候選 pass。
+GSC 的既有去識別紀錄摘要見 [來源端爬蟲紀錄](../platform/docs/gsc-existing-log-summary-2026-10-13.md)：0筆可信 Googlebot index／子檔抓取，不把未驗證200當Google验收。
+
+上述 UI 原始碼另存於 `4d7dc12100f8cd647f077978beb918d17157633a`（準備分支），不是可直接建置的 release tip。ARM／GSC 文件已由另一 GPT-6.1 Sol 獨立 review；最終 receipt 与 concurrent timing correction 保留於 JSON `mintQueue.architecturePlanReview`。無新增候選通過狀態。

@@ -4,6 +4,8 @@
 
 **最新排程優先於本文件較早的解凍紀錄：SM 不新增 build、capture 或 restore，全部排隊到 Mint 準備好。** 已啟動的工具自然完成；原始碼、mock 測試、文件及既有圖片的離線 review 繼續。舊的 06:04 建置名額交接不能授權新的 SM 階段。Mint 交接清單為 `/tmp/babysit/mint-queue/youtube.md`；主機路徑、Node/npm、原生依賴架構、封裝方式與全站名額需重新確認後才能執行。
 
+最新架構計畫見 [Mint ARM64 交接](mint-arm64-handoff-2026-10-13.md)：coordinator 已報告 Mint 工具鏈就緒，但 YT slot、隔離 readiness/API 與 executor guard 仍待交接。原生 arm64 編譯／封裝在 skyhong-blog，Mint 只 capture，同樣占全站唯一名額。此更新不啟動任何工作。
+
 ## 解凍後新閘門（取代本文件較早的容量門檻）
 
 - 建置／image開始前實際 `df -h /home` 至少40GiB；執行期間低於30GiB，或load1超過12，或首頁整頁totalSeconds超過各站基準2倍（tag 2 秒、blog 6.17 秒、YT 2 秒；使用者明確同意 max(2 秒, 目前基準的 2 倍)），或任一站5xx／逾時或未知，立即暫停自己的建置及capture。不能只看TTFB，也不能只量blog。
