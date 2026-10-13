@@ -1,5 +1,30 @@
 # UI review ledger
 
+## 解凍後單一候選與重拍清單
+
+操作計畫：[f2-single-candidate-after-thaw.md](../platform/docs/f2-single-candidate-after-thaw.md)。
+逐項矩陣：[ui-retake-matrix.json](ui-retake-matrix.json)，由
+`python3 platform/tools/ui-retake-plan.py --check` 離線檢查與本 ledger 的一對一覆蓋。
+這是待辦清單，不是 capture 或 review 證據；凍結未解除。
+
+- 376 個 UI 狀態、110 個 UI route；每項分列亮／暗 × 1280／390，支援的頁面另列今日／近七日。合計 **2,060 個 viewport packages**（一個 package 包含整頁與必要分段），240 項仍需補實際樣本或既有隔離 mock；缺圖、缺權限或缺樣本都維持 pending。
+- 首輪：首頁與 `/keywords` 各兩種期間，`/keywords/沈伯洋/videos` 與 `/keywords/支持/videos` 各兩種期間，`/channels` 原有期間；共 36 個 packages、3 小批。首頁必須在每張整頁與分段前後確認文字雲及排行期間相同、資料世代未變。今日與七日只套用有該功能的區塊，不把頻道近期開始直播條件當成歷史日期範圍。
+- 期間依源碼：一般 from/to 為台北 D 至 D 或 D-6 至 D；群組指標起日排除，七日用 D-7 至 D。單日頁另拍既有歷史日；沒有期間選擇器的頁面明示不適用，不捏造控制項。雲／部分 AI 的 backend query 能力與可見 UI 分開記錄。
+- 既有 654 目錄224張PNG共49,932,059 bytes；manifest內24個viewport packages引用202張、43,225,260 bytes，另22張保留但不擅自歸屬。每包中位1.31MB、最大5.90MB；規劃每包2.5MB、保守上界6MB。全矩陣約 **5.15 GB**，保守 **12.36 GB**，另需互動／參考圖／網路收據；這不代表獲准使用這些容量。
+- 首輪PNG預估90MB、規劃上界216MB；每批含圖片與證據的硬上限90MB；每批12包的圖片上界72MB加12MB證據額度為84MB，三批硬上限共270MB，受既有**累計300MB**上限約束。不能換批重置累計、不能刪舊圖騰空間。超額部分保留 pending，待使用者明確給予足夠預算；首輪不涵蓋全部狀態或全站 review。
+- loading、empty、error、partial、互動及登入／權限是獨立狀態，不能用預設畫面取代。必須使用既有權限或經核准的去識別隔離資料，不能新增帳號／權限、不能在正式站故意製造錯誤或試寫。每一張新圖保存 SHA、BUILD_ID、artifact proof 連結與有上限的去識別網路紀錄；舊 zero-GA 未證保持未證。
+
+全站仍 **0 個完整 UI route 通過**；原0550／0620／0640 finding 與 SHA 限制不變。
+
+本輪追加原始碼修正：`6a7e83a` 修正分類群組直播導覽（獨立10項測試）；
+`f86ceca` 修正事件／影片歷史空資料提示、逐日數字與趨勢名稱（8項API mock、
+31項前端／快取／CSP測試、API/web noEmit，独立reviewer另跑8項API測試）。
+兩批均由實際Opus5.5實作、GPT-6.1 Sol獨立review，來源hash、時間與完整receipt路徑
+已記入JSON的`frozenSourceReviews`。noEmit使用既有依賴與generated types，沒有執行
+Next typegen/build；不同批次重疊測試不相加當唯一總數。
+`p0SourceFollowupBatch`逐項對照五個finding與commit；其餘本輪未重查的finding
+明確保留原狀，不宣稱全部P0已修完。這些修正都還沒有新SHA的畫面複驗。
+
 目前來源清單（凍結期間更新）：**351 route templates／622 entries**，其中
 **376 UI entries（110 routes）**：歷史review25筆（24 issues、1 static-only pass）、
 未review351筆；另246筆`n/a-ui`。**完整UI route完成0，下一候選376筆全部待重拍。**
