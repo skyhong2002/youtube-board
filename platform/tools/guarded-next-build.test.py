@@ -25,6 +25,11 @@ class Gates(unittest.TestCase):
         row['freeBytes'] -= 1
         self.assertIn('disk-stop-30GiB', guard.reasons(row))
 
+    def test_frozen_measured_baseline(self):
+        self.assertEqual(guard.SITE_LIMITS, {'tag': 2, 'blog': 6.17, 'youtube': 2})
+        self.assertEqual(guard.GATE_BASELINE['measuredFromUTC'], '2026-10-13T05:47:30Z')
+        self.assertEqual(guard.GATE_BASELINE['method']['samplesPerSite'], 5)
+
     def test_artifact_reserve(self):
         self.assertIn('estimated-artifacts-cross-30GiB', guard.reasons(good(), True, 11 * guard.GIB))
 
@@ -37,9 +42,9 @@ class Gates(unittest.TestCase):
         self.assertTrue(guard.reasons(row))
 
     def test_explicit_relative_blog_limit(self):
-        row = good(); row['sites']['blog']['totalSeconds'] = 6
+        row = good(); row['sites']['blog']['totalSeconds'] = 6.17
         self.assertEqual(guard.reasons(row), [])
-        row['sites']['blog']['totalSeconds'] = 6.01
+        row['sites']['blog']['totalSeconds'] = 6.1701
         self.assertTrue(guard.reasons(row))
 
     def test_remote_exception_cannot_reserve_global_slot(self):

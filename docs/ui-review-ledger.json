@@ -30873,7 +30873,7 @@
       "https://blog.observe.tw/",
       "https://youtube.observe.tw/"
     ],
-    "privateGateModule": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/capture-performance-gate-thaw-v6.mjs",
+    "privateGateModule": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/capture-performance-gate-thaw-v7.mjs",
     "privateGateLogPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/performance-gate.jsonl",
     "preexistingCaptureLimitation": "Previous completed batches lack before/after measurements; none invented.",
     "operatorHardStop": true,
@@ -30889,18 +30889,58 @@
     "capturePreparationReserveGiB": 40,
     "captureReserveIsConservativeImplementationChoice": true,
     "pauseBeforeBatchWhenAnyHomepageTotalSecondsExceeds": {
-      "tag": 2,
-      "blog": 6,
-      "youtube": 2
+      "tag": 2.0,
+      "blog": 6.17,
+      "youtube": 2.0
     },
     "pauseOnUnknownTimeoutOr5xx": true,
     "nextBuildWorkersMaximum": 2,
-    "privateGateModuleStatus": "v6 source accepted independently; both capture hard stops remain enabled pending image import, readiness and root release.",
+    "privateGateModuleStatus": "v7 frozen-baseline source accepted independently; both capture hard stops remain enabled pending image import, readiness and root release.",
     "remoteYTBuildExcludedFromLocalLimit": false,
     "recordedAt": "2026-10-13T05:43:06.302167+00:00",
     "hardStopReason": "New capture awaits verified image/readiness; new image/build phase awaits YT queue notification.",
     "sprintDeadlineUTC": null,
-    "workingWindowEndUTC": "2026-10-13T10:50:00Z"
+    "workingWindowEndUTC": "2026-10-13T10:50:00Z",
+    "frozenBaseline": {
+      "schemaVersion": 1,
+      "sourceReceipt": "/tmp/babysit/gate-baseline-receipt.md",
+      "sourceReceiptSHA256": "c897d26530db7e78b988b5c8c2614d5baa6a7e1716d8852cdc29f43c612d267b",
+      "measuredFromUTC": "2026-10-13T05:47:30Z",
+      "measuredToUTC": "2026-10-13T05:48:30Z",
+      "method": {
+        "tool": "curl",
+        "headers": {
+          "DNT": "1",
+          "Accept": "text/html"
+        },
+        "samplesPerSite": 5,
+        "secondsBetweenSamples": 3,
+        "metric": "time_total of complete homepage HTML",
+        "aggregation": "median",
+        "query": false,
+        "cookies": false,
+        "javascriptOrGA": false
+      },
+      "formula": "max(2 seconds, 2 * baseline median seconds)",
+      "sites": {
+        "tag": {
+          "medianSeconds": 0.256,
+          "limitSeconds": 2.0,
+          "cacheContext": "Cloudflare HIT (5/5)"
+        },
+        "blog": {
+          "medianSeconds": 3.085,
+          "limitSeconds": 6.17,
+          "cacheContext": "Cloudflare DYNAMIC / no-store (5/5)"
+        },
+        "youtube": {
+          "medianSeconds": 0.289,
+          "limitSeconds": 2.0,
+          "cacheContext": "Cloudflare HIT (2/5), EXPIRED (3/5)"
+        }
+      },
+      "scope": "Frozen operator-approved baseline; each runtime probe compares a full-response sample, never automatically rebaselines. Edge timings do not establish origin render time."
+    }
   },
   "referenceRepositoryEvidence": {
     "path": "/home/deck/.cache/tag-visuals",
@@ -33867,13 +33907,109 @@
       "storageLimitation": "3.45 GiB excluding stopped compiler writable layer; original per-stage 3 GiB estimate was low, documented overall 8 GiB reserve retained; no files deleted."
     },
     "latestOperationalSourceReview": {
-      "receipt": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/capture-v6-root-five-file-independent-review.json",
-      "sha256": "4703f0a2bc74bf6ac12c8dfb73c6ddfa7b78c9dee6f97ac59cd0a167db13c487",
+      "receipt": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/frozen-baseline-v7-root-delta-independent-review.json",
+      "sha256": "b63a5cb636c27e7d28ae22fd9af816bae5012ed30637ce2399d00e93d5d01e54",
       "model": "GPT-6.1 Sol",
       "reviewer": "/root/capture_source_review",
-      "scope": "Latest v6 capture policy and local build guard source; no runtime or UI acceptance. Post-review storage accounting and receipt bookkeeping are explicitly supplemental.",
+      "scope": "Frozen-baseline v7 capture gate, local guardian, deployment receipt metadata and documentation source only; final receipt bookkeeping is supplemental.",
       "sourceAccepted": true,
       "runtimeOrUIApproval": false
-    }
+    },
+    "operationalSourceReviewHistory": [
+      {
+        "receipt": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/capture-v6-root-five-file-independent-review.json",
+        "sha256": "4703f0a2bc74bf6ac12c8dfb73c6ddfa7b78c9dee6f97ac59cd0a167db13c487",
+        "model": "GPT-6.1 Sol",
+        "reviewer": "/root/capture_source_review",
+        "scope": "Latest v6 capture policy and local build guard source; no runtime or UI acceptance. Post-review storage accounting and receipt bookkeeping are explicitly supplemental.",
+        "sourceAccepted": true,
+        "runtimeOrUIApproval": false
+      }
+    ]
+  },
+  "externalSprintEvidenceAudit1340": {
+    "path": "/home/deck/.cache/youtube-ui-review/root-sprint-review-evidence-1340.json",
+    "sha256": "7e9b48ddb82a44990abe2dd7ac3859e8388d47140b1998c84b273e3b28f78ad2",
+    "bytes": 7718,
+    "auditUTC": "2026-10-13T05:44:25.493746+00:00",
+    "model": "GPT6.1Sol",
+    "sourceSHA": "a77f84d9e5785106bff957a4d3873b6db85af7ea",
+    "BUILD_ID": "dSzDaU9M4jqYXzUwz7XSr",
+    "candidateApproval": false,
+    "routeComplete": false,
+    "firstEnvelopePackages": 36,
+    "firstEnvelopeStatus": "pending",
+    "routes": [
+      {
+        "route": "/",
+        "model": "GPT6.1Sol",
+        "expectedSHA": "a77f84d9e5785106bff957a4d3873b6db85af7ea",
+        "ledgerBuildID": "dSzDaU9M4jqYXzUwz7XSr",
+        "status": "missing-new-exact-capture-evidence-in-permitted-inputs",
+        "statesReviewed": [],
+        "statesPending": [
+          "1280/390",
+          "light/dark",
+          "populated/empty/unavailable",
+          "loading",
+          "interaction",
+          "authentication"
+        ],
+        "wholeRoutePass": false
+      },
+      {
+        "route": "/keywords",
+        "model": "GPT6.1Sol",
+        "expectedSHA": "a77f84d9e5785106bff957a4d3873b6db85af7ea",
+        "ledgerBuildID": "dSzDaU9M4jqYXzUwz7XSr",
+        "status": "missing-new-exact-capture-evidence-in-permitted-inputs",
+        "statesReviewed": [],
+        "statesPending": [
+          "1280/390",
+          "light/dark",
+          "populated/empty/unavailable",
+          "loading",
+          "interaction",
+          "authentication"
+        ],
+        "wholeRoutePass": false
+      },
+      {
+        "route": "/keywords/支持/videos",
+        "model": "GPT6.1Sol",
+        "expectedSHA": "a77f84d9e5785106bff957a4d3873b6db85af7ea",
+        "ledgerBuildID": "dSzDaU9M4jqYXzUwz7XSr",
+        "status": "missing-new-exact-capture-evidence-in-permitted-inputs",
+        "statesReviewed": [],
+        "statesPending": [
+          "1280/390",
+          "light/dark",
+          "populated/empty/unavailable",
+          "loading",
+          "interaction",
+          "authentication"
+        ],
+        "wholeRoutePass": false
+      },
+      {
+        "route": "/channels",
+        "model": "GPT6.1Sol",
+        "expectedSHA": "a77f84d9e5785106bff957a4d3873b6db85af7ea",
+        "ledgerBuildID": "dSzDaU9M4jqYXzUwz7XSr",
+        "status": "missing-new-exact-capture-evidence-in-permitted-inputs",
+        "statesReviewed": [],
+        "statesPending": [
+          "1280/390",
+          "light/dark",
+          "populated/empty/unavailable",
+          "loading",
+          "interaction",
+          "authentication"
+        ],
+        "wholeRoutePass": false
+      }
+    ],
+    "limitations": "Only four named existing remoteJSONdocuments read. No filesystem screenshot search, browser, capture, build, test, deployment, remote modification, cleanup, account login or officialledger changes. No images copied;0bytes against20MB cap. This audit does not independently verify source or frontend proof claims.",
+    "ownerInterpretation": "Read-only evidence inventory, not source/artifact verification or visual review. No new a77f84d screenshots existed; every new-SHA visual state remains pending. Historical654 approval cannot transfer. buildStarted=true and candidateStarted=false are sequential stages, not evidence that a candidate is ready."
   }
 }

@@ -5,7 +5,7 @@
 操作計畫：[f2-single-candidate-after-thaw.md](../platform/docs/f2-single-candidate-after-thaw.md)。
 逐項矩陣：[ui-retake-matrix.json](ui-retake-matrix.json)，由
 `python3 platform/tools/ui-retake-plan.py --check` 離線檢查與本 ledger 的一對一覆蓋。
-這是待辦清單，不是 capture 或 review 證據。15:10 衝刺期限已取消，第二窗口到台北 18:50，品質優先。最新明確授權：全站 1 個建置（含遠端 YT）、2 個截圖瀏覽器；blog → YT → tag，等待 YT 輪到通知。整頁相對閘門 max(2 秒, 基準兩倍)：tag/YT 2 秒、blog 6 秒；任一 5xx、未知或逾時、load >12 都不啟動新建置或 capture。建置開始至少 40 GiB，執行低於 30 GiB 暫停。已在更正前執行的工具可以完成；舊遠端豁免不再適用。capture 仍等精確映像與 readiness 證據，未解鎖。
+這是待辦清單，不是 capture 或 review 證據。15:10 衝刺期限已取消，第二窗口到台北 18:50，品質優先。最新明確授權：全站 1 個建置（含遠端 YT）、2 個截圖瀏覽器；blog → YT → tag，等待 YT 輪到通知。整頁相對閘門 max(2 秒, 基準兩倍)：tag/YT 2 秒、blog 6.17 秒；任一 5xx、未知或逾時、load >12 都不啟動新建置或 capture。建置開始至少 40 GiB，執行低於 30 GiB 暫停。已在更正前執行的工具可以完成；舊遠端豁免不再適用。capture 仍等精確映像與 readiness 證據，未解鎖。
 
 - 376 個 UI 狀態、110 個 UI route；每項分列亮／暗 × 1280／390，支援的頁面另列今日／近七日。合計 **2,060 個 viewport packages**（一個 package 包含整頁與必要分段），240 項仍需補實際樣本或既有隔離 mock；缺圖、缺權限或缺樣本都維持 pending。
 - 首輪：首頁與 `/keywords` 各兩種期間，`/keywords/沈伯洋/videos` 與 `/keywords/支持/videos` 各兩種期間，`/channels` 原有期間；共 36 個 packages、3 小批。首頁必須在每張整頁與分段前後確認文字雲及排行期間相同、資料世代未變。今日與七日只套用有該功能的區塊，不把頻道近期開始直播條件當成歷史日期範圍。
@@ -399,3 +399,9 @@ Ledger仍344個route／591 entries，350 UI中25已review（24 issues、1僅stat
 最新建置來源 `a77f84d`、BUILD_ID `dSzDaU9M4jqYXzUwz7XSr` 已完成編譯與同份產物恢復；988 來源／3,414 payload 檔案核對。未開始新 capture、candidate、部署；376 個新候選 UI 狀態仍 pending，完整 UI route 完成數仍為 0。新的 guardian／文件更正不把舊截圖或 source review 提升為視覺通過。
 
 最新 v6 擷取程序及建置守門原始碼已由另一個 GPT-6.1 Sol 獨立 review，收據 `capture-v6-root-five-file-independent-review.json`（SHA-256 `4703f0a2bc74bf6ac12c8dfb73c6ddfa7b78c9dee6f97ac59cd0a167db13c487`）記於 JSON；兩個 capture hard stop 仍啟用。這是工具原始碼審查，沒有新增任何 UI pass。
+
+05:47:30–05:48:30 UTC 固定 baseline 已記錄於 `platform/tools/performance-gate-baseline.json`：每站以 curl、DNT:1、Accept:text/html，5 次完整首頁 HTML 的 time_total 取中位數，間隔 3 秒，不帶 query/cookie、不執行 JS。tag 0.256 秒 → 2 秒；blog 3.085 秒 → 6.17 秒；YT 0.289 秒 → 2 秒。來源收據 `/tmp/babysit/gate-baseline-receipt.md`，SHA-256 `c897d26530db7e78b988b5c8c2614d5baa6a7e1716d8852cdc29f43c612d267b`。執行探測與部署 receipt 記錄這份固定基準，不自行重新放寬。
+
+獨立 GPT-6.1 Sol 盤點原檔 `/home/deck/.cache/youtube-ui-review/root-sprint-review-evidence-1340.json`（7,718 bytes，SHA-256 `7e9b48ddb82a44990abe2dd7ac3859e8388d47140b1998c84b273e3b28f78ad2`）已核對並登錄 JSON。這是既有證據盤點，沒有看新圖，也沒有獨立驗證 source/artifact。`a77f84d` 首輪 36 項全部 pending，首頁、/keywords、/keywords/支持/videos、/channels 均無新版本 pass；candidateApproval=false。不能沿用 654cdf5 的通過狀態。
+
+固定 baseline v7 與對應 guardian／部署收據原始碼的獨立 review 收據為 `frozen-baseline-v7-root-delta-independent-review.json`，SHA-256 `b63a5cb636c27e7d28ae22fd9af816bae5012ed30637ce2399d00e93d5d01e54`；16 項 local guardian mock tests、6 項 capture policy tests 與 syntax checks 通過，無 runtime／視覺驗收。

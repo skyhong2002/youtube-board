@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "sourceReceipt": "/tmp/babysit/gate-baseline-receipt.md",
+  "sourceReceiptSHA256": "c897d26530db7e78b988b5c8c2614d5baa6a7e1716d8852cdc29f43c612d267b",
+  "measuredFromUTC": "2026-10-13T05:47:30Z",
+  "measuredToUTC": "2026-10-13T05:48:30Z",
+  "method": {
+    "tool": "curl",
+    "headers": {
+      "DNT": "1",
+      "Accept": "text/html"
+    },
+    "samplesPerSite": 5,
+    "secondsBetweenSamples": 3,
+    "metric": "time_total of complete homepage HTML",
+    "aggregation": "median",
+    "query": false,
+    "cookies": false,
+    "javascriptOrGA": false
+  },
+  "formula": "max(2 seconds, 2 * baseline median seconds)",
+  "sites": {
+    "tag": {
+      "medianSeconds": 0.256,
+      "limitSeconds": 2.0,
+      "cacheContext": "Cloudflare HIT (5/5)"
+    },
+    "blog": {
+      "medianSeconds": 3.085,
+      "limitSeconds": 6.17,
+      "cacheContext": "Cloudflare DYNAMIC / no-store (5/5)"
+    },
+    "youtube": {
+      "medianSeconds": 0.289,
+      "limitSeconds": 2.0,
+      "cacheContext": "Cloudflare HIT (2/5), EXPIRED (3/5)"
+    }
+  },
+  "scope": "Frozen operator-approved baseline; each runtime probe compares a full-response sample, never automatically rebaselines. Edge timings do not establish origin render time."
+}

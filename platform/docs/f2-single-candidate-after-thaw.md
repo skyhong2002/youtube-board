@@ -4,10 +4,10 @@
 
 ## 解凍後新閘門（取代本文件較早的容量門檻）
 
-- 建置／image開始前實際 `df -h /home` 至少40GiB；執行期間低於30GiB，或load1超過12，或首頁整頁totalSeconds超過各站基準2倍（tag 2 秒、blog 6 秒、YT 2 秒；使用者明確同意 max(2 秒, 目前基準的 2 倍)），或任一站5xx／逾時或未知，立即暫停自己的建置及capture。不能只看TTFB，也不能只量blog。
+- 建置／image開始前實際 `df -h /home` 至少40GiB；執行期間低於30GiB，或load1超過12，或首頁整頁totalSeconds超過各站基準2倍（tag 2 秒、blog 6.17 秒、YT 2 秒；使用者明確同意 max(2 秒, 目前基準的 2 倍)），或任一站5xx／逾時或未知，立即暫停自己的建置及capture。不能只看TTFB，也不能只量blog。
 - 先估每批新增量。tag還原仍可能以約28GB/小時消耗磁碟，不能把本次df當成後續階段保證；每阶段重讀、持續監控，任何停線都回報。預估8GiB峰值仍是準備估算，實際每階段核對；此版本不再沿用112.5GiB舊停止線。Capture準備版保守採40GiB加批次估計，這個額外capture餘裕是實作選擇，不冒稱使用者另訂的門檻。
 - 全站最多1個建置（遠端YT也計入）、全站2個capture瀏覽器；nice19/ionicec3，Next workers≤2。`tools/guarded-next-build.py`只適用同主機、自己建立session/process group的Next建置：flock加process檢查、持續量三站整頁時間、容量與load；故障或SIGINT/TERM先STOP自己群組並保留lock；不自動恢復。SIGUSR1是operator明確恢復請求，仍須重新通過全部閘門。它**不能暫停Docker/BuildKit daemon或遠端image工作**；那些階段必須另有host-side guard與安全停止方式，未備好就不啟動。
-- 閘門為取樣監控：三個串行探測最多4／8／4秒加5秒迴圈間隔，最壞約21秒另加OS排程延遲才偵測到違規；偵測後立即送SIGSTOP。若訊號失敗，記為`STOP-unconfirmed`、保留lock並要求operator處理，不能聲稱已物理暫停。SIGKILL／主機失效不在此程序可保證的範圍；實際部署仍須operator監看receipt。
+- 閘門為取樣監控：三個串行探測最多4／8.17／4秒加5秒迴圈間隔，最壞約21.17秒另加OS排程延遲才偵測到違規；偵測後立即送SIGSTOP。若訊號失敗，記為`STOP-unconfirmed`、保留lock並要求operator處理，不能聲稱已物理暫停。SIGKILL／主機失效不在此程序可保證的範圍；實際部署仍須operator監看receipt。
 - 新階段需要全站單一建置名額及 YT 排隊釋出的新收據（120 秒內，包含遠端及其他 owner 已空閒的實際核對）；不能再用舊 remoteBuildAuthorized 或 blogBuildFinished 收據略過排隊。已在更正前執行的工具依使用者指示完成，後續階段重新排隊。
 - Next編譯保留核准的公開measurement ID `G-X2G1PLNP7K`（會被inline，不能只靠部署後runtime env補回）。candidate hostname/DNT guard與capture啟動前網路封鎖照舊；設定ID不等於測試送GA事件。
 - 部署後只清理本輪新產生、確認無須保留的暫存；先列精確路徑與來源、確認不屬release/回退/證據/備份再清理。既有檔案一律保留。
@@ -81,3 +81,5 @@
 05:44 UTC 同份產物封裝驗證完成：95 層，OCI 887,952,384 bytes，3,414 份 COPY-layer 檔案全部符合 manifest；映像 config digest `sha256:ee5d4036083b1ee84ae1cc30e2def608328dd721726c195aedd9e8edd79df290`，OCI manifest `sha256:41239f1bed1aca36640452e73b59022b59bd7c97b61f6071be02f84ea1b21403`。Config 僅 revision label 改變。建置器已停止、名額釋出；尚未匯入 engine、啟動 candidate 或部署。其後的匯入與 candidate 等 YT 排隊通知，不能用完整性核對代替 UI review。
 
 本轮容量實測：新 release 目錄 1,835,888,425 bytes，加專屬 BuildKit state 1,868,948,339 bytes，共約 3.45 GiB，尚未計入停止編譯容器的 writable layer。私有 guardian 的 3 GiB 階段估算偏低；整體仍保留本文件 8 GiB 預算，後續各階段重新量測。沒有刪除任何既有或本輪證據檔案。
+
+05:47:30–05:48:30 UTC 固定 baseline 已記錄於 `platform/tools/performance-gate-baseline.json`：每站以 curl、DNT:1、Accept:text/html，5 次完整首頁 HTML 的 time_total 取中位數，間隔 3 秒，不帶 query/cookie、不執行 JS。tag 0.256 秒 → 2 秒；blog 3.085 秒 → 6.17 秒；YT 0.289 秒 → 2 秒。來源收據 `/tmp/babysit/gate-baseline-receipt.md`，SHA-256 `c897d26530db7e78b988b5c8c2614d5baa6a7e1716d8852cdc29f43c612d267b`。執行探測與部署 receipt 記錄這份固定基準，不自行重新放寬。

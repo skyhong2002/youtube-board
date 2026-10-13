@@ -18,7 +18,9 @@ import time
 
 GIB = 1024 ** 3
 SITES = {'tag': 'https://tag.observe.tw/', 'blog': 'https://blog.observe.tw/', 'youtube': 'https://youtube.observe.tw/'}
-SITE_LIMITS = {'tag': 2, 'blog': 6, 'youtube': 2}
+GATE_BASELINE = json.loads(Path(__file__).with_name('performance-gate-baseline.json').read_text())
+SITE_LIMITS = {site: max(2, 2 * GATE_BASELINE['sites'][site]['medianSeconds']) for site in SITES}
+assert all(SITE_LIMITS[site] == GATE_BASELINE['sites'][site]['limitSeconds'] for site in SITES)
 
 
 def valid_slot_notice(notice, now=None):
@@ -66,7 +68,7 @@ def sample():
         try:
             response = subprocess.run(['curl', '--silent', '--show-error', '--max-time', str(SITE_LIMITS[site] + 1),
                                        '--output', '/dev/null', '--user-agent', 'youtube-board-verify/1.0',
-                                       '--header', 'DNT: 1', '--write-out', '%{http_code} %{time_total}', url],
+                                       '--header', 'DNT: 1', '--header', 'Accept: text/html', '--write-out', '%{http_code} %{time_total}', url],
                                       capture_output=True, text=True, timeout=SITE_LIMITS[site] + 2)
             status, total = response.stdout.split()
             result['sites'][site] = {'exitCode': response.returncode, 'status': int(status), 'totalSeconds': float(total)}
@@ -221,7 +223,7 @@ def main():
             log.flush()
         initial = sample()
         blocked = reasons(initial, starting=True, estimate_bytes=args.estimated_gib * GIB)
-        record('preflight', sample=initial, failures=blocked, estimatedGiB=args.estimated_gib)
+        record('preflight', sample=initial, failures=blocked, estimatedGiB=args.estimated_gib, performanceGateBaseline=GATE_BASELINE)
         if blocked:
             return 75
         # Other threads may not yet honor flock; rescan after the HTTP preflight.
