@@ -34,7 +34,7 @@ def collect_sites(runner=subprocess.run, clock=lambda:datetime.datetime.now(date
       value=value.strip().upper()
       row['cfCacheStatus']=value if value in cache_values else 'UNKNOWN'
    except subprocess.TimeoutExpired:row['exitCode']=28
-   except (OSError,ValueError,TypeError,AttributeError,OverflowError):row['exitCode']=125
+   except (OSError,ValueError,TypeError,AttributeError,OverflowError):pass
    row['finishedAt']=clock();attempts.append(row)
   result[name]=attempts
  return result

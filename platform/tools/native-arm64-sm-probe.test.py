@@ -64,7 +64,8 @@ class ProbeTests(unittest.TestCase):
         for text in ['\nYT_PROBE_METRICS 200 nan 1', 'sensitive-sentinel']:
             run = lambda *a, **kw: SimpleNamespace(returncode=0, stdout=text, stderr='')
             rows = helpers()['collect_sites'](run)['tag']
-            self.assertEqual(rows[0]['exitCode'], 125)
+            self.assertEqual(rows[0]['exitCode'], 0)
+            self.assertIsNone(rows[0]['totalSeconds'])
             self.assertNotIn('sensitive-sentinel', json.dumps(rows))
         run = lambda *a, **kw: SimpleNamespace(returncode=0, stderr='', stdout=
             'CF-Cache-Status: sensitive-sentinel\n\nYT_PROBE_METRICS 200 1 1')
