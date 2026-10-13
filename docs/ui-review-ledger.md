@@ -517,3 +517,8 @@ source／文件審查不增加UI pass，也不授予名額或runtime許可。
 
 native compiler lifecycle 的另一批 source／29項mock已經由非作者 GPT-6.1 Sol review，parent也重跑通過；收據在JSON `mintOfflineAudits.nativeExecutorLifecycleSourceReview`。
 只實作owner／image／cgroup身分與freeze／terminal檢查的無預設backend介面；沒有真實Docker/SSH/kernel操作，並非實際STOP證據。共享coordinator、watchdog、launcher與封裝仍pending。
+
+隔離MariaDB／API的OPS supervisor與worker完成獨立final-byte source review，10Python＋11Node mocks通過；13個APP依賴檔也跟70529Git物件逐一核對。receipt／hash在JSON `mintOfflineAudits.isolatedFixtureBootstrapSourceReview`。
+使用實際APP的SQL Reader、合成fixture與三段SQL/injection/HTTP readiness檢查；目前沒有實跑DB或API。
+這是fixture-only subset（持續要求buildCount0），不監控nativebuild，不能以它當作完整跨機executor。
+UTC10:10起tag持有全站唯一建置名額；YT不啟動build／共享鎖DB/API。可信admission publisher、共享coordinator、runtime依賴、crash-surviving containment／watchdog與實際STOP仍pending。所有UI states維持pending。

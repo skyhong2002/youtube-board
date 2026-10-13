@@ -35327,6 +35327,26 @@
       "scope": "No default backend/CLI; cgroup/STOP/terminal contracts mocked only. Actual IO/auth/cgroup writer/native launcher/global reservation/watchdog/package remain pending.",
       "executionPermission": false,
       "reservationReleaseAllowed": false
+    },
+    "isolatedFixtureBootstrapSourceReview": {
+      "model": "gpt-6.1-sol",
+      "reviewer": "/root/capture_source_review",
+      "reviewPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/mint-youtube-fixture-independent-source-review-final.json",
+      "sha256": "fd1f05fe06996c2972d8f4931c4debd2cfba55b0812965df314ee7e3360f32cc",
+      "reviewedAt": "2026-10-13T10:16:01.544811+00:00",
+      "authorReceiptPath": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-13/mint-youtube-fixture-author-source-only-2026-10-13.json",
+      "authorReceiptSha256": "87ee83a0a29b0e57601e7ea34243ad2540819af4640ef6b38a52e91ee17460c8",
+      "fileSha256": {
+        "platform/tools/mint-youtube-api-fixture.py": "2e38650b1f34b08e75b63366331309065facdb0030476b09c89b36beeab146a1",
+        "platform/tools/mint-youtube-api-fixture.test.py": "8bf17568c1ce6d0454a5bb6e0de6b513f128d7bb417436d423781c6bf307d298",
+        "platform/tools/mint-youtube-api-worker.mjs": "f5b3a5bde3912c6eb84707afb2e5e603a61d003ef2e535bce5ed1c51aeff16b3",
+        "platform/tools/mint-youtube-api-worker.test.mjs": "2c9dc8728906f83439ff52997524e3b093a4caf12acc7f13b9039d716db316d6"
+      },
+      "tests": "Independent10 Python +11Node mocks passed; parent reran21;13 APP dependency files independently byte-bound to APP70529",
+      "scope": "Fixture-only source/mock subset. buildCount0 throughout; cannot monitor a native build. Trusted admission publisher/coordinator, runtime deps, crash-surviving containment/watchdog, actual SQL/injection/HTTP startup and physical STOP remain unverified.",
+      "executionPermission": false,
+      "isolatedApiVerified": false,
+      "appSha": "70529cff13b6b7f5b3e0571a229e2b61660f9df4"
     }
   },
   "historicalFindingsOnly654": {
@@ -35959,5 +35979,12 @@
       "version": "10.11.14-MariaDB-0ubuntu0.24.04.1",
       "scope": "Actual --version only; not SQL/server startup/readiness"
     }
+  },
+  "mintGlobalSlotNotice1010": {
+    "observedFrom": "user/babysit message",
+    "fromUtc": "2026-10-13T10:10:00Z",
+    "owner": "tag",
+    "rule": "No YT build (including skyhong-blog) or shared-lock DB/API startup until tag release; source/tests/review continue",
+    "tagToYtHandoffAcknowledged": false
   }
 }
