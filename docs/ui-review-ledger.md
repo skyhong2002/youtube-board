@@ -565,3 +565,7 @@ UTC10:10起tag持有全站唯一建置名額；YT不啟動build／共享鎖DB/AP
 `edbf18e`加入NULL／實測0、partial／all-missing、heat排序與統計publisher/parser/eligibility回歸，以及有原始碼引用的調查；root ingestion11＋API12通過，author既有web9通過，independent ingestion/API noEmit通過。review要求修正文案：item_processing_failed可能晚於成功來源寫入，不能單憑catch reason推論NULL保留；r2原檔與receipt均保留。沒有證明歷史根因、沒有writer/scheduler/sort變更。
 
 實際獨立GPT-6.1 Sol receipt路徑、hash、UTC與commit見JSON `remainingScopeOfflineFindings1013`。完整42項盤點仍有可離線工作；APP70529固定，TAG持名額。110UIroutes／376新artifact狀態pending，完整route0。沒有build、DB/API、capture、runtime驗收或部署，舊review不提升。
+
+## Latest source checkpoint; candidate review pending
+
+APP `073985b8`, OPS `c0443494` have independent source PASS receipts recorded in the JSON checkpoint. Neither has a new BUILD_ID or actual candidate screenshots. Home (today/week), `/keywords` and the evidence page still need1280/390 candidate captures with DNT and saved zero-GA network evidence, followed by nonauthor review. Every new-artifact UI state remains pending. User now permits remaining pages to be reviewed after deployment; this changes ordering, not acceptance status. Native-runtime smoke exact command and fresh-probe packet are submitted to babysit; no container/build/capture/deploy started.
