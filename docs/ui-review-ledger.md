@@ -5,13 +5,13 @@
 操作計畫：[f2-single-candidate-after-thaw.md](../platform/docs/f2-single-candidate-after-thaw.md)。
 逐項矩陣：[ui-retake-matrix.json](ui-retake-matrix.json)，由
 `python3 platform/tools/ui-retake-plan.py --check` 離線檢查與本 ledger 的一對一覆蓋。
-這是待辦清單，不是 capture 或 review 證據。15:10 衝刺期限已取消，第二窗口到台北 18:50，品質優先。最新明確授權：全站 1 個建置（含遠端 YT）、2 個截圖瀏覽器；blog → YT → tag，等待 YT 輪到通知。整頁相對閘門 max(2 秒, 基準兩倍)：tag/YT 2 秒、blog 6.17 秒；任一 5xx、未知或逾時、load >12 都不啟動新建置或 capture。建置開始至少 40 GiB，執行低於 30 GiB 暫停。已在更正前執行的工具可以完成；舊遠端豁免不再適用。capture 仍等精確映像與 readiness 證據，未解鎖。
+這是待辦清單，不是 capture 或 review 證據。所有截止窗口已取消。SM 不新增 build／capture／restore；名額順序 tag → YT → blog，等待新交接。YT 採 skyhong-blog 原生 arm64 建置／封裝、Mint 只截圖。全站 1 個建置（含遠端）、2 個截圖瀏覽器；完整首頁相對閘門 tag/YT 2 秒、blog 6.17 秒；任一 5xx、未知或逾時、load >12 不啟動。建置開始至少40GiB、執行低於30GiB暫停。精確映像、隔離 API/readiness、executor guard、累計容量盤點未證前不執行。
 
 - 376 個 UI 狀態、110 個 UI route；每項分列亮／暗 × 1280／390，支援的頁面另列今日／近七日。合計 **2,060 個 viewport packages**（一個 package 包含整頁與必要分段），240 項仍需補實際樣本或既有隔離 mock；缺圖、缺權限或缺樣本都維持 pending。
 - 首輪：首頁與 `/keywords` 各兩種期間，`/keywords/沈伯洋/videos` 與 `/keywords/支持/videos` 各兩種期間，`/channels` 原有期間；共 36 個 packages、3 小批。首頁必須在每張整頁與分段前後確認文字雲及排行期間相同、資料世代未變。今日與七日只套用有該功能的區塊，不把頻道近期開始直播條件當成歷史日期範圍。
 - 期間依源碼：一般 from/to 為台北 D 至 D 或 D-6 至 D；群組指標起日排除，七日用 D-7 至 D。單日頁另拍既有歷史日；沒有期間選擇器的頁面明示不適用，不捏造控制項。雲／部分 AI 的 backend query 能力與可見 UI 分開記錄。
 - 既有 654 目錄224張PNG共49,932,059 bytes；manifest內24個viewport packages引用202張、43,225,260 bytes，另22張保留但不擅自歸屬。每包中位1.31MB、最大5.90MB；規劃每包2.5MB、保守上界6MB。全矩陣約 **5.15 GB**，保守 **12.36 GB**，另需互動／參考圖／網路收據；這不代表獲准使用這些容量。
-- 首輪PNG預估90MB、規劃上界216MB；每批含圖片與證據的硬上限90MB；每批12包的圖片上界72MB加12MB證據額度為84MB，三批硬上限共270MB，受既有**累計300MB**上限約束。不能換批重置累計、不能刪舊圖騰空間。超額部分保留 pending，待使用者明確給予足夠預算；首輪不涵蓋全部狀態或全站 review。
+- 首輪規劃36 packages、圖片預估90MB／上界216MB，證據額度30MB，合計上界246MB；每批含所有證據≤90MB、既有與新增累計≤300MB。已知舊圖49,932,059 bytes與停止批5,222,891 bytes若不重疊，加首輪已超額1,154,950 bytes。完整去重盤點未完成，故目前禁止執行；實測後縮減完整URL／狀態／期間／主題／寬度組，不重置預算、不刪證據。全矩陣5.15GB是估算，不是容量授权。
 - loading、empty、error、partial、互動及登入／權限是獨立狀態，不能用預設畫面取代。必須使用既有權限或經核准的去識別隔離資料，不能新增帳號／權限、不能在正式站故意製造錯誤或試寫。每一張新圖保存 SHA、BUILD_ID、artifact proof 連結與有上限的去識別網路紀錄；舊 zero-GA 未證保持未證。
 
 全站仍 **0 個完整 UI route 通過**；原0550／0620／0640 finding 與 SHA 限制不變。
@@ -435,3 +435,50 @@ Mint離線準備：實際matching-light tag參考已找到，原capture時間20:
 quality第二批修改已park在35a4794並推到自己的分支，獨立source review及45個mock/offline測試、jobsnoEmit通過，17個DB測試跳過。當前a77artifact不包含該批；啟用仍受syncownership／freshbackup／exactdeployedimplementation／operatorauthorization阻擋。未新增帳號、grant、schema或scheduler動作。
 
 396196c原始碼小修：RSC的合法HTMLfallback同樣協商identity完整entity，再做原hashCSP／SRI及privatecache檢查。作者14個mock測試及API noEmit通過，獨立reviewer另跑13個proxy／cache診斷／publicHTML測試通過。Flightstream及編碼staticbytes保留；真實5xx／不安全inline／不遵守identity仍503。已觀察手機503的精確根因仍未證，不把修復contractgap當實際驗收。新映像／新SHA重拍排隊Mint。
+
+
+## Mint 排隊期間的離線驗證
+
+使用者已取消所有截止窗口，最新 SM 不新增 build／capture／restore 的限制維持。固定 Mint 候選是 `e137c5f0a4c0184fe5bae8330b410eed74a07063`；未建置，376 個新候選 UI 狀態與所有完整 route 仍 pending。
+
+另一個 GPT-6.1 Sol 完成管理員覆核 source audit：58 項 focused mocks 通過，沒有阻擋性 source finding；只核對既有 session-only admin、Origin／CSRF、no-store、record-only 標示及安全輸出，不含 mounted React 互動、真實 SQL 或畫面驗收。原始 receipt 與 model provenance companion 的 path/hash 在 JSON `mintOfflineAudits`。root 另完成前端 279 項及 API 35／51 項離線回歸測試；這些測試有範圍重疊，不合算成新的 UI review 數量。
+
+v11 擷取失敗診斷、無截止的 Mint 發布計畫也完成獨立 source／document review；收據 hash 已登錄。兩個 capture hard stop 維持，沒有新的 capture、BUILD_ID 或部署。已有截圖可继续用於歷史 findings-only review，不轉用為 e137 pass。
+
+Y2 上游 source audit 固定在 `48bc174`，原 `b8d030c` 契約來源另保留；沒有發現破壞 adapter 的 DTO 變化。新增 200 列／8 層與來源 ID、特殊 UTF-8／一次編碼、合法大回應拒絕而非空成功三組 mock；作者 58 項 focused tests 通過，另一 instance 獨立 review 並執行新增 3 項通過。未改 runtime/cap、未查正式上游或開旗標。source receipt 的 path/hash 在 JSON `mintOfflineAudits.y2ContractFollowup`，沒有增加 UI pass。
+
+完整詞庫匯入器 source preparation 已移除 500 頁限制：完整池上限 20,000 頁，逐頁寫入與 checksum；比對 loader 只查固定活躍集（每批 500），不反覆全池掃描。原始身份與標籤完整保留。獨立 GPT-6.1 Sol source review 與 44 個 mock tests 通過，1 個真實 DB 測試跳過；啟用所需的增量排程、正規化 offset、非活躍原因介面與備份／ownership／runtime 驗收仍未完成。此批另行保存，不進入 F2 UI candidate，也沒有改 serving pointer。詳見 JSON `mintOfflineAudits.vocabularyCapacityPreparation`。
+
+## Mint ARM 與離線手機修正（2026-10-13）
+
+唯一 owner 是 d7967e77；Mint 工具鏈已由 coordinator 報告就緒，slot 仍未交接（tag → YT → blog）。
+架構策略見 [Mint ARM64 交接](../platform/docs/mint-arm64-handoff-2026-10-13.md)：skyhong-blog 原生 ARM 編譯／封裝、Mint 只拍同一映像。
+隔離 API／readiness 與 executor STOP lifecycle 尚待接好，不能以正式 API 代替。未啟動建置、capture 或部署。
+
+獨立 GPT-6.1 Sol 實際看過舊654的 /videos、/live/current、/mayor、/mayor/cities/taipei 桌機／手機及 tag 參考，
+新增四份 findings-only 歷史頁 review，六個問題仍 open。路徑／SHA256／model／UTC／圖檔 hash 與限制在 JSON `historicalFindingsOnly654`。
+圖檔身分只來自舊 manifest，不作 runtime 套件證明；zero-GA 未證；不提升任何新候選 state。
+
+手機影片／直播改完整標題換行與小縮圖；市長頁保留醒目的覆蓋不全警示，逐日證據用 native disclosure；
+市長寬表的可測量橫捲提示移到表格前，避免讀到底才看見。三批 source 都由作者之外 reviewer 核對 final bytes，
+23 個 focused tests 通過，web noEmit 通過。來源證據在 JSON `mintOfflineAudits.uiSourceFollowup`；
+新 SHA 的密度／深色／圖檔真實載入／橫捲互動都仍待 Mint 重拍，舊 finding 不關閉。
+
+總計351 routes／622 entries；110 UI routes／376 UI states；246 非 UI n/a-ui。
+完整 route 完成0，新候選376 states全部待重拍／獨立review。四份補充歷史 review 不算新候選 pass。
+GSC 的既有去識別紀錄摘要見 [來源端爬蟲紀錄](../platform/docs/gsc-existing-log-summary-2026-10-13.md)：0筆可信 Googlebot index／子檔抓取，不把未驗證200當Google验收。
+
+上述 UI 原始碼另存於 `4d7dc12100f8cd647f077978beb918d17157633a`（準備分支），不是可直接建置的 release tip。ARM／GSC 文件已由另一 GPT-6.1 Sol 獨立 review；最終 receipt 与 concurrent timing correction 保留於 JSON `mintQueue.architecturePlanReview`。無新增候選通過狀態。
+
+root 台北16:30另回報230筆log、verified Googlebot0、UA宣稱Googlebot且抓sitemap0，已附在JSON `mintQueue.gscExistingLogSummary.rootReportedUpdate`。230的完整篩選範圍／原始receipt未提供，與較早141筆discovery subset分開保留；不推測新增量或Google已抓取。離線比較的五份source與7eb48f4相同；沒有新HTTP／UAprobe，也不宣稱GSC根因或修復。
+
+root16:30的GSC補充與離線source結論另經獨立GPT-6.1 Sol核對，receipt在JSON `mintQueue.gscRoot1630IndependentReview`。未執行新測試／網路請求；沒有GSC修復或Google抓取成功聲稱。
+
+
+## 本輪離線測試與 Mint 清單（尚未建置）
+
+- `5327497`：詞庫 checksum 掃描／writer ownership與 publication rollback 的七個 adversarial mock；六套51通過、1真實DB跳過，root另跑兩檔25通過／1跳過，jobs noEmit通過。runtime與測試分別由獨立instance review；此批不進UI候選、不發布詞庫。成功COMMIT後丟失ACK仍不確定，不冒稱已測。
+- `ce265be`：Y2新增七個 raw-ID、NFKC差異、一次URL編碼、split UTF-8 131072/131073-byte回應界線案例；65通過、API noEmit通過，root另instance核對新測試並重跑65項。旗標仍關閉、無外部請求。
+- 重拍 generator／matrix 已独立source review，可用 `--check --mint-manifest --candidate-sha <exact SHA>` 輸出portable清單；SHA參數只檢查格式，沒有驗證runtime。2060 packages全部pending，240項無resolved example、fixture/readiness均未證。receipt的path/hash/time與限制見JSON `mintOfflineAudits`。
+
+UI修正successor將只從e137父樹選入4d7dc12的11份reviewed UI code/test、最終Y2契約測試和規劃文件；不追隨準備分支tip，不納入parked jobs／worker permissions。所有376新artifact狀態待重拍，完整route通過0。

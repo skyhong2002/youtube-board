@@ -7,6 +7,31 @@ upstream reference is `tag-f1-release` commit
 `8d020d20cc23e62ef0170144a363c1fe0c68ef5da42ad5610fa8a9f6713849a1`.
 The upstream endpoint has not been verified as deployed during this freeze.
 
+Offline source audit on 2026-10-13 (GPT-6.1 Sol) compared the retained upstream
+commit `48bc174bbcddaa3f84d8da65024e328a0b2abc71`, rather than assuming the
+earlier `08f42aa` checkout was still current. Its tracked OpenAPI and relation
+sources matched that committed tree; unrelated untracked Mint tools were not
+contract inputs. The current OpenAPI SHA-256 is
+`29c959bca8498ddf1eeb0bc07b693e403634682d7f7e3cee04302a259a237862`.
+The original `b8d030c` pin and hash above remain the historical integration
+reference. The response fields and route are compatible with the adapter;
+the newer source explicitly caps all classification, ancestor and submitted
+rows together at 200, with depth at most 8 and truthful `truncated` metadata.
+This comparison does not establish the deployed upstream contract or authorize
+activation, a build, capture, migration or credential change.
+
+Three added offline API mock contracts cover the 200-row/depth-8 partial
+projection with all relation types and inherited origin IDs, exact once-only
+UTF-8 encoding (including slash, percent, emoji, distinct Unicode spellings and
+literal `group:N` tag labels), and a valid-shaped 200-row multibyte response
+above the unchanged 128 KiB client budget. The oversized response stays
+`unavailable` through `response-cap`, rather than becoming an empty success;
+the 200-row limit alone does not guarantee a small byte payload. The focused
+client and route suites passed 58 tests with one worker at nice 19. These are
+mock/source checks, not upstream requests or UI acceptance; the runtime flag
+remains disabled. The immutable private audit receipt is
+`/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-13/y2-contract-audit-20261013T0750Z.json`.
+
 `GET /api/v1/keywords/:keyword/relations` defaults to `disabled` without reading
 credentials, connecting to a database, or contacting tag. Only
 `TS_TAG_RELATIONS_ENABLED=true` enables the adapter. Its fixed upstream is

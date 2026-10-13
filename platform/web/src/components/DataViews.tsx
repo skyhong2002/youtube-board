@@ -29,9 +29,13 @@ function ChannelCell({ id, title, avatar }: { id: number; title: string; avatar?
     </Link>;
 }
 const channelColumns = {viewCount:'views',subscriberCount:'subscribers',videoCount:'videoCount',view_week:'weeklyViews',view_month:'monthlyViews',views_pred_week:'estimatedWeeklyViews',views_pred_month:'estimatedMonthlyViews',sub_week:'weeklySubscribers',sub_month:'monthlySubscribers',video_week:'weeklyVideos',video_month:'monthlyVideos'} as const;
-/** The channel name is the one lead text allowed to wrap: on phones up to two lines inside the
+/** Channel names wrap on phones up to two lines inside the
  *  9.5rem / 5.5rem lead (full name in the link title); from sm up it stays one clipped line. */
 const channelName = `${table.leadText} max-sm:line-clamp-2 max-sm:whitespace-normal max-sm:[overflow-wrap:anywhere] sm:max-w-xs`;
+/** Give phone video titles the whole lead width and room for distinguishing suffixes.
+ * Desktop titles stay clipped; the small thumbnail yields when the phone table scrolls. */
+const videoName = "min-w-0 max-w-full max-sm:w-full max-sm:whitespace-normal max-sm:[overflow-wrap:anywhere] sm:truncate sm:max-w-xs";
+const videoLead = `${table.leadBox} flex items-center gap-2 max-sm:flex-col max-sm:items-start`;
 export function ChannelTable({ rows, offset=0, ranking }: { rows: ChannelRow[];offset?:number;ranking?:ChannelRanking }) {
     if (!rows.length) return <Empty title="尚無符合條件的頻道" />;
     // As tag.observe.tw's ranking: the sorted metric sits right after the name, so phones see it
@@ -90,10 +94,9 @@ export function VideoTable({ rows }: { rows: VideoRow[] }) {
                     {rows.map((row) => (
                         <tr key={row.id} className={table.row}>
                             <td className={table.lead}>
-                              {/* Phones give the whole lead to the title; the thumbnail appears from sm up. */}
-                              <div className={`${table.leadBox} flex items-center gap-2`}>
-                                <span className={`${table.leadWide} shrink-0`}><VideoThumbnail videoId={row.id} width={48} height={27}/></span>
-                                <Link className={`${table.leadText} font-medium hover:underline sm:max-w-xs`}
+                              <div className={videoLead}>
+                                <span className={`${table.leadExtra} shrink-0`}><VideoThumbnail videoId={row.id} width={48} height={27}/></span>
+                                <Link className={`${videoName} font-medium hover:underline`}
                                     title={row.title || undefined}
                                     href={`/videos/${encodeURIComponent(row.id)}`}
                                 >
@@ -144,18 +147,15 @@ export function LiveTable({ rows,offset=0 }: { rows: LiveRow[];offset?:number })
                     {rows.map((row, index) => (
                         <tr key={row.id} className={table.row}>
                             <td className={table.lead}>
-                              {/* One line. Desktop: rank, thumbnail, title. Phones: only the channel avatar marks the
-                                  source (many live titles share a prefix) so the title keeps the lead; the channel name
-                                  is in its own column, and the full text stays in the link title. */}
-                              <div className={`${table.leadBox} flex items-center gap-2`}>
+                              {/* The live title identifies the video; channel attribution stays in its own column. */}
+                              <div className={videoLead}>
                                 <span className={`${table.leadWide} shrink-0 text-xs tabular-nums text-zinc-400`}>{String(offset+index+1).padStart(2,'0')}</span>
-                                <span className={`${table.leadWide} shrink-0`}><VideoThumbnail videoId={row.id} width={48} height={27}/></span>
-                                <Link className="flex min-w-0 items-center gap-1.5 font-medium hover:underline sm:max-w-xs"
+                                <span className={`${table.leadExtra} shrink-0`}><VideoThumbnail videoId={row.id} width={48} height={27}/></span>
+                                <Link className={`${videoName} font-medium hover:underline`}
                                     title={[row.channelTitle, row.title].filter(Boolean).join(" · ") || undefined}
                                     href={`/videos/${encodeURIComponent(row.id)}`}
                                 >
-                                    <span className="shrink-0 sm:hidden"><ChannelAvatar avatar={row.channelAvatar} title={row.channelTitle} size={16}/></span>
-                                    <span className={table.leadText}>{row.title || "直播標題尚未取得"}</span>
+                                    {row.title || "直播標題尚未取得"}
                                 </Link>
                               </div>
                             </td>

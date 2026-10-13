@@ -1,6 +1,7 @@
 'use client';
 
 import { type ReactNode, useEffect, useRef, useState } from 'react';
+import {TableScrollHint} from './TableScrollHint';
 
 type ScrollX = 'none' | 'start' | 'middle' | 'end';
 
@@ -23,6 +24,7 @@ export default function TableScroller({
   className = '',
   footer,
   startAtEnd = false,
+  showMobileScrollHint = false,
 }: {
   children: ReactNode;
   card?: boolean;
@@ -32,6 +34,8 @@ export default function TableScroller({
   footer?: ReactNode;
   /** Open scrolled to the right edge, for time axes whose newest columns are last. */
   startAtEnd?: boolean;
+  /** Opt-in explanation for wide comparison reports; only after overflow is measured. */
+  showMobileScrollHint?: boolean;
 }) {
   const ref = useRef<HTMLElement>(null);
   const [scroll, setScroll] = useState<ScrollX>();
@@ -96,6 +100,7 @@ export default function TableScroller({
     <div
       className={`table-frame relative ${card ? 'table-card overflow-hidden rounded-xl border border-zinc-300 bg-white dark:border-zinc-800 dark:bg-zinc-900' : ''} ${className}`}
     >
+      {showMobileScrollHint&&<TableScrollHint position={scroll}/>}
       <div className="relative">
       {/* Keyboard users can focus the region to scroll it sideways. */}
       <section

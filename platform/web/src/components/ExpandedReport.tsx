@@ -234,13 +234,13 @@ export async function ExpandedReport({
             {data.sections?.map((section, index) => (
                 <section key={`${section.title}-${index}`}>
                     <SectionHeading title={section.title} />
-                    {section.rows.length ? <ReportTable columns={section.columns} rows={section.rows} label={section.title}/> : <Empty title="這個項目尚無觀測資料" />}
+                    {section.rows.length ? <ReportTable columns={section.columns} rows={section.rows} label={section.title} showMobileScrollHint={Boolean(mayorCity)}/> : <Empty title="這個項目尚無觀測資料" />}
                 </section>
             ))}
             {data.rows.length > 0 ? (
                 <>
                     <SectionHeading title="觀測資料" />
-                    <ReportTable columns={data.columns} rows={data.rows} label={data.title||title}/>
+                    <ReportTable columns={data.columns} rows={data.rows} label={data.title||title} showMobileScrollHint={Boolean(mayorCity)}/>
                     
                 </>
             ) : !data.words?.length &&

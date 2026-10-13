@@ -42,7 +42,8 @@
     "uiRoutesComplete": 0,
     "uiStaticVisualPasses": 1,
     "nextCandidateUIRetakePending": 376,
-    "nextCandidateUIComplete": 0
+    "nextCandidateUIComplete": 0,
+    "supplementaryHistoricalVisualReviews": 4
   },
   "entries": [
     {
@@ -19524,6 +19525,36 @@
         ],
         "priorReviewScope": "Historical reviewedSHA only; not approval of the next candidate",
         "recaptureMatrixEntry": "ledger-407"
+      },
+      "supplementaryHistoricalReview": {
+        "receipt": {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/historical-654cdf5-videos-live-mayor-offline-gpt61-review.json",
+          "sha256": "313076748d1eaad9ff0a1ef765cdd52ac9ca705ed7e26ad2b52825f9fb1ad6cc",
+          "model": "gpt-6.1-sol",
+          "reviewer": "/root/capture_source_review",
+          "executionUTC": "2026-10-13T07:54:50.242382+00:00",
+          "scope": "immutable-historical-offline-image-findings",
+          "UIApproval": false,
+          "routeComplete": false
+        },
+        "coveredExampleURL": "https://youtube.observe.tw/live/current",
+        "reviewedSHA": "654cdf5c9829f2a5f884b063b117e6f6e0403e34",
+        "BUILD_ID": "2FFvSyVcDfwEmllyRVVv1",
+        "scope": "light1280/390 static findings-only; identity comes from historical manifest; zeroGA unproven",
+        "findings": [
+          {
+            "id": "historical-live-mobile-title-hidden-by-channel",
+            "priority": "P2",
+            "viewport": "mobile390",
+            "observed": "The first column combines channel name and title but ellipsizes so early that several rows show the channel plus only [中…] or […]. Two 日テレNEWS rows cannot be distinguished by their visible title fragments.",
+            "evidence": "mobile-slice-760.png",
+            "recommendation": "Recheck on Mint; give title its own readable line while retaining current/peak metrics. No interaction failure is inferred."
+          }
+        ],
+        "sourceFixStatus": "source-reviewed awaiting new SHA retake",
+        "currentStatePass": false,
+        "routeComplete": false,
+        "sourceFixCommit": "4d7dc12100f8cd647f077978beb918d17157633a"
       }
     },
     {
@@ -22381,6 +22412,47 @@
         ],
         "priorReviewScope": "Historical reviewedSHA only; not approval of the next candidate",
         "recaptureMatrixEntry": "ledger-462"
+      },
+      "supplementaryHistoricalReview": {
+        "receipt": {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/historical-654cdf5-videos-live-mayor-offline-gpt61-review.json",
+          "sha256": "313076748d1eaad9ff0a1ef765cdd52ac9ca705ed7e26ad2b52825f9fb1ad6cc",
+          "model": "gpt-6.1-sol",
+          "reviewer": "/root/capture_source_review",
+          "executionUTC": "2026-10-13T07:54:50.242382+00:00",
+          "scope": "immutable-historical-offline-image-findings",
+          "UIApproval": false,
+          "routeComplete": false
+        },
+        "coveredExampleURL": "https://youtube.observe.tw/mayor",
+        "reviewedSHA": "654cdf5c9829f2a5f884b063b117e6f6e0403e34",
+        "BUILD_ID": "2FFvSyVcDfwEmllyRVVv1",
+        "scope": "light1280/390 static findings-only; identity comes from historical manifest; zeroGA unproven",
+        "findings": [
+          {
+            "id": "historical-mayor-repeated-mobile-coverage-warning",
+            "priority": "P2",
+            "viewport": "mobile390",
+            "observed": "The long orange missing-coverage explanation appears before the combined share chart and repeats under each candidate chart. On mobile it occupies many lines and separates successive charts with substantial repeated text.",
+            "evidence": [
+              "mobile-slice-1520.png",
+              "mobile-slice-2280.png"
+            ],
+            "recommendation": "Retain the warning and incomplete markers; consider one full page explanation plus compact chart-specific status rather than repeating the full paragraph."
+          },
+          {
+            "id": "historical-mayor-mobile-table-discovery",
+            "priority": "P2",
+            "viewport": "mobile390",
+            "observed": "The lower observation table initially shows date, 蔣萬安 value/share and a partial 沈伯洋 value; later candidate/share/coverage columns lie beyond the right edge. No swipe or hidden-column cue is visible in the inspected table frame.",
+            "evidence": "mobile-slice-4560.png",
+            "recommendation": "Verify horizontal access on fresh candidate and consider an explicit table scroll cue; screenshots alone cannot establish scrolling is broken."
+          }
+        ],
+        "sourceFixStatus": "source-reviewed awaiting new SHA retake",
+        "currentStatePass": false,
+        "routeComplete": false,
+        "sourceFixCommit": "4d7dc12100f8cd647f077978beb918d17157633a"
       }
     },
     {
@@ -22692,6 +22764,47 @@
         ],
         "priorReviewScope": "Historical reviewedSHA only; not approval of the next candidate",
         "recaptureMatrixEntry": "ledger-467"
+      },
+      "supplementaryHistoricalReview": {
+        "receipt": {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/historical-654cdf5-videos-live-mayor-offline-gpt61-review.json",
+          "sha256": "313076748d1eaad9ff0a1ef765cdd52ac9ca705ed7e26ad2b52825f9fb1ad6cc",
+          "model": "gpt-6.1-sol",
+          "reviewer": "/root/capture_source_review",
+          "executionUTC": "2026-10-13T07:54:50.242382+00:00",
+          "scope": "immutable-historical-offline-image-findings",
+          "UIApproval": false,
+          "routeComplete": false
+        },
+        "coveredExampleURL": "https://youtube.observe.tw/mayor/cities/taipei",
+        "reviewedSHA": "654cdf5c9829f2a5f884b063b117e6f6e0403e34",
+        "BUILD_ID": "2FFvSyVcDfwEmllyRVVv1",
+        "scope": "light1280/390 static findings-only; identity comes from historical manifest; zeroGA unproven",
+        "findings": [
+          {
+            "id": "historical-taipei-repeated-mobile-coverage-warning",
+            "priority": "P2",
+            "viewport": "mobile390",
+            "observed": "Independently inspected Taipei detail frames repeat the full orange coverage explanation around the overview and candidate charts, consuming many mobile lines between comparisons.",
+            "evidence": [
+              "mobile-slice-1520.png",
+              "mobile-slice-2280.png"
+            ],
+            "recommendation": "Keep the disclosure but shorten repeated chart copies; recheck this distinct route on Mint."
+          },
+          {
+            "id": "historical-taipei-mobile-table-discovery",
+            "priority": "P2",
+            "viewport": "mobile390",
+            "observed": "The Taipei detail observation table also initially reveals only the left columns and a faded partial 沈伯洋 value at the right edge, without a visible horizontal-access hint.",
+            "evidence": "mobile-slice-4560.png",
+            "recommendation": "Verify table access and add a concise hidden-column cue if still present; no scroll failure is proven."
+          }
+        ],
+        "sourceFixStatus": "source-reviewed awaiting new SHA retake",
+        "currentStatePass": false,
+        "routeComplete": false,
+        "sourceFixCommit": "4d7dc12100f8cd647f077978beb918d17157633a"
       }
     },
     {
@@ -28280,6 +28393,36 @@
         ],
         "priorReviewScope": "Historical reviewedSHA only; not approval of the next candidate",
         "recaptureMatrixEntry": "ledger-574"
+      },
+      "supplementaryHistoricalReview": {
+        "receipt": {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/historical-654cdf5-videos-live-mayor-offline-gpt61-review.json",
+          "sha256": "313076748d1eaad9ff0a1ef765cdd52ac9ca705ed7e26ad2b52825f9fb1ad6cc",
+          "model": "gpt-6.1-sol",
+          "reviewer": "/root/capture_source_review",
+          "executionUTC": "2026-10-13T07:54:50.242382+00:00",
+          "scope": "immutable-historical-offline-image-findings",
+          "UIApproval": false,
+          "routeComplete": false
+        },
+        "coveredExampleURL": "https://youtube.observe.tw/videos",
+        "reviewedSHA": "654cdf5c9829f2a5f884b063b117e6f6e0403e34",
+        "BUILD_ID": "2FFvSyVcDfwEmllyRVVv1",
+        "scope": "light1280/390 static findings-only; identity comes from historical manifest; zeroGA unproven",
+        "findings": [
+          {
+            "id": "historical-videos-mobile-title-disambiguation",
+            "priority": "P2",
+            "viewport": "mobile390",
+            "observed": "At the initial table position only video and channel columns are visible. Titles are single-line, aggressively ellipsized (often only a common programme prefix), and the desktop thumbnails are absent. Similar adjacent daily-news rows are difficult to distinguish.",
+            "evidence": "mobile-slice-760.png",
+            "recommendation": "Recheck on Mint; consider a second title line or expandable title, with meaningful identity retained in the first column. The screenshots do not prove whether horizontal scrolling or row navigation resolves this."
+          }
+        ],
+        "sourceFixStatus": "source-reviewed awaiting new SHA retake",
+        "currentStatePass": false,
+        "routeComplete": false,
+        "sourceFixCommit": "4d7dc12100f8cd647f077978beb918d17157633a"
       }
     },
     {
@@ -30862,7 +31005,7 @@
     "ui_ledger": "Homepage, keyword/evidence, channels, videos, events, about, API HTML and error states.",
     "ui_review_2": "Live, tags, AI, groups, mayor, account gates, boards, comparisons, remaining public pages and existing-authorized admin/ops. Each reviewer must see the actual screenshots plus tag reference; no implementation self-review."
   },
-  "reviewEvidenceUpdatedAt": "2026-10-13T07:02:43.596160+00:00",
+  "reviewEvidenceUpdatedAt": "2026-10-13T09:00:11.200308+00:00",
   "capturePerformancePolicy": {
     "effectiveAt": "2026-10-12T19:40:30Z",
     "maxSharedCaptureBrowserInstances": 2,
@@ -30877,12 +31020,12 @@
     "privateGateLogPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/performance-gate.jsonl",
     "preexistingCaptureLimitation": "Previous completed batches lack before/after measurements; none invented.",
     "operatorHardStop": true,
-    "effectiveInstruction": "Latest explicit user decision: relative timings; global single build including remote; blog then YT then tag; 07:10 sprint canceled.",
+    "effectiveInstruction": "No deadlines. SM no new build/capture/restore. Native arm64 build/package skyhong-blog; Mint capture only. Fresh tag → YT → blog slot handoff required.",
     "buildSlotReleased": false,
     "buildSlotOrder": [
-      "blog",
+      "tag",
       "YT",
-      "tag"
+      "blog"
     ],
     "buildStartFreeGiB": 40,
     "buildPauseFreeGiB": 30,
@@ -30900,7 +31043,7 @@
     "recordedAt": "2026-10-13T05:43:06.302167+00:00",
     "hardStopReason": "New capture awaits verified image/readiness; new image/build phase awaits YT queue notification.",
     "sprintDeadlineUTC": null,
-    "workingWindowEndUTC": "2026-10-13T10:50:00Z",
+    "workingWindowEndUTC": null,
     "frozenBaseline": {
       "schemaVersion": 1,
       "sourceReceipt": "/tmp/babysit/gate-baseline-receipt.md",
@@ -34287,15 +34430,84 @@
     "scope": "Clarification of original receipt wording only; does not rebaseline or change runtime limits."
   },
   "mintQueue": {
-    "owner": "root YT deploy owner",
+    "owner": "d7967e77",
     "handoffPath": "/tmp/babysit/mint-queue/youtube.md",
     "humanInstruction": "New SM builds/captures/restores queued until Mint ready; already-running tools allowed to end naturally",
     "noNewSMCapture": true,
     "routeComplete": false,
     "candidateApproval": false,
     "retakeStatesPending": 376,
-    "scopeNote": "Only codex/f2-keyword-quality worktree is the clean handoff target; other retained worktrees are untouched and not claimed clean.",
-    "deadline": "No deadline; human canceled18:50window. Continue authorized offline work and queued acceptance until scope is complete."
+    "scopeNote": "Build baseline remains clean committed tree e137. Reviewed UI followup saved in 4d7dc12100f8cd647f077978beb918d17157633a on preparation branch; does not authorize building preparation branch tip. Parked worker/vocabulary work excluded; successor candidate not yet assembled.",
+    "deadline": "No deadline; human canceled18:50window. Continue authorized offline work and queued acceptance until scope is complete.",
+    "toolchainReadiness": "coordinator reported Mint ready UTC2026-10-13T08:08, x86_64 Node24.15.0/npm11.12.1; not a current gate probe",
+    "buildOrder": [
+      "tag",
+      "youtube",
+      "blog"
+    ],
+    "selectedArchitecturePlan": "native arm64 build/package on skyhong-blog; Mint browser capture only; no new execution",
+    "architecturePlan": "platform/docs/mint-arm64-handoff-2026-10-13.md",
+    "workspaceRoot": "/var/lib/observe-worker",
+    "perSiteWorkspace": null,
+    "globalBuildLock": "/run/lock/mint-global-build.lock",
+    "slotReleased": false,
+    "isolatedApiReadiness": "pending coordinator wiring; no production API fallback",
+    "architecturePlanReview": [
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/mint-arm64-plan-independent-review-final.json",
+        "sha256": "7c4aafa7691afbb66d65145107e6cd51884bf6bf9ded1e98ccc20b2c4bf044ef",
+        "model": "gpt-6.1-sol",
+        "executionUTC": "2026-10-13T08:21:45.555075+00:00",
+        "scope": "offline plan/doc review; not executor or artifact acceptance",
+        "UIApproval": false,
+        "routeComplete": false
+      },
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/mint-arm64-plan-review-binding-timing-correction.json",
+        "sha256": "267fd4ee6a5afe13511a47b8a35268267bf893c9cdd79a80201ddacbde5e760b",
+        "model": "gpt-6.1-sol",
+        "executionUTC": "2026-10-13T08:22:17.266608+00:00",
+        "scope": "offline plan/doc review; not executor or artifact acceptance",
+        "UIApproval": false,
+        "routeComplete": false
+      }
+    ],
+    "sourceFixCommit": "4d7dc12100f8cd647f077978beb918d17157633a",
+    "gscExistingLogSummary": {
+      "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/crawler-gsc-deidentified-20261013T081330Z.json",
+      "sha256": "d2af1b12677a6d285dfdd308965d7feae60420e412bc5562350c7d60a8c60a1c",
+      "collectedAtUTC": "2026-10-13T08:13:30.924841+00:00",
+      "records": 141,
+      "verifiedGooglebotIndex": 0,
+      "verifiedGooglebotChildren": 0,
+      "newHTTPProbe": false,
+      "GSCResolutionClaim": false,
+      "rootReportedUpdate": {
+        "reportedTime": "2026-10-13 16:30 Asia/Taipei (user message)",
+        "provenance": "human-forwarded root read-only audit; raw receipt and exact count filter not supplied",
+        "reportedLogRecords": 230,
+        "verifiedGooglebot": 0,
+        "googlebotClaimedSitemapRequests": 0,
+        "verifiedIndexOrChildEvidence": 0,
+        "countComparableToEarlier141DiscoverySubset": false,
+        "newHTTPProbe": false,
+        "GSCResolutionClaim": false,
+        "offlineSourceReceipt": {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/gsc-source-and-root-log-update-20261013.json",
+          "sha256": "ee565c050e69c342f764cfc782dcdbd8920dad5c9e8de7264fc1083ad0dc9d69"
+        }
+      }
+    },
+    "gscRoot1630IndependentReview": {
+      "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/gsc-root1630-doc-independent-review.json",
+      "sha256": "49ec01ec0e9ef49a1aea4b17eddd2cf2b36d12633df7c1c181b3765edf4aec4a",
+      "model": "gpt-6.1-sol",
+      "reviewer": "/root/capture_source_review",
+      "executionUTC": "2026-10-13T08:36:43.293084+00:00",
+      "scope": "offline source/doc review only; no new probe or current running-image proof",
+      "GSCResolutionClaim": false,
+      "UIApproval": false
+    }
   },
   "mintOfflineFollowup": {
     "updatedAt": "2026-10-13T07:23:55.213365+00:00",
@@ -34708,5 +34920,870 @@
       "observed503RootCause": "unproven; missing original branch diagnostics",
       "visualStatus": "pending Mint new SHA BUILD_ID capture; no SM retry"
     }
+  },
+  "mintOfflineAudits": {
+    "recordedAtUTC": "2026-10-13T07:49:31.041226+00:00",
+    "retainedSourceSHA": "c70a48b35665561d8be32c1b336b21ecb17894f9",
+    "buildCandidateSHA": "e137c5f0a4c0184fe5bae8330b410eed74a07063",
+    "evidence": [
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/keyword-review-independent-source-audit-c70a48b.json",
+        "sha256": "091b9b65207e1c7689f5fa4bc50788cd447889be888a6c8f8034aacf5d9d8c12",
+        "model": "gpt-6.1-sol",
+        "recordedTime": "2026-10-13T07:44:00.760111+00:00",
+        "scope": "offline source/document/mock tests only",
+        "UIApproval": false,
+        "routeComplete": false
+      },
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/keyword-review-independent-source-audit-c70a48b-provenance.json",
+        "sha256": "9052d346e6ccd70e7a5927c73d9eb570a79fa5364cadc86c0e826f537325850f",
+        "model": "gpt-6.1-sol",
+        "recordedTime": null,
+        "scope": "offline source/document/mock tests only",
+        "UIApproval": false,
+        "routeComplete": false
+      },
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/capture-failure-diagnostics-v11-root-independent-review.json",
+        "sha256": "b7f9739ae462792e3a9a833368ae245cbd8e1b55eb3ae6ec8cc4bae84d15299d",
+        "model": "gpt-6.1-sol",
+        "recordedTime": "2026-10-13T07:35:51.106670+00:00",
+        "scope": "offline source/document/mock tests only",
+        "UIApproval": false,
+        "routeComplete": false
+      },
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/f2-single-candidate-after-thaw-independent-doc-review-c70a48b.json",
+        "sha256": "cd56b99a697f1cc72b623ea0d761be567a1e216e2113324f977a3eb1db522eb0",
+        "model": "gpt-6.1-sol",
+        "recordedTime": null,
+        "scope": "offline source/document/mock tests only",
+        "UIApproval": false,
+        "routeComplete": false
+      },
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/root-offline-f2-regression-c70a48b-20261013.json",
+        "sha256": "72eef1e4465396463cb64a75482896b8c95472f3a2324f79dcf1a4f1b9771ca9",
+        "model": "gpt-6.1-sol",
+        "recordedTime": "2026-10-13T07:48:09.578166+00:00",
+        "scope": "offline source/document/mock tests only",
+        "UIApproval": false,
+        "routeComplete": false
+      }
+    ],
+    "guardStatus": "SM no new build/capture/restore; Mint readiness and globally coordinated slots required",
+    "deadline": null,
+    "newArtifactStatesPending": 376,
+    "completeRoutes": 0,
+    "limitations": [
+      "Source/mock review cannot promote UI state or transfer historical SHA pass.",
+      "Admin flags/schema/permissions unchanged, no live writes.",
+      "No real GA transmission, runtime or candidate probes."
+    ],
+    "y2ContractFollowup": {
+      "upstreamSourceSHA": "48bc174bbcddaa3f84d8da65024e328a0b2abc71",
+      "originalContractSHA": "b8d030c747f87c997800371e33e1ab2d168ad257",
+      "runtimeChanged": false,
+      "enabled": false,
+      "authorFocusedMocksPassed": 58,
+      "independentNewMocksPassed": 3,
+      "evidence": [
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-13/y2-contract-audit-20261013T0750Z.json",
+          "sha256": "7d863900d023593a05971cf35f32bbe7146f842550c2de365c0b79f8fdfc8caa",
+          "model": "gpt-6.1-sol"
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/y2-contract-tests-root-independent-review-20261013.json",
+          "sha256": "29531fd4e0821e869de1b1799f3787e3a7528a7ffab5889cdf188fe306b538b0",
+          "model": "gpt-6.1-sol"
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-13/y2-contract-audit-root-review-addendum-20261013T0752Z.json",
+          "sha256": "079b57655b8f7e5cf5b2507f2fd0eee86a152aba4c8c3c57a141a6b28cff834f",
+          "model": "gpt-6.1-sol"
+        }
+      ],
+      "UIApproval": false,
+      "activationApproval": false
+    },
+    "vocabularyCapacityPreparation": {
+      "scope": "parked source preparation; excluded from UI build candidate",
+      "independentReviewerModel": "gpt-6.1-sol",
+      "testsPassed": 44,
+      "realDBTestsSkipped": 1,
+      "fullPageCap": 20000,
+      "fullTermsCap": 10000000,
+      "DBReadBatch": 500,
+      "rawActiveTermsCap": 100000,
+      "activeBytesCap": 67108864,
+      "metadataBytesCap": 16777216,
+      "evidence": [
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/vocabulary-author-20261013T080633Z/author.json",
+          "sha256": "483713740af8aac40b3a867f20a9627d13ce8e0c21198a7801fe222f69dced12"
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/vocabulary-full-pool-root-independent-source-review-20261013.json",
+          "sha256": "64d509ad631e5c28c168de8ddced4757a531cde6504ba967e1d96e32a288c6ae"
+        }
+      ],
+      "activationApproval": false,
+      "UIApproval": false,
+      "blockers": [
+        "10-minute delta/daily reconciliation checkpoint paths",
+        "versioned NFKC normalization with raw aliases and original offsets",
+        "inactive low-frequency/budget reasons in UI/API",
+        "writer ownership, protected backups and live acceptance"
+      ]
+    },
+    "uiSourceFollowup": {
+      "recordedAtUTC": "2026-10-13T08:22:53.534349+00:00",
+      "preparationBranch": "codex/f2-keyword-quality",
+      "candidateBaselineSHA": "e137c5f0a4c0184fe5bae8330b410eed74a07063",
+      "successorSHA": null,
+      "sourceReceipts": [
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/mayor-coverage-disclosure-independent-source-review-5f4b336.json",
+          "sha256": "840959d02bc8786e531a2843d9229f6a862492c1a758c90c92ea747622f6a9e7",
+          "model": "gpt-6.1-sol",
+          "reviewer": "/root/capture_source_review",
+          "executionUTC": "2026-10-13T08:05:27.936564+00:00",
+          "scope": "independent-source-review",
+          "UIApproval": false,
+          "routeComplete": false
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/mayor-table-scroll-hint-independent-source-review-initial.json",
+          "sha256": "2f780bf4872a7566f6747e5b380e36a2372e022809a8242a9152214138ec497e",
+          "model": "gpt-6.1-sol",
+          "reviewer": "/root/capture_source_review",
+          "executionUTC": "2026-10-13T08:11:45.054718+00:00",
+          "scope": "independent-source-review",
+          "UIApproval": false,
+          "routeComplete": false
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/mayor-table-scroll-hint-independent-source-review-final.json",
+          "sha256": "a25feeedf09892e9428df01ef0e094dc129955a2d896559cee938398ac1bb766",
+          "model": "gpt-6.1-sol",
+          "reviewer": "/root/capture_source_review",
+          "executionUTC": "2026-10-13T08:15:03.270227+00:00",
+          "scope": "independent-source-review-resolution",
+          "UIApproval": false,
+          "routeComplete": false
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/mobile-video-identity-root-independent-final-20261013.json",
+          "sha256": "f4d110b41620733cb8855e5ed86b4275ac9d8e8eafa5d901a1aa6181f0647983",
+          "model": "gpt-6.1-sol",
+          "reviewer": "/root",
+          "executionUTC": "2026-10-13T08:21:07.074706+00:00",
+          "scope": "independent-source-review",
+          "UIApproval": false,
+          "routeComplete": false
+        }
+      ],
+      "tests": {
+        "passed": 23,
+        "failed": 0,
+        "toolChunk": "10b3f1",
+        "webNoEmit": "passed final source in author delta; not repeated by root"
+      },
+      "fixes": [
+        "Phone video/live identity: canonical tiny thumbnail plus wrapping full title; separate channel attribution retained.",
+        "Mayor coverage: always-visible incompleteness/non-comparison warning with closed native disclosure for per-date evidence.",
+        "Mayor-only opt-in measured-overflow hint moved before long table; keyboard and gradients retained."
+      ],
+      "status": "source reviewed; awaiting committed successor artifact and independent Mint retake",
+      "captureManifest": null,
+      "BUILD_ID": null,
+      "UIApproval": false,
+      "routeComplete": false,
+      "sourceFixCommit": "4d7dc12100f8cd647f077978beb918d17157633a"
+    },
+    "vocabularyOwnershipFollowup": {
+      "commit": "5327497",
+      "runtimeFixCommit": "3593ef7",
+      "excludedFromUICandidate": true,
+      "runtimeChangedThisTurn": false,
+      "testFileSHA256": "1010e0e5a9d37d7923aaf8f52a95066e8bf51248a82a6657341d4f7d46c01f1c",
+      "reviewReceipts": [
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/vocabulary-import-ownership-independent-review-and-adversarial-tests-20261013.json",
+          "sha256": "25b18bbc33e0d3e655e73f86a6d08281b9499969d828b8c68728130379b5be6e",
+          "model": "gpt-6.1-sol",
+          "executionUTC": null,
+          "scope": "offline source/mock review only",
+          "UIApproval": false,
+          "routeComplete": false
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/vocabulary-adversarial-tests-root-independent-20261013.json",
+          "sha256": "de32680de7cdfce4189c13fa3c4de1dfee4d0ecbdd3c046e0c53225b84e6956e",
+          "model": "gpt-6.1-sol",
+          "executionUTC": "2026-10-13T08:53:34.945059+00:00",
+          "scope": "offline source/mock review only",
+          "UIApproval": false,
+          "routeComplete": false
+        }
+      ],
+      "tests": {
+        "sixSuitesPassed": 51,
+        "realDBSkipped": 1,
+        "rootTwoFilesPassed": 25,
+        "jobsNoEmit": "passed"
+      },
+      "limits": [
+        "No production import/publication or real MariaDB acceptance.",
+        "Lost connection invalidates same-session lock and transaction. No extra callback after final guard; no claim of detecting arbitrary later RELEASE_LOCK on surviving connection.",
+        "Successful COMMIT with lost acknowledgement remains ambiguous; rollback tests cover rejection before completion."
+      ]
+    },
+    "y2BoundaryFollowup": {
+      "commit": "ce265be",
+      "upstreamSourceSHA": "48bc174bbcddaa3f84d8da65024e328a0b2abc71",
+      "runtimeChanged": false,
+      "enabled": false,
+      "testFileSHA256": "0c6a78840faf11db81305035b99e8a2c702cba720db6841626495a2add752c18",
+      "newCases": 7,
+      "testsPassed": 65,
+      "apiNoEmit": "passed",
+      "reviewReceipts": [
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/y2-independent-audit-20261013T084940Z/review.json",
+          "sha256": "7d957c287fd7a31cebfd4011b697f304e58237157d3deb797bf54ed1a1a2bfd5",
+          "model": "GPT-6 (Codex; inherited parent model, exact serving identifier not exposed)",
+          "executionUTC": null,
+          "scope": "offline source/mock review only",
+          "UIApproval": false,
+          "routeComplete": false
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/y2-added-contract-tests-root-independent-20261013.json",
+          "sha256": "b83790d18a331898f45496c695cca99523567eaf0a8f68d8e9a2c20d99d4425e",
+          "model": "gpt-6.1-sol",
+          "executionUTC": "2026-10-13T08:54:05.136494+00:00",
+          "scope": "offline source/mock review only",
+          "UIApproval": false,
+          "routeComplete": false
+        }
+      ],
+      "scope": "Mock contract only; raw NFKC-equivalent IDs, special characters and split UTF-8 byte-cap boundaries; no live upstream request/activation."
+    },
+    "mintRetakePlanningFollowup": {
+      "reviewReceipts": [
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/mint-retake-plan-root-independent-final-20261013.json",
+          "sha256": "f45bd77c9ea538ec344c192070484c2d33cdfc653325154658e54fcd09f61ba9",
+          "model": "gpt-6.1-sol",
+          "executionUTC": "2026-10-13T08:55:48.174037+00:00",
+          "scope": "offline source/mock review only",
+          "UIApproval": false,
+          "routeComplete": false
+        }
+      ],
+      "matrixSHA256": "29a5a9f2d4055ab648d5ba89aabbe28b912d6c7af5de4c68c537375898c982f6",
+      "generatorSHA256": "344b67710f07a9e18031c675ea4b5d681bf42d945232c3a61c1f5a37e76ce661",
+      "packages": 2060,
+      "unresolvedExampleEntries": 240,
+      "executionAllowed": false,
+      "candidateSHAOption": "syntax-only; source/runtime binding separately required",
+      "captureBudget": "Inclusive retained-evidence inventory required; historical49,932,059 +stopped5,222,891 if disjoint +planned246MB exceeds300MB by1,154,950; reduce complete executable variant groups, no deletion/reset.",
+      "firstEnvelopeIsNotFullSiteReview": true
+    }
+  },
+  "historicalFindingsOnly654": {
+    "receipt": {
+      "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/historical-654cdf5-videos-live-mayor-offline-gpt61-review.json",
+      "sha256": "313076748d1eaad9ff0a1ef765cdd52ac9ca705ed7e26ad2b52825f9fb1ad6cc",
+      "model": "gpt-6.1-sol",
+      "reviewer": "/root/capture_source_review",
+      "executionUTC": "2026-10-13T07:54:50.242382+00:00",
+      "scope": "immutable-historical-offline-image-findings",
+      "UIApproval": false,
+      "routeComplete": false
+    },
+    "pages": [
+      {
+        "key": "videos-light",
+        "route": "/videos",
+        "reviewedIndependently": true,
+        "executionUTC": "2026-10-13T07:54:50.242382+00:00",
+        "captureAt": "2026-10-12T21:34:52.502Z",
+        "submittedSHA": "654cdf5c9829f2a5f884b063b117e6f6e0403e34",
+        "frontendBuildSourceSHA": "654cdf5c9829f2a5f884b063b117e6f6e0403e34",
+        "buildID": "2FFvSyVcDfwEmllyRVVv1",
+        "suppliedImageSHA256": "184ffb87caedfcb714cb4c2524cd26c5cafc735d09e6e6fc41a6af855da73e06",
+        "viewports": {
+          "desktop": {
+            "declaredViewport": {
+              "width": 1280,
+              "height": 800
+            },
+            "recordedHTTPStatus": 200,
+            "recordedOverflow": 0
+          },
+          "mobile": {
+            "declaredViewport": {
+              "width": 390,
+              "height": 844
+            },
+            "recordedHTTPStatus": 200,
+            "recordedOverflow": 0
+          }
+        },
+        "images": [
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-retest-654cdf5/videos-light-desktop.png",
+            "sha256": "68f7821d5656af0687ba393433b0709d769b160358a31e74b20ba8c0309620d7",
+            "dimensions": [
+              1280,
+              3396
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-retest-654cdf5/videos-light-mobile.png",
+            "sha256": "d7a955c2be71716b3123db6146a321f4d236d81a519023fef4209dfc23a6d2b3",
+            "dimensions": [
+              390,
+              3850
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-retest-654cdf5/videos-light-desktop-slice-0.png",
+            "sha256": "dc7557e6dbd45ad24ec1f26bbcd05d8f9927ebfa3adc2c1a5ab263f1988d9134",
+            "dimensions": [
+              1280,
+              800
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-retest-654cdf5/videos-light-mobile-slice-0.png",
+            "sha256": "8da1693408dca51fa758d6ba5d5a0c004e601a1a19c605518c328b34834c583e",
+            "dimensions": [
+              390,
+              800
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-retest-654cdf5/videos-light-mobile-slice-760.png",
+            "sha256": "fdb7198a7e17bde7e694685351fd3fd225f93462834e5f9cb0a495e8efca107d",
+            "dimensions": [
+              390,
+              800
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          }
+        ],
+        "observations": [
+          {
+            "id": "historical-videos-mobile-title-disambiguation",
+            "priority": "P2",
+            "viewport": "mobile390",
+            "observed": "At the initial table position only video and channel columns are visible. Titles are single-line, aggressively ellipsized (often only a common programme prefix), and the desktop thumbnails are absent. Similar adjacent daily-news rows are difficult to distinguish.",
+            "evidence": "mobile-slice-760.png",
+            "recommendation": "Recheck on Mint; consider a second title line or expandable title, with meaningful identity retained in the first column. The screenshots do not prove whether horizontal scrolling or row navigation resolves this."
+          }
+        ],
+        "desktopObservation": "Inspected full desktop PNG and top detail slice: report headings, controls and data layout are readable without visible overlap. This is an observation, not a visual pass.",
+        "limitations": [
+          "Snapshot data and freshness can differ between separately captured viewports; no runtime data-accuracy verdict.",
+          "Screenshots do not verify filtering, navigation, hover/tooltip, horizontal scrolling, auto refresh or error/loading states."
+        ]
+      },
+      {
+        "key": "live-current-light",
+        "route": "/live/current",
+        "reviewedIndependently": true,
+        "executionUTC": "2026-10-13T07:54:50.242382+00:00",
+        "captureAt": "2026-10-12T21:35:12.077Z",
+        "submittedSHA": "654cdf5c9829f2a5f884b063b117e6f6e0403e34",
+        "frontendBuildSourceSHA": "654cdf5c9829f2a5f884b063b117e6f6e0403e34",
+        "buildID": "2FFvSyVcDfwEmllyRVVv1",
+        "suppliedImageSHA256": "184ffb87caedfcb714cb4c2524cd26c5cafc735d09e6e6fc41a6af855da73e06",
+        "viewports": {
+          "desktop": {
+            "declaredViewport": {
+              "width": 1280,
+              "height": 800
+            },
+            "recordedHTTPStatus": 200,
+            "recordedOverflow": 0
+          },
+          "mobile": {
+            "declaredViewport": {
+              "width": 390,
+              "height": 844
+            },
+            "recordedHTTPStatus": 200,
+            "recordedOverflow": 0
+          }
+        },
+        "images": [
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-retest-654cdf5/live-current-light-desktop.png",
+            "sha256": "755cd3e5cc60ea9fc410c7c0eb72fc3554de05f6a6921620d979c86c89791542",
+            "dimensions": [
+              1280,
+              1743
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-retest-654cdf5/live-current-light-mobile.png",
+            "sha256": "2007d34ada46c500afc21593f877772951f94dc6bb6d208fc5e8678b01ccbf54",
+            "dimensions": [
+              390,
+              2286
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-retest-654cdf5/live-current-light-desktop-slice-0.png",
+            "sha256": "cb5806879d5451dfafe5fd46d7939db770c5f1e77d424ba762bd3c0510423a15",
+            "dimensions": [
+              1280,
+              800
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-retest-654cdf5/live-current-light-mobile-slice-760.png",
+            "sha256": "d02bf1db362288dc96d1a71bbf264ab6a484e95c962c10cf1907749603e0c1bd",
+            "dimensions": [
+              390,
+              800
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          }
+        ],
+        "observations": [
+          {
+            "id": "historical-live-mobile-title-hidden-by-channel",
+            "priority": "P2",
+            "viewport": "mobile390",
+            "observed": "The first column combines channel name and title but ellipsizes so early that several rows show the channel plus only [中…] or […]. Two 日テレNEWS rows cannot be distinguished by their visible title fragments.",
+            "evidence": "mobile-slice-760.png",
+            "recommendation": "Recheck on Mint; give title its own readable line while retaining current/peak metrics. No interaction failure is inferred."
+          }
+        ],
+        "desktopObservation": "Inspected full desktop PNG and top detail slice: report headings, controls and data layout are readable without visible overlap. This is an observation, not a visual pass.",
+        "limitations": [
+          "Snapshot data and freshness can differ between separately captured viewports; no runtime data-accuracy verdict.",
+          "Screenshots do not verify filtering, navigation, hover/tooltip, horizontal scrolling, auto refresh or error/loading states."
+        ]
+      },
+      {
+        "key": "mayor-light",
+        "route": "/mayor",
+        "reviewedIndependently": true,
+        "executionUTC": "2026-10-13T07:54:50.242382+00:00",
+        "captureAt": "2026-10-12T21:35:41.965Z",
+        "submittedSHA": "654cdf5c9829f2a5f884b063b117e6f6e0403e34",
+        "frontendBuildSourceSHA": "654cdf5c9829f2a5f884b063b117e6f6e0403e34",
+        "buildID": "2FFvSyVcDfwEmllyRVVv1",
+        "suppliedImageSHA256": "184ffb87caedfcb714cb4c2524cd26c5cafc735d09e6e6fc41a6af855da73e06",
+        "viewports": {
+          "desktop": {
+            "declaredViewport": {
+              "width": 1280,
+              "height": 800
+            },
+            "recordedHTTPStatus": 200,
+            "recordedOverflow": 0
+          },
+          "mobile": {
+            "declaredViewport": {
+              "width": 390,
+              "height": 844
+            },
+            "recordedHTTPStatus": 200,
+            "recordedOverflow": 0
+          }
+        },
+        "images": [
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-retest-654cdf5/mayor-light-desktop.png",
+            "sha256": "40f1e5065c2c0c602b487c52090cb193de43106e39af95489737668ed32df31b",
+            "dimensions": [
+              1280,
+              4950
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-retest-654cdf5/mayor-light-mobile.png",
+            "sha256": "8adb46d8fc128cdba16dc217c4a87da4873c30a8fbf9a98fae47e78dd275e3f8",
+            "dimensions": [
+              390,
+              6744
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-retest-654cdf5/mayor-light-desktop-slice-0.png",
+            "sha256": "74c843993659dd462fa471639a08daf37519fb751af7344abea33903c0d7387f",
+            "dimensions": [
+              1280,
+              800
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-retest-654cdf5/mayor-light-mobile-slice-0.png",
+            "sha256": "c1c9c25e500b4175e65fe988c42ad20dd4e39265f77e5038d1e3f7a1bcbb42f2",
+            "dimensions": [
+              390,
+              800
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-retest-654cdf5/mayor-light-desktop-slice-1520.png",
+            "sha256": "34c75327ce8bb701a3bdd792dc09b1097b4b9c3c76e2d8777070eb9b8d61d1ff",
+            "dimensions": [
+              1280,
+              800
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-retest-654cdf5/mayor-light-mobile-slice-1520.png",
+            "sha256": "ba7cb26686469b1216467c07920fe741f1575e2c184bbdac3b7105199dd80e3c",
+            "dimensions": [
+              390,
+              800
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-retest-654cdf5/mayor-light-mobile-slice-2280.png",
+            "sha256": "86e5da865327219be3643eeeebd4aad4d11270e445792c5fbfbf3cdf32b09e37",
+            "dimensions": [
+              390,
+              800
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-retest-654cdf5/mayor-light-mobile-slice-4560.png",
+            "sha256": "f7e747dd2242f8bb9fca3fb8c78dd6ab1867f66e7bfa4ed5eb36369dfc131d8e",
+            "dimensions": [
+              390,
+              800
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          }
+        ],
+        "observations": [
+          {
+            "id": "historical-mayor-repeated-mobile-coverage-warning",
+            "priority": "P2",
+            "viewport": "mobile390",
+            "observed": "The long orange missing-coverage explanation appears before the combined share chart and repeats under each candidate chart. On mobile it occupies many lines and separates successive charts with substantial repeated text.",
+            "evidence": [
+              "mobile-slice-1520.png",
+              "mobile-slice-2280.png"
+            ],
+            "recommendation": "Retain the warning and incomplete markers; consider one full page explanation plus compact chart-specific status rather than repeating the full paragraph."
+          },
+          {
+            "id": "historical-mayor-mobile-table-discovery",
+            "priority": "P2",
+            "viewport": "mobile390",
+            "observed": "The lower observation table initially shows date, 蔣萬安 value/share and a partial 沈伯洋 value; later candidate/share/coverage columns lie beyond the right edge. No swipe or hidden-column cue is visible in the inspected table frame.",
+            "evidence": "mobile-slice-4560.png",
+            "recommendation": "Verify horizontal access on fresh candidate and consider an explicit table scroll cue; screenshots alone cannot establish scrolling is broken."
+          }
+        ],
+        "desktopObservation": "Inspected full desktop PNG and top detail slice: report headings, controls and data layout are readable without visible overlap. This is an observation, not a visual pass.",
+        "limitations": [
+          "Snapshot data and freshness can differ between separately captured viewports; no runtime data-accuracy verdict.",
+          "Screenshots do not verify filtering, navigation, hover/tooltip, horizontal scrolling, auto refresh or error/loading states."
+        ]
+      },
+      {
+        "key": "mayor-taipei-light",
+        "route": "/mayor/cities/taipei",
+        "reviewedIndependently": true,
+        "executionUTC": "2026-10-13T07:54:50.242382+00:00",
+        "captureAt": "2026-10-12T21:38:10.355Z",
+        "submittedSHA": "654cdf5c9829f2a5f884b063b117e6f6e0403e34",
+        "frontendBuildSourceSHA": "654cdf5c9829f2a5f884b063b117e6f6e0403e34",
+        "buildID": "2FFvSyVcDfwEmllyRVVv1",
+        "suppliedImageSHA256": "184ffb87caedfcb714cb4c2524cd26c5cafc735d09e6e6fc41a6af855da73e06",
+        "viewports": {
+          "desktop": {
+            "declaredViewport": {
+              "width": 1280,
+              "height": 800
+            },
+            "recordedHTTPStatus": 200,
+            "recordedOverflow": 0
+          },
+          "mobile": {
+            "declaredViewport": {
+              "width": 390,
+              "height": 844
+            },
+            "recordedHTTPStatus": 200,
+            "recordedOverflow": 0
+          }
+        },
+        "images": [
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-retest-654cdf5/mayor-taipei-light-desktop.png",
+            "sha256": "b3964f53c93e9b3b0028fd1ad184a3d30a0ca8a00f4f849ba26b5c9e8eee7cf2",
+            "dimensions": [
+              1280,
+              4930
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-retest-654cdf5/mayor-taipei-light-mobile.png",
+            "sha256": "8adb46d8fc128cdba16dc217c4a87da4873c30a8fbf9a98fae47e78dd275e3f8",
+            "dimensions": [
+              390,
+              6744
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-retest-654cdf5/mayor-taipei-light-desktop-slice-0.png",
+            "sha256": "98924a0678e3c79b1135e827b7d8918fac6695af0cca161306b9c1c0a137336c",
+            "dimensions": [
+              1280,
+              800
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-retest-654cdf5/mayor-taipei-light-mobile-slice-1520.png",
+            "sha256": "ba7cb26686469b1216467c07920fe741f1575e2c184bbdac3b7105199dd80e3c",
+            "dimensions": [
+              390,
+              800
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-retest-654cdf5/mayor-taipei-light-mobile-slice-2280.png",
+            "sha256": "86e5da865327219be3643eeeebd4aad4d11270e445792c5fbfbf3cdf32b09e37",
+            "dimensions": [
+              390,
+              800
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-retest-654cdf5/mayor-taipei-light-mobile-slice-4560.png",
+            "sha256": "f7e747dd2242f8bb9fca3fb8c78dd6ab1867f66e7bfa4ed5eb36369dfc131d8e",
+            "dimensions": [
+              390,
+              800
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          }
+        ],
+        "observations": [
+          {
+            "id": "historical-taipei-repeated-mobile-coverage-warning",
+            "priority": "P2",
+            "viewport": "mobile390",
+            "observed": "Independently inspected Taipei detail frames repeat the full orange coverage explanation around the overview and candidate charts, consuming many mobile lines between comparisons.",
+            "evidence": [
+              "mobile-slice-1520.png",
+              "mobile-slice-2280.png"
+            ],
+            "recommendation": "Keep the disclosure but shorten repeated chart copies; recheck this distinct route on Mint."
+          },
+          {
+            "id": "historical-taipei-mobile-table-discovery",
+            "priority": "P2",
+            "viewport": "mobile390",
+            "observed": "The Taipei detail observation table also initially reveals only the left columns and a faded partial 沈伯洋 value at the right edge, without a visible horizontal-access hint.",
+            "evidence": "mobile-slice-4560.png",
+            "recommendation": "Verify table access and add a concise hidden-column cue if still present; no scroll failure is proven."
+          }
+        ],
+        "desktopObservation": "Inspected full desktop PNG and top detail slice: report headings, controls and data layout are readable without visible overlap. This is an observation, not a visual pass.",
+        "limitations": [
+          "Snapshot data and freshness can differ between separately captured viewports; no runtime data-accuracy verdict.",
+          "Screenshots do not verify filtering, navigation, hover/tooltip, horizontal scrolling, auto refresh or error/loading states."
+        ]
+      }
+    ],
+    "matchingLightReferences": [
+      {
+        "key": "ref-media-light",
+        "url": "https://tag.observe.tw/media/",
+        "captureAt": "2026-10-12T20:22:11.305Z",
+        "theme": "light",
+        "sourceSHA": null,
+        "buildID": null,
+        "images": [
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-final-729bcf7/ref-media-light-desktop-slice-0.png",
+            "sha256": "f9e1b27f6632bcdd17ba29d173f2a89ac3a64c655a6b8650fe5e248665e02333",
+            "dimensions": [
+              1280,
+              800
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-final-729bcf7/ref-media-light-mobile-slice-0.png",
+            "sha256": "9c1c41018e40f56e009a1d7685ace125442d154f7aac819429d11c3365f3c274",
+            "dimensions": [
+              390,
+              800
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-final-729bcf7/ref-media-light-mobile-table-0.png",
+            "sha256": "71f066c9780bef5beb3b756fbb0bf951be66d9688b2fbc9d28260f7b37791540",
+            "dimensions": [
+              390,
+              844
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          }
+        ]
+      },
+      {
+        "key": "ref-ranking-light",
+        "url": "https://tag.observe.tw/ranking/",
+        "captureAt": "2026-10-12T20:30:05.150Z",
+        "theme": "light",
+        "sourceSHA": null,
+        "buildID": null,
+        "images": [
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-final-729bcf7/ref-ranking-light-desktop-slice-0.png",
+            "sha256": "a59955db65ada7aa34c2d6855eec3521f94fc2b78568f840deb9023c3cf6e85e",
+            "dimensions": [
+              1280,
+              800
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-final-729bcf7/ref-ranking-light-mobile-slice-0.png",
+            "sha256": "0b561d790baa5d81f562f220b5b5f4552a87c30f5a82143841362a1a67c77131",
+            "dimensions": [
+              390,
+              800
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-final-729bcf7/ref-ranking-light-mobile-table-0.png",
+            "sha256": "3e84536495e786a0871d91029b88ba603ada382b8b19a8239ef60668b2ded21d",
+            "dimensions": [
+              390,
+              844
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          }
+        ]
+      },
+      {
+        "key": "ref-tag-taiwan-light",
+        "url": "https://tag.observe.tw/tag/台灣/",
+        "captureAt": "2026-10-12T20:30:42.287Z",
+        "theme": "light",
+        "sourceSHA": null,
+        "buildID": null,
+        "images": [
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-final-729bcf7/ref-tag-taiwan-light-desktop-slice-0.png",
+            "sha256": "c6e0565ee93ccf11be19f68dd40274c7e027b44f3d09fd6c604d6453434583ed",
+            "dimensions": [
+              1280,
+              800
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-final-729bcf7/ref-tag-taiwan-light-mobile-slice-0.png",
+            "sha256": "b379d8f262c2ffe28c45e7868ba480214b74b737bbd6886ea8c6fd76ba28d3c1",
+            "dimensions": [
+              390,
+              800
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-final-729bcf7/ref-tag-taiwan-light-desktop-slice-760.png",
+            "sha256": "f2c33703399319f97db6d8e2b672696f53a1eb4754d061d1a569aa03d7822d02",
+            "dimensions": [
+              1280,
+              800
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-final-729bcf7/ref-tag-taiwan-light-mobile-slice-760.png",
+            "sha256": "6a4f5fc22da5f41b1bcfbbf1dc1d9e24ac07599d6b2da6334bffa81566e71174",
+            "dimensions": [
+              390,
+              800
+            ],
+            "viewedWith": "view_image",
+            "missing": false
+          }
+        ]
+      }
+    ],
+    "identityLimits": [
+      "654cdf5 / BUILD_ID 2FFvSyVcDfwEmllyRVVv1 / image hash are capture-manifest and parent-supplied identities; this offline review does not independently prove runtime/package identity.",
+      "No historical screenshot or reference evidence is transferred to e137c5f0a4c0184fe5bae8330b410eed74a07063.",
+      "zero-GA remains unproven: visual PNGs and manifest metadata are insufficient to establish network-denial completeness.",
+      "Full-page PNGs viewed for overview; listed bounded slices viewed for text and layout detail. Unlisted slices were not reviewed."
+    ],
+    "zeroGA": "unproven",
+    "allFindingsRemainOpen": true,
+    "newArtifactPass": false,
+    "scope": "actual retained light1280/390 images personally reviewed; static-only, old source654, not new candidate acceptance"
   }
 }
