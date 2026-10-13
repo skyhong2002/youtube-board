@@ -10,8 +10,11 @@ SM 不新增 build／capture／restore，既有 release、回退、備份與 wor
 這個遠端工作仍占全站唯一建置名額；不是利用遠端主機繞過排隊或資源閘門。
 不在 Mint 安裝 Docker/MariaDB、不跨平台重新拼裝 x64 standalone、不使用 Mac 運算。
 
-固定來源為乾淨 committed tree `e137c5f0a4c0184fe5bae8330b410eed74a07063`，
-分支 `codex/f2-mint-candidate`。這個 SHA 尚無 BUILD_ID／映像／視覺通過證據。
+來源基線為 `e137c5f0a4c0184fe5bae8330b410eed74a07063`。本輪以它的後繼 committed tree，
+選入 `4d7dc12` 的11份已review UI code/test、最終Y2契約測試與规划文件。
+執行前以唯一owner交接清單 `/tmp/babysit/mint-queue/youtube.md` 的exact SHA及對應獨立tree-boundary review固定來源；
+分支 `codex/f2-mint-candidate` 只用來取得該commit，不可直接追隨tip。
+後繼來源目前也沒有 BUILD_ID／映像／視覺通過證據。
 準備分支上的新 UI 修正須先提交、獨立 source review，再明確組成新的固定後繼 SHA；
 不能自動跟隨準備分支 tip，不能把 e137 或舊 654 的證據移用到後繼 SHA。
 quality writer／詞庫匯入器另批保存，不藉此開啟 jobs、migration、grant 或 Y2／review flags。
