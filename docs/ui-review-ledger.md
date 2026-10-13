@@ -469,3 +469,7 @@ Y2 上游 source audit 固定在 `48bc174`，原 `b8d030c` 契約來源另保留
 GSC 的既有去識別紀錄摘要見 [來源端爬蟲紀錄](../platform/docs/gsc-existing-log-summary-2026-10-13.md)：0筆可信 Googlebot index／子檔抓取，不把未驗證200當Google验收。
 
 上述 UI 原始碼另存於 `4d7dc12100f8cd647f077978beb918d17157633a`（準備分支），不是可直接建置的 release tip。ARM／GSC 文件已由另一 GPT-6.1 Sol 獨立 review；最終 receipt 与 concurrent timing correction 保留於 JSON `mintQueue.architecturePlanReview`。無新增候選通過狀態。
+
+root 台北16:30另回報230筆log、verified Googlebot0、UA宣稱Googlebot且抓sitemap0，已附在JSON `mintQueue.gscExistingLogSummary.rootReportedUpdate`。230的完整篩選範圍／原始receipt未提供，與較早141筆discovery subset分開保留；不推測新增量或Google已抓取。離線比較的五份source與7eb48f4相同；沒有新HTTP／UAprobe，也不宣稱GSC根因或修復。
+
+root16:30的GSC補充與離線source結論另經獨立GPT-6.1 Sol核對，receipt在JSON `mintQueue.gscRoot1630IndependentReview`。未執行新測試／網路請求；沒有GSC修復或Google抓取成功聲稱。

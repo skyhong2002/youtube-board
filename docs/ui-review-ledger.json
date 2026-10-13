@@ -34481,7 +34481,32 @@
       "verifiedGooglebotIndex": 0,
       "verifiedGooglebotChildren": 0,
       "newHTTPProbe": false,
-      "GSCResolutionClaim": false
+      "GSCResolutionClaim": false,
+      "rootReportedUpdate": {
+        "reportedTime": "2026-10-13 16:30 Asia/Taipei (user message)",
+        "provenance": "human-forwarded root read-only audit; raw receipt and exact count filter not supplied",
+        "reportedLogRecords": 230,
+        "verifiedGooglebot": 0,
+        "googlebotClaimedSitemapRequests": 0,
+        "verifiedIndexOrChildEvidence": 0,
+        "countComparableToEarlier141DiscoverySubset": false,
+        "newHTTPProbe": false,
+        "GSCResolutionClaim": false,
+        "offlineSourceReceipt": {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/gsc-source-and-root-log-update-20261013.json",
+          "sha256": "ee565c050e69c342f764cfc782dcdbd8920dad5c9e8de7264fc1083ad0dc9d69"
+        }
+      }
+    },
+    "gscRoot1630IndependentReview": {
+      "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/gsc-root1630-doc-independent-review.json",
+      "sha256": "49ec01ec0e9ef49a1aea4b17eddd2cf2b36d12633df7c1c181b3765edf4aec4a",
+      "model": "gpt-6.1-sol",
+      "reviewer": "/root/capture_source_review",
+      "executionUTC": "2026-10-13T08:36:43.293084+00:00",
+      "scope": "offline source/doc review only; no new probe or current running-image proof",
+      "GSCResolutionClaim": false,
+      "UIApproval": false
     }
   },
   "mintOfflineFollowup": {
