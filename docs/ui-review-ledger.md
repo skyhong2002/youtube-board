@@ -1,5 +1,13 @@
 # UI review ledger
 
+目前來源清單（凍結期間更新）：**351 route templates／622 entries**，其中
+**376 UI entries（110 routes）**：歷史review25筆（24 issues、1 static-only pass）、
+未review351筆；另246筆`n/a-ui`。**完整UI route完成0，下一候選376筆全部待重拍。**
+新增Y2狀態與admin介面尚無截圖／runtime證據；`/manage`由舊redirect改為
+待review的管理入口，因此不再列為non-UI。下文344／591等數字為歷史批次，
+不代表本次總數。所有既有review只適用其原SHA。
+
+
 `ui-review-ledger.json` is the route/state inventory and evidence ledger. Generated
 inventory starts **pending** and is not a visual review. `summary.uniqueRoutes`
 counts URL templates; `summary.reviewEntries` also counts distinct required states.
@@ -81,7 +89,8 @@ do not resolve the title/metric findings or prove tag reference interaction pari
 Capture batches going forward log uptime and tag/blog/YouTube homepage TTFB
 before and after, with at most two shared capture browser instances and one
 Next/Docker build. Pause captures when one-minute load exceeds12 or blog
-homepage TTFB exceeds2seconds. Earlier completed batches lack those timing
+homepage **totalSeconds** exceeds2seconds, or a timeout/unknown/5xx occurs.
+TTFB is recorded for diagnosis only and cannot pass the gate. Earlier completed batches lack those timing
 measurements; none are inferred retrospectively.
 
 Presentation comparison uses the shared tag typography, spacing, surfaces,
@@ -336,3 +345,26 @@ Ledger仍344個route／591 entries，350 UI中25已review（24 issues、1僅stat
 效能閘門使用blog整頁totalSeconds≤2，遇5xx、timeout、unknown、load>12停止。DNT1、預設GPC、Google阻擋與request lifecycle觀察器在導航前安裝；i.ytimg.com例外只限HTTP(S)圖片。網路紀錄上限512KiB／1500requests，去除query、headers、credentials、IP、raw錯誤；overflow／未配對／inflight／unknown不可驗收。manifest不複製headers或任意options，保留格式驗證過的release身份與公開route；這仍是plan-supplied metadata，不等於runtime證明。
 
 硬停止仍為true。無browser、capture、probe、build、staging、部署或刪除；舊證據未修改，zero-GA仍未證。source review不構成視覺pass或解除凍結。
+
+
+## 下一候選：待重拍（凍結持續）
+
+原始碼修正提交`b688739`，後續F2狀態／Y2／覆核功能完成後再固定最終SHA。現有350筆UI驗收項目全部新增`nextCandidateReview: pending／待重拍`，下一候選通過數0；歷史25筆review及其受審SHA不改寫，也不轉用為新候選approval。
+
+優先首頁今日／近七日、`/keywords`、支持影片與`/channels`，1280／390與亮／暗都要有圖；再補loading、empty、unavailable、互動／導覽與權限狀態。零值與缺值分開，少筆／多筆各用實際或明示mock場景。新Y2與admin路由加入後同樣待重拍，admin僅既有帳號與權限。擷取前須使用者明確解凍；程式測試/source review不是視覺pass。
+
+
+## 凍結中已提交的 source 批次（不是視覺 pass）
+
+- `59a7d1b`：Y2 relations adapter/API 與管理員覆核後端。81項相關mock／契約測試、API noEmit通過；116 schema、5 examples驗證，0外部請求。兩功能預設false，migration與grants未執行，決定僅記錄未套用。
+- `b0d2762`：F2深色樣式、pending提示與empty/error/unknown狀態。最後修正後44項focused測試、web noEmit通過；此前86項通過屬較早hash，不冒稱完整87項已跑。
+
+獨立source review的model、receipt路徑、SHA-256與提交寫在JSON的`frozenSourceReviews`。F2由actual Opus5.5實作、GPT-6.1 Sol獨立review；後端由Codex實作、actual Opus5.5／另一GPT-6.1 Sol instance review。所有原0550／0620 finding仍open；深色、導航、loading、登入等runtime證據仍待重拍。
+
+- `5d92387`：管理入口與關鍵字覆核介面，actual Opus5.5實作、GPT-6.1 Sol獨立source review；66項mock／SSR／既有邊界測試與web noEmit通過。vocabulary選原始key/version，預覽確認、衝突與不確定結果保留同UUID重試；不宣稱hook互動已經瀏覽器驗證。
+
+- `ba6069d`：Y2可選關聯區塊，actual Opus5.5實作與修正、另一GPT-6.1 Sol獨立review。最終75項focused測試與web noEmit通過，reviewer另跑15項關聯測試通過。未啟用／不可用／空／partial分開、full Retry-After不截短、固定tag origin連結，原SSR影片與證據不等待此區塊。
+
+本次來源盤點固定於`ba6069d1e1430a6a55dfea1a8575f24ff4dd482c`的已提交程式碼，ledger與部署計畫由後續文件commit一併固定；不把尚未commit的worktree當candidate。獨立release-plan review只指出當時UI與文件未提交的發布範圍缺口；UI現已完成提交及各自source review，文件由本commit固定。這是owner逐項對應，不冒稱該plan reviewer驗證過正式runtime。
+
+**接下來仍是待重拍**：376筆下一候選UI項目全部pending，無新SHA／BUILD_ID的截圖。歷史25筆review不變、完整UI route完成0；新F2／Y2／admin source review不能補成視覺pass。解凍必須由使用者明確通知並涵蓋build、candidate staging與capture；單純磁碟恢復或source測試通過都不解除。
