@@ -44,7 +44,9 @@ const config: NextConfig = {
     // ISR pages and public data reads stay in a bounded in-memory LRU; the runtime
     // filesystem is read-only, so nothing is flushed to disk.
     cacheMaxMemorySize: 64 * 1024 * 1024,
-    experimental: { isrFlushToDisk: false },
+    // User-explicit cap: next build uses up to 2 workers (build/index.js getNumberOfWorkers
+    // treats a non-default experimental.cpus as an override).
+    experimental: { isrFlushToDisk: false, cpus: 2 },
     logging: { incomingRequests: { ignore: [/^\/auth(?:\/|$)/, /^\/feeds\/u\//, /^\/api\/ops\/editorial(?:\/|$)/] } },
     async headers() {
         return [

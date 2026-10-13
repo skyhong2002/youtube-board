@@ -88,6 +88,11 @@ test('next.config carries exactly the contract rewrites in beforeFiles',async()=
  assert.deepEqual(rewrites.fallback,[]);
  assert.ok(REPORT_FAMILIES.every(family=>(resolveRoute([family])??resolveRoute([family,'1'])??resolveRoute([family,'x','videos'])??resolveRoute([family,'days'])??resolveRoute([family,'current'])??resolveRoute([family,'authors','x']))!==null),'every contract family resolves a report');
 });
+test('next.config caps build workers at 2 and keeps ISR off disk',async()=>{
+ const {default:config}=await import('../../next.config');
+ assert.equal(config.experimental?.cpus,2);
+ assert.equal(config.experimental?.isrFlushToDisk,false);
+});
 test('event detail is eligible only as a bare lowercase UUID and never rewritten',()=>{
  const id='0d4c9e8a-1b2c-4d5e-8f90-123456789abc';
  assert.deepEqual(decide('/events/'+id),{kind:'render',target:null,eligible:'event'});
