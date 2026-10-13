@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import { it, expect } from 'vitest';
 import { registerUiProxy } from '../src/ui-proxy.js';
 import {createHash} from 'node:crypto';
-import {gunzipSync,brotliDecompressSync} from 'node:zlib';
+import {gunzipSync,brotliDecompressSync,gzipSync,brotliCompressSync} from 'node:zlib';
 import {Readable} from 'node:stream';
 import {setTimeout as delay} from 'node:timers/promises';
 import {readFileSync} from 'node:fs';
@@ -27,6 +27,52 @@ it('serves API locally and forwards UI/assets without forwarding ops credentials
   expect((await app.inject({ method: 'HEAD', url: '/ops/ingestion' })).statusCode).toBe(200);
   expect((await app.inject({ url: '/page', headers: { authorization: 'Bearer secret', cookie: 'session=secret', 'x-youtube-board-render':'home' } })).json()).toEqual({ auth: null, cookie: null, render:null });
   await app.close(); await ui.close();
+});
+
+it.each(['gzip','br'] as const)('negotiates complete identity HTML for RSC fallback before gateway %s encoding',async encoding=>{
+  const ui=Fastify(),themeScript='window.themeReady=true',scriptPath='/_next/static/chunks/app.js';
+  const hash='sha256-'+createHash('sha256').update('window.appReady=true').digest('base64');
+  const html=`<!doctype html><html><head><script>${themeScript}</script><script src="${scriptPath}" async></script></head><body>RSC HTML fallback</body></html>`;
+  const compressed=(body:string)=>encoding==='gzip'?gzipSync(body):brotliCompressSync(body);
+  const observed:Array<{encoding:unknown;conditionals:unknown[];rsc:unknown;prefetch:unknown}>=[];
+  const conditionals=['if-none-match','if-modified-since','if-match','if-unmodified-since','range','if-range'];
+  ui.get('/*',(request,reply)=>{
+    observed.push({encoding:request.headers['accept-encoding'],conditionals:conditionals.map(name=>request.headers[name]),rsc:request.headers.rsc,prefetch:request.headers['next-router-prefetch']});
+    reply.header('Cache-Control','public, s-maxage=60').header('x-youtube-board-public-render','report');
+    if(request.url.startsWith('/_next/static/'))return reply.type('application/javascript').header('Content-Encoding',encoding).send(compressed('window.staticReady=true'));
+    if(request.url==='/channels/flight')return reply.type('text/x-component').send(Readable.from((async function*(){yield '0:{"opaque":"<script>unapprovedFlight()</script>"}\n';await delay(5);yield '1:real-flight-tail\n';})()));
+    if(request.url==='/channels/error')return reply.code(500).type('text/plain').send('upstream failure');
+    const body=request.url==='/channels/injected'?html.replace('</body>','<script>alert(1)</script></body>'):html;
+    reply.type('text/html');
+    // A real upstream may return HTML rather than Flight for an RSC request.
+    if(request.headers['accept-encoding']!== 'identity'||request.url==='/channels/ignores-identity')return reply.header('Content-Encoding',encoding).send(compressed(body));
+    return reply.send(body);
+  });
+  await ui.listen({port:0,host:'127.0.0.1'});
+  const address=ui.server.address();if(!address||typeof address==='string')throw Error('Missing port');
+  const app=Fastify();await registerUiProxy(app,{origin:`http://127.0.0.1:${address.port}`,htmlSecurity:{themeScript,assets:new Map([[scriptPath,hash]])}});
+  const headers={rsc:'1','next-router-prefetch':'1','accept-encoding':encoding,'if-none-match':'"old"','if-modified-since':'Tue, 13 Oct 2026 00:00:00 GMT','if-match':'"old"','if-unmodified-since':'Tue, 13 Oct 2026 00:00:00 GMT',range:'bytes=0-20','if-range':'"old"'};
+  try{
+    const fallback=await app.inject({url:'/ai/days/5533/events?event=example&_rsc=transport',headers});
+    expect(fallback.statusCode).toBe(200);
+    expect(observed[0]).toEqual({encoding:'identity',conditionals:Array(6).fill(undefined),rsc:'1',prefetch:'1'});
+    expect(fallback.headers['content-encoding']).toBe(encoding);
+    const decoded=(encoding==='gzip'?gunzipSync(fallback.rawPayload):brotliDecompressSync(fallback.rawPayload)).toString();
+    expect(decoded).toContain('RSC HTML fallback');expect(decoded).toContain(`integrity="${hash}"`);
+    expect(fallback.headers['content-security-policy']).toContain(hash);expect(fallback.headers['content-security-policy']).toContain("'strict-dynamic'");
+    expect(fallback.headers['cache-control']).toBe('private, no-store, no-transform');expect(fallback.headers.vary).toContain('RSC');
+    const flight=await app.inject({url:'/channels/flight',headers});
+    expect(flight.statusCode).toBe(200);expect(flight.body).toBe('0:{"opaque":"<script>unapprovedFlight()</script>"}\n1:real-flight-tail\n');
+    expect(flight.headers['content-type']).toContain('text/x-component');expect(flight.headers['cache-control']).toBe('private, no-store, no-transform');
+    expect(flight.headers['content-encoding']).toBeUndefined();expect(flight.headers['content-security-policy']).toContain("default-src 'none'");
+    for(const url of ['/channels/error','/channels/injected','/channels/ignores-identity']){
+      const denied=await app.inject({url,headers});expect(denied.statusCode).toBe(503);expect(denied.headers['cache-control']).toBe('private, no-store, no-transform');
+      expect(denied.body).not.toContain('upstream failure');expect(denied.body).not.toContain('alert(1)');expect(denied.body).not.toContain('RSC HTML fallback');
+    }
+    const asset=await app.inject({url:'/_next/static/fixture.js',headers:{'accept-encoding':encoding}});
+    expect(asset.statusCode).toBe(200);expect(observed.at(-1)?.encoding).toBe(encoding);expect(asset.headers['content-encoding']).toBe(encoding);
+    expect(asset.rawPayload).toEqual(compressed('window.staticReady=true'));expect(asset.headers['cache-control']).toContain('public');
+  }finally{ui.server.closeAllConnections();await app.close();await ui.close();}
 });
 
 it('publishes atomic hash CSP HTML but keeps credentials, Flight, Set-Cookie, errors and query variants private',async()=>{

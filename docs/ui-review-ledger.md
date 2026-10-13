@@ -429,3 +429,9 @@ v10網路settlement source由另一GPT-6.1 Sol instance獨立review，23項mock 
 07:04:09–07:04:29 UTC：v10重試在新SM排隊指示送達前已啟動，未中斷而自然exit1。桌機94筆網路生命週期完整，DNT/GPC與Google零attempt／response僅限該收據觀察；手機遇到candidate `/ai/days/:id/events` prefetch503，故仍無手機PNG、completed item或配對manifest。全部partial與lock保留，固定envelope總計5,222,891 bytes。receipt/hash見 `queueRelease0604.v10RetryResult`。不把桌機網路通過當視覺pass；所有376新版本狀態仍pending。
 
 使用者已要求SM不再開新的build／capture／restore，全部排隊等Mint。唯一YT owner交接清單：`/tmp/babysit/mint-queue/youtube.md`。現有candidate依原生命週期自然結束，不在SM重建／重拍；原始碼、mock測試、文件與既有截圖離線review繼續。正式站未部署。
+
+Mint離線準備：實際matching-light tag參考已找到，原capture時間20:22:01 UTC及hash可核對。獨立GPT-6.1 Sol逐圖比較兩批a77桌機partial共12張與7張tag參考，支援P2finding：升溫資料不足後的支援影片／頻道數被ellipsis藏住。來源CSS改讓次要metrics自然換行，詞身分仍保留原規則；20個focused資料／元件測試通過，另instance source review通過。圖像finding不關閉；需要Mint新SHA／BUILD_ID的雙寬度亮暗重拍。收據、逐圖path/hash與source限制列於JSON `mintOfflineFollowup`。
+
+quality第二批修改已park在35a4794並推到自己的分支，獨立source review及45個mock/offline測試、jobsnoEmit通過，17個DB測試跳過。當前a77artifact不包含該批；啟用仍受syncownership／freshbackup／exactdeployedimplementation／operatorauthorization阻擋。未新增帳號、grant、schema或scheduler動作。
+
+396196c原始碼小修：RSC的合法HTMLfallback同樣協商identity完整entity，再做原hashCSP／SRI及privatecache檢查。作者14個mock測試及API noEmit通過，獨立reviewer另跑13個proxy／cache診斷／publicHTML測試通過。Flightstream及編碼staticbytes保留；真實5xx／不安全inline／不遵守identity仍503。已觀察手機503的精確根因仍未證，不把修復contractgap當實際驗收。新映像／新SHA重拍排隊Mint。

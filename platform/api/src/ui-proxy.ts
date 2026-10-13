@@ -58,7 +58,9 @@ export async function registerUiProxy(app: FastifyInstance, options: { origin: s
       rewriteRequestHeaders: (request, headers) => {
         const safe = {...headers};
         for (const name of ['authorization','cookie','proxy-authorization','x-api-key','x-service-token',PUBLIC_RENDER_HEADER,INTERNAL_RENDER_HEADER,'x-yt-public-render','x-nonce','content-security-policy','content-security-policy-report-only']) delete safe[name];
-        if(options.htmlSecurity && !request.url.startsWith('/_next/') && request.headers.rsc===undefined) {
+        // RSC requests may receive HTML fallbacks too. Negotiate a complete
+        // identity entity before inspecting its actual content type below.
+        if(options.htmlSecurity && !request.url.startsWith('/_next/')) {
           safe['accept-encoding']='identity';
           // A 304/206 without its entity cannot be paired with a regenerated hash
           // policy. Public HTML always receives a complete trusted representation.
