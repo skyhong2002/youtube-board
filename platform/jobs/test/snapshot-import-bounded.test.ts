@@ -199,6 +199,35 @@ describe('bounded full-pool publication and active-only loader (offline)',()=>{
   expect(store.snapshot!.matchingSubset).toBeUndefined();expect(store.current).toBe(prior.id);
   expect(store.terms.size).toBe(f.manifest.total);
  });
+ it.each(['observed-article-window','all-current-indexed-article-tags'] as const)('imports a complete raw pool without downgrading a serving v2 %s generation',async coverage=>{
+  const f=fixture(2),prior:StoredVocabularySnapshot={id:'quality-serving',source:SOURCE,window:null,publishedAt:date,coverage,upstreamSnapshotConsistent:coverage==='all-current-indexed-article-tags',upstreamGeneratedAt:'2026-10-12T00:00:00.000Z',matchingRule:'youtube-quality-v2',terms:[]};
+  const store=mockStore(prior);
+  const result=await importSnapshot(store.db,f.source,1,check);
+  expect(result).toMatchObject({status:'published',total:2,becameCurrent:false});
+  expect(store.runStatus).toBe('published');expect(store.terms.size).toBe(2);expect(store.current).toBe(prior.id);
+  expect(store.snapshot!.matchingRule).toBeUndefined();expect(store.snapshot!.matchingSubset!.keys).toHaveLength(2);
+  expect(vi.mocked(store.db.execute).mock.calls.some(([sql])=>String(sql).includes('ts_vocabulary_current'))).toBe(false);
+  expect(store.queries.find(q=>q.sql.includes('JOIN ts_vocabulary_runs')&&q.sql.includes('FOR UPDATE'))?.inTransaction).toBe(true);
+  expect((await importSnapshot(store.db,f.source,1,check)).status).toBe('already-published');expect(store.current).toBe(prior.id);
+ });
+ it.each([undefined,'exact-text-v1'] as const)('keeps promotion of a newer complete export for legacy policy %s',async matchingRule=>{
+  const f=fixture(2),prior:StoredVocabularySnapshot={id:'prior-legacy',source:SOURCE,window:null,publishedAt:date,coverage:'all-current-indexed-article-tags',upstreamSnapshotConsistent:true,upstreamGeneratedAt:'2026-10-12T00:00:00.000Z',terms:[],...(matchingRule?{matchingRule}:{})};
+  const store=mockStore(prior);
+  expect(await importSnapshot(store.db,f.source,1,check)).toMatchObject({becameCurrent:true});expect(store.current).toBe(`tag-${f.manifest.id}`);
+ });
+ it.each(['null','[]','42','{"matchingRule":"future-policy"}'])('rolls back publication for invalid or unknown serving metadata %s',async raw=>{
+  const f=fixture(2),prior:StoredVocabularySnapshot={id:'prior-legacy',source:SOURCE,window:null,publishedAt:date,coverage:'observed-article-window',upstreamSnapshotConsistent:false,terms:[]};
+  const store=mockStore(prior),query=vi.mocked(store.db.query),original=query.getMockImplementation()!;
+  query.mockImplementation(async(...args:Parameters<typeof original>)=>{
+   const result=await original(...args);
+   if(String(args[0]).includes('JOIN ts_vocabulary_runs'))for(const row of result[0] as Array<{snapshot:string}>)row.snapshot=raw;
+   return result;
+  });
+  await expect(importSnapshot(store.db,f.source,1,check)).rejects.toThrow(/Invalid serving|Unknown vocabulary/);
+  expect(store.runStatus).toBe('scanning');expect(store.terms.size).toBe(2);expect(store.current).toBe(prior.id);
+  expect(store.db.rollback).toHaveBeenCalledTimes(1);
+  expect(vi.mocked(store.db.execute).mock.calls.some(([sql])=>String(sql).includes('SET status =')||String(sql).includes('ts_vocabulary_current'))).toBe(false);
+ });
  it('rejects active key metadata drift and enforces16MiB read cap',async()=>{
   const f=fixture(),store=mockStore();await importSnapshot(store.db,f.source,3,check);
   const original=store.snapshot!;

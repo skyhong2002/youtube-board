@@ -37,3 +37,39 @@ it('legacy published snapshots without quality still load without inventing qual
   const db = { query: vi.fn().mockResolvedValue([[{ snapshot: JSON.stringify(snapshot) }]]) };
   expect(await loadVocabularySnapshot(db as unknown as Connection, 'legacy')).not.toHaveProperty('sourceQuality');
 });
+
+function publicationDb(current?: string) {
+  const id = 'quality-policy-refresh', until = '2026-10-13T00:00:00.000Z';
+  const run = {id, window_since: '2026-10-12T00:00:00.000Z', window_until: until, checkpoint_cursor: null, pages: 1, status: 'ready'};
+  const db = {
+    beginTransaction: vi.fn().mockResolvedValue(undefined), commit: vi.fn().mockResolvedValue(undefined), rollback: vi.fn().mockResolvedValue(undefined),
+    query: vi.fn().mockResolvedValueOnce([[run]]).mockResolvedValueOnce([[{payload: JSON.stringify(articles[0])}]]).mockResolvedValueOnce([current === undefined ? [] : [{window_until: '2026-10-11T00:00:00.000Z', snapshot: current}]]),
+    execute: vi.fn().mockResolvedValue([{}]),
+  };
+  return {id, db};
+}
+it('a later article window is retained as a published backup without replacing the active quality policy', async () => {
+  const current = {id: 'quality-serving', coverage: 'observed-article-window', matchingRule: 'youtube-quality-v2'};
+  const {id, db} = publicationDb(JSON.stringify(current));
+  const snapshot = await new MysqlVocabularyStore(db as unknown as Connection).publish(id);
+  expect(snapshot.becameCurrent).toBe(false);
+  expect(snapshot.coverage).toBe('observed-article-window');
+  expect(snapshot.terms).toHaveLength(1);
+  expect(db.execute.mock.calls.some(([sql]) => String(sql).startsWith('UPDATE ts_vocabulary_runs'))).toBe(true);
+  expect(db.execute.mock.calls.some(([sql]) => String(sql).includes('ts_vocabulary_current'))).toBe(false);
+  expect(db.query.mock.calls.at(-1)?.[0]).toContain('FOR UPDATE');
+  expect(db.commit).toHaveBeenCalledOnce();
+});
+it.each([undefined, 'exact-text-v1'])('legacy current policy %s still permits newer window promotion', async rule => {
+  const {id, db} = publicationDb(JSON.stringify({coverage: 'observed-article-window', ...(rule ? {matchingRule: rule} : {})}));
+  const snapshot = await new MysqlVocabularyStore(db as unknown as Connection).publish(id);
+  expect(snapshot.becameCurrent).toBe(true);
+  expect(db.execute.mock.calls.some(([sql]) => String(sql).includes('ts_vocabulary_current'))).toBe(true);
+});
+it.each(['null', '[]', '42', '{"matchingRule":"future-policy"}'])('invalid or unknown serving metadata %s cannot be replaced', async current => {
+  const {id, db} = publicationDb(current);
+  await expect(new MysqlVocabularyStore(db as unknown as Connection).publish(id)).rejects.toThrow(/Invalid serving|Unknown vocabulary/);
+  expect(db.execute).not.toHaveBeenCalled();
+  expect(db.commit).not.toHaveBeenCalled();
+  expect(db.rollback).toHaveBeenCalledOnce();
+});

@@ -1,3 +1,4 @@
+import { matchingRuleForSnapshot } from '../../shared/youtube-match-policy.js';
 import {tagHttpOptions} from './tag-http.js';
 import { createHash } from 'node:crypto';
 import type { Connection, RowDataPacket, ResultSetHeader } from 'mysql2/promise';
@@ -116,9 +117,13 @@ export async function importSnapshot(db: Connection, source: SnapshotSource & { 
     if (Number(counts[0]?.total) !== manifest.total) throw new Error('Staged vocabulary count mismatch');
     const [current] = await db.query<RowDataPacket[]>('SELECT r.snapshot FROM ts_vocabulary_current c JOIN ts_vocabulary_runs r ON r.id=c.run_id WHERE c.source = ? FOR UPDATE', [SOURCE]);
     const old = current[0] ? JSON.parse(current[0].snapshot) as VocabularySnapshot : null;
+    if (current[0] && (!old || typeof old !== 'object' || Array.isArray(old))) throw new Error('Invalid serving vocabulary metadata');
     if (old?.coverage === 'all-current-indexed-article-tags' && !strictIso(old.upstreamGeneratedAt)) throw new Error('Current full vocabulary has invalid publication metadata');
     // Equal timestamps keep the existing current version; only a newer export replaces it.
-    const becameCurrent = !old || old.coverage !== 'all-current-indexed-article-tags' || Date.parse(old.upstreamGeneratedAt!) < Date.parse(manifest.generatedAt);
+    // Import preserves the raw source pool; it must not implicitly replace a
+    // quality-serving generation with legacy matching. Activation owns that CAS.
+    const mayReplacePolicy = !old || matchingRuleForSnapshot(old) === 'exact-text-v1';
+    const becameCurrent = mayReplacePolicy && (!old || old.coverage !== 'all-current-indexed-article-tags' || Date.parse(old.upstreamGeneratedAt!) < Date.parse(manifest.generatedAt));
     const snapshot: StoredVocabularySnapshot = { id, source: SOURCE, window: null, publishedAt: new Date().toISOString(), coverage: 'all-current-indexed-article-tags', upstreamSnapshotConsistent: true, upstreamSnapshotId: manifest.id, upstreamGeneratedAt: manifest.generatedAt, upstreamChecksum: manifest.sha256, termsStoredSeparately: true, termCount: manifest.total, terms: [], becameCurrent, upstreamManifest: manifest, localPayloadChecksum, ...(matchingSubset ? {matchingSubset} : {}) };
     const encodedSnapshot = JSON.stringify(snapshot);
     if (Buffer.byteLength(encodedSnapshot) > MAX_STORED_SNAPSHOT_BYTES) throw new Error('Stored vocabulary metadata exceeds byte cap');

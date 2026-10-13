@@ -1,3 +1,4 @@
+import { matchingRuleForSnapshot } from '../../shared/youtube-match-policy.js';
 import { assertVocabularyBudget } from './vocabulary-budget.js';
 import type { Connection, RowDataPacket } from 'mysql2/promise';
 import { aggregateSourceQuality, aggregateTerms, SOURCE, validateWindow, type ArticlePage, type SourceArticle, type SyncRun, type VocabularySnapshot, type VocabularyStore, type Window } from './vocabulary.js';
@@ -47,8 +48,12 @@ export class MysqlVocabularyStore implements VocabularyStore {
       assertVocabularyBudget(snapshot.terms);
       // Do not let a resumed older window displace a newer completed observation.
       const [current] = await this.db.query<RowDataPacket[]>('SELECT r.window_until, r.snapshot FROM ts_vocabulary_current c JOIN ts_vocabulary_runs r ON r.id = c.run_id WHERE c.source = ? FOR UPDATE', [SOURCE]);
-      const currentCoverage = current[0] ? JSON.parse(current[0].snapshot)?.coverage : null;
-      snapshot.becameCurrent = currentCoverage !== 'all-current-indexed-article-tags' && (!current[0] || Date.parse(run.window.until) >= Date.parse(current[0].window_until));
+      const currentSnapshot = current[0] ? JSON.parse(current[0].snapshot) as VocabularySnapshot : null;
+      if (current[0] && (!currentSnapshot || typeof currentSnapshot !== 'object' || Array.isArray(currentSnapshot))) throw new Error('Invalid serving vocabulary metadata');
+      // Source refresh is not a quality-policy activation: retain the v2 serving
+      // generation until its reviewed successor is matched and activated by CAS.
+      const mayReplacePolicy = !currentSnapshot || matchingRuleForSnapshot(currentSnapshot) === 'exact-text-v1';
+      snapshot.becameCurrent = mayReplacePolicy && currentSnapshot?.coverage !== 'all-current-indexed-article-tags' && (!current[0] || Date.parse(run.window.until) >= Date.parse(current[0].window_until));
       if (snapshot.terms.length > 50000 || Buffer.byteLength(JSON.stringify(snapshot)) > 8000000) throw new Error('Vocabulary snapshot exceeds publication cap');
       await this.db.execute('UPDATE ts_vocabulary_runs SET status = ?, snapshot = ?, published_at = CURRENT_TIMESTAMP(3) WHERE id = ?', ['published', JSON.stringify(snapshot), id]);
       if (snapshot.becameCurrent) await this.db.execute('INSERT INTO ts_vocabulary_current (source, run_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE run_id = VALUES(run_id)', [SOURCE, id]);
