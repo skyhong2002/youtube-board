@@ -9,6 +9,7 @@ import {VideoThumbnail} from './VideoThumbnail';
 import {KeywordEvidenceNotice} from './KeywordEvidenceNotice';
 import FollowButton from './reader/FollowButton';
 import LinkPending from './LinkPending';
+import KeywordRelations from './KeywordRelations';
 
 /** Layout from tag.observe.tw tag/[tag] and ArticleResults at afe0a653.
  * Keep API ranking and scope; a page of videos cannot establish global facets. */
@@ -37,7 +38,7 @@ export function KeywordProfile({keyword,description,data,meta,notice,tabs,filter
    <span>{periodLabel(period)}</span>
    <span>比對標題與說明・字幕尚未取得・未比對影片不列入</span>
   </p>
-  <section className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]" aria-label="共同標籤影片與比對範圍">
+  <section className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:grid-rows-[auto_1fr]" aria-label="共同標籤影片與比對範圍">
    <aside className="min-w-0 space-y-4 lg:order-2">
     <section className="space-y-3" aria-label="影片來源範圍">
      <h2 className="text-sm font-medium text-zinc-600 dark:text-zinc-400">收錄與比對範圍</h2>
@@ -48,13 +49,17 @@ export function KeywordProfile({keyword,description,data,meta,notice,tabs,filter
      <div className="min-w-0 px-1 [&_form]:my-0 [&_form]:rounded-none [&_form]:border-0 [&_form]:pt-1 [&_label]:w-full [&_input]:w-full [&_select]:w-full">{filters}</div>
     </details>
    </aside>
-   <div className="min-w-0 space-y-4">
+   <div className="min-w-0 space-y-4 lg:row-span-2">
     <h2 className="text-lg font-semibold tracking-tight">符合共同標籤的影片 <span className="text-sm font-normal text-zinc-500">{data.total===null?(data.totalStatus==='unavailable'?'總數暫時無法取得':'總數未計算'):`${count(data.total)} 部`}</span></h2>
     <p className="text-sm text-zinc-600 dark:text-zinc-400">{MATCH_CAVEAT}</p>
     {/* A page past the results is not "no matches": the counted total says otherwise. */}
     {!data.rows.length&&data.total!==null&&data.total>0?<p className="rounded-lg border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400" data-keyword-results="page-empty">這一頁沒有可呈現的影片，但目前條件共 {count(data.total)} 部符合；請改看其他頁碼。</p>:<KeywordVideoList rows={data.rows} total={data.total}/>}
     {pagination}
    </div>
+   {/* Optional Y2 relations: a client island read after hydration from the same-origin gateway.
+       Not part of this server render's data, ranking, counts or filters; on narrow screens it sits
+       after the videos, on wide screens under the coverage column. Keyed so a new keyword starts fresh. */}
+   <div className="min-w-0 lg:order-3"><KeywordRelations key={keyword} keyword={keyword}/></div>
   </section>
   <MethodDisclosure>
    <p>{TAG_SOURCE_ATTRIBUTION}。共同標籤「{keyword}」以文字比對影片標題與說明，不是 AI 判讀；命中不代表事件歸屬或立場，與頻道分類分開。字幕尚未取得，不列入比對。</p>
