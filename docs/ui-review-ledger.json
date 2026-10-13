@@ -35253,8 +35253,744 @@
       "unresolvedExampleEntries": 240,
       "executionAllowed": false,
       "candidateSHAOption": "syntax-only; source/runtime binding separately required",
-      "captureBudget": "Inclusive retained-evidence inventory required; historical49,932,059 +stopped5,222,891 if disjoint +planned246MB exceeds300MB by1,154,950; reduce complete executable variant groups, no deletion/reset.",
-      "firstEnvelopeIsNotFullSiteReview": true
+      "captureBudget": "Seven complete source-backed synthetic groups (28 packages); known disjoint retained all-file subtotal56,717,030 +new inclusive planning upper198,000,000 =254,717,030 bytes; batches82/82/34MB. Complete retained scope and actual fixture/runtime evidence unresolved; all executionAllowed=false; preserve originals, postpone whole groups when measured retained bytes rise.",
+      "firstEnvelopeIsNotFullSiteReview": true,
+      "inclusiveBudgetRepair": {
+        "recordedAtUTC": "2026-10-13T10:32:07.224097+00:00",
+        "scope": "Offline source planning and local retained file identity accounting only; no runtime authorization",
+        "supersedesBudgetArithmeticOnly": "Original36-package envelope and historical retake-plan receipt preserved; latest initial proposal is28 packages with seven complete synthetic groups",
+        "inventory": {
+          "scope": "Local retained historical and stopped capture directories, all regular files; global retained scope incomplete",
+          "receipt": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-13/retake-retained-identity-inventory.json",
+          "receiptSha256": "171101d802b62ea3d79bb87ef32d5f97e0b65086507ff568763d9885601dedb6",
+          "roots": [
+            {
+              "name": "candidate-retest-654cdf5",
+              "fileCount": 228,
+              "bytes": 51494139,
+              "pngCount": 224,
+              "pngBytes": 49932059
+            },
+            {
+              "name": "candidate-thaw-envelope-2026-10-13",
+              "fileCount": 19,
+              "bytes": 5222891,
+              "pngCount": 12,
+              "pngBytes": 4979607
+            }
+          ],
+          "overlappingFileIdentityCount": 0,
+          "identityDeduplicatedBytes": 56717030,
+          "deduplication": "device+inode; separately retained content-identical copies count separately",
+          "completeCumulativeScope": false,
+          "preservedOriginals": true
+        },
+        "diskBudget": {
+          "unit": "bytes",
+          "historicalDirectoryPngCount": 224,
+          "historicalDirectoryPngBytes": 49932059,
+          "manifestReferencedPngCount": 202,
+          "manifestReferencedPngBytes": 43225260,
+          "manifestViewportPackages": 24,
+          "medianViewportPackageBytes": 1309696,
+          "largestViewportPackageBytes": 5900530,
+          "historicalNote": "All originals preserved;22 PNGs outside manifest remain retained, not attributed to a new SHA/review.",
+          "estimatedViewportPackageBytes": 2500000,
+          "planningUpperViewportPackageBytes": 6000000,
+          "estimatedWholeMatrixBytes": 5150000000,
+          "planningUpperWholeMatrixBytes": 12360000000,
+          "estimatesExclude": "Additional interactions beyond selected groups; full Cartesian inventory is neither executable nor a reservation.",
+          "cumulativeAuthorizedCaptureCeilingBytes": 300000000,
+          "batchHardCeilingBytes": 90000000,
+          "existingEvidenceBytes": null,
+          "existingEvidenceInventoryReceipt": null,
+          "knownRetainedIdentityInventory": {
+            "scope": "Local retained historical and stopped capture directories, all regular files; global retained scope incomplete",
+            "receipt": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-13/retake-retained-identity-inventory.json",
+            "receiptSha256": "171101d802b62ea3d79bb87ef32d5f97e0b65086507ff568763d9885601dedb6",
+            "roots": [
+              {
+                "name": "candidate-retest-654cdf5",
+                "fileCount": 228,
+                "bytes": 51494139,
+                "pngCount": 224,
+                "pngBytes": 49932059
+              },
+              {
+                "name": "candidate-thaw-envelope-2026-10-13",
+                "fileCount": 19,
+                "bytes": 5222891,
+                "pngCount": 12,
+                "pngBytes": 4979607
+              }
+            ],
+            "overlappingFileIdentityCount": 0,
+            "identityDeduplicatedBytes": 56717030,
+            "deduplication": "device+inode; separately retained content-identical copies count separately",
+            "completeCumulativeScope": false,
+            "preservedOriginals": true
+          },
+          "knownRetainedIdentitySubtotalBytes": 56717030,
+          "retainedStoppedA77EnvelopeBytes": 5222891,
+          "existingEvidenceRule": "Two local roots are disjoint by device+inode and include metadata. Other retained references/receipts and destination copies remain unresolved. Complete current cumulative inventory is required before execution; no content-hash dedup of separately retained copies, deletion or reset.",
+          "firstEnvelopeBatches": 3,
+          "firstEnvelopeEstimatedPngBytes": 70000000,
+          "firstEnvelopePlanningUpperPngBytes": 168000000,
+          "firstEnvelopeAdditionalEvidenceReserveBytes": 30000000,
+          "firstEnvelopeEvidenceReservePerBatchBytes": 10000000,
+          "firstEnvelopeInclusivePlanningUpperBytes": 198000000,
+          "knownRetainedPlusEnvelopePlanningUpperBytes": 254717030,
+          "remainingBytesAfterKnownRetainedAndEnvelope": 45282970,
+          "firstEnvelopeBudgetStatus": "blocked-pending-complete-current-cumulative-inventory-and-fixture-runtime-gates",
+          "batchCeilingScope": "Every retained/new PNG, reference, network and metadata file counts; each complete four-variant group reserves24MB PNG upper, each batch adds10MB other evidence; selected batches stay<=90MB.",
+          "rule": "Budget-select only complete groups. If full measured retained bytes exceed this subtotal, rerun allocation and postpone whole groups. Stop before batch or cumulative cap; preserve originals and never reset accounting."
+        },
+        "summary": {
+          "uiEntries": 376,
+          "uiRoutes": 110,
+          "plannedViewportPackages": 2060,
+          "firstEnvelopeViewportPackages": 28,
+          "initialCompleteReviewGroups": 7,
+          "postponedExactExampleGroups": 4,
+          "executionAllowedPackages": 0,
+          "completedCaptures": 0,
+          "completedReviews": 0,
+          "missingExampleEntries": 240
+        },
+        "initialReviewGroups": [
+          {
+            "id": "/:today",
+            "route": "/",
+            "candidatePath": "/",
+            "state": "synthetic-fixture",
+            "period": "today",
+            "periodProcedure": {
+              "period": "today",
+              "action": "select today; verify cloud AND ranking before every image"
+            },
+            "viewportVariants": [
+              {
+                "theme": "light",
+                "width": 1280
+              },
+              {
+                "theme": "light",
+                "width": 390
+              },
+              {
+                "theme": "dark",
+                "width": 1280
+              },
+              {
+                "theme": "dark",
+                "width": 390
+              }
+            ],
+            "stateSetup": {
+              "status": "unresolved",
+              "fixtureManifest": null,
+              "existingAccountRole": null,
+              "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+            },
+            "sourceFixture": {
+              "dataset": "fixture",
+              "vocabularyVersion": "mint-synthetic-v1",
+              "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+              "actualFixtureManifest": null,
+              "status": "source-backed-only; no DB/API execution evidence"
+            },
+            "executionAllowed": false,
+            "unresolvedReasons": [
+              "actual isolated fixture receipt and exact candidate URL/period verification missing",
+              "complete cumulative retained evidence inventory missing",
+              "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+            ],
+            "batch": 1,
+            "viewportPackages": 4,
+            "estimatedPngBytes": 10000000,
+            "planningUpperPngBytes": 24000000,
+            "status": "budget-selected-pending-fixture-inventory-and-runtime-gates"
+          },
+          {
+            "id": "/:week",
+            "route": "/",
+            "candidatePath": "/",
+            "state": "synthetic-fixture",
+            "period": "week",
+            "periodProcedure": {
+              "period": "week",
+              "action": "select week; verify cloud AND ranking before every image"
+            },
+            "viewportVariants": [
+              {
+                "theme": "light",
+                "width": 1280
+              },
+              {
+                "theme": "light",
+                "width": 390
+              },
+              {
+                "theme": "dark",
+                "width": 1280
+              },
+              {
+                "theme": "dark",
+                "width": 390
+              }
+            ],
+            "stateSetup": {
+              "status": "unresolved",
+              "fixtureManifest": null,
+              "existingAccountRole": null,
+              "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+            },
+            "sourceFixture": {
+              "dataset": "fixture",
+              "vocabularyVersion": "mint-synthetic-v1",
+              "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+              "actualFixtureManifest": null,
+              "status": "source-backed-only; no DB/API execution evidence"
+            },
+            "executionAllowed": false,
+            "unresolvedReasons": [
+              "actual isolated fixture receipt and exact candidate URL/period verification missing",
+              "complete cumulative retained evidence inventory missing",
+              "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+            ],
+            "batch": 1,
+            "viewportPackages": 4,
+            "estimatedPngBytes": 10000000,
+            "planningUpperPngBytes": 24000000,
+            "status": "budget-selected-pending-fixture-inventory-and-runtime-gates"
+          },
+          {
+            "id": "/keywords:today",
+            "route": "/keywords",
+            "candidatePath": "/keywords",
+            "state": "synthetic-fixture",
+            "period": "today",
+            "periodProcedure": {
+              "period": "today",
+              "action": "select today; verify cloud AND ranking before every image"
+            },
+            "viewportVariants": [
+              {
+                "theme": "light",
+                "width": 1280
+              },
+              {
+                "theme": "light",
+                "width": 390
+              },
+              {
+                "theme": "dark",
+                "width": 1280
+              },
+              {
+                "theme": "dark",
+                "width": 390
+              }
+            ],
+            "stateSetup": {
+              "status": "unresolved",
+              "fixtureManifest": null,
+              "existingAccountRole": null,
+              "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+            },
+            "sourceFixture": {
+              "dataset": "fixture",
+              "vocabularyVersion": "mint-synthetic-v1",
+              "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+              "actualFixtureManifest": null,
+              "status": "source-backed-only; no DB/API execution evidence"
+            },
+            "executionAllowed": false,
+            "unresolvedReasons": [
+              "actual isolated fixture receipt and exact candidate URL/period verification missing",
+              "complete cumulative retained evidence inventory missing",
+              "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+            ],
+            "batch": 1,
+            "viewportPackages": 4,
+            "estimatedPngBytes": 10000000,
+            "planningUpperPngBytes": 24000000,
+            "status": "budget-selected-pending-fixture-inventory-and-runtime-gates"
+          },
+          {
+            "id": "/keywords:week",
+            "route": "/keywords",
+            "candidatePath": "/keywords",
+            "state": "synthetic-fixture",
+            "period": "week",
+            "periodProcedure": {
+              "period": "week",
+              "action": "select week; verify cloud AND ranking before every image"
+            },
+            "viewportVariants": [
+              {
+                "theme": "light",
+                "width": 1280
+              },
+              {
+                "theme": "light",
+                "width": 390
+              },
+              {
+                "theme": "dark",
+                "width": 1280
+              },
+              {
+                "theme": "dark",
+                "width": 390
+              }
+            ],
+            "stateSetup": {
+              "status": "unresolved",
+              "fixtureManifest": null,
+              "existingAccountRole": null,
+              "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+            },
+            "sourceFixture": {
+              "dataset": "fixture",
+              "vocabularyVersion": "mint-synthetic-v1",
+              "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+              "actualFixtureManifest": null,
+              "status": "source-backed-only; no DB/API execution evidence"
+            },
+            "executionAllowed": false,
+            "unresolvedReasons": [
+              "actual isolated fixture receipt and exact candidate URL/period verification missing",
+              "complete cumulative retained evidence inventory missing",
+              "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+            ],
+            "batch": 2,
+            "viewportPackages": 4,
+            "estimatedPngBytes": 10000000,
+            "planningUpperPngBytes": 24000000,
+            "status": "budget-selected-pending-fixture-inventory-and-runtime-gates"
+          },
+          {
+            "id": "/keywords/合成焦點甲/videos:today",
+            "route": "/keywords/{keyword}/videos",
+            "candidatePath": "/keywords/合成焦點甲/videos",
+            "state": "synthetic-fixture",
+            "period": "today",
+            "periodProcedure": {
+              "period": "today",
+              "query": {
+                "from": "D",
+                "to": "D"
+              }
+            },
+            "viewportVariants": [
+              {
+                "theme": "light",
+                "width": 1280
+              },
+              {
+                "theme": "light",
+                "width": 390
+              },
+              {
+                "theme": "dark",
+                "width": 1280
+              },
+              {
+                "theme": "dark",
+                "width": 390
+              }
+            ],
+            "stateSetup": {
+              "status": "unresolved",
+              "fixtureManifest": null,
+              "existingAccountRole": null,
+              "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+            },
+            "sourceFixture": {
+              "dataset": "fixture",
+              "vocabularyVersion": "mint-synthetic-v1",
+              "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+              "actualFixtureManifest": null,
+              "status": "source-backed-only; no DB/API execution evidence"
+            },
+            "executionAllowed": false,
+            "unresolvedReasons": [
+              "actual isolated fixture receipt and exact candidate URL/period verification missing",
+              "complete cumulative retained evidence inventory missing",
+              "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+            ],
+            "batch": 2,
+            "viewportPackages": 4,
+            "estimatedPngBytes": 10000000,
+            "planningUpperPngBytes": 24000000,
+            "status": "budget-selected-pending-fixture-inventory-and-runtime-gates"
+          },
+          {
+            "id": "/keywords/合成焦點甲/videos:week",
+            "route": "/keywords/{keyword}/videos",
+            "candidatePath": "/keywords/合成焦點甲/videos",
+            "state": "synthetic-fixture",
+            "period": "week",
+            "periodProcedure": {
+              "period": "week",
+              "query": {
+                "from": "D-6",
+                "to": "D"
+              }
+            },
+            "viewportVariants": [
+              {
+                "theme": "light",
+                "width": 1280
+              },
+              {
+                "theme": "light",
+                "width": 390
+              },
+              {
+                "theme": "dark",
+                "width": 1280
+              },
+              {
+                "theme": "dark",
+                "width": 390
+              }
+            ],
+            "stateSetup": {
+              "status": "unresolved",
+              "fixtureManifest": null,
+              "existingAccountRole": null,
+              "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+            },
+            "sourceFixture": {
+              "dataset": "fixture",
+              "vocabularyVersion": "mint-synthetic-v1",
+              "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+              "actualFixtureManifest": null,
+              "status": "source-backed-only; no DB/API execution evidence"
+            },
+            "executionAllowed": false,
+            "unresolvedReasons": [
+              "actual isolated fixture receipt and exact candidate URL/period verification missing",
+              "complete cumulative retained evidence inventory missing",
+              "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+            ],
+            "batch": 2,
+            "viewportPackages": 4,
+            "estimatedPngBytes": 10000000,
+            "planningUpperPngBytes": 24000000,
+            "status": "budget-selected-pending-fixture-inventory-and-runtime-gates"
+          },
+          {
+            "id": "/channels:existing-window",
+            "route": "/channels",
+            "candidatePath": "/channels",
+            "state": "synthetic-fixture",
+            "period": "existing-window",
+            "periodProcedure": {
+              "period": "existing-window"
+            },
+            "viewportVariants": [
+              {
+                "theme": "light",
+                "width": 1280
+              },
+              {
+                "theme": "light",
+                "width": 390
+              },
+              {
+                "theme": "dark",
+                "width": 1280
+              },
+              {
+                "theme": "dark",
+                "width": 390
+              }
+            ],
+            "stateSetup": {
+              "status": "unresolved",
+              "fixtureManifest": null,
+              "existingAccountRole": null,
+              "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+            },
+            "sourceFixture": {
+              "dataset": "fixture",
+              "vocabularyVersion": "mint-synthetic-v1",
+              "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+              "actualFixtureManifest": null,
+              "status": "source-backed-only; no DB/API execution evidence"
+            },
+            "executionAllowed": false,
+            "unresolvedReasons": [
+              "actual isolated fixture receipt and exact candidate URL/period verification missing",
+              "complete cumulative retained evidence inventory missing",
+              "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+            ],
+            "batch": 3,
+            "viewportPackages": 4,
+            "estimatedPngBytes": 10000000,
+            "planningUpperPngBytes": 24000000,
+            "status": "budget-selected-pending-fixture-inventory-and-runtime-gates"
+          }
+        ],
+        "initialReviewBatches": [
+          {
+            "batch": 1,
+            "groupIds": [
+              "/:today",
+              "/:week",
+              "/keywords:today"
+            ],
+            "viewportPackages": 12,
+            "additionalEvidenceReserveBytes": 10000000,
+            "planningUpperBytes": 82000000
+          },
+          {
+            "batch": 2,
+            "groupIds": [
+              "/keywords:week",
+              "/keywords/合成焦點甲/videos:today",
+              "/keywords/合成焦點甲/videos:week"
+            ],
+            "viewportPackages": 12,
+            "additionalEvidenceReserveBytes": 10000000,
+            "planningUpperBytes": 82000000
+          },
+          {
+            "batch": 3,
+            "groupIds": [
+              "/channels:existing-window"
+            ],
+            "viewportPackages": 4,
+            "additionalEvidenceReserveBytes": 10000000,
+            "planningUpperBytes": 34000000
+          }
+        ],
+        "postponedReviewGroups": [
+          {
+            "id": "/keywords/沈伯洋/videos:today",
+            "route": "/keywords/{keyword}/videos",
+            "candidatePath": "/keywords/沈伯洋/videos",
+            "state": "real-example",
+            "period": "today",
+            "periodProcedure": {
+              "period": "today",
+              "query": {
+                "from": "D",
+                "to": "D"
+              }
+            },
+            "viewportVariants": [
+              {
+                "theme": "light",
+                "width": 1280
+              },
+              {
+                "theme": "light",
+                "width": 390
+              },
+              {
+                "theme": "dark",
+                "width": 1280
+              },
+              {
+                "theme": "dark",
+                "width": 390
+              }
+            ],
+            "stateSetup": {
+              "status": "unresolved",
+              "fixtureManifest": null,
+              "existingAccountRole": null,
+              "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+            },
+            "sourceFixture": null,
+            "executionAllowed": false,
+            "unresolvedReasons": [
+              "actual isolated fixture receipt and exact candidate URL/period verification missing",
+              "complete cumulative retained evidence inventory missing",
+              "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+            ],
+            "postponedReasons": [
+              "real keyword example has no corresponding approved isolated fixture; synthetic term is not parity evidence"
+            ]
+          },
+          {
+            "id": "/keywords/沈伯洋/videos:week",
+            "route": "/keywords/{keyword}/videos",
+            "candidatePath": "/keywords/沈伯洋/videos",
+            "state": "real-example",
+            "period": "week",
+            "periodProcedure": {
+              "period": "week",
+              "query": {
+                "from": "D-6",
+                "to": "D"
+              }
+            },
+            "viewportVariants": [
+              {
+                "theme": "light",
+                "width": 1280
+              },
+              {
+                "theme": "light",
+                "width": 390
+              },
+              {
+                "theme": "dark",
+                "width": 1280
+              },
+              {
+                "theme": "dark",
+                "width": 390
+              }
+            ],
+            "stateSetup": {
+              "status": "unresolved",
+              "fixtureManifest": null,
+              "existingAccountRole": null,
+              "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+            },
+            "sourceFixture": null,
+            "executionAllowed": false,
+            "unresolvedReasons": [
+              "actual isolated fixture receipt and exact candidate URL/period verification missing",
+              "complete cumulative retained evidence inventory missing",
+              "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+            ],
+            "postponedReasons": [
+              "real keyword example has no corresponding approved isolated fixture; synthetic term is not parity evidence"
+            ]
+          },
+          {
+            "id": "/keywords/支持/videos:today",
+            "route": "/keywords/{keyword}/videos",
+            "candidatePath": "/keywords/支持/videos",
+            "state": "real-example",
+            "period": "today",
+            "periodProcedure": {
+              "period": "today",
+              "query": {
+                "from": "D",
+                "to": "D"
+              }
+            },
+            "viewportVariants": [
+              {
+                "theme": "light",
+                "width": 1280
+              },
+              {
+                "theme": "light",
+                "width": 390
+              },
+              {
+                "theme": "dark",
+                "width": 1280
+              },
+              {
+                "theme": "dark",
+                "width": 390
+              }
+            ],
+            "stateSetup": {
+              "status": "unresolved",
+              "fixtureManifest": null,
+              "existingAccountRole": null,
+              "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+            },
+            "sourceFixture": null,
+            "executionAllowed": false,
+            "unresolvedReasons": [
+              "actual isolated fixture receipt and exact candidate URL/period verification missing",
+              "complete cumulative retained evidence inventory missing",
+              "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+            ],
+            "postponedReasons": [
+              "real keyword example has no corresponding approved isolated fixture; synthetic term is not parity evidence"
+            ]
+          },
+          {
+            "id": "/keywords/支持/videos:week",
+            "route": "/keywords/{keyword}/videos",
+            "candidatePath": "/keywords/支持/videos",
+            "state": "real-example",
+            "period": "week",
+            "periodProcedure": {
+              "period": "week",
+              "query": {
+                "from": "D-6",
+                "to": "D"
+              }
+            },
+            "viewportVariants": [
+              {
+                "theme": "light",
+                "width": 1280
+              },
+              {
+                "theme": "light",
+                "width": 390
+              },
+              {
+                "theme": "dark",
+                "width": 1280
+              },
+              {
+                "theme": "dark",
+                "width": 390
+              }
+            ],
+            "stateSetup": {
+              "status": "unresolved",
+              "fixtureManifest": null,
+              "existingAccountRole": null,
+              "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+            },
+            "sourceFixture": null,
+            "executionAllowed": false,
+            "unresolvedReasons": [
+              "actual isolated fixture receipt and exact candidate URL/period verification missing",
+              "complete cumulative retained evidence inventory missing",
+              "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+            ],
+            "postponedReasons": [
+              "real keyword example has no corresponding approved isolated fixture; synthetic term is not parity evidence"
+            ]
+          }
+        ],
+        "unresolvedMatrix": {
+          "cartesianViewportSlots": 2060,
+          "executionAllowed": false,
+          "reasons": [
+            "all376 ledger states lack verified candidate fixture setup",
+            "240 entries lack an exact example URL; remaining examples still need isolated candidate verification",
+            "multiple examples, interaction and supplemental states require additional complete groups and bytes",
+            "whole-matrix estimate exceeds inclusive300MB; complete evidence inventory and runtime gates pending"
+          ]
+        },
+        "matrix": {
+          "path": "docs/ui-retake-matrix.json",
+          "sha256": "759ac0ae894cd29296846bf1e1ad741bbc0af4a707987527bae6571016aedcf7"
+        },
+        "sourceFiles": {
+          "platform/tools/ui-retake-plan.py": "ca730a09a91a6c881739705ce3eb54621865370b16f4b100e756f5278ea7ccfa",
+          "platform/tools/ui-retake-plan.test.py": "89714e4d40eb8eab848304e70bb3afe2babfd8b0c9dec9e737670a3008c9905d"
+        },
+        "authorValidation": {
+          "sourceOnlyTestsPassed": 9,
+          "actualCaptures": 0,
+          "actualBuilds": 0,
+          "runtimeProbes": 0
+        },
+        "executionAllowed": false,
+        "preservedOriginalEvidence": true,
+        "independentReview": "pending exact final-byte source/mock packet"
+      },
+      "historicalCaptureBudgetBeforeIdentityInventory": "Inclusive retained-evidence inventory required; historical49,932,059 +stopped5,222,891 if disjoint +planned246MB exceeds300MB by1,154,950; reduce complete executable variant groups, no deletion/reset."
     },
     "executorPrerequisites": {
       "APPSourceSHA": "70529cff13b6b7f5b3e0571a229e2b61660f9df4",

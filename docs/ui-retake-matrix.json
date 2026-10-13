@@ -36,7 +36,7 @@
       "readinessReceipt": null,
       "artifactProofReceipt": null
     },
-    "executionScope": "Only first envelope after all gates; entire 2060-package matrix is pending and exceeds current byte budget."
+    "executionScope": "Only budget-selected complete review groups after all gates; all Cartesian ledger slots remain unresolved planning, never executable by this tool."
   },
   "candidateSourceSHA": null,
   "candidateSourceRule": "Pin exact final independently reviewed committed SHA before one build; never use dirty worktree or relabel old PNGs",
@@ -46,7 +46,10 @@
     "uiEntries": 376,
     "uiRoutes": 110,
     "plannedViewportPackages": 2060,
-    "firstEnvelopeViewportPackages": 36,
+    "firstEnvelopeViewportPackages": 28,
+    "initialCompleteReviewGroups": 7,
+    "postponedExactExampleGroups": 4,
+    "executionAllowedPackages": 0,
     "completedCaptures": 0,
     "completedReviews": 0,
     "missingExampleEntries": 240
@@ -60,30 +63,671 @@
     "manifestViewportPackages": 24,
     "medianViewportPackageBytes": 1309696,
     "largestViewportPackageBytes": 5900530,
-    "historicalNote": "22 PNGs are not assigned to these manifest viewport lists; retained unchanged, not attributed to a new SHA or counted as reviewed.",
+    "historicalNote": "All originals preserved;22 PNGs outside manifest remain retained, not attributed to a new SHA/review.",
     "estimatedViewportPackageBytes": 2500000,
     "planningUpperViewportPackageBytes": 6000000,
     "estimatedWholeMatrixBytes": 5150000000,
     "planningUpperWholeMatrixBytes": 12360000000,
-    "estimatesExclude": "Additional interaction images, refreshed tag references and network receipts; not a reservation or execution approval.",
+    "estimatesExclude": "Additional interactions beyond selected groups; full Cartesian inventory is neither executable nor a reservation.",
     "cumulativeAuthorizedCaptureCeilingBytes": 300000000,
     "batchHardCeilingBytes": 90000000,
     "existingEvidenceBytes": null,
     "existingEvidenceInventoryReceipt": null,
-    "knownHistoricalExistingBytesFloor": 49932059,
+    "knownRetainedIdentityInventory": {
+      "scope": "Local retained historical and stopped capture directories, all regular files; global retained scope incomplete",
+      "receipt": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-13/retake-retained-identity-inventory.json",
+      "receiptSha256": "171101d802b62ea3d79bb87ef32d5f97e0b65086507ff568763d9885601dedb6",
+      "roots": [
+        {
+          "name": "candidate-retest-654cdf5",
+          "fileCount": 228,
+          "bytes": 51494139,
+          "pngCount": 224,
+          "pngBytes": 49932059
+        },
+        {
+          "name": "candidate-thaw-envelope-2026-10-13",
+          "fileCount": 19,
+          "bytes": 5222891,
+          "pngCount": 12,
+          "pngBytes": 4979607
+        }
+      ],
+      "overlappingFileIdentityCount": 0,
+      "identityDeduplicatedBytes": 56717030,
+      "deduplication": "device+inode; separately retained content-identical copies count separately",
+      "completeCumulativeScope": false,
+      "preservedOriginals": true
+    },
+    "knownRetainedIdentitySubtotalBytes": 56717030,
     "retainedStoppedA77EnvelopeBytes": 5222891,
-    "existingEvidenceRule": "Inventory all retained PNG/reference/network/metadata evidence in the cumulative scope on Mint before execution, deduplicating actual retained files without assuming the historical and stopped-a77 counts overlap. Neither figure is a complete current inventory; never reset accounting or delete evidence to regain budget.",
+    "existingEvidenceRule": "Two local roots are disjoint by device+inode and include metadata. Other retained references/receipts and destination copies remain unresolved. Complete current cumulative inventory is required before execution; no content-hash dedup of separately retained copies, deletion or reset.",
     "firstEnvelopeBatches": 3,
-    "firstEnvelopeEstimatedPngBytes": 90000000,
-    "firstEnvelopePlanningUpperPngBytes": 216000000,
+    "firstEnvelopeEstimatedPngBytes": 70000000,
+    "firstEnvelopePlanningUpperPngBytes": 168000000,
     "firstEnvelopeAdditionalEvidenceReserveBytes": 30000000,
     "firstEnvelopeEvidenceReservePerBatchBytes": 10000000,
-    "firstEnvelopeInclusivePlanningUpperBytes": 246000000,
-    "remainingBytesAfterHistoricalFloorAndEnvelope": 4067941,
-    "firstEnvelopeBudgetStatus": "blocked-pending-inclusive-deduplicated-retained-evidence-inventory",
-    "firstEnvelopeBudgetRule": "If historical and stopped-a77 bytes are disjoint, their known total55,154,950 +246MB envelope already exceeds300MB by1,154,950. Measure actual inclusive deduplicated bytes, then reduce executable complete URL/state/period/theme/width groups if needed; never infer a larger authorization.",
-    "batchCeilingScope": "All PNG/network/reference/metadata evidence counts. Each planned batch: 12 packages at6MB +10MB evidence =82MB <=90MB. First envelope246MB +known historical floor49,932,059 =295,932,059; other existing bytes may block or reduce execution.",
-    "rule": "Stop before either batch or cumulative cap; do not delete old files or reset cumulative accounting between batches. Rest of matrix remains pending until sufficient explicitly approved budget exists."
+    "firstEnvelopeInclusivePlanningUpperBytes": 198000000,
+    "knownRetainedPlusEnvelopePlanningUpperBytes": 254717030,
+    "remainingBytesAfterKnownRetainedAndEnvelope": 45282970,
+    "firstEnvelopeBudgetStatus": "blocked-pending-complete-current-cumulative-inventory-and-fixture-runtime-gates",
+    "batchCeilingScope": "Every retained/new PNG, reference, network and metadata file counts; each complete four-variant group reserves24MB PNG upper, each batch adds10MB other evidence; selected batches stay<=90MB.",
+    "rule": "Budget-select only complete groups. If full measured retained bytes exceed this subtotal, rerun allocation and postpone whole groups. Stop before batch or cumulative cap; preserve originals and never reset accounting."
+  },
+  "initialReviewGroups": [
+    {
+      "id": "/:today",
+      "route": "/",
+      "candidatePath": "/",
+      "state": "synthetic-fixture",
+      "period": "today",
+      "periodProcedure": {
+        "period": "today",
+        "action": "select today; verify cloud AND ranking before every image"
+      },
+      "viewportVariants": [
+        {
+          "theme": "light",
+          "width": 1280
+        },
+        {
+          "theme": "light",
+          "width": 390
+        },
+        {
+          "theme": "dark",
+          "width": 1280
+        },
+        {
+          "theme": "dark",
+          "width": 390
+        }
+      ],
+      "stateSetup": {
+        "status": "unresolved",
+        "fixtureManifest": null,
+        "existingAccountRole": null,
+        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+      },
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 1,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "budget-selected-pending-fixture-inventory-and-runtime-gates"
+    },
+    {
+      "id": "/:week",
+      "route": "/",
+      "candidatePath": "/",
+      "state": "synthetic-fixture",
+      "period": "week",
+      "periodProcedure": {
+        "period": "week",
+        "action": "select week; verify cloud AND ranking before every image"
+      },
+      "viewportVariants": [
+        {
+          "theme": "light",
+          "width": 1280
+        },
+        {
+          "theme": "light",
+          "width": 390
+        },
+        {
+          "theme": "dark",
+          "width": 1280
+        },
+        {
+          "theme": "dark",
+          "width": 390
+        }
+      ],
+      "stateSetup": {
+        "status": "unresolved",
+        "fixtureManifest": null,
+        "existingAccountRole": null,
+        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+      },
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 1,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "budget-selected-pending-fixture-inventory-and-runtime-gates"
+    },
+    {
+      "id": "/keywords:today",
+      "route": "/keywords",
+      "candidatePath": "/keywords",
+      "state": "synthetic-fixture",
+      "period": "today",
+      "periodProcedure": {
+        "period": "today",
+        "action": "select today; verify cloud AND ranking before every image"
+      },
+      "viewportVariants": [
+        {
+          "theme": "light",
+          "width": 1280
+        },
+        {
+          "theme": "light",
+          "width": 390
+        },
+        {
+          "theme": "dark",
+          "width": 1280
+        },
+        {
+          "theme": "dark",
+          "width": 390
+        }
+      ],
+      "stateSetup": {
+        "status": "unresolved",
+        "fixtureManifest": null,
+        "existingAccountRole": null,
+        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+      },
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 1,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "budget-selected-pending-fixture-inventory-and-runtime-gates"
+    },
+    {
+      "id": "/keywords:week",
+      "route": "/keywords",
+      "candidatePath": "/keywords",
+      "state": "synthetic-fixture",
+      "period": "week",
+      "periodProcedure": {
+        "period": "week",
+        "action": "select week; verify cloud AND ranking before every image"
+      },
+      "viewportVariants": [
+        {
+          "theme": "light",
+          "width": 1280
+        },
+        {
+          "theme": "light",
+          "width": 390
+        },
+        {
+          "theme": "dark",
+          "width": 1280
+        },
+        {
+          "theme": "dark",
+          "width": 390
+        }
+      ],
+      "stateSetup": {
+        "status": "unresolved",
+        "fixtureManifest": null,
+        "existingAccountRole": null,
+        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+      },
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 2,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "budget-selected-pending-fixture-inventory-and-runtime-gates"
+    },
+    {
+      "id": "/keywords/合成焦點甲/videos:today",
+      "route": "/keywords/{keyword}/videos",
+      "candidatePath": "/keywords/合成焦點甲/videos",
+      "state": "synthetic-fixture",
+      "period": "today",
+      "periodProcedure": {
+        "period": "today",
+        "query": {
+          "from": "D",
+          "to": "D"
+        }
+      },
+      "viewportVariants": [
+        {
+          "theme": "light",
+          "width": 1280
+        },
+        {
+          "theme": "light",
+          "width": 390
+        },
+        {
+          "theme": "dark",
+          "width": 1280
+        },
+        {
+          "theme": "dark",
+          "width": 390
+        }
+      ],
+      "stateSetup": {
+        "status": "unresolved",
+        "fixtureManifest": null,
+        "existingAccountRole": null,
+        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+      },
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 2,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "budget-selected-pending-fixture-inventory-and-runtime-gates"
+    },
+    {
+      "id": "/keywords/合成焦點甲/videos:week",
+      "route": "/keywords/{keyword}/videos",
+      "candidatePath": "/keywords/合成焦點甲/videos",
+      "state": "synthetic-fixture",
+      "period": "week",
+      "periodProcedure": {
+        "period": "week",
+        "query": {
+          "from": "D-6",
+          "to": "D"
+        }
+      },
+      "viewportVariants": [
+        {
+          "theme": "light",
+          "width": 1280
+        },
+        {
+          "theme": "light",
+          "width": 390
+        },
+        {
+          "theme": "dark",
+          "width": 1280
+        },
+        {
+          "theme": "dark",
+          "width": 390
+        }
+      ],
+      "stateSetup": {
+        "status": "unresolved",
+        "fixtureManifest": null,
+        "existingAccountRole": null,
+        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+      },
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 2,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "budget-selected-pending-fixture-inventory-and-runtime-gates"
+    },
+    {
+      "id": "/channels:existing-window",
+      "route": "/channels",
+      "candidatePath": "/channels",
+      "state": "synthetic-fixture",
+      "period": "existing-window",
+      "periodProcedure": {
+        "period": "existing-window"
+      },
+      "viewportVariants": [
+        {
+          "theme": "light",
+          "width": 1280
+        },
+        {
+          "theme": "light",
+          "width": 390
+        },
+        {
+          "theme": "dark",
+          "width": 1280
+        },
+        {
+          "theme": "dark",
+          "width": 390
+        }
+      ],
+      "stateSetup": {
+        "status": "unresolved",
+        "fixtureManifest": null,
+        "existingAccountRole": null,
+        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+      },
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 3,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "budget-selected-pending-fixture-inventory-and-runtime-gates"
+    }
+  ],
+  "initialReviewBatches": [
+    {
+      "batch": 1,
+      "groupIds": [
+        "/:today",
+        "/:week",
+        "/keywords:today"
+      ],
+      "viewportPackages": 12,
+      "additionalEvidenceReserveBytes": 10000000,
+      "planningUpperBytes": 82000000
+    },
+    {
+      "batch": 2,
+      "groupIds": [
+        "/keywords:week",
+        "/keywords/合成焦點甲/videos:today",
+        "/keywords/合成焦點甲/videos:week"
+      ],
+      "viewportPackages": 12,
+      "additionalEvidenceReserveBytes": 10000000,
+      "planningUpperBytes": 82000000
+    },
+    {
+      "batch": 3,
+      "groupIds": [
+        "/channels:existing-window"
+      ],
+      "viewportPackages": 4,
+      "additionalEvidenceReserveBytes": 10000000,
+      "planningUpperBytes": 34000000
+    }
+  ],
+  "postponedReviewGroups": [
+    {
+      "id": "/keywords/沈伯洋/videos:today",
+      "route": "/keywords/{keyword}/videos",
+      "candidatePath": "/keywords/沈伯洋/videos",
+      "state": "real-example",
+      "period": "today",
+      "periodProcedure": {
+        "period": "today",
+        "query": {
+          "from": "D",
+          "to": "D"
+        }
+      },
+      "viewportVariants": [
+        {
+          "theme": "light",
+          "width": 1280
+        },
+        {
+          "theme": "light",
+          "width": 390
+        },
+        {
+          "theme": "dark",
+          "width": 1280
+        },
+        {
+          "theme": "dark",
+          "width": 390
+        }
+      ],
+      "stateSetup": {
+        "status": "unresolved",
+        "fixtureManifest": null,
+        "existingAccountRole": null,
+        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+      },
+      "sourceFixture": null,
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "postponedReasons": [
+        "real keyword example has no corresponding approved isolated fixture; synthetic term is not parity evidence"
+      ]
+    },
+    {
+      "id": "/keywords/沈伯洋/videos:week",
+      "route": "/keywords/{keyword}/videos",
+      "candidatePath": "/keywords/沈伯洋/videos",
+      "state": "real-example",
+      "period": "week",
+      "periodProcedure": {
+        "period": "week",
+        "query": {
+          "from": "D-6",
+          "to": "D"
+        }
+      },
+      "viewportVariants": [
+        {
+          "theme": "light",
+          "width": 1280
+        },
+        {
+          "theme": "light",
+          "width": 390
+        },
+        {
+          "theme": "dark",
+          "width": 1280
+        },
+        {
+          "theme": "dark",
+          "width": 390
+        }
+      ],
+      "stateSetup": {
+        "status": "unresolved",
+        "fixtureManifest": null,
+        "existingAccountRole": null,
+        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+      },
+      "sourceFixture": null,
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "postponedReasons": [
+        "real keyword example has no corresponding approved isolated fixture; synthetic term is not parity evidence"
+      ]
+    },
+    {
+      "id": "/keywords/支持/videos:today",
+      "route": "/keywords/{keyword}/videos",
+      "candidatePath": "/keywords/支持/videos",
+      "state": "real-example",
+      "period": "today",
+      "periodProcedure": {
+        "period": "today",
+        "query": {
+          "from": "D",
+          "to": "D"
+        }
+      },
+      "viewportVariants": [
+        {
+          "theme": "light",
+          "width": 1280
+        },
+        {
+          "theme": "light",
+          "width": 390
+        },
+        {
+          "theme": "dark",
+          "width": 1280
+        },
+        {
+          "theme": "dark",
+          "width": 390
+        }
+      ],
+      "stateSetup": {
+        "status": "unresolved",
+        "fixtureManifest": null,
+        "existingAccountRole": null,
+        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+      },
+      "sourceFixture": null,
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "postponedReasons": [
+        "real keyword example has no corresponding approved isolated fixture; synthetic term is not parity evidence"
+      ]
+    },
+    {
+      "id": "/keywords/支持/videos:week",
+      "route": "/keywords/{keyword}/videos",
+      "candidatePath": "/keywords/支持/videos",
+      "state": "real-example",
+      "period": "week",
+      "periodProcedure": {
+        "period": "week",
+        "query": {
+          "from": "D-6",
+          "to": "D"
+        }
+      },
+      "viewportVariants": [
+        {
+          "theme": "light",
+          "width": 1280
+        },
+        {
+          "theme": "light",
+          "width": 390
+        },
+        {
+          "theme": "dark",
+          "width": 1280
+        },
+        {
+          "theme": "dark",
+          "width": 390
+        }
+      ],
+      "stateSetup": {
+        "status": "unresolved",
+        "fixtureManifest": null,
+        "existingAccountRole": null,
+        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+      },
+      "sourceFixture": null,
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "postponedReasons": [
+        "real keyword example has no corresponding approved isolated fixture; synthetic term is not parity evidence"
+      ]
+    }
+  ],
+  "unresolvedMatrix": {
+    "cartesianViewportSlots": 2060,
+    "executionAllowed": false,
+    "reasons": [
+      "all376 ledger states lack verified candidate fixture setup",
+      "240 entries lack an exact example URL; remaining examples still need isolated candidate verification",
+      "multiple examples, interaction and supplemental states require additional complete groups and bytes",
+      "whole-matrix estimate exceeds inclusive300MB; complete evidence inventory and runtime gates pending"
+    ]
   },
   "captureGates": [
     "Strategy only: Mint tag slot must complete before YT; no new SM builds or captures; blog follows YT",
@@ -145,372 +789,619 @@
   },
   "firstEnvelope": [
     {
+      "id": "/:today",
       "route": "/",
       "candidatePath": "/",
-      "state": "default",
-      "stateSetup": {
-        "status": "unresolved",
-        "fixtureManifest": null,
-        "existingAccountRole": null,
-        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
-      },
+      "state": "synthetic-fixture",
       "period": "today",
-      "theme": "light",
-      "width": 1280,
-      "status": "pending",
-      "executionAllowed": false,
       "periodProcedure": {
         "period": "today",
         "action": "select today; verify cloud AND ranking before every image"
       },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 1
-    },
-    {
-      "route": "/",
-      "candidatePath": "/",
-      "state": "default",
       "stateSetup": {
         "status": "unresolved",
         "fixtureManifest": null,
         "existingAccountRole": null,
         "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
       },
-      "period": "today",
-      "theme": "light",
-      "width": 390,
-      "status": "pending",
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
       "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 1,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
+      "theme": "light",
+      "width": 1280,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/:today",
+      "route": "/",
+      "candidatePath": "/",
+      "state": "synthetic-fixture",
+      "period": "today",
       "periodProcedure": {
         "period": "today",
         "action": "select today; verify cloud AND ranking before every image"
       },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 1
-    },
-    {
-      "route": "/",
-      "candidatePath": "/",
-      "state": "default",
       "stateSetup": {
         "status": "unresolved",
         "fixtureManifest": null,
         "existingAccountRole": null,
         "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
       },
-      "period": "today",
-      "theme": "dark",
-      "width": 1280,
-      "status": "pending",
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
       "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 1,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
+      "theme": "light",
+      "width": 390,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/:today",
+      "route": "/",
+      "candidatePath": "/",
+      "state": "synthetic-fixture",
+      "period": "today",
       "periodProcedure": {
         "period": "today",
         "action": "select today; verify cloud AND ranking before every image"
       },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 1
-    },
-    {
-      "route": "/",
-      "candidatePath": "/",
-      "state": "default",
       "stateSetup": {
         "status": "unresolved",
         "fixtureManifest": null,
         "existingAccountRole": null,
         "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
       },
-      "period": "today",
-      "theme": "dark",
-      "width": 390,
-      "status": "pending",
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
       "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 1,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
+      "theme": "dark",
+      "width": 1280,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/:today",
+      "route": "/",
+      "candidatePath": "/",
+      "state": "synthetic-fixture",
+      "period": "today",
       "periodProcedure": {
         "period": "today",
         "action": "select today; verify cloud AND ranking before every image"
       },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 1
-    },
-    {
-      "route": "/",
-      "candidatePath": "/",
-      "state": "default",
       "stateSetup": {
         "status": "unresolved",
         "fixtureManifest": null,
         "existingAccountRole": null,
         "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
       },
-      "period": "week",
-      "theme": "light",
-      "width": 1280,
-      "status": "pending",
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
       "executionAllowed": false,
-      "periodProcedure": {
-        "period": "week",
-        "action": "select week; verify cloud AND ranking before every image"
-      },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 1
-    },
-    {
-      "route": "/",
-      "candidatePath": "/",
-      "state": "default",
-      "stateSetup": {
-        "status": "unresolved",
-        "fixtureManifest": null,
-        "existingAccountRole": null,
-        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
-      },
-      "period": "week",
-      "theme": "light",
-      "width": 390,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 1,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
       "status": "pending",
-      "executionAllowed": false,
-      "periodProcedure": {
-        "period": "week",
-        "action": "select week; verify cloud AND ranking before every image"
-      },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 1
-    },
-    {
-      "route": "/",
-      "candidatePath": "/",
-      "state": "default",
-      "stateSetup": {
-        "status": "unresolved",
-        "fixtureManifest": null,
-        "existingAccountRole": null,
-        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
-      },
-      "period": "week",
-      "theme": "dark",
-      "width": 1280,
-      "status": "pending",
-      "executionAllowed": false,
-      "periodProcedure": {
-        "period": "week",
-        "action": "select week; verify cloud AND ranking before every image"
-      },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 1
-    },
-    {
-      "route": "/",
-      "candidatePath": "/",
-      "state": "default",
-      "stateSetup": {
-        "status": "unresolved",
-        "fixtureManifest": null,
-        "existingAccountRole": null,
-        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
-      },
-      "period": "week",
       "theme": "dark",
       "width": 390,
-      "status": "pending",
-      "executionAllowed": false,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/:week",
+      "route": "/",
+      "candidatePath": "/",
+      "state": "synthetic-fixture",
+      "period": "week",
       "periodProcedure": {
         "period": "week",
         "action": "select week; verify cloud AND ranking before every image"
       },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 1
+      "stateSetup": {
+        "status": "unresolved",
+        "fixtureManifest": null,
+        "existingAccountRole": null,
+        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+      },
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 1,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
+      "theme": "light",
+      "width": 1280,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
     },
     {
+      "id": "/:week",
+      "route": "/",
+      "candidatePath": "/",
+      "state": "synthetic-fixture",
+      "period": "week",
+      "periodProcedure": {
+        "period": "week",
+        "action": "select week; verify cloud AND ranking before every image"
+      },
+      "stateSetup": {
+        "status": "unresolved",
+        "fixtureManifest": null,
+        "existingAccountRole": null,
+        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+      },
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 1,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
+      "theme": "light",
+      "width": 390,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/:week",
+      "route": "/",
+      "candidatePath": "/",
+      "state": "synthetic-fixture",
+      "period": "week",
+      "periodProcedure": {
+        "period": "week",
+        "action": "select week; verify cloud AND ranking before every image"
+      },
+      "stateSetup": {
+        "status": "unresolved",
+        "fixtureManifest": null,
+        "existingAccountRole": null,
+        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+      },
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 1,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
+      "theme": "dark",
+      "width": 1280,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/:week",
+      "route": "/",
+      "candidatePath": "/",
+      "state": "synthetic-fixture",
+      "period": "week",
+      "periodProcedure": {
+        "period": "week",
+        "action": "select week; verify cloud AND ranking before every image"
+      },
+      "stateSetup": {
+        "status": "unresolved",
+        "fixtureManifest": null,
+        "existingAccountRole": null,
+        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+      },
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 1,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
+      "theme": "dark",
+      "width": 390,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/keywords:today",
       "route": "/keywords",
       "candidatePath": "/keywords",
-      "state": "default",
-      "stateSetup": {
-        "status": "unresolved",
-        "fixtureManifest": null,
-        "existingAccountRole": null,
-        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
-      },
+      "state": "synthetic-fixture",
       "period": "today",
-      "theme": "light",
-      "width": 1280,
-      "status": "pending",
-      "executionAllowed": false,
       "periodProcedure": {
         "period": "today",
         "action": "select today; verify cloud AND ranking before every image"
       },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 1
-    },
-    {
-      "route": "/keywords",
-      "candidatePath": "/keywords",
-      "state": "default",
       "stateSetup": {
         "status": "unresolved",
         "fixtureManifest": null,
         "existingAccountRole": null,
         "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
       },
-      "period": "today",
-      "theme": "light",
-      "width": 390,
-      "status": "pending",
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
       "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 1,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
+      "theme": "light",
+      "width": 1280,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/keywords:today",
+      "route": "/keywords",
+      "candidatePath": "/keywords",
+      "state": "synthetic-fixture",
+      "period": "today",
       "periodProcedure": {
         "period": "today",
         "action": "select today; verify cloud AND ranking before every image"
       },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 1
-    },
-    {
-      "route": "/keywords",
-      "candidatePath": "/keywords",
-      "state": "default",
       "stateSetup": {
         "status": "unresolved",
         "fixtureManifest": null,
         "existingAccountRole": null,
         "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
       },
-      "period": "today",
-      "theme": "dark",
-      "width": 1280,
-      "status": "pending",
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
       "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 1,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
+      "theme": "light",
+      "width": 390,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/keywords:today",
+      "route": "/keywords",
+      "candidatePath": "/keywords",
+      "state": "synthetic-fixture",
+      "period": "today",
       "periodProcedure": {
         "period": "today",
         "action": "select today; verify cloud AND ranking before every image"
       },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 1
-    },
-    {
-      "route": "/keywords",
-      "candidatePath": "/keywords",
-      "state": "default",
       "stateSetup": {
         "status": "unresolved",
         "fixtureManifest": null,
         "existingAccountRole": null,
         "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
       },
-      "period": "today",
-      "theme": "dark",
-      "width": 390,
-      "status": "pending",
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
       "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 1,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
+      "theme": "dark",
+      "width": 1280,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/keywords:today",
+      "route": "/keywords",
+      "candidatePath": "/keywords",
+      "state": "synthetic-fixture",
+      "period": "today",
       "periodProcedure": {
         "period": "today",
         "action": "select today; verify cloud AND ranking before every image"
       },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 1
-    },
-    {
-      "route": "/keywords",
-      "candidatePath": "/keywords",
-      "state": "default",
       "stateSetup": {
         "status": "unresolved",
         "fixtureManifest": null,
         "existingAccountRole": null,
         "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
       },
-      "period": "week",
-      "theme": "light",
-      "width": 1280,
-      "status": "pending",
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
       "executionAllowed": false,
-      "periodProcedure": {
-        "period": "week",
-        "action": "select week; verify cloud AND ranking before every image"
-      },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 2
-    },
-    {
-      "route": "/keywords",
-      "candidatePath": "/keywords",
-      "state": "default",
-      "stateSetup": {
-        "status": "unresolved",
-        "fixtureManifest": null,
-        "existingAccountRole": null,
-        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
-      },
-      "period": "week",
-      "theme": "light",
-      "width": 390,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 1,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
       "status": "pending",
-      "executionAllowed": false,
-      "periodProcedure": {
-        "period": "week",
-        "action": "select week; verify cloud AND ranking before every image"
-      },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 2
-    },
-    {
-      "route": "/keywords",
-      "candidatePath": "/keywords",
-      "state": "default",
-      "stateSetup": {
-        "status": "unresolved",
-        "fixtureManifest": null,
-        "existingAccountRole": null,
-        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
-      },
-      "period": "week",
-      "theme": "dark",
-      "width": 1280,
-      "status": "pending",
-      "executionAllowed": false,
-      "periodProcedure": {
-        "period": "week",
-        "action": "select week; verify cloud AND ranking before every image"
-      },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 2
-    },
-    {
-      "route": "/keywords",
-      "candidatePath": "/keywords",
-      "state": "default",
-      "stateSetup": {
-        "status": "unresolved",
-        "fixtureManifest": null,
-        "existingAccountRole": null,
-        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
-      },
-      "period": "week",
       "theme": "dark",
       "width": 390,
-      "status": "pending",
-      "executionAllowed": false,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/keywords:week",
+      "route": "/keywords",
+      "candidatePath": "/keywords",
+      "state": "synthetic-fixture",
+      "period": "week",
       "periodProcedure": {
         "period": "week",
         "action": "select week; verify cloud AND ranking before every image"
       },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 2
+      "stateSetup": {
+        "status": "unresolved",
+        "fixtureManifest": null,
+        "existingAccountRole": null,
+        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+      },
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 2,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
+      "theme": "light",
+      "width": 1280,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
     },
     {
+      "id": "/keywords:week",
+      "route": "/keywords",
+      "candidatePath": "/keywords",
+      "state": "synthetic-fixture",
+      "period": "week",
+      "periodProcedure": {
+        "period": "week",
+        "action": "select week; verify cloud AND ranking before every image"
+      },
+      "stateSetup": {
+        "status": "unresolved",
+        "fixtureManifest": null,
+        "existingAccountRole": null,
+        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+      },
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 2,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
+      "theme": "light",
+      "width": 390,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/keywords:week",
+      "route": "/keywords",
+      "candidatePath": "/keywords",
+      "state": "synthetic-fixture",
+      "period": "week",
+      "periodProcedure": {
+        "period": "week",
+        "action": "select week; verify cloud AND ranking before every image"
+      },
+      "stateSetup": {
+        "status": "unresolved",
+        "fixtureManifest": null,
+        "existingAccountRole": null,
+        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+      },
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 2,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
+      "theme": "dark",
+      "width": 1280,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/keywords:week",
+      "route": "/keywords",
+      "candidatePath": "/keywords",
+      "state": "synthetic-fixture",
+      "period": "week",
+      "periodProcedure": {
+        "period": "week",
+        "action": "select week; verify cloud AND ranking before every image"
+      },
+      "stateSetup": {
+        "status": "unresolved",
+        "fixtureManifest": null,
+        "existingAccountRole": null,
+        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+      },
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 2,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
+      "theme": "dark",
+      "width": 390,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/keywords/合成焦點甲/videos:today",
       "route": "/keywords/{keyword}/videos",
-      "candidatePath": "/keywords/沈伯洋/videos",
-      "state": "real-example",
-      "stateSetup": {
-        "status": "unresolved",
-        "fixtureManifest": null,
-        "existingAccountRole": null,
-        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
-      },
+      "candidatePath": "/keywords/合成焦點甲/videos",
+      "state": "synthetic-fixture",
       "period": "today",
-      "theme": "light",
-      "width": 1280,
-      "status": "pending",
-      "executionAllowed": false,
       "periodProcedure": {
         "period": "today",
         "query": {
@@ -518,24 +1409,40 @@
           "to": "D"
         }
       },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 2
-    },
-    {
-      "route": "/keywords/{keyword}/videos",
-      "candidatePath": "/keywords/沈伯洋/videos",
-      "state": "real-example",
       "stateSetup": {
         "status": "unresolved",
         "fixtureManifest": null,
         "existingAccountRole": null,
         "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
       },
-      "period": "today",
-      "theme": "light",
-      "width": 390,
-      "status": "pending",
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
       "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 2,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
+      "theme": "light",
+      "width": 1280,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/keywords/合成焦點甲/videos:today",
+      "route": "/keywords/{keyword}/videos",
+      "candidatePath": "/keywords/合成焦點甲/videos",
+      "state": "synthetic-fixture",
+      "period": "today",
       "periodProcedure": {
         "period": "today",
         "query": {
@@ -543,24 +1450,40 @@
           "to": "D"
         }
       },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 2
-    },
-    {
-      "route": "/keywords/{keyword}/videos",
-      "candidatePath": "/keywords/沈伯洋/videos",
-      "state": "real-example",
       "stateSetup": {
         "status": "unresolved",
         "fixtureManifest": null,
         "existingAccountRole": null,
         "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
       },
-      "period": "today",
-      "theme": "dark",
-      "width": 1280,
-      "status": "pending",
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
       "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 2,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
+      "theme": "light",
+      "width": 390,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/keywords/合成焦點甲/videos:today",
+      "route": "/keywords/{keyword}/videos",
+      "candidatePath": "/keywords/合成焦點甲/videos",
+      "state": "synthetic-fixture",
+      "period": "today",
       "periodProcedure": {
         "period": "today",
         "query": {
@@ -568,24 +1491,40 @@
           "to": "D"
         }
       },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 2
-    },
-    {
-      "route": "/keywords/{keyword}/videos",
-      "candidatePath": "/keywords/沈伯洋/videos",
-      "state": "real-example",
       "stateSetup": {
         "status": "unresolved",
         "fixtureManifest": null,
         "existingAccountRole": null,
         "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
       },
-      "period": "today",
-      "theme": "dark",
-      "width": 390,
-      "status": "pending",
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
       "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 2,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
+      "theme": "dark",
+      "width": 1280,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/keywords/合成焦點甲/videos:today",
+      "route": "/keywords/{keyword}/videos",
+      "candidatePath": "/keywords/合成焦點甲/videos",
+      "state": "synthetic-fixture",
+      "period": "today",
       "periodProcedure": {
         "period": "today",
         "query": {
@@ -593,99 +1532,40 @@
           "to": "D"
         }
       },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 2
-    },
-    {
-      "route": "/keywords/{keyword}/videos",
-      "candidatePath": "/keywords/沈伯洋/videos",
-      "state": "real-example",
       "stateSetup": {
         "status": "unresolved",
         "fixtureManifest": null,
         "existingAccountRole": null,
         "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
       },
-      "period": "week",
-      "theme": "light",
-      "width": 1280,
-      "status": "pending",
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
       "executionAllowed": false,
-      "periodProcedure": {
-        "period": "week",
-        "query": {
-          "from": "D-6",
-          "to": "D"
-        }
-      },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 2
-    },
-    {
-      "route": "/keywords/{keyword}/videos",
-      "candidatePath": "/keywords/沈伯洋/videos",
-      "state": "real-example",
-      "stateSetup": {
-        "status": "unresolved",
-        "fixtureManifest": null,
-        "existingAccountRole": null,
-        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
-      },
-      "period": "week",
-      "theme": "light",
-      "width": 390,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 2,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
       "status": "pending",
-      "executionAllowed": false,
-      "periodProcedure": {
-        "period": "week",
-        "query": {
-          "from": "D-6",
-          "to": "D"
-        }
-      },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 2
-    },
-    {
-      "route": "/keywords/{keyword}/videos",
-      "candidatePath": "/keywords/沈伯洋/videos",
-      "state": "real-example",
-      "stateSetup": {
-        "status": "unresolved",
-        "fixtureManifest": null,
-        "existingAccountRole": null,
-        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
-      },
-      "period": "week",
-      "theme": "dark",
-      "width": 1280,
-      "status": "pending",
-      "executionAllowed": false,
-      "periodProcedure": {
-        "period": "week",
-        "query": {
-          "from": "D-6",
-          "to": "D"
-        }
-      },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 2
-    },
-    {
-      "route": "/keywords/{keyword}/videos",
-      "candidatePath": "/keywords/沈伯洋/videos",
-      "state": "real-example",
-      "stateSetup": {
-        "status": "unresolved",
-        "fixtureManifest": null,
-        "existingAccountRole": null,
-        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
-      },
-      "period": "week",
       "theme": "dark",
       "width": 390,
-      "status": "pending",
-      "executionAllowed": false,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/keywords/合成焦點甲/videos:week",
+      "route": "/keywords/{keyword}/videos",
+      "candidatePath": "/keywords/合成焦點甲/videos",
+      "state": "synthetic-fixture",
+      "period": "week",
       "periodProcedure": {
         "period": "week",
         "query": {
@@ -693,292 +1573,304 @@
           "to": "D"
         }
       },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 2
-    },
-    {
-      "route": "/keywords/{keyword}/videos",
-      "candidatePath": "/keywords/支持/videos",
-      "state": "real-example",
       "stateSetup": {
         "status": "unresolved",
         "fixtureManifest": null,
         "existingAccountRole": null,
         "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
       },
-      "period": "today",
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 2,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
       "theme": "light",
       "width": 1280,
-      "status": "pending",
-      "executionAllowed": false,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/keywords/合成焦點甲/videos:week",
+      "route": "/keywords/{keyword}/videos",
+      "candidatePath": "/keywords/合成焦點甲/videos",
+      "state": "synthetic-fixture",
+      "period": "week",
       "periodProcedure": {
-        "period": "today",
+        "period": "week",
         "query": {
-          "from": "D",
+          "from": "D-6",
           "to": "D"
         }
       },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 3
-    },
-    {
-      "route": "/keywords/{keyword}/videos",
-      "candidatePath": "/keywords/支持/videos",
-      "state": "real-example",
       "stateSetup": {
         "status": "unresolved",
         "fixtureManifest": null,
         "existingAccountRole": null,
         "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
       },
-      "period": "today",
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 2,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
       "theme": "light",
       "width": 390,
-      "status": "pending",
-      "executionAllowed": false,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/keywords/合成焦點甲/videos:week",
+      "route": "/keywords/{keyword}/videos",
+      "candidatePath": "/keywords/合成焦點甲/videos",
+      "state": "synthetic-fixture",
+      "period": "week",
       "periodProcedure": {
-        "period": "today",
+        "period": "week",
         "query": {
-          "from": "D",
+          "from": "D-6",
           "to": "D"
         }
       },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 3
-    },
-    {
-      "route": "/keywords/{keyword}/videos",
-      "candidatePath": "/keywords/支持/videos",
-      "state": "real-example",
       "stateSetup": {
         "status": "unresolved",
         "fixtureManifest": null,
         "existingAccountRole": null,
         "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
       },
-      "period": "today",
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 2,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
       "theme": "dark",
       "width": 1280,
-      "status": "pending",
-      "executionAllowed": false,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/keywords/合成焦點甲/videos:week",
+      "route": "/keywords/{keyword}/videos",
+      "candidatePath": "/keywords/合成焦點甲/videos",
+      "state": "synthetic-fixture",
+      "period": "week",
       "periodProcedure": {
-        "period": "today",
+        "period": "week",
         "query": {
-          "from": "D",
+          "from": "D-6",
           "to": "D"
         }
       },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 3
-    },
-    {
-      "route": "/keywords/{keyword}/videos",
-      "candidatePath": "/keywords/支持/videos",
-      "state": "real-example",
       "stateSetup": {
         "status": "unresolved",
         "fixtureManifest": null,
         "existingAccountRole": null,
         "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
       },
-      "period": "today",
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 2,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
       "theme": "dark",
       "width": 390,
-      "status": "pending",
-      "executionAllowed": false,
-      "periodProcedure": {
-        "period": "today",
-        "query": {
-          "from": "D",
-          "to": "D"
-        }
-      },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 3
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
     },
     {
-      "route": "/keywords/{keyword}/videos",
-      "candidatePath": "/keywords/支持/videos",
-      "state": "real-example",
-      "stateSetup": {
-        "status": "unresolved",
-        "fixtureManifest": null,
-        "existingAccountRole": null,
-        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
-      },
-      "period": "week",
-      "theme": "light",
-      "width": 1280,
-      "status": "pending",
-      "executionAllowed": false,
-      "periodProcedure": {
-        "period": "week",
-        "query": {
-          "from": "D-6",
-          "to": "D"
-        }
-      },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 3
-    },
-    {
-      "route": "/keywords/{keyword}/videos",
-      "candidatePath": "/keywords/支持/videos",
-      "state": "real-example",
-      "stateSetup": {
-        "status": "unresolved",
-        "fixtureManifest": null,
-        "existingAccountRole": null,
-        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
-      },
-      "period": "week",
-      "theme": "light",
-      "width": 390,
-      "status": "pending",
-      "executionAllowed": false,
-      "periodProcedure": {
-        "period": "week",
-        "query": {
-          "from": "D-6",
-          "to": "D"
-        }
-      },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 3
-    },
-    {
-      "route": "/keywords/{keyword}/videos",
-      "candidatePath": "/keywords/支持/videos",
-      "state": "real-example",
-      "stateSetup": {
-        "status": "unresolved",
-        "fixtureManifest": null,
-        "existingAccountRole": null,
-        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
-      },
-      "period": "week",
-      "theme": "dark",
-      "width": 1280,
-      "status": "pending",
-      "executionAllowed": false,
-      "periodProcedure": {
-        "period": "week",
-        "query": {
-          "from": "D-6",
-          "to": "D"
-        }
-      },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 3
-    },
-    {
-      "route": "/keywords/{keyword}/videos",
-      "candidatePath": "/keywords/支持/videos",
-      "state": "real-example",
-      "stateSetup": {
-        "status": "unresolved",
-        "fixtureManifest": null,
-        "existingAccountRole": null,
-        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
-      },
-      "period": "week",
-      "theme": "dark",
-      "width": 390,
-      "status": "pending",
-      "executionAllowed": false,
-      "periodProcedure": {
-        "period": "week",
-        "query": {
-          "from": "D-6",
-          "to": "D"
-        }
-      },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 3
-    },
-    {
+      "id": "/channels:existing-window",
       "route": "/channels",
       "candidatePath": "/channels",
-      "state": "default",
-      "stateSetup": {
-        "status": "unresolved",
-        "fixtureManifest": null,
-        "existingAccountRole": null,
-        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
-      },
+      "state": "synthetic-fixture",
       "period": "existing-window",
-      "theme": "light",
-      "width": 1280,
-      "status": "pending",
-      "executionAllowed": false,
       "periodProcedure": {
         "period": "existing-window"
       },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 3
-    },
-    {
-      "route": "/channels",
-      "candidatePath": "/channels",
-      "state": "default",
       "stateSetup": {
         "status": "unresolved",
         "fixtureManifest": null,
         "existingAccountRole": null,
         "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
       },
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 3,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
+      "theme": "light",
+      "width": 1280,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/channels:existing-window",
+      "route": "/channels",
+      "candidatePath": "/channels",
+      "state": "synthetic-fixture",
       "period": "existing-window",
+      "periodProcedure": {
+        "period": "existing-window"
+      },
+      "stateSetup": {
+        "status": "unresolved",
+        "fixtureManifest": null,
+        "existingAccountRole": null,
+        "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
+      },
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 3,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
       "theme": "light",
       "width": 390,
-      "status": "pending",
-      "executionAllowed": false,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/channels:existing-window",
+      "route": "/channels",
+      "candidatePath": "/channels",
+      "state": "synthetic-fixture",
+      "period": "existing-window",
       "periodProcedure": {
         "period": "existing-window"
       },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 3
-    },
-    {
-      "route": "/channels",
-      "candidatePath": "/channels",
-      "state": "default",
       "stateSetup": {
         "status": "unresolved",
         "fixtureManifest": null,
         "existingAccountRole": null,
         "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
       },
-      "period": "existing-window",
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 3,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
       "theme": "dark",
       "width": 1280,
-      "status": "pending",
-      "executionAllowed": false,
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
+    },
+    {
+      "id": "/channels:existing-window",
+      "route": "/channels",
+      "candidatePath": "/channels",
+      "state": "synthetic-fixture",
+      "period": "existing-window",
       "periodProcedure": {
         "period": "existing-window"
       },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 3
-    },
-    {
-      "route": "/channels",
-      "candidatePath": "/channels",
-      "state": "default",
       "stateSetup": {
         "status": "unresolved",
         "fixtureManifest": null,
         "existingAccountRole": null,
         "rule": "Verify this exact state on isolated candidate API/data. Resolve existing authorized role or nonidentifying isolated fixture where required; never create accounts, induce production failures or perform writes for capture."
       },
-      "period": "existing-window",
+      "sourceFixture": {
+        "dataset": "fixture",
+        "vocabularyVersion": "mint-synthetic-v1",
+        "source": "platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers",
+        "actualFixtureManifest": null,
+        "status": "source-backed-only; no DB/API execution evidence"
+      },
+      "executionAllowed": false,
+      "unresolvedReasons": [
+        "actual isolated fixture receipt and exact candidate URL/period verification missing",
+        "complete cumulative retained evidence inventory missing",
+        "tag-to-YT handoff, source/artifact/readiness and capture gates pending"
+      ],
+      "batch": 3,
+      "viewportPackages": 4,
+      "estimatedPngBytes": 10000000,
+      "planningUpperPngBytes": 24000000,
+      "status": "pending",
       "theme": "dark",
       "width": 390,
-      "status": "pending",
-      "executionAllowed": false,
-      "periodProcedure": {
-        "period": "existing-window"
-      },
-      "urlRule": "Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.",
-      "batch": 3
+      "urlRule": "Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices."
     }
   ],
   "entries": [

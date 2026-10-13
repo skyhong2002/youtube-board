@@ -1,6 +1,7 @@
 """Generate a documentation-only capture plan; never opens a browser or network."""
 import argparse
 import json
+import stat
 import re
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -8,6 +9,89 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parents[2]
 TARGET = ROOT / 'docs/ui-retake-matrix.json'
 VARIANTS = [{'theme': theme, 'width': width} for theme in ['light', 'dark'] for width in [1280, 390]]
+
+CAPTURE_CEILING = 300000000
+BATCH_CEILING = 90000000
+PACKAGE_UPPER = 6000000
+BATCH_EVIDENCE_RESERVE = 10000000
+RETAINED = {
+    'scope': 'Local retained historical and stopped capture directories, all regular files; global retained scope incomplete',
+    'receipt': '/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-13/retake-retained-identity-inventory.json',
+    'receiptSha256': '171101d802b62ea3d79bb87ef32d5f97e0b65086507ff568763d9885601dedb6',
+    'roots': [
+        {'name': 'candidate-retest-654cdf5', 'fileCount': 228, 'bytes': 51494139, 'pngCount': 224, 'pngBytes': 49932059},
+        {'name': 'candidate-thaw-envelope-2026-10-13', 'fileCount': 19, 'bytes': 5222891, 'pngCount': 12, 'pngBytes': 4979607}],
+    'overlappingFileIdentityCount': 0, 'identityDeduplicatedBytes': 56717030,
+    'deduplication': 'device+inode; separately retained content-identical copies count separately',
+    'completeCumulativeScope': False, 'preservedOriginals': True}
+
+
+def retained_identities(roots):
+    """Read-only accounting helper; aliases/hardlinks count once, copies count twice.
+
+    This does not declare roots a complete cumulative scope or authorize capture.
+    Symlinks and special files deny accounting rather than conceal retained bytes.
+    """
+    identities = {}
+    for root in roots:
+        root = Path(root)
+        assert root.is_dir() and not root.is_symlink(), 'regular evidence root required'
+        for p in root.rglob('*'):
+            mode = p.lstat().st_mode
+            assert not stat.S_ISLNK(mode), 'symlink evidence unresolved'
+            if stat.S_ISDIR(mode):
+                continue
+            assert stat.S_ISREG(mode), 'special evidence unresolved'
+            value = p.stat()
+            key = (value.st_dev, value.st_ino)
+            assert key not in identities or identities[key] == value.st_size, 'changing evidence identity'
+            identities[key] = value.st_size
+    return {'fileIdentityCount': len(identities), 'bytes': sum(identities.values())}
+
+
+def budget_groups(groups, retained_bytes):
+    """Reserve only complete four-variant groups, including evidence per batch.
+
+    Returned selection is a budget proposal, never execution approval. Caller must
+    resolve the complete retained scope, fixture and all runtime/capture gates.
+    """
+    assert isinstance(retained_bytes, int) and retained_bytes >= 0
+    selected, postponed, batches = [], [], []
+    added = 0
+    for group in groups:
+        packages = len(group['viewportVariants'])
+        assert group['viewportVariants'] == VARIANTS, 'complete theme/width group required'
+        png_upper = packages * PACKAGE_UPPER
+        new_batch = not batches or batches[-1]['planningUpperBytes'] + png_upper > BATCH_CEILING
+        increment = png_upper + (BATCH_EVIDENCE_RESERVE if new_batch else 0)
+        if retained_bytes + added + increment > CAPTURE_CEILING:
+            postponed.append({**group, 'postponedReasons': ['inclusive retained+new planning upper exceeds300000000 bytes'], 'executionAllowed': False})
+            continue
+        if new_batch:
+            assert increment <= BATCH_CEILING
+            batches.append({'batch': len(batches) + 1, 'groupIds': [], 'viewportPackages': 0,
+                            'additionalEvidenceReserveBytes': BATCH_EVIDENCE_RESERVE, 'planningUpperBytes': BATCH_EVIDENCE_RESERVE})
+        batch = batches[-1]
+        batch['groupIds'].append(group['id']); batch['viewportPackages'] += packages
+        batch['planningUpperBytes'] += png_upper
+        added += increment
+        selected.append({**group, 'batch': batch['batch'], 'viewportPackages': packages,
+                         'estimatedPngBytes': packages * 2500000, 'planningUpperPngBytes': png_upper,
+                         'executionAllowed': False, 'status': 'budget-selected-pending-fixture-inventory-and-runtime-gates'})
+    return {'initialReviewGroups': selected, 'budgetPostponedReviewGroups': postponed, 'batches': batches,
+            'newPlanningUpperBytes': added, 'retainedPlusNewPlanningUpperBytes': retained_bytes + added}
+
+
+def review_group(route, example, period, source_fixture=None):
+    state = 'synthetic-fixture' if source_fixture else ('real-example' if '{keyword}' in route else 'default')
+    return {'id': f"{example}:{period}", 'route': route, 'candidatePath': example, 'state': state,
+            'period': period, 'periodProcedure': next(x for x in periods(route)['variants'] if x['period'] == period),
+            'viewportVariants': VARIANTS, 'stateSetup': state_setup({'state': state}),
+            'sourceFixture': source_fixture, 'executionAllowed': False,
+            'unresolvedReasons': ['actual isolated fixture receipt and exact candidate URL/period verification missing',
+                                  'complete cumulative retained evidence inventory missing',
+                                  'tag-to-YT handoff, source/artifact/readiness and capture gates pending']}
+
 
 
 def example_path(url):
@@ -78,22 +162,29 @@ def create(ledger):
                                      'rule': 'Same template and same state may share review discussion; each exact URL/period/theme/width still requires its own screenshots and receipts.'},
                      'periods': period, 'viewportVariants': VARIANTS, 'status': 'pending-candidate-and-recapture',
                      'plannedViewportPackages': len(period['variants']) * 4})
-    # First permitted envelope targets the original four findings, not a sample claiming full-site completion.
-    first = []
+    # Initial source-backed synthetic groups do not stand in for real keyword cases.
+    proposed = []
+    fixture = {'dataset': 'fixture', 'vocabularyVersion': 'mint-synthetic-v1',
+               'source': 'platform/tools/mint-youtube-api-worker.mjs + frozen APP fixture helpers',
+               'actualFixtureManifest': None, 'status': 'source-backed-only; no DB/API execution evidence'}
     for route, example, ps in [('/', '/', ['today', 'week']), ('/keywords', '/keywords', ['today', 'week']),
-                               ('/keywords/{keyword}/videos', '/keywords/沈伯洋/videos', ['today', 'week']),
-                               ('/keywords/{keyword}/videos', '/keywords/支持/videos', ['today', 'week']),
+                               ('/keywords/{keyword}/videos', '/keywords/合成焦點甲/videos', ['today', 'week']),
                                ('/channels', '/channels', ['existing-window'])]:
-        for p in ps:
-            for v in VARIANTS:
-                procedure = next(x for x in periods(route)['variants'] if x['period'] == p)
-                state = 'real-example' if '{keyword}' in route else 'default'
-                first.append({'route': route, 'candidatePath': example, 'state': state,
-                              'stateSetup': state_setup({'state': state}), 'period': p, **v, 'status': 'pending',
-                              'executionAllowed': False,
-                              'periodProcedure': procedure,
-                              'urlRule': 'Resolve D once per batch, apply procedure query to candidatePath or select actual control; record final URL and assert visible period before each fullpage/slice. Labels alone are not evidence.',
-                              'batch': len(first) // 12 + 1})
+        for period in ps:
+            proposed.append(review_group(route, example, period, fixture))
+    selection = budget_groups(proposed, RETAINED['identityDeduplicatedBytes'])
+    postponed = []
+    for example in ['/keywords/沈伯洋/videos', '/keywords/支持/videos']:
+        for period in ['today', 'week']:
+            group = review_group('/keywords/{keyword}/videos', example, period)
+            group['postponedReasons'] = ['real keyword example has no corresponding approved isolated fixture; synthetic term is not parity evidence']
+            postponed.append(group)
+    postponed.extend(selection['budgetPostponedReviewGroups'])
+    first = []
+    for group in selection['initialReviewGroups']:
+        for viewport in group['viewportVariants']:
+            first.append({k: v for k, v in group.items() if k != 'viewportVariants'} | viewport |
+                         {'status': 'pending', 'urlRule': 'Resolve D once per batch; assert exact visible period and data generation before and after fullpage/slices.'})
     count = sum(row['plannedViewportPackages'] for row in rows)
     return {'schemaVersion': 2, 'purpose': 'Planning only; not capture or review evidence',
             'smWorkloadFreezeActive': True, 'mintReadinessStatus': 'pending-all-gates',
@@ -107,34 +198,43 @@ def create(ledger):
                                     'rule': 'Operator resolves Mint-local paths; never reuse an SM absolute path or mixed-source worktree.'},
                           'runtime': {'candidateOrigin': None, 'isolatedApiOrigin': None, 'buildID': None,
                                       'readinessReceipt': None, 'artifactProofReceipt': None},
-                          'executionScope': 'Only first envelope after all gates; entire 2060-package matrix is pending and exceeds current byte budget.'},
+                          'executionScope': 'Only budget-selected complete review groups after all gates; all Cartesian ledger slots remain unresolved planning, never executable by this tool.'},
             'candidateSourceSHA': None, 'candidateSourceRule': 'Pin exact final independently reviewed committed SHA before one build; never use dirty worktree or relabel old PNGs',
             'inventorySource': 'docs/ui-review-ledger.json', 'periodDateRule': 'D = Taipei calendar date frozen at batch start; record resolved UTC bounds; crossing midnight requires re-resolution, never mix fullpage and slices',
             'summary': {'uiEntries': len(rows), 'uiRoutes': len({r['route'] for r in rows}), 'plannedViewportPackages': count,
-                        'firstEnvelopeViewportPackages': len(first), 'completedCaptures': 0, 'completedReviews': 0,
+                        'firstEnvelopeViewportPackages': len(first), 'initialCompleteReviewGroups': len(selection['initialReviewGroups']),
+                        'postponedExactExampleGroups': len(postponed), 'executionAllowedPackages': 0, 'completedCaptures': 0, 'completedReviews': 0,
                         'missingExampleEntries': sum(r['exampleURL'] is None for r in rows)},
             'diskBudget': {'unit': 'bytes', 'historicalDirectoryPngCount': 224, 'historicalDirectoryPngBytes': 49932059,
                            'manifestReferencedPngCount': 202, 'manifestReferencedPngBytes': 43225260,
                            'manifestViewportPackages': 24, 'medianViewportPackageBytes': 1309696, 'largestViewportPackageBytes': 5900530,
-                           'historicalNote': '22 PNGs are not assigned to these manifest viewport lists; retained unchanged, not attributed to a new SHA or counted as reviewed.',
-                           'estimatedViewportPackageBytes': 2500000, 'planningUpperViewportPackageBytes': 6000000,
-                           'estimatedWholeMatrixBytes': count * 2500000, 'planningUpperWholeMatrixBytes': count * 6000000,
-                           'estimatesExclude': 'Additional interaction images, refreshed tag references and network receipts; not a reservation or execution approval.',
-                           'cumulativeAuthorizedCaptureCeilingBytes': 300000000, 'batchHardCeilingBytes': 90000000,
+                           'historicalNote': 'All originals preserved;22 PNGs outside manifest remain retained, not attributed to a new SHA/review.',
+                           'estimatedViewportPackageBytes': 2500000, 'planningUpperViewportPackageBytes': PACKAGE_UPPER,
+                           'estimatedWholeMatrixBytes': count * 2500000, 'planningUpperWholeMatrixBytes': count * PACKAGE_UPPER,
+                           'estimatesExclude': 'Additional interactions beyond selected groups; full Cartesian inventory is neither executable nor a reservation.',
+                           'cumulativeAuthorizedCaptureCeilingBytes': CAPTURE_CEILING, 'batchHardCeilingBytes': BATCH_CEILING,
                            'existingEvidenceBytes': None, 'existingEvidenceInventoryReceipt': None,
-                           'knownHistoricalExistingBytesFloor': 49932059,
+                           'knownRetainedIdentityInventory': RETAINED,
+                           'knownRetainedIdentitySubtotalBytes': RETAINED['identityDeduplicatedBytes'],
                            'retainedStoppedA77EnvelopeBytes': 5222891,
-                           'existingEvidenceRule': 'Inventory all retained PNG/reference/network/metadata evidence in the cumulative scope on Mint before execution, deduplicating actual retained files without assuming the historical and stopped-a77 counts overlap. Neither figure is a complete current inventory; never reset accounting or delete evidence to regain budget.',
-                           'firstEnvelopeBatches': 3, 'firstEnvelopeEstimatedPngBytes': len(first) * 2500000,
-                           'firstEnvelopePlanningUpperPngBytes': len(first) * 6000000,
-                           'firstEnvelopeAdditionalEvidenceReserveBytes': 30000000,
-                           'firstEnvelopeEvidenceReservePerBatchBytes': 10000000,
-                           'firstEnvelopeInclusivePlanningUpperBytes': len(first) * 6000000 + 30000000,
-                           'remainingBytesAfterHistoricalFloorAndEnvelope': 300000000 - 49932059 - len(first) * 6000000 - 30000000,
-                           'firstEnvelopeBudgetStatus': 'blocked-pending-inclusive-deduplicated-retained-evidence-inventory',
-                           'firstEnvelopeBudgetRule': 'If historical and stopped-a77 bytes are disjoint, their known total55,154,950 +246MB envelope already exceeds300MB by1,154,950. Measure actual inclusive deduplicated bytes, then reduce executable complete URL/state/period/theme/width groups if needed; never infer a larger authorization.',
-                           'batchCeilingScope': 'All PNG/network/reference/metadata evidence counts. Each planned batch: 12 packages at6MB +10MB evidence =82MB <=90MB. First envelope246MB +known historical floor49,932,059 =295,932,059; other existing bytes may block or reduce execution.',
-                           'rule': 'Stop before either batch or cumulative cap; do not delete old files or reset cumulative accounting between batches. Rest of matrix remains pending until sufficient explicitly approved budget exists.'},
+                           'existingEvidenceRule': 'Two local roots are disjoint by device+inode and include metadata. Other retained references/receipts and destination copies remain unresolved. Complete current cumulative inventory is required before execution; no content-hash dedup of separately retained copies, deletion or reset.',
+                           'firstEnvelopeBatches': len(selection['batches']), 'firstEnvelopeEstimatedPngBytes': len(first) * 2500000,
+                           'firstEnvelopePlanningUpperPngBytes': len(first) * PACKAGE_UPPER,
+                           'firstEnvelopeAdditionalEvidenceReserveBytes': len(selection['batches']) * BATCH_EVIDENCE_RESERVE,
+                           'firstEnvelopeEvidenceReservePerBatchBytes': BATCH_EVIDENCE_RESERVE,
+                           'firstEnvelopeInclusivePlanningUpperBytes': selection['newPlanningUpperBytes'],
+                           'knownRetainedPlusEnvelopePlanningUpperBytes': selection['retainedPlusNewPlanningUpperBytes'],
+                           'remainingBytesAfterKnownRetainedAndEnvelope': CAPTURE_CEILING - selection['retainedPlusNewPlanningUpperBytes'],
+                           'firstEnvelopeBudgetStatus': 'blocked-pending-complete-current-cumulative-inventory-and-fixture-runtime-gates',
+                           'batchCeilingScope': 'Every retained/new PNG, reference, network and metadata file counts; each complete four-variant group reserves24MB PNG upper, each batch adds10MB other evidence; selected batches stay<=90MB.',
+                           'rule': 'Budget-select only complete groups. If full measured retained bytes exceed this subtotal, rerun allocation and postpone whole groups. Stop before batch or cumulative cap; preserve originals and never reset accounting.'},
+            'initialReviewGroups': selection['initialReviewGroups'], 'initialReviewBatches': selection['batches'],
+            'postponedReviewGroups': postponed,
+            'unresolvedMatrix': {'cartesianViewportSlots': count, 'executionAllowed': False,
+                                 'reasons': ['all376 ledger states lack verified candidate fixture setup',
+                                             '240 entries lack an exact example URL; remaining examples still need isolated candidate verification',
+                                             'multiple examples, interaction and supplemental states require additional complete groups and bytes',
+                                             'whole-matrix estimate exceeds inclusive300MB; complete evidence inventory and runtime gates pending']},
             'captureGates': ['Strategy only: Mint tag slot must complete before YT; no new SM builds or captures; blog follows YT',
                              'Pin independently reviewed clean committed successor SHA, arm64 final image digest, exact BUILD_ID and all-files artifact proof; candidate identity is currently unresolved',
                              'Use isolated API with matching resolved period/data generation; verified readiness and origin mappings required before Mint-only capture',
@@ -179,8 +279,10 @@ def mint_manifest(plan, candidate_sha=None):
             'queue': plan['mintQueue'],
             'requiredManifestFields': plan['requiredManifestFields'], 'captureGates': plan['captureGates'],
             'diskBudget': plan['diskBudget'], 'firstEnvelope': plan['firstEnvelope'],
+            'initialReviewGroups': plan['initialReviewGroups'], 'initialReviewBatches': plan['initialReviewBatches'],
+            'postponedReviewGroups': plan['postponedReviewGroups'], 'unresolvedMatrix': plan['unresolvedMatrix'],
             'summary': plan['summary'], 'packages': packages,
-            'packageCountBasis': '2060 Cartesian ledger-state/period/theme/width slots. Multiple example URLs, interactions and supplemental states require separate screenshots and may add packages/bytes beyond this estimate.',
+            'packageCountBasis': '2060 unresolved Cartesian ledger-state/period/theme/width planning slots, zero executable packages. Multiple example URLs, interactions and supplemental states require separate screenshots and may add packages/bytes beyond this estimate.',
             'reviewRule': 'Group discussion only for same template and same state; independently inspect screenshots for each exact URL. No source mixing or historical evidence promotion.'}
 
 
@@ -189,7 +291,9 @@ def validate(plan, ledger):
     assert [r['ledgerEntryIndex'] for r in plan['entries']] == indices
     assert plan['summary']['uiEntries'] == ledger['summary']['uiEntries']
     assert plan['summary']['uiRoutes'] == ledger['summary']['uiUniqueRoutes']
-    assert len(plan['firstEnvelope']) == 36
+    assert len(plan['firstEnvelope']) == 28
+    assert len(plan['initialReviewGroups']) == 7 and len(plan['postponedReviewGroups']) == 4
+    assert all(not group['executionAllowed'] for group in plan['initialReviewGroups'] + plan['postponedReviewGroups'])
     assert all(r['viewportVariants'] == VARIANTS and r['status'] == 'pending-candidate-and-recapture' for r in plan['entries'])
     assert plan['candidateSourceSHA'] is None
     assert plan['mintQueue']['order'] == ['tag', 'youtube', 'blog']
@@ -213,6 +317,8 @@ def validate(plan, ledger):
     assert disk['firstEnvelopeInclusivePlanningUpperBytes'] == sum(
         sum(x['batch'] == batch for x in plan['firstEnvelope']) * disk['planningUpperViewportPackageBytes']
         + disk['firstEnvelopeEvidenceReservePerBatchBytes'] for batch in range(1, disk['firstEnvelopeBatches'] + 1))
+    assert disk['knownRetainedPlusEnvelopePlanningUpperBytes'] == 254717030 <= CAPTURE_CEILING
+    assert all(batch['planningUpperBytes'] <= BATCH_CEILING for batch in plan['initialReviewBatches'])
     assert disk['existingEvidenceBytes'] is None
     assert disk['firstEnvelopeBudgetStatus'].startswith('blocked-')
     assert disk['estimatedWholeMatrixBytes'] > disk['cumulativeAuthorizedCaptureCeilingBytes']
