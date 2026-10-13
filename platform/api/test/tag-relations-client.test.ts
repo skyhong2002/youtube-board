@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {describe,it,expect,vi} from 'vitest';
 import {createTagRelationsClient,F1_RELATIONS_CONTRACT,type TagRelation} from '../src/reports/tag-relations-client.js';
+import {createKeywordRelationsReport} from '../src/reports/keyword-relations.js';
 const tag='沈伯洋',hash=(text:string)=>createHash('sha256').update(text,'utf8').digest('hex');
 // Public OpenAPI fixture: no account/private reason or production secrets.
 const payload=()=>({tag,tagId:hash(tag),truncated:true,relations:[
@@ -193,4 +194,62 @@ it('cooldown expiry between clock reads never bypasses the concurrency gate',asy
  await client(tag);at=start+999;step=2;
  expect(await client('另一詞')).toMatchObject({reason:'rate-limited',retryAfterSeconds:1});
  expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+
+describe('independent Y2 raw identity and byte-boundary audit (offline)',()=>{
+ const raw='ＡＩ／％😀',folded=raw.normalize('NFKC');
+ const identityPayload=(label:string)=>({tag:label,tagId:hash(label),truncated:false,relations:[{id:'relation:1',type:'alias',target:{id:hash(label),label,href:'/tag/'+encodeURIComponent(label)+'/'},source:'submission',sourceDetail:'submission',createdAt:'2026-10-12T01:00:00.000Z',status:'approved',inherited:false,depth:1}]});
+ it('keeps NFKC-equivalent raw labels distinct in transport, IDs, in-flight work and cached responses',async()=>{
+  expect(raw).not.toBe(folded);expect(hash(raw)).not.toBe(hash(folded));
+  const fetch=vi.fn(async(input:RequestInfo|URL)=>{
+   const decoded=decodeURIComponent(new URL(String(input)).pathname.split('/').at(-2)!);
+   expect([raw,folded]).toContain(decoded);
+   return new Response(JSON.stringify(identityPayload(decoded)),{headers:{'content-type':'application/json','cache-control':'public, max-age=60'}});
+  }) as unknown as typeof globalThis.fetch;
+  const client=createTagRelationsClient({enabled:true,fetch,fallback});
+  const results=await Promise.all([client(raw),client(folded)]);
+  expect(fetch).toHaveBeenCalledTimes(2);
+  [raw,folded].forEach((label,index)=>{
+   expect(fetch).toHaveBeenCalledWith('https://tag.observe.tw/api/v1/tags/'+encodeURIComponent(label)+'/relations',expect.objectContaining({redirect:'manual',credentials:'omit'}));
+   expect(results[index]).toMatchObject({status:'available',data:identityPayload(label)});
+  });
+  // A cache hit must keep each raw spelling's ID and href, not the folded peer's.
+  expect(await client(raw)).toMatchObject({status:'available',data:identityPayload(raw)});
+  expect(await client(folded)).toMatchObject({status:'available',data:identityPayload(folded)});
+  expect(fetch).toHaveBeenCalledTimes(2);
+ });
+ it.each(['query-id','target-id','target-href'])('rejects normalized/double-encoded %s instead of merging raw source identity',async kind=>{
+  const body=identityPayload(raw);
+  if(kind==='query-id')body.tagId=hash(folded);
+  if(kind==='target-id')body.relations[0]!.target.id=hash(folded);
+  if(kind==='target-href')body.relations[0]!.target.href='/tag/'+encodeURIComponent(encodeURIComponent(raw))+'/';
+  const fetch=transport(body),result=await createTagRelationsClient({enabled:true,fetch,fallback})(raw);
+  expect(result).toMatchObject({status:'fallback',reason:'invalid-contract',data:null,fallback:{tag:raw,existingSource:true}});
+  expect(fetch).toHaveBeenCalledTimes(1);
+ });
+ it.each([0,1])('enforces cumulative UTF-8 stream bytes at default limit plus%s despite understated content-length',async extra=>{
+  const body=identityPayload(raw),json=JSON.stringify(body),limit=131072;
+  const bytes=Buffer.from(json+' '.repeat(limit+extra-Buffer.byteLength(json)),'utf8');
+  expect(bytes.byteLength).toBe(limit+extra);
+  // Split inside a multibyte character, then cross the cap only after several chunks.
+  const first=bytes.indexOf(Buffer.from(raw))+1,cuts=[first,32768,65536,98304,bytes.length];
+  const fetch=mock(async()=>new Response(new ReadableStream<Uint8Array>({start(controller){let offset=0;for(const end of cuts){controller.enqueue(bytes.subarray(offset,end));offset=end;}controller.close();}}),{headers:{'content-type':'application/json','content-length':'1'}}));
+  const result=await createTagRelationsClient({enabled:true,fetch,fallback})(raw);
+  expect(result).toMatchObject(extra?{status:'fallback',reason:'response-cap',data:null}:{status:'available',data:body,reason:null});
+  expect(fetch).toHaveBeenCalledTimes(1);
+ });
+ it('maps an oversized valid projection to unavailable while a later actual empty projection stays available',async()=>{
+  const relations=Array.from({length:200},(_,index)=>{
+   const label='😀'.repeat(59)+String.fromCodePoint(0x4e00+index);
+   return {id:'relation:'+(index+1),type:'related',target:{id:hash(label),label,href:'/tag/'+encodeURIComponent(label)+'/'},source:'submission',sourceDetail:'submission',createdAt:'2026-10-12T01:00:00.000Z',status:'approved',inherited:false,depth:1};
+  });
+  const large={tag,tagId:hash(tag),truncated:true,relations},empty={tag,tagId:hash(tag),truncated:false,relations:[]};
+  expect(Buffer.byteLength(JSON.stringify(large))).toBeGreaterThan(131072);
+  let requests=0;const fetcher=mock(async()=>Response.json(requests++===0?large:empty)),credentials=vi.fn(async()=>({serviceToken:'offline-test-service'}));
+  const report=createKeywordRelationsReport({env:{TS_TAG_RELATIONS_ENABLED:'true'},fetcher,credentials});
+  expect(await report(tag)).toMatchObject({keyword:tag,status:'unavailable',reason:'response-cap',tagId:null,relations:[]});
+  expect(await report(tag)).toMatchObject({keyword:tag,status:'available',reason:null,tagId:hash(tag),truncated:false,relations:[]});
+  expect(fetcher).toHaveBeenCalledTimes(2);expect(credentials).toHaveBeenCalledTimes(1);
+ });
 });
