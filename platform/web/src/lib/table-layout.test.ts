@@ -84,7 +84,18 @@ const escape=(text:string)=>text.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 const anchor=(attrs:Record<string,string>)=>'<a '+Object.entries(attrs).map(([key,value])=>'(?=[^>]*'+key+'="'+escape(value)+'")').join('')+'[^>]*>';
 /** Header labels in document order. */
 const heads=(html:string)=>[...html.matchAll(/<th(?:\s[^>]*)?>([^<]*)/g)].map(m=>m[1]);
-const thumb48=thumbIn('table-lead-extra max-sm:hidden shrink-0');
+const thumb48=thumbIn('table-lead-extra shrink-0');
+const videoName='min-w-0 max-w-full max-sm:w-full max-sm:whitespace-normal max-sm:[overflow-wrap:anywhere] sm:truncate sm:max-w-xs font-medium hover:underline';
+const videoLead='table-lead-box min-w-0 flex items-center gap-2 max-sm:flex-col max-sm:items-start';
+/** The phone lead keeps its capped width, but puts the small thumbnail above a full-width
+ * wrapping title. No clamp hides a distinguishing suffix; desktop keeps the inline lead. */
+const assertVideoIdentityRow=(row:string)=>{
+ assert.match(row,new RegExp(`<div class="${escape(videoLead)}">`));
+ assert.match(row,thumb48);
+ assert.match(row,new RegExp(anchor({class:videoName})));
+ assert.doesNotMatch(row,/line-clamp|table-stack|data-thumbnail-state="loaded"/);
+ assert.equal(row.match(/max-sm:whitespace-normal/g)?.length,1);
+};
 
 const channelName='min-w-0 max-w-full truncate max-sm:line-clamp-2 max-sm:whitespace-normal max-sm:[overflow-wrap:anywhere] sm:max-w-xs';
 test('channel ranking row: rank, avatar, name (the one lead text that wraps on phones) and inline categories that yield on scroll',()=>{
@@ -121,30 +132,61 @@ test('ranked channel table puts the sorted metric right after the name and keeps
  bodyRows(html).forEach(assertOneLineRow);
 });
 
-test('video row is one line: small inline thumbnail beside the title, channel avatar and name in their own column',()=>{
+test('video row wraps the title below its small phone thumbnail; desktop stays inline, with channel attribution in its own column',()=>{
  const html=render(createElement(VideoTable,{rows:[{...video,listing:{scope:'channel',providerComments:17,recordedComments:null,commentStatus:'pending',commentAuthors:null,commentReplies:null,commentLikes:null,likeSharePercent:null,commentsPerThousandViews:null,commentObservedAt:null,tags:[]}}]}));
  assert.deepEqual(heads(html).slice(0,3),['影片','頻道','發布時間']);
  assert.match(html,thumb48);
- assert.match(html,new RegExp(anchor({class:'min-w-0 max-w-full truncate font-medium hover:underline sm:max-w-xs',title:longTitle,href:'/videos/AbCdEfGh123'})));
+ assert.match(html,new RegExp(anchor({class:videoName,title:longTitle,href:'/videos/AbCdEfGh123'})));
  assert.match(html,new RegExp(`<td>${anchor({class:'flex min-w-0 items-center gap-1.5 hover:underline',title:'來源頻道',href:'/channels/8'})}<span class="inline-flex shrink-0[^>]*>[\\s\\S]*?<span class="${clip}">來源頻道</span></a></td>`));
  // Collection status follows the counts inline instead of on a second line.
  assert.match(html,/— ／ 17<small class="ml-1.5">收錄未完成，顯示 YouTube<\/small>/);
- bodyRows(html).forEach(assertOneLineRow);
+ bodyRows(html).forEach(assertVideoIdentityRow);
 });
 
-test('live row is one line: rank and thumbnail yield in the lead; channel, categories and update time are columns',()=>{
+test('live phone title wraps below its thumbnail; rank stays desktop-only and attribution, metrics and source stay in their columns',()=>{
  const live:LiveRow={...video,currentViewers:10,todayPeak:20,allTimePeak:null,startedAt:null,trend:[],tags:[tag],partialLogEvidence:true};
  const html=render(createElement(LiveTable,{rows:[live],offset:0}));
  assert.deepEqual(heads(html),['直播 / 頻道','同時在線','今日高峰','歷史高峰','頻道','頻道分類','更新時間','原始來源']);
- assert.match(html,/<div class="table-lead-box min-w-0 flex items-center gap-2"><span class="table-lead-extra max-sm:hidden shrink-0 text-xs tabular-nums text-zinc-400">01<\/span>/);
+ assert.match(html,new RegExp(`<div class="${escape(videoLead)}"><span class="table-lead-extra max-sm:hidden shrink-0 text-xs tabular-nums text-zinc-400">01</span>`));
  assert.match(html,thumb48);
- // Phones mark the source with only the channel avatar, so the title owns the lead; one truncating line.
- assert.match(html,new RegExp(`${anchor({class:'flex min-w-0 items-center gap-1.5 font-medium hover:underline sm:max-w-xs',title:`來源頻道 · ${longTitle}`,href:'/videos/AbCdEfGh123'})}<span class="shrink-0 sm:hidden"><span class="inline-flex shrink-0[^>]*>[\\s\\S]*?</span></span><span class="min-w-0 max-w-full truncate">${longTitle}</span></a>`));
+ // The thumbnail identifies the video; full titles wrap on phones and the tooltip keeps attribution.
+ assert.match(html,new RegExp(`${anchor({class:videoName,title:`來源頻道 · ${longTitle}`,href:'/videos/AbCdEfGh123'})}${longTitle}</a>`));
  // The visible channel name lives only in the channel column, always beside its avatar.
  assert.equal(html.match(/>來源頻道</g)?.length,1);
  assert.match(html,new RegExp(`<td>${anchor({class:'flex min-w-0 items-center gap-1.5 hover:underline',title:'來源頻道',href:'/channels/8'})}<span class="inline-flex shrink-0[^>]*>[\\s\\S]*?<span class="${clip}">來源頻道</span></a></td>`));
  assert.match(html,new RegExp(`<span class="${clip} text-xs text-zinc-500" title="新聞">${anchor({href:'/live/current?tagid=3'})}新聞</a></span>`));
  assert.match(html,/20<small class="ml-1.5">部分取樣<\/small>/);
  assert.match(html,/href="https:\/\/www.youtube.com\/watch\?v=AbCdEfGh123"/);
- bodyRows(html).forEach(assertOneLineRow);
+ bodyRows(html).forEach(assertVideoIdentityRow);
+});
+
+test('video and live rows keep distinct common-prefix suffixes, video identities and canonical thumbnail sources',()=>{
+ const prefix='【每日直播新聞】日テレNEWS 共用節目名稱與日期時段前綴';
+ const rows=[{...video,title:`${prefix} 台灣地震現場`,id:'AbCdEfGh123'},{...video,title:`${prefix} 東京交通速報`,id:'ZyXwVuTs987'}];
+ const lives=rows.map(row=>({...row,currentViewers:10,todayPeak:20,allTimePeak:null,startedAt:null,trend:[],tags:[]} satisfies LiveRow));
+ for(const html of [render(createElement(VideoTable,{rows})),render(createElement(LiveTable,{rows:lives}))]){
+  const renderedRows=bodyRows(html);
+  assert.equal(renderedRows.length,2);
+  renderedRows.forEach((row,index)=>{
+   assertVideoIdentityRow(row);
+   const source=rows[index];
+   assert.match(row,new RegExp(`${anchor({href:`/videos/${source.id}`})}${escape(source.title)}</a>`));
+   assert.match(row,new RegExp(`data-thumbnail-src="https://i\\.ytimg\\.com/vi/${source.id}/mqdefault\\.jpg"`));
+   assert.match(row,/data-thumbnail-state="pending"/);
+   assert.match(row,/<td><a [^>]*href="\/channels\/8"/);
+  });
+ }
+});
+
+test('video and live identity fallbacks keep unknown labels and encoded links without inventing a thumbnail source',()=>{
+ const row={...video,id:'missing/id%',title:'',channelTitle:'',thumbnail:'https://untrusted.example/fake.jpg'};
+ const live={...row,currentViewers:10,todayPeak:20,allTimePeak:null,startedAt:null,trend:[],tags:[]} satisfies LiveRow;
+ for(const [element,label] of [[createElement(VideoTable,{rows:[row]}),'影片標題尚未取得'],[createElement(LiveTable,{rows:[live]}),'直播標題尚未取得']] as const){
+  const html=render(element);
+  assert.match(html,thumb48);
+  assert.match(html,new RegExp(`${anchor({href:'/videos/missing%2Fid%25'})}${label}</a>`));
+  assert.match(html,/頻道名稱尚未取得/);
+  assert.match(html,/data-thumbnail-state="missing"/);
+  assert.doesNotMatch(html,/data-thumbnail-state="loaded"|data-thumbnail-src=|untrusted\.example|<img/);
+ }
 });
