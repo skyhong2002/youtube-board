@@ -31,7 +31,7 @@ def helpers():
 def healthy():
     return dict(schema='yt-host-health-v1', observedHost='skyhong-blog', machineId=relay.BLOG_ID,
                 measuredFromMachineId=relay.BLOG_ID, observedAt=NOW.isoformat(),
-                freeBytes=50 * 1024**3, load1=1, buildCount=0, browserCount=0,
+                freeBytes=50 * 1024**3, load1=1, buildCount=0, buildProcesses=[], browserCount=0,
                 sites={name: dict(exitCode=0, status=200, totalSeconds=.5)
                        for name in ('tag', 'blog', 'youtube')})
 
@@ -70,6 +70,45 @@ class RelayTests(unittest.TestCase):
         self.assertIn('StrictHostKeyChecking=yes', argv)
         self.assertIn('ubuntu@100.81.220.33', argv)
         self.assertNotIn('ProxyCommand', ' '.join(argv[:argv.index('ubuntu@100.81.220.33')]))
+
+    def test_probe_and_dependency_match_current_admission(self):
+        source = Path(__file__).with_name('native-arm64-admission.py')
+        self.assertEqual(relay.ADMISSION_SOURCE_SHA256, hashlib.sha256(source.read_bytes()).hexdigest())
+        import sys
+        spec = importlib.util.spec_from_file_location('admission_relay_test', source)
+        admission = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = admission
+        spec.loader.exec_module(admission)
+        self.assertEqual(relay.BLOG_SCRIPT, admission.readonly_script('skyhong-blog'))
+
+    def test_process_details_are_strict_in_both_validators(self):
+        ns = helpers()
+        valid = dict(pid=123, name='buildkit-runc', etimes=90)
+        sample = healthy(); sample.update(buildCount=1, buildProcesses=[valid])
+        for checker in (relay.build_processes_valid, ns['build_processes_valid']):
+            self.assertTrue(checker(sample))
+            for change in (dict(argv='secret'), dict(pid=True), dict(name='secret'), dict(etimes=-1)):
+                bad = copy.deepcopy(sample); bad['buildProcesses'][0].update(change)
+                self.assertFalse(checker(bad))
+        # Both entry points accept an empty list, reject malformed evidence,
+        # and continue denying genuine build activity.
+        fake_controller(ns); child = inner(ns)
+        fake_controller(ns, out=json.dumps(child).encode())
+        sm = relay.sm_script()
+        raw = ns['execute_hop'](relay.MINT_ID, relay.SM_ID,
+            relay.ssh_argv('deck@100.85.214.25', relay.SM_KNOWN_HOSTS, sm),
+            hashlib.sha256(sm.encode()).hexdigest(), relay.SM_KNOWN_HOSTS, relay.SM_PIN, 22, True)
+        raw = json.loads(json.dumps(raw))
+        self.assertTrue(relay.validate_receipt(raw, NOW)['ok'])
+        for details, count in (([valid], 1), ([dict(valid, argv='secret')], 0),
+                               (None, 0), ([dict(valid, pid=True)], 0)):
+            bad = healthy(); bad.update(buildProcesses=details, buildCount=count)
+            with self.assertRaises(ValueError): ns['health'](bad)
+            changed = copy.deepcopy(raw)
+            changed['sample'] = bad; changed['childReceipt']['sample'] = copy.deepcopy(bad)
+            result = relay.validate_receipt(changed, NOW)
+            self.assertTrue(result['unknown'])
+            self.assertNotIn('secret', json.dumps(result))
 
     def test_complete_nested_receipt_is_health_only(self):
         ns = helpers(); fake_controller(ns)

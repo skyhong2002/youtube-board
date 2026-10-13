@@ -12,7 +12,7 @@ import math
 
 APP_SHA = '70529cff13b6b7f5b3e0571a229e2b61660f9df4'
 OPS_TARGET = '5a5be6833ee2f32d35bce021db43d3627fdd7c8f'
-ADMISSION_SOURCE_SHA256 = '1d488b8946165f4da7e2441864d23def94fbf455885594e64ca18149a7b25811'
+ADMISSION_SOURCE_SHA256 = '3d83b5a611babdfd5a97da86b7715f4e1547a6c796898262e4fbcbff33dc495e'
 MINT_ID = 'f80413057e6d4a179e248e5f8c08cac6'
 SM_ID = '302c2528bd464ad0953cf5fa743b6171'
 BLOG_ID = '35ead342bacc44dea3633ccd2cc3f309'
@@ -25,8 +25,21 @@ ENV = {'PATH': '/usr/bin:/bin', 'LANG': 'C'}
 OUTPUT_CAP = 65536
 BLOG_SECONDS = 15
 MINT_SECONDS = 22
-BLOG_SCRIPT = "import datetime,json,os,shutil,subprocess\nfrom pathlib import Path\nsites={'tag': 'https://tag.observe.tw/', 'blog': 'https://blog.observe.tw/', 'youtube': 'https://youtube.observe.tw/'}\nlimits={'tag': 2.0, 'blog': 6.17, 'youtube': 2.0}\nrows={}\nbuilds=0\nbrowsers=0\nfor p in Path('/proc').iterdir():\n if not p.name.isdecimal(): continue\n try: a=[x.decode(errors='replace') for x in (p/'cmdline').read_bytes().split(b'\\0') if x]\n except (FileNotFoundError,ProcessLookupError): continue\n names=[os.path.basename(x) for x in a]\n if ('buildkitd' in names or 'next-build' in names or any(x in names for x in ('next','next.js')) and 'build' in a or any(x in names for x in ('docker','buildctl')) and any(x in a for x in ('build','buildx'))): builds+=1\n if names and names[0] in ('chrome','chromium','chromium-browser','chrome-headless-shell','google-chrome','google-chrome-stable') and not any(x.startswith('--type=') for x in a): browsers+=1\nfor name,url in sites.items():\n try:\n  r=subprocess.run(['/usr/bin/curl','--disable','--silent','--show-error','--max-time',str(limits[name]+1),'--output','/dev/null','--user-agent','youtube-board-verify/1.0','--header','DNT: 1','--header','Accept: text/html','--write-out','%{http_code} %{time_total}',url],capture_output=True,text=True,timeout=limits[name]+2,env={'PATH':'/usr/bin:/bin','LANG':'C'})\n  status,total=r.stdout.split()\n  rows[name]={'exitCode':r.returncode,'status':int(status),'totalSeconds':float(total)}\n except (OSError,ValueError,subprocess.TimeoutExpired): rows[name]={'exitCode':-1,'status':None,'totalSeconds':None}\nprint(json.dumps({'schema':'yt-host-health-v1','observedHost':'skyhong-blog','machineId':Path('/etc/machine-id').read_text().strip(),'measuredFromMachineId':Path('/etc/machine-id').read_text().strip(),'observedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'freeBytes':shutil.disk_usage('/home').free,'load1':os.getloadavg()[0],'buildCount':builds,'browserCount':browsers,'sites':rows}))\n"
-BLOG_SCRIPT_SHA256 = '249a2747eb0d50b9cb2d339115f975e47c3ade8ae80d152aabeeec0790f68583'
+BLOG_SCRIPT = "import datetime,json,os,shutil,subprocess\nfrom pathlib import Path\nsites={'tag': 'https://tag.observe.tw/', 'blog': 'https://blog.observe.tw/', 'youtube': 'https://youtube.observe.tw/'}\nlimits={'tag': 2.0, 'blog': 6.17, 'youtube': 2.0}\nrows={}\nbuilds=0\nbrowsers=0\nprocesses={}\nbuild_processes=[]\nuptime=float(Path('/proc/uptime').read_text().split()[0])\nticks=os.sysconf('SC_CLK_TCK')\nfor p in Path('/proc').iterdir():\n if not p.name.isdecimal(): continue\n try:\n  a=[x.decode(errors='replace') for x in (p/'cmdline').read_bytes().split(b'\\0') if x]\n  stat=(p/'stat').read_text().rsplit(')',1)[1].split()\n  parent=int(stat[1])\n  elapsed=max(0,int(uptime-int(stat[19])/ticks))\n except (FileNotFoundError,ProcessLookupError): continue\n names=[os.path.basename(x) for x in a]\n executable=names[0] if names else ''\n processes[int(p.name)]=(parent,executable,a,elapsed)\n command=a[1:]\n if executable in ('docker','buildctl','buildx','docker-buildx'):\n  value_options=('--host','-H','--context','-c','--config','--log-level','-l','--tlscacert','--tlscert','--tlskey','--addr','--timeout','--tlsservername')\n  flag_options=('--debug','-D','--tls','--tlsverify','--help','-h','--version','-v')\n  while command and command[0].startswith('-'):\n   option=command[0]\n   if option in value_options:\n    if len(command)<2: raise ValueError('Missing build-client option value')\n    command=command[2:]\n   elif option in flag_options or '=' in option and option.split('=',1)[0] in value_options+flag_options:\n    command=command[1:]\n   else: raise ValueError('Unknown build-client global option')\n client=(executable=='docker' and (command[:1]==['build'] or command[:2] in (['buildx','build'],['buildx','bake'],['image','build'])) or executable in ('buildx','docker-buildx') and command[:1] in (['build'],['bake']) or executable=='buildctl' and command[:1]==['build'] or 'next-build' in names or any(x in names for x in ('next','next.js')) and 'build' in a or executable in ('npm','pnpm','yarn') and 'build' in a[1:])\n if client:\n  build_processes.append({'pid':int(p.name),'name':executable if executable in ('docker','buildx','docker-buildx','buildctl','node','npm','pnpm','yarn','next','next.js','next-build') else 'build-client','etimes':elapsed})\n if names and names[0] in ('chrome','chromium','chromium-browser','chrome-headless-shell','google-chrome','google-chrome-stable') and not any(x.startswith('--type=') for x in a): browsers+=1\nfor pid,(parent,name,a,elapsed) in processes.items():\n if name not in ('runc','buildkit-runc'): continue\n seen=set()\n while parent in processes and parent not in seen:\n  seen.add(parent)\n  ancestor=processes[parent]\n  if ancestor[1]=='buildkitd':\n   build_processes.append({'pid':pid,'name':name,'etimes':elapsed})\n   break\n  parent=ancestor[0]\nbuilds=len(build_processes)\nfor name,url in sites.items():\n try:\n  r=subprocess.run(['/usr/bin/curl','--disable','--silent','--show-error','--max-time',str(limits[name]+1),'--output','/dev/null','--user-agent','youtube-board-verify/1.0','--header','DNT: 1','--header','Accept: text/html','--write-out','%{http_code} %{time_total}',url],capture_output=True,text=True,timeout=limits[name]+2,env={'PATH':'/usr/bin:/bin','LANG':'C'})\n  status,total=r.stdout.split()\n  rows[name]={'exitCode':r.returncode,'status':int(status),'totalSeconds':float(total)}\n except (OSError,ValueError,subprocess.TimeoutExpired): rows[name]={'exitCode':-1,'status':None,'totalSeconds':None}\nprint(json.dumps({'schema':'yt-host-health-v1','observedHost':'skyhong-blog','machineId':Path('/etc/machine-id').read_text().strip(),'measuredFromMachineId':Path('/etc/machine-id').read_text().strip(),'observedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'freeBytes':shutil.disk_usage('/home').free,'load1':os.getloadavg()[0],'buildCount':builds,'buildProcesses':build_processes,'browserCount':browsers,'sites':rows}))\n"
+BLOG_SCRIPT_SHA256 = '1134bf204d5d2b8290139ce8daf0cf4c5091fdd7488b549716d0a55a9ba55380'
+
+def build_processes_valid(sample):
+ details=sample.get('buildProcesses')
+ count=sample.get('buildCount')
+ allowed={'docker','buildx','docker-buildx','buildctl','node','npm','pnpm','yarn','next','next.js','next-build','build-client','runc','buildkit-runc'}
+ if type(count) is not int or count<0 or not isinstance(details,list) or len(details)!=count:return False
+ seen=set()
+ for row in details:
+  if not isinstance(row,dict) or set(row)!={'pid','name','etimes'}:return False
+  if type(row['pid']) is not int or row['pid']<=0 or row['pid'] in seen:return False
+  if not isinstance(row['name'],str) or row['name'] not in allowed or type(row['etimes']) is not int or row['etimes']<0:return False
+  seen.add(row['pid'])
+ return True
 
 # This fixed helper is emitted into each controller script. Its only child is
 # its own fixed ssh client. Timeout cleanup never signals a remote host/job.
@@ -114,8 +127,22 @@ def age(value):
  delta=(datetime.datetime.now(datetime.timezone.utc)-parsed).total_seconds()
  if parsed.tzinfo is None or not math.isfinite(delta) or not 0<=delta<=30:raise ValueError('Health stale/unknown')
 
+def build_processes_valid(sample):
+ details=sample.get('buildProcesses')
+ count=sample.get('buildCount')
+ allowed={'docker','buildx','docker-buildx','buildctl','node','npm','pnpm','yarn','next','next.js','next-build','build-client','runc','buildkit-runc'}
+ if type(count) is not int or count<0 or not isinstance(details,list) or len(details)!=count:return False
+ seen=set()
+ for row in details:
+  if not isinstance(row,dict) or set(row)!={'pid','name','etimes'}:return False
+  if type(row['pid']) is not int or row['pid']<=0 or row['pid'] in seen:return False
+  if not isinstance(row['name'],str) or row['name'] not in allowed or type(row['etimes']) is not int or row['etimes']<0:return False
+  seen.add(row['pid'])
+ return True
+
 def health(sample):
- if not isinstance(sample,dict) or set(sample)!={'schema','observedHost','machineId','measuredFromMachineId','observedAt','freeBytes','load1','buildCount','browserCount','sites'}:raise ValueError('Health fields unknown')
+ if not isinstance(sample,dict) or set(sample)!={'schema','observedHost','machineId','measuredFromMachineId','observedAt','freeBytes','load1','buildCount','buildProcesses','browserCount','sites'}:raise ValueError('Health fields unknown')
+ if not build_processes_valid(sample):raise ValueError('Build process fields unknown')
  if sample['schema']!='yt-host-health-v1' or sample['observedHost']!='skyhong-blog' or sample['machineId']!=BLOG_ID or sample['measuredFromMachineId']!=BLOG_ID:raise ValueError('Blog identity unknown')
  age(sample['observedAt'])
  def number(x):return type(x) in (int,float) and math.isfinite(x)
@@ -313,7 +340,8 @@ def validate_receipt(raw, now):
         require(packet['sample'] == child['sample'])
         sample = child['sample']
         require(isinstance(sample, dict) and set(sample) == {'schema','observedHost','machineId',
-                'measuredFromMachineId','observedAt','freeBytes','load1','buildCount','browserCount','sites'})
+                'measuredFromMachineId','observedAt','freeBytes','load1','buildCount','buildProcesses','browserCount','sites'})
+        require(build_processes_valid(sample))
         require(sample['schema'] == 'yt-host-health-v1' and sample['observedHost'] == 'skyhong-blog' and
                 sample['machineId'] == BLOG_ID and sample['measuredFromMachineId'] == BLOG_ID)
         fresh(sample['observedAt'])
