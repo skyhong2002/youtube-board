@@ -318,6 +318,38 @@ def terminal(fixture, config, c, child, owned, fd, started_at):
     return digest(raw)
 
 
+
+def finish_reservation(fixture, config, c, child, owned, fd, reservation, started_at, terminal_sha):
+    """Revoke admission before STOP; uncertainty retains custody and reservation."""
+    try:
+        if terminal_sha is None:
+            reservation.update(state='stop-requested')
+            persist(REGISTRY, reservation)
+            persist(config['fixture']['admissionPath'], {'bootstrap': {'state': 'revoked'}, 'guardian': {'status': 'stop-requested', 'targetOpsSha': c.ops_sha}})
+            if child is not None and owned is not None:
+                if child.poll() is None:
+                    require(identity(child.pid) == owned, 'STOP_OWNERSHIP_UNKNOWN_RETAIN_RESERVATION')
+                    os.kill(child.pid, signal.SIGINT)
+                    child.wait(timeout=20)
+                terminal_sha = terminal(fixture, config, c, child, owned, fd, started_at)
+        if terminal_sha is not None:
+            reservation.update(state='local-terminal-confirmed', terminalReceiptSha256=terminal_sha)
+            persist(REGISTRY, reservation)
+            os.close(fd)  # Local proof never unlinks or releases global reservation.
+            return terminal_sha
+    except Exception:
+        # Identity, STOP, wait, proof or persistence failure is never release proof.
+        pass
+    reservation.update(state='unknown-retained', terminalReceiptSha256=None)
+    try:
+        persist(REGISTRY, reservation)
+    finally:
+        # Even a failed durable update cannot release our inherited flock FD.
+        # Process death still leaves the existing durable reservation unresolved.
+        while True:
+            time.sleep(1)
+
+
 def supervise(config):
     # No arbitrary shell/argv/plugin execution. These exact source adapters must
     # have their separate reviewed byte pins in the independently reviewed config.
@@ -362,29 +394,7 @@ def supervise(config):
         terminal_sha = terminal(fixture, config, c, child, owned, fd, started_at)
     finally:
         if reservation is not None:
-            if terminal_sha is None:
-                persist(config['fixture']['admissionPath'], {'bootstrap': {'state': 'revoked'}, 'guardian': {'status': 'stop-requested', 'targetOpsSha': c.ops_sha}})
-                reservation.update(state='stop-requested')
-                persist(REGISTRY, reservation)
-                if child is not None and owned is not None and child.poll() is None:
-                    require(identity(child.pid) == owned, 'STOP_OWNERSHIP_UNKNOWN_RETAIN_RESERVATION')
-                    os.kill(child.pid, signal.SIGINT)  # OPS5a finally performs child cleanup.
-                    try:
-                        child.wait(timeout=20)
-                        terminal_sha = terminal(fixture, config, c, child, owned, fd, started_at)
-                    except Exception:
-                        terminal_sha = None
-            if terminal_sha is not None:
-                reservation.update(state='local-terminal-confirmed', terminalReceiptSha256=terminal_sha)
-                persist(REGISTRY, reservation)
-                os.close(fd)  # Never unlinks/reuses reservation or declares next slot.
-            else:
-                reservation.update(state='unknown-retained')
-                persist(REGISTRY, reservation)
-                # Keep custody until externally reconciled; process death still
-                # leaves inherited FDs and the durable unknown reservation.
-                while True:
-                    time.sleep(1)
+            terminal_sha = finish_reservation(fixture, config, c, child, owned, fd, reservation, started_at, terminal_sha)
         else:
             os.close(fd)  # No child can have spawned without a durable reservation.
     return {'status': 'local-terminal-confirmed', 'targetOpsSha': c.ops_sha, 'appSha': APP, 'guardianSha256': digest(HERE.read_bytes()), 'reservationReleased': False, 'terminalReceiptSha256': terminal_sha, 'runtimeReady': False}

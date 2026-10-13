@@ -212,6 +212,45 @@ class GuardianMocks(unittest.TestCase):
         self.assertNotIn('shell', events[launched][2])
         self.assertFalse(result['reservationReleased']); self.assertFalse(result['runtimeReady'])
 
+    def test_stop_uncertainty_retains_reservation_and_fd(self):
+        class Retained(BaseException):
+            pass
+        config = {'fixture': {'admissionPath': '/isolated/admission.json'}}
+        owned = {'pid': 456, 'startTicks': '1'}
+        for failure in ('identity', 'signal', 'timeout', 'proof', 'unregistered', 'persistence'):
+            with self.subTest(failure=failure):
+                child = Mock(pid=456); child.poll.return_value = None
+                if failure == 'timeout': child.wait.side_effect = TimeoutError()
+                row = {'state': 'running'}; events = []
+                def saved(path, value):
+                    events.append((str(path), copy.deepcopy(value)))
+                    if failure == 'persistence': raise OSError('synthetic-only')
+                with patch.object(guardian, 'persist', side_effect=saved), patch.object(guardian, 'identity', return_value={} if failure == 'identity' else owned), patch.object(guardian.os, 'kill', side_effect=OSError() if failure == 'signal' else None) as kill, patch.object(guardian, 'terminal', side_effect=ValueError('unknown')) as proof, patch.object(guardian.os, 'close') as close, patch.object(guardian.time, 'sleep', side_effect=Retained):
+                    with self.assertRaises(Retained):
+                        guardian.finish_reservation(fixture, config, C, child, None if failure == 'unregistered' else owned, 7, row, NOW, None)
+                    close.assert_not_called()
+                    if failure in ('identity', 'unregistered', 'persistence'): kill.assert_not_called()
+                self.assertEqual(row['state'], 'unknown-retained')
+                self.assertIsNone(row['terminalReceiptSha256'])
+                self.assertEqual(events[0][1]['state'], 'stop-requested')
+                self.assertEqual(events[-1][1]['state'], 'unknown-retained')
+                self.assertFalse(any(value.get('reservationReleased') for _, value in events))
+
+    def test_revocation_stop_closes_local_fd_only_after_durable_terminal_proof(self):
+        config = {'fixture': {'admissionPath': '/isolated/admission.json'}}
+        owned = {'pid': 456}; child = Mock(pid=456); child.poll.return_value = None
+        row = {'state': 'running'}; events = []
+        with patch.object(guardian, 'persist', side_effect=lambda path, value: events.append(('persist', copy.deepcopy(value)))), patch.object(guardian, 'identity', return_value=owned), patch.object(guardian.os, 'kill', side_effect=lambda *args: events.append(('signal', args))), patch.object(guardian, 'terminal', return_value='d'*64), patch.object(guardian.os, 'close', side_effect=lambda fd: events.append(('close', fd))), patch.object(guardian.time, 'sleep') as sleep:
+            result = guardian.finish_reservation(fixture, config, C, child, owned, 7, row, NOW, None)
+        self.assertEqual(result, 'd'*64)
+        self.assertEqual(events[0][1]['state'], 'stop-requested')
+        self.assertEqual(events[1][1]['bootstrap']['state'], 'revoked')
+        self.assertEqual(events[-2][1]['state'], 'local-terminal-confirmed')
+        self.assertEqual(events[-1], ('close', 7))
+        child.wait.assert_called_once_with(timeout=20)
+        sleep.assert_not_called()
+        self.assertNotIn('reservationReleased', row)
+
     def test_observation_entry_requires_reviewed_gate_before_persisting(self):
         gate = module('guardian_gate_test', 'mint-youtube-fixture-gate.py')
         cases = module('guardian_collector_cases', 'native-arm64-probe-collector.test.py')
