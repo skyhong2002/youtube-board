@@ -34768,6 +34768,33 @@
       "Source/mock review cannot promote UI state or transfer historical SHA pass.",
       "Admin flags/schema/permissions unchanged, no live writes.",
       "No real GA transmission, runtime or candidate probes."
-    ]
+    ],
+    "y2ContractFollowup": {
+      "upstreamSourceSHA": "48bc174bbcddaa3f84d8da65024e328a0b2abc71",
+      "originalContractSHA": "b8d030c747f87c997800371e33e1ab2d168ad257",
+      "runtimeChanged": false,
+      "enabled": false,
+      "authorFocusedMocksPassed": 58,
+      "independentNewMocksPassed": 3,
+      "evidence": [
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-13/y2-contract-audit-20261013T0750Z.json",
+          "sha256": "7d863900d023593a05971cf35f32bbe7146f842550c2de365c0b79f8fdfc8caa",
+          "model": "gpt-6.1-sol"
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/y2-contract-tests-root-independent-review-20261013.json",
+          "sha256": "29531fd4e0821e869de1b1799f3787e3a7528a7ffab5889cdf188fe306b538b0",
+          "model": "gpt-6.1-sol"
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-13/y2-contract-audit-root-review-addendum-20261013T0752Z.json",
+          "sha256": "079b57655b8f7e5cf5b2507f2fd0eee86a152aba4c8c3c57a141a6b28cff834f",
+          "model": "gpt-6.1-sol"
+        }
+      ],
+      "UIApproval": false,
+      "activationApproval": false
+    }
   }
 }

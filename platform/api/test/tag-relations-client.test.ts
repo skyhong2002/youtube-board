@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import {describe,it,expect,vi} from 'vitest';
-import {createTagRelationsClient,F1_RELATIONS_CONTRACT} from '../src/reports/tag-relations-client.js';
+import {createTagRelationsClient,F1_RELATIONS_CONTRACT,type TagRelation} from '../src/reports/tag-relations-client.js';
 const tag='沈伯洋',hash=(text:string)=>createHash('sha256').update(text,'utf8').digest('hex');
 // Public OpenAPI fixture: no account/private reason or production secrets.
 const payload=()=>({tag,tagId:hash(tag),truncated:true,relations:[
@@ -54,6 +54,46 @@ describe('offline F1 relations contract',()=>{
  });
  it.each([' leading','trailing ','\ncontrol','x'.repeat(61)])('rejects invalid tag without transport',async value=>{
   const fetch=transport();await expect(createTagRelationsClient({enabled:true,fetch,fallback})(value)).rejects.toThrow('Invalid relations tag');expect(fetch).not.toHaveBeenCalled();
+ });
+});
+
+describe('retained F1 public projection compatibility (48bc174 source audit)',()=>{
+ // Source-derived offline fixtures, not an upstream HTTP response or deployment proof.
+ // Current publicRelations caps the combined projection at 200 rows and depth 8.
+ it('preserves a 200-row partial projection, all relation types and inherited origin IDs',async()=>{
+  const relations=Array.from({length:200},(_,index):TagRelation=>{
+   const label='關係'+index,type=(['is-a','related','alias'] as const)[index%3]!;
+   return {id:'relation:'+(index+1),type,target:{id:hash(label),label,href:'/tag/'+encodeURIComponent(label)+'/'},source:'submission',sourceDetail:'submission',createdAt:'2026-10-12T01:00:00.000Z',status:'approved',inherited:false,depth:1};
+  });
+  relations[199]={id:'group-membership:'+hash('中介分類')+':1001',type:'is-a',target:{id:'group:1001',label:'最上位群組',href:'/group/1001/'},source:'rule',sourceDetail:'legacy',createdAt:null,status:'approved',inherited:true,depth:8};
+  const body={tag,tagId:hash(tag),truncated:true,relations},fetch=transport(body);
+  const result=await createTagRelationsClient({enabled:true,fetch,fallback})(tag);
+  expect(result).toMatchObject({status:'available',data:body,reason:null});
+  if(result.status!=='available')throw new Error('Expected the source-shaped projection');
+  expect(result.data.relations).toHaveLength(200);expect(new Set(result.data.relations.map(row=>row.type))).toEqual(new Set(['is-a','related','alias']));
+  expect(result.data.relations[199]).toMatchObject({id:'group-membership:'+hash('中介分類')+':1001',inherited:true,depth:8,createdAt:null});
+  expect(fetch).toHaveBeenCalledTimes(1);
+ });
+ it('encodes each raw UTF-8 label once and keeps literal group-like tags separate from group IDs',async()=>{
+  const labels=['a/b%41','😀'.repeat(60),'é','e\u0301','group:811'];
+  for(const label of labels){
+   const body={tag:label,tagId:hash(label),truncated:false,relations:[{id:'relation:1',type:'related',target:{id:hash(label),label,href:'/tag/'+encodeURIComponent(label)+'/'},source:'submission',sourceDetail:'submission',createdAt:'2026-10-12T01:00:00.000Z',status:'approved',inherited:false,depth:1}]};
+   const fetch=transport(body),result=await createTagRelationsClient({enabled:true,fetch,fallback})(label);
+   expect(fetch).toHaveBeenCalledWith('https://tag.observe.tw/api/v1/tags/'+encodeURIComponent(label)+'/relations',expect.objectContaining({redirect:'manual',credentials:'omit'}));
+   expect(fetch).toHaveBeenCalledTimes(1);expect(result).toMatchObject({status:'available',data:body});
+  }
+  expect(hash('é')).not.toBe(hash('e\u0301'));
+ });
+ it('reports a valid 200-row multibyte projection above the byte budget as unavailable, never an empty success',async()=>{
+  const relations=Array.from({length:200},(_,index)=>{
+   const label='😀'.repeat(59)+String.fromCodePoint(0x4e00+index);
+   return {id:'relation:'+(index+1),type:'related',target:{id:hash(label),label,href:'/tag/'+encodeURIComponent(label)+'/'},source:'submission',sourceDetail:'submission',createdAt:'2026-10-12T01:00:00.000Z',status:'approved',inherited:false,depth:1};
+  });
+  const body={tag,tagId:hash(tag),truncated:true,relations},bytes=Buffer.byteLength(JSON.stringify(body),'utf8');
+  expect(bytes).toBeGreaterThan(131072);expect(bytes).toBeLessThan(262144);expect([...relations[0]!.target.label]).toHaveLength(60);
+  const fetch=transport(body),result=await createTagRelationsClient({enabled:true,fetch,fallback})(tag);
+  expect(result).toMatchObject({status:'fallback',reason:'response-cap',data:null,fallback:{tag,existingSource:true}});
+  expect(result.status).not.toBe('available');expect(fetch).toHaveBeenCalledTimes(1);
  });
 });
 

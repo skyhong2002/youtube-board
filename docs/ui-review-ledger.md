@@ -444,3 +444,5 @@ quality第二批修改已park在35a4794並推到自己的分支，獨立source r
 另一個 GPT-6.1 Sol 完成管理員覆核 source audit：58 項 focused mocks 通過，沒有阻擋性 source finding；只核對既有 session-only admin、Origin／CSRF、no-store、record-only 標示及安全輸出，不含 mounted React 互動、真實 SQL 或畫面驗收。原始 receipt 與 model provenance companion 的 path/hash 在 JSON `mintOfflineAudits`。root 另完成前端 279 項及 API 35／51 項離線回歸測試；這些測試有範圍重疊，不合算成新的 UI review 數量。
 
 v11 擷取失敗診斷、無截止的 Mint 發布計畫也完成獨立 source／document review；收據 hash 已登錄。兩個 capture hard stop 維持，沒有新的 capture、BUILD_ID 或部署。已有截圖可继续用於歷史 findings-only review，不轉用為 e137 pass。
+
+Y2 上游 source audit 固定在 `48bc174`，原 `b8d030c` 契約來源另保留；沒有發現破壞 adapter 的 DTO 變化。新增 200 列／8 層與來源 ID、特殊 UTF-8／一次編碼、合法大回應拒絕而非空成功三組 mock；作者 58 項 focused tests 通過，另一 instance 獨立 review 並執行新增 3 項通過。未改 runtime/cap、未查正式上游或開旗標。source receipt 的 path/hash 在 JSON `mintOfflineAudits.y2ContractFollowup`，沒有增加 UI pass。
