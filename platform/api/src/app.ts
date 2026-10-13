@@ -1,5 +1,6 @@
 import {writeSync} from 'node:fs';
 import {homeDiagnosticSink} from './reports/home-diagnostics.js';
+import {createKeywordRelationsReport,type KeywordRelationsOptions} from './reports/keyword-relations.js';
 import {registerPublicV1Cache,markPublicV1Partial} from './public-v1-cache.js';
 import {trustedProxies} from './trusted-proxy.js';
 import {registerCrawlerLog} from './seo/crawler-log.js';
@@ -47,6 +48,7 @@ export const routeRegistry = [
     '/live/current', '/tags', '/tags/:id/channels', '/tags/:id/videos', '/ai/days', '/ai/events/:id', '/vocabulary', '/keywords',
 ] as const;
 interface AppOptions {
+    tagRelations?: KeywordRelationsOptions;
     publicApi?: PublicApiPolicyOptions | false;
     reader?: Reader;
     /** Runtime startup readiness waits for a complete read-only sitemap family. */
@@ -56,10 +58,11 @@ interface AppOptions {
     clock?: () => Date;
 }
 export function buildApp(options: AppOptions = {}) {
-    const app = Fastify({ logger: false, trustProxy: trustedProxies(process.env.AUTH_TRUSTED_PROXY_CIDRS), requestTimeout: 15000, bodyLimit: 16384 }), reader = options.reader ?? createReader(options.databaseUrl ?? process.env.DATABASE_URL), clock = options.clock ?? (() => new Date()), service = reports(reader, clock, homeDiagnosticSink(line=>{writeSync(2,line);}, clock));
+    const app = Fastify({ logger: false, routerOptions:{maxParamLength:240}, trustProxy: trustedProxies(process.env.AUTH_TRUSTED_PROXY_CIDRS), requestTimeout: 15000, bodyLimit: 16384 }), reader = options.reader ?? createReader(options.databaseUrl ?? process.env.DATABASE_URL), clock = options.clock ?? (() => new Date()), service = reports(reader, clock, homeDiagnosticSink(line=>{writeSync(2,line);}, clock));
     if(options.publicApi!==false)registerPublicApiPolicy(app,{clock,...options.publicApi});
     registerPublicV1Cache(app);
     registerCrawlerLog(app);
+    const keywordRelations=createKeywordRelationsReport({...options.tagRelations,clock:options.clock??options.tagRelations?.clock});
     const sitemaps=registerSitemaps(app,reader,{staticLastModified:'2026-10-12T14:00:00.000Z',now:()=>+clock()});
     if(options.sitemapWarmup)app.addHook('onReady',async()=>{sitemaps.start();});
     app.addHook('onSend', async (_request, reply, payload) => { reply.header('Strict-Transport-Security','max-age=31536000'); return payload; });
@@ -89,6 +92,14 @@ export function buildApp(options: AppOptions = {}) {
             const data = await handler(params, request.query as Query,channel);
             await enrichPublicMedia(reader, data);
             const m = meta(data), record = object(data);
+            if(path==='/keywords/:keyword/relations'){
+                m.source='tag.observe.tw';m.updatedAt=null;
+                m.coverage={status:text(record.status),truncated:record.truncated===true};
+                m.warnings.push('標籤來源：新文易數（tag.observe.tw）。別名不自動合併影片或人物身分；上下位有方向，相關關係不代表共現或同義。');
+                // Enabled reads carry our upstream service credential. Preserve the upstream
+                // private/no-store boundary even for approved public relation rows.
+                if(record.status!=='disabled')markPublicV1Partial(reply);
+            }
             if (record.evidenceCoverage && typeof record.evidenceCoverage === 'object')
                 m.coverage = record.evidenceCoverage as ReportMeta['coverage'];
             if(m.coverage.coverageStatus==='unavailable'){markPublicV1Partial(reply);m.warnings.push('比對涵蓋統計暫時無法取得；影片仍依有效比對證據顯示，未取得的統計不代表零。');}
@@ -140,6 +151,7 @@ export function buildApp(options: AppOptions = {}) {
     register('/tags/videos', (_p, q) => service.videos(q,'taxonomy'));
     register('/videos', (_p, q) => service.videos(q));
     register('/keywords/:keyword/videos', (p, q) => service.videos({ ...q, keyword: p.keyword }));
+    register('/keywords/:keyword/relations',p=>keywordRelations(p.keyword!));
     register('/videos/:id', (p) => service.video(videoId(p.id)));
     register('/videos/:id/tags', (p) => videoTagEvidence(reader, videoId(p.id)));
     register('/live/current', (_p, q) => service.live(q));

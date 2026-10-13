@@ -192,6 +192,36 @@ curl --fail-with-body 'https://youtube.observe.tw/api/v1/editorial/events/<事�
 }
 ```
 
+### Synthetic response: /api/v1/keywords/:keyword/relations
+
+```json
+{
+  "data": {
+    "keyword": "交通",
+    "source": "https://tag.observe.tw",
+    "sourceUrl": "https://tag.observe.tw/tag/%E4%BA%A4%E9%80%9A/",
+    "status": "disabled",
+    "reason": "disabled",
+    "tagId": null,
+    "truncated": false,
+    "relations": [],
+    "retryAfterSeconds": null
+  },
+  "meta": {
+    "schemaVersion": 1,
+    "requestedAt": "2026-10-11T10:00:00.000Z",
+    "updatedAt": null,
+    "timezone": "Asia/Taipei",
+    "source": "tag.observe.tw",
+    "dataset": "fixture",
+    "coverage": {},
+    "warnings": [
+      "Synthetic documentation example; not production observations."
+    ]
+  }
+}
+```
+
 ### Synthetic response: /api/v1/videos/:id/tags
 
 ```json
@@ -294,6 +324,7 @@ Schema coverage `partial` or `envelope-only` explicitly identifies incomplete fi
 | GET | `/api/v1/tags/videos` | Taxonomy-filtered videos | detailed |
 | GET | `/api/v1/videos` | Video search | detailed |
 | GET | `/api/v1/keywords/{keyword}/videos` | Videos with fresh maintained vocabulary evidence | detailed |
+| GET | `/api/v1/keywords/{keyword}/relations` | Maintained upstream tag relations; disabled until F1 activation. is-a is directional, related is not co-occurrence, and aliases do not merge identities. target.href is relative to https://tag.observe.tw, never this site. Enabled upstream reads remain private/no-store; no shared downstream caching. | detailed |
 | GET | `/api/v1/videos/{id}` | Video details and stored observations | partial |
 | GET | `/api/v1/videos/{id}/tags` | Video vocabulary matching evidence | detailed |
 | GET | `/api/v1/live/current` | Current observed livestreams | detailed |
@@ -523,6 +554,14 @@ Typed report response; additive response fields are permitted.
 | `hours` | query | {"type":"integer","minimum":1,"maximum":8760} | Relative publication window, evaluated at request time. |
 | `min` | query | {"type":"integer","minimum":0,"maximum":9007199254740991} | Minimum cumulative video views. |
 | `days` | query | {"type":"integer","minimum":1,"maximum":90} | Optional relative date window when keyword filtering is used. |
+
+### /api/v1/keywords/{keyword}/relations
+
+Typed report response; additive response fields are permitted.
+
+| Parameter | In | Schema / bounds | Description |
+| --- | --- | --- | --- |
+| `keyword` (required) | path | {"type":"string","minLength":1,"maxLength":60,"description":"Unicode scalar characters; no surrounding whitespace or control characters."} | Exact maintained content term, percent-encoded as UTF-8. |
 
 ### /api/v1/videos/{id}
 

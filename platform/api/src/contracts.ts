@@ -8,11 +8,12 @@ export interface ReportMeta {
     requestedAt: string;
     updatedAt: string | null;
     timezone: 'Asia/Taipei';
-    source: 'mariadb';
+    source: 'mariadb'|'tag.observe.tw';
     dataset: 'fixture' | 'live' | 'unknown';
     coverage: Record<string, number | string | boolean | null>;
     warnings: string[];
 }
+export type {KeywordRelationsData} from './reports/keyword-relations.js';
 export interface ApiResponse<T> {
     data: T;
     meta: ReportMeta;

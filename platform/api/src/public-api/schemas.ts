@@ -36,8 +36,9 @@ Object.assign(keywordRow,{
  representativeVideoId:nullableString,thumbnail:nullableString,channel:{anyOf:[object({id:count,name:str,thumbnail:nullableString}),{type:'null'}]},
 });
 export const SCHEMAS:Record<string,Schema>={
- ReportMeta:object({schemaVersion:{const:1},requestedAt:time,updatedAt:nullableTime,timezone:{const:'Asia/Taipei'},source:{const:'mariadb'},dataset:enumString('fixture','live','unknown'),coverage,warnings:array(str)}),
+ ReportMeta:object({schemaVersion:{const:1},requestedAt:time,updatedAt:nullableTime,timezone:{const:'Asia/Taipei'},source:enumString('mariadb','tag.observe.tw'),dataset:enumString('fixture','live','unknown'),coverage,warnings:array(str)}),
  ApiError:object({error:str,code:str},['error']),
+ KeywordRelations:object({keyword:{type:'string',minLength:1,maxLength:60},source:{const:'https://tag.observe.tw'},sourceUrl:{type:'string',format:'uri'},status:enumString('available','disabled','unavailable'),reason:{type:['string','null'],enum:[null,'disabled','rate-limited','upstream-unavailable','invalid-contract','response-cap','timeout','upstream-busy','configuration']},tagId:nullableString,truncated:bool,retryAfterSeconds:{type:['integer','null'],minimum:1},relations:array(object({id:str,type:enumString('is-a','related','alias'),target:object({id:str,label:str,href:{type:'string',description:'Validated relative path on https://tag.observe.tw, not youtube.observe.tw.'}}),source:str,sourceDetail:str,createdAt:nullableTime,status:{const:'approved'},inherited:bool,depth:{type:'integer',minimum:1,maximum:256}}))}),
  LegacyApiError:object({error:object({code:str,message:str},['code'])}),
  ChannelTag:tag, Video:video, Channel:channel, Live:live,
  VideoCollection:object({rows:array(ref('Video')),total:{type:['integer','null'],minimum:0},limit:{type:'integer',minimum:1,maximum:VIDEO_LIST_MAX},offset:count,hasNext:bool,totalStatus:enumString('exact','not-computed','unavailable'),evidenceCoverage:coverage},['rows','total','limit','offset','hasNext','totalStatus']),
