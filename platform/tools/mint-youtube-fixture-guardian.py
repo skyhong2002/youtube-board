@@ -12,6 +12,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 import signal
 import stat
@@ -21,7 +22,7 @@ import time
 
 APP = '70529cff13b6b7f5b3e0571a229e2b61660f9df4'
 OPS = '5a5be6833ee2f32d35bce021db43d3627fdd7c8f'
-ADMISSION_SOURCE_SHA256 = '1d488b8946165f4da7e2441864d23def94fbf455885594e64ca18149a7b25811'
+ADMISSION_SOURCE_SHA256 = 'adea516d2f10f2c5412902183dfb1341565a0551ec9e720e4a7178d99f995a58'
 LOCK = '/run/lock/mint-global-build.lock'
 REGISTRY = '/var/lib/observe-worker/global-slot/reservation.json'
 GIB = 1024 ** 3
@@ -118,7 +119,7 @@ def reviewed_config(path, review_path, review_sha):
     config = json.loads(raw, object_pairs_hook=unique)
     review = json_private(review_path, review_sha)
     require(review.get('schema') == 'yt-fixture-guardian-execution-review-v1' and review.get('decision') == 'accepted-fixture-only' and review.get('configSha256') == digest(raw) and review.get('guardianSha256') == digest(HERE.read_bytes()) and isinstance(review.get('reviewedBy'), str) and review['reviewedBy'] not in ('', '/root/f2_visual_sol'), 'INDEPENDENT_EXACT_CONFIG_REVIEW_REQUIRED')
-    require(config.get('schema') == 'yt-fixture-guardian-config-v1' and config.get('fixture', {}).get('appSha') == APP and config['fixture'].get('opsSha') == OPS and config['fixture'].get('serve') is False, 'EXACT_FIXTURE_ONLY_CONFIG_REQUIRED')
+    require(config.get('schema') == 'yt-fixture-guardian-config-v1' and config.get('fixture', {}).get('appSha') == APP and isinstance(config['fixture'].get('opsSha'), str) and re.fullmatch(r'[0-9a-f]{40}', config['fixture']['opsSha']) and config['fixture']['opsSha'] != APP and config['fixture'].get('serve') is False, 'EXACT_FIXTURE_ONLY_CONFIG_REQUIRED')
     require(type(config.get('estimatedSetupBytes')) is int and 0 < config['estimatedSetupBytes'] <= 2 * GIB, 'TWO_GIB_SETUP_CEILING_REQUIRED')
     require(config.get('registryPath') == REGISTRY and config.get('lockPath') == LOCK, 'COMMON_COORDINATION_PATHS_REQUIRED')
     require(all(isinstance(config.get(key), str) and len(config[key]) == 64 and all(char in '0123456789abcdef' for char in config[key]) for key in ('authorityAdapterSha256', 'probeAdapterSha256', 'fixtureSupervisorSha256', 'grantMessageSha256', 'gateAdapterSha256')), 'EXACT_SOURCE_AND_GRANT_PINS_REQUIRED')
@@ -160,6 +161,7 @@ def observe_three_hosts(config, fixture, relay):
             'REVIEWED_THREE_HOST_AGGREGATE_DENIED')
     checked = relay.validate_receipt(relay_row, utc())
     require(checked.get('ok') is True and checked.get('unknown') is False and checked.get('route') == ['Mint', 'SM', 'skyhong-blog'], 'ACTUAL_TWO_HOP_BLOG_PROOF_REQUIRED')
+    rows['_gateObservations'] = observations
     rows['skyhong-blog'] = dict(checked['sample'])  # Preserve the actual nested receipt unchanged.
     require(relay.BLOG_SCRIPT == fixture.admission.readonly_script('skyhong-blog'), 'ORIGINAL_BLOG_SAMPLE_SCRIPT_REQUIRED')
     rows['skyhong-blog']['transport'] = {'controller': 'Mint', 'actualHopController': 'SM', 'strictPinnedSsh': True,
@@ -205,7 +207,7 @@ def authority(adapter, config, now):
     """Adapter must read the authoritative CURRENT user grant, not caller JSON."""
     row = adapter.observe_user_slot(config)
     c = config['fixture']
-    require(isinstance(row, dict) and row.get('schema') == 'yt-authoritative-user-slot-observation-v1' and row.get('origin') == 'authoritative-user-session' and row.get('currentOwner') == 'YT' and row.get('previousOwner') == 'tag' and row.get('appSha') == APP and row.get('opsSha') == OPS and row.get('owner') == c['owner'] and row.get('generation') == c['generation'] and row.get('scope') == 'mint-youtube-synthetic-fixture', 'AUTHORITATIVE_CURRENT_GRANT_REQUIRED')
+    require(isinstance(row, dict) and row.get('schema') == 'yt-authoritative-user-slot-observation-v1' and row.get('origin') == 'authoritative-user-session' and row.get('currentOwner') == 'YT' and row.get('previousOwner') == 'tag' and row.get('appSha') == APP and row.get('opsSha') == c['opsSha'] and row.get('owner') == c['owner'] and row.get('generation') == c['generation'] and row.get('scope') == 'mint-youtube-synthetic-fixture', 'AUTHORITATIVE_CURRENT_GRANT_REQUIRED')
     require(row.get('grantMessageSha256') == config['grantMessageSha256'] and row.get('grantMessageId') == config['grantMessageId'] and row.get('grantAt') == config['grantAt'] and row.get('coordinationMode') == 'human-slot-plus-common-flock-and-durable-registry', 'EXACT_GRANT_AND_COORDINATION_REQUIRED')
     require(isinstance(row.get('grantMessage'), str) and digest(row['grantMessage'].encode()) == row['grantMessageSha256'], 'EXACT_USER_MESSAGE_REQUIRED')
     at = dt.datetime.fromisoformat(row['observedAt'].replace('Z', '+00:00'))
@@ -245,18 +247,18 @@ def setup_bytes(config):
 def packet(fixture, c, grant, health, fd, reservation, now, estimate):
     custody = verify_fd(fd)
     require(reservation.get('state') in ('reserved', 'running') and reservation.get('binding') == c.binding() and reservation.get('kernelKey') == custody['kernelKey'], 'ACTUAL_DURABLE_RESERVATION_REQUIRED')
-    failures = []
-    for host in fixture.admission.HOSTS:
-        failures.extend(fixture.admission.health_failures(health.get(host), host, c, now, estimate_bytes=estimate))
-    require(not failures and sum(health[h]['browserCount'] for h in fixture.admission.HOSTS) <= 2, 'ACTUAL_FRESH_THREE_HOST_GATES_REQUIRED')
+    observations = health.get('_gateObservations')
+    health = {host: health[host] for host in fixture.admission.HOSTS if host in health}
+    evidence = {'health': health, 'gateObservations': observations}
+    require(not fixture.gate.packet_health_failures(evidence, c, now, estimate), 'ACTUAL_FRESH_THREE_HOST_GATES_REQUIRED')
     at = now.isoformat()
     binding = c.binding()
     # Legacy booleans are OUTPUT derived from actual authority, held FD, fsynced
     # registry and validated observations; none are configuration inputs.
     result = {'bootstrap': {**binding, 'schema': 'yt-fixture-bootstrap-admission-v1', 'scope': 'mint-youtube-synthetic-fixture', 'state': 'admitted', 'operatorExecutionAuthorized': True, 'servingAuthorized': False, 'observedAt': at},
               'slot': {**binding, 'schema': 'yt-global-slot-v1', 'verifiedAt': at, 'globalSingleBuildSlotGranted': True, 'remoteHostsAccounted': True, 'queueReleasedForYT': True, 'otherOwnersIdle': True, 'previousOwner': 'tag', 'operatorMessage': grant['grantMessage']},
-              'reservation': {**binding, 'schema': 'yt-reservation-v1', 'durable': True, 'held': True, 'releaseRequiresRemoteTerminalProof': True, 'observedAt': at}, 'health': health,
-              'guardian': {'sourceSha256': digest(HERE.read_bytes()), 'targetOpsSha': OPS, 'observedAt': at, 'lock': custody, 'grantMessageSha256': grant['grantMessageSha256'], 'registryPath': REGISTRY, 'remoteExecutionStarted': False}}
+              'reservation': {**binding, 'schema': 'yt-reservation-v1', 'durable': True, 'held': True, 'releaseRequiresRemoteTerminalProof': True, 'observedAt': at}, 'health': health, 'gateObservations': observations,
+              'guardian': {'sourceSha256': digest(HERE.read_bytes()), 'targetOpsSha': c.ops_sha, 'observedAt': at, 'lock': custody, 'grantMessageSha256': grant['grantMessageSha256'], 'registryPath': REGISTRY, 'remoteExecutionStarted': False}}
     require(not fixture.binding_failures(result, c, now), 'OPS5A_PACKET_DENIED')
     return result
 
@@ -343,7 +345,7 @@ def supervise(config):
     finally:
         if reservation is not None:
             if terminal_sha is None:
-                persist(config['fixture']['admissionPath'], {'bootstrap': {'state': 'revoked'}, 'guardian': {'status': 'stop-requested', 'targetOpsSha': OPS}})
+                persist(config['fixture']['admissionPath'], {'bootstrap': {'state': 'revoked'}, 'guardian': {'status': 'stop-requested', 'targetOpsSha': c.ops_sha}})
                 reservation.update(state='stop-requested')
                 persist(REGISTRY, reservation)
                 if child is not None and owned is not None and child.poll() is None:
@@ -367,7 +369,7 @@ def supervise(config):
                     time.sleep(1)
         else:
             os.close(fd)  # No child can have spawned without a durable reservation.
-    return {'status': 'local-terminal-confirmed', 'targetOpsSha': OPS, 'appSha': APP, 'guardianSha256': digest(HERE.read_bytes()), 'reservationReleased': False, 'terminalReceiptSha256': terminal_sha, 'runtimeReady': False}
+    return {'status': 'local-terminal-confirmed', 'targetOpsSha': c.ops_sha, 'appSha': APP, 'guardianSha256': digest(HERE.read_bytes()), 'reservationReleased': False, 'terminalReceiptSha256': terminal_sha, 'runtimeReady': False}
 
 
 def main():
@@ -378,7 +380,7 @@ def main():
     parser.add_argument('--execute', action='store_true')
     args = parser.parse_args()
     if not args.execute:
-        print(json.dumps({'mode': 'preview', 'targetOpsSha': OPS, 'appSha': APP, 'guardianSha256': digest(HERE.read_bytes()), 'executionAllowed': False, 'runtimeReady': False, 'authorityPublisherIntegrated': False, 'sharedRegistryAdoptionVerified': False}))
+        print(json.dumps({'mode': 'preview', 'targetOpsSha': None, 'historicalOpsBaseSha': OPS, 'appSha': APP, 'guardianSha256': digest(HERE.read_bytes()), 'executionAllowed': False, 'runtimeReady': False, 'authorityPublisherIntegrated': False, 'sharedRegistryAdoptionVerified': False}))
         return
     require(all((args.config, args.review_receipt, args.review_sha256)), 'REVIEWED_EXECUTION_CONFIG_REQUIRED')
     print(json.dumps(supervise(reviewed_config(args.config, args.review_receipt, args.review_sha256))))

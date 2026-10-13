@@ -27,6 +27,9 @@ admission = importlib.util.module_from_spec(spec)
 import sys
 sys.modules[spec.name] = admission
 spec.loader.exec_module(admission)
+gate_spec = importlib.util.spec_from_file_location('yt_fixture_gate', HERE / 'mint-youtube-fixture-gate.py')
+gate = importlib.util.module_from_spec(gate_spec)
+gate_spec.loader.exec_module(gate)
 APP_SHA = admission.APP_SHA
 LOCK_PATH = admission.LOCK_PATH
 DB_NAME = 'youtube_board_test_rewrite'
@@ -84,11 +87,8 @@ def binding_failures(packet, c, now, starting=True):
             reserve.get('releaseRequiresRemoteTerminalProof') is True and
             admission.fresh(reserve.get('observedAt'), now, 30)):
         failures.append('DURABLE_RESERVATION_REQUIRED')
-    health = packet.get('health', {})
-    for host in admission.HOSTS:
-        failures.extend(admission.health_failures(health.get(host), host, c, now, starting=starting))
-    # This fixture-only supervisor always requires buildCount0. It cannot monitor
-    # or reinterpret a later remote build as its owned execution work.
+    # Legacy all-host time/direct-Mint verdicts do not grant fixture admission.
+    failures.extend(gate.packet_health_failures(packet, c, now))
     return failures
 
 

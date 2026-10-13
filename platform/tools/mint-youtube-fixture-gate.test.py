@@ -41,4 +41,29 @@ class GateTests(unittest.TestCase):
         for rows in (None,[],cases.rows()[:2]):
             self.assertFalse(gate.evaluate_observations(rows,cases.NOW)['ok'])
 
+class BridgeTests(unittest.TestCase):
+    def evidence(self):
+        from types import SimpleNamespace
+        rows=cases.rows();relay=cases.relay_cases.relay
+        health={r['name']:copy.deepcopy(r['result']) for r in rows if r['name']!='relay'}
+        health['skyhong-blog']=copy.deepcopy(rows[2]['result']['sample'])
+        for host,pin in [('SM',relay.SM_PIN),('skyhong-blog',relay.BLOG_PIN)]:
+            health[host]['transport']={'controller':'Mint','strictPinnedSsh':True,'exitCode':0,'knownHostsSha256':pin,'actualHopController':'SM','scriptSha256':relay.BLOG_SCRIPT_SHA256}
+        c=SimpleNamespace(machine_ids=(relay.SM_ID,relay.MINT_ID,relay.BLOG_ID),known_hosts_sha256=(relay.SM_PIN,'0'*64,relay.BLOG_PIN))
+        return {'health':health,'gateObservations':rows},c
+    def test_legacy_remote_slow_is_reference_but_new_gate_is_required(self):
+        packet,c=self.evidence()
+        self.assertGreater(packet['health']['Mint']['sites']['youtube']['totalSeconds'],2)
+        self.assertEqual(gate.packet_health_failures(packet,c,cases.NOW),[])
+        packet.pop('gateObservations')
+        self.assertTrue(gate.packet_health_failures(packet,c,cases.NOW))
+    def test_new_gate_cannot_be_overridden_by_legacy_healthy_flags(self):
+        packet,c=self.evidence();packet['gateObservations'][0]['result']['sites']['youtube']['totalSeconds']=2.001
+        self.assertTrue(gate.packet_health_failures(packet,c,cases.NOW))
+    def test_health_mismatch_or_fake_direct_blog_transport_denies(self):
+        packet,c=self.evidence();packet['health']['Mint']['buildCount']=1
+        self.assertTrue(gate.packet_health_failures(packet,c,cases.NOW))
+        packet,c=self.evidence();packet['health']['skyhong-blog']['transport'].pop('actualHopController')
+        self.assertTrue(gate.packet_health_failures(packet,c,cases.NOW))
+
 if __name__=='__main__':unittest.main()
