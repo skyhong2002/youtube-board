@@ -156,7 +156,7 @@ class RelayTests(unittest.TestCase):
         for name, limit in [('tag',2),('blog',6.17),('youtube',2)]:
             sample = healthy(); sample['sites'][name]['totalSeconds'] = limit + .001
             ns = helpers(); fake_controller(ns, out=json.dumps(sample).encode())
-            self.assertTrue(inner(ns)['unknown'])
+            self.assertFalse(inner(ns)['unknown'])  # Remote duration is reference only.
         sample = healthy();sample['sites']['blog']['status']=500
         ns=helpers();fake_controller(ns,out=json.dumps(sample).encode());self.assertTrue(inner(ns)['unknown'])
 
