@@ -1,0 +1,59 @@
+# YT: SM/direct-arm64 execution transition
+
+Owner: d7967e77. The latest user instruction moves capture to SM and leaves native
+arm64 build on skyhong-blog. Mint relay, controller and Mint lock are no longer
+required for these stages. All Mint sources, receipts, fixtures and artifacts are
+retained. No restore runs on SM. The build slot is currently blog's; YT goes next
+only after babysit confirms handoff.
+
+Deploy APP remains 073985b8bc4bbcc9ffb5d43c1e1a26060bb8ac4a. Reviewed historical
+OPS remains c04434948c6486499783e1bcde4f8af2167a9262. New SM gate source requires
+its own exact OPS SHA and independent review; previous reviews do not approve it.
+
+## Baseline and gate
+
+SM curl DNT:1, HTML only, five samples, median time_total, measured
+2026-10-13T05:47Z: tag0.256s/blog3.085s/YT0.289s. Thresholds are respectively
+2.0/6.17/2.0s (max(2s,2*baseline)). time_total includes rendering, edge and network;
+it is not a measurement of origin rendering alone.
+
+The pure native-arm64-sm-gate.py reuses the fixed reviewed strict health validator.
+Exactly SM and skyhong-blog samples must be authenticated by the future direct
+adapter, freshly measured within30s. Both hosts require zero existing builds,
+load<=12, free /home>=40GiB and curl0/HTTP200 at all three sites. Browser sum<=2.
+Only SM times gate performance. During build disk<30GiB pauses owned work; any
+health failure pauses owned build/capture. nice19/ionice-c3 and Next workers<=2.
+No raw invalid identity, extra fields or process argv is echoed by the gate.
+
+## Native diagnostic result
+
+The retained immutable arm64 image sha256:5b7d9171d9633c132766c65abd934c791787693a72b7f016bcd1408097dedadd
+actually contains Node v24.21.0, ABI137, glibc2.36 and loadable sharp0.35.5, with
+sharp-linux-arm64 and sharp-libvips-linux-arm64 packages. The initial smoke failed
+at the exact v24.15.0 check. No receipt/version is rewritten. Before using this
+base in a compiler plan, submit its actual version to babysit; no new base pull
+or runtime change is implicit. Diagnostic receipt SHA256
+9cc44ea6b7a243d84fc9e07b538d51faf2acf34e8a2b8dd96347755824d82d59:
+/home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/approved-native-diagnostic-20261013T200143Z/native-diagnostic-result.json.
+
+## Next execution preparation
+
+1. Independent source review of SM gate; commit/push reviewed exact OPS.
+2. Direct adapter: local SM probe plus existing strict-pinned SM->skyhong-blog SSH;
+   preserve key/pins, use bounded output and strict schema, save exact argv/hash
+   and independently recompute the two-host gate. No Mint hop or fresh Mint data.
+3. Prepare the native compiler/package exact command with real Node version,
+   disk/memory estimates and bounded owned-build pause/terminal readback. Bind APP,
+   lockfile, base image and OPS bytes; never transfer x64 node_modules.
+4. After blog hands back slot, send exact command and fresh two-host receipt to
+   babysit. No build starts from health-only true or from this plan.
+5. Same artifact on candidate: native/SSR/RSC/private-no-store checks, then SM
+   DNT=1 screenshots with GA/GTM blocked before launch and saved network evidence.
+   Main pages / and /keywords at1280/390, existing nonauthor reviewer. Manifest
+   binds exact SHA/BUILD_ID; unseen states/routes remain pending in ledger.
+6. Send exact Dokploy deployment and retained-image rollback commands with fresh
+   probe for babysit check, deploy that same image without rebuilding, preserve
+   read-only/no-new-privileges/GA config/crawler volume. Babysit verifies live UI.
+
+This source/document checkpoint performs no probe, build, capture, candidate,
+lock acquisition, container or production mutation.
