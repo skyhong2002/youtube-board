@@ -74,3 +74,31 @@ SM health-gate source32ab7dc39c2e6aa151772b56c0fe7e548c2ac181 received independe
 GPT-6.1 Sol PASS, receipt003895cee99aef40e9209bc98b141fc82e1562c7cfbde0351ae642ff491852fa
 at /home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/sm-direct-gate-independent-source-review-20261013T201121Z.json.
 This is source-only, not build-slot authority or UI acceptance.
+
+## Superseding gate policy: three measurements per site
+
+User decision2026-10-13T20:47Z: time gating uses the median of three complete HTML
+requests per site, compared with tag2.0/blog6.17/YT2.0 seconds. SM is still the
+performance measurement host. A slow successful individual sample is not by
+itself a failure. Any single curl error (including28), HTTP!=200 or5xx fails.
+Both SM and skyhong-blog retain the fixed health/resource checks.
+
+Use native-arm64-sm-probe.py generated read-only script and the v2 sm-gate, not
+the old single-sample admission probe for the next execution. Receipts must keep
+all raw attempts (three per site per host): startedAt, finishedAt, exitCode, status,
+totalSeconds, bytes, cfCacheStatus. Unknown timeout metadata is null, not invented
+zero; curl partial-transfer metadata is preserved. Only the controlled cache
+status value is saved from headers; no cookie, complete headers or stderr body.
+The median is recomputed from raw data, not supplied by a caller. Missing/extra
+attempts, malformed/secret-bearing fields and the old schema fail closed.
+UTC raw attempts and host observation must all be within30s at admission; a slow
+probe batch cannot freshen older observations merely by printing a new timestamp.
+Per curl timeout15s and outer execution cap must allow the sequential nine calls
+(up to153s plus process scan); an expired batch cannot start a job. No new probe
+or execution occurred while implementing this change. Reviewer PASS is required
+before replacing the checked execution source; then exact command and a fresh
+receipt go to babysit before build/candidate/capture/deploy.
+
+Global1 build,2 browsers,load12,/home40->30GiB, owned-process pause and memory
+protection remain mandatory. This health-only gate is neither slot authority nor
+a running resource watchdog; those execution controls remain in the build plan.
