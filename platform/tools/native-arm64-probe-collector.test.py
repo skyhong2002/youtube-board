@@ -5,6 +5,7 @@ import unittest
 spec=importlib.util.spec_from_file_location('collector',Path(__file__).with_name('native-arm64-probe-collector.py'))
 collector=importlib.util.module_from_spec(spec);spec.loader.exec_module(collector)
 SAMPLES = {'SM': {'schema': 'yt-host-health-v1', 'observedHost': 'SM', 'machineId': '302c2528bd464ad0953cf5fa743b6171', 'measuredFromMachineId': '302c2528bd464ad0953cf5fa743b6171', 'observedAt': '2026-10-13T14:27:47.433076+00:00', 'freeBytes': 66043949056, 'load1': 2.69775390625, 'buildCount': 0, 'buildProcesses': [], 'browserCount': 0, 'sites': {'tag': {'exitCode': 0, 'status': 200, 'totalSeconds': 1.645525}, 'blog': {'exitCode': 0, 'status': 200, 'totalSeconds': 3.849565}, 'youtube': {'exitCode': 0, 'status': 200, 'totalSeconds': 0.951278}}}, 'Mint': {'schema': 'yt-host-health-v1', 'observedHost': 'Mint', 'machineId': 'f80413057e6d4a179e248e5f8c08cac6', 'measuredFromMachineId': 'f80413057e6d4a179e248e5f8c08cac6', 'observedAt': '2026-10-13T14:27:49.158970+00:00', 'freeBytes': 153930539008, 'load1': 0.43359375, 'buildCount': 0, 'buildProcesses': [], 'browserCount': 0, 'sites': {'tag': {'exitCode': 0, 'status': 200, 'totalSeconds': 1.017652}, 'blog': {'exitCode': 0, 'status': 200, 'totalSeconds': 5.03065}, 'youtube': {'exitCode': 0, 'status': 200, 'totalSeconds': 2.210364}}}, 'skyhong-blog': {'schema': 'yt-host-health-v1', 'observedHost': 'skyhong-blog', 'machineId': '35ead342bacc44dea3633ccd2cc3f309', 'measuredFromMachineId': '35ead342bacc44dea3633ccd2cc3f309', 'observedAt': '2026-10-13T14:27:46.497556+00:00', 'freeBytes': 98894413824, 'load1': 1.76513671875, 'buildCount': 0, 'buildProcesses': [], 'browserCount': 0, 'sites': {'tag': {'exitCode': 0, 'status': 200, 'totalSeconds': 0.506305}, 'blog': {'exitCode': 0, 'status': 200, 'totalSeconds': 4.171554}, 'youtube': {'exitCode': 0, 'status': 200, 'totalSeconds': 0.115472}}}}
+for sample in SAMPLES.values():sample['browserProcesses']=[]
 NOW=datetime.datetime.fromisoformat(SAMPLES['Mint']['observedAt'])+datetime.timedelta(seconds=1)
 relay_spec=importlib.util.spec_from_file_location('relay_cases',Path(__file__).with_name('native-arm64-readonly-relay.test.py'))
 relay_cases=importlib.util.module_from_spec(relay_spec);relay_spec.loader.exec_module(relay_cases)
@@ -50,6 +51,40 @@ class CollectorTests(unittest.TestCase):
                 self.assertFalse(result['ok'])
                 self.assertTrue(any(c['key']=='relay.strict-validation' and not c['ok'] for c in result['checks']))
 
+    def test_strict_health_counts_and_sensitive_fields(self):
+        for index in range(3):
+            for field,value in (('buildProcesses',[dict(pid=9,name='docker',etimes=1)]),
+                                ('browserProcesses',[dict(pid=9,name='chrome',etimes=1)]),
+                                ('sensitive','secret-sentinel')):
+                data=rows();sample=data[index]['result']
+                if index==2:sample=sample['sample']
+                sample[field]=value
+                result=evaluate(data)
+                self.assertFalse(result['ok'])
+                self.assertNotIn('secret-sentinel',json.dumps(result))
+
+    def test_process_entry_extra_fields_are_rejected(self):
+        for key,count_key,name in (('buildProcesses','buildCount','docker'),('browserProcesses','browserCount','chrome')):
+            sample=copy.deepcopy(SAMPLES['Mint'])
+            sample[count_key]=1
+            sample[key]=[dict(pid=9,name=name,etimes=1)]
+            self.assertTrue(collector.health_valid(sample))
+            sample[key][0]['argv']='secret-sentinel'
+            self.assertFalse(collector.health_valid(sample))
+
+    def test_decode_boundary_discards_unexpected_sensitive_fields(self):
+        ns={'helpers':{'utc':lambda:NOW.isoformat(),'decode':json.loads,
+            'BoundedRunner':lambda:type('Runner',(),{'run':lambda self,*args:(0,json.dumps(dict(SAMPLES['Mint'],sensitive='secret-sentinel')).encode(),b'')})()},
+            'av':{'Mint':['fixed']},'scripts':{'Mint':'fixed'},'hashlib':hashlib,
+            'health_valid':collector.health_valid}
+        template=collector.COLLECTOR_TEMPLATE
+        start=template.index('def collect(name):');end=template.index('with concurrent.futures',start)
+        exec(compile(template[start:end],'<mock-collect>','exec'),ns)
+        result=ns['collect']('Mint')
+        self.assertTrue(result['unknown'])
+        self.assertIsNone(result['result'])
+        self.assertNotIn('secret-sentinel',json.dumps(result))
+
     def test_any_host_curl_56_denies(self):
         for index in range(3):
             data=rows();sample=data[index]['result']
@@ -69,6 +104,8 @@ class CollectorTests(unittest.TestCase):
             self.assertFalse(evaluate(data)['ok'])
     def test_shared_browser_sum_and_missing_host_deny(self):
         data=rows();data[0]['result']['browserCount']=2;data[1]['result']['browserCount']=1
+        data[0]['result']['browserProcesses']=[dict(pid=9,name='chrome',etimes=1),dict(pid=10,name='chrome',etimes=1)]
+        data[1]['result']['browserProcesses']=[dict(pid=11,name='chrome',etimes=1)]
         self.assertFalse(evaluate(data)['ok'])
         self.assertFalse(evaluate(rows()[:2])['ok'])
 if __name__=='__main__':unittest.main()

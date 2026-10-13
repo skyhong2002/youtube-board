@@ -12,7 +12,7 @@ import math
 
 APP_SHA = '70529cff13b6b7f5b3e0571a229e2b61660f9df4'
 OPS_TARGET = '5a5be6833ee2f32d35bce021db43d3627fdd7c8f'
-ADMISSION_SOURCE_SHA256 = 'bc099570fbd22c5efeba8f2465fcba21ff0cb101ba6e4b741399cade981715ae'
+ADMISSION_SOURCE_SHA256 = 'adea516d2f10f2c5412902183dfb1341565a0551ec9e720e4a7178d99f995a58'
 MINT_ID = 'f80413057e6d4a179e248e5f8c08cac6'
 SM_ID = '302c2528bd464ad0953cf5fa743b6171'
 BLOG_ID = '35ead342bacc44dea3633ccd2cc3f309'
@@ -25,8 +25,8 @@ ENV = {'PATH': '/usr/bin:/bin', 'LANG': 'C'}
 OUTPUT_CAP = 65536
 BLOG_SECONDS = 15
 MINT_SECONDS = 22
-BLOG_SCRIPT = "import datetime,json,os,shutil,subprocess\nfrom pathlib import Path\nsites={'tag': 'https://tag.observe.tw/', 'blog': 'https://blog.observe.tw/', 'youtube': 'https://youtube.observe.tw/'}\nlimits={'tag': 2.0, 'blog': 6.17, 'youtube': 2.0}\nrows={}\nbuilds=0\nbrowsers=0\nprocesses={}\nbuild_processes=[]\nuptime=float(Path('/proc/uptime').read_text().split()[0])\nticks=os.sysconf('SC_CLK_TCK')\ndef skip_options(command,value_options,flag_options):\n while command and command[0].startswith('-'):\n  option=command[0]\n  if option in value_options:\n   if len(command)<2 or command[1].startswith('-'): raise ValueError('Missing build-client option value')\n   command=command[2:]\n  elif option in flag_options or '=' in option and option.split('=',1)[0] in value_options+flag_options:\n   command=command[1:]\n  else: raise ValueError('Unknown build-client global option')\n return command\nfor p in Path('/proc').iterdir():\n if not p.name.isdecimal(): continue\n try:\n  a=[x.decode(errors='replace') for x in (p/'cmdline').read_bytes().split(b'\\0') if x]\n  stat=(p/'stat').read_text().rsplit(')',1)[1].split()\n  parent=int(stat[1])\n  elapsed=max(0,int(uptime-int(stat[19])/ticks))\n except (FileNotFoundError,ProcessLookupError): continue\n names=[os.path.basename(x) for x in a]\n executable=names[0] if names else ''\n processes[int(p.name)]=(parent,executable,a,elapsed)\n command=a[1:]\n is_buildx=executable in ('buildx','docker-buildx')\n if executable in ('docker','buildctl'):\n  value_options=('--host','-H','--context','-c','--config','--log-level','-l','--tlscacert','--tlscert','--tlskey','--addr','--timeout','--tlsservername')\n  flag_options=('--debug','-D','--tls','--tlsverify','--help','-h','--version','-v')\n  command=skip_options(command,value_options,flag_options)\n  if executable=='docker' and command[:1]==['buildx']:\n   is_buildx=True\n   command=command[1:]\n if is_buildx:\n  command=skip_options(command,('--builder',),('--debug','-D','--help','-h','--version'))\n client=(is_buildx and command[:1] in (['build'],['bake']) or executable=='docker' and not is_buildx and (command[:1]==['build'] or command[:2]==['image','build']) or executable=='buildctl' and command[:1]==['build'] or 'next-build' in names or any(x in names for x in ('next','next.js')) and 'build' in a or executable in ('npm','pnpm','yarn') and 'build' in a[1:])\n if client:\n  build_processes.append({'pid':int(p.name),'name':executable if executable in ('docker','buildx','docker-buildx','buildctl','node','npm','pnpm','yarn','next','next.js','next-build') else 'build-client','etimes':elapsed})\n if names and names[0] in ('chrome','chromium','chromium-browser','chrome-headless-shell','google-chrome','google-chrome-stable') and not any(x.startswith('--type=') for x in a): browsers+=1\nfor pid,(parent,name,a,elapsed) in processes.items():\n if name not in ('runc','buildkit-runc'): continue\n seen=set()\n while parent in processes and parent not in seen:\n  seen.add(parent)\n  ancestor=processes[parent]\n  if ancestor[1]=='buildkitd':\n   build_processes.append({'pid':pid,'name':name,'etimes':elapsed})\n   break\n  parent=ancestor[0]\nbuilds=len(build_processes)\nfor name,url in sites.items():\n try:\n  r=subprocess.run(['/usr/bin/curl','--disable','--silent','--show-error','--max-time',str(limits[name]+1),'--output','/dev/null','--user-agent','youtube-board-verify/1.0','--header','DNT: 1','--header','Accept: text/html','--write-out','%{http_code} %{time_total}',url],capture_output=True,text=True,timeout=limits[name]+2,env={'PATH':'/usr/bin:/bin','LANG':'C'})\n  status,total=r.stdout.split()\n  rows[name]={'exitCode':r.returncode,'status':int(status),'totalSeconds':float(total)}\n except (OSError,ValueError,subprocess.TimeoutExpired): rows[name]={'exitCode':-1,'status':None,'totalSeconds':None}\nprint(json.dumps({'schema':'yt-host-health-v1','observedHost':'skyhong-blog','machineId':Path('/etc/machine-id').read_text().strip(),'measuredFromMachineId':Path('/etc/machine-id').read_text().strip(),'observedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'freeBytes':shutil.disk_usage('/home').free,'load1':os.getloadavg()[0],'buildCount':builds,'buildProcesses':build_processes,'browserCount':browsers,'sites':rows}))\n"
-BLOG_SCRIPT_SHA256 = 'a5591076ade60760262ec4093fb318b9a3ad668924e7cd6f232e1925c5a614da'
+BLOG_SCRIPT = "import datetime,json,os,shutil,subprocess\nfrom pathlib import Path\nsites={'tag': 'https://tag.observe.tw/', 'blog': 'https://blog.observe.tw/', 'youtube': 'https://youtube.observe.tw/'}\nlimits={'tag': 2.0, 'blog': 6.17, 'youtube': 2.0}\nrows={}\nbuilds=0\nbrowsers=0\nprocesses={}\nbuild_processes=[]\nbrowser_processes=[]\nuptime=float(Path('/proc/uptime').read_text().split()[0])\nticks=os.sysconf('SC_CLK_TCK')\ndef skip_options(command,value_options,flag_options):\n while command and command[0].startswith('-'):\n  option=command[0]\n  if option in value_options:\n   if len(command)<2 or command[1].startswith('-'): raise ValueError('Missing build-client option value')\n   command=command[2:]\n  elif option in flag_options or '=' in option and option.split('=',1)[0] in value_options+flag_options:\n   command=command[1:]\n  else: raise ValueError('Unknown build-client global option')\n return command\nfor p in Path('/proc').iterdir():\n if not p.name.isdecimal(): continue\n try:\n  a=[x.decode(errors='replace') for x in (p/'cmdline').read_bytes().split(b'\\0') if x]\n  stat=(p/'stat').read_text().rsplit(')',1)[1].split()\n  parent=int(stat[1])\n  elapsed=max(0,int(uptime-int(stat[19])/ticks))\n except (FileNotFoundError,ProcessLookupError): continue\n names=[os.path.basename(x) for x in a]\n executable=names[0] if names else ''\n processes[int(p.name)]=(parent,executable,a,elapsed)\n command=a[1:]\n is_buildx=executable in ('buildx','docker-buildx')\n if executable in ('docker','buildctl'):\n  value_options=('--host','-H','--context','-c','--config','--log-level','-l','--tlscacert','--tlscert','--tlskey','--addr','--timeout','--tlsservername')\n  flag_options=('--debug','-D','--tls','--tlsverify','--help','-h','--version','-v')\n  command=skip_options(command,value_options,flag_options)\n  if executable=='docker' and command[:1]==['buildx']:\n   is_buildx=True\n   command=command[1:]\n if is_buildx:\n  command=skip_options(command,('--builder',),('--debug','-D','--help','-h','--version'))\n client=(is_buildx and command[:1] in (['build'],['bake']) or executable=='docker' and not is_buildx and (command[:1]==['build'] or command[:2]==['image','build']) or executable=='buildctl' and command[:1]==['build'] or 'next-build' in names or any(x in names for x in ('next','next.js')) and 'build' in a or executable in ('npm','pnpm','yarn') and 'build' in a[1:])\n if client:\n  build_processes.append({'pid':int(p.name),'name':executable if executable in ('docker','buildx','docker-buildx','buildctl','node','npm','pnpm','yarn','next','next.js','next-build') else 'build-client','etimes':elapsed})\n if names and names[0] in ('chrome','chromium','chromium-browser','chrome-headless-shell','google-chrome','google-chrome-stable') and not any(x.startswith('--type=') for x in a): browser_processes.append({'pid':int(p.name),'name':executable,'etimes':elapsed})\nfor pid,(parent,name,a,elapsed) in processes.items():\n if name not in ('runc','buildkit-runc'): continue\n seen=set()\n while parent in processes and parent not in seen:\n  seen.add(parent)\n  ancestor=processes[parent]\n  if ancestor[1]=='buildkitd':\n   build_processes.append({'pid':pid,'name':name,'etimes':elapsed})\n   break\n  parent=ancestor[0]\nbuilds=len(build_processes)\nbrowsers=len(browser_processes)\nfor name,url in sites.items():\n try:\n  r=subprocess.run(['/usr/bin/curl','--disable','--silent','--show-error','--max-time',str(limits[name]+1),'--output','/dev/null','--user-agent','youtube-board-verify/1.0','--header','DNT: 1','--header','Accept: text/html','--write-out','%{http_code} %{time_total}',url],capture_output=True,text=True,timeout=limits[name]+2,env={'PATH':'/usr/bin:/bin','LANG':'C'})\n  status,total=r.stdout.split()\n  rows[name]={'exitCode':r.returncode,'status':int(status),'totalSeconds':float(total)}\n except (OSError,ValueError,subprocess.TimeoutExpired): rows[name]={'exitCode':-1,'status':None,'totalSeconds':None}\nprint(json.dumps({'schema':'yt-host-health-v1','observedHost':'skyhong-blog','machineId':Path('/etc/machine-id').read_text().strip(),'measuredFromMachineId':Path('/etc/machine-id').read_text().strip(),'observedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'freeBytes':shutil.disk_usage('/home').free,'load1':os.getloadavg()[0],'buildCount':builds,'buildProcesses':build_processes,'browserCount':browsers,'browserProcesses':browser_processes,'sites':rows}))\n"
+BLOG_SCRIPT_SHA256 = '6fc14e0d99f8f1a166a99bbcb2223cf7b9dcade2d03bcc6e7a44d3b0cfe0bcb7'
 
 def build_processes_valid(sample):
  details=sample.get('buildProcesses')
@@ -38,6 +38,19 @@ def build_processes_valid(sample):
   if not isinstance(row,dict) or set(row)!={'pid','name','etimes'}:return False
   if type(row['pid']) is not int or row['pid']<=0 or row['pid'] in seen:return False
   if not isinstance(row['name'],str) or row['name'] not in allowed or type(row['etimes']) is not int or row['etimes']<0:return False
+  seen.add(row['pid'])
+ return True
+
+def browser_processes_valid(sample):
+ proxy={'buildCount':sample.get('browserCount'),'buildProcesses':sample.get('browserProcesses')}
+ details=proxy['buildProcesses']
+ if not isinstance(details,list):return False
+ allowed={'chrome','chromium','chromium-browser','chrome-headless-shell','google-chrome','google-chrome-stable'}
+ seen=set()
+ if type(proxy['buildCount']) is not int or proxy['buildCount']<0 or len(details)!=proxy['buildCount']:return False
+ for row in details:
+  if not isinstance(row,dict) or set(row)!={'pid','name','etimes'}:return False
+  if type(row['pid']) is not int or row['pid']<=0 or row['pid'] in seen or not isinstance(row['name'],str) or row['name'] not in allowed or type(row['etimes']) is not int or row['etimes']<0:return False
   seen.add(row['pid'])
  return True
 
@@ -140,9 +153,22 @@ def build_processes_valid(sample):
   seen.add(row['pid'])
  return True
 
+def browser_processes_valid(sample):
+ proxy={'buildCount':sample.get('browserCount'),'buildProcesses':sample.get('browserProcesses')}
+ details=proxy['buildProcesses']
+ if not isinstance(details,list):return False
+ allowed={'chrome','chromium','chromium-browser','chrome-headless-shell','google-chrome','google-chrome-stable'}
+ seen=set()
+ if type(proxy['buildCount']) is not int or proxy['buildCount']<0 or len(details)!=proxy['buildCount']:return False
+ for row in details:
+  if not isinstance(row,dict) or set(row)!={'pid','name','etimes'}:return False
+  if type(row['pid']) is not int or row['pid']<=0 or row['pid'] in seen or not isinstance(row['name'],str) or row['name'] not in allowed or type(row['etimes']) is not int or row['etimes']<0:return False
+  seen.add(row['pid'])
+ return True
+
 def health(sample):
- if not isinstance(sample,dict) or set(sample)!={'schema','observedHost','machineId','measuredFromMachineId','observedAt','freeBytes','load1','buildCount','buildProcesses','browserCount','sites'}:raise ValueError('Health fields unknown')
- if not build_processes_valid(sample):raise ValueError('Build process fields unknown')
+ if not isinstance(sample,dict) or set(sample)!={'schema','observedHost','machineId','measuredFromMachineId','observedAt','freeBytes','load1','buildCount','buildProcesses','browserCount','browserProcesses','sites'}:raise ValueError('Health fields unknown')
+ if not build_processes_valid(sample) or not browser_processes_valid(sample):raise ValueError('Build process fields unknown')
  if sample['schema']!='yt-host-health-v1' or sample['observedHost']!='skyhong-blog' or sample['machineId']!=BLOG_ID or sample['measuredFromMachineId']!=BLOG_ID:raise ValueError('Blog identity unknown')
  age(sample['observedAt'])
  def number(x):return type(x) in (int,float) and math.isfinite(x)
@@ -341,8 +367,8 @@ def validate_receipt(raw, now):
         require(packet['sample'] == child['sample'])
         sample = child['sample']
         require(isinstance(sample, dict) and set(sample) == {'schema','observedHost','machineId',
-                'measuredFromMachineId','observedAt','freeBytes','load1','buildCount','buildProcesses','browserCount','sites'})
-        require(build_processes_valid(sample))
+                'measuredFromMachineId','observedAt','freeBytes','load1','buildCount','buildProcesses','browserCount','browserProcesses','sites'})
+        require(build_processes_valid(sample) and browser_processes_valid(sample))
         require(sample['schema'] == 'yt-host-health-v1' and sample['observedHost'] == 'skyhong-blog' and
                 sample['machineId'] == BLOG_ID and sample['measuredFromMachineId'] == BLOG_ID)
         fresh(sample['observedAt'])

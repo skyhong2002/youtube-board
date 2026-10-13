@@ -110,6 +110,7 @@ builds=0
 browsers=0
 processes={{}}
 build_processes=[]
+browser_processes=[]
 uptime=float(Path('/proc/uptime').read_text().split()[0])
 ticks=os.sysconf('SC_CLK_TCK')
 def skip_options(command,value_options,flag_options):
@@ -147,7 +148,7 @@ for p in Path('/proc').iterdir():
  client=(is_buildx and command[:1] in (['build'],['bake']) or executable=='docker' and not is_buildx and (command[:1]==['build'] or command[:2]==['image','build']) or executable=='buildctl' and command[:1]==['build'] or 'next-build' in names or any(x in names for x in ('next','next.js')) and 'build' in a or executable in ('npm','pnpm','yarn') and 'build' in a[1:])
  if client:
   build_processes.append({{'pid':int(p.name),'name':executable if executable in ('docker','buildx','docker-buildx','buildctl','node','npm','pnpm','yarn','next','next.js','next-build') else 'build-client','etimes':elapsed}})
- if names and names[0] in ('chrome','chromium','chromium-browser','chrome-headless-shell','google-chrome','google-chrome-stable') and not any(x.startswith('--type=') for x in a): browsers+=1
+ if names and names[0] in ('chrome','chromium','chromium-browser','chrome-headless-shell','google-chrome','google-chrome-stable') and not any(x.startswith('--type=') for x in a): browser_processes.append({{'pid':int(p.name),'name':executable,'etimes':elapsed}})
 for pid,(parent,name,a,elapsed) in processes.items():
  if name not in ('runc','buildkit-runc'): continue
  seen=set()
@@ -159,13 +160,14 @@ for pid,(parent,name,a,elapsed) in processes.items():
    break
   parent=ancestor[0]
 builds=len(build_processes)
+browsers=len(browser_processes)
 for name,url in sites.items():
  try:
   r=subprocess.run(['/usr/bin/curl','--disable','--silent','--show-error','--max-time',str(limits[name]+1),'--output','/dev/null','--user-agent','youtube-board-verify/1.0','--header','DNT: 1','--header','Accept: text/html','--write-out','%{{http_code}} %{{time_total}}',url],capture_output=True,text=True,timeout=limits[name]+2,env={{'PATH':'/usr/bin:/bin','LANG':'C'}})
   status,total=r.stdout.split()
   rows[name]={{'exitCode':r.returncode,'status':int(status),'totalSeconds':float(total)}}
  except (OSError,ValueError,subprocess.TimeoutExpired): rows[name]={{'exitCode':-1,'status':None,'totalSeconds':None}}
-print(json.dumps({{'schema':'yt-host-health-v1','observedHost':{host!r},'machineId':Path('/etc/machine-id').read_text().strip(),'measuredFromMachineId':Path('/etc/machine-id').read_text().strip(),'observedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'freeBytes':shutil.disk_usage('/home').free,'load1':os.getloadavg()[0],'buildCount':builds,'buildProcesses':build_processes,'browserCount':browsers,'sites':rows}}))
+print(json.dumps({{'schema':'yt-host-health-v1','observedHost':{host!r},'machineId':Path('/etc/machine-id').read_text().strip(),'measuredFromMachineId':Path('/etc/machine-id').read_text().strip(),'observedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'freeBytes':shutil.disk_usage('/home').free,'load1':os.getloadavg()[0],'buildCount':builds,'buildProcesses':build_processes,'browserCount':browsers,'browserProcesses':browser_processes,'sites':rows}}))
 '''
 
 

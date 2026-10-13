@@ -31,7 +31,7 @@ def helpers():
 def healthy():
     return dict(schema='yt-host-health-v1', observedHost='skyhong-blog', machineId=relay.BLOG_ID,
                 measuredFromMachineId=relay.BLOG_ID, observedAt=NOW.isoformat(),
-                freeBytes=50 * 1024**3, load1=1, buildCount=0, buildProcesses=[], browserCount=0,
+                freeBytes=50 * 1024**3, load1=1, buildCount=0, buildProcesses=[], browserCount=0, browserProcesses=[],
                 sites={name: dict(exitCode=0, status=200, totalSeconds=.5)
                        for name in ('tag', 'blog', 'youtube')})
 
