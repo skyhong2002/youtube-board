@@ -30866,20 +30866,24 @@
   "capturePerformancePolicy": {
     "effectiveAt": "2026-10-12T19:40:30Z",
     "maxSharedCaptureBrowserInstances": 2,
-    "maxConcurrentNextDockerBuilds": 2,
+    "maxConcurrentNextDockerBuilds": 1,
     "pauseBeforeBatchWhenOneMinuteLoadExceeds": 12,
     "timingURLs": [
       "https://tag.observe.tw/",
       "https://blog.observe.tw/",
       "https://youtube.observe.tw/"
     ],
-    "privateGateModule": "/home/deck/.cache/youtube-ui-review/capture-performance-gate.mjs",
+    "privateGateModule": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/capture-performance-gate-thaw-v6.mjs",
     "privateGateLogPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/performance-gate.jsonl",
     "preexistingCaptureLimitation": "Previous completed batches lack before/after measurements; none invented.",
-    "operatorHardStop": false,
-    "effectiveInstruction": "2026-10-13 two-hour sprint to07:10Z; YT remote build authorized immediately",
-    "buildSlotReleased": true,
-    "buildSlotOrder": null,
+    "operatorHardStop": true,
+    "effectiveInstruction": "Latest explicit user decision: relative timings; global single build including remote; blog then YT then tag; 07:10 sprint canceled.",
+    "buildSlotReleased": false,
+    "buildSlotOrder": [
+      "blog",
+      "YT",
+      "tag"
+    ],
     "buildStartFreeGiB": 40,
     "buildPauseFreeGiB": 30,
     "capturePreparationReserveGiB": 40,
@@ -30891,8 +30895,12 @@
     },
     "pauseOnUnknownTimeoutOr5xx": true,
     "nextBuildWorkersMaximum": 2,
-    "privateGateModuleStatus": "historical gate retained; new versioned runner pending source review; do not invoke old runner",
-    "remoteYTBuildExcludedFromLocalLimit": true
+    "privateGateModuleStatus": "v6 source accepted independently; both capture hard stops remain enabled pending image import, readiness and root release.",
+    "remoteYTBuildExcludedFromLocalLimit": false,
+    "recordedAt": "2026-10-13T05:43:06.302167+00:00",
+    "hardStopReason": "New capture awaits verified image/readiness; new image/build phase awaits YT queue notification.",
+    "sprintDeadlineUTC": null,
+    "workingWindowEndUTC": "2026-10-13T10:50:00Z"
   },
   "referenceRepositoryEvidence": {
     "path": "/home/deck/.cache/tag-visuals",
@@ -33685,6 +33693,41 @@
       "privateGateLogPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/performance-gate.jsonl",
       "preexistingCaptureLimitation": "Previous completed batches lack before/after measurements; none invented.",
       "operatorHardStop": true
+    },
+    {
+      "recordedAt": "2026-10-13T05:43:06.302167+00:00",
+      "supersededPolicy": {
+        "effectiveAt": "2026-10-12T19:40:30Z",
+        "maxSharedCaptureBrowserInstances": 2,
+        "maxConcurrentNextDockerBuilds": 2,
+        "pauseBeforeBatchWhenOneMinuteLoadExceeds": 12,
+        "timingURLs": [
+          "https://tag.observe.tw/",
+          "https://blog.observe.tw/",
+          "https://youtube.observe.tw/"
+        ],
+        "privateGateModule": "/home/deck/.cache/youtube-ui-review/capture-performance-gate.mjs",
+        "privateGateLogPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/performance-gate.jsonl",
+        "preexistingCaptureLimitation": "Previous completed batches lack before/after measurements; none invented.",
+        "operatorHardStop": false,
+        "effectiveInstruction": "2026-10-13 two-hour sprint to07:10Z; YT remote build authorized immediately",
+        "buildSlotReleased": true,
+        "buildSlotOrder": null,
+        "buildStartFreeGiB": 40,
+        "buildPauseFreeGiB": 30,
+        "capturePreparationReserveGiB": 40,
+        "captureReserveIsConservativeImplementationChoice": true,
+        "pauseBeforeBatchWhenAnyHomepageTotalSecondsExceeds": {
+          "tag": 2,
+          "blog": 6,
+          "youtube": 2
+        },
+        "pauseOnUnknownTimeoutOr5xx": true,
+        "nextBuildWorkersMaximum": 2,
+        "privateGateModuleStatus": "historical gate retained; new versioned runner pending source review; do not invoke old runner",
+        "remoteYTBuildExcludedFromLocalLimit": true
+      },
+      "reason": "User withdrew inferred exception, canceled sprint, then explicitly authorized relative timings but retained global single-build queue."
     }
   ],
   "thawPreparation": {
@@ -33695,7 +33738,7 @@
       "tag"
     ],
     "blogCompletionNotificationReceived": false,
-    "buildStarted": false,
+    "buildStarted": true,
     "captureStarted": false,
     "candidateStarted": false,
     "deployed": false,
@@ -33763,10 +33806,10 @@
       "focusedTestsPassed": 15,
       "runtimeVerified": false
     },
-    "remoteBuildAuthorized": true,
-    "blogCompletionNotificationRequired": false,
-    "sprintDeadlineUTC": "2026-10-13T07:10:00Z",
-    "slotOrderSuperseded": true,
+    "remoteBuildAuthorized": false,
+    "blogCompletionNotificationRequired": true,
+    "sprintDeadlineUTC": null,
+    "slotOrderSuperseded": false,
     "latestGateReview": {
       "receipt": "/home/deck/.cache/youtube-ui-review/ui_core_review-2026-10-13/source-review-build-guardian-latest-gates.json",
       "sha256": "d781375efdd1baba044535b3a432178092829dbbc2e53ee648ebc3fc8493fe68",
@@ -33792,6 +33835,45 @@
         "tests": "Root reported14mockpass; source read only here, no independent rerun or log verification.",
         "limitations": "No build/probe/browser/capture/staging/runtime actions; remote agent dedicated own-container guardian/runtime behavior not inspected by this source review."
       }
+    },
+    "workingWindowEndUTC": "2026-10-13T10:50:00Z",
+    "currentBuildState": "Pre-correction packaging completed and independently verified; owned builder stopped and global build slot released. Thin import/candidate await YT queue notice.",
+    "frontendArtifact": {
+      "sourceSHA": "a77f84d9e5785106bff957a4d3873b6db85af7ea",
+      "BUILD_ID": "dSzDaU9M4jqYXzUwz7XSr",
+      "sourceFilesVerified": 988,
+      "payloadFilesVerified": 3414,
+      "exportRecoveryBytes": 59145151,
+      "rebuilt": false,
+      "receipt": "/home/deck/Projects/youtube-board-f2/platform/.local/f2/sprint-a77f84d-proof/frontend-proof.json",
+      "runtimeOrUIApproval": false
+    },
+    "packagedArtifact": {
+      "sourceSHA": "a77f84d9e5785106bff957a4d3873b6db85af7ea",
+      "BUILD_ID": "dSzDaU9M4jqYXzUwz7XSr",
+      "imageConfigDigest": "sha256:ee5d4036083b1ee84ae1cc30e2def608328dd721726c195aedd9e8edd79df290",
+      "ociManifestDigest": "sha256:41239f1bed1aca36640452e73b59022b59bd7c97b61f6071be02f84ea1b21403",
+      "verifiedFiles": 3414,
+      "layers": 95,
+      "archiveBytes": 887952384,
+      "engineLoaded": false,
+      "proofPath": "/home/deck/Projects/youtube-board-f2/platform/.local/f2/sprint-a77f84d-proof/package-proof.json",
+      "proofSHA256": "103673a5c8c0cea73d24636c1385cc1ff5e5b060c709bcf14c5e57bb7df42ee4",
+      "builtAt": "2026-10-13T05:44:00.294986+00:00",
+      "candidateApproval": false,
+      "visualApproval": false,
+      "estimatedPeakGiBWas": 3,
+      "measuredReleaseAndBuilderBytes": 3704836764,
+      "storageLimitation": "3.45 GiB excluding stopped compiler writable layer; original per-stage 3 GiB estimate was low, documented overall 8 GiB reserve retained; no files deleted."
+    },
+    "latestOperationalSourceReview": {
+      "receipt": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/capture-v6-root-five-file-independent-review.json",
+      "sha256": "4703f0a2bc74bf6ac12c8dfb73c6ddfa7b78c9dee6f97ac59cd0a167db13c487",
+      "model": "GPT-6.1 Sol",
+      "reviewer": "/root/capture_source_review",
+      "scope": "Latest v6 capture policy and local build guard source; no runtime or UI acceptance. Post-review storage accounting and receipt bookkeeping are explicitly supplemental.",
+      "sourceAccepted": true,
+      "runtimeOrUIApproval": false
     }
   }
 }

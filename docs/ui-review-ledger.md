@@ -5,7 +5,7 @@
 操作計畫：[f2-single-candidate-after-thaw.md](../platform/docs/f2-single-candidate-after-thaw.md)。
 逐項矩陣：[ui-retake-matrix.json](ui-retake-matrix.json)，由
 `python3 platform/tools/ui-retake-plan.py --check` 離線檢查與本 ledger 的一對一覆蓋。
-這是待辦清單，不是 capture 或 review 證據。台北10/13 12:5x使用者已明確解凍；最新兩小時衝刺授權YT立即在skyhong-blog建置，不再等待blog。門檻為build/image開始40GiB、執行低於30GiB暫停；tag/YT整頁>2秒、blog>6秒、任一5xx或load>12即停；新capture準備版另保守預留40GiB加批次估計。舊112.5GiB停止線已被這次指示取代。
+這是待辦清單，不是 capture 或 review 證據。15:10 衝刺期限已取消，第二窗口到台北 18:50，品質優先。最新明確授權：全站 1 個建置（含遠端 YT）、2 個截圖瀏覽器；blog → YT → tag，等待 YT 輪到通知。整頁相對閘門 max(2 秒, 基準兩倍)：tag/YT 2 秒、blog 6 秒；任一 5xx、未知或逾時、load >12 都不啟動新建置或 capture。建置開始至少 40 GiB，執行低於 30 GiB 暫停。已在更正前執行的工具可以完成；舊遠端豁免不再適用。capture 仍等精確映像與 readiness 證據，未解鎖。
 
 - 376 個 UI 狀態、110 個 UI route；每項分列亮／暗 × 1280／390，支援的頁面另列今日／近七日。合計 **2,060 個 viewport packages**（一個 package 包含整頁與必要分段），240 項仍需補實際樣本或既有隔離 mock；缺圖、缺權限或缺樣本都維持 pending。
 - 首輪：首頁與 `/keywords` 各兩種期間，`/keywords/沈伯洋/videos` 與 `/keywords/支持/videos` 各兩種期間，`/channels` 原有期間；共 36 個 packages、3 小批。首頁必須在每張整頁與分段前後確認文字雲及排行期間相同、資料世代未變。今日與七日只套用有該功能的區塊，不把頻道近期開始直播條件當成歷史日期範圍。
@@ -395,3 +395,7 @@ Ledger仍344個route／591 entries，350 UI中25已review（24 issues、1僅stat
 **接下來仍是待重拍**：376筆下一候選UI項目全部pending，無新SHA／BUILD_ID的截圖。歷史25筆review不變、完整UI route完成0；新F2／Y2／admin source review不能補成視覺pass。解凍必須由使用者明確通知並涵蓋build、candidate staging與capture；單純磁碟恢復或source測試通過都不解除。
 
 已提交樹的補充檢查：`893b2ab`的API與web TypeScript均0 diagnostics。以記憶體中的git HEAD blobs覆蓋14份dirty tracked檔、隱藏5份untracked檔；未修改檔案／建立checkout／emit／typegen／build。收據`platform/.local/f2/committed-source-noemit.json`及source tree IDs記在JSON；仍使用既有安裝依賴與既有Next generated types，不能替代解凍後的正式build。
+
+最新建置來源 `a77f84d`、BUILD_ID `dSzDaU9M4jqYXzUwz7XSr` 已完成編譯與同份產物恢復；988 來源／3,414 payload 檔案核對。未開始新 capture、candidate、部署；376 個新候選 UI 狀態仍 pending，完整 UI route 完成數仍為 0。新的 guardian／文件更正不把舊截圖或 source review 提升為視覺通過。
+
+最新 v6 擷取程序及建置守門原始碼已由另一個 GPT-6.1 Sol 獨立 review，收據 `capture-v6-root-five-file-independent-review.json`（SHA-256 `4703f0a2bc74bf6ac12c8dfb73c6ddfa7b78c9dee6f97ac59cd0a167db13c487`）記於 JSON；兩個 capture hard stop 仍啟用。這是工具原始碼審查，沒有新增任何 UI pass。

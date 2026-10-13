@@ -1,14 +1,14 @@
 # 解凍後單一候選操作計畫
 
-本文件是準備，不是執行紀錄。使用者最新兩小時衝刺授權到台北15:10（UTC07:10），**YT可立即在skyhong-blog建置，不再等待blog**；本機tag/blog最多2個建置，遠端YT不占本機名額。不得操作tag-backup或刪除既有release、回滾版本、備份、worktree。
+台北 15:10（UTC 07:10）的衝刺期限已由使用者取消；第二工作窗口到台北 18:50（UTC 10:50），以正確性優先。後續依原始碼、測試、獨立 review、candidate 驗收、小批部署順序執行，不為期限略過驗收。全站同時最多 **1 個建置，包含 skyhong-blog 的 YT 建置**；順序 **blog → YT → tag**，等待協調者通知輪到 YT。blog 首頁效能修正的優先建置例外僅適用 blog，不是 YT 豁免。不得操作 tag-backup 或刪除既有 release、回滾版本、備份、worktree。
 
 ## 解凍後新閘門（取代本文件較早的容量門檻）
 
-- 建置／image開始前實際 `df -h /home` 至少40GiB；執行期間低於30GiB，或load1超過12，或首頁整頁totalSeconds超過各站基準2倍（tag2秒、blog6秒、YT2秒），或任一站5xx／逾時或未知，立即暫停自己的建置及capture。不能只看TTFB，也不能只量blog。
+- 建置／image開始前實際 `df -h /home` 至少40GiB；執行期間低於30GiB，或load1超過12，或首頁整頁totalSeconds超過各站基準2倍（tag 2 秒、blog 6 秒、YT 2 秒；使用者明確同意 max(2 秒, 目前基準的 2 倍)），或任一站5xx／逾時或未知，立即暫停自己的建置及capture。不能只看TTFB，也不能只量blog。
 - 先估每批新增量。tag還原仍可能以約28GB/小時消耗磁碟，不能把本次df當成後續階段保證；每阶段重讀、持續監控，任何停線都回報。預估8GiB峰值仍是準備估算，實際每階段核對；此版本不再沿用112.5GiB舊停止線。Capture準備版保守採40GiB加批次估計，這個額外capture餘裕是實作選擇，不冒稱使用者另訂的門檻。
-- 本機最多2個建置（遠端YT另計）、全站2個capture瀏覽器；nice19/ionicec3，Next workers≤2。`tools/guarded-next-build.py`只適用同主機、自己建立session/process group的Next建置：flock加process檢查、持續量三站整頁時間、容量與load；故障或SIGINT/TERM先STOP自己群組並保留lock；不自動恢復。SIGUSR1是operator明確恢復請求，仍須重新通過全部閘門。它**不能暫停Docker/BuildKit daemon或遠端image工作**；那些階段必須另有host-side guard與安全停止方式，未備好就不啟動。
+- 全站最多1個建置（遠端YT也計入）、全站2個capture瀏覽器；nice19/ionicec3，Next workers≤2。`tools/guarded-next-build.py`只適用同主機、自己建立session/process group的Next建置：flock加process檢查、持續量三站整頁時間、容量與load；故障或SIGINT/TERM先STOP自己群組並保留lock；不自動恢復。SIGUSR1是operator明確恢復請求，仍須重新通過全部閘門。它**不能暫停Docker/BuildKit daemon或遠端image工作**；那些階段必須另有host-side guard與安全停止方式，未備好就不啟動。
 - 閘門為取樣監控：三個串行探測最多4／8／4秒加5秒迴圈間隔，最壞約21秒另加OS排程延遲才偵測到違規；偵測後立即送SIGSTOP。若訊號失敗，記為`STOP-unconfirmed`、保留lock並要求operator處理，不能聲稱已物理暫停。SIGKILL／主機失效不在此程序可保證的範圍；實際部署仍須operator監看receipt。
-- YT遠端即刻建置授權獨立保存在私有receipt，包含owner=YT、remoteBuildAuthorized=true與使用者本次實際通知，不需blogBuildFinished。候選SHA要包含本輪守門及worker cap修正，重新固定最後已審查commit。
+- 新階段需要全站單一建置名額及 YT 排隊釋出的新收據（120 秒內，包含遠端及其他 owner 已空閒的實際核對）；不能再用舊 remoteBuildAuthorized 或 blogBuildFinished 收據略過排隊。已在更正前執行的工具依使用者指示完成，後續階段重新排隊。
 - Next編譯保留核准的公開measurement ID `G-X2G1PLNP7K`（會被inline，不能只靠部署後runtime env補回）。candidate hostname/DNT guard與capture啟動前網路封鎖照舊；設定ID不等於測試送GA事件。
 - 部署後只清理本輪新產生、確認無須保留的暫存；先列精確路徑與來源、確認不屬release/回退/證據/備份再清理。既有檔案一律保留。
 
@@ -45,7 +45,7 @@
 | 本輪新增磁碟峰值 | 預留 **8 GiB**（乾淨 source、必要依賴／Next 輸出、封裝／傳輸副本、receipt）；不複製舊 release、不另存大型 DB export |
 | 容量閘門 | 最新開始至少40GiB／執行低於30GiB暫停；預估新增量不能跨越停止線；另計正在進行的備份消耗，每階段重讀 |
 
-本機可同時有兩個 Next/Docker 建置，遠端YT獨立；YT自身仍只開一個建置，以host-side lock與實際process確認不重複。以 `nice -n 19 ionice -c3`、單 CPU／有上限 heap 建置。任何超預算或 gate 不明就停止新階段；不清除使用者保留的檔案來勉強完成。8 GiB 是規劃 reserve，實際空間每階段重新量測。
+全站只能有一個 Next/Docker 建置，遠端 YT 也占名額；以協調者通知、兩端 process 證據及 lock 核對，沒有 YT 排隊釋出通知就不啟動新階段。以 `nice -n 19 ionice -c3`、單 CPU／有上限 heap 建置。任何超預算或 gate 不明就停止新階段；不清除使用者保留的檔案來勉強完成。8 GiB 是規劃 reserve，實際空間每階段重新量測。
 
 ## 單次建置與一致性收據
 
@@ -73,3 +73,11 @@
 最后已知回退 digest：`sha256:5b7d9171d9633c132766c65abd934c791787693a72b7f016bcd1408097dedadd`（`7eb48f4`）。既有 archive SHA-256：`78714eb474d3c78e8dbb613af0a21da9faf8b4bb1a1461789a86bc29f01f9967`。解凍後先驗證基線仍可用與回退 dry-run，再發布。發生 healthcheck/CSP/核心頁/私人快取錯誤即經 Dokploy 回到 release 前保存的 digest；保留 env/volumes，確認健康與核心頁、sitemap/API。此批無 migration 或來源寫入，正常程式回退不需覆蓋資料庫。
 
 上線後回報 commit、digest、UTC、實際網址與新圖；等 babysit 正式瀏覽器驗收才標正式可見。此文件不構成解凍、部署或驗收批准。
+
+## 本輪已取得的建置證據
+
+固定來源 `a77f84d9e5785106bff957a4d3873b6db85af7ea` 已完成 Next 編譯及 TypeScript 檢查，BUILD_ID 為 `dSzDaU9M4jqYXzUwz7XSr`；Next 16.3.8、React/React DOM 19.2.8。匯出時目錄時間權限錯誤已透過讀取同一個停止容器的 59,145,151 bytes 產物恢復，沒有重建；988 份已提交來源及 3,414 份 payload 檔案已核對。這不是映像、candidate 或 UI 通過。操作文件／guardian 的最新更正不改寫這份建置身分。詳見私有 `platform/.local/f2/sprint-a77f84d-proof/frontend-proof.json` 及相鄰 manifest。
+
+05:44 UTC 同份產物封裝驗證完成：95 層，OCI 887,952,384 bytes，3,414 份 COPY-layer 檔案全部符合 manifest；映像 config digest `sha256:ee5d4036083b1ee84ae1cc30e2def608328dd721726c195aedd9e8edd79df290`，OCI manifest `sha256:41239f1bed1aca36640452e73b59022b59bd7c97b61f6071be02f84ea1b21403`。Config 僅 revision label 改變。建置器已停止、名額釋出；尚未匯入 engine、啟動 candidate 或部署。其後的匯入與 candidate 等 YT 排隊通知，不能用完整性核對代替 UI review。
+
+本轮容量實測：新 release 目錄 1,835,888,425 bytes，加專屬 BuildKit state 1,868,948,339 bytes，共約 3.45 GiB，尚未計入停止編譯容器的 writable layer。私有 guardian 的 3 GiB 階段估算偏低；整體仍保留本文件 8 GiB 預算，後續各階段重新量測。沒有刪除任何既有或本輪證據檔案。

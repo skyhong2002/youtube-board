@@ -21,6 +21,22 @@ SITES = {'tag': 'https://tag.observe.tw/', 'blog': 'https://blog.observe.tw/', '
 SITE_LIMITS = {'tag': 2, 'blog': 6, 'youtube': 2}
 
 
+def valid_slot_notice(notice, now=None):
+    # A remote-host exception or old blog completion cannot reserve the global slot.
+    if not (notice.get('owner') == 'YT' and notice.get('globalSingleBuildSlotGranted') is True
+            and notice.get('remoteHostsAccounted') is True and notice.get('queueReleasedForYT') is True
+            and notice.get('otherOwnersIdle') is True and bool(notice.get('operatorMessage'))):
+        return False
+    try:
+        verified = datetime.datetime.fromisoformat(notice['verifiedAt'].replace('Z', '+00:00'))
+        if verified.tzinfo is None:
+            return False
+        age = ((now or datetime.datetime.now(datetime.timezone.utc)) - verified).total_seconds()
+        return 0 <= age <= 120
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return False
+
+
 def reasons(sample, starting=False, estimate_bytes=0):
     failures = []
     free = sample.get('freeBytes')
@@ -179,8 +195,8 @@ def main():
     if not math.isfinite(args.estimated_gib) or args.estimated_gib <= 0:
         parser.error('A positive artifact estimate is required')
     notice = json.loads(args.slot_release_receipt.read_text())
-    if notice.get('owner') != 'YT' or not (notice.get('remoteBuildAuthorized') is True or notice.get('blogBuildFinished') is True) or not notice.get('operatorMessage'):
-        parser.error('Explicit operator YT remote-build or blog-finished authorization receipt required')
+    if not valid_slot_notice(notice):
+        parser.error('Fresh global single-build slot and YT queue-release receipt including remote hosts required')
     root = args.platform_root.resolve(strict=True)
     cli = root / 'node_modules/next/dist/bin/next'
     if not cli.is_file():
@@ -218,6 +234,15 @@ def main():
         env.update(NEXT_TELEMETRY_DISABLED='1', NEXT_PUBLIC_GA_ID='G-X2G1PLNP7K', NODE_OPTIONS='--max-old-space-size=2048')
         cpu = str(min(os.sched_getaffinity(0)))
         with Path(str(args.log) + '.output').open('x') as output:
+            # Re-read at launch: HTTP preflight may age the receipt or the
+            # coordinator may revoke the slot while those probes complete.
+            try:
+                slot_current = valid_slot_notice(json.loads(args.slot_release_receipt.read_text()))
+            except (OSError, ValueError, TypeError, AttributeError):
+                slot_current = False
+            if not slot_current:
+                record('start-denied', reason='global-slot-receipt-stale-invalid-or-revoked')
+                return 75
             process = subprocess.Popen(['nice', '-n', '19', 'ionice', '-c3', 'taskset', '-c', cpu,
                                         'node', str(cli), 'build', '--webpack'],
                                        cwd=root / 'web', env=env, stdout=output, stderr=output, start_new_session=True)

@@ -1,3 +1,4 @@
+import datetime
 import importlib.util
 from pathlib import Path
 import signal
@@ -35,11 +36,25 @@ class Gates(unittest.TestCase):
         row = good(); del row['sites']['tag']
         self.assertTrue(guard.reasons(row))
 
-    def test_relative_blog_limit(self):
+    def test_explicit_relative_blog_limit(self):
         row = good(); row['sites']['blog']['totalSeconds'] = 6
         self.assertEqual(guard.reasons(row), [])
         row['sites']['blog']['totalSeconds'] = 6.01
         self.assertTrue(guard.reasons(row))
+
+    def test_remote_exception_cannot_reserve_global_slot(self):
+        now = datetime.datetime(2026, 10, 13, 6, tzinfo=datetime.timezone.utc)
+        for old in [{'remoteBuildAuthorized': True}, {'blogBuildFinished': True}]:
+            self.assertFalse(guard.valid_slot_notice({'owner': 'YT', 'operatorMessage': 'old', **old}, now))
+        notice = {'owner': 'YT', 'operatorMessage': 'coordinator released YT after blog',
+                  'globalSingleBuildSlotGranted': True, 'remoteHostsAccounted': True,
+                  'queueReleasedForYT': True, 'otherOwnersIdle': True, 'verifiedAt': now.isoformat()}
+        self.assertTrue(guard.valid_slot_notice(notice, now))
+        for key in ['globalSingleBuildSlotGranted', 'remoteHostsAccounted', 'queueReleasedForYT', 'otherOwnersIdle']:
+            self.assertFalse(guard.valid_slot_notice({**notice, key: False}, now))
+        for stamp in [None, 'invalid', '2026-10-13T06:00:00', '2026-10-13T06:00:01Z', '2026-10-13T05:57:59Z']:
+            self.assertFalse(guard.valid_slot_notice({**notice, 'verifiedAt': stamp}, now))
+        self.assertTrue(guard.valid_slot_notice({**notice, 'verifiedAt': '2026-10-13T05:58:00Z'}, now))
 
     def test_load_and_unknown(self):
         for value in [12.01, None, float('nan'), -1]:
