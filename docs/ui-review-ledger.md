@@ -556,3 +556,12 @@ UTC10:10起tag持有全站唯一建置名額；YT不啟動build／共享鎖DB/AP
 `095e935` kernel IO source 29項mock通過；修正單次掃描漏新增執行緒/子cgroup的finding，雙次掃描仍僅sampled stability，不是running cgroup原子證明。`f485d41`正規化原文位置helper 18項pure測試通過，保留raw aliases/原文並明示VARCHAR240不相容；正式profile/writer/reader整合仍缺。fixed Docker lifecycle adapter 21項mock通過，但tool/runtime、socket peer/daemon與config內容仍未核對；不是admission或STOP。
 
 各項commit、實際獨立review path/model/UTC/hash與root測試結果見JSON `remainingScopeBackendFollowup1013`。所有來源由作者以外的既有GPT-6.1 Sol review，沒有新增agent。沒有kernel/Docker操作、DB/API startup、build、capture、GA或部署。TAG名額不變；376新artifact states pending、完整route0。完整42項清單的R01/V04只是部分source進度，仍有可離線工作，不宣稱只剩等待。
+
+
+## 離線 finding 後續（F2-04／F2-07；不提升 UI 驗收）
+
+`6a4a02d`防止 window/full source refresh 把已服務的v2 pointer自動換回v1，仍發布原始備援池；37項mock與jobs noEmit通過。這只防降版，連續v2 successor refresh/backmatch/activation仍待做，沒有推定正式曾降版。
+
+`edbf18e`加入NULL／實測0、partial／all-missing、heat排序與統計publisher/parser/eligibility回歸，以及有原始碼引用的調查；root ingestion11＋API12通過，author既有web9通過，independent ingestion/API noEmit通過。review要求修正文案：item_processing_failed可能晚於成功來源寫入，不能單憑catch reason推論NULL保留；r2原檔與receipt均保留。沒有證明歷史根因、沒有writer/scheduler/sort變更。
+
+實際獨立GPT-6.1 Sol receipt路徑、hash、UTC與commit見JSON `remainingScopeOfflineFindings1013`。完整42項盤點仍有可離線工作；APP70529固定，TAG持名額。110UIroutes／376新artifact狀態pending，完整route0。沒有build、DB/API、capture、runtime驗收或部署，舊review不提升。

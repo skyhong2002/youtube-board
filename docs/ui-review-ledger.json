@@ -36859,5 +36859,70 @@
       "A-02 cursor/UTC compatibility"
     ],
     "reviewBoundary": "Receipts bind exact reviewed source and document bytes; subsequent metadata appendix does not extend their scope. No old screenshots promoted. All376 new UI states remain pending/0complete routes."
+  },
+  "remainingScopeOfflineFindings1013": {
+    "appSha": "70529cff13b6b7f5b3e0571a229e2b61660f9df4",
+    "globalSlotOwner": "tag",
+    "servingPolicyRefresh": {
+      "commit": "6a4a02dca3118d5f0d004e8b83e3331366e3a65c",
+      "finding": "window/full source publication could replace a v2 serving generation with legacy matching",
+      "fix": "retain current v2 pointer while still publishing backup source pools; legacy promotion preserved; invalid/future metadata rolls back",
+      "rootFocusedMocksPassed": 37,
+      "jobsNoEmitPassed": true,
+      "review": {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/quality-serving-refresh-protection-independent-source-review.json",
+        "sha256": "c1e8b455a343618eb4b887aaefd1cc88055df8bcae5fd08860789dff322c8cf9",
+        "model": "gpt-6.1-sol",
+        "observedAt": "2026-10-13T11:12:28.083516+00:00",
+        "scope": "independent source-only review; no runtime/UI/release acceptance"
+      },
+      "continuousV2SuccessorRefreshImplemented": false,
+      "productionDowngradeObserved": false
+    },
+    "viewMissingness": {
+      "commit": "edbf18eb9b5c8b8329289d45f7c2888b27b080d5",
+      "document": "platform/docs/f2-07-view-count-source-investigation-2026-10-13.md",
+      "docSha256": "74c3772e03238c331ddf128ec42e8d625a132307be30954723a67051cd52b6b6",
+      "rootIngestionMocksPassed": 11,
+      "rootAPIPureTestsPassed": 12,
+      "newAPITests": 5,
+      "authorExistingWebTestsPassed": 9,
+      "independentAPINoEmitPassed": true,
+      "independentIngestionNoEmitPassed": true,
+      "review": {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/f2-07-view-count-source-investigation-independent-review-final.json",
+        "sha256": "52cf0abea484312f7285cc0757d5ecb3fc283a66c48f86c36c81476cf396029f",
+        "model": "gpt-6.1-sol",
+        "observedAt": "2026-10-13T11:17:09.850820+00:00",
+        "scope": "independent source-only review; no runtime/UI/release acceptance"
+      },
+      "reviewFinding": "item_processing_failed can follow a successful source write; reason alone cannot prove retained NULL",
+      "findingResolution": "doc-only r2; preserved original frozen evidence; no writer/scheduler/sort patch",
+      "historicalRootCauseEstablished": false,
+      "runtimeSourceCoverageVerified": false,
+      "LaravelWriterOwnershipUnchanged": true
+    },
+    "scopeInventoryItems": 42,
+    "onlyWaitingForSlotOrUpstream": false,
+    "uiUniqueRoutes": 110,
+    "newArtifactUIStatesPending": 376,
+    "completeUIRoutes": 0,
+    "buildStarted": false,
+    "captureStarted": false,
+    "DBAPIStarted": false,
+    "deploymentOccurred": false,
+    "newUIApproval": false,
+    "runtimeReady": false,
+    "releaseReady": false,
+    "remainingOffline": [
+      "continuous v2 quality-generation refresh/backmatch activation design",
+      "10-minute vocabulary deltas/daily reconciliation",
+      "normalization/profile/raw-alias writer-reader integration",
+      "reviewed alias and override application chain",
+      "personal API keys and cursor/UTC compatibility",
+      "full fixtures and Mint capture materialization",
+      "shared coordinator/continuing guard/native launcher integration"
+    ],
+    "boundary": "Exact source receipts preserved; metadata-only appendix does not extend source review to UI/runtime or alter existing entries/summary. No earlier pass promoted."
   }
 }
