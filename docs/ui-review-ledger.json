@@ -36791,5 +36791,73 @@
       "V-04 normalized matcher raw offset provenance"
     ],
     "addendumBoundary": "Separate metadata delivery appendix after retake five-file frozen review; does not replace original reviewed file hashes or modify entries/summary/historical capture budget."
+  },
+  "remainingScopeBackendFollowup1013": {
+    "appSha": "70529cff13b6b7f5b3e0571a229e2b61660f9df4",
+    "globalSlotOwner": "tag",
+    "kernelIO": {
+      "commit": "095e935",
+      "rootMockTestsPassed": 29,
+      "review": {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/native-arm64-cgroup-io-v2-independent-source-review.json",
+        "sha256": "d053aa365dcf3c5835cad2db16b8a0440e78669cd2efbfa98b87459e42ab3d42",
+        "model": "gpt-6.1-sol",
+        "observedAt": "2026-10-13T10:47:05.713348+00:00",
+        "scope": "source prerequisite only; no runtime, UI or release acceptance"
+      },
+      "v1Finding": "single scan could miss late task/child while root booleans unchanged",
+      "v2Fix": "two exact bounded membership/topology scans plus late task/child/migration regressions",
+      "limitation": "sampled stability, not atomic running-cgroup proof",
+      "actualKernelIO": false,
+      "actualPhysicalStopProof": false
+    },
+    "normalizedOffsets": {
+      "commit": "f485d41",
+      "rootPureTestsPassed": 18,
+      "review": {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/v04-offset-helper-independent-source-review-final.json",
+        "sha256": "f93192f6371570e6089e4faba42210eb0e39c46f020fdb86650e373a856845eb",
+        "model": "gpt-6.1-sol",
+        "observedAt": "2026-10-13T10:55:33.485498+00:00",
+        "scope": "source prerequisite only; no runtime, UI or release acceptance"
+      },
+      "rawIdentityPreserved": true,
+      "rawTextOffsetsPreserved": true,
+      "existingVarchar240OverflowReported": true,
+      "fullSourceIntegrationCompleted": false,
+      "activeRuleChanged": false
+    },
+    "dockerIO": {
+      "commit": "6e6d63bc49fb6f452d125564104863d200db9ed3",
+      "rootMockTestsPassed": 21,
+      "review": {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/native-arm64-docker-io-independent-source-review-final.json",
+        "sha256": "13d844576ace172ef8dcaef5037160810efe66d8d085dcca3cb49195cae7c99a",
+        "model": "gpt-6.1-sol",
+        "observedAt": "2026-10-13T11:00:16.747811+00:00",
+        "scope": "source prerequisite only; no runtime, UI or release acceptance"
+      },
+      "actualDockerCalls": false,
+      "socketDaemonConfigTrustVerified": false,
+      "boundedSynchronousCallsHardPreempted": false,
+      "liveToolPinVerified": false,
+      "liveOwnedIdentityVerified": false
+    },
+    "onlyWaitingForSlotOrUpstream": false,
+    "newUIApproval": false,
+    "runtimeReady": false,
+    "releaseReady": false,
+    "remainingOffline": [
+      "R-02 shared-owner coordinator/custody contract and adapters",
+      "R-03 fuller fixtures/dependency runner",
+      "R-07 Mint capture materialization",
+      "V-03 10-minute changes/reconciliation",
+      "V-04 versioned integration of normalized matching/aliases/readers/storage",
+      "F2-04 continuous quality-sync generation preservation",
+      "F2-09 approved override application chain",
+      "A-01 personal API keys",
+      "A-02 cursor/UTC compatibility"
+    ],
+    "reviewBoundary": "Receipts bind exact reviewed source and document bytes; subsequent metadata appendix does not extend their scope. No old screenshots promoted. All376 new UI states remain pending/0complete routes."
   }
 }

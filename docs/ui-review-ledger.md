@@ -549,3 +549,10 @@ UTC10:10起tag持有全站唯一建置名額；YT不啟動build／共享鎖DB/AP
 `8ca613e`修正queue舊500頁上限為共用20,000頁上限，default100及執行gates不變；23項mock通過／3 Redis integration跳過、jobs noEmit通過，另有独立source review。`691bc2c`重拍規劃9項離線測試/generator通過，独立review仅source/planning。已知retained56,717,030＋新上界198,000,000＝254,717,030 bytes，完整累計盤點仍缺；7組28packages全不允許執行。
 
 本追加在五檔retake原hash凍結review後寫入，只加metadata，保留原review的exact bytes binding。APP70529不變；tag仍持全站名額；376個新artifact狀態pending、完整route0，沒有新的PNG、runtime身份、GA外送或部署。
+
+
+## Runtime backend／原文位置映射追加（僅 source）
+
+`095e935` kernel IO source 29項mock通過；修正單次掃描漏新增執行緒/子cgroup的finding，雙次掃描仍僅sampled stability，不是running cgroup原子證明。`f485d41`正規化原文位置helper 18項pure測試通過，保留raw aliases/原文並明示VARCHAR240不相容；正式profile/writer/reader整合仍缺。fixed Docker lifecycle adapter 21項mock通過，但tool/runtime、socket peer/daemon與config內容仍未核對；不是admission或STOP。
+
+各項commit、實際獨立review path/model/UTC/hash與root測試結果見JSON `remainingScopeBackendFollowup1013`。所有來源由作者以外的既有GPT-6.1 Sol review，沒有新增agent。沒有kernel/Docker操作、DB/API startup、build、capture、GA或部署。TAG名額不變；376新artifact states pending、完整route0。完整42項清單的R01/V04只是部分source進度，仍有可離線工作，不宣稱只剩等待。
