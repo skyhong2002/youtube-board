@@ -22,16 +22,18 @@ function fixture(count=1001,width=0,activeCount=2,rawLabels?:string[]) {
  };
  return {manifest,source,terms,active};
 }
-function mockStore() {
+function mockStore(priorCurrent?:StoredVocabularySnapshot) {
  const terms=new Map<string,{term_key:string;payload:string}>();
- let run:{id:string;window_since:string;window_until:string;status:string;snapshot:string}|undefined,current:string|undefined;
- const queries:Array<{sql:string;values:unknown[]}>=[];
+ type Run={id:string;window_since:string;window_until:string;status:string;snapshot:string};
+ let run:Run|undefined,current=priorCurrent?.id;
+ let transaction:{run:Run|undefined;current:string|undefined;terms:typeof terms}|undefined;
+ const queries:Array<{sql:string;values:unknown[];inTransaction:boolean}>=[];
  const query=vi.fn(async(sql:string,values:unknown[])=>{
-  queries.push({sql,values});
+  queries.push({sql,values,inTransaction:transaction!==undefined});
   if(sql.startsWith('SELECT COUNT'))return [[{total:terms.size}]];
   if(sql.startsWith('SELECT * FROM ts_vocabulary_runs'))return [[...(run?[run]:[])]];
   if(sql.includes('SELECT snapshot FROM ts_vocabulary_runs'))return [[...(run?.status==='published'?[{snapshot:run.snapshot}]:[])]];
-  if(sql.includes('JOIN ts_vocabulary_runs'))return [[...(current&&run?[{snapshot:run.snapshot}]:[])]];
+  if(sql.includes('JOIN ts_vocabulary_runs'))return [[...(current?[{snapshot:current===run?.id?run.snapshot:JSON.stringify(priorCurrent)}]:[])]];
   if(sql.startsWith('SELECT term_key, payload')) {
    const ordered=[...terms.values()].sort((a,b)=>a.term_key<b.term_key?-1:1);
    if(sql.includes(' IN ('))return [ordered.filter(row=>values.slice(1).includes(row.term_key))];
@@ -47,8 +49,16 @@ function mockStore() {
   else if(sql.startsWith('INSERT INTO ts_vocabulary_current'))current=String(values[1]);
   return [{affectedRows:1}];
  });
- const db={query,execute,beginTransaction:vi.fn(async()=>{}),commit:vi.fn(async()=>{}),rollback:vi.fn(async()=>{})} as unknown as Connection;
- return {db,terms,queries,setSnapshot(snapshot:StoredVocabularySnapshot){run!.snapshot=JSON.stringify(snapshot);},get snapshot(){return run?JSON.parse(run.snapshot) as StoredVocabularySnapshot:undefined;},get current(){return current;}};
+ const db={query,execute,beginTransaction:vi.fn(async()=>{
+  expect(transaction).toBeUndefined();
+  transaction={run:run?{...run}:undefined,current,terms:new Map(terms)};
+ }),commit:vi.fn(async()=>{expect(transaction).toBeDefined();transaction=undefined;}),rollback:vi.fn(async()=>{
+  expect(transaction).toBeDefined();
+  run=transaction!.run;current=transaction!.current;terms.clear();
+  for(const [key,row] of transaction!.terms)terms.set(key,row);
+  transaction=undefined;
+ })} as unknown as Connection;
+ return {db,terms,queries,setSnapshot(snapshot:StoredVocabularySnapshot){run!.snapshot=JSON.stringify(snapshot);},get snapshot(){return run?JSON.parse(run.snapshot) as StoredVocabularySnapshot:undefined;},get runStatus(){return run?.status;},get current(){return current;}};
 }
 const check=async()=>{};
 describe('bounded full-pool publication and active-only loader (offline)',()=>{
@@ -57,6 +67,8 @@ describe('bounded full-pool publication and active-only loader (offline)',()=>{
   const lastScan=Math.max(...store.queries.map((q,index)=>q.sql.startsWith('SELECT term_key, payload')?index:-1));
   const firstLock=store.queries.findIndex(q=>q.sql.includes('FOR UPDATE'));
   expect(lastScan).toBeLessThan(firstLock);expect(wait).toHaveBeenCalledTimes(4);
+  expect(store.queries.filter(q=>q.sql.startsWith('SELECT term_key, payload')).every(q=>!q.inTransaction)).toBe(true);
+  expect(store.queries.filter(q=>q.sql.includes('FOR UPDATE')).every(q=>q.inTransaction)).toBe(true);
   expect(store.terms.size).toBe(1001);
   const payloads=[...store.terms.values()].sort((a,b)=>a.term_key<b.term_key?-1:1).map(row=>JSON.stringify(JSON.parse(row.payload))+'\n');
   expect(store.snapshot!.localPayloadChecksum).toBe(hash(payloads.join('')));
@@ -137,6 +149,55 @@ describe('bounded full-pool publication and active-only loader (offline)',()=>{
   })).rejects.toThrow('lost ownership');
   expect(store.snapshot!.matchingSubset).toBeUndefined();expect(store.current).toBeUndefined();
   expect(store.queries.some(q=>q.sql.includes('FOR UPDATE'))).toBe(false);
+ });
+ it.each(['full','active'] as const)('rejects ownership lost during the final %s checksum batch before publication starts',async phase=>{
+  const f=fixture(2),store=mockStore();let lost=false;
+  const query=vi.mocked(store.db.query),original=query.getMockImplementation()!;
+  query.mockImplementation(async(...args:Parameters<typeof original>)=>{
+   const result=await original(...args),sql=String(args[0]);
+   if(sql.startsWith('SELECT term_key, payload')&&sql.includes(phase==='full'?'term_key >':' IN ('))lost=true;
+   return result;
+  });
+  await expect(importSnapshot(store.db,f.source,1,async()=>{if(lost)throw Error('lost ownership');})).rejects.toThrow('lost ownership');
+  expect(store.runStatus).toBe('scanning');expect(store.current).toBeUndefined();
+  expect(store.queries.some(q=>q.sql.includes('FOR UPDATE'))).toBe(false);
+  expect(store.db.rollback).not.toHaveBeenCalled();
+ });
+ it.each(['run','current'] as const)('rolls back when ownership is lost after the %s publication lock but before publication writes',async phase=>{
+  const f=fixture(2),store=mockStore();let lost=false;
+  const query=vi.mocked(store.db.query),original=query.getMockImplementation()!;
+  query.mockImplementation(async(...args:Parameters<typeof original>)=>{
+   const result=await original(...args),sql=String(args[0]);
+   if(sql.includes('FOR UPDATE')&&sql.includes(phase==='run'?'SELECT * FROM ts_vocabulary_runs':'JOIN ts_vocabulary_runs'))lost=true;
+   return result;
+  });
+  await expect(importSnapshot(store.db,f.source,1,async()=>{if(lost)throw Error('lost ownership');})).rejects.toThrow('lost ownership');
+  expect(store.db.rollback).toHaveBeenCalledTimes(1);expect(store.runStatus).toBe('scanning');
+  expect(store.snapshot!.matchingSubset).toBeUndefined();expect(store.current).toBeUndefined();
+  expect(vi.mocked(store.db.execute).mock.calls.some(call=>String(call[0]).includes('SET status ='))).toBe(false);
+ });
+ it.each(['publication','current','commit'] as const)('restores prior current and scanning state when %s fails after the final ownership check',async phase=>{
+  const f=fixture(2),prior:StoredVocabularySnapshot={id:'prior-published',source:SOURCE,window:null,publishedAt:date,coverage:'all-current-indexed-article-tags',upstreamSnapshotConsistent:true,upstreamGeneratedAt:'2026-10-12T00:00:00.000Z',terms:[]};
+  const store=mockStore(prior);let finalCheck=false;
+  const ownership=async()=>{if(store.queries.some(q=>q.sql.includes('JOIN ts_vocabulary_runs')&&q.sql.includes('FOR UPDATE')))finalCheck=true;};
+  const execute=vi.mocked(store.db.execute),original=execute.getMockImplementation()!;
+  execute.mockImplementation(async(...args:Parameters<typeof original>)=>{
+   const result=await original(...args),sql=String(args[0]);
+   if((phase==='publication'&&sql.includes('SET status ='))||(phase==='current'&&sql.startsWith('INSERT INTO ts_vocabulary_current'))) {
+    expect(finalCheck).toBe(true);throw Error('writer connection lost');
+   }
+   return result;
+  });
+  const commitPage=vi.mocked(store.db.commit).getMockImplementation()!;
+  if(phase==='commit')vi.mocked(store.db.commit).mockImplementation(async()=>{
+   if(store.runStatus==='published'){expect(finalCheck).toBe(true);throw Error('commit rejected before completion');}
+   // The staging page transaction still commits normally.
+   await commitPage();
+  });
+  await expect(importSnapshot(store.db,f.source,1,ownership)).rejects.toThrow(phase==='commit'?'commit rejected':'writer connection lost');
+  expect(store.db.rollback).toHaveBeenCalledTimes(1);expect(store.runStatus).toBe('scanning');
+  expect(store.snapshot!.matchingSubset).toBeUndefined();expect(store.current).toBe(prior.id);
+  expect(store.terms.size).toBe(f.manifest.total);
  });
  it('rejects active key metadata drift and enforces16MiB read cap',async()=>{
   const f=fixture(),store=mockStore();await importSnapshot(store.db,f.source,3,check);
