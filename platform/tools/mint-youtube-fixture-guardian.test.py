@@ -331,6 +331,13 @@ class GuardianMocks(unittest.TestCase):
                     result = guardian.observe_three_hosts(config, fixture, relay)
                     self.assertEqual(result['skyhong-blog']['transport']['actualHopController'], 'SM')
                     self.assertEqual(result['SM']['transport']['route'], ['Mint','SM'])
+                    raw_sm=next(row['result'] for row in result['_gateObservations'] if row['name']=='SM')
+                    self.assertNotIn('transport',raw_sm)
+                    self.assertIsNot(raw_sm,result['SM'])
+                    reservation={'state':'running','binding':C.binding(),'kernelKey':CUSTODY['kernelKey'],'grantMessageSha256':grant()['grantMessageSha256']}
+                    with patch.object(guardian,'verify_fd',return_value=CUSTODY):
+                        actual_packet=guardian.packet(fixture,C,grant(),result,7,reservation,cases.NOW,1024)
+                    self.assertEqual(fixture.binding_failures(actual_packet,C,cases.NOW),[])
                     self.assertEqual(saved.call_count, 2)
                     self.assertTrue(saved.call_args.args[1]['aggregate']['ok'])
                 loaded.assert_called_once_with(gate_path, config['gateAdapterSha256'], 'yt_reviewed_fixture_gate')

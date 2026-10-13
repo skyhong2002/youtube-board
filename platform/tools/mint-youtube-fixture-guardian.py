@@ -6,6 +6,7 @@ or shared registry adoption is claimed here. Unknown custody never clears the
 durable reservation. Native build, Docker, capture and provider work are absent.
 """
 import argparse
+import copy
 import datetime as dt
 import fcntl
 import hashlib
@@ -195,7 +196,7 @@ def observe_three_hosts(config, fixture, relay):
              {'regular': stat.S_ISREG(s.st_mode), 'symlink': False, 'ownedByController': s.st_uid == os.getuid(), 'mode': s.st_mode, 'sha256': digest(known_raw)}, c)
     rows['SM'] = run(spec['argv'], 15)
     relay_row = run(['/usr/bin/python3', '-c', relay.mint_script()], relay.MINT_SECONDS + 1)
-    observations = [{'name': name, 'exitCode': 0, 'unknown': False, 'result': result}
+    observations = [{'name': name, 'exitCode': 0, 'unknown': False, 'result': copy.deepcopy(result)}
                     for name, result in [('Mint', rows['Mint']), ('SM', rows['SM']), ('relay', relay_row)]]
     evaluated = gate.evaluate_observations(observations, utc())
     require(evaluated.get('ok') is True and evaluated.get('aggregate', {}).get('ok') is True,
