@@ -17,7 +17,10 @@ import datetime
 import math
 import re
 
-APP_SHA = '70529cff13b6b7f5b3e0571a229e2b61660f9df4'
+# This native compiler executor targets the reviewed deploy successor. The
+# separate Mint fixture contract remains frozen at APP705; its source receipts
+# and historical executor bytes are retained in Git and are not relabeled.
+APP_SHA = '073985b8bc4bbcc9ffb5d43c1e1a26060bb8ac4a'
 LABELS = {'owner': 'tw.observe.job.owner', 'generation': 'tw.observe.job.generation',
           'ops_sha': 'tw.observe.job.ops-sha', 'app_sha': 'tw.observe.job.app-sha'}
 

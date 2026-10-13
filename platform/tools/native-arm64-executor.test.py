@@ -111,6 +111,14 @@ class LifecycleTests(unittest.TestCase):
         return ['kernel-kill' if spec.get('kind') == 'owned-cgroup-v2-kill' else spec['argv'][1]
                 for kind, spec in self.backend.calls if kind == 'dispatch']
 
+    def test_deploy_app073_accepted_but_frozen_fixture_app705_rejected(self):
+        self.assertEqual(module.APP_SHA, '073985b8bc4bbcc9ffb5d43c1e1a26060bb8ac4a')
+        self.assertTrue(self.job.pause()['remoteStopConfirmed'])
+        backend = Backend(self.pin)
+        backend.rows[0]['Config']['Labels'][module.LABELS['app_sha']] = '70529cff13b6b7f5b3e0571a229e2b61660f9df4'
+        self.assertFalse(backend.executor().pause()['remoteStopConfirmed'])
+        self.assertFalse(any(kind == 'dispatch' for kind, _ in backend.calls))
+
     def test_identity_is_full_and_separate_from_APP(self):
         for field, value in (('container_id', 'aaaa'), ('image_id', 'node:24'),
                              ('ops_sha', module.APP_SHA), ('leader_pid', True),
