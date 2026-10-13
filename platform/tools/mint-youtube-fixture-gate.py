@@ -9,6 +9,9 @@ from pathlib import Path
 
 SOURCE_PINS = {'native-arm64-probe-collector.py': 'ebdac97a65d431f073735f3349efb2c6a9e6c343010095d8b6dc81222ad87155', 'native-arm64-readonly-relay.py': '89dee2922d3cee7ef6be5f4e829cae30d9393afd66e8dbd0562e3c1bb4601d08'}
 
+# SHA256 of reviewed799 admission.readonly_script('SM'); never caller supplied.
+SM_PROBE_SHA256 = '52268ff9b47d3e90ced2697bd24cbe977ec032f0646dfcb4fde78125cf7dffb3'
+
 def load_reviewed(name):
     path=Path(__file__).resolve().with_name(name)
     if path.is_symlink() or not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest()!=SOURCE_PINS[name]:
@@ -56,4 +59,5 @@ def packet_health_failures(packet,contract,now,estimate_bytes=0):
             if not isinstance(transport,dict) or transport.get('controller')!='Mint' or transport.get('strictPinnedSsh') is not True or type(transport.get('exitCode')) is not int or transport['exitCode']!=0:return ['VERIFIED_TRANSPORT_REQUIRED']
             if host=='skyhong-blog' and (transport.get('actualHopController')!='SM' or transport.get('knownHostsSha256')!=relay.BLOG_PIN or transport.get('scriptSha256')!=relay.BLOG_SCRIPT_SHA256):return ['ACTUAL_BLOG_RELAY_REQUIRED']
             if host=='SM' and transport.get('knownHostsSha256')!=relay.SM_PIN:return ['SM_HOST_PIN_REQUIRED']
+            if host=='SM' and transport.get('scriptSha256')!=SM_PROBE_SHA256:return ['SM_PROBE_SOURCE_PIN_REQUIRED']
     return []

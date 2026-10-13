@@ -48,7 +48,7 @@ class BridgeTests(unittest.TestCase):
         health={r['name']:copy.deepcopy(r['result']) for r in rows if r['name']!='relay'}
         health['skyhong-blog']=copy.deepcopy(rows[2]['result']['sample'])
         for host,pin in [('SM',relay.SM_PIN),('skyhong-blog',relay.BLOG_PIN)]:
-            health[host]['transport']={'controller':'Mint','strictPinnedSsh':True,'exitCode':0,'knownHostsSha256':pin,'actualHopController':'SM','scriptSha256':relay.BLOG_SCRIPT_SHA256}
+            health[host]['transport']={'controller':'Mint','strictPinnedSsh':True,'exitCode':0,'knownHostsSha256':pin,'actualHopController':'SM','scriptSha256':gate.SM_PROBE_SHA256 if host=='SM' else relay.BLOG_SCRIPT_SHA256}
         c=SimpleNamespace(machine_ids=(relay.SM_ID,relay.MINT_ID,relay.BLOG_ID),known_hosts_sha256=(relay.SM_PIN,'0'*64,relay.BLOG_PIN))
         return {'health':health,'gateObservations':rows},c
     def test_legacy_remote_slow_is_reference_but_new_gate_is_required(self):
