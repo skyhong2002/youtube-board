@@ -37974,6 +37974,47 @@
       },
       "coreVisualReview": "pending",
       "productionMutated": false
+    },
+    "coreVisualReviewStatus": "BLOCKED_MOBILE_KEYWORD_IDENTITY",
+    "coreDeploymentReviewPassed": false,
+    "mobileKeywordIdentityFinding": {
+      "status": "open",
+      "reviewer": "/root/f2_visual_sol",
+      "staticImagesInspected": {
+        "home": 64,
+        "keywords": 44
+      },
+      "examples": [
+        "Today row7 新聞直播 rendered 新聞…",
+        "Week row12 雙十國慶 rendered 雙十…; distinct row36 雙十"
+      ],
+      "scope": "four 390px packages, today/week light/dark",
+      "homeScopedStaticBlockingIssues": false,
+      "keywordThumbnail404": "Actual fallback visually confirmed at week row33 成功; not route failure. No ignored network exception.",
+      "receiptStatus": "immutable final receipt requested; awaiting path/hash",
+      "sourceFixSha": "d019ae69e922ba8530b7af8c98ae5e200138942a",
+      "closureRequires": "new exact candidate image captures plus independent visual review; source tests do not close finding"
     }
+  },
+  "mobileKeywordIdentitySuccessor20261014": {
+    "preparedAt": "2026-10-14T07:48:38.199292+00:00",
+    "appSha": "d019ae69e922ba8530b7af8c98ae5e200138942a",
+    "sourceStatus": "committed locally; independent review pending",
+    "tests": {
+      "focusedPassed": 17,
+      "webPassed": 297,
+      "failed": 0,
+      "typecheck": "noEmit exit0"
+    },
+    "scope": "mobile decorative thumbnails hidden; full identity wraps even without spaces; links/date scopes/pending hints retained; desktop layout retained",
+    "buildDraftPath": "/tmp/babysit/mint-queue/youtube-simple-native-d019ae69-request.json",
+    "buildDraftSha256": "5b72c8d9aaf4a5fa5ffbb2c62ea0fa6b290e225e3664d89a23af8485202eeed2",
+    "executionAllowed": false,
+    "freshProbe": "pending",
+    "build": "pending",
+    "capture": "pending",
+    "candidateApproval": false,
+    "routeComplete": false,
+    "deployment": "pending"
   }
 }
