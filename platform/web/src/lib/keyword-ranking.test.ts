@@ -123,7 +123,7 @@ test('partial views retain honest zero and floor compact lower bounds at both un
  assert.match(viewsCell(row({knownViews:19999})).title,/至少 19,999 次/);
 });
 test('raw vocabulary reasons explain the audited generic and geographic exclusions',()=>{
- assert.equal(displayExclusionLabel('youtube-generic-two-character'),'不列入排行：雙字通用詞（核定清單）');
+ assert.equal(displayExclusionLabel('youtube-generic-two-character'),'不列入排行：雙字通用詞（實際詞池稽核清單）');
  assert.equal(displayExclusionLabel('youtube-country-city-party'),'不列入排行：國家、城市或政黨詞（補充排除清單）');
  assert.match(DISPLAY_EXCLUSION_NOTE,/原始詞彙池列出排除原因/);
 });

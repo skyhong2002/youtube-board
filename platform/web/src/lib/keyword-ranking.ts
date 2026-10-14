@@ -78,7 +78,8 @@ export function vocabularyPoolLabel(summary:Partial<Pick<HomeKeywordSummary,'voc
 export const TAG_DISPLAY_EXCLUSION_LABELS:Record<string,string>={
  'youtube-source-or-platform':'來源或平台名稱',
  'youtube-platform-or-promotion':'YouTube 平台或宣傳用語',
- 'youtube-generic-two-character':'雙字通用詞（核定清單）',
+ 'youtube-generic-two-character':'雙字通用詞（實際詞池稽核清單）',
+ 'youtube-generic-context':'通用角色或背景詞（實際詞池稽核清單）',
  'youtube-country-city-party':'國家、城市或政黨詞（補充排除清單）',
  'upstream-window-not-qualified':'未符合該期間新聞詞池的跨媒體門檻',
  'upstream-window-unavailable':'該期間新聞詞池目前無法驗證',
