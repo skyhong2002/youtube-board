@@ -39327,7 +39327,16 @@
       "fullWebFailed": 0,
       "webTypecheck": "exit0"
     },
-    "sourceReview": "pending existing reviewer recheck",
+    "sourceReview": {
+      "status": "PASS_SOURCE_ONLY",
+      "reviewer": "/root/capture_source_review",
+      "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/f1-ssr-72cb816-independent-source-review-20261014T153451Z.json",
+      "sha256": "d6a5ffb117451bcff5dbeefafcc1b9c4c74015cb56159e29a6589f84e8f6c682",
+      "focusedTests": 68,
+      "repairCases": 7,
+      "componentStateChecks": 2,
+      "unresolvedBlockers": []
+    },
     "build": "pending resource gate: load22.9 and tag/blog health/time failures",
     "candidate": "pending",
     "visualReview": "pending",
