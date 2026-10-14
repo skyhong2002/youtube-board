@@ -1,3 +1,4 @@
+import {PoolUnavailable,rankingPoolWindows,type RankedPoolClient,type RankedPool} from './tag-ranked-pool.js';
 import type {HomeDiagnosticCallback,HomeDiagnostic} from './home-diagnostics.js';
 import {latestKeywordVideo} from './keyword-candidates.js';
 import {canonicalVideoThumbnail} from '../../../shared/media-assets.js';
@@ -19,14 +20,16 @@ export function homeCategories(records:Row[],names:Map<number,string>){
  const weeklyViews=rows.reduce((n,r)=>n+r.weeklyViews,0);if(!Number.isSafeInteger(weeklyViews))throw new HomeSectionUnavailable('precision');
  return {status:'available' as const,reason:null,rows,summary:{visibleCategories:rows.length,channelMemberships:rows.reduce((n,r)=>n+r.channels,0),uniqueChannels:unique.size,weeklyViews,overlapping:true as const},updatedAt:latest(...records.map(r=>r.mtime)),minimumWeeklyViews:10 as const};
 }
-export async function homeExploration(reader:Reader,now:Date,diagnostic?:HomeDiagnosticCallback):Promise<HomeExploration>{
- const to=taipeiSql(now),date=taipeiDate(now),today=date+' 00:00:00',from=new Date(Date.parse(date+'T00:00:00Z')-6*86400000).toISOString().slice(0,10)+' 00:00:00';
+export async function homeExploration(reader:Reader,now:Date,diagnostic?:HomeDiagnosticCallback,poolClient?:RankedPoolClient):Promise<HomeExploration>{
+ const poolWindows=rankingPoolWindows(now);const effectiveNow=poolClient?new Date(Date.parse(poolWindows.week.until)-1000):now;
+ const to=taipeiSql(effectiveNow),date=taipeiDate(now),today=poolClient?taipeiSql(new Date(poolWindows.today.since)):date+' 00:00:00',from=new Date(Date.parse(date+'T00:00:00Z')-6*86400000).toISOString().slice(0,10)+' 00:00:00';
  const emit=(section:HomeDiagnostic['section'],stage:HomeDiagnostic['stage'],reason:HomeDiagnostic['reason'])=>{try{diagnostic?.({section,stage,reason,UTC:now.toISOString()});}catch{/* Optional diagnostics cannot fail the report. */}};
  let keywordStage:HomeDiagnostic['stage']='vocabulary',keywordDiagnosticReason:HomeDiagnostic['reason']|undefined;
  let activeRule:'exact-text-v1'|typeof MATCH_RULE='exact-text-v1';
  const keywordBase={vocabularyCoverage:'unavailable' as const,vocabularyWindow:null,source:'https://tag.observe.tw' as const,version:null,from:timestamp(from)!,to:timestamp(to)!,updatedAt:null,rows:[],sourceVideos:null,freshVideos:null,staleVideos:null,unprocessedVideos:null,metric:'current-cumulative-views-of-window-published-videos' as const,rankingMethod:KEYWORD_RANKING_METHOD,riseMethod:KEYWORD_RISE_METHOD,ruleVersion:activeRule,comparison:null,exclusions:null};
  const todayBase={...keywordBase,from:timestamp(today)!};
- const unavailable=(error:unknown)=>{if(error instanceof HomeSectionUnavailable)return error.reason;if(error instanceof DataSourceUnavailable)return 'data-source-unavailable';throw error;};
+ let poolFailure:HomeExploration['keywords']['rankingPool'];
+ const unavailable=(error:unknown)=>{if(error instanceof PoolUnavailable)return 'data-source-unavailable' as const;if(error instanceof HomeSectionUnavailable)return error.reason;if(error instanceof DataSourceUnavailable)return 'data-source-unavailable';throw error;};
  const categoryTask=async()=>{
   const[counts,names]=await Promise.all([reader.rows(sql`SELECT u_id,tags,view_week,mtime FROM urt_count WHERE view_week>=10 ORDER BY u_id LIMIT 100001`),reader.rows(sql`SELECT tag_id,tag_name FROM urt_tag ORDER BY tag_id`)]);
   if(counts.length>100000)throw new HomeSectionUnavailable('source-cap');return homeCategories(counts,new Map(names.map(n=>[integer(n.tag_id)??0,text(n.tag_name)])));
@@ -37,6 +40,9 @@ export async function homeExploration(reader:Reader,now:Date,diagnostic?:HomeDia
   const quality=vocabularySourceQuality(snapshot.sourceQuality),rule=matchingRuleForSnapshot({matchingRule:snapshot.matchingRule??undefined});activeRule=rule;
   const base={...keywordBase,...(quality?{sourceQuality:quality}:{}),ruleVersion:rule,vocabularyCoverage,vocabularyWindow:typeof window.since==='string'&&typeof window.until==='string'?{since:window.since,until:window.until}:null,version,reason:null};
   if(!version){emit('keywords','vocabulary','not-synchronized');return {keywords:{...base,status:'not-synchronized'},keywordToday:{...base,from:todayBase.from,status:'not-synchronized'}};}
+  let pools:{week:RankedPool;today:RankedPool}|undefined;
+  if(poolClient){try{const todayPool=await poolClient.load(poolWindows.today),weekPool=await poolClient.load(poolWindows.week);pools={today:todayPool,week:weekPool};}catch(error){poolFailure={status:'unavailable',reason:error instanceof PoolUnavailable?error.reason:'unavailable',windows:poolWindows};throw error instanceof PoolUnavailable?error:new PoolUnavailable('unavailable');}}
+  const cohorts=pools?{week:new Set(pools.week.entries.map(e=>e.tag)),today:new Set(pools.today.entries.map(e=>e.tag))}:undefined;
   const at=(value:string)=>Date.parse(value.replace(' ','T')+'+08:00'),shift=(value:string,ms:number)=>taipeiSql(new Date(at(value)+ms));
   const windows=[{key:'week',from,to},{key:'today',from:today,to},
    {key:'prior-week',from:shift(from,-(at(to)-at(from)+1000)),to:shift(from,-1000)},
@@ -76,15 +82,19 @@ export async function homeExploration(reader:Reader,now:Date,diagnostic?:HomeDia
    FROM (${freshSources}) fv STRAIGHT_JOIN ts_video_tag_evidence e FORCE INDEX(PRIMARY) ON e.video_id=CONVERT(fv.video_id USING ascii) AND e.vocabulary_version=${version} AND BINARY e.video_id=BINARY fv.video_id
    WHERE BINARY e.rule_version=BINARY ${rule} LIMIT 25001`);
   if(terms.length>25000||Buffer.byteLength(JSON.stringify(terms))>8*1024*1024)throw new HomeSectionUnavailable('source-cap');
-  const display=keywordDisplayMap(terms),exclude=display.excluded.length?sql`AND e.term_key NOT IN (${sql.join(display.excluded.map(k=>sql`${k}`),sql`,`)})`:sql``;
+  const allEligible=cohorts?new Set([...cohorts.week,...cohorts.today]):undefined,display=keywordDisplayMap(terms,allEligible),exclude=display.excluded.length?sql`AND e.term_key NOT IN (${sql.join(display.excluded.map(k=>sql`${k}`),sql`,`)})`:sql``;
+  const eligibilityRows=cohorts?[...display.groups.values()].flatMap(g=>g.sourceTerms.flatMap(t=>rankingWindowsForTerm(t.term).map(window=>[window,t.key,g.key]))):[];
+  function rankingWindowsForTerm(term:string){return [...(cohorts?.week.has(term)?['week',...(comparable.week?['prior-week']:[])]:[]),...(cohorts?.today.has(term)?['today',...(comparable.today?['prior-today']:[])]:[])];}
+  const eligibleTable=sql`JSON_TABLE(${JSON.stringify(eligibilityRows)},'$[*]' COLUMNS(window_key VARCHAR(20) PATH '$[0]',term_key VARCHAR(100) CHARACTER SET ascii COLLATE ascii_bin PATH '$[1]',group_key VARCHAR(100) CHARACTER SET ascii COLLATE ascii_bin PATH '$[2]')) eligible`;
   const priorWeek=windows[2]!,priorToday=windows[3]!;
   // Group on narrow ASCII identity; only genuine display aliases need mapping.
   // Sorting variable-width Unicode labels at evidence scale spills temp tables.
   const groupKey=display.aliases.length?sql`CONVERT(CASE e.term_key ${sql.join(display.aliases.map(a=>sql`WHEN ${a.key} THEN ${a.canonical}`),sql` `)} ELSE e.term_key END USING ascii) COLLATE ascii_bin`:sql`e.term_key`;
-  const deduplicated=(sources:ReturnType<typeof freshSourceRows>,extra:ReturnType<typeof freshSourceRows>)=>sql`SELECT fv.pk,MAX(fv.u_id) AS u_id,MAX(fv.publishedAt) AS publishedAt,MAX(fv.viewCount) AS viewCount,${groupKey} AS group_key,MAX(e.field_name='title') AS has_title
+  const deduplicated=(sources:ReturnType<typeof freshSourceRows>,extra:ReturnType<typeof freshSourceRows>)=>sql`SELECT fv.pk,MAX(fv.u_id) AS u_id,MAX(fv.publishedAt) AS publishedAt,MAX(fv.viewCount) AS viewCount,${cohorts?sql`eligible.window_key,eligible.group_key`:sql`${groupKey} AS group_key`},MAX(e.field_name='title') AS has_title
     FROM (${sources}) fv STRAIGHT_JOIN ts_video_tag_evidence e FORCE INDEX(PRIMARY) ON e.video_id=CONVERT(fv.video_id USING ascii) AND e.vocabulary_version=${version} AND BINARY e.video_id=BINARY fv.video_id
+    ${cohorts?sql`JOIN ${eligibleTable} ON eligible.term_key=e.term_key`:sql``}
     WHERE BINARY e.rule_version=BINARY ${rule} ${extra}
-    GROUP BY fv.pk,group_key`;
+    GROUP BY fv.pk,${cohorts?sql`eligible.window_key,eligible.group_key`:sql`group_key`}`;
   // Rank channel totals first. Daily bins for every candidate multiply row counts
   // without improving selection, so fetch history only for the two selected top40s.
   // Four-bit memberships split exact partial-day prior boundaries without fanout.
@@ -94,18 +104,18 @@ export async function homeExploration(reader:Reader,now:Date,diagnostic?:HomeDia
     SUM(6*(1-POW(0.5,counted.t))+2*POW(0.5,counted.t)*(1-POW(0.5,counted.n-counted.t))) AS heat_score,CAST(RIGHT(MAX(counted.representative),20) AS UNSIGNED) AS representative_pk
    FROM (SELECT w.window_key,matched.group_key AS g,matched.u_id AS c,COUNT(*) AS n,SUM(matched.has_title) AS t,COUNT(matched.viewCount) AS m,COALESCE(SUM(matched.viewCount),0) AS v,MAX(CONCAT(matched.has_title,DATE_FORMAT(matched.publishedAt,'%Y%m%d%H%i%s'),LPAD(matched.pk,20,'0'))) AS representative
     FROM (${deduplicated(freshSources,exclude)}) matched
-    JOIN (${windowSql(rankingWindows)}) w ON matched.publishedAt>=w.window_from AND matched.publishedAt<=w.window_to
+    JOIN (${windowSql(rankingWindows)}) w ON ${cohorts?sql`matched.window_key=w.window_key AND`:sql``} matched.publishedAt>=w.window_from AND matched.publishedAt<=w.window_to
     GROUP BY w.window_key,g,c) counted GROUP BY counted.window_key,counted.g LIMIT 20001`):[];
   if(records.length>20000)throw new HomeSectionUnavailable('source-cap');
-  const days=windows.slice(4).map(w=>({date:w.key,complete:complete(w.key)})),selected=rankKeywordWindows(records,display,[],comparable);
+  const days=windows.slice(4).map(w=>({date:w.key,complete:complete(w.key)})),selected=rankKeywordWindows(records,display,[],comparable,cohorts);
   const selectedKeys=[...new Set([...selected.week,...selected.today].flatMap(row=>row.sourceTerms.map(t=>t.key)))];
   const completeDays=days.filter(d=>d.complete&&coverageFor(d.date).freshVideos>0).map(d=>d.date);
   keywordStage='daily-history';
-  const daily=selectedKeys.length&&completeDays.length?await reader.rows(sql`SELECT DATE(matched.publishedAt) AS window_key,matched.group_key AS g,matched.u_id AS c,COUNT(*) AS n,SUM(matched.has_title) AS t,COUNT(matched.viewCount) AS m,COALESCE(SUM(matched.viewCount),0) AS v
+  const daily=selectedKeys.length&&completeDays.length?await reader.rows(sql`SELECT ${cohorts?sql`CONCAT(matched.window_key,':',DATE(matched.publishedAt))`:sql`DATE(matched.publishedAt)`} AS window_key,matched.group_key AS g,matched.u_id AS c,COUNT(*) AS n,SUM(matched.has_title) AS t,COUNT(matched.viewCount) AS m,COALESCE(SUM(matched.viewCount),0) AS v
     FROM (${deduplicated(freshSourceRows(from),sql`AND e.term_key IN (${sql.join(selectedKeys.map(k=>sql`${k}`),sql`,`)}) AND DATE(fv.publishedAt) IN (${sql.join(completeDays.map(d=>sql`${d}`),sql`,`)})`)}) matched
-    GROUP BY window_key,g,c LIMIT 20001`):[];
+    ${cohorts?sql`WHERE matched.window_key IN ('week','today')`:sql``} GROUP BY ${cohorts?sql`CONCAT(matched.window_key,':',DATE(matched.publishedAt))`:sql`window_key`},g,c LIMIT 20001`):[];
   if(daily.length>20000||Buffer.byteLength(JSON.stringify(daily))>4*1024*1024)throw new HomeSectionUnavailable('source-cap');
-  const ranking=rankKeywordWindows([...records,...daily],display,days,comparable);
+  const ranking=rankKeywordWindows([...records,...daily],display,days,comparable,cohorts);
   // At most one title-leading representative per displayed term/window. Raw
   // provider image URLs never leave this query; the shared media hook supplies
   // channel branding from our cache and video thumbnails use the fixed CDN.
@@ -133,7 +143,7 @@ export async function homeExploration(reader:Reader,now:Date,diagnostic?:HomeDia
   if(text(stillCurrent?.run_id)!==version){keywordDiagnosticReason='version-changed';throw new HomeSectionUnavailable('source-cap');}
   const summary=(window:'week'|'today'):HomeKeywordSummary=>{
    const matchedAt=counts.get(window)?.latest_match,prior=windows.find(w=>w.key==='prior-'+window)!;
-   return {...base,from:window==='today'?todayBase.from:base.from,status:'synchronized',rows:ranking[window],exclusions:display.exclusions,
+   return {...base,from:window==='today'?todayBase.from:base.from,status:'synchronized',rows:ranking[window],exclusions:cohorts?keywordDisplayMap(terms,cohorts[window]).exclusions:display.exclusions,...(pools?{rankingPool:{status:'available' as const,provenance:pools[window].provenance,comparisonBasis:'current-eligible-terms' as const}}:{}),
     comparison:{from:timestamp(prior.from)!,to:timestamp(prior.to)!,complete:comparable[window],...coverageFor(prior.key)},
     updatedAt:matchedAt!==null&&matchedAt!==undefined&&Number.isFinite(Number(matchedAt))?new Date(Number(matchedAt)).toISOString():null,...coverageFor(window)};
   };
@@ -141,6 +151,6 @@ export async function homeExploration(reader:Reader,now:Date,diagnostic?:HomeDia
  };
  const[categories,keywordWindows]=await Promise.all([
   categoryTask().catch(error=>{const reason=unavailable(error);emit('categories','category-source',reason);return {status:'unavailable' as const,reason,rows:[],summary:{visibleCategories:null,channelMemberships:null,uniqueChannels:null,weeklyViews:null,overlapping:true as const},updatedAt:null,minimumWeeklyViews:10 as const};}),
-  keywordTask().catch(error=>{const reason=unavailable(error);emit('keywords',keywordStage,keywordDiagnosticReason??reason);return {keywords:{...keywordBase,ruleVersion:activeRule,status:'unavailable' as const,reason},keywordToday:{...todayBase,ruleVersion:activeRule,status:'unavailable' as const,reason}};}),
+  keywordTask().catch(error=>{const reason=unavailable(error);emit('keywords',keywordStage,keywordDiagnosticReason??reason);return {keywords:{...keywordBase,ruleVersion:activeRule,status:'unavailable' as const,reason,...(poolFailure?{rankingPool:poolFailure}:{})},keywordToday:{...todayBase,ruleVersion:activeRule,status:'unavailable' as const,reason,...(poolFailure?{rankingPool:poolFailure}:{})}};}),
  ]);return {categories,...keywordWindows};
 }

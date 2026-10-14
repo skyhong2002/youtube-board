@@ -23,13 +23,13 @@ test('today and week are read from their own summaries; an older API without key
  assert.equal(homeKeywordSummary({keywords:week,keywordToday:today},'week'),week);
  assert.equal(homeKeywordSummary({keywords:week},'today'),null);
  assert.equal(homeKeywordSummary({keywords:week,keywordToday:{status:'synchronized'}},'today'),null);
- const missing=homeKeywordState(null,'today');assert.deepEqual(missing.rows,[]);assert.match(missing.message??'',/尚未提供今日.*狀態未知/);assert.doesNotMatch(missing.message??'',/尚無收錄|尚無可確認/);
+ const missing=homeKeywordState(null,'today');assert.deepEqual(missing.rows,[]);assert.match(missing.message??'',/尚未提供過去24小時.*狀態未知/);assert.doesNotMatch(missing.message??'',/尚無收錄|尚無可確認/);
 });
 test('empty keyword states stay distinct and truthful',()=>{
  const message=(s:HomeKeywordSummary)=>homeKeywordState(s,'today').message;
  assert.match(message(summary({status:'unavailable',rows:[row(1)]}))??'',/無法完整讀取/);
  assert.match(message(summary({status:'not-synchronized',rows:[row(1)]}))??'',/尚未同步/);
- assert.match(message(summary({sourceVideos:0,freshVideos:0}))??'',/今日尚無收錄的發布影片/);
+ assert.match(message(summary({sourceVideos:0,freshVideos:0}))??'',/過去24小時尚無收錄的發布影片/);
  assert.match(message(summary({sourceVideos:5,freshVideos:0}))??'',/收錄 5 支影片，尚無完成比對/);
  assert.match(message(summary({sourceVideos:5,freshVideos:4}))??'',/已完成比對 4 支影片，尚未出現共同詞彙/);
  assert.match(message(summary({sourceVideos:null,freshVideos:null}))??'',/尚無可確認/);
@@ -56,6 +56,16 @@ test('keyword links keep the selected Taipei publication dates',()=>{
  assert.equal(keywordVideosHref('x',{from:'2026-10-11T16:00:00.000Z',to:'2026-10-11T17:00:00.000Z'}),'/keywords/x/videos?from=2026-10-12&to=2026-10-12');
  assert.equal(keywordVideosHref('x',{from:'invalid',to:'2026-10-12T00:00:00+08:00'}),'/keywords/x/videos');
  assert.equal(keywordVideosHref('x',null),'/keywords/x/videos');
+});
+test('ranked pool evidence links retain the exact rolling UTC bounds and state qualification honestly',()=>{
+ const window={since:'2026-10-13T16:00:00.000Z',until:'2026-10-14T16:00:00.000Z'};
+ const rankingPool={status:'available',comparisonBasis:'current-eligible-terms',provenance:{window}} as HomeKeywordSummary['rankingPool'];
+ const s=summary({rankingPool});
+ const url=new URL(keywordVideosHref('沈伯洋',s),'https://youtube.observe.tw');
+ assert.equal(url.searchParams.get('since'),window.since);assert.equal(url.searchParams.get('until'),window.until);assert.equal(url.searchParams.has('from'),false);
+ assert.match(homeKeywordState(s,'today').message??'',/過去24小時.*本期新聞詞池與顯示規則/);
+ const unavailable=summary({status:'unavailable',rankingPool:{status:'unavailable',reason:'contract',windows:{today:window,week:window}}});
+ assert.match(homeKeywordState(unavailable,'today').message??'',/無法完整驗證/);
 });
 test('the cloud keeps all forty ranked terms sized by heat and labels partial views as a lower bound',()=>{
  const rows=Array.from({length:40},(_,i)=>row(i+1));rows[5]={...rows[5]!,views:null,unknownViewVideos:2,measuredViewVideos:rows[5]!.videoCount-2};

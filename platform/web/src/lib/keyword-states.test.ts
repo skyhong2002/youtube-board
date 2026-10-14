@@ -73,13 +73,13 @@ test('completion count: null, omitted or malformed freshVideos is unknown progre
 
 test('/keywords loaded: API order, selected-period links, partial views show their lower bound and a measured zero stays 0',()=>{
  const week=summary({rows:[row(1,{term:'a/b%41',views:null,unknownViewVideos:2,measuredViewVideos:9,knownViews:4000}),row(9,{term:'零觀看',views:0,knownViews:0})]});
- const markup=html(createElement(KeywordRankingView,{exploration:{keywords:week,keywordToday:today({rows:[row(3,{term:'今日詞'})]})},meta:meta(),initial:'week'}));
+ const markup=html(createElement(KeywordRankingView,{exploration:{keywords:week,keywordToday:today({rows:[row(3,{term:'過去24小時詞'})]})},meta:meta(),initial:'week'}));
  // Returned order, not re-sorted by heat (row 9 has the higher score).
  assert.ok(markup.indexOf('a/b%41')<markup.indexOf('零觀看'));
  assert.match(markup,/href="\/keywords\/a%2Fb%2541\/videos\?from=2026-10-06&amp;to=2026-10-12"/);
  assert.match(markup,/≥4,000 次<small[^>]*>（2 支缺值）/);
  assert.match(markup,/>0 次<\/td>/);
- assert.doesNotMatch(markup,/今日詞|data-keyword-state/);
+ assert.doesNotMatch(markup,/過去24小時詞|data-keyword-state/);
  assert.deepEqual(checkedWindow(markup),['week']);
  assert.match(markup,/data-keyword-window-pane="week"/);assert.doesNotMatch(markup,/data-keyword-window-pane="today"/);
  assert.match(markup,/列出 2 個標籤/);
@@ -90,13 +90,13 @@ test('/keywords loaded: API order, selected-period links, partial views show the
 test('/keywords today states: empty, unknown, unavailable, not synchronized and not computed are each labelled and never a table',()=>{
  const week=summary({rows:[row(1,{term:'週詞'})]});
  const cases:[unknown,string,RegExp][]=[
-  [today({sourceVideos:5,freshVideos:4}),'empty',/今日已完成比對 4 支影片，尚未出現共同詞彙/],
-  [today({sourceVideos:0,freshVideos:0}),'empty',/今日尚無收錄的發布影片/],
-  [undefined,'unknown',/尚未提供今日關鍵字摘要；狀態未知，不代表沒有相關影片/],
-  [today({status:'unavailable',rows:[row(2,{term:'舊資料詞'})]}),'unavailable',/今日關鍵字觀測目前無法完整讀取/],
+  [today({sourceVideos:5,freshVideos:4}),'empty',/過去24小時已完成比對 4 支影片，尚未出現共同詞彙/],
+  [today({sourceVideos:0,freshVideos:0}),'empty',/過去24小時尚無收錄的發布影片/],
+  [undefined,'unknown',/尚未提供過去24小時關鍵字摘要；狀態未知，不代表沒有相關影片/],
+  [today({status:'unavailable',rows:[row(2,{term:'舊資料詞'})]}),'unavailable',/過去24小時關鍵字觀測目前無法完整讀取/],
   [today({status:'not-synchronized',rows:[row(2,{term:'舊資料詞'})]}),'not-synchronized',/共同詞彙尚未同步/],
   [today({sourceVideos:5,freshVideos:0}),'not-computed',/收錄 5 支影片，尚無完成比對的影片；沒有比對資料不代表沒有相關影片/],
-  [today({sourceVideos:5,freshVideos:null}),'completion-unknown',/今日收錄 5 支影片，完成比對的影片數未提供；比對進度未知，不代表沒有相關影片/],
+  [today({sourceVideos:5,freshVideos:null}),'completion-unknown',/過去24小時收錄 5 支影片，完成比對的影片數未提供；比對進度未知，不代表沒有相關影片/],
  ];
  for(const [keywordToday,kind,message] of cases){
   const exploration=keywordToday===undefined?{keywords:week}:{keywords:week,keywordToday:keywordToday as HomeKeywordSummary};

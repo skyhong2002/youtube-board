@@ -1,3 +1,4 @@
+import type {RankedPoolClient} from './tag-ranked-pool.js';
 import type {HomeDiagnosticCallback} from './home-diagnostics.js';
 import {homeResultCache} from './home-result-cache.js';
 import {matchingRuleForSnapshot} from '../../../shared/youtube-match-policy.js';
@@ -19,7 +20,7 @@ import { sql, type SQL } from 'drizzle-orm';
 import { DataQueryFailed, DataSourceUnavailable, type Reader, type Row } from '../db/client.js';
 import type { ChannelData, ChannelRow, ChannelCollection, Collection, HomeData, LiveRow, TagRow, VideoData, VideoRow, VideoCollection, AiDaysData, AiEventData } from '../contracts.js';
 import { channel, integer, latest, list, object, tags, text, timestamp, video, taipeiDate, taipeiSql, tagIds } from './normalize.js';
-import { BadQuery, NotFound, page, tagFilter, search, positiveId, idList, dateFilter, bounded } from './query.js';
+import { BadQuery, NotFound, page, tagFilter, search, positiveId, idList, dateFilter, bounded,utcPublicationWindow } from './query.js';
 import type { Query } from './query.js';
 import { videoTextDigest } from './video-digest.js';
 import { dailyLineage } from './ai-lineage.js';
@@ -38,7 +39,7 @@ export interface ReportService {
 const channelSelect = sql `c.u_id,c.youtube_id,c.title,c.thumbnails,c.description,c.publishedAt,c.mtime,c.stime,c.ctime,
   CASE WHEN n.u_id IS NULL THEN c.viewCount ELSE n.viewCount END AS viewCount,CASE WHEN n.u_id IS NULL THEN c.subscriberCount ELSE n.subscriberCount END AS subscriberCount,
   CASE WHEN n.u_id IS NULL THEN c.videoCount ELSE n.videoCount END AS videoCount,n.view_week,n.view_month,n.sub_week,n.sub_month,n.video_week,n.video_month,n.views_pred_week,n.views_pred_month,n.tags,n.mtime AS count_mtime`;
-export function reports(reader: Reader, clock: () => Date = () => new Date(), diagnostic?:HomeDiagnosticCallback): ReportService {
+export function reports(reader: Reader, clock: () => Date = () => new Date(), diagnostic?:HomeDiagnosticCallback,rankingPools?:RankedPoolClient): ReportService {
     const cachedHome=homeResultCache();
     const cachedKeywordVideos=keywordVideoCache<VideoCollection>({cacheable:(value,query)=>query.cursor===undefined&&value.totalStatus!=='unavailable'&&value.evidenceCoverage?.coverageStatus!=='unavailable'});
     const names = async () => new Map((await reader.rows(sql `SELECT tag_id,tag_name FROM urt_tag ORDER BY tag_id`)).map(r => [integer(r.tag_id) ?? 0, text(r.tag_name)]));
@@ -68,6 +69,8 @@ export function reports(reader: Reader, clock: () => Date = () => new Date(), di
         const optional = (value: unknown) => value === '' ? undefined : value;
         const channelId = optional(query.channelId) === undefined ? null : positiveId(query.channelId);
         const from = dateFilter(optional(query.from)), to = dateFilter(optional(query.to));
+        const exactWindow=utcPublicationWindow(query.since,query.until,now);
+        if(exactWindow&&(from||to||optional(query.days)!==undefined||optional(query.hours)!==undefined))throw new BadQuery('Exact UTC windows cannot be mixed with calendar or hours filters.');
         const hours = optional(query.hours) === undefined ? null : bounded(query.hours, 24, 1, 8760);
         const min = optional(query.min) === undefined ? null : bounded(query.min, 0, 0, Number.MAX_SAFE_INTEGER);
         const column = optional(query.column) ?? 'publishedAt';
@@ -82,6 +85,7 @@ export function reports(reader: Reader, clock: () => Date = () => new Date(), di
       ${channelId === null ? sql `` : sql `AND v.u_id=${channelId}`}
       ${ids.length ? sql `AND v.u_id IN (${sql.join(ids.map(v => sql `${v}`), sql `, `)})` : sql ``}
       ${term ? sql `AND (v.title LIKE ${term} ESCAPE '=' OR v.description LIKE ${term} ESCAPE '=')` : sql ``}
+      ${exactWindow?sql`AND v.publishedAt>=${taipeiSql(new Date(exactWindow.since))} AND v.publishedAt<${taipeiSql(new Date(exactWindow.until))}`:sql``}
       ${from ? sql `AND v.publishedAt>=${from + ' 00:00:00'}` : sql ``}
       ${to ? sql `AND v.publishedAt<=${to + ' 23:59:59'}` : sql ``}
       ${hours === null ? sql `` : sql `AND v.publishedAt>=${taipeiSql(new Date(now.getTime() - hours * 3600000))}`}
@@ -130,7 +134,7 @@ export function reports(reader: Reader, clock: () => Date = () => new Date(), di
         // The unbounded historical coverage scan is independent of the indexed
         // keyword result and can hash every description in the archive. Do not
         // run it on a public cache miss; a bounded period can request coverage.
-        const omitHistoricalCoverage=!!keyword&&!from&&!dayFrom&&hours===null&&channelId===null;
+        const omitHistoricalCoverage=!!keyword&&!from&&!dayFrom&&!exactWindow&&hours===null&&channelId===null;
         const coverage=async():Promise<Row[]|null>=>{
             if(!keyword)return [];
             if(omitHistoricalCoverage)return null;
@@ -201,7 +205,7 @@ export function reports(reader: Reader, clock: () => Date = () => new Date(), di
         },
         aiEvent: (id,event)=>eventReport(reader,aiDays,id,event),
         home: () => cachedHome(async () => {
-            const [channels, tags, live, days, exploration, totals] = await Promise.all([channelsRows({ limit: '12' }), tagRows({ limit: '20' }).then(v => ({rows:v.rows,status:'available' as const})).catch(error => {if(error?.statusCode===422)return {rows:[],status:'bounded' as const};throw error;}), liveRows({ limit: '20' }), aiDays(), homeExploration(reader, clock(), diagnostic), reader.rows(sql `SELECT (SELECT COUNT(*) FROM urt_channel WHERE flag_del IS NULL OR flag_del<1) AS channels,(SELECT COUNT(*) FROM urt_video) AS videos,(SELECT COALESCE(SUM(view_week),0) FROM urt_count) AS weeklyViews,(SELECT COUNT(DISTINCT u_id) FROM urt_video_live WHERE actualEndTime IS NULL AND concurrentViewers>0 AND mtime>=${taipeiSql(new Date(clock().getTime() - 3600000))}) AS liveChannels,(SELECT COALESCE(SUM(concurrentViewers),0) FROM urt_video_live WHERE actualEndTime IS NULL AND concurrentViewers>0 AND mtime>=${taipeiSql(new Date(clock().getTime() - 3600000))}) AS liveViewers`)]);
+            const [channels, tags, live, days, exploration, totals] = await Promise.all([channelsRows({ limit: '12' }), tagRows({ limit: '20' }).then(v => ({rows:v.rows,status:'available' as const})).catch(error => {if(error?.statusCode===422)return {rows:[],status:'bounded' as const};throw error;}), liveRows({ limit: '20' }), aiDays(), homeExploration(reader, clock(), diagnostic,rankingPools), reader.rows(sql `SELECT (SELECT COUNT(*) FROM urt_channel WHERE flag_del IS NULL OR flag_del<1) AS channels,(SELECT COUNT(*) FROM urt_video) AS videos,(SELECT COALESCE(SUM(view_week),0) FROM urt_count) AS weeklyViews,(SELECT COUNT(DISTINCT u_id) FROM urt_video_live WHERE actualEndTime IS NULL AND concurrentViewers>0 AND mtime>=${taipeiSql(new Date(clock().getTime() - 3600000))}) AS liveChannels,(SELECT COALESCE(SUM(concurrentViewers),0) FROM urt_video_live WHERE actualEndTime IS NULL AND concurrentViewers>0 AND mtime>=${taipeiSql(new Date(clock().getTime() - 3600000))}) AS liveViewers`)]);
             const t = totals[0] ?? {};
             return { exploration, summary: { channels: integer(t.channels) ?? 0, videos: integer(t.videos) ?? 0, weeklyViews: integer(t.weeklyViews) ?? 0, liveChannels: integer(t.liveChannels) ?? 0, liveViewers: integer(t.liveViewers) ?? 0 }, channels: channels.rows, tags: tags.rows, tagsStatus:tags.status, live: live.rows, events: days.rows, aiDate: days.date };
         }),

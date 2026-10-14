@@ -211,7 +211,7 @@ export async function ReportPage({
             return <><Failure status={result.status} title={route.title} />{result.status===503&&first(search.q)?.trim()&&<><VideoSearchReadHint/><ReportFilters mode="videos" search={search} path={path}/></>}</>;
         const { data, meta } = result.response;
         if(route.kind==='keyword-videos'&&route.id)return <KeywordProfile metadata={metadata} keyword={route.id} description={route.description} data={data} meta={meta}
-            period={{from:first(search.from)??null,to:first(search.to)??null,days:first(search.days)??null}}
+            period={{from:first(search.from)??null,to:first(search.to)??null,days:first(search.days)??null,since:first(search.since)??null,until:first(search.until)??null}}
             notice={<DataNotice meta={meta}/>}
             tabs={<Tabs items={familyTabs(path,search,meta.coverage)} active={path}/>}
             filters={<ReportFilters mode="videos" search={search} path={path}/>}

@@ -17,8 +17,8 @@ import type {KeywordMetadata} from '@/lib/keyword-metadata';
  * Keep API ranking and scope; a page of videos cannot establish global facets. */
 /** Text match only; no claim that quality filtering removed promotional or copyright passages. */
 export const MATCH_CAVEAT='標題或說明出現標籤，不代表影片主題；可能來自固定宣傳或版權文字。';
-type Period={from:string|null;to:string|null;days:string|null};
-const periodLabel=(p:Period|undefined)=>p?.from||p?.to?`發布日期 ${p.from??'不限'} 至 ${p.to??'不限'}（台北時間）`:p?.days&&/^\d+$/.test(p.days)?`往前 ${p.days} 日發布（含今天共 ${Number(p.days)+1} 個台北日曆日）`:p?.days?`往前 ${p.days} 日發布`:'全部已收錄期間';
+type Period={from:string|null;to:string|null;days:string|null;since?:string|null;until?:string|null};
+const periodLabel=(p:Period|undefined)=>p?.since&&p?.until?`發布時間 ${dateTime(p.since)} 至 ${dateTime(p.until)}（不含截止時間，台北時間）`:p?.from||p?.to?`發布日期 ${p.from??'不限'} 至 ${p.to??'不限'}（台北時間）`:p?.days&&/^\d+$/.test(p.days)?`往前 ${p.days} 日發布（含今天共 ${Number(p.days)+1} 個台北日曆日）`:p?.days?`往前 ${p.days} 日發布`:'全部已收錄期間';
 export function KeywordProfile({keyword,description,data,meta,notice,tabs,filters,pagination,period,metadata}:{
  keyword:string;description:string;data:VideoCollection;meta:ReportMeta;
  notice:ReactNode;tabs:ReactNode;filters:ReactNode;pagination:ReactNode;period?:Period;metadata?:KeywordMetadata;

@@ -80,6 +80,8 @@ export const TAG_DISPLAY_EXCLUSION_LABELS:Record<string,string>={
  'youtube-platform-or-promotion':'YouTube 平台或宣傳用語',
  'youtube-generic-two-character':'雙字通用詞（核定清單）',
  'youtube-country-city-party':'國家、城市或政黨詞（補充排除清單）',
+ 'upstream-window-not-qualified':'未符合該期間新聞詞池的跨媒體門檻',
+ 'upstream-window-unavailable':'該期間新聞詞池目前無法驗證',
  'upstream-length':'長度不在 2–30 字',
  'upstream-no-equal-or-category':'新聞分類詞或上游排除詞',
  'upstream-tag-noise':'上游判定為雜訊標籤',
@@ -106,6 +108,7 @@ export function keywordMethodNotes(summary:HomeKeywordSummary|null,basis:Ranking
   `升溫：本期熱度減去前一段等長期間的熱度，只有兩段期間的比對涵蓋都完整時才計算，否則顯示「${INSUFFICIENT}」，不以 0 代替。${comparison?`前期 ${dateTime(comparison.from)} 至 ${dateTime(comparison.to)}，${comparison.complete?'涵蓋完整':'涵蓋不完整'}（有效比對 ${count(comparison.freshVideos)}／${count(comparison.sourceVideos)} 支）。`:'這個期間沒有前期比較資料。'}走勢為每日熱度，比對未完成的日期留白。`,
   `觀看：影片目前的累計觀看合計，不是期間增量。有已測觀看但仍有影片缺值時，顯示「≥已知小計」和缺值支數，這是合計下界；下界縮寫向下取整，已知小計不是完整合計。全部缺值或沒有可用小計時才顯示「${NO_VIEWS}」，缺值不補 0，也不排在觀看最低。`,
   '示例：代表影片、頻道與命中片段只是說明用的例子，不是隨機抽樣，不能用來推算整體比例或全站失真程度。',
+  ...(summary?.rankingPool?.status==='available'?[`新聞詞池：先選取新文易數同一期間、至少兩家媒體各兩篇不同文章的合格詞，再依 YouTube 頻道加權熱度排序；新聞文章數不充當影片數。詞池共 ${count(summary.rankingPool.provenance.eligibleTotal)} 詞，截止 ${dateTime(summary.rankingPool.provenance.window.until)}。快照 ${summary.rankingPool.provenance.snapshotId}。升溫與每日走勢沿用本期合格詞的固定集合，非每天重新挑詞。`]:[]),
   `寫法：僅英文大小寫不同的標籤合併為一列，原始寫法保留在詞彙池。${DISPLAY_EXCLUSION_NOTE}${exclusions?(exclusions.terms>0?`本期另有 ${count(exclusions.terms)} 個命中詞依標籤顯示規則不列入排行（${Object.entries(exclusions.reasons).map(([code,n])=>`${exclusionReasonLabel(code)} ${count(n)} 個`).join('、')}）；排除只影響排行顯示，原始詞彙池與比對證據都保留。規則版本 ${exclusions.youtubePolicyVersion}，上游規則 ${exclusions.policyCommit.slice(0,7)}。`:'本期沒有依標籤顯示規則排除的命中詞。'):'排除規則統計目前未提供。'}`,
  ];
 }

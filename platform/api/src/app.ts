@@ -1,3 +1,4 @@
+import {createRankedPoolClient,type RankedPoolClient} from './reports/tag-ranked-pool.js';
 import {createTagIllustration} from './reports/tag-illustration.js';
 import {validTagLabel,validTagPictureRevision} from '../../shared/tag-illustration.js';
 import {writeSync} from 'node:fs';
@@ -50,6 +51,7 @@ export const routeRegistry = [
     '/live/current', '/tags', '/tags/:id/channels', '/tags/:id/videos', '/ai/days', '/ai/events/:id', '/vocabulary', '/keywords',
 ] as const;
 interface AppOptions {
+    rankingPools?:RankedPoolClient|false;
     tagRelations?: KeywordRelationsOptions;
     publicApi?: PublicApiPolicyOptions | false;
     reader?: Reader;
@@ -60,7 +62,8 @@ interface AppOptions {
     clock?: () => Date;
 }
 export function buildApp(options: AppOptions = {}) {
-    const app = Fastify({ logger: false, routerOptions:{maxParamLength:240}, trustProxy: trustedProxies(process.env.AUTH_TRUSTED_PROXY_CIDRS), requestTimeout: 15000, bodyLimit: 16384 }), reader = options.reader ?? createReader(options.databaseUrl ?? process.env.DATABASE_URL), clock = options.clock ?? (() => new Date()), service = reports(reader, clock, homeDiagnosticSink(line=>{writeSync(2,line);}, clock));
+    const rankingPools=options.rankingPools===false||options.dataset==='fixture'?undefined:options.rankingPools??createRankedPoolClient({clock:options.clock});
+    const app = Fastify({ logger: false, routerOptions:{maxParamLength:240}, trustProxy: trustedProxies(process.env.AUTH_TRUSTED_PROXY_CIDRS), requestTimeout: 15000, bodyLimit: 16384 }), reader = options.reader ?? createReader(options.databaseUrl ?? process.env.DATABASE_URL), clock = options.clock ?? (() => new Date()), service = reports(reader, clock, homeDiagnosticSink(line=>{writeSync(2,line);}, clock),rankingPools);
     if(options.publicApi!==false)registerPublicApiPolicy(app,{clock,...options.publicApi});
     registerPublicV1Cache(app);
     registerCrawlerLog(app);
@@ -180,9 +183,9 @@ export function buildApp(options: AppOptions = {}) {
             throw new BadQuery('Provide an event name.');
         return service.aiEvent(positiveId(p.id), q.event);
     });
-    register('/vocabulary', (_p, q) => vocabulary(reader, q));
+    register('/vocabulary', (_p, q) => vocabulary(reader, q,rankingPools,clock()));
     // Content keywords now originate from the maintained upstream vocabulary.
-    register('/keywords', (_p, q) => vocabulary(reader, q));
+    register('/keywords', (_p, q) => vocabulary(reader, q,rankingPools,clock()));
     registerVideoAnalytics(register, reader);
     registerAuthors(register, reader);
     registerAspects(register, reader);

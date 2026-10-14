@@ -12,10 +12,10 @@ export function visibleHomeKeywords(keywords:Pick<HomeExploration['keywords'],'s
 
 export type KeywordWindow='today'|'week';
 export type HomeKeywordRow=HomeKeywordSummary['rows'][number];
-export const KEYWORD_WINDOWS:readonly {value:KeywordWindow;label:string}[]=[{value:'today',label:'今日'},{value:'week',label:'近七日'}];
+export const KEYWORD_WINDOWS:readonly {value:KeywordWindow;label:string}[]=[{value:'today',label:'過去24小時'},{value:'week',label:'近七日'}];
 export const DEFAULT_KEYWORD_WINDOW:KeywordWindow='week';
 export const HOME_KEYWORD_RANKING=8;
-const period=(window:KeywordWindow)=>window==='today'?'今日':'近七日';
+const period=(window:KeywordWindow)=>window==='today'?'過去24小時':'近七日';
 /** Each window is its own independently ranked summary. API builds that predate
  * keywordToday omit it during a rolling deployment: that is unknown, never an empty day. */
 export function homeKeywordSummary(exploration:Partial<Record<'keywords'|'keywordToday',unknown>>,window:KeywordWindow):HomeKeywordSummary|null{
@@ -34,6 +34,7 @@ const reported=(value:unknown):value is number=>typeof value==='number'&&Number.
 /** Rows to draw, or the one truthful sentence explaining why there are none. */
 export function homeKeywordState(summary:HomeKeywordSummary|null,window:KeywordWindow):{rows:HomeKeywordRow[];message:string|null;kind:KeywordStateKind}{
  if(!summary)return {rows:[],kind:'unknown',message:`目前的資料服務尚未提供${period(window)}關鍵字摘要；狀態未知，不代表沒有相關影片。`};
+ if(summary.status==='unavailable'&&summary.rankingPool?.status==='unavailable')return {rows:[],kind:'unavailable',message:`${period(window)}新聞詞池目前無法完整驗證，排行暫不顯示；原始詞彙與影片比對證據保留。`};
  if(summary.status==='unavailable')return {rows:[],kind:'unavailable',message:`${period(window)}關鍵字觀測目前無法完整讀取。`};
  if(summary.status==='not-synchronized')return {rows:[],kind:'not-synchronized',message:'共同詞彙尚未同步，等待來源資料；目前無法比對影片。'};
  const rows=visibleHomeKeywords(summary).filter(r=>r.videoCount>0);
@@ -43,6 +44,7 @@ export function homeKeywordState(summary:HomeKeywordSummary|null,window:KeywordW
  // Completion count missing (null, omitted by an older build, or malformed): progress is unknown, not "none matched".
  if(!reported(summary.freshVideos))return {rows,kind:'completion-unknown',message:`${period(window)}收錄 ${count(summary.sourceVideos)} 支影片，完成比對的影片數未提供；比對進度未知，不代表沒有相關影片。`};
  if(summary.freshVideos===0)return {rows,kind:'not-computed',message:`${period(window)}收錄 ${count(summary.sourceVideos)} 支影片，尚無完成比對的影片；沒有比對資料不代表沒有相關影片。`};
+ if(summary.rankingPool?.status==='available')return {rows,kind:'empty',message:`${period(window)}已完成比對 ${count(summary.freshVideos)} 支影片，尚無符合本期新聞詞池與顯示規則的關鍵字。`};
  return {rows,kind:'empty',message:`${period(window)}已完成比對 ${count(summary.freshVideos)} 支影片，尚未出現共同詞彙。`};
 }
 /** Empty-row message for the lower 頻道分類觀測 band (categories after the top three). Rows are only
@@ -58,13 +60,15 @@ function taipeiDay(value:string|null|undefined){
  if(!value)return null;const time=Date.parse(value);
  return Number.isFinite(time)?new Date(time+8*3600000).toISOString().slice(0,10):null;
 }
-/** The keyword video report filters by Taipei publication dates; keep the selected window's days. */
-export function keywordVideosHref(term:string,summary:Pick<HomeKeywordSummary,'from'|'to'>|null){
- const base=`/keywords/${encodeURIComponent(term)}/videos`,from=taipeiDay(summary?.from),to=taipeiDay(summary?.to);
+/** Qualified pools retain half-open UTC bounds; older summaries use calendar dates. */
+export function keywordVideosHref(term:string,summary:Pick<HomeKeywordSummary,'from'|'to'|'rankingPool'>|null){
+ const base=`/keywords/${encodeURIComponent(term)}/videos`;
+ const pool=summary?.rankingPool;if(pool?.status==='available')return base+'?'+new URLSearchParams({since:pool.provenance.window.since,until:pool.provenance.window.until});
+ const from=taipeiDay(summary?.from),to=taipeiDay(summary?.to);
  return from&&to&&from<=to?`${base}?from=${from}&to=${to}`:base;
 }
 export function keywordRangeLabel(summary:Pick<HomeKeywordSummary,'from'|'to'>,window:KeywordWindow){
- return `${window==='today'?'今日':'近七個日曆日'}發布：${dateTime(summary.from)} 至 ${dateTime(summary.to)}`;
+ return `${window==='today'?'過去24小時':'近七個日曆日'}發布：${dateTime(summary.from)} 至 ${dateTime(summary.to)}`;
 }
 export function keywordUpdatedLabel(summary:Pick<HomeKeywordSummary,'updatedAt'>){return summary.updatedAt?`比對更新 ${dateTime(summary.updatedAt)}`:'比對更新時間未記錄';}
 export function vocabularyCoverageLabel(summary:Pick<HomeKeywordSummary,'vocabularyCoverage'>|null){

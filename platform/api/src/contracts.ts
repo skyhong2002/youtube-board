@@ -1,3 +1,4 @@
+import type {PoolProvenance,PoolWindows} from './reports/tag-ranked-pool.js';
 import type { ChannelAvatar,ChannelSource } from '../../shared/media-assets.js';
 import type { ChannelRanking } from '../../shared/channel-ranking.js';
 import type { VideoCommentSummary } from './video-analytics-contracts.js';
@@ -188,6 +189,7 @@ export interface AiEventData {
 }
 /** Fresh YouTube title/description evidence, ranked by video count; at most 40 cloud terms. */
 export type HomeKeywordSummary = {
+ rankingPool?:{status:'available';provenance:PoolProvenance;comparisonBasis:'current-eligible-terms'}|{status:'unavailable';reason:string;windows:PoolWindows};
  sourceQuality?:VocabularySourceQuality; vocabularyCoverage:'observed-article-window'|'all-current-indexed-article-tags'|'unavailable';vocabularyWindow:{since:string;until:string}|null;source:'https://tag.observe.tw';version:string|null;status:'synchronized'|'not-synchronized'|'unavailable';reason:string|null;from:string;to:string;updatedAt:string|null;
  rows:{key:string;term:string;sourceTerms:{key:string;term:string}[];videoCount:number;views:number|null;unknownViewVideos:number;knownViews:number;measuredViewVideos:number;heatScore:number;channelCount:number;titleVideos:number;descriptionOnlyVideos:number;rise:number|null;trend:{date:string;heat:number|null}[];representativeVideoId:string|null;thumbnail:string|null;channel:{id:number;name:string;title:string;youtubeId:string;youtubeUrl:string;thumbnail:string|null;avatar:ChannelAvatar|null}|null}[];
  sourceVideos:number|null;freshVideos:number|null;staleVideos:number|null;unprocessedVideos:number|null;metric:'current-cumulative-views-of-window-published-videos';
@@ -245,6 +247,7 @@ export interface VideoData {
 }
 export interface VocabularyTerm {
     displayExclusion?: string | null;
+    rankingEligibility?:{today:string|null;week:string|null};
     key: string;
     term: string;
     articleCount: number;

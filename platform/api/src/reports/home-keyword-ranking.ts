@@ -9,9 +9,9 @@ export const KEYWORD_RANKING_METHOD='youtube-channel-weighted-decay-v1' as const
 export const KEYWORD_RISE_METHOD='equal-duration-heat-delta' as const;
 /** Titles lead each channel's geometric sequence. Distinct source videos only. */
 export function channelHeat(titles:number,descriptions:number){return MATCH_FIELD_WEIGHTS.title*2*(1-0.5**titles)+MATCH_FIELD_WEIGHTS.description*0.5**titles*2*(1-0.5**descriptions);}
-export function keywordDisplayMap(terms:Row[]){
+export function keywordDisplayMap(terms:Row[],eligible?:Set<string>){
  const groups=new Map<string,{key:string;term:string;sourceTerms:{key:string;term:string}[]}>(),excluded:string[]=[],reasons:Record<string,number>={};
- for(const r of terms){const key=text(r.term_key),term=text(r.term),reason=tagDisplayExclusion(term);if(reason){excluded.push(key);reasons[reason]=(reasons[reason]??0)+1;continue;}
+ for(const r of terms){const key=text(r.term_key),term=text(r.term),reason=tagDisplayExclusion(term)??(eligible&&!eligible.has(term)?'upstream-window-not-qualified':null);if(reason){excluded.push(key);reasons[reason]=(reasons[reason]??0)+1;continue;}
   // Group ASCII case only; preserve all exact upstream labels and identities.
   const groupName=asciiCaseFold(term),group=groups.get(groupName)??{key,term,sourceTerms:[]};group.sourceTerms.push({key,term});if(key<group.key){group.key=key;group.term=term;}groups.set(groupName,group);
  }
@@ -20,7 +20,7 @@ export function keywordDisplayMap(terms:Row[]){
  return {groups,byKey,aliases,excluded,exclusions:{scope:'fresh-window-matched-terms' as const,terms:excluded.length,reasons,policyCommit:TAG_POLICY_SOURCE.commit,youtubePolicyVersion:YOUTUBE_DISPLAY_POLICY_VERSION}};
 }
 type RankingRow=HomeKeywordSummary['rows'][number];
-export function rankKeywordWindows(records:Row[],display:ReturnType<typeof keywordDisplayMap>,days:{date:string;complete:boolean}[],comparable:{week:boolean;today:boolean}){
+export function rankKeywordWindows(records:Row[],display:ReturnType<typeof keywordDisplayMap>,days:{date:string;complete:boolean}[],comparable:{week:boolean;today:boolean},cohorts?:{week:Set<string>;today:Set<string>}){
  if(records.length>100000||Buffer.byteLength(JSON.stringify(records))>16*1024*1024)throw new HomeSectionUnavailable('source-cap');
  // Accumulate each channel's counts across date bins before applying decay.
  // Otherwise summing daily heat would incorrectly reset a channel's saturation.
@@ -57,6 +57,6 @@ export function rankKeywordWindows(records:Row[],display:ReturnType<typeof keywo
  }buckets.set(window,bucket);}
 
  for(const [window,rows] of aggregated){if(buckets.has(window))throw new HomeSectionUnavailable('precision');buckets.set(window,rows);}
- const rank=(window:'week'|'today')=>[...(buckets.get(window)?.entries()??[])].map(([key,row])=>({...row,rise:comparable[window]?row.heatScore-(buckets.get('prior-'+window)?.get(key)?.heatScore??0):null,trend:days.map(d=>({date:d.date,heat:d.complete?(buckets.get(d.date)?.get(key)?.heatScore??0):null}))})).sort((a,b)=>b.heatScore-a.heatScore||b.videoCount-a.videoCount||(a.key<b.key?-1:a.key>b.key?1:0)).slice(0,40);
+ const rank=(window:'week'|'today')=>[...(buckets.get(window)?.entries()??[])].map(([key,row])=>{const sourceTerms=cohorts?row.sourceTerms.filter(t=>cohorts[window].has(t.term)):row.sourceTerms;if(!sourceTerms.length)throw new HomeSectionUnavailable('precision');return {...row,sourceTerms,term:sourceTerms[0]!.term,rise:comparable[window]?row.heatScore-(buckets.get('prior-'+window)?.get(key)?.heatScore??0):null,trend:days.map(d=>({date:d.date,heat:d.complete?(buckets.get(cohorts?window+':'+d.date:d.date)?.get(key)?.heatScore??0):null}))};}).sort((a,b)=>b.heatScore-a.heatScore||b.videoCount-a.videoCount||(a.key<b.key?-1:a.key>b.key?1:0)).slice(0,40);
  return {week:rank('week'),today:rank('today')};
 }

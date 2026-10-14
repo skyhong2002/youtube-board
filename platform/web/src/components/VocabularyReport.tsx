@@ -126,7 +126,7 @@ export async function VocabularyReport({
                                         {count(term.articleCount)}
                                     </td>
                                     <td className={table.cell + (term.displayExclusion ? " text-amber-800 dark:text-amber-300" : " text-zinc-600 dark:text-zinc-400")}>
-                                        {displayExclusionLabel(term.displayExclusion)}
+                                        {term.rankingEligibility?<><span className="block">過去24小時：{displayExclusionLabel(term.rankingEligibility.today)}</span><span className="block">近七日：{displayExclusionLabel(term.rankingEligibility.week)}</span></>:displayExclusionLabel(term.displayExclusion)}
                                     </td>
                                     <td className={table.cell}>
                                         <div className="flex items-center gap-1.5">

@@ -12,11 +12,10 @@ export interface PoolProvenance {source:typeof ORIGIN;snapshotId:string;policyVe
 export interface RankedPool {provenance:PoolProvenance;entries:PoolEntry[]}
 export interface PoolWindows {today:{since:string;until:string};week:{since:string;until:string}}
 export interface RankedPoolClient {load(window:{since:string;until:string}):Promise<RankedPool>}
-/** Ten-minute cutoff shared by both news pools and YT video publication windows.
- * At midnight the empty current window is explicit; no previous-day substitution. */
+/** Shared ten-minute cutoff; short window is always rolling24h, week is seven Taipei calendar dates. */
 export function rankingPoolWindows(now:Date):PoolWindows {
  const cutoff=Math.floor(now.getTime()/600000)*600000,day=new Date(now.getTime()+8*3600000).toISOString().slice(0,10),start=Date.parse(day+'T00:00:00+08:00');
- return {today:{since:new Date(start).toISOString(),until:new Date(cutoff).toISOString()},week:{since:new Date(start-6*86400000).toISOString(),until:new Date(cutoff).toISOString()}};
+ return {today:{since:new Date(cutoff-86400000).toISOString(),until:new Date(cutoff).toISOString()},week:{since:new Date(start-6*86400000).toISOString(),until:new Date(cutoff).toISOString()}};
 }
 export function poolEntryLine(e:PoolEntry):string {return JSON.stringify({tag:e.tag,tagId:e.tagId,rank:e.rank,score:e.score,articleCount:e.articleCount,mediaCount:e.mediaCount,media:Object.fromEntries(Object.entries(e.media).sort(([a],[b])=>Buffer.compare(Buffer.from(a),Buffer.from(b))))})+'\n';}
 function entry(raw:unknown,rank:number,basis:Set<string>):PoolEntry {

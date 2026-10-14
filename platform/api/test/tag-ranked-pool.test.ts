@@ -18,7 +18,7 @@ function transport(f=fixture(),mutate:(data:any,path:string)=>void=()=>{}){
   mutate(data,path);return new Response(JSON.stringify(data),{headers:{'content-type':'application/json'}});
  });
 }
-it('uses Taipei calendar windows and a shared exact cutoff, never rolling24h',()=>{expect(rankingPoolWindows(now)).toEqual({today:{since:'2026-10-13T16:00:00.000Z',until:'2026-10-14T15:40:00.000Z'},week:{since:'2026-10-07T16:00:00.000Z',until:'2026-10-14T15:40:00.000Z'}});});
+it('uses rolling24h and seven Taipei calendar dates with a shared exact cutoff',()=>{expect(rankingPoolWindows(now)).toEqual({today:{since:'2026-10-13T15:40:00.000Z',until:'2026-10-14T15:40:00.000Z'},week:{since:'2026-10-07T16:00:00.000Z',until:'2026-10-14T15:40:00.000Z'}});});
 it('reads every page beyond500 and verifies complete checksum, exact counts and score',async()=>{const f=fixture(2001),fetch=transport(f),client=createRankedPoolClient({fetch,clock:()=>now});const r=await client.load(window);expect(r.entries).toHaveLength(2001);expect(r.provenance.eligibleTotal).toBe(2001);expect(fetch).toHaveBeenCalledTimes(3);});
 it('distinguishes complete empty pools from unavailable snapshots',async()=>{const client=createRankedPoolClient({fetch:transport(fixture(0)),clock:()=>now});expect((await client.load(window)).entries).toEqual([]);const fetch=vi.fn(async()=>new Response('{}',{status:503}));await expect(createRankedPoolClient({fetch,clock:()=>now}).load(window)).rejects.toThrow('unavailable');});
 it.each(['snapshot','window','qualification','truncated','count','checksum','offset','extraEntryField','tagIdentity','articleCount','media','score','duplicate','cursor'])('fails closed for %s',async flaw=>{

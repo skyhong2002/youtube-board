@@ -69,3 +69,11 @@ export function search(value: unknown): string | null {
     return `%${value.replace(/[=%_]/g, m => '=' + m)}%`;
 }
 export function mergeTagId(value: unknown, required: number): string { return [...new Set([required, ...idList(value)])].sort((a, b) => a - b).join(','); }
+
+/** Exact anonymous publication bounds used by ranked-pool evidence links. */
+export function utcPublicationWindow(since:unknown,until:unknown,now:Date){
+ if((since===undefined||since==='')&&(until===undefined||until===''))return null;
+ const valid=(value:unknown):value is string=>typeof value==='string'&&/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.000Z$/.test(value)&&Number.isFinite(Date.parse(value))&&new Date(value).toISOString()===value;
+ if(!valid(since)||!valid(until)||Date.parse(since)>=Date.parse(until)||Date.parse(until)>now.getTime()||Date.parse(until)-Date.parse(since)>90*86400000)throw new BadQuery('Expected a complete past half-open UTC publication window.');
+ return {since,until};
+}
