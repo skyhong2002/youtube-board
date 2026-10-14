@@ -39144,6 +39144,15 @@
     },
     "candidateVisualReview": "pending",
     "deployment": "pending",
-    "primaryRankedPoolFinding": "OPEN; upstream complete exact-window contract needed"
+    "primaryRankedPoolFinding": "OPEN; upstream complete exact-window contract needed",
+    "nativeBuild": {
+      "status": "pass",
+      "image": "sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38",
+      "buildId": "hqA5C00BhxMB7igbPaZyL",
+      "path": "/tmp/babysit/mint-queue/youtube-f1-78df4fd-build-result.json",
+      "sha256": "4d49103110d72490bb9f8c610545b00c0277ba4377ad5a0f600db7bc8bc6d10e",
+      "smoke": "pass",
+      "buildSlotReturned": true
+    }
   }
 }
