@@ -39167,6 +39167,18 @@
       "rollback": "/usr/bin/python3 /tmp/babysit/mint-queue/youtube-f1-78df4fd-deploy.py --execute --rollback",
       "previousImage": "b4afbd8f",
       "status": "pending actual visual review and fresh health"
+    },
+    "profileCapture": {
+      "manifest": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app78df4fd-profiles-20261014-f1-v2/run-3d53adc4-306b-465e-8ef9-a6c193f3da30/captures.json",
+      "sha256": "d9eb802083e53fb207d25211cc8b5c83799545c02c184d6881d98b75a3257b68",
+      "viewportPackages": 12,
+      "networkAccepted": true,
+      "googleAttempts": 0,
+      "googleResponses": 0,
+      "visualReview": "pending",
+      "captureChildExitCode": 0,
+      "outerCommandExitCode": 143,
+      "outerCommandAnomalyRetained": true
     }
   }
 }
