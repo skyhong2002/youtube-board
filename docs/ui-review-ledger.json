@@ -37385,6 +37385,24 @@
       "Retain 503/network-failure gates; no AI exception justified by current evidence",
       "Capture 16 planned viewport packages and independently review homepage and keywords",
       "Submit exact same-image deployment and rollback4f5e2a3a with Dokploy compose synchronization"
-    ]
+    ],
+    "recapture01": {
+      "status": "home capture in progress; no visual acceptance",
+      "exactCommands": "/tmp/babysit/mint-queue/youtube-candidate-15c7af2d-recapture01-commands.json",
+      "starterReviewSha256": "1ea055ac436cf077fe2c8ea92fe8bad8f318dde0c04be42ffb07eb8a9242588a",
+      "helpersReviewSha256": "3e17bf60b0582a5d17bf5b59e2e2ee6048ba6afce161ea4f80e03ce89baeacdb",
+      "runtimeReadyReceipt": "/tmp/babysit/mint-queue/youtube-recapture01-readiness.json",
+      "runtimeReady200": true,
+      "readyElapsedSeconds": 41.164781,
+      "fullCID": "87b25e985d96082c3d1a2edfbeeba3c4dbf82acb75b10af6c2374f7c2fde131d",
+      "actualContainerVerification": "/tmp/babysit/mint-queue/youtube-candidate-15c7af2d-recapture01-verified.json",
+      "failedLockRecovery": "/tmp/babysit/mint-queue/youtube-recapture01-lock-recovery.json",
+      "retainedOldLock": ".retained-failed-batch-lock-20261014T0527",
+      "allOldBytesRemainInSameCumulativeBudget": true,
+      "plannedViewportPackages": 16,
+      "uiAccepted": false,
+      "candidateApproval": false,
+      "exceptions": []
+    }
   }
 }
