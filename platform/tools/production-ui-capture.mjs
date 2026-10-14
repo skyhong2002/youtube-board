@@ -50,10 +50,15 @@ try{
     const parts=await imageParts(coherent.buffer,sharp);const full=await write(join(outDir,item.key+'-'+viewport+'.png'),parts.full);const slices=[];
     for(const s of parts.slices){await resources();slices.push({...await write(join(outDir,item.key+'-'+viewport+'-slice-'+s.top+'.png'),s.buffer),top:s.top,height:s.height});}
     const interactions=[];
-    if(viewport==='desktop'&&record.routePath==='/live/current'){
+    if(viewport==='desktop'&&['/live/current','/channels','/videos','/tags/102/videos'].includes(record.routePath)){
      const el=page.locator('.table-scroller').first();await el.scrollIntoViewIfNeeded();const readScroll=()=>el.evaluate(e=>({left:e.scrollLeft,width:e.clientWidth,scrollWidth:e.scrollWidth}));const start=await readScroll();await el.evaluate(e=>e.scrollLeft=e.scrollWidth);await page.waitForTimeout(200);const scrollBefore=await readScroll();assert(scrollBefore.left>0&&scrollBefore.left+scrollBefore.width>=scrollBefore.scrollWidth-1);
      const right=await captureCoherentBuffer({read:()=>page.evaluate(snapshotDOMState),expected:{window:item.window,theme:item.theme},capture:()=>page.screenshot({fullPage:false,animations:'disabled'})});const scrollAfter=await readScroll();assert.deepEqual(scrollAfter,scrollBefore,'Right-edge position changed during screenshot');assert(scrollAfter.left>0&&scrollAfter.left+scrollAfter.width>=scrollAfter.scrollWidth-1);
      interactions.push({...await write(join(outDir,item.key+'-'+viewport+'-right-edge.png'),right.buffer),action:'horizontal-scroll-right',before:start,screenshotBefore:scrollBefore,screenshotAfter:scrollAfter,captureCoherence:{before:right.before,after:right.after,sha256:right.sha256}});
+    }
+    if(viewport==='mobile'&&record.routePath==='/channels'){
+     const details=page.locator('ol[aria-label="頻道排行列表"] details').first();await details.locator('summary').click();await details.scrollIntoViewIfNeeded();assert(await details.evaluate(e=>e.open));
+     const expanded=await captureCoherentBuffer({read:()=>page.evaluate(snapshotDOMState),expected:{window:item.window,theme:item.theme},capture:()=>page.screenshot({fullPage:false,animations:'disabled'})});assert(await details.evaluate(e=>e.open));
+     interactions.push({...await write(join(outDir,item.key+'-'+viewport+'-expanded-metrics.png'),expanded.buffer),action:'expand-first-channel-metrics',open:true,captureCoherence:{before:expanded.before,after:expanded.after,sha256:expanded.sha256}});
     }
     after=await page.evaluate(()=>({dnt:navigator.doNotTrack,gpc:navigator.globalPrivacyControl}));const dom=await page.evaluate(()=>({title:document.title,theme:document.documentElement.dataset.theme,overflow:Math.max(0,document.documentElement.scrollWidth-innerWidth),text:(document.querySelector('main')??document.body).innerText}));
     view={status:response.status(),screenshot:full,slices,dom,interactionScreenshots:interactions,captureCoherence:{before:coherent.before,after:coherent.after,sha256:coherent.sha256},buildID:identity.buildID};
