@@ -10,7 +10,7 @@ const scalar=(value:Search[string])=>typeof value==='string'?value:undefined;
 /** Whitelist scope by destination. days/hours/type/min/sort have different units
  * across families, so route-specific controls are carried only on the same page. */
 function scopeKeys(path:string):string[]{
- if(/^\/keywords\/[^/]+\/videos$/.test(path))return [...taxonomy,...period,'since','until','q','channelId','channelIds'];
+ if(/^\/keywords\/[^/]+\/videos$/.test(path))return [...taxonomy,...period,'since','until','rankingPool','q','channelId','channelIds'];
  if(/^\/ai\/(days(?:\/\d{4}-\d{2}-\d{2}(?:\/[^/]+)?)?|hours|days\/prompt)$/.test(path))return ['date','condition'];
  if(path==='/ai/periods')return [...period,'condition'];
  if(/^\/channels\/\d+\/prompt$/.test(path))return ['date'];

@@ -23,7 +23,7 @@ export function ReportFilters({
     const selectedLimit = /^\d+$/.test(requestedLimit) && Number(requestedLimit) >= 1 && Number(requestedLimit) <= maxLimit ? requestedLimit : "50";
     return (
         <form key={JSON.stringify([path,search])} className={ui.form} action={path} method="get">
-            {exactWindow&&['since','until'].map(key=><input key={key} type="hidden" name={key} value={first(search[key])}/>)}
+            {exactWindow&&['since','until','rankingPool'].filter(key=>first(search[key])!==undefined).map(key=><input key={key} type="hidden" name={key} value={first(search[key])}/>)}
             {['tagid','or','not','channelIds','days'].filter(key=>!(taxonomyPicker&&['tagid','or','not'].includes(key))&&!(keywordVideos&&key==='days')).flatMap(key => {
                 const value = search[key]; return (Array.isArray(value) ? value : value === undefined ? [] : [value]).map((value,index) => <input key={`${key}-${index}`} type="hidden" name={key} value={value} />);
             })}

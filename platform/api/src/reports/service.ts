@@ -1,7 +1,7 @@
 import type {RankedPoolClient} from './tag-ranked-pool.js';
 import type {HomeDiagnosticCallback} from './home-diagnostics.js';
 import {homeResultCache} from './home-result-cache.js';
-import {matchingRuleForSnapshot} from '../../../shared/youtube-match-policy.js';
+import {matchingRuleForSnapshot,tagDisplayExclusion} from '../../../shared/youtube-match-policy.js';
 import {maintainedKeywordIdentities} from './keyword-alias.js';
 import {enrichKeywordEvidence} from './keyword-evidence.js';
 import {keywordCandidateSource, keywordIdentityPredicate, latestKeywordVideo} from './keyword-candidates.js';
@@ -70,6 +70,8 @@ export function reports(reader: Reader, clock: () => Date = () => new Date(), di
         const channelId = optional(query.channelId) === undefined ? null : positiveId(query.channelId);
         const from = dateFilter(optional(query.from)), to = dateFilter(optional(query.to));
         const exactWindow=utcPublicationWindow(query.since,query.until,now);
+        const qualifiedEvidence=query.rankingPool!==undefined;
+        if(qualifiedEvidence&&(query.rankingPool!=='early'||!exactWindow||!query.keyword))throw new BadQuery('Ranked evidence requires an early pool, exact window and keyword.');
         if(exactWindow&&(from||to||optional(query.days)!==undefined||optional(query.hours)!==undefined))throw new BadQuery('Exact UTC windows cannot be mixed with calendar or hours filters.');
         const hours = optional(query.hours) === undefined ? null : bounded(query.hours, 24, 1, 8760);
         const min = optional(query.min) === undefined ? null : bounded(query.min, 0, 0, Number.MAX_SAFE_INTEGER);
@@ -99,7 +101,12 @@ export function reports(reader: Reader, clock: () => Date = () => new Date(), di
         // utf8mb4_bin still uses PAD SPACE equality; an upstream label with a
         // trailing space must not match another exact vocabulary identity.
         const keywordKey=keyword?createHash('sha256').update('https://tag.observe.tw\0'+keyword).digest('hex'):null;
-        const identities=keyword&&version?await maintainedKeywordIdentities(reader,version,keyword):[];
+        let identities=keyword&&version?await maintainedKeywordIdentities(reader,version,keyword):[];
+        if(qualifiedEvidence){
+            if(!rankingPools)throw new DataSourceUnavailable();
+            let qualified:Set<string>;try{qualified=new Set((await rankingPools.load(exactWindow!)).entries.map(e=>e.tag));}catch{throw new DataSourceUnavailable();}
+            identities=identities.filter(identity=>qualified.has(identity.term)&&!tagDisplayExclusion(identity.term));
+        }
         const evidence = sql `EXISTS(SELECT 1 FROM ts_video_tag_evidence e WHERE e.video_id=m.video_id AND BINARY e.video_id=BINARY m.video_id AND e.vocabulary_version=${version} AND e.rule_version=${rule} AND ${keywordIdentityPredicate(identities)})`;
         const where = sql `${scope} ${keyword ? sql `AND EXISTS(SELECT 1 FROM ts_video_tag_matches m WHERE m.video_id=CONVERT(v.videoId USING ascii) AND BINARY m.video_id=BINARY v.videoId AND m.vocabulary_version=${version} AND ${fresh} AND ${evidence}) AND ${latestKeywordVideo()}` : sql ``}`;
         const fields=sql`v.pk,v.videoId,v.u_id,LEFT(v.channelId,128) AS channelId,LEFT(v.channelTitle,256) AS channelTitle,LEFT(v.title,512) AS title,LEFT(v.thumbnails,2048) AS thumbnails,v.publishedAt,v.viewCount,v.likeCount,v.commentCount,v.dislikeCount,v.mtime,v.ctime,LEFT(n.tags,4096) AS tags`;

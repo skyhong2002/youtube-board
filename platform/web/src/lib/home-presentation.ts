@@ -63,7 +63,7 @@ function taipeiDay(value:string|null|undefined){
 /** Qualified pools retain half-open UTC bounds; older summaries use calendar dates. */
 export function keywordVideosHref(term:string,summary:Pick<HomeKeywordSummary,'from'|'to'|'rankingPool'>|null){
  const base=`/keywords/${encodeURIComponent(term)}/videos`;
- const pool=summary?.rankingPool;if(pool?.status==='available')return base+'?'+new URLSearchParams({since:pool.provenance.window.since,until:pool.provenance.window.until});
+ const pool=summary?.rankingPool;if(pool?.status==='available')return base+'?'+new URLSearchParams({since:pool.provenance.window.since,until:pool.provenance.window.until,rankingPool:'early'});
  const from=taipeiDay(summary?.from),to=taipeiDay(summary?.to);
  return from&&to&&from<=to?`${base}?from=${from}&to=${to}`:base;
 }

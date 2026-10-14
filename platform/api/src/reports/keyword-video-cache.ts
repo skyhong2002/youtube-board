@@ -2,7 +2,7 @@ import {DataSourceUnavailable} from '../db/client.js';
 import type {Query} from './query.js';
 import {BadQuery,idList} from './query.js';
 
-const QUERY_KEYS=['keyword','limit','offset','q','channelId','channelIds','from','to','since','until','hours','min','column','days','tagid','or','not','cursor'] as const;
+const QUERY_KEYS=['keyword','limit','offset','q','channelId','channelIds','from','to','since','until','rankingPool','hours','min','column','days','tagid','or','not','cursor'] as const;
 const ID_SETS=new Set(['channelIds','tagid','or','not']);
 /** Only public report inputs. Exact term/cursor/string types are preserved;
  * set-valued ID filters normalize order, never arbitrary repeated query arrays. */

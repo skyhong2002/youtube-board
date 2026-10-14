@@ -1,7 +1,8 @@
 import {utcPublicationWindow} from '../src/reports/query.js';
 import {keywordVideoCacheKey} from '../src/reports/keyword-video-cache.js';
 import {reports} from '../src/reports/service.js';
-import {it,expect} from 'vitest';
+import {it,expect,vi} from 'vitest';
+import {buildApp} from '../src/app.js';
 import {MySqlDialect} from 'drizzle-orm/mysql-core';
 import {homeExploration} from '../src/reports/home-exploration.js';
 import {keywordDisplayMap,rankKeywordWindows} from '../src/reports/home-keyword-ranking.js';
@@ -46,4 +47,24 @@ it('evidence SQL uses the same half-open publication interval and rejects mixing
  const bounded=queries.filter(q=>q.sql.includes('v.publishedAt>=')&&q.sql.includes('v.publishedAt<'));
  expect(bounded.length).toBeGreaterThan(0);for(const q of bounded)expect(q.params).toEqual(expect.arrayContaining(['2026-10-13 22:10:00','2026-10-14 22:10:00']));
  await expect(service.videos({...windows.today,days:'1'})).rejects.toThrow('cannot be mixed');
+});
+it('ranked evidence retains only qualified exact aliases while raw evidence keeps both',async()=>{
+ const queries:{sql:string;params:unknown[]}[]=[],dialect=new MySqlDialect();
+ const data:Reader={close:async()=>{},rows:async q=>{const compiled=dialect.sqlToQuery(q);queries.push(compiled);
+  if(compiled.sql.includes('SELECT c.run_id,'))return [{run_id:'fixture-v1',matching_rule:'exact-text-v1'}] as never;
+  if(compiled.sql.includes('AS alias_snapshot_bytes'))return [{alias_snapshot_bytes:10,separate_terms:true}] as never;
+  if(compiled.sql.includes('SELECT term_key,term FROM ts_vocabulary_terms'))return [{term_key:'a'.repeat(64),term:'OpenAI'},{term_key:'b'.repeat(64),term:'OPENAI'}] as never;
+  return (compiled.sql.includes('AS selected')?[{selected:0,nulls:0,cutoff:null}]:[]) as never;
+ }};
+ const service=reports(data,()=>now,undefined,client(['OPENAI'],['OpenAI']));
+ await service.videos({keyword:'OPENAI',...windows.today,rankingPool:'early'});
+ const qualified=queries.find(q=>q.sql.includes('AS selected'))!;expect(qualified.params).toContain('OPENAI');expect(qualified.params).not.toContain('OpenAI');
+ queries.length=0;await service.videos({keyword:'OPENAI',...windows.today});expect(queries.find(q=>q.sql.includes('AS selected'))!.params).toContain('OpenAI');
+ expect(keywordVideoCacheKey({keyword:'OPENAI',...windows.today,rankingPool:'early'})).not.toBe(keywordVideoCacheKey({keyword:'OPENAI',...windows.today}));
+ await expect(reports(data,()=>now).videos({keyword:'OPENAI',...windows.today,rankingPool:'early'})).rejects.toThrow('unavailable');
+});
+it('runtime fixture dataset stays offline by default, even without options.dataset',async()=>{
+ const previous=process.env.DATASET_KIND;process.env.DATASET_KIND='fixture';const fetchSpy=vi.spyOn(globalThis,'fetch').mockRejectedValue(Error('unexpected network'));
+ const app=buildApp({reader:reader().data,clock:()=>now});
+ try{const result=await app.inject('/api/v1/vocabulary');expect(result.statusCode).toBe(200);expect(fetchSpy).not.toHaveBeenCalled();}finally{await app.close();fetchSpy.mockRestore();if(previous===undefined)delete process.env.DATASET_KIND;else process.env.DATASET_KIND=previous;}
 });
