@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import NavPending, { LinkClickPending, NavPendingContext, NavProgressBar } from './NavPending';
 import SiteNavigation from './SiteNavigation';
-import SiteSearch, { isSearchPage, SiteSearchFromUrl } from './SiteSearch';
+import SiteSearch, { SiteSearchFromUrl } from './SiteSearch';
 import ThemeToggle from './ThemeToggle';
 import Wordmark from './Wordmark';
 
@@ -65,10 +65,9 @@ export default function SiteHeader() {
   // While the wordmark is hidden, phones show the search box in the space it
   // would take instead of a bare bar; it folds back into an icon once the
   // wordmark returns. An explicit open outlives that.
-  // The results page has no search box of its own, so phones keep this one
-  // open there (without focusing it, which would pop the keyboard).
-  const onResults = isSearchPage(usePathname());
-  const autoSearch = (!revealed || onResults) && !searchOpen;
+  // Report pages have their own search field. Keep the header compact there;
+  // the explicit search button still opens the global title/description search.
+  const autoSearch = !revealed && !searchOpen;
   const searchToggle = useRef<HTMLButtonElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   useEffect(() => {

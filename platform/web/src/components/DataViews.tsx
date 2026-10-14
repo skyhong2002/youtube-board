@@ -37,13 +37,24 @@ const channelName = `${table.leadText} max-sm:line-clamp-2 max-sm:whitespace-nor
  * Desktop titles stay clipped; the small thumbnail yields when the phone table scrolls. */
 const videoName = "min-w-0 max-w-full max-sm:w-full max-sm:whitespace-normal max-sm:[overflow-wrap:anywhere] sm:truncate sm:max-w-xs";
 const videoLead = `${table.leadBox} flex items-center gap-2 max-sm:flex-col max-sm:items-start`;
-export function ChannelTable({ rows, offset=0, ranking }: { rows: ChannelRow[];offset?:number;ranking?:ChannelRanking }) {
+export function ChannelTable({ rows, offset=0, ranking, responsive=false }: { rows: ChannelRow[];offset?:number;ranking?:ChannelRanking;responsive?:boolean }) {
     if (!rows.length) return <Empty title="尚無符合條件的頻道" />;
     // As tag.observe.tw's ranking: the sorted metric sits right after the name, so phones see it
     // without scrolling; every other metric follows in its usual order, none dropped or repeated.
     const sorts = ranking ? [...CHANNEL_SORTS.filter(([key]) => key === ranking.column), ...CHANNEL_SORTS.filter(([key]) => key !== ranking.column)] : [];
     return (
-        <TableScroller card label="頻道排行表，可左右捲動">
+        <>
+        {responsive&&<ol className="divide-y divide-zinc-200 dark:divide-zinc-800 sm:hidden" aria-label="頻道排行列表">{rows.map((row,index)=>{
+          const selected=ranking?CHANNEL_SORTS.find(([key])=>key===ranking.column):undefined;
+          return <li key={row.id} className="py-4">
+            <div className="flex min-w-0 items-start gap-2"><span className="pt-1 text-xs tabular-nums text-zinc-600 dark:text-zinc-400">{String(offset+index+1).padStart(2,'0')}</span><Link href={`/channels/${row.id}`} className="flex min-w-0 items-start gap-2 font-medium hover:underline"><ChannelAvatar avatar={row.avatar} title={row.title} size={24}/><span className="min-w-0 whitespace-normal break-words [overflow-wrap:anywhere]">{row.title||'頻道名稱尚未取得'}</span></Link></div>
+            <dl className="mt-2"><dt className="text-sm text-zinc-600 dark:text-zinc-400">{selected?.[1]??'訂閱人數'}</dt><dd className="mt-1 break-all text-xl font-semibold tabular-nums">{count(selected?row[channelColumns[selected[0]]]:row.subscribers)}</dd></dl>
+            <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">資料最後記錄：{dateTime(row.updatedAt)}；不代表各項統計同時更新。</p>
+            <details className="mt-2 text-sm"><summary className="flex min-h-11 cursor-pointer items-center font-medium">其他指標與分類</summary><dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 text-sm">{(ranking?CHANNEL_SORTS.filter(([key])=>key!==ranking.column).map(([key,label])=>[label,count(row[channelColumns[key]])]):[['近七日觀看增量',count(row.weeklyViews)],['累計影片',count(row.videoCount)]]).map(([label,value])=><div key={label} className="contents"><dt className="text-zinc-600 dark:text-zinc-400">{label}</dt><dd className="text-right tabular-nums">{value}</dd></div>)}{ranking&&<div className="contents"><dt className="text-zinc-600 dark:text-zinc-400">近月估計差距</dt><dd className="text-right tabular-nums">{count(row.monthlyEstimateGap)}</dd></div>}</dl><p className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">頻道分類：{row.tags.length?row.tags.map((tag,i)=><span key={tag.id}>{i>0?'、':''}<Link href={`/tags/${tag.id}/channels`} className="underline">{tag.name}</Link></span>):'尚未收錄'}</p></details>
+          </li>;
+        })}</ol>}
+        <div className={responsive?'hidden sm:block':undefined}>
+        <TableScroller card label="頻道排行表，可左右捲動" showScrollHint={responsive}>
             <table className={table.nowrap} style={ranking?{minWidth:1780}:undefined}>
                 <thead>
                     <tr>
@@ -70,6 +81,8 @@ export function ChannelTable({ rows, offset=0, ranking }: { rows: ChannelRow[];o
                 </tbody>
             </table>
         </TableScroller>
+        </div>
+        </>
     );
 }
 export function VideoTable({ rows }: { rows: VideoRow[] }) {

@@ -192,8 +192,9 @@ export async function ReportPage({
                 <DataNotice meta={meta} />
                 <Tabs items={familyTabs(path,search,meta.coverage)} active={path} />
                 <ReportFilters mode="channels" search={search} path={path} channelRanking={data.ranking} />
+                <p className="my-3 text-sm text-zinc-600 dark:text-zinc-400">頁首更新時間為本頁最新資料記錄，不代表所有頻道的統計都已同時更新。</p>
                 <p className="muted">近七日／近月增量取既有期間內可用觀測，並非日曆週月。估計值來自歷史觀測模型，差距為近月估計減去近月觀測增量；缺值顯示「—」。{data.ranking.min!==null?`目前門檻：${data.ranking.minMetric==='views'?'累計觀看':'訂閱人數'}至少 ${count(data.ranking.min)}。`:''}{data.ranking.scope==='tag'?' 分類排名清空門檻時使用 0，未記錄門檻數值的頻道不列入。':''}{data.ranking.minMetric==='views'?' OR 分類條件的門檻依累計觀看篩選。':''}</p>
-                <ChannelTable rows={data.rows} offset={data.offset} ranking={data.ranking} />
+                <ChannelTable rows={data.rows} offset={data.offset} ranking={data.ranking} responsive/>
                 <Pagination collection={data} search={search} path={path} />
             </>
         );
@@ -227,6 +228,7 @@ export async function ReportPage({
                 <Tabs items={familyTabs(path,search,meta.coverage)} active={path} />
                 <ReportFilters mode="videos" search={search} path={path} />
                 {route.kind==='channel-videos'&&<p className="muted">完整收錄時顯示本機留言數，否則顯示 YouTube 留言觀測；排序仍依 YouTube 原始統計。喜歡占互動＝喜歡 ÷（喜歡＋不喜歡＋顯示留言），任一來源缺值時不估算。作者、回覆與留言獲讚僅呈現完整批次。</p>}
+                <p className="my-3 text-sm text-zinc-600 dark:text-zinc-400">以下為已收錄影片；各影片記錄時間與各項統計觀測時間可能不同，並非即時數值。「—」表示尚未取得，不代表 0。</p>
                 <VideoTable rows={data.rows} />
                 <Pagination collection={data} search={search} path={path} />
             </>
@@ -392,6 +394,7 @@ export async function ReportPage({
                     description={route.description}
                     meta={meta}
                 />
+                <p className="my-3 text-sm text-zinc-600 dark:text-zinc-400">資料最後記錄：{dateTime(v.updatedAt)}。這是影片資料的記錄時間，不代表觀看、喜歡或留言已同時重新觀測；「—」表示尚未取得，不代表 0。</p>
                 <div className="my-3"><SaveButton kind="video" target={v.id}/></div>
                 <DataNotice meta={meta} />
                 <Tabs items={[{href:`/videos/${encodeURIComponent(v.id)}`,label:'影片概覽'},{href:`/videos/${encodeURIComponent(v.id)}/analytics`,label:'觀測分析'}]} active={path}/>
@@ -445,7 +448,7 @@ export async function ReportPage({
                         </p>
                     </section>
                 ) : (
-                    <Empty title="尚無歷史觀測" description="本站尚未儲存這部影片的歷史觀測。上方為目前統計，無法據以建立歷史時間序列。" />
+                    <Empty title="尚無歷史觀測" description="本站尚未儲存這部影片的歷史觀測。上方僅列出已儲存的公開統計；缺值表示尚未取得，無法據以建立歷史時間序列。" />
                 )}
                 {data.liveHistory.length > 0 && (
                     <>

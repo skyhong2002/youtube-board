@@ -21,6 +21,9 @@ export function ReportFilters({
     const exactWindow=keywordVideos&&!!first(search.since)&&!!first(search.until);
     const requestedLimit = first(search.limit) || "50";
     const selectedLimit = /^\d+$/.test(requestedLimit) && Number(requestedLimit) >= 1 && Number(requestedLimit) <= maxLimit ? requestedLimit : "50";
+    const advancedOpen=['tagid','or','not','channelId','channelIds','column','min','hours','from','to',...(keywordVideos&&!exactWindow?['days']:[])].some(key=>{
+        const value=search[key];return Array.isArray(value)?value.some(v=>v!==''):value!==undefined&&value!=='';
+    });
     return (
         <form key={JSON.stringify([path,search])} className={ui.form} action={path} method="get">
             {exactWindow&&['since','until','rankingPool'].filter(key=>first(search[key])!==undefined).map(key=><input key={key} type="hidden" name={key} value={first(search[key])}/>)}
@@ -64,6 +67,9 @@ export function ReportFilters({
                             {mode==="videos"&&<><option value="500">500 筆</option><option value="1000">1000 筆</option></>}
                         </select>
                     </label>
+                    <details className="w-full rounded-lg border border-zinc-200 px-3 dark:border-zinc-700">
+                    <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-zinc-700 dark:text-zinc-300">進階篩選（分類、日期與門檻）{advancedOpen?' · 已套用條件':''}</summary>
+                    <div className="flex flex-wrap items-end gap-3 pb-3">
                     {mode === "channels" && channelRanking && (<>
                         <label className={ui.label}>排序<select className={ui.input} name="column" defaultValue={channelRanking.column}>{CHANNEL_SORTS.map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
                         <label className={ui.label}>{channelRanking.minMetric==='views'?'至少累計觀看':'至少訂閱人數'}<input className={ui.input} name="min" type="number" min="0" max="9007199254740991" defaultValue={channelRanking.min??''} placeholder={channelRanking.scope==='tag'?'預設 0（排除缺值）':'不限'} /></label>
@@ -82,6 +88,8 @@ export function ReportFilters({
                         {exactWindow&&<p className={ui.label}>保留排行的精確發布時間窗；「清除」後可另選日期。</p>}
                         {!channelVideos&&<FilterPicker name="channelId" label="指定頻道" kind="channels" value={search.channelId??''} multiple={false}/>}
                     </>)}
+                    </div>
+                    </details>
                 </>
             )}
             {mode === "ai" && first(search.condition) && (
