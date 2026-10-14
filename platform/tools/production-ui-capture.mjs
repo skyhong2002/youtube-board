@@ -61,6 +61,7 @@ try{
      interactions.push({...await write(join(outDir,item.key+'-'+viewport+'-expanded-metrics.png'),expanded.buffer),action:'expand-first-channel-metrics',open:true,captureCoherence:{before:expanded.before,after:expanded.after,sha256:expanded.sha256}});
     }
     after=await page.evaluate(()=>({dnt:navigator.doNotTrack,gpc:navigator.globalPrivacyControl}));const dom=await page.evaluate(()=>({title:document.title,theme:document.documentElement.dataset.theme,overflow:Math.max(0,document.documentElement.scrollWidth-innerWidth),text:(document.querySelector('main')??document.body).innerText}));
+    dom.text=coherent.before.canonical.content;
     view={status:response.status(),screenshot:full,slices,dom,interactionScreenshots:interactions,captureCoherence:{before:coherent.before,after:coherent.after,sha256:coherent.sha256},buildID:identity.buildID};
    }catch(error){captureFailure=error;await write(join(outDir,item.key+'-'+viewport+'-capture-failure.json'),JSON.stringify({failed:true,errorClass:error instanceof assert.AssertionError?'AssertionError':'CaptureError',reason:String(error.message).split('\n')[0].slice(0,160)},null,2)+'\n');throw error;}finally{
     try{await waitForNetworkSettlement(network);}catch{network.markUnknown('settlement-failed');}
