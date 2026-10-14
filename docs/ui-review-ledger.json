@@ -15988,7 +15988,203 @@
         ],
         "priorReviewScope": "Historical reviewedSHA only; not approval of the next candidate",
         "recaptureMatrixEntry": "ledger-343"
-      }
+      },
+      "productionVisualReviews": [
+        {
+          "appSha": "335c8dbd023ed1466620b29a4dea6cda9e3cef80",
+          "image": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6",
+          "buildID": "NZua9VnOCd6zsK0BXUoF7",
+          "scope": "anonymous normal states,light/dark,1280/390; interactions unreviewed",
+          "status": "issues",
+          "batchDecision": "FAIL_SCOPED_PRODUCTION_SECONDARY_VISUAL",
+          "review": {
+            "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-app335c8db-secondary-20261014T194210Z/review.json",
+            "sha256": "6fa0e0efc6238e2736c37e7ecc23419c15fc91a46dac8d3f83525882a0cc7b9a",
+            "reviewedAt": "2026-10-14T19:42:10.603745+00:00",
+            "reviewer": "/root/f2_visual_sol",
+            "model": "GPT-6 (Codex; inherited parent model, exact serving identifier not exposed)",
+            "decision": "FAIL_SCOPED_PRODUCTION_SECONDARY_VISUAL",
+            "actualPNGOpenedCount": 26,
+            "PNGHashesChecked": 52,
+            "hashOnlyPNGCount": 26,
+            "blockers": [
+              {
+                "id": "LIVE_MOBILE_TITLE_COLUMN",
+                "status": "OPEN",
+                "routes": [
+                  "/live/current"
+                ],
+                "viewports": [
+                  390
+                ],
+                "themes": [
+                  "light",
+                  "dark"
+                ],
+                "finding": "Native screenshots show the title column around 60px wide, wrapping long titles into 4–5 CJK characters per line and Latin words into fragments. First long row is roughly 430px tall. Channel text is clipped at the right visible edge. This makes the captured default mobile listing impractical to scan.",
+                "evidence": [
+                  "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-light-mobile-slice-760.png",
+                  "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-light-mobile-slice-1520.png",
+                  "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-light-mobile-slice-2280.png",
+                  "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-dark-mobile-slice-760.png",
+                  "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-dark-mobile-slice-1520.png",
+                  "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-dark-mobile-slice-2280.png"
+                ],
+                "required": "Revise responsive live rows or set a usable title width with clear overflow handling; capture and independently review the fixed production image."
+              }
+            ]
+          },
+          "views": [
+            {
+              "key": "groups-light",
+              "route": "/groups",
+              "viewport": "desktop",
+              "theme": "light",
+              "window": null,
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-light-desktop.png",
+                "sha256": "9fc03916d2cf5afa655479e4ac766fc128ae1866f196b8835653a944d0905259"
+              },
+              "imageCount": 5,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-light-desktop-requests.json",
+                "sha256": "32054d6b951fd4b07ce96a6955024408646a0931ba36e8115c24224a7cbc23db"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-light-desktop-raw-network.json",
+                "sha256": "99336e718aaa40d06ebc20470386e053bdda8febad0ff1d830c6d4a62c5bd283"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "groups-light",
+              "route": "/groups",
+              "viewport": "mobile",
+              "theme": "light",
+              "window": null,
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-light-mobile.png",
+                "sha256": "79f94258540f7a3278b586e9fe24dd344d1ebbf11354e12ed25993b62621d135"
+              },
+              "imageCount": 8,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-light-mobile-requests.json",
+                "sha256": "7f648b06fc2b086ae737ab8f75196e775ba5fd34f044d23a4c3ec95fa2a04d4e"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-light-mobile-raw-network.json",
+                "sha256": "63de5cd3f43c3b0745ac64fd75029b88b6d6c4422ee23ad7305833dc8ca2db94"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "groups-dark",
+              "route": "/groups",
+              "viewport": "desktop",
+              "theme": "dark",
+              "window": null,
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-dark-desktop.png",
+                "sha256": "3f0cf62490e85c8f737576a335d253183e2ff7951f86b9134c231c851e4b074a"
+              },
+              "imageCount": 5,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-dark-desktop-requests.json",
+                "sha256": "53270f980ca3b9aae09b37c14e1211e3e22092200045530a4863cd592ca8fada"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-dark-desktop-raw-network.json",
+                "sha256": "7ff7d4704611c5b3071fb3803a514c9e7a0fa0c97cb4b4cb4d9b1297fa0a397d"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "groups-dark",
+              "route": "/groups",
+              "viewport": "mobile",
+              "theme": "dark",
+              "window": null,
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-dark-mobile.png",
+                "sha256": "b2b1dcc0523469413406a27d026e257b50030b29c67a1face4ca21847c4e2b21"
+              },
+              "imageCount": 8,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-dark-mobile-requests.json",
+                "sha256": "2da41bc2231a51ff4b1412b0c0f45463eb8e730998b386c947230dc0cc87258f"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-dark-mobile-raw-network.json",
+                "sha256": "caeb13b737413807dfc94d1fc4b4c52f7d64f3644aafc28006b9a623a039d7f8"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            }
+          ],
+          "findings": [
+            {
+              "id": "GROUP_RANGE_AND_COUNT_AMBIGUITY",
+              "status": "OPEN",
+              "finding": "Both themes and widths show two rows labeled 台灣立場 vs 中國立場, both labeled 頻道分類群組, with 成員數 2 and 7 and no visible range distinction. This is ambiguous range and counting-unit presentation; it is not proof that either count is incorrect.",
+              "evidence": [
+                "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-light-desktop-slice-1520.png",
+                "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-light-mobile-slice-3800.png",
+                "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-dark-desktop-slice-1520.png",
+                "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-dark-mobile-slice-3800.png"
+              ],
+              "supplementalParentSourceReport": "Parent read-only source report: group-definitions.ts keys two/two_all use the same label and have groups lengths 2/7; two_all additionally includes 新聞、個人社論、全部、政治人物、大外宣. groups.ts displays value.groups.length as 成員數 and both as 頻道分類群組. Reviewer did not independently read this source; actual-image finding stands on screenshots."
+            },
+            {
+              "id": "GROUP_FRESHNESS_LABELS",
+              "status": "OPEN",
+              "finding": "The visible update date is 2023/01/24 下午02:20 while current-office labels such as 現任立委 and 現任縣市長 appear. 2024 總統候選人 is explicitly marked 歷史. Freshness of current-office memberships is not certified by this review.",
+              "evidence": [
+                "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-light-mobile-slice-0.png",
+                "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-dark-mobile-slice-0.png"
+              ]
+            },
+            {
+              "id": "GROUP_SCHEMA_COPY",
+              "status": "OPEN",
+              "finding": "Product explanatory copy exposes the implementation/schema term tag_group, which does not help users interpret the classifications.",
+              "evidence": [
+                "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-light-mobile-slice-0.png",
+                "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-dark-mobile-slice-0.png"
+              ]
+            },
+            {
+              "id": "GROUP_MOBILE_REPEATED_LABELS",
+              "status": "NONBLOCKING",
+              "finding": "Mobile groups rows repeatedly display 群組 / 分類依據 / 成員數, creating a verbose list but remaining readable.",
+              "evidence": [
+                "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-light-mobile-slice-3040.png",
+                "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-light-mobile-slice-3800.png",
+                "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-dark-mobile-slice-3040.png",
+                "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-dark-mobile-slice-3800.png"
+              ]
+            }
+          ],
+          "blockers": [],
+          "routeComplete": false,
+          "F4": "pending tag T-ref",
+          "historicalFindingsNotAutomaticallyClosed": true
+        }
+      ]
     },
     {
       "route": "/groups/{groupName}",
@@ -20133,7 +20329,201 @@
         "currentStatePass": false,
         "routeComplete": false,
         "sourceFixCommit": "4d7dc12100f8cd647f077978beb918d17157633a"
-      }
+      },
+      "productionVisualReviews": [
+        {
+          "appSha": "335c8dbd023ed1466620b29a4dea6cda9e3cef80",
+          "image": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6",
+          "buildID": "NZua9VnOCd6zsK0BXUoF7",
+          "scope": "anonymous normal states,light/dark,1280/390; interactions unreviewed",
+          "status": "issues",
+          "batchDecision": "FAIL_SCOPED_PRODUCTION_SECONDARY_VISUAL",
+          "review": {
+            "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-app335c8db-secondary-20261014T194210Z/review.json",
+            "sha256": "6fa0e0efc6238e2736c37e7ecc23419c15fc91a46dac8d3f83525882a0cc7b9a",
+            "reviewedAt": "2026-10-14T19:42:10.603745+00:00",
+            "reviewer": "/root/f2_visual_sol",
+            "model": "GPT-6 (Codex; inherited parent model, exact serving identifier not exposed)",
+            "decision": "FAIL_SCOPED_PRODUCTION_SECONDARY_VISUAL",
+            "actualPNGOpenedCount": 26,
+            "PNGHashesChecked": 52,
+            "hashOnlyPNGCount": 26,
+            "blockers": [
+              {
+                "id": "LIVE_MOBILE_TITLE_COLUMN",
+                "status": "OPEN",
+                "routes": [
+                  "/live/current"
+                ],
+                "viewports": [
+                  390
+                ],
+                "themes": [
+                  "light",
+                  "dark"
+                ],
+                "finding": "Native screenshots show the title column around 60px wide, wrapping long titles into 4–5 CJK characters per line and Latin words into fragments. First long row is roughly 430px tall. Channel text is clipped at the right visible edge. This makes the captured default mobile listing impractical to scan.",
+                "evidence": [
+                  "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-light-mobile-slice-760.png",
+                  "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-light-mobile-slice-1520.png",
+                  "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-light-mobile-slice-2280.png",
+                  "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-dark-mobile-slice-760.png",
+                  "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-dark-mobile-slice-1520.png",
+                  "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-dark-mobile-slice-2280.png"
+                ],
+                "required": "Revise responsive live rows or set a usable title width with clear overflow handling; capture and independently review the fixed production image."
+              }
+            ]
+          },
+          "views": [
+            {
+              "key": "live-current-light",
+              "route": "/live/current",
+              "viewport": "desktop",
+              "theme": "light",
+              "window": null,
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-light-desktop.png",
+                "sha256": "c66e4f25f0e55a4a36f1cd0f7382726e3bdefd0ac8df3543e8501c9852ee91d9"
+              },
+              "imageCount": 4,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-light-desktop-requests.json",
+                "sha256": "a6c77c63735ae18f083d8dcda69025fcaff3a225adc872f49b3d71a181ed99cb"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-light-desktop-raw-network.json",
+                "sha256": "6e4992c3d9a5e7d28da1af97f298f86da3acbfa385900aed8e158f8e444afb6c"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "live-current-light",
+              "route": "/live/current",
+              "viewport": "mobile",
+              "theme": "light",
+              "window": null,
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-light-mobile.png",
+                "sha256": "687e0d5107efb0d0da7266b8557ba1c6b3edb433ba0483c2282bc3d86555138a"
+              },
+              "imageCount": 9,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-light-mobile-requests.json",
+                "sha256": "8ec2874a41cae3a7e49fdd8e7fc87cc2b7f6e428c7432ea502947c564717b2b0"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-light-mobile-raw-network.json",
+                "sha256": "0007f922a3ce53028153c4c7e0d172987e235005d3b84d18be6642c3954fd0ba"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "live-current-dark",
+              "route": "/live/current",
+              "viewport": "desktop",
+              "theme": "dark",
+              "window": null,
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-dark-desktop.png",
+                "sha256": "e048bdeef5d2f14fd2045790d47106f8d4a61f3285e1af439937d44095322f70"
+              },
+              "imageCount": 4,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-dark-desktop-requests.json",
+                "sha256": "8d83323923ca58433a1bb75e3f6f2b1855b33f7dff20f1ae2066dde239e86726"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-dark-desktop-raw-network.json",
+                "sha256": "ff95799251603f67686bf1a249bdcbd7e1fdab236ede8560a255e91051322b07"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "live-current-dark",
+              "route": "/live/current",
+              "viewport": "mobile",
+              "theme": "dark",
+              "window": null,
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-dark-mobile.png",
+                "sha256": "8616ee66d8e8c9fd6965aae055ab396a244e3afb3eb03aa3f6a70334c94deb23"
+              },
+              "imageCount": 9,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-dark-mobile-requests.json",
+                "sha256": "563bc1cb3307212104e0e3f847b2973920589c60574e530f6bf5975c315c6365"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-dark-mobile-raw-network.json",
+                "sha256": "b539aac1b1d54f61023d030a7da1fab7e7a5a12c85dc11c52546b80694ea9a98"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            }
+          ],
+          "findings": [
+            {
+              "id": "LIVE_DESKTOP_UPDATED_CLIPPED",
+              "status": "OPEN",
+              "finding": "Both 1280px native slice-0 views show rightmost 更新時間 values cut off at the container boundary. Horizontal scrolling was not executed, so reachability beyond the captured default position is unverified.",
+              "evidence": [
+                "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-light-desktop-slice-0.png",
+                "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-dark-desktop-slice-0.png"
+              ]
+            },
+            {
+              "id": "LIVE_EVOLVING_CAPTURE_COUNTS",
+              "status": "NONBLOCKING",
+              "finding": "Live summary changes from 11/1,013 to 11/1,012 across capture times. Visible disclosures explain an evolving list and repeated viewers. No numeric defect is inferred from different capture times."
+            }
+          ],
+          "blockers": [
+            {
+              "id": "LIVE_MOBILE_TITLE_COLUMN",
+              "status": "OPEN",
+              "routes": [
+                "/live/current"
+              ],
+              "viewports": [
+                390
+              ],
+              "themes": [
+                "light",
+                "dark"
+              ],
+              "finding": "Native screenshots show the title column around 60px wide, wrapping long titles into 4–5 CJK characters per line and Latin words into fragments. First long row is roughly 430px tall. Channel text is clipped at the right visible edge. This makes the captured default mobile listing impractical to scan.",
+              "evidence": [
+                "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-light-mobile-slice-760.png",
+                "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-light-mobile-slice-1520.png",
+                "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-light-mobile-slice-2280.png",
+                "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-dark-mobile-slice-760.png",
+                "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-dark-mobile-slice-1520.png",
+                "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-dark-mobile-slice-2280.png"
+              ],
+              "required": "Revise responsive live rows or set a usable title width with clear overflow handling; capture and independently review the fixed production image."
+            }
+          ],
+          "routeComplete": false,
+          "F4": "pending tag T-ref",
+          "historicalFindingsNotAutomaticallyClosed": true
+        }
+      ]
     },
     {
       "route": "/live/days",
@@ -40710,7 +41100,7 @@
     "conclusion": "Keep deployed early gate. Broad/N20M5 retain five of six weekly broad-topic labels while excluding concrete event競總成立; article/media abundance is not a semantic classifier. Follow-up recorded as nonblocking; no new exclusions authorized or applied."
   },
   "productionDNTPageReview20261015": {
-    "recordedAt": "2026-10-14T19:37:14.916522+00:00",
+    "recordedAt": "2026-10-14T19:43:25.150498+00:00",
     "environment": "production",
     "appSha": "335c8dbd023ed1466620b29a4dea6cda9e3cef80",
     "image": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6",
@@ -40722,7 +41112,7 @@
     "captureMethod": "own native DNT1/GPC1 tool; prelaunch transmission-layer allowlist; raw network retained",
     "acceptedViews": 32,
     "reviewedMainViews": 24,
-    "secondaryViewsPending": 8,
+    "secondaryViewsPending": 0,
     "requiredWidths": [
       1280,
       390
@@ -40743,6 +41133,43 @@
         "PNGHashesChecked": 190,
         "hashOnlyPNGCount": 86,
         "blockers": []
+      },
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-app335c8db-secondary-20261014T194210Z/review.json",
+        "sha256": "6fa0e0efc6238e2736c37e7ecc23419c15fc91a46dac8d3f83525882a0cc7b9a",
+        "reviewedAt": "2026-10-14T19:42:10.603745+00:00",
+        "reviewer": "/root/f2_visual_sol",
+        "model": "GPT-6 (Codex; inherited parent model, exact serving identifier not exposed)",
+        "decision": "FAIL_SCOPED_PRODUCTION_SECONDARY_VISUAL",
+        "actualPNGOpenedCount": 26,
+        "PNGHashesChecked": 52,
+        "hashOnlyPNGCount": 26,
+        "blockers": [
+          {
+            "id": "LIVE_MOBILE_TITLE_COLUMN",
+            "status": "OPEN",
+            "routes": [
+              "/live/current"
+            ],
+            "viewports": [
+              390
+            ],
+            "themes": [
+              "light",
+              "dark"
+            ],
+            "finding": "Native screenshots show the title column around 60px wide, wrapping long titles into 4–5 CJK characters per line and Latin words into fragments. First long row is roughly 430px tall. Channel text is clipped at the right visible edge. This makes the captured default mobile listing impractical to scan.",
+            "evidence": [
+              "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-light-mobile-slice-760.png",
+              "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-light-mobile-slice-1520.png",
+              "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-light-mobile-slice-2280.png",
+              "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-dark-mobile-slice-760.png",
+              "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-dark-mobile-slice-1520.png",
+              "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-dark-mobile-slice-2280.png"
+            ],
+            "required": "Revise responsive live rows or set a usable title width with clear overflow handling; capture and independently review the fixed production image."
+          }
+        ]
       }
     ],
     "productionServicesAfter": {
@@ -40800,7 +41227,7 @@
           "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/prelaunch-proxy.json",
           "sha256": "571826f3258cf77b2b983db918ed247c5531f98dbee4181bd66fb870dc93be88"
         },
-        "visualStatus": "pending"
+        "visualStatus": "FAIL_SCOPED_PRODUCTION_SECONDARY_VISUAL"
       }
     ],
     "googleAnalyticsRequests": 0,
@@ -40836,6 +41263,129 @@
     "allRoutesComplete": false,
     "F4": "pending tag T-ref",
     "historicalSummaryPolicy": "existing status/counts summarize historical inventory; current scoped production retests are separate, never a full route closure",
-    "document": "docs/production-ui-review-2026-10-15.md"
+    "document": "docs/production-ui-review-2026-10-15.md",
+    "captureSourceReviews": [
+      {
+        "opsSha": "fc43909",
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/ops-production-capture-fc43909-independent-source-review-20261014T192010Z.json",
+        "sha256": "4b08975853eeb3fdc03aedb45a7d51d725aa0836e75fae37ce7e505dd242efe7",
+        "scope": "capture-source only, separate from actual visual review"
+      },
+      {
+        "opsSha": "3e146aa",
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/ops-capture-error-3e146aa-independent-source-review-20261014T192547Z.json",
+        "sha256": "de45105d6cf19e8d99f2eaf2d1ac95f2cf7b5e2cbc516ff5e447d2d2b1e5bcf0",
+        "scope": "capture-source only, separate from actual visual review"
+      }
+    ],
+    "resourceAdmission": {
+      "startSMHomeGiB": 40,
+      "cancelBelowSMHomeGiB": 30,
+      "loadLimit": 12,
+      "SMMinimumMemAvailableGiB": 2.5,
+      "globalMaxCaptureBrowsers": 2,
+      "pageMedianLimitsSeconds": {
+        "tag": 2.0,
+        "blog": 6.17,
+        "youtube": 2.0
+      },
+      "method": "each site three HTML curl samples from SM; any curl failure/non200 rejects; raw samples retained in fresh receipts",
+      "deniedFreshProbe": {
+        "path": "/tmp/babysit/mint-queue/youtube-production-dark-remaining-fresh-20261015.json",
+        "reason": "blog median6.552891>6.17; no browser launched; later fresh retry passed"
+      }
+    },
+    "reviewedViews": 32,
+    "secondaryViewsReviewed": 8,
+    "scopedPassedViews": 24,
+    "scopedIssueViews": 8,
+    "reviewedProductionNormalRouteEntries": 6,
+    "actualPNGOpenedCount": 130,
+    "PNGHashesChecked": 242,
+    "hashOnlyPNGCount": 112,
+    "secondaryFindings": [
+      {
+        "id": "LIVE_DESKTOP_UPDATED_CLIPPED",
+        "status": "OPEN",
+        "finding": "Both 1280px native slice-0 views show rightmost 更新時間 values cut off at the container boundary. Horizontal scrolling was not executed, so reachability beyond the captured default position is unverified.",
+        "evidence": [
+          "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-light-desktop-slice-0.png",
+          "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-dark-desktop-slice-0.png"
+        ]
+      },
+      {
+        "id": "GROUP_RANGE_AND_COUNT_AMBIGUITY",
+        "status": "OPEN",
+        "finding": "Both themes and widths show two rows labeled 台灣立場 vs 中國立場, both labeled 頻道分類群組, with 成員數 2 and 7 and no visible range distinction. This is ambiguous range and counting-unit presentation; it is not proof that either count is incorrect.",
+        "evidence": [
+          "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-light-desktop-slice-1520.png",
+          "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-light-mobile-slice-3800.png",
+          "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-dark-desktop-slice-1520.png",
+          "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-dark-mobile-slice-3800.png"
+        ],
+        "supplementalParentSourceReport": "Parent read-only source report: group-definitions.ts keys two/two_all use the same label and have groups lengths 2/7; two_all additionally includes 新聞、個人社論、全部、政治人物、大外宣. groups.ts displays value.groups.length as 成員數 and both as 頻道分類群組. Reviewer did not independently read this source; actual-image finding stands on screenshots."
+      },
+      {
+        "id": "GROUP_FRESHNESS_LABELS",
+        "status": "OPEN",
+        "finding": "The visible update date is 2023/01/24 下午02:20 while current-office labels such as 現任立委 and 現任縣市長 appear. 2024 總統候選人 is explicitly marked 歷史. Freshness of current-office memberships is not certified by this review.",
+        "evidence": [
+          "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-light-mobile-slice-0.png",
+          "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-dark-mobile-slice-0.png"
+        ]
+      },
+      {
+        "id": "GROUP_SCHEMA_COPY",
+        "status": "OPEN",
+        "finding": "Product explanatory copy exposes the implementation/schema term tag_group, which does not help users interpret the classifications.",
+        "evidence": [
+          "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-light-mobile-slice-0.png",
+          "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-dark-mobile-slice-0.png"
+        ]
+      },
+      {
+        "id": "GROUP_MOBILE_REPEATED_LABELS",
+        "status": "NONBLOCKING",
+        "finding": "Mobile groups rows repeatedly display 群組 / 分類依據 / 成員數, creating a verbose list but remaining readable.",
+        "evidence": [
+          "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-light-mobile-slice-3040.png",
+          "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-light-mobile-slice-3800.png",
+          "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-dark-mobile-slice-3040.png",
+          "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/groups-dark-mobile-slice-3800.png"
+        ]
+      },
+      {
+        "id": "LIVE_EVOLVING_CAPTURE_COUNTS",
+        "status": "NONBLOCKING",
+        "finding": "Live summary changes from 11/1,013 to 11/1,012 across capture times. Visible disclosures explain an evolving list and repeated viewers. No numeric defect is inferred from different capture times."
+      }
+    ],
+    "secondaryBlockers": [
+      {
+        "id": "LIVE_MOBILE_TITLE_COLUMN",
+        "status": "OPEN",
+        "routes": [
+          "/live/current"
+        ],
+        "viewports": [
+          390
+        ],
+        "themes": [
+          "light",
+          "dark"
+        ],
+        "finding": "Native screenshots show the title column around 60px wide, wrapping long titles into 4–5 CJK characters per line and Latin words into fragments. First long row is roughly 430px tall. Channel text is clipped at the right visible edge. This makes the captured default mobile listing impractical to scan.",
+        "evidence": [
+          "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-light-mobile-slice-760.png",
+          "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-light-mobile-slice-1520.png",
+          "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-light-mobile-slice-2280.png",
+          "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-dark-mobile-slice-760.png",
+          "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-dark-mobile-slice-1520.png",
+          "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/live-current-dark-mobile-slice-2280.png"
+        ],
+        "required": "Revise responsive live rows or set a usable title width with clear overflow handling; capture and independently review the fixed production image."
+      }
+    ],
+    "nextBatch": "address live/current responsive blocker and group labels; continue unreviewed public routes in small batches"
   }
 }
