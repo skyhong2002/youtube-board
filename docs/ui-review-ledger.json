@@ -37640,6 +37640,21 @@
           "executionAllowed": false,
           "status": "submitted for babysit command/slot check"
         }
+      },
+      "partialStaticReview": {
+        "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/static-app0f1e1096-home-today-light-20261014T070827Z/review.json",
+        "sha256": "622f3ad951b9f9bdbdbabce553a9d949cea4961f1ea3f7b16a7cb4d32194891d",
+        "transcript": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/static-app0f1e1096-home-today-light-20261014T070827Z/transcript.md",
+        "transcriptSha256": "f27866ba30eaf91d20c7d44b46833918570a6a44489b6210f8266babc27d78a4",
+        "reviewedAt": "2026-10-14T07:08:27.036553+00:00",
+        "reviewer": "/root/f2_visual_sol",
+        "modelAsRecorded": "GPT-6 (Codex; inherited parent model, exact serving identifier not exposed)",
+        "inputsInspected": 16,
+        "scope": "existing original16 PNGs for home/today/light only; independent offline visual review, no browser/network/new capture/source mutation",
+        "candidateApproval": false,
+        "routeComplete": false,
+        "networkAcceptance": false,
+        "findings": "Mobile metric wrap; cloud words outside top8 ranking semantic ambiguity; small metadata readability risk. Period controls and visible windows agree. Source explanation under independent followup; no original receipt overwrite."
       }
     }
   }
