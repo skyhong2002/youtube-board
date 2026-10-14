@@ -41556,6 +41556,26 @@
       "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-deployment.json",
       "sha256": "818e4739cd7915d231975d2d262c43e3d31f45359e1d3b143338f01f1a205722"
     },
-    "productionVisualStatus": "pending"
+    "productionVisualStatus": "feature8scopedPASS;main24pending",
+    "productionFeatureReview": {
+      "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-appfe79879-feature8-20261014T211629Z/review.json",
+      "sha256": "02a3a11f9cd0712098ced449d2c69184ec91fe5875ea73b0fb035eda88a38af8"
+    },
+    "productionCaptureIndex": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-capture-index.json",
+      "sha256": "a198be3356c477d53a22528807a72b26a7eb32309af1f50ef836e022c14a5ca2"
+    },
+    "referenceCommitBinding": {
+      "path": "/tmp/babysit/mint-queue/youtube-t-ref-binding-ff511870.json",
+      "sha256": "7166e676f768185aebcc6619785472996e9a8181af313d7aba8fc128f2c773a1"
+    },
+    "captureMemoryStop": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-feature-capture-stop.json",
+      "sha256": "c1122beed386b453731896461ec36a3c8f70203c879a95f6fab44171d18f907b"
+    },
+    "rollbackDryRun": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-rollback-dry-run.json",
+      "sha256": "b21acd023731d119219720319e5560e0131e8311bd830b72ddafde7061cabb33"
+    }
   }
 }
