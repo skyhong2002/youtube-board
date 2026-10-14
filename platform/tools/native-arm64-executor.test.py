@@ -95,9 +95,9 @@ class Backend:
 
 
 def gate(pin):
-    return {**pin.binding(), 'schema': 'yt-executor-admitted-gate-v1',
-            'verifiedAt': NOW.isoformat(), 'mintLockHeldForWholeJob': True,
-            'durableReservationHeld': True, 'globalSlotAcknowledged': True, 'hostHealthCurrent': True,
+    return {**pin.binding(), 'schema': 'yt-sm-native-executor-admitted-gate-v2',
+            'verifiedAt': NOW.isoformat(), 'controllerHost': 'SM', 'executorHost': 'skyhong-blog',
+            'jobCustodyHeldForWholeJob': True, 'globalSlotAcknowledged': True, 'hostHealthCurrent': True,
             'operatorResumeAuthorized': True, 'resumeAuthorizationId': 'mock-explicit-resume-1'}
 
 
@@ -118,6 +118,33 @@ class LifecycleTests(unittest.TestCase):
         backend.rows[0]['Config']['Labels'][module.LABELS['app_sha']] = '70529cff13b6b7f5b3e0571a229e2b61660f9df4'
         self.assertFalse(backend.executor().pause()['remoteStopConfirmed'])
         self.assertFalse(any(kind == 'dispatch' for kind, _ in backend.calls))
+
+    def test_old_mint_contract_or_extra_evidence_never_authorizes_resume(self):
+        for mutate in (
+            lambda data: data.update(schema='yt-executor-admitted-gate-v1'),
+            lambda data: data.update(mintLockHeldForWholeJob=True),
+            lambda data: data.update(durableReservationHeld=True),
+            lambda data: data.update(controllerHost='Mint'),
+            lambda data: data.update(executorHost='SM'),
+            lambda data: data.update(extra='sensitive-sentinel'),
+        ):
+            backend = Backend(self.pin); job = backend.executor()
+            self.assertTrue(job.pause()['remoteStopConfirmed'])
+            evidence = gate(self.pin); mutate(evidence)
+            result = job.resume(evidence)
+            self.assertNotEqual(result['state'], 'running-observed')
+            self.assertFalse(any(kind == 'dispatch' and spec.get('argv', [None, None])[1] == 'unpause'
+                                 for kind, spec in backend.calls))
+            self.assertNotIn('sensitive-sentinel', str(result))
+
+    def test_resume_requires_actual_custody_and_slot_authentication(self):
+        for field in ('jobCustodyHeldForWholeJob', 'globalSlotAcknowledged'):
+            backend = Backend(self.pin); job = backend.executor(); job.pause()
+            evidence = gate(self.pin); evidence[field] = False
+            self.assertNotEqual(job.resume(evidence)['state'], 'running-observed')
+        backend = Backend(self.pin); job = backend.executor(); job.pause()
+        backend.gate_authenticated = False
+        self.assertNotEqual(job.resume(gate(self.pin))['state'], 'running-observed')
 
     def test_identity_is_full_and_separate_from_APP(self):
         for field, value in (('container_id', 'aaaa'), ('image_id', 'node:24'),
@@ -281,7 +308,7 @@ class LifecycleTests(unittest.TestCase):
             self.assertFalse(any(spec['argv'][1] == 'unpause' for kind, spec in backend.calls if kind == 'dispatch'))
 
     def test_gate_truthiness_or_unauthenticated_claim_is_denied(self):
-        for field in ('mintLockHeldForWholeJob', 'durableReservationHeld', 'globalSlotAcknowledged',
+        for field in ('jobCustodyHeldForWholeJob', 'globalSlotAcknowledged',
                       'hostHealthCurrent', 'operatorResumeAuthorized'):
             backend = Backend(self.pin)
             job = backend.executor()

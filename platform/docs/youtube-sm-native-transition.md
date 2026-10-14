@@ -168,3 +168,24 @@ frozenAPP705 labels without dispatch;30executor+29cgroup+21Docker mocks pass.
 Its independent review is in progress. Actual watchdog/dispatch/heartbeat and
 terminal packaging integration remains necessary before executable build request;
 no build started, draft remains executionAllowed=false.
+
+## Global slot notice supersedes21:08 assignment
+
+Babysit now assigns the next exclusive global slot to whichever of YT or tag
+first submits a complete checkable exact build command; the other queues next.
+YT does not hold a reservation merely because the21:08 message assigned it.
+The actual controller must authenticate a current babysit handoff immediately
+before execution; a historical notice or a source-only PASS is insufficient.
+
+APP073 executor source45a2f0c independent PASS receipt
+/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/native-executor-app073-independent-source-review-20261013T212132Z.json,
+SHA256e1db97334d0638869775fbf9bd937829640ce1d9636992d09c61dfe188e3e6ad.
+Its review found old admitted-gate still required Mint lock. New source migration
+uses strict yt-sm-native-executor-admitted-gate-v2, controllerSM/executorskyhong-blog,
+jobCustodyHeldForWholeJob/globalSlotAcknowledged/hostHealthCurrent plus fresh
+operator resume authorization authenticated by the existing callback. No Mint
+lock evidence is synthesized; old schema/extra fields/wrong hosts are rejected.
+Pause confirmation, cgroup identity, resume replay prevention and unknown-state
+custody retention remain.32executor+29cgroup+21Docker offline mocks pass.
+This migration still requires independent review and does not wire runtime IO.
+No live probe, lock, build, container or image operation occurred this step.

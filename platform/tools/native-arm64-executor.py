@@ -9,8 +9,8 @@ Physical pause requires two stable complete cgroup-v2 snapshots with frozen=1,
 bound to full container ID, Linux PID starttime and pinned cgroup path. A successful
 Docker pause/inspect alone is insufficient. Synchronous backend IO is NOT hard
 preempted by the bounded polling deadline: a future adapter must bound each call.
-Terminal proof requests a coordinator decision; this module never releases Mint
-flock or durable reservation, grants admission, or claims runtime readiness.
+Terminal proof requests a coordinator decision; this module never releases job
+custody or the global slot, grants admission, or claims runtime readiness.
 """
 from dataclasses import dataclass
 import datetime
@@ -248,9 +248,14 @@ class Executor:
             return self.fail('physical-owned-container-STOP-unconfirmed')
 
     def admitted(self, gate):
-        require(isinstance(gate, dict) and gate.get('schema') == 'yt-executor-admitted-gate-v1' and
+        keys = set(self.identity.binding()) | {'schema', 'verifiedAt', 'controllerHost', 'executorHost',
+                'jobCustodyHeldForWholeJob', 'globalSlotAcknowledged', 'hostHealthCurrent',
+                'operatorResumeAuthorized', 'resumeAuthorizationId'}
+        require(isinstance(gate, dict) and set(gate) == keys and
+                gate.get('schema') == 'yt-sm-native-executor-admitted-gate-v2' and
                 all(gate.get(k) == v for k, v in self.identity.binding().items()) and
-                gate.get('mintLockHeldForWholeJob') is True and gate.get('durableReservationHeld') is True and
+                gate.get('controllerHost') == 'SM' and gate.get('executorHost') == 'skyhong-blog' and
+                gate.get('jobCustodyHeldForWholeJob') is True and
                 gate.get('globalSlotAcknowledged') is True and gate.get('hostHealthCurrent') is True and
                 gate.get('operatorResumeAuthorized') is True and
                 isinstance(gate.get('resumeAuthorizationId'), str) and
