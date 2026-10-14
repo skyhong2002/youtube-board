@@ -38065,7 +38065,7 @@
       "maxRawSampleAgeSeconds": 30,
       "refreshImmediatelyBeforeStart": true
     },
-    "build": "exact request ready; babysit approval/slot pending",
+    "build": "completed exit0; verified linux/arm64 and APP/OPS labels",
     "capture": "pending",
     "candidateApproval": false,
     "routeComplete": false,
@@ -38090,6 +38090,30 @@
       ]
     },
     "buildRequestPath": "/tmp/babysit/mint-queue/youtube-simple-native-d019ae69-request-ready.json",
-    "buildRequestSha256": "36eca576bff8c623fef22b394b965471f177f9291d32d519e818533425eda812"
+    "buildRequestSha256": "36eca576bff8c623fef22b394b965471f177f9291d32d519e818533425eda812",
+    "buildResult": {
+      "path": "/tmp/babysit/mint-queue/youtube-simple-native-d019ae69-result.json",
+      "sha256": "d87140cae64994c1f6fc439e580cf24940cf8ab5431d399b2f5d885f16cdf6a6",
+      "imageId": "sha256:b4afbd8f7a1c43c3c3445e4996f16841a242ed2b802b30fbffa68a5ea7d43d4d",
+      "architecture": "arm64",
+      "os": "linux",
+      "sizeBytes": 1390940004,
+      "layerCount": 108,
+      "labels": {
+        "org.opencontainers.image.revision": "d019ae69e922ba8530b7af8c98ae5e200138942a",
+        "tw.observe.build.ops-sha": "51dc9de1a20e73c428d4e9588fa8d5243643c742"
+      },
+      "owner": "d7967e77",
+      "actualTag": "youtube-board-ts:f2-d019ae69-20261014t074748z",
+      "build": {
+        "startedAt": "2026-10-14T07:55:55.152445+00:00",
+        "finishedAt": "2026-10-14T07:58:19.879916+00:00",
+        "exitCode": 0,
+        "logPath": "/home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/yt-f2-simple-20261014t074748z/approved-simple-build.log",
+        "logSha256": "ebfee7dac834c1133736fe8a094a14769972785e087e1ed0625e1ca1c43f7374"
+      },
+      "buildSlotReturnedAt": "2026-10-14T07:58:19.879916+00:00"
+    },
+    "buildSlotReturnedAt": "2026-10-14T07:58:19.879916+00:00"
   }
 }
