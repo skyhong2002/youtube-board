@@ -37116,6 +37116,16 @@
       "dokployComposeSynced": true,
       "rollbackImage": "sha256:b4afbd8f7a1c43c3c3445e4996f16841a242ed2b802b30fbffa68a5ea7d43d4d",
       "formalBrowserAcceptance": "pending"
+    },
+    {
+      "at": "2026-10-14T16:15:40.834532+00:00",
+      "owner": "d7967e77",
+      "appSha": "72cb81699088276215cc5ca8604feb07544a07aa",
+      "image": "sha256:1e2513480d7d4a6713b135cf9547330300602324b66a2c830fc51ed5e3924140",
+      "buildId": "Fb8mfbUpeqBWyMVD2_Jsj",
+      "receipt": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-production-deployment.json",
+      "scope": "F1 SSR page-top profilemetadata; genericpoolOPEN",
+      "formalBrowserAcceptance": "pending"
     }
   ],
   "nativeBuildPreparationFindings": [
@@ -38999,46 +39009,18 @@
     }
   },
   "currentProductionRuntime20261014": {
-    "appSha": "78df4fd87f2df2c115512831372869276fa250df",
-    "imageId": "sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38",
-    "buildId": "hqA5C00BhxMB7igbPaZyL",
-    "services": {
-      "youtube-board-ts-6oukfq_web": {
-        "desiredImage": "sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38",
-        "replicas": 1,
-        "updateState": "completed",
-        "updateStartedAt": "2026-10-14T15:04:40.941923414Z",
-        "updateCompletedAt": "2026-10-14T15:05:23.556558815Z",
-        "runningContainers": [
-          {
-            "containerId": "6d49ae6df15fd4d699195dc3bb0684b57040ae94495ed1de3ffe86c4f0b66f1a",
-            "image": "sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38",
-            "health": "healthy",
-            "startedAt": "2026-10-14T15:04:41.230650215Z",
-            "buildId": "hqA5C00BhxMB7igbPaZyL"
-          }
-        ]
-      },
-      "youtube-board-ts-6oukfq_account-maintenance": {
-        "desiredImage": "sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38",
-        "replicas": 1,
-        "updateState": "completed",
-        "updateStartedAt": "2026-10-14T15:04:40.953920292Z",
-        "updateCompletedAt": "2026-10-14T15:04:55.858320928Z",
-        "runningContainers": [
-          {
-            "containerId": "c5f4319916d436bb25824075c82f72ccfa1059a20ca2aa530923ed7d9e3e47f3",
-            "image": "sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38",
-            "health": "healthy",
-            "startedAt": "2026-10-14T15:04:44.638402887Z",
-            "buildId": "hqA5C00BhxMB7igbPaZyL"
-          }
-        ]
-      }
-    },
-    "recordedAt": "2026-10-14T15:09:03.439308+00:00",
-    "productionVisualAcceptance": "pending babysit new-release browser acceptance; previous b4 acceptance preserved separately",
-    "genericRankedPoolFinding": "OPEN"
+    "owner": "d7967e77",
+    "appSha": "72cb81699088276215cc5ca8604feb07544a07aa",
+    "image": "sha256:1e2513480d7d4a6713b135cf9547330300602324b66a2c830fc51ed5e3924140",
+    "architecture": "arm64",
+    "buildId": "Fb8mfbUpeqBWyMVD2_Jsj",
+    "receipt": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-production-deployment.json",
+    "sha256": "ce3d5b814c357a4c9f4f89f8c6ec595d295597796feb35187d849a180b7e3fd3",
+    "services": "web and account-maintenance completed, onehealthycontainer each",
+    "dokployComposeSynced": true,
+    "formalBrowserAcceptance": "pending babysit",
+    "rollbackCommand": "python3 /tmp/babysit/mint-queue/youtube-f1-top-72cb816-deploy.py --execute --rollback",
+    "rollbackImage": "sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38"
   },
   "keywordRankedPoolSuccessor20261014": {
     "status": "OPEN; upstream filtered windowed pool required; offline contract prepared",
@@ -39305,6 +39287,51 @@
         ],
         "wholeRouteApproval": false
       }
+    },
+    {
+      "preservedAt": "2026-10-14T16:15:40.834532+00:00",
+      "before72cb816": {
+        "appSha": "78df4fd87f2df2c115512831372869276fa250df",
+        "imageId": "sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38",
+        "buildId": "hqA5C00BhxMB7igbPaZyL",
+        "services": {
+          "youtube-board-ts-6oukfq_web": {
+            "desiredImage": "sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38",
+            "replicas": 1,
+            "updateState": "completed",
+            "updateStartedAt": "2026-10-14T15:04:40.941923414Z",
+            "updateCompletedAt": "2026-10-14T15:05:23.556558815Z",
+            "runningContainers": [
+              {
+                "containerId": "6d49ae6df15fd4d699195dc3bb0684b57040ae94495ed1de3ffe86c4f0b66f1a",
+                "image": "sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38",
+                "health": "healthy",
+                "startedAt": "2026-10-14T15:04:41.230650215Z",
+                "buildId": "hqA5C00BhxMB7igbPaZyL"
+              }
+            ]
+          },
+          "youtube-board-ts-6oukfq_account-maintenance": {
+            "desiredImage": "sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38",
+            "replicas": 1,
+            "updateState": "completed",
+            "updateStartedAt": "2026-10-14T15:04:40.953920292Z",
+            "updateCompletedAt": "2026-10-14T15:04:55.858320928Z",
+            "runningContainers": [
+              {
+                "containerId": "c5f4319916d436bb25824075c82f72ccfa1059a20ca2aa530923ed7d9e3e47f3",
+                "image": "sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38",
+                "health": "healthy",
+                "startedAt": "2026-10-14T15:04:44.638402887Z",
+                "buildId": "hqA5C00BhxMB7igbPaZyL"
+              }
+            ]
+          }
+        },
+        "recordedAt": "2026-10-14T15:09:03.439308+00:00",
+        "productionVisualAcceptance": "pending babysit new-release browser acceptance; previous b4 acceptance preserved separately",
+        "genericRankedPoolFinding": "OPEN"
+      }
     }
   ],
   "f1ProfileFollowup20261014": {
@@ -39351,8 +39378,57 @@
       "httpChecks": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-candidate-http.json",
       "coreHttp": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-candidate-core-http.json"
     },
-    "visualReview": "pending",
-    "deployment": "pending visual review, exact dry-run passed",
+    "visualReview": {
+      "profiles": {
+        "status": "PASS_SCOPED",
+        "reviewer": "/root/f2_visual_sol",
+        "receipt": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/f1-top-app72cb816-profiles-20261014T160945Z/review.json",
+        "sha256": "11556740eaeda18a34f05950bad75a2353c3ab2bbdd1aa2df7c5acdb85fac5e2",
+        "views": 12,
+        "actuallyViewedPNGs": 67,
+        "hashVerifiedPNGs": 180,
+        "unviewedIndividualMiddleSlices": 113,
+        "blockers": []
+      },
+      "core": {
+        "status": "PASS_SCOPED",
+        "reviewer": "/root/f2_visual_sol",
+        "receipt": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/app72cb816-core-and-profile-final-20261014T161232Z/review.json",
+        "sha256": "e9368b42444f1dbda76c1f14f132962677442ff3d661120db7b2bbe3f2f30a86",
+        "profileStates": 12,
+        "coreStates": 4,
+        "corePeriods": [
+          "week"
+        ],
+        "coreThemes": [
+          "light"
+        ],
+        "actuallyViewedPNGs": 83,
+        "hashVerifiedPNGs": 207,
+        "unviewedIndividualSlices": 124,
+        "blockers": [],
+        "limitations": [
+          "coretoday/dark not reviewed",
+          "remaining route/state reviews pending",
+          "generic ranked pool remainsOPEN"
+        ]
+      },
+      "routeComplete": false,
+      "fullSiteAcceptance": false
+    },
+    "deployment": {
+      "status": "DEPLOYED_RUNTIME_HTTP_PASS_FORMAL_BROWSER_PENDING",
+      "path": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-production-deployment.json",
+      "sha256": "ce3d5b814c357a4c9f4f89f8c6ec595d295597796feb35187d849a180b7e3fd3",
+      "appSha": "72cb81699088276215cc5ca8604feb07544a07aa",
+      "image": "sha256:1e2513480d7d4a6713b135cf9547330300602324b66a2c830fc51ed5e3924140",
+      "buildId": "Fb8mfbUpeqBWyMVD2_Jsj",
+      "rollbackCommand": "python3 /tmp/babysit/mint-queue/youtube-f1-top-72cb816-deploy.py --execute --rollback",
+      "rollbackImage": "sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38",
+      "dokployComposeSynced": true,
+      "sameArtifactNoRebuild": true,
+      "formalBrowserAcceptance": "pending babysit"
+    },
     "request": "/tmp/babysit/mint-queue/youtube-simple-native-72cb816-request.json",
     "freshProbe": {
       "path": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-reviewed-fresh.json",
@@ -39369,10 +39445,6 @@
         "blog": 7.479571,
         "youtube": 0.2264
       }
-    },
-    "productionUnchanged": {
-      "image": "sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38",
-      "buildId": "hqA5C00BhxMB7igbPaZyL"
     },
     "candidatePlan": {
       "routes": [
@@ -39396,7 +39468,7 @@
         "zero GA; DNT1/GPC1; source/build/image in manifest"
       ]
     },
-    "genericRankedPool": "pending tag upstream; no manual-only fallback deployed",
+    "genericRankedPool": "OPEN waitingtag completeexact-window rankedpool; thisrelease onlyF1 profilefollowup",
     "freshProbeHistory": [
       {
         "path": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-preflight.json",
@@ -39438,7 +39510,7 @@
         "light",
         "dark"
       ],
-      "visualReview": "pending actual images existing reviewer",
+      "visualReview": "PASS_SCOPED; final actual-image independent receipt bound to exact APP/image/BUILD_ID",
       "core": {
         "homeCompleted": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/profile72-capture-tools/candidate-app72-envelope-2026-10-14/app72cb816-core/run-4a42b591-f882-45f0-b696-e0edd04cf072/home-light-72cb816-completed.json",
         "keywordsRetake": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/profile72-capture-tools/candidate-app72-envelope-2026-10-14/app72cb816-core-retake/run-3c52849c-fa66-4014-ba87-daf5cc9a20c2/captures.json",
@@ -39452,13 +39524,24 @@
         "failedOriginalPreserved": true,
         "failedOriginalReason": "Taipei midnight crossed; privacyAfter absent; no network exception added",
         "retakeDay": "2026-10-15",
-        "status": "CAPTURE_COMPLETE_VISUAL_REVIEW_PENDING"
+        "status": "CAPTURE_AND_SCOPED_VISUAL_PASS"
       },
       "bytes": 57851871
     },
     "latestAuthority": "User: native remote build uses skyhong-blog resources; blog pure latency does not block; any HTTP/curl failure still blocks",
     "remoteMainSHA": "72cb81699088276215cc5ca8604feb07544a07aa",
     "deploymentDryRun": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-deploy-dry-run02.json",
-    "deploymentAdmission": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-deploy-admission.json"
+    "deploymentAdmission": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-deploy-admission-final.json",
+    "previousProduction": {
+      "image": "sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38",
+      "buildId": "hqA5C00BhxMB7igbPaZyL"
+    },
+    "productionHttpChecks": {
+      "receipt": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-production-http02.json",
+      "passed": 6,
+      "syntheticCookiePrivacy": true,
+      "exactBuildId": true
+    },
+    "cleanup": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-cleanup.json"
   }
 }
