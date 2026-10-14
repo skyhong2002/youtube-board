@@ -37836,6 +37836,123 @@
       "path": "/tmp/babysit/mint-queue/youtube-prefetch01-runtime-cache-canary.json",
       "sha256": "27e25c6c9e2b1f3e5a1bbf02566392b865f2820c2dd08df7643f90ea81a02ae9",
       "passed": true
+    },
+    "keywordsCapture": {
+      "manifest": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app9db8a309-keywords-20261014-prefetch01-v12/run-e87628c7-619d-4ef9-89b6-eec7440456b2/captures.json",
+      "manifestSha256": "440c0c9b37d3d9cb62219fd35281e399ce29532b16cd6b4ed1735f0511fa347b",
+      "capturedViewportPackages": 8,
+      "pngCount": 44,
+      "networkEvidence": [
+        {
+          "key": "keywords-today-light-9db8a309",
+          "viewport": "desktop",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app9db8a309-keywords-20261014-prefetch01-v12/run-e87628c7-619d-4ef9-89b6-eec7440456b2/keywords-today-light-9db8a309-desktop-requests.json",
+          "sha256": "17a3b18510ee8563e990abf55d442b75638991b4264c15ccf367396421b929d1",
+          "complete": true,
+          "accepted": true,
+          "googleAttempts": 0,
+          "googleResponses": 0,
+          "DNT": "1",
+          "GPC": true
+        },
+        {
+          "key": "keywords-today-light-9db8a309",
+          "viewport": "mobile",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app9db8a309-keywords-20261014-prefetch01-v12/run-e87628c7-619d-4ef9-89b6-eec7440456b2/keywords-today-light-9db8a309-mobile-requests.json",
+          "sha256": "5bb9077d1cdd473120ed34daabc1f5ddcc9d22fe35d1a2128c502169752da290",
+          "complete": true,
+          "accepted": true,
+          "googleAttempts": 0,
+          "googleResponses": 0,
+          "DNT": "1",
+          "GPC": true
+        },
+        {
+          "key": "keywords-today-dark-9db8a309",
+          "viewport": "desktop",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app9db8a309-keywords-20261014-prefetch01-v12/run-e87628c7-619d-4ef9-89b6-eec7440456b2/keywords-today-dark-9db8a309-desktop-requests.json",
+          "sha256": "b61a570633b8d0d38660389d10d42ccb7c27fc9c86ddf25b2c91c7aec7ef2178",
+          "complete": true,
+          "accepted": true,
+          "googleAttempts": 0,
+          "googleResponses": 0,
+          "DNT": "1",
+          "GPC": true
+        },
+        {
+          "key": "keywords-today-dark-9db8a309",
+          "viewport": "mobile",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app9db8a309-keywords-20261014-prefetch01-v12/run-e87628c7-619d-4ef9-89b6-eec7440456b2/keywords-today-dark-9db8a309-mobile-requests.json",
+          "sha256": "f7238d63a68267372d2016daa15bc19ec5af58d57c5c715e39d23c463ca223d2",
+          "complete": true,
+          "accepted": true,
+          "googleAttempts": 0,
+          "googleResponses": 0,
+          "DNT": "1",
+          "GPC": true
+        },
+        {
+          "key": "keywords-week-light-9db8a309",
+          "viewport": "desktop",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app9db8a309-keywords-20261014-prefetch01-v12/run-e87628c7-619d-4ef9-89b6-eec7440456b2/keywords-week-light-9db8a309-desktop-requests.json",
+          "sha256": "c5f7689f0042d1ffa5a0c0c2215127e70f01010e2a4846aec365500dc95ed2cd",
+          "complete": true,
+          "accepted": true,
+          "googleAttempts": 0,
+          "googleResponses": 0,
+          "DNT": "1",
+          "GPC": true
+        },
+        {
+          "key": "keywords-week-light-9db8a309",
+          "viewport": "mobile",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app9db8a309-keywords-20261014-prefetch01-v12/run-e87628c7-619d-4ef9-89b6-eec7440456b2/keywords-week-light-9db8a309-mobile-requests.json",
+          "sha256": "ca66bfc168358a4b936cd0708629f5eb4fe548ca556a90e6179969f23f2e2f77",
+          "complete": true,
+          "accepted": true,
+          "googleAttempts": 0,
+          "googleResponses": 0,
+          "DNT": "1",
+          "GPC": true
+        },
+        {
+          "key": "keywords-week-dark-9db8a309",
+          "viewport": "desktop",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app9db8a309-keywords-20261014-prefetch01-v12/run-e87628c7-619d-4ef9-89b6-eec7440456b2/keywords-week-dark-9db8a309-desktop-requests.json",
+          "sha256": "67817eab4a41ea540e85b18141ad5e255f3723b2d4aae57bcacb2ccd9afbd3c6",
+          "complete": true,
+          "accepted": true,
+          "googleAttempts": 0,
+          "googleResponses": 0,
+          "DNT": "1",
+          "GPC": true
+        },
+        {
+          "key": "keywords-week-dark-9db8a309",
+          "viewport": "mobile",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app9db8a309-keywords-20261014-prefetch01-v12/run-e87628c7-619d-4ef9-89b6-eec7440456b2/keywords-week-dark-9db8a309-mobile-requests.json",
+          "sha256": "ac8f0fd40c3990da738d8c19e039eb327d442770ff0c8eec8bda76c02a0395ce",
+          "complete": true,
+          "accepted": true,
+          "googleAttempts": 0,
+          "googleResponses": 0,
+          "DNT": "1",
+          "GPC": true
+        }
+      ],
+      "candidateApproval": false,
+      "routeComplete": false,
+      "independentVisualReview": "inprogress",
+      "captureExceptions": []
+    },
+    "runtimeSecurity": {
+      "path": "/tmp/babysit/mint-queue/youtube-prefetch01-runtime-security.json",
+      "sha256": "b90903e3235147c0ee53c8dc00d271559f2885f4da2409415a522a113b214a07",
+      "NoNewPrivs": 1,
+      "readOnly": true,
+      "capDrop": [
+        "ALL"
+      ]
     }
   }
 }
