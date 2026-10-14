@@ -1,3 +1,4 @@
+import {reportLinkPrefetch} from "@/lib/report-contract";
 import { CHANNEL_SORTS, type ChannelRanking } from '../../../shared/channel-ranking';
 import Link from "next/link";
 import { Fragment } from "react";
@@ -209,6 +210,7 @@ export function TopicCards({
                         <h3>
                             <Link
                                 href={row.detailUrl??`/ai/days/${row.dailyId}/events?event=${encodeURIComponent(row.title)}`}
+                                prefetch={reportLinkPrefetch(row.detailUrl??`/ai/days/${row.dailyId}/events?event=${encodeURIComponent(row.title)}`)}
                             >
                                 {row.title}
                             </Link>

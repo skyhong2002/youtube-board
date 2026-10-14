@@ -7,7 +7,7 @@ import TableScroller from './TableScroller';
 import {table as tableStyle} from '@/lib/table-styles';
 import {reportStyle as ui} from '@/lib/report-styles';
 import {count,dateTime} from '@/lib/format';
-import {safeReportHref,type ReportCell,type ReportColumn,type ReportValue} from '@/lib/report-contract';
+import {reportLinkPrefetch,safeReportHref,type ReportCell,type ReportColumn,type ReportValue} from '@/lib/report-contract';
 import {numericColumn,reportLeadIndex} from '@/lib/report-table';
 /** Contract-driven report table. Wide tables scroll sideways with a sticky lead
  * column (see reportLeadIndex); three columns or fewer stack on phones. */
@@ -36,7 +36,7 @@ function Cell({value,column,lead=false}:{value:ReportValue|ReportCell|undefined;
  const media=!sources&&cell.media&&<span className={(lead?tableStyle.leadExtra+' ':'')+'shrink-0'}>{cell.media.kind==='channel'?<ChannelAvatar avatar={cell.media.avatar} title={typeof cell.value==='string'?cell.value:undefined} size={20}/>:<VideoThumbnail videoId={cell.media.videoId} width={48} height={27}/>}</span>;
  const content=media?<span className={row}>{media}{label}</span>:label;
  const rendered=href?(href.startsWith('/')
-  ?<Link className={ui.link+(media?'':' '+row)} href={href}>{content}</Link>
+  ?<Link className={ui.link+(media?'':' '+row)} href={href} prefetch={reportLinkPrefetch(href)}>{content}</Link>
   :<a className={ui.link+' '+row} href={href} target="_blank" rel="noopener noreferrer">{content}<span className="shrink-0">↗</span><span className="sr-only">（另開視窗）</span></a>)
   :content;
  if(!cell.detail)return <>{rendered}</>;

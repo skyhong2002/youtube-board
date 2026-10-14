@@ -12,6 +12,7 @@ import { count } from "@/lib/format";
 import {
     type ReportData,
     safeReportHref,
+    reportLinkPrefetch,
 } from "@/lib/report-contract";
 import {
     Heading,
@@ -136,7 +137,7 @@ export async function ExpandedReport({
                         </label>
                     ))}
                     <button className={ui.primary}>套用篩選</button>
-                    <Link className={ui.button} href={filterPath || path}>
+                    <Link className={ui.button} href={filterPath || path} prefetch={reportLinkPrefetch(filterPath || path)}>
                         清除
                     </Link>
                 </form>
@@ -177,6 +178,7 @@ export async function ExpandedReport({
                                     <Link
                                         key={`${word.term}-${index}`}
                                         href={href}
+                                        prefetch={reportLinkPrefetch(href)}
                                         style={style}
                                         className="tag"
                                         title={`${word.term}：${count(word.weight)}`}

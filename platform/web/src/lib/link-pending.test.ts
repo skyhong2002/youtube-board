@@ -104,9 +104,17 @@ test('home: the ranking rows and the 熱門標籤 完整排行 link render the h
  assert.equal(home.match(/<Section [^>]*\bpending\b/g)?.length,1);
 });
 
-test('pending feedback adds no client fetch, retry, timer, Suspense boundary or prefetch override to the F2 routes',()=>{
+test('pending feedback adds no requests or timers; only numeric AI topic links opt out of prefetch',()=>{
  for(const file of ['_home/HomePage.tsx','../components/KeywordRanking.tsx','../components/KeywordProfile.tsx','../components/LinkPending.tsx'])
-  assert.doesNotMatch(source(file),/\bprefetch=|<Suspense|\buseEffect\b|\bfetch\(|setTimeout|setInterval|\brouter\.(?:refresh|push|replace|prefetch)/,file);
+  {
+   const text=source(file);
+   assert.doesNotMatch(text,/<Suspense|\buseEffect\b|\bfetch\(|setTimeout|setInterval|\brouter\.(?:refresh|push|replace|prefetch)/,file);
+   if(file==='_home/HomePage.tsx'){
+    const overrides=[...text.matchAll(/\bprefetch=\{([^}]*)\}/g)].map(match=>match[1]);
+    assert.equal(overrides.length,5);
+    assert.ok(overrides.every(value=>/^reportLinkPrefetch\(topicHref\((lead|topic)\)\)$/.test(value)));
+   }else assert.doesNotMatch(text,/\bprefetch=/,file);
+  }
  // The route-level loading guard in keyword-states.test.ts still holds; the hint lives below the blocking server read.
  for(const dir of ['','[...segments]','render-filtered/report/[...segments]','render-isr/home/[edition]'])assert.equal(existsSync(join(app!,dir,'loading.tsx')),false,dir);
 });

@@ -2,7 +2,7 @@ import {reportStyle as ui} from '@/lib/report-styles';
 import Link from 'next/link';
 import type {ChannelData} from '@/lib/api';
 import type {ReportData,ReportCell,ReportValue} from '@/lib/report-contract';
-import {safeReportHref} from '@/lib/report-contract';
+import {safeReportHref,reportLinkPrefetch} from '@/lib/report-contract';
 import {dateTime} from '@/lib/format';
 import {SectionHeading} from './ReportUI';
 import {ChannelAvatar} from './ChannelAvatar';
@@ -10,7 +10,7 @@ import {VideoThumbnail} from './VideoThumbnail';
 import {ChannelSourceList,cellSources} from './ChannelSource';
 import {table} from '@/lib/table-styles';
 // Source names stay on one clipped line; the list title keeps every name.
-function cell(v:ReportValue|ReportCell|undefined){if(v===null||v===undefined)return '—';if(typeof v==='object'){const sources=cellSources(v);if(sources)return <ChannelSourceList sources={sources} className={table.clip}/>;const href=v.href?safeReportHref(v.href):undefined,text=String(v.value??'—'),content=v.media?<span className="inline-flex min-w-0 items-center gap-2">{v.media.kind==='channel'?<ChannelAvatar avatar={v.media.avatar} title={text} size={20}/>:<VideoThumbnail videoId={v.media.videoId} width={96} height={54}/>}<span className="min-w-0">{text}</span></span>:text;return href?<Link href={href}>{content}</Link>:content;}return String(v);}
+function cell(v:ReportValue|ReportCell|undefined){if(v===null||v===undefined)return '—';if(typeof v==='object'){const sources=cellSources(v);if(sources)return <ChannelSourceList sources={sources} className={table.clip}/>;const href=v.href?safeReportHref(v.href):undefined,text=String(v.value??'—'),content=v.media?<span className="inline-flex min-w-0 items-center gap-2">{v.media.kind==='channel'?<ChannelAvatar avatar={v.media.avatar} title={text} size={20}/>:<VideoThumbnail videoId={v.media.videoId} width={96} height={54}/>}<span className="min-w-0">{text}</span></span>:text;return href?<Link href={href} prefetch={reportLinkPrefetch(href)}>{content}</Link>:content;}return String(v);}
 function brief(report:ReportData,keys:string[]){return report.rows.length?<ul>{report.rows.slice(0,5).map((row,i)=><li key={i}><strong>{cell(row[keys[0]!])}</strong>{keys.slice(1).map(k=><p key={k} className="muted">{cell(row[k])}</p>)}{row.source!=null&&<small>{cell(row.source)}</small>}</li>)}</ul>:report.notes?.length?null:<p className="muted">尚無可呈現的既有分析。</p>;}
 export function ChannelInsights({data}:{data:ChannelData}){
  const id=data.channel.id,overview=data.aiSummary,people=overview.sections?.find(s=>s.key==='people'),aspect=overview.sections?.find(s=>s.key==='aspects'),source=overview.sections?.find(s=>s.key==='sources');

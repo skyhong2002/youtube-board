@@ -1,3 +1,4 @@
+import {reportLinkPrefetch} from "@/lib/report-contract";
 import SectionTabs from './SectionTabs';
 import {currentTab} from '@/lib/report-navigation';
 import {ChannelArchiveNotice} from './ChannelArchiveNotice';
@@ -18,7 +19,7 @@ export function Unavailable({status,title}:{status:number;title:string}){
 }
 export function Empty({title='這個範圍尚無資料',description='請調整日期或篩選條件。未收錄不代表來源沒有發布內容。'}:{title?:string;description?:string}){return <section className="my-4 rounded-lg border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"><h2 className="text-base font-medium text-zinc-800 dark:text-zinc-200">{title}</h2><p className="mt-2">{description}</p></section>;}
 export function Metric({label,value,unit,detail}:{label:string;value:React.ReactNode;unit?:string;detail?:string}){return <div className="rounded-xl border border-zinc-300 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900"><div className="text-xs text-zinc-600 dark:text-zinc-400">{label}</div><div className={`mt-1 font-semibold tabular-nums leading-tight ${typeof value==='string'&&(value.length>10||/^\d{4}[-/]\d{2}/.test(value))?'text-base':'text-xl'}`}>{value}{unit&&<span className="ml-1 text-sm font-normal text-zinc-500">{unit}</span>}</div>{detail&&<div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">{detail}</div>}</div>;}
-export function SectionHeading({title,href,label='查看全部 →'}:{title:string;href?:string;label?:string}){return <div className="mb-3 mt-6 flex flex-wrap items-end justify-between gap-3"><h2 className="scroll-mt-20 text-base font-semibold">{title}</h2>{href&&<Link className={'text-sm '+ui.link} href={href}>{label}</Link>}</div>;}
+export function SectionHeading({title,href,label='查看全部 →'}:{title:string;href?:string;label?:string}){return <div className="mb-3 mt-6 flex flex-wrap items-end justify-between gap-3"><h2 className="scroll-mt-20 text-base font-semibold">{title}</h2>{href&&<Link className={'text-sm '+ui.link} href={href} prefetch={reportLinkPrefetch(href)}>{label}</Link>}</div>;}
 /** Same interaction and classes as mother SectionTabs; preserve URL query state in callers. */
 export function Tabs({items,active,label='報表選單'}:{items:{href:string;label:string;active?:boolean}[];active:string;label?:string}){if(!items.length)return null;return <SectionTabs label={label} className="mb-4" tabs={items.map(item=>({href:item.href,label:item.label,current:currentTab(item.href,active,item.active)}))}/>;}
 export {Pagination} from './Pagination';

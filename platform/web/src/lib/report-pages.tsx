@@ -1,3 +1,4 @@
+import {reportLinkPrefetch} from "@/lib/report-contract";
 import {EventHeader} from '@/components/EventHeader';
 import {ChannelProfile} from '@/components/ChannelProfile';
 import {VideoSearchReadHint} from '@/components/VideoSearchReadHint';
@@ -325,7 +326,7 @@ export async function ReportPage({
                                     TOPIC {String(index + 1).padStart(2, "0")}
                                 </span>
                                 <h2>
-                                    {topic.grouping?topic.title:<Link href={`/ai/days/${topic.dailyId}/events?event=${encodeURIComponent(topic.title)}`}>{topic.title}</Link>}
+                                    {topic.grouping?topic.title:<Link href={`/ai/days/${topic.dailyId}/events?event=${encodeURIComponent(topic.title)}`} prefetch={reportLinkPrefetch(`/ai/days/${topic.dailyId}/events?event=${encodeURIComponent(topic.title)}`)}>{topic.title}</Link>}
                                 </h2>
                                 <div className="card-meta">
                                     <span>
