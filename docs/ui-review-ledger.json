@@ -37991,9 +37991,56 @@
       "scope": "four 390px packages, today/week light/dark",
       "homeScopedStaticBlockingIssues": false,
       "keywordThumbnail404": "Actual fallback visually confirmed at week row33 成功; not route failure. No ignored network exception.",
-      "receiptStatus": "immutable final receipt requested; awaiting path/hash",
+      "receiptStatus": "complete immutable review/transcript recorded",
       "sourceFixSha": "d019ae69e922ba8530b7af8c98ae5e200138942a",
       "closureRequires": "new exact candidate image captures plus independent visual review; source tests do not close finding"
+    },
+    "independentCoreVisualReview": {
+      "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/static-app9db8a309-home-keywords-20261014T074952Z-complete/review.json",
+      "sha256": "00a80e0b92960efe777a65fccf7edb73f1d5653122d2a31ab43a548525dbd776",
+      "transcriptPath": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/static-app9db8a309-home-keywords-20261014T074952Z-complete/transcript.md",
+      "transcriptSha256": "a519c60e24a0411d644f51dbf88ca2ddefc52d77973f01abdeb4516c7d30b189",
+      "model": "GPT-6 (Codex; inherited parent model, exact serving identifier not exposed)",
+      "reviewer": "/root/f2_visual_sol",
+      "reviewedAt": "2026-10-14T07:49:52.254484+00:00",
+      "identity": {
+        "appSHA": "9db8a3094e62e78d9627e3f5d8b579e04b9d27fa",
+        "imageSHA256": "sha256:d2e7e7bb0f5e153d1d034c08f2d54ca3f9231df20830883bd29a0f5485d8ad4e",
+        "buildID": "RHlWKVp3wAIluf4BIRhI5",
+        "containerId": "61ba226b5cd20e3ad8d7eb5ef1d62e84aeb430c98ffdb89f89b20844cc9d48ca",
+        "verification": "Cross-checked all16 capture packages with independently read/hash-bound CID and native receipts; no fresh remote runtime observation"
+      },
+      "decisions": {
+        "homeCoreStaticVisualReviewPassed": true,
+        "keywordsCoreStaticVisualReviewPassed": false,
+        "coreDeploymentReviewPassed": false,
+        "routeComplete": false,
+        "blockingFindings": [
+          "K01"
+        ],
+        "scope": "Only / and /keywords normal loaded Today/Week Light/Dark 1280/390 captures. Homepage scoped static readiness passes; combined core gate remains blocked by mobile keyword identity truncation. This receipt does not deploy."
+      },
+      "coverage": {
+        "packages": 16,
+        "originalPNGs": 108,
+        "fullpages": 16,
+        "slices": 88,
+        "allOriginalPNGsVisuallyInspected": true,
+        "missing": [
+          "period-switch interaction sequence",
+          "loading states",
+          "error states",
+          "login/account flows",
+          "other routes",
+          "measured WCAG audit",
+          "live production verification",
+          "complete horizontal-scroll sequence and mobile term reveal interaction"
+        ],
+        "supplementalTableScreenshots": 4,
+        "fullpageAndSlicePNGsHashMatchedManifestProofs": 104,
+        "supplementalPNGsIndependentlyHashedWithoutManifestCoherenceProof": 4
+      },
+      "limitations": "Independent offline static review only; immutable model metadata preserved as reported. New SHA cannot inherit this approval."
     }
   },
   "mobileKeywordIdentitySuccessor20261014": {
