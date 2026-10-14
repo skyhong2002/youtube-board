@@ -74,6 +74,11 @@ compounds such as 桃園機場/台北市長.
 
 After this supplement, the retained short sample has nine terms and weekly
 refill's first40 centers on people, events and topics. TVBS (original rank16),
-聯合 (39) and 三立 (81) are media-name candidates submitted for user decision;
-they remain eligible pending that decision. No screenshot or deployment pass
+聯合 (39) and 三立 (81) were approved by the user on 2026-10-15 and now receive
+`youtube-source-or-platform`, alongside Yahoo and 合作媒體. Only exact whole
+labels (ASCII case-insensitive for TVBS) are excluded; longer subjects stay intact. No screenshot or deployment pass
 is asserted by this source/SQL audit.
+
+Ambiguous 巨大 is retained: it can be the Giant company’s named shorthand,
+and aggregate counts alone cannot prove an adjective sense. 巨大機械 remains
+eligible as a named compound.

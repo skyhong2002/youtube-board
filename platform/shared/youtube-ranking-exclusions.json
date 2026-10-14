@@ -75,7 +75,6 @@
     "表態",
     "成長",
     "演出",
-    "巨大",
     "亮點"
   ],
   "countryCityPartyTerms": [
@@ -100,7 +99,10 @@
     "source": "youtube-ranked-pools-querydiag-union-result.json",
     "sha256": "2c5e42a377829849f2daccea8396bf8327c31f738d2a408371b7ae6e01ad42a6",
     "scope": "existing anonymous SELECT diagnostic; qualified rolling24h/seven-date cohorts; no new ingestion",
-    "note": "Supplement the qualified pool with exact general actions, abstract framing and unspecified roles observed among replenished first200. Concrete topics and named people remain eligible; unapproved media names remain pending."
+    "note": "Supplement the qualified pool with exact general actions, abstract framing and unspecified roles observed among replenished first200. Concrete topics and named people remain eligible; unapproved media names remain pending.",
+    "ambiguousRetainedTerms": [
+      "巨大"
+    ]
   },
   "genericContextTerms": [
     "主持人",

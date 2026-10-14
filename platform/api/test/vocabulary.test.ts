@@ -43,13 +43,13 @@ describe('published vocabulary and source evidence', () => {
 
 
 describe('audited display exclusions remain visible in the original vocabulary pool',()=>{
- const terms=[{key:'generic',term:'支持',articleCount:3,media:['fixture']},{key:'city',term:'北京',articleCount:2,media:['fixture']},{key:'topic',term:'烏克蘭戰爭',articleCount:1,media:['fixture']}];
+ const terms=[{key:'generic',term:'支持',articleCount:3,media:['fixture']},{key:'city',term:'北京',articleCount:2,media:['fixture']},{key:'topic',term:'烏克蘭戰爭',articleCount:1,media:['fixture']},...['TVBS','聯合','三立'].map(term=>({key:term,term,articleCount:2,media:['fixture']}))];
  for(const separate of [false,true])it(`preserves original labels and exclusion reasons in ${separate?'separate':'embedded'} storage`,async()=>{
   const before=JSON.stringify(terms);const snapshot=separate?{termsStoredSeparately:true,coverage:'all-current-indexed-article-tags'}:{terms};
   const queue:Row[][]=[[{id:'audited-fixture',snapshot:JSON.stringify(snapshot)}]];
   if(separate)queue.push(terms.map(t=>({payload:JSON.stringify(t)})),[{total:terms.length}]);
   const r=await vocabulary(queueReader(queue),{});
-  expect(r.rows.map(t=>[t.key,t.term,t.displayExclusion])).toEqual([['generic','支持','youtube-generic-two-character'],['city','北京','youtube-country-city-party'],['topic','烏克蘭戰爭',null]]);
+  expect(r.rows.map(t=>[t.key,t.term,t.displayExclusion])).toEqual([['generic','支持','youtube-generic-two-character'],['city','北京','youtube-country-city-party'],['topic','烏克蘭戰爭',null],...['TVBS','聯合','三立'].map(term=>[term,term,'youtube-source-or-platform'])]);
   expect(r.total).toBe(terms.length);expect(JSON.stringify(terms)).toBe(before);
  });
 });

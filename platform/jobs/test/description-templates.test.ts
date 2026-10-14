@@ -69,7 +69,7 @@ it('keeps legitimate 24小時 title tags while excluding repeated channel-descri
 });
 
 it('excludes authorized news sources and no-equal terms while retaining named subjects',()=>{
- for(const term of ['Yahoo','yahoo',' YAHOO ','合作媒體'])expect(tagDisplayExclusion(term)).toBe('youtube-source-or-platform');
+ for(const term of ['Yahoo','yahoo',' YAHOO ','合作媒體','TVBS','tvbs','聯合','三立'])expect(tagDisplayExclusion(term)).toBe('youtube-source-or-platform');
  for(const term of ['美國','民進黨'])expect(tagDisplayExclusion(term)).toBe('upstream-no-equal-or-category');
  for(const term of ['沈伯洋','川普','台積電'])expect(tagDisplayExclusion(term)).toBeNull();
 });
@@ -90,5 +90,5 @@ it('supplements qualified pool refill with exact general context and reusable ci
  for(const term of ['報導','回應','討論','專訪','風險','質疑','表態'])expect(tagDisplayExclusion(term)).toBe('youtube-generic-two-character');
  for(const term of ['主持人','議員','政府'])expect(tagDisplayExclusion(term)).toBe('youtube-generic-context');
  for(const term of ['桃園','桃園市','台南','臺南市','台東','臺東縣','伊朗'])expect(tagDisplayExclusion(term)).toBe('youtube-country-city-party');
- for(const term of ['沈伯洋','川普','台積電','國慶演說','假民主真獨裁','青年','理財','手機','台北市長','桃園機場','TVBS','聯合','三立'])expect(tagDisplayExclusion(term)).toBeNull();
+ for(const term of ['沈伯洋','川普','台積電','國慶演說','假民主真獨裁','青年','理財','手機','台北市長','桃園機場','巨大','巨大機械','TVBS新聞','聯合國','三立電視'])expect(tagDisplayExclusion(term)).toBeNull();
 });

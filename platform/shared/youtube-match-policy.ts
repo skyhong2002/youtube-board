@@ -22,7 +22,7 @@ const countryCityPartyTerms=new Set([...rankingExclusions.countryCityPartyTerms,
 /** Operator-authorized display exclusions only. Terms and match evidence stay intact. */
 export const YOUTUBE_PLATFORM_DISPLAY_TERMS=['YouTube','FB','Facebook','IG','Instagram','LINE','訂閱','會員','下載','連結','分享','直播','LIVE','影片','全新','主播','頻道','節目','平台','資訊','家'] as const;
 /** 使用者核定的來源或平台名稱；其他候選詞須另行核定。 */
-export const YOUTUBE_NEWS_SOURCE_DISPLAY_TERMS=['Yahoo','合作媒體'] as const;
+export const YOUTUBE_NEWS_SOURCE_DISPLAY_TERMS=['Yahoo','合作媒體','TVBS','聯合','三立'] as const;
 const newsSourceExcluded=new Set(YOUTUBE_NEWS_SOURCE_DISPLAY_TERMS.map(asciiCaseFold));
 const youtubeDisplayExcluded=new Set(YOUTUBE_PLATFORM_DISPLAY_TERMS.map(asciiCaseFold));
 export type TagDisplayExclusion='youtube-source-or-platform'|'youtube-platform-or-promotion'|'youtube-generic-two-character'|'youtube-generic-context'|'youtube-country-city-party'|'upstream-length'|'upstream-no-equal-or-category'|'upstream-tag-noise'|'upstream-number-or-date'|'upstream-nonword';
