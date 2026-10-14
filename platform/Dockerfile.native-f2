@@ -1,8 +1,14 @@
 # Native arm64 build from the reviewed APP073 context and verified local base.
 # Pin the local base tag's image ID immediately before docker build; never pull.
 ARG BASE_IMAGE=youtube-board-ts:f2-verified-base
-FROM ${BASE_IMAGE} AS build
+FROM ${BASE_IMAGE} AS clean-base
 USER root
+# The retained base may be a previous TS release. Remove its runtime only inside
+# this new image layer so deleted source/chunks cannot survive COPY merging.
+WORKDIR /
+RUN rm -rf /opt/youtube-board
+
+FROM clean-base AS build
 WORKDIR /opt/youtube-board/platform
 COPY platform/package.json platform/package-lock.json ./
 COPY platform/api/package.json api/package.json
@@ -19,7 +25,7 @@ COPY platform/ ./
 # passed into the build; dynamic report pages are rendered only at runtime.
 RUN nice -n 19 ionice -c3 /bin/sh -ec 'mkdir -p web/public; npm run typecheck; ./node_modules/.bin/tsc -p runtime/tsconfig.json; npm run build --workspace=@youtube-board/web; test -s web/.next/BUILD_ID; test -f web/.next/standalone/web/server.js'
 
-FROM ${BASE_IMAGE} AS runtime
+FROM clean-base AS runtime
 ARG APP_SHA=073985b8bc4bbcc9ffb5d43c1e1a26060bb8ac4a
 ARG OPS_SHA
 LABEL org.opencontainers.image.revision=${APP_SHA} tw.observe.build.ops-sha=${OPS_SHA}
