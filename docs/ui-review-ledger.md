@@ -1,6 +1,6 @@
 # UI review ledger
 
-> Current runtime (2026-10-14): APP d019ae69 / image b4afbd8f / BUILD_ID jdR1KzOv-6QylI10uKIQV is deployed; both TS services healthy. Formal babysit browser acceptance remains pending. Earlier freeze/Mint/executor plans below are historical; current build/capture policy uses SM + native arm64 skyhong-blog, simple build, three-sample median gates. No full UI route acceptance is claimed.
+> Current runtime: APP72cb816 / image1e251348 / BUILD_ID Fb8mfbUpeqBWyMVD2_Jsj is deployed and scoped F1 babysit acceptance passed at2026-10-14T16:18Z. APP19cd358 qualified rolling24h/seven-date keyword successor is source reviewed and building, NOT deployed. Current simple native arm64 workflow applies; historical Mint/freeze plans below do not override it. Whole-site page/state reviews remain pending.
 
 ## 解凍後單一候選與重拍清單
 
@@ -888,3 +888,7 @@ UTC2026-10-14T16:12:32Z requested/16:13:39Z bothconverged: ownerd7967e77 deploye
 Babysit formal acceptance at16:18 UTC PASS_SCOPED_F1_PROFILE: exact72cb816 BUILD_ID Fb8mfbUpeqBWyMVD2_Jsj, GA0, /keywords/柯文哲/videos relations above videos and SSR政治人物/no loading flash, avatar96px/no blank. Whole-site pending items stay pending.
 
 New APP38b51bf (source review underway) uses tag complete exact-window ranking-pools gate early, all pages and checksum validated. Short period is always rolling24h, labeled 過去24小時; week remains seven Taipei calendar dates. Ten-minute shared cutoff, per-window exact Unicode eligibility before YouTube heat/top40, static no-equal/country/party/source exclusions layered on top. Raw vocabulary/evidence retained with per-period exclusion reasons; exact UTC bounds carried into video reports/cache/filter controls. Live anonymous DNT1/GPC1 read:827 short/4214week qualified terms, receipt /tmp/babysit/mint-queue/youtube-ranked-pool-rolling24h-live-20261015.json. Candidate real DB top40 comparison, actual captures/review, build and deployment remain pending; no old pass inherited.
+
+## Qualified window pools — APP19cd358
+
+Complete tag news/early snapshots qualify each exact window before YT heat/top40. Short is always 過去24小時 with displayed bounds; week remains seven Taipei dates. Real-data refill audit and user-authorized TVBS/聯合/三立 exclusions recorded in JSON, raw terms/evidence/reasons retained. Normal5s real SQL diagnostic passed after removing eligibility cross product. Existing reviewer source PASS; new exact image/candidate screenshots, visual review and deployment remain pending. Production stays72cb816; next rollback target1e251348. Previous5ea image and all evidence preserved.
