@@ -38007,14 +38007,16 @@
       "typecheck": "noEmit exit0"
     },
     "scope": "mobile decorative thumbnails hidden; full identity wraps even without spaces; links/date scopes/pending hints retained; desktop layout retained",
-    "buildDraftPath": "/tmp/babysit/mint-queue/youtube-simple-native-d019ae69-request.json",
-    "buildDraftSha256": "5b72c8d9aaf4a5fa5ffbb2c62ea0fa6b290e225e3664d89a23af8485202eeed2",
+    "buildDraftPath": "/tmp/babysit/mint-queue/youtube-simple-native-d019ae69-request-v2.json",
+    "buildDraftSha256": "04cbc1717fdb97275059dca70681970da4089aa66db3946d191b804f6ec587e0",
     "executionAllowed": false,
     "freshProbe": "pending",
     "build": "pending",
     "capture": "pending",
     "candidateApproval": false,
     "routeComplete": false,
-    "deployment": "pending"
+    "deployment": "pending",
+    "supersededUnexecutedBuildDraft": "/tmp/babysit/mint-queue/youtube-simple-native-d019ae69-request.json",
+    "contextComparedTo9db": "1000 file entries; only KeywordRanking.tsx, keyword-ranking.test.ts, link-pending.test.ts differ in bytes; recipe/base unchanged"
   }
 }
