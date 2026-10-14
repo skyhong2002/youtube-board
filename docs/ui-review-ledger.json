@@ -39084,6 +39084,45 @@
     "candidateTop40Today": "pending same-window upstream contract and candidate",
     "candidateTop40Week": "pending same-window upstream contract and candidate",
     "candidateApproval": false,
-    "fullRouteApproval": false
+    "fullRouteApproval": false,
+    "liveContractCheck": {
+      "path": "/tmp/babysit/mint-queue/youtube-tag-current-ranking-contract-20261014.json",
+      "sha256": "7616c99cc33dd2711cb6cb58bec805a03401e6844892d5012fd5218f4ef4d072",
+      "status": 200,
+      "result": "public OpenAPI still lists fixed24h ranking; no windowed ranking pool contract"
+    },
+    "waitingFor": "tag owner confirmation/availability of complete filtered today/week ranked pool contract, not build approval",
+    "independentDocumentReview": "requested earlier; no returned review text available in current session; not counted as PASS"
+  },
+  "currentOperatingWorkflow20261014": {
+    "source": "latest babysit user-message conveying explicit relaxed workflow",
+    "recordedAt": "2026-10-14T13:43:19.503763+00:00",
+    "perStepBabysitHashApprovalRequired": false,
+    "ordinarySourceIndependentReviewRequired": false,
+    "independentReviewScope": [
+      "major UI changes",
+      "data changes",
+      "privacy changes"
+    ],
+    "preBuildCheck": [
+      "three sites HTTP200",
+      "no other active build"
+    ],
+    "noCustomCollisionWrapperOrMockRequired": true,
+    "postDeployReport": [
+      "exact SHA/BUILD_ID/image",
+      "result",
+      "immediate rollback commands"
+    ],
+    "preserved": [
+      "DNT",
+      "no synthetic GA",
+      "privacy predicate and no-store",
+      "no Cloudflare/WAF changes",
+      "no tag-backup changes",
+      "retain existing releases/backups/worktrees",
+      "rollback immediately if production breaks"
+    ],
+    "note": "Supersedes older per-command babysit approval text in retained historical packets; withdrawn manual-list-only build is still withdrawn because of the changed product direction."
   }
 }

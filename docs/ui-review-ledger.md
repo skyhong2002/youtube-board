@@ -797,3 +797,25 @@ and `platform/docs/youtube-tag-ranked-pool-request-2026-10-14.md` for the
 windowed/paginated upstream contract request and candidate top40 comparison
 requirements. Today/week exact-window pools, contract integration, new source
 review/build/capture/deploy remain pending. No old-SHA approval transfers.
+
+
+### Operating workflow relaxed by explicit user direction
+
+Build/deploy no longer wait for per-command babysit hash approval. Before
+starting check three homes200 and no other active build; report result and
+rollback afterward. Ordinary edits use normal tests/self-check; independent
+review is reserved for major UI/data/privacy changes. No extra collision
+wrappers/mocks or step-by-step reviewer gating. DNT/no synthetic GA, privacy
+predicate/no-store, CF/WAF/tag-backup restrictions and retained artifacts stay
+in force; broken production is rolled back immediately. Historical approvals
+and original packets remain preserved, not rewritten.
+
+Live DNT1/GPC1 public OpenAPI check still has only fixed24h ranking, no
+windowed ranked-pool endpoint: receipt
+`/tmp/babysit/mint-queue/youtube-tag-current-ranking-contract-20261014.json`,
+SHA256 `7616c99cc33dd2711cb6cb58bec805a03401e6844892d5012fd5218f4ef4d072`.
+The primary-pool integration needs tag's confirmed complete today/week
+contract. This is a data dependency, not a build-admission wait. d4 manual-only
+build remains withdrawn for product scope, not for missing command permission.
+An earlier document-review request has no returned text in this session and
+is not counted as PASS or used as a gate for this documentation update.
