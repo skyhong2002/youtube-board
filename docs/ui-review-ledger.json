@@ -383,6 +383,24 @@
           "routeComplete": false,
           "F4": "pending tag T-ref",
           "historicalFindingsNotAutomaticallyClosed": true
+        },
+        {
+          "appSha": "fe7987945611328aabaa8bb8f4495ecd75168792",
+          "image": "sha256:5816d4eec144c5c162ad3954aef4298fa36a5ecfc9476315e1ad9d0a59ecfb91",
+          "buildID": "vet9FIruVMu5cIc9qIVeo",
+          "status": "PASS_SCOPED_PRODUCTION_MAIN_24_ACTUAL_VISUAL",
+          "review": {
+            "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-appfe79879-main24-20261014T212023Z/review.json",
+            "sha256": "56361ef512d31adaf56cf84bf5b765bccafd398293e9d3a5ca9a0b97e3aa03f2"
+          },
+          "acceptance": {
+            "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-acceptance.json",
+            "sha256": "348033db5ef2e143a08cf19d97151df9c1270b1768163e66d902b35ec93dd6e9"
+          },
+          "scope": "captured anonymous default/real-example states,1280/390,light/dark; see review for exact actually opened images",
+          "routeComplete": false,
+          "F4": "first batch scoped PASS; remaining F4 pending",
+          "historicalFindingsNotAutomaticallyClosed": true
         }
       ]
     },
@@ -16183,6 +16201,24 @@
           "routeComplete": false,
           "F4": "pending tag T-ref",
           "historicalFindingsNotAutomaticallyClosed": true
+        },
+        {
+          "appSha": "fe7987945611328aabaa8bb8f4495ecd75168792",
+          "image": "sha256:5816d4eec144c5c162ad3954aef4298fa36a5ecfc9476315e1ad9d0a59ecfb91",
+          "buildID": "vet9FIruVMu5cIc9qIVeo",
+          "status": "PASS_SCOPED_PRODUCTION_FEATURE8_ACTUAL_VISUAL",
+          "review": {
+            "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-appfe79879-feature8-20261014T211629Z/review.json",
+            "sha256": "02a3a11f9cd0712098ced449d2c69184ec91fe5875ea73b0fb035eda88a38af8"
+          },
+          "acceptance": {
+            "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-acceptance.json",
+            "sha256": "348033db5ef2e143a08cf19d97151df9c1270b1768163e66d902b35ec93dd6e9"
+          },
+          "scope": "captured anonymous default/real-example states,1280/390,light/dark; see review for exact actually opened images",
+          "routeComplete": false,
+          "F4": "first batch scoped PASS; remaining F4 pending",
+          "historicalFindingsNotAutomaticallyClosed": true
         }
       ]
     },
@@ -18126,6 +18162,24 @@
           "routeComplete": false,
           "F4": "pending tag T-ref",
           "historicalFindingsNotAutomaticallyClosed": true
+        },
+        {
+          "appSha": "fe7987945611328aabaa8bb8f4495ecd75168792",
+          "image": "sha256:5816d4eec144c5c162ad3954aef4298fa36a5ecfc9476315e1ad9d0a59ecfb91",
+          "buildID": "vet9FIruVMu5cIc9qIVeo",
+          "status": "PASS_SCOPED_PRODUCTION_MAIN_24_ACTUAL_VISUAL",
+          "review": {
+            "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-appfe79879-main24-20261014T212023Z/review.json",
+            "sha256": "56361ef512d31adaf56cf84bf5b765bccafd398293e9d3a5ca9a0b97e3aa03f2"
+          },
+          "acceptance": {
+            "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-acceptance.json",
+            "sha256": "348033db5ef2e143a08cf19d97151df9c1270b1768163e66d902b35ec93dd6e9"
+          },
+          "scope": "captured anonymous default/real-example states,1280/390,light/dark; see review for exact actually opened images",
+          "routeComplete": false,
+          "F4": "first batch scoped PASS; remaining F4 pending",
+          "historicalFindingsNotAutomaticallyClosed": true
         }
       ]
     },
@@ -19912,6 +19966,24 @@
           "routeComplete": false,
           "F4": "pending tag T-ref",
           "historicalFindingsNotAutomaticallyClosed": true
+        },
+        {
+          "appSha": "fe7987945611328aabaa8bb8f4495ecd75168792",
+          "image": "sha256:5816d4eec144c5c162ad3954aef4298fa36a5ecfc9476315e1ad9d0a59ecfb91",
+          "buildID": "vet9FIruVMu5cIc9qIVeo",
+          "status": "PASS_SCOPED_PRODUCTION_MAIN_24_ACTUAL_VISUAL",
+          "review": {
+            "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-appfe79879-main24-20261014T212023Z/review.json",
+            "sha256": "56361ef512d31adaf56cf84bf5b765bccafd398293e9d3a5ca9a0b97e3aa03f2"
+          },
+          "acceptance": {
+            "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-acceptance.json",
+            "sha256": "348033db5ef2e143a08cf19d97151df9c1270b1768163e66d902b35ec93dd6e9"
+          },
+          "scope": "captured anonymous default/real-example states,1280/390,light/dark; see review for exact actually opened images",
+          "routeComplete": false,
+          "F4": "first batch scoped PASS; remaining F4 pending",
+          "historicalFindingsNotAutomaticallyClosed": true
         }
       ]
     },
@@ -20521,6 +20593,24 @@
           ],
           "routeComplete": false,
           "F4": "pending tag T-ref",
+          "historicalFindingsNotAutomaticallyClosed": true
+        },
+        {
+          "appSha": "fe7987945611328aabaa8bb8f4495ecd75168792",
+          "image": "sha256:5816d4eec144c5c162ad3954aef4298fa36a5ecfc9476315e1ad9d0a59ecfb91",
+          "buildID": "vet9FIruVMu5cIc9qIVeo",
+          "status": "PASS_SCOPED_PRODUCTION_FEATURE8_ACTUAL_VISUAL",
+          "review": {
+            "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-appfe79879-feature8-20261014T211629Z/review.json",
+            "sha256": "02a3a11f9cd0712098ced449d2c69184ec91fe5875ea73b0fb035eda88a38af8"
+          },
+          "acceptance": {
+            "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-acceptance.json",
+            "sha256": "348033db5ef2e143a08cf19d97151df9c1270b1768163e66d902b35ec93dd6e9"
+          },
+          "scope": "captured anonymous default/real-example states,1280/390,light/dark; see review for exact actually opened images",
+          "routeComplete": false,
+          "F4": "first batch scoped PASS; remaining F4 pending",
           "historicalFindingsNotAutomaticallyClosed": true
         }
       ]
@@ -23545,6 +23635,24 @@
           ],
           "routeComplete": false,
           "F4": "pending tag T-ref",
+          "historicalFindingsNotAutomaticallyClosed": true
+        },
+        {
+          "appSha": "fe7987945611328aabaa8bb8f4495ecd75168792",
+          "image": "sha256:5816d4eec144c5c162ad3954aef4298fa36a5ecfc9476315e1ad9d0a59ecfb91",
+          "buildID": "vet9FIruVMu5cIc9qIVeo",
+          "status": "PASS_SCOPED_PRODUCTION_MAIN_24_ACTUAL_VISUAL",
+          "review": {
+            "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-appfe79879-main24-20261014T212023Z/review.json",
+            "sha256": "56361ef512d31adaf56cf84bf5b765bccafd398293e9d3a5ca9a0b97e3aa03f2"
+          },
+          "acceptance": {
+            "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-acceptance.json",
+            "sha256": "348033db5ef2e143a08cf19d97151df9c1270b1768163e66d902b35ec93dd6e9"
+          },
+          "scope": "captured anonymous default/real-example states,1280/390,light/dark; see review for exact actually opened images",
+          "routeComplete": false,
+          "F4": "first batch scoped PASS; remaining F4 pending",
           "historicalFindingsNotAutomaticallyClosed": true
         }
       ]
@@ -32099,7 +32207,7 @@
     "ui_ledger": "Homepage, keyword/evidence, channels, videos, events, about, API HTML and error states.",
     "ui_review_2": "Live, tags, AI, groups, mayor, account gates, boards, comparisons, remaining public pages and existing-authorized admin/ops. Each reviewer must see the actual screenshots plus tag reference; no implementation self-review."
   },
-  "reviewEvidenceUpdatedAt": "2026-10-13T09:00:11.200308+00:00",
+  "reviewEvidenceUpdatedAt": "2026-10-14T21:23:23.124347+00:00",
   "capturePerformancePolicy": {
     "effectiveAt": "2026-10-12T19:40:30Z",
     "maxSharedCaptureBrowserInstances": 2,
@@ -40391,9 +40499,13 @@
       "docker service rollback youtube-board-ts-6oukfq_web",
       "docker service rollback youtube-board-ts-6oukfq_account-maintenance"
     ],
-    "formalBrowserAcceptance": "pending actual production captures and independent review; babysit acceptance pending",
+    "formalBrowserAcceptance": "32 production views independently actual-image reviewed PASS_SCOPED; separate babysit browser acceptance not yet received",
     "fullF4Acceptance": false,
-    "receipt": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-deployment.json"
+    "receipt": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-deployment.json",
+    "productionAcceptance": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-acceptance.json",
+      "sha256": "348033db5ef2e143a08cf19d97151df9c1270b1768163e66d902b35ec93dd6e9"
+    }
   },
   "keywordRankedPoolSuccessor20261014": {
     "status": "source-tested-independent-review-in-progress",
@@ -41497,7 +41609,7 @@
   },
   "f4FirstBatch20261015": {
     "recordedAt": "2026-10-14T21:02:26.585725+00:00",
-    "status": "deployed-candidate-scoped-pass-production-visual-pending",
+    "status": "deployed-candidate-and-production-scoped-independent-pass",
     "appSha": "fe7987945611328aabaa8bb8f4495ecd75168792",
     "image": "sha256:5816d4eec144c5c162ad3954aef4298fa36a5ecfc9476315e1ad9d0a59ecfb91",
     "buildId": "vet9FIruVMu5cIc9qIVeo",
@@ -41540,12 +41652,11 @@
     },
     "fullF4Acceptance": false,
     "remaining": [
-      "actual independent candidate image review",
-      "production retest/new-release main-route captures",
       "page-specific method footer consolidation",
       "44px generic control audit",
-      "cross-site actual comparison",
-      "all other page and empty/error/auth/interaction states"
+      "cross-site actual visual comparison",
+      "other pages and loading/empty/error/auth/interaction states",
+      "source data freshness investigation (not fixed by this presentation batch)"
     ],
     "rollbackImage": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6",
     "candidateAcceptance": {
@@ -41556,7 +41667,7 @@
       "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-deployment.json",
       "sha256": "818e4739cd7915d231975d2d262c43e3d31f45359e1d3b143338f01f1a205722"
     },
-    "productionVisualStatus": "feature8scopedPASS;main24pending",
+    "productionVisualStatus": "PASS_SCOPED_PRODUCTION_32_ACTUAL_VISUAL",
     "productionFeatureReview": {
       "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-appfe79879-feature8-20261014T211629Z/review.json",
       "sha256": "02a3a11f9cd0712098ced449d2c69184ec91fe5875ea73b0fb035eda88a38af8"
@@ -41576,6 +41687,33 @@
     "rollbackDryRun": {
       "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-rollback-dry-run.json",
       "sha256": "b21acd023731d119219720319e5560e0131e8311bd830b72ddafde7061cabb33"
-    }
+    },
+    "evidenceUpdatedAt": "2026-10-14T21:23:23.124347+00:00",
+    "productionMainReview": {
+      "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-appfe79879-main24-20261014T212023Z/review.json",
+      "sha256": "56361ef512d31adaf56cf84bf5b765bccafd398293e9d3a5ca9a0b97e3aa03f2"
+    },
+    "productionAcceptance": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-acceptance.json",
+      "sha256": "348033db5ef2e143a08cf19d97151df9c1270b1768163e66d902b35ec93dd6e9"
+    },
+    "productionCounts": {
+      "views": 32,
+      "hashedPNG": 246,
+      "actualOpened": 130,
+      "hashOnly": 116
+    },
+    "limitations": [
+      "Scope is supplied anonymous default/real-example screenshots only, not whole-site or full-F4 acceptance; other states/interactions remain pending.",
+      "Four keyword-detail views each retain an image404 and neutral placeholder; not all resources200 or all thumbnails loaded.",
+      "ERR_ABORTED and null-status network records retained, including10 home null statuses.",
+      "Mayor light-desktop snapshot update10/14 has23/28 coverage and3 incomplete dates; other three update10/15 have28/28 and0. Each capture coherent; freshness cause not verified.",
+      "Sparse keyword coverage retained:24h9terms/effective4 of3960;week40/effective7996 of23667. Source changes/pending notes retained; no ingestion freshness claim.",
+      "Mobile keyword/mayor offscreen columns and interactions not certified; live desktop right-edge interaction alone supplied.",
+      "AI lead badge association is a nonblocking editorial observation.",
+      "Initial candidate503 and production memory-stopped batches remain excluded, with no exception or lowered gate.",
+      "Independent review uses supplied service and T-ref binding evidence, not reviewer live probes or git binding execution."
+    ],
+    "babysitBrowserAcceptance": "not yet received"
   }
 }
