@@ -37278,5 +37278,28 @@
         "scope": "source-only PASS, exact998archivefiles/scripts, no UI acceptance"
       }
     ]
+  },
+  "loopbackCandidatePreparation15c7af2d": {
+    "appSha": "073985b8bc4bbcc9ffb5d43c1e1a26060bb8ac4a",
+    "imageId": "sha256:15c7af2d4a509c65543826f354055152ccab4e17b1b3cec88908195b7da11ce8",
+    "buildId": "04qbMMfQHdbJk0ZnbO_HQ",
+    "starterSourceReview": {
+      "verdict": "pass",
+      "scope": "source-only",
+      "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/candidate15c7af2d-starter-independent-source-review-20261014T050831Z.json",
+      "sha256": "e4e2cd2313b62d6e53c80781a8b20316f10db10b17b4f929e3135c63bdf9795e",
+      "model": "gpt-6.1-sol",
+      "reviewer": "/root/capture_source_review"
+    },
+    "commandPacket": "/tmp/babysit/mint-queue/youtube-candidate-capture-15c7af2d-request.json",
+    "commandPacketSha256": "41bdf02f7d7d11c3c51682951ec5837cd1bdbb7e7134d8f3e970e649706b1c4c",
+    "captureToolSourceReview": "fixed CV12 findings submitted to existing reviewer; pending exact-byte re-review",
+    "candidateStarted": false,
+    "captureExecuted": false,
+    "uiAccepted": false,
+    "plannedViewportPackages": 16,
+    "estimateDiskBytes": 112000000,
+    "scope": "home and keywords × today/week × light/dark ×1280/390",
+    "retainedArtifactsPolicy": "historical capture directories and failed locks preserved; new artifact uses one fixed budget envelope across both batches"
   }
 }
