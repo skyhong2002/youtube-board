@@ -39117,18 +39117,50 @@
       "docker service rollback youtube-board-ts-6oukfq_account-maintenance"
     ],
     "formalBrowserAcceptance": {
-      "status": "pending",
+      "reportedAt": "2026-10-14T18:04:00Z",
+      "recordedAt": "2026-10-14T18:03:12.143888+00:00",
       "reviewer": "babysit",
-      "requestedRoutes": [
+      "source": "user-provided babysit formal browser acceptance; not independently rerun by this owner",
+      "decision": "PASS_SCOPED_PRODUCTION_KEYWORD_RANKING",
+      "appSha": "335c8dbd023ed1466620b29a4dea6cda9e3cef80",
+      "buildId": "NZua9VnOCd6zsK0BXUoF7",
+      "routes": [
         "/",
-        "/keywords",
-        "/mayor"
+        "/keywords"
       ],
-      "viewports": [
-        1280,
-        390
+      "googleRequests": 0,
+      "privacyMode": "website opt-out",
+      "observations": [
+        "weekly40 starts沈伯洋/蔣萬安/川普/國慶/AI/賴清德/韓國瑜/雙十國慶/洋流/台股",
+        "reported24generic terms and country/city/party/source labels absent",
+        "過去24小時/近七日 controls displayed",
+        "measured views ≥1,118.35萬次（509支缺值）, no contradictory missing-total label",
+        "homepage cloud/ranking use same terms"
       ],
-      "requirement": "opt-out / zero GA; validate new BUILD_ID and revised keyword lists"
+      "limitations": [
+        "not fullsite/F1-F4 acceptance",
+        "viewport sizes not specified in this acceptance report",
+        "no new /mayor acceptance reported"
+      ],
+      "nonblockingFollowup": {
+        "terms": [
+          "手機",
+          "機場",
+          "機車",
+          "社區",
+          "社群",
+          "銀行"
+        ],
+        "status": "documented threshold assessment; deployed policy unchanged",
+        "receipt": {
+          "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-threshold-assessment.json",
+          "sha256": "7eff64d733b7eb19acaceeea5c86efbc412183459b2c83ea173e1a6350292ea7"
+        }
+      },
+      "receipt": {
+        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-formal-acceptance.json",
+        "sha256": "665194547522012b0fc2bbeb1755fb37bc44caad3d817a36e8795657e5d742e9"
+      }
     },
     "retention": {
       "policy": "current + one rollback + deploying artifact; user explicitly authorized rolling release/cache cleanup",
@@ -39742,7 +39774,7 @@
   },
   "qualifiedWindowPoolSuccessor20261015": {
     "appSha": "335c8dbd023ed1466620b29a4dea6cda9e3cef80",
-    "status": "deployed-technical-and-candidate-scoped-visual-pass-formal-browser-pending",
+    "status": "deployed-scoped-production-keyword-acceptance-pass",
     "productionChanged": true,
     "shortWindow": "rolling24h; visible label 過去24小時; actual bounds; ten-minute shared cutoff",
     "weekWindow": "seven Taipei calendar dates",
@@ -39865,7 +39897,67 @@
       "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-production-deployment.json",
       "sha256": "e869cf91e7e7c4e1004b9d2c637f5819ab4c0dad79f8f32acd82141f1084a69e"
     },
-    "formalBrowserAcceptance": "pending babysit; fullsite remains pending"
+    "formalBrowserAcceptance": {
+      "reportedAt": "2026-10-14T18:04:00Z",
+      "recordedAt": "2026-10-14T18:03:12.143888+00:00",
+      "reviewer": "babysit",
+      "source": "user-provided babysit formal browser acceptance; not independently rerun by this owner",
+      "decision": "PASS_SCOPED_PRODUCTION_KEYWORD_RANKING",
+      "appSha": "335c8dbd023ed1466620b29a4dea6cda9e3cef80",
+      "buildId": "NZua9VnOCd6zsK0BXUoF7",
+      "routes": [
+        "/",
+        "/keywords"
+      ],
+      "googleRequests": 0,
+      "privacyMode": "website opt-out",
+      "observations": [
+        "weekly40 starts沈伯洋/蔣萬安/川普/國慶/AI/賴清德/韓國瑜/雙十國慶/洋流/台股",
+        "reported24generic terms and country/city/party/source labels absent",
+        "過去24小時/近七日 controls displayed",
+        "measured views ≥1,118.35萬次（509支缺值）, no contradictory missing-total label",
+        "homepage cloud/ranking use same terms"
+      ],
+      "limitations": [
+        "not fullsite/F1-F4 acceptance",
+        "viewport sizes not specified in this acceptance report",
+        "no new /mayor acceptance reported"
+      ],
+      "nonblockingFollowup": {
+        "terms": [
+          "手機",
+          "機場",
+          "機車",
+          "社區",
+          "社群",
+          "銀行"
+        ],
+        "status": "documented threshold assessment; deployed policy unchanged",
+        "receipt": {
+          "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-threshold-assessment.json",
+          "sha256": "7eff64d733b7eb19acaceeea5c86efbc412183459b2c83ea173e1a6350292ea7"
+        }
+      },
+      "receipt": {
+        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-formal-acceptance.json",
+        "sha256": "665194547522012b0fc2bbeb1755fb37bc44caad3d817a36e8795657e5d742e9"
+      }
+    },
+    "nonblockingThresholdFollowup": {
+      "terms": [
+        "手機",
+        "機場",
+        "機車",
+        "社區",
+        "社群",
+        "銀行"
+      ],
+      "status": "documented threshold assessment; deployed policy unchanged",
+      "receipt": {
+        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-threshold-assessment.json",
+        "sha256": "7eff64d733b7eb19acaceeea5c86efbc412183459b2c83ea173e1a6350292ea7"
+      }
+    }
   },
   "rollingArtifactRetention20261015": {
     "policy": "current + one rollback + deploying artifact; user explicitly authorized rolling release/cache cleanup",
@@ -39905,5 +39997,12 @@
       "/home/ubuntu/yt-f1-top-20261014t153212z"
     ],
     "diagnosticSourcePreserved": "/home/ubuntu/yt-ranking-sql-diagnostic-20261014t1701z"
+  },
+  "keywordThresholdAssessment20261015": {
+    "receipt": {
+      "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-threshold-assessment.json",
+      "sha256": "7eff64d733b7eb19acaceeea5c86efbc412183459b2c83ea173e1a6350292ea7"
+    },
+    "conclusion": "Keep deployed early gate. Broad/N20M5 retain five of six weekly broad-topic labels while excluding concrete event競總成立; article/media abundance is not a semantic classifier. Follow-up recorded as nonblocking; no new exclusions authorized or applied."
   }
 }
