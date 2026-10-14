@@ -2,6 +2,7 @@
 # Pin the local base tag's image ID immediately before docker build; never pull.
 ARG BASE_IMAGE=youtube-board-ts:f2-verified-base
 FROM ${BASE_IMAGE} AS build
+USER root
 WORKDIR /opt/youtube-board/platform
 COPY platform/package.json platform/package-lock.json ./
 COPY platform/api/package.json api/package.json
