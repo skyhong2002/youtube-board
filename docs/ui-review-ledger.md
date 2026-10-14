@@ -601,3 +601,18 @@ verify mayor plus F2, and preserve both image recovery points.
 
 Private handoff receipt: /home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/a27-production-deployment-handoff-20261013T2059Z.json
 SHA256 `964f9a269ee5699141fcd81b87398e8eb7e5e997674f66c4f87a861adda1072b`. This record is not build/capture/deployment permission.
+
+## Production screenshot follow-up (2026-10-14)
+
+The user still sees 新聞／看／訂閱 and platform words on production. F2 is
+**not deployed and not accepted**. APP073 legacy-snapshot filtering before SQL
+aggregation/limits and the common home/cloud/hot-list/keywords read path were
+independently source-reviewed again.65 unique tests,1052 independent checks
+passed; this is source evidence only. No new screenshots or BUILD_ID exist.
+
+Actual receipt (GPT-6.1 Sol,2026-10-14T03:39:07Z):
+/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/app073-home-keyword-display-regression-independent-source-review-20261014T033907Z.json
+SHA2568c3dd0e4e0029129a49be9330e75079ebdd38056bf3fe94b86909c24619e7a86;
+actual transcript is the same stem with .log. Route/visual pending statuses stay
+unchanged. New real watchdog wiring and startup admission barrier are source
+only, awaiting independent review and the remaining SM launch integration.

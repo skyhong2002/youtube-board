@@ -37117,5 +37117,43 @@
       "runtimeVerified": false,
       "uiAcceptanceUnchanged": true
     }
-  ]
+  ],
+  "keywordProductionScreenshotFollowup20261014": {
+    "userEvidence": "/home/deck/.t3/userdata/attachments/d7967e77-92ad-40e9-b35f-e0752b78e88b-be8abb1b-ee1a-43bc-9ddc-843721255bea.png",
+    "appSha": "073985b8bc4bbcc9ffb5d43c1e1a26060bb8ac4a",
+    "regressionTestCommit": "249d9d1",
+    "reviewer": "/root/capture_source_review",
+    "model": "gpt-6.1-sol",
+    "reviewExtent": "independent-source-only; no new candidate/runtime/UI acceptance",
+    "reviewReceipt": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/app073-home-keyword-display-regression-independent-source-review-20261014T033907Z.json",
+    "reviewReceiptSha256": "8c3dd0e4e0029129a49be9330e75079ebdd38056bf3fe94b86909c24619e7a86",
+    "transcript": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/app073-home-keyword-display-regression-independent-source-review-20261014T033907Z.log",
+    "sourceTests": {
+      "focused": 25,
+      "uniqueTestsReviewed": 65,
+      "independentChecks": 1052
+    },
+    "conclusion": "legacy snapshots filtered before aggregate/rank limits; cloud/hot list/keywords share home summaries; raw data retained; null views and contextual 24小時 retained",
+    "productionFixed": false,
+    "candidateApproval": false,
+    "status": "pending-build-and-primary-page-candidate-review",
+    "remainingLaunchIntegration": [
+      "SM current grant and heartbeat controller",
+      "owned bootstrap/startup admission barrier release after guardian verification",
+      "terminal packaging proof"
+    ],
+    "runtimeSourceDelta": "4c79649 + 5c30778; independent review pending",
+    "priorSourceReviewsReadBack": [
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/native-watchdog-w1-fix-independent-source-review-20261014T025415Z.json",
+        "sha256": "3283db7c9d025c8f13c26bec4465845c7d409597b6c2cf3b5d6c558ee86ba5b2",
+        "verdict": "source-only-pass"
+      },
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/sm-native-executor-admission-v2-independent-source-review-20261014T014944Z.json",
+        "sha256": "94b2d6413d11da8ab79d8379296b0177d467f11343a77de0efdfa349f16141a6",
+        "verdict": "source-only-pass"
+      }
+    ]
+  }
 }
