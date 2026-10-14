@@ -39215,6 +39215,17 @@
       "ownContainerRemoved": true,
       "remote18168Closed": true,
       "ownedTunnelRemoved": true
+    },
+    "coreReview": {
+      "status": "PASS_SCOPED_CORE_VISUAL_ADDENDUM",
+      "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/core-addendum-app78df4fd-20261014T145941Z-readable/review.json",
+      "sha256": "75c98871f13b36ec772f5a57f83a0fffc886ac8eba7fea3081389b496f709144",
+      "corePngsActuallyViewed": 108,
+      "totalPngsActuallyViewed": 284,
+      "viewportPackages": 28,
+      "routeComplete": false,
+      "fullSiteAcceptance": false,
+      "genericPool": "OPEN"
     }
   }
 }

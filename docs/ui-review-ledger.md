@@ -847,3 +847,6 @@ Home second batch8 viewports complete: `/home/deck/.cache/youtube-ui-review/ui_l
 
 
 F1 all28 viewport packages finished (profiles12/home8/keywords8), network receipts accepted/Google0. Full manifest pointers and hashes recorded in JSON ledger. Own candidate removed and remote18168closed; own exact-argv tunnel terminated; images/configs/all old artifacts retained. Combinedcoreactualreview pending; no deployment until nonblocking verdict and fresh health. APP clean unchanged78df4fd; sameimage0f70a7ce/BUILD_IDhqA5C00BhxMB7igbPaZyL.
+
+
+F1 core independent actual-image addendum PASS_SCOPED_CORE_VISUAL_ADDENDUM: `/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/core-addendum-app78df4fd-20261014T145941Z-readable/review.json` SHA256 `75c98871f13b36ec772f5a57f83a0fffc886ac8eba7fea3081389b496f709144`. All home64/keywords44 PNGs actually opened; withprofiles176 totals284PNGs/28views, exactAPP/image/BUILD_ID/CID/coherence/hashmatch. Main-page scopednormal visuals have no blocker. Fourkeyworddesktopoptimizer404, ERR_ABORTED terminalfailures and nooffscreenmobileinteractionproof preserved as limitations. GenericpoolOPEN, routeComplete/fullSiteAcceptance=false. Sameartifactdeployment next under latestown-checkauthorization; freshgate stillrequired.
