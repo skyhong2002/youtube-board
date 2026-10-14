@@ -43,7 +43,16 @@
     "uiStaticVisualPasses": 1,
     "nextCandidateUIRetakePending": 376,
     "nextCandidateUIComplete": 0,
-    "supplementaryHistoricalVisualReviews": 4
+    "supplementaryHistoricalVisualReviews": 4,
+    "currentArtifactScopedReview": {
+      "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+      "entries": 4,
+      "views": 16,
+      "actualOpened": 104,
+      "hashedPNG": 172,
+      "wholeRoutesComplete": 0,
+      "historicalCountersUnchanged": true
+    }
   },
   "entries": [
     {
@@ -10978,7 +10987,547 @@
         ],
         "priorReviewScope": "Historical reviewedSHA only; not approval of the next candidate",
         "recaptureMatrixEntry": "ledger-248"
-      }
+      },
+      "productionVisualReviews": [
+        {
+          "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+          "image": "sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920",
+          "buildID": "b8g61kyNdOR6Pmo1TWxav",
+          "route": "/channels",
+          "status": "PASS_SCOPED",
+          "review": {
+            "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-app35501a3-batch2-20261014T225408Z/review.json",
+            "sha256": "18e233eaf3779c40c121db8ae75442590377374db988bb4c0393e2555bda1810"
+          },
+          "reviewedAt": "2026-10-14T22:54:08.479922+00:00",
+          "reviewer": "/root/f2_visual_sol",
+          "scope": "anonymous default/real-example, light/dark, 1280/390; only supplied interaction states",
+          "manifests": [
+            {
+              "key": "channels-light",
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/captures.json",
+              "sha256": "68feef5a3f49f7f24614e90681c4b10d2861a1c90380bbf91d5204abe69a5656",
+              "captureToolCommit": "a7c4487",
+              "pngFiles": 25
+            },
+            {
+              "key": "channels-dark",
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/captures.json",
+              "sha256": "80c6bcd5a7e53c9a68be1d6882c5ab9d7789689cd371d020681a3d447dee50d1",
+              "captureToolCommit": "a7c4487",
+              "pngFiles": 25
+            }
+          ],
+          "screenshots": [
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-desktop.png",
+              "sha256": "96e955a0eff693a661eab261859a91071f8999d7dae15e2b21d5643e5ff9feff",
+              "kind": "fullpage",
+              "key": "channels-light",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-desktop-slice-0.png",
+              "sha256": "ed888ddf803c71b3fcf863527880acea103384e5a1902ff8f6a2b55ae583bdd2",
+              "top": 0,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-light",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-desktop-slice-760.png",
+              "sha256": "534f4f92ff11873809039cf0fba1bd963f180f063e9e653bff269456f8726982",
+              "top": 760,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-light",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-desktop-slice-1520.png",
+              "sha256": "28fbb8dd1438c1437b44cc36f42f0a76c9a4aaa3e672687293f5592701edc084",
+              "top": 1520,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-light",
+              "viewport": "desktop",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-desktop-slice-2280.png",
+              "sha256": "599c3f91669c9b84dca852d9865ff9b314ff18d9a5a1ae4665527237ebe139a9",
+              "top": 2280,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-light",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-desktop-slice-3040.png",
+              "sha256": "7d3828adce905d69a36a436aafa90da324365a181ac5564ac0b6dceadc47b4f2",
+              "top": 3040,
+              "height": 254,
+              "kind": "slice",
+              "key": "channels-light",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-desktop-right-edge.png",
+              "sha256": "043e82cfaf5ad2728dc75917b875f9e8dc461f761578aa51e07585fa1c83a1d5",
+              "kind": "interaction",
+              "key": "channels-light",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-mobile.png",
+              "sha256": "a7a955692ee219cc799bfe18f5cdbd6ae8ce8e2609f03483f31f244240644e48",
+              "kind": "fullpage",
+              "key": "channels-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-mobile-slice-0.png",
+              "sha256": "ebb1e3dbee52121d6c769a575c64c1dbfc787c7aa77b696eed7c32522e588aa4",
+              "top": 0,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-mobile-slice-760.png",
+              "sha256": "b7554a27ad0dde2aef0546cae5eda9e4198ff262e5abd42ff9d4315ff411ef36",
+              "top": 760,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-mobile-slice-1520.png",
+              "sha256": "50d7808f48e4a002307a6d364413c6204db9a2250db13e8cd5fd6474c1f1e7e2",
+              "top": 1520,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-mobile-slice-2280.png",
+              "sha256": "68cbf15b187af2b8dcc218d259f7dced5aaef36dcce21546db7c9bf911d2e602",
+              "top": 2280,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-mobile-slice-3040.png",
+              "sha256": "9a0514fd7345fc701dd71753649eadce48d58d0f8ac941a29269300113b64419",
+              "top": 3040,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-mobile-slice-3800.png",
+              "sha256": "9d5b12b3327e54d807194d4ef00a54e4f14cddfe12df1a50b70e75e60966a0fa",
+              "top": 3800,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-mobile-slice-4560.png",
+              "sha256": "f1cc26fdfa7c28435f163a699d9d05f8b635dd0cdfa70d2008d9d55f1a5f43ce",
+              "top": 4560,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-mobile-slice-5320.png",
+              "sha256": "289ccc102931898d5ebc17b99e7a0b18bb11e0f4a04c41ae66e4a4265345f736",
+              "top": 5320,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-mobile-slice-6080.png",
+              "sha256": "78cffb1ce015ec76878d8010466fcccaf9d5a86170f841b27d729ee14db90a49",
+              "top": 6080,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-mobile-slice-6840.png",
+              "sha256": "761974479d7842fb1afd2990803975d190831220038f080f35bd72ed044fd87b",
+              "top": 6840,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-mobile-slice-7600.png",
+              "sha256": "a78a7096f71b5af22db120ce94eb6bfd47920c92d46d481dfa05dcbbfe82ea63",
+              "top": 7600,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-mobile-slice-8360.png",
+              "sha256": "805f56a4cd047dbd0c29ede0b1cd3b13010a478dff1e967081117f118d02b4ea",
+              "top": 8360,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-mobile-slice-9120.png",
+              "sha256": "f721392bb17ffae0af44f5bf985e94eeb16445643b387e4d07b35132856afb0a",
+              "top": 9120,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-mobile-slice-9880.png",
+              "sha256": "2bb51f9c48bd3655f51a30ccfeda29dda026eb4aa7ea8ff2d58d5f4bf39d63a0",
+              "top": 9880,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-mobile-slice-10640.png",
+              "sha256": "c1938b8c9b299a519415f84bc2192daa8495d569673957df558d300e00a3ce62",
+              "top": 10640,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-mobile-slice-11400.png",
+              "sha256": "5592e56a779c66da318325bc877c64ada955217f8571b3604f01b041762fd98a",
+              "top": 11400,
+              "height": 645,
+              "kind": "slice",
+              "key": "channels-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-mobile-expanded-metrics.png",
+              "sha256": "307b3e5795b0c7ff8ae06462cea90ee71a1c862d9c824d0512c4c740ac83b41f",
+              "kind": "interaction",
+              "key": "channels-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-desktop.png",
+              "sha256": "815bdf14855b7eb5c6e081b30ad0d34b51fd8a5215f00c22328b514d3a47db96",
+              "kind": "fullpage",
+              "key": "channels-dark",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-desktop-slice-0.png",
+              "sha256": "e2822fe5552da21488ce7d3ebefdba68318d329f327ce5bb81ae02444ecadb33",
+              "top": 0,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-dark",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-desktop-slice-760.png",
+              "sha256": "17356a8d5c1f6095d7fcf87ef3f5a0fdd074a5083d5591ed628225968e0e402a",
+              "top": 760,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-dark",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-desktop-slice-1520.png",
+              "sha256": "c3b4eab3305530439eeaabe60d653b0d5ac5b4f1c27f124914ca6b1553ebb0ae",
+              "top": 1520,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-dark",
+              "viewport": "desktop",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-desktop-slice-2280.png",
+              "sha256": "0a6e1ca60406d2dc9877c1b2ef2afa34a1c5383f1f21e53567af44d9387be549",
+              "top": 2280,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-dark",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-desktop-slice-3040.png",
+              "sha256": "6e4d304cd8c2bf1e8ff16a99500c5637f972817c000197b2701da3aada243cb4",
+              "top": 3040,
+              "height": 254,
+              "kind": "slice",
+              "key": "channels-dark",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-desktop-right-edge.png",
+              "sha256": "4549f3aa4b64d3c91390bc44a93c3b3962bfd1c83e97bac69f15861a47951a72",
+              "kind": "interaction",
+              "key": "channels-dark",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-mobile.png",
+              "sha256": "5e40cae95ef401b52294287fef75d3dd6a3ee583ffe44e8ac331f7dabc003c77",
+              "kind": "fullpage",
+              "key": "channels-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-mobile-slice-0.png",
+              "sha256": "6eddca23f077a235d13cc23589bd14fc6ffa0a7349540d9d527fc46e4479f02d",
+              "top": 0,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-mobile-slice-760.png",
+              "sha256": "e21a2fb83fe9e89a727e02b981f87e22385b402f1a02dde90591069a6c3eeb73",
+              "top": 760,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-mobile-slice-1520.png",
+              "sha256": "0aa625a7e437e7c2d0c7f7c56b7b9ad027d13983871c95d2298a7d232c7ddaf8",
+              "top": 1520,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-mobile-slice-2280.png",
+              "sha256": "073c1a4dff3429bd92bfd12b6ba4934b38cacf5a01bd04d466f0c8b140019efd",
+              "top": 2280,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-mobile-slice-3040.png",
+              "sha256": "97ce80fce206fee40bd6a989170c16c224102d8de3692e9f3b6fac0c853f93f0",
+              "top": 3040,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-mobile-slice-3800.png",
+              "sha256": "4919bf74f132409494ae281965db73812557775e7fb34bcac22eb88539eb287b",
+              "top": 3800,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-mobile-slice-4560.png",
+              "sha256": "26eead40e3355be41f612cacd1adc19242b92ece9a3c0ac86c5aaf80c80f0aa3",
+              "top": 4560,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-mobile-slice-5320.png",
+              "sha256": "9f181d03005a2d02ea79fbf5e88a99307d2ac23b039aa87f576c4a4bae3c84fa",
+              "top": 5320,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-mobile-slice-6080.png",
+              "sha256": "59ada017e5e14d8b676a58bc772c60b7c785db4d129d26993190c3a75a2d8f2e",
+              "top": 6080,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-mobile-slice-6840.png",
+              "sha256": "807aebaf74fecb7ee76848da9ffd9075104e1065770622b0bff755ed595fd656",
+              "top": 6840,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-mobile-slice-7600.png",
+              "sha256": "6169bd9c88ee6acd2524a11a03a7ebe2b23dcb84b61c8c8195a22d90fa2899d6",
+              "top": 7600,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-mobile-slice-8360.png",
+              "sha256": "2a3b00a9ddd56df8bce7b5cd7ff6ecf3f6f914eaa120ad96faefe0e939ae4eaa",
+              "top": 8360,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-mobile-slice-9120.png",
+              "sha256": "a5418d508657b4246bfd69d3fc9542ab1fc77e9a7b5c76b7eadee03a2af29c71",
+              "top": 9120,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-mobile-slice-9880.png",
+              "sha256": "e2a1022aa91cbfebf7fdb421a174b93e5714f967b8a1aa0a70cd5b250d3444c7",
+              "top": 9880,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-mobile-slice-10640.png",
+              "sha256": "f853180f7eaa43f15709a0aab3ba39d98b1439d4809c8d329a7fe8e34155ef89",
+              "top": 10640,
+              "height": 800,
+              "kind": "slice",
+              "key": "channels-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-mobile-slice-11400.png",
+              "sha256": "ca84599381822d9e272265f8e4228ef9f4a6e49314725d689de6ad4fd9b0ba9b",
+              "top": 11400,
+              "height": 645,
+              "kind": "slice",
+              "key": "channels-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-mobile-expanded-metrics.png",
+              "sha256": "e1304a4d33d9a0a11559aa864dc68d49312b75f81c6357d9546ddec2dad12610",
+              "kind": "interaction",
+              "key": "channels-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            }
+          ],
+          "acceptance": {
+            "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/production-acceptance.json",
+            "sha256": "b2c301f7a56dcc95fd0dbabdd488edac658ee4a8221a0c68a94d8fd9fed73a5d"
+          },
+          "routeComplete": false,
+          "candidateApprovalInherited": false,
+          "baselineResolutions": "Eight batch issues resolved in supplied images; original findings retained as historical.",
+          "limitations": [
+            "PASS_SCOPED covers only completed supplied production artifacts for APP 35501a3f269f2818115ea7277c66db765a4e267d, image c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920, BUILD b8g61kyNdOR6Pmo1TWxav; exact /channels, /videos, /tags/102/videos and /videos/kqdc4-YOmPM; light/dark; 1280/390; attached eight interaction states. No full F4 or full-site acceptance.",
+            "Independent non-author offline review. All 172 PNG SHA-256 values asserted; 104 unique images actually opened: 16 fullpages, 80 native slices and 8 interactions. The remaining 68 images are hash-only and their content is not counted as actual inspection.",
+            "Supplied index, manifests, completed artifacts, primary/interaction coherence, raw/normalized network, DNT 1/GPC 1 and proxy records independently read/validated. This is recorder/proxy-scoped evidence, not live or packet-level proof. Service identity and health verified from supplied artifacts, not live probes.",
+            "All 1588 recorded request status fields are 200; 55 ERR_ABORTED terminal failures retained separately. Google attempts/blocked/responses 0; accepted/complete/finalized/contextClosed true; unknown/overflow false; inflight/unmatched/5xx/timeouts/dropped 0. DNT 1/GPC 1 present before/after and in every retained request.",
+            "No other query/state, sort, record limit, pagination, submitted filter, expanded advanced filter, expanded header search, keyboard/focus, login/authentication, 收藏 interaction, loading/error/thumbnail404/fallback, sticky header behavior or every intermediate horizontal offset certified. Eight supplied interaction states were visually observed; reviewer did not perform them.",
+            "Capture themes and viewports differ in time. Per-image coherence does not establish identical datasets across captures, metric freshness, ingestion correctness, database timestamp semantics or underlying taxonomy query correctness.",
+            "No browser, network, capture, database, source editing, build/test or subagents used. Parent deployment/runtime/performance/rollback and 322 tests/typecheck statements remain parent-reported, not independently executed by this reviewer.",
+            "T-ref ff511870 vocabulary/pattern document read earlier; narrow stacks, wide horizontal scroll with pinned context, light/dark, missing versus zero and scope/provenance principles applied without full cross-site certification.",
+            "Earlier failed production low-memory videos-light capture and original rejected candidate videos-light capture remain excluded. Current production-f4b2-35501a3-videos-light is a new complete accepted batch. Candidate's 43 ERR_ABORTED requests are separate from this production batch's 55.",
+            "Thumbnail ECHPW008FvY original source and optimizer GET404; cause unknown; neutral fallback retained.",
+            "Per-statistic freshness and ingestion execution remain pending; record timestamps do not establish successful polling.",
+            "Separate babysit browser acceptance has not yet been received."
+          ]
+        }
+      ],
+      "currentProductionScopedStatus": "PASS_SCOPED"
     },
     {
       "route": "/channels/{u_id}",
@@ -29311,7 +29860,531 @@
         ],
         "priorReviewScope": "Historical reviewedSHA only; not approval of the next candidate",
         "recaptureMatrixEntry": "ledger-568"
-      }
+      },
+      "productionVisualReviews": [
+        {
+          "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+          "image": "sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920",
+          "buildID": "b8g61kyNdOR6Pmo1TWxav",
+          "route": "/tags/102/videos",
+          "status": "PASS_SCOPED",
+          "review": {
+            "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-app35501a3-batch2-20261014T225408Z/review.json",
+            "sha256": "18e233eaf3779c40c121db8ae75442590377374db988bb4c0393e2555bda1810"
+          },
+          "reviewedAt": "2026-10-14T22:54:08.479922+00:00",
+          "reviewer": "/root/f2_visual_sol",
+          "scope": "anonymous default/real-example, light/dark, 1280/390; only supplied interaction states",
+          "manifests": [
+            {
+              "key": "tag102-videos-light",
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/captures.json",
+              "sha256": "f1836fbdc23d279d4333bb120cc571bf73bec45ed4787011ef84f2a01e8645b4",
+              "captureToolCommit": "a7c4487",
+              "pngFiles": 24
+            },
+            {
+              "key": "tag102-videos-dark",
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/captures.json",
+              "sha256": "b44c93b06844bcebf3c79ef77e990ccec891fb35fc883adae0f48e0dcba56494",
+              "captureToolCommit": "a7c4487",
+              "pngFiles": 24
+            }
+          ],
+          "screenshots": [
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-desktop.png",
+              "sha256": "91a7d603d1acc89a67f4f26fd37cc8954daee11006b2704654c2ceb26b3773d1",
+              "kind": "fullpage",
+              "key": "tag102-videos-light",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-desktop-slice-0.png",
+              "sha256": "5dc0fe183950b62139ff3d6b2d8b99cb1b45743b37d909c4d8c152b7c6d91faf",
+              "top": 0,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-light",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-desktop-slice-760.png",
+              "sha256": "b373cc71490e4066b535fa45aa2de5005cdb770e73523fe486b9857656b08a04",
+              "top": 760,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-light",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-desktop-slice-1520.png",
+              "sha256": "c819fc2c1b23a64b340301dd21890cfe49eb35796a731de3cd68e7efb16a6fef",
+              "top": 1520,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-light",
+              "viewport": "desktop",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-desktop-slice-2280.png",
+              "sha256": "37039324fd82182daceb27cdd35f5996cf51805c7573acc22eec63698f62f155",
+              "top": 2280,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-light",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-desktop-slice-3040.png",
+              "sha256": "2f3640f430a2e3494f1a38a9cce4414fae591935cfffae11cb700667ed037ab8",
+              "top": 3040,
+              "height": 509,
+              "kind": "slice",
+              "key": "tag102-videos-light",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-desktop-right-edge.png",
+              "sha256": "fe379a2a00f8e4738a0a56e2fce917756038690a801d6ac79a772dd93ac75b8b",
+              "kind": "interaction",
+              "key": "tag102-videos-light",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-mobile.png",
+              "sha256": "a32bfa5b9e449377613cb36273389ec525b5b5f5683f3918e26fa1d61608e219",
+              "kind": "fullpage",
+              "key": "tag102-videos-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-mobile-slice-0.png",
+              "sha256": "1a849a7ae1f6a9fd9bd9601c31d713fdf33f55182f726aa2a3442cad9bb6bbaa",
+              "top": 0,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-mobile-slice-760.png",
+              "sha256": "02879a3612399e39da072a031cf01a6b6b7aff77b02d814a0635b4707de3f448",
+              "top": 760,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-mobile-slice-1520.png",
+              "sha256": "283161d27114b526f1422b170c130d1cfc6bba2354ef264fb1c95165044f7309",
+              "top": 1520,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-mobile-slice-2280.png",
+              "sha256": "bbca6a6c6c12a38b821bfe42579ffbc2bcb5b95833e06ce57638800275a9a1cb",
+              "top": 2280,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-mobile-slice-3040.png",
+              "sha256": "f8b25934e354513a1cbaacd30845ce6a8561df1c4be98739f8bc70b56b1657ad",
+              "top": 3040,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-mobile-slice-3800.png",
+              "sha256": "e62004100bc0d3a8f0a0c0f83a18bab5bee97fb7498389a1fe6aae09cbe1f842",
+              "top": 3800,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-mobile-slice-4560.png",
+              "sha256": "16ba187e693abed389f1f1f7f21c35c7ccb6cbf63d0ea119e95ef403a9bb405e",
+              "top": 4560,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-mobile-slice-5320.png",
+              "sha256": "03c1ae9370a36476c8888f010102ef8aa53382b1c7a7fcad69d39a5e5fa4f7a7",
+              "top": 5320,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-mobile-slice-6080.png",
+              "sha256": "de6063c565eb8412fdee967aac53f0b6b2812c0278484723d10e436538d91957",
+              "top": 6080,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-mobile-slice-6840.png",
+              "sha256": "223350886452a0540aa04a4e23d047342a156a1b98ba8c1033e3d6eba22427ba",
+              "top": 6840,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-mobile-slice-7600.png",
+              "sha256": "73fb9a66dc46f1ae9ca1b116039488c6ea67b0330a5ae408c3de7b985a77225f",
+              "top": 7600,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-mobile-slice-8360.png",
+              "sha256": "4f70327fd7e1e521d5ff2ca6924d1c5f1882aa42c1b1ab73654a607e84395721",
+              "top": 8360,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-mobile-slice-9120.png",
+              "sha256": "a0c6b539ef26b872b442578cd595c4cca3b42d8bc0666a5f67606ed40ff09333",
+              "top": 9120,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-mobile-slice-9880.png",
+              "sha256": "02f6822a6a81f3dcaa2ee69f5d8f5fc171f895d4e8c083689d60fcc710ff8b37",
+              "top": 9880,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-mobile-slice-10640.png",
+              "sha256": "252e148d80757a7f1b4fb137378e31ee868554af1eee4b936d0fc07d97596f6b",
+              "top": 10640,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-mobile-slice-11400.png",
+              "sha256": "1faaa04bf1a8711b5716bc6a33bd27772355f70a78efe7065ea819d39b8db52d",
+              "top": 11400,
+              "height": 745,
+              "kind": "slice",
+              "key": "tag102-videos-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-desktop.png",
+              "sha256": "434baee73e36662c418e0bea983eca74550f88532d9a736c7f0780553820a476",
+              "kind": "fullpage",
+              "key": "tag102-videos-dark",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-desktop-slice-0.png",
+              "sha256": "43c07e518933db9d257935684c51534302ba65113414f3e8ad2cc4398915907f",
+              "top": 0,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-dark",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-desktop-slice-760.png",
+              "sha256": "1bf5a2d92bb4c7b853c307d2719e75166f6000a7fa0334d2fe00e993deb86fe9",
+              "top": 760,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-dark",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-desktop-slice-1520.png",
+              "sha256": "47f1ae65e9383f0f43e27bbd09a3815b3f32a09771dc4a97ed026ca83d115297",
+              "top": 1520,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-dark",
+              "viewport": "desktop",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-desktop-slice-2280.png",
+              "sha256": "669108a82173dda27d87002e483de5eee27ce4cca5fdc4a0282dd37f0a499a39",
+              "top": 2280,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-dark",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-desktop-slice-3040.png",
+              "sha256": "02de1ef2f15d7c282afb0b513e8f3a9ccf2d796366926a2e8099e36d8c20d3f3",
+              "top": 3040,
+              "height": 509,
+              "kind": "slice",
+              "key": "tag102-videos-dark",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-desktop-right-edge.png",
+              "sha256": "769e5296248efd5a3d30591b201d220e47de36c944de8c62e85c7e3334267125",
+              "kind": "interaction",
+              "key": "tag102-videos-dark",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-mobile.png",
+              "sha256": "79e2fac2586529573347bd9c38f986baca3db2e100e9c448413854fd48f95147",
+              "kind": "fullpage",
+              "key": "tag102-videos-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-mobile-slice-0.png",
+              "sha256": "fc97cc677779beee3f8157dcadf1e6596a270ca473aacbc60676bbd87c988720",
+              "top": 0,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-mobile-slice-760.png",
+              "sha256": "29546e7c6960029fd26552706b1704c341ac1767685c9a32176674f64a333b2d",
+              "top": 760,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-mobile-slice-1520.png",
+              "sha256": "3160dbe31a9de6ebe51072433add6e76f6cd6bad0f1645e81c412433fe908bec",
+              "top": 1520,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-mobile-slice-2280.png",
+              "sha256": "d302d547cecbd6b1c66c85e4a9202eaa3d218525800561cafb1cc3e9fb365a0e",
+              "top": 2280,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-mobile-slice-3040.png",
+              "sha256": "680145b64d95c908f06322823bf8607f091288e7d39734100070a22080de2868",
+              "top": 3040,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-mobile-slice-3800.png",
+              "sha256": "ec88323c4f58ad7eae2dc825b8deddd70770865420d71b26253e6fd50c71e02c",
+              "top": 3800,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-mobile-slice-4560.png",
+              "sha256": "91dbe9f9245470b9ccc9abb5cdf2e0b44be6d814a2052496cf8c963560285e30",
+              "top": 4560,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-mobile-slice-5320.png",
+              "sha256": "6013d3e0529838606dd80da5203367d805755dba0e0b4454d675c8132734bc97",
+              "top": 5320,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-mobile-slice-6080.png",
+              "sha256": "9a13bcde95b25509243dfbfd51d81152b87c891304122b66528b702f67e947f0",
+              "top": 6080,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-mobile-slice-6840.png",
+              "sha256": "9f842c1201974105040460298d8378cf018762b5483aa3b1b3d00b3ddbb68d6b",
+              "top": 6840,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-mobile-slice-7600.png",
+              "sha256": "a720e6061d20d1a92558e06d1fbe2b9e5365115543e65e067cf684caa04067f6",
+              "top": 7600,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-mobile-slice-8360.png",
+              "sha256": "c6475b6102872b7ddb804973b63179d362f120d236ddd0bf6bb34994fe06f608",
+              "top": 8360,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-mobile-slice-9120.png",
+              "sha256": "ddd71631a88e939731bd56970cde72fac4d9464f3cd692a23d7b3d61489ee5c4",
+              "top": 9120,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-mobile-slice-9880.png",
+              "sha256": "f726850cf4e6ce24acfe82e6bd418a2892b2bddc3e4c8315ffed145177bdc867",
+              "top": 9880,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-mobile-slice-10640.png",
+              "sha256": "f660c7aa1a19bce295b2a32ed363abd7506f867f027d2c38f700d21b3fa531cb",
+              "top": 10640,
+              "height": 800,
+              "kind": "slice",
+              "key": "tag102-videos-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-mobile-slice-11400.png",
+              "sha256": "bf75a88066c60735a09dcd93749f981f348bdae4955ceaa9b01a4dcbb27a25e8",
+              "top": 11400,
+              "height": 745,
+              "kind": "slice",
+              "key": "tag102-videos-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            }
+          ],
+          "acceptance": {
+            "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/production-acceptance.json",
+            "sha256": "b2c301f7a56dcc95fd0dbabdd488edac658ee4a8221a0c68a94d8fd9fed73a5d"
+          },
+          "routeComplete": false,
+          "candidateApprovalInherited": false,
+          "baselineResolutions": "Eight batch issues resolved in supplied images; original findings retained as historical.",
+          "limitations": [
+            "PASS_SCOPED covers only completed supplied production artifacts for APP 35501a3f269f2818115ea7277c66db765a4e267d, image c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920, BUILD b8g61kyNdOR6Pmo1TWxav; exact /channels, /videos, /tags/102/videos and /videos/kqdc4-YOmPM; light/dark; 1280/390; attached eight interaction states. No full F4 or full-site acceptance.",
+            "Independent non-author offline review. All 172 PNG SHA-256 values asserted; 104 unique images actually opened: 16 fullpages, 80 native slices and 8 interactions. The remaining 68 images are hash-only and their content is not counted as actual inspection.",
+            "Supplied index, manifests, completed artifacts, primary/interaction coherence, raw/normalized network, DNT 1/GPC 1 and proxy records independently read/validated. This is recorder/proxy-scoped evidence, not live or packet-level proof. Service identity and health verified from supplied artifacts, not live probes.",
+            "All 1588 recorded request status fields are 200; 55 ERR_ABORTED terminal failures retained separately. Google attempts/blocked/responses 0; accepted/complete/finalized/contextClosed true; unknown/overflow false; inflight/unmatched/5xx/timeouts/dropped 0. DNT 1/GPC 1 present before/after and in every retained request.",
+            "No other query/state, sort, record limit, pagination, submitted filter, expanded advanced filter, expanded header search, keyboard/focus, login/authentication, 收藏 interaction, loading/error/thumbnail404/fallback, sticky header behavior or every intermediate horizontal offset certified. Eight supplied interaction states were visually observed; reviewer did not perform them.",
+            "Capture themes and viewports differ in time. Per-image coherence does not establish identical datasets across captures, metric freshness, ingestion correctness, database timestamp semantics or underlying taxonomy query correctness.",
+            "No browser, network, capture, database, source editing, build/test or subagents used. Parent deployment/runtime/performance/rollback and 322 tests/typecheck statements remain parent-reported, not independently executed by this reviewer.",
+            "T-ref ff511870 vocabulary/pattern document read earlier; narrow stacks, wide horizontal scroll with pinned context, light/dark, missing versus zero and scope/provenance principles applied without full cross-site certification.",
+            "Earlier failed production low-memory videos-light capture and original rejected candidate videos-light capture remain excluded. Current production-f4b2-35501a3-videos-light is a new complete accepted batch. Candidate's 43 ERR_ABORTED requests are separate from this production batch's 55.",
+            "Thumbnail ECHPW008FvY original source and optimizer GET404; cause unknown; neutral fallback retained.",
+            "Per-statistic freshness and ingestion execution remain pending; record timestamps do not establish successful polling.",
+            "Separate babysit browser acceptance has not yet been received."
+          ]
+        }
+      ],
+      "currentProductionScopedStatus": "PASS_SCOPED"
     },
     {
       "route": "/tags/{tagId}/videos",
@@ -29625,7 +30698,511 @@
         "currentStatePass": false,
         "routeComplete": false,
         "sourceFixCommit": "4d7dc12100f8cd647f077978beb918d17157633a"
-      }
+      },
+      "productionVisualReviews": [
+        {
+          "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+          "image": "sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920",
+          "buildID": "b8g61kyNdOR6Pmo1TWxav",
+          "route": "/videos",
+          "status": "PASS_SCOPED",
+          "review": {
+            "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-app35501a3-batch2-20261014T225408Z/review.json",
+            "sha256": "18e233eaf3779c40c121db8ae75442590377374db988bb4c0393e2555bda1810"
+          },
+          "reviewedAt": "2026-10-14T22:54:08.479922+00:00",
+          "reviewer": "/root/f2_visual_sol",
+          "scope": "anonymous default/real-example, light/dark, 1280/390; only supplied interaction states",
+          "manifests": [
+            {
+              "key": "videos-light",
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/captures.json",
+              "sha256": "96b4505729c0b330f4bb18279a65d771db0437ecb235f9ad7d0da0c632d27535",
+              "captureToolCommit": "a7c4487",
+              "pngFiles": 23
+            },
+            {
+              "key": "videos-dark",
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/captures.json",
+              "sha256": "8b17e788218684dbab8de9b953f6828688b7c20c2881d52a1894ec274d7da3f6",
+              "captureToolCommit": "a7c4487",
+              "pngFiles": 23
+            }
+          ],
+          "screenshots": [
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-desktop.png",
+              "sha256": "09ea0922d51e9d6e2adb2b86958be087f8335f67fe7730486a75b54cf70998df",
+              "kind": "fullpage",
+              "key": "videos-light",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-desktop-slice-0.png",
+              "sha256": "f18217cb8b3e5e43328804e7edae319f905c62535d626feeb04effbe3804c6ae",
+              "top": 0,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-light",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-desktop-slice-760.png",
+              "sha256": "eba1ae6c1f2f3455b3be32febebc493cabbb9efffc1274fd9d12152f4fd4da85",
+              "top": 760,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-light",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-desktop-slice-1520.png",
+              "sha256": "6efcca96138fd729c75e0cdcc8fdbd363513d31e77001c4aa6906abddc247f33",
+              "top": 1520,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-light",
+              "viewport": "desktop",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-desktop-slice-2280.png",
+              "sha256": "7711e0033314f880d161d034a89a451b68e9e190b2ae45e4c8a337a0c2986455",
+              "top": 2280,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-light",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-desktop-slice-3040.png",
+              "sha256": "fe2808e308d6a7430beb53bc09b1897513b68a3353ebf3c453bd93c821d62a79",
+              "top": 3040,
+              "height": 352,
+              "kind": "slice",
+              "key": "videos-light",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-desktop-right-edge.png",
+              "sha256": "84ecd514403b5809a4e17703ab3fa17544087c637251e841186b44121a9b97f4",
+              "kind": "interaction",
+              "key": "videos-light",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-mobile.png",
+              "sha256": "2fa7445e158829c937df7d0e8aaa306eabd4fbfc55604064c380cffe4c586136",
+              "kind": "fullpage",
+              "key": "videos-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-mobile-slice-0.png",
+              "sha256": "39b4ebd837695aaf8d9251cdca77c7d3608a23f286f4acd2ba040a12ad52018f",
+              "top": 0,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-mobile-slice-760.png",
+              "sha256": "5f147ee3b44d62aeb339a63ae39ea576ba331c25a930dae810c53bcf1d8f9164",
+              "top": 760,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-mobile-slice-1520.png",
+              "sha256": "55b1894aeec0294821ebe07f9170cd133f0f83e8329d7fc83c131d7fdc9f807e",
+              "top": 1520,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-mobile-slice-2280.png",
+              "sha256": "60d70b09c8aef617105fee109fc4c3bf65c307613216b7c76422bbabead45171",
+              "top": 2280,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-mobile-slice-3040.png",
+              "sha256": "517ad5fcc93ed95904bbb32fa1bd3299aaa8c0ab73d4eb4ebba90b176f5f92e6",
+              "top": 3040,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-mobile-slice-3800.png",
+              "sha256": "a2fed873802f6be38ed271ed4cdb4d93ce3426dce6902e4d71273b0a8c90a18e",
+              "top": 3800,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-mobile-slice-4560.png",
+              "sha256": "3938578123be3f1a32ca533da208cea44878181fd14800a3c9c6f61afdd76fba",
+              "top": 4560,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-mobile-slice-5320.png",
+              "sha256": "66b4f4bc361a76664c8be2a9067631f015aa2c2c2a271a46bc66ead1213a481b",
+              "top": 5320,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-mobile-slice-6080.png",
+              "sha256": "d0c0c594297a6d0da98ae5f89911c9ff7cf84b668b8f916844f82b434bd94e2e",
+              "top": 6080,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-mobile-slice-6840.png",
+              "sha256": "2b01b7d4ca17e429152f3f0e1f4d020c6761b4731ae02cb06bbb38210f273c06",
+              "top": 6840,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-mobile-slice-7600.png",
+              "sha256": "9c1cb5db55d309aa4d11e63dd9c4bf363f63472a31c7930a03e1f38e0732d0ff",
+              "top": 7600,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-mobile-slice-8360.png",
+              "sha256": "22e4ca2991d58cc25b7de0fc1392ef8278b5111bf88615acbb26900c0a66415f",
+              "top": 8360,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-mobile-slice-9120.png",
+              "sha256": "bc44168f71b4784260613d83ef83c97459350a38d25d99946ef90a9787ba54ec",
+              "top": 9120,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-mobile-slice-9880.png",
+              "sha256": "7d8e626f9d59daa6e5dc1896ff5532ab1973b9ebaef0bcc7deb87cbfb8039652",
+              "top": 9880,
+              "height": 779,
+              "kind": "slice",
+              "key": "videos-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-mobile-slice-10640.png",
+              "sha256": "eb5dfdb8e203333f03f2f8ae6361d497cbb2612494282889e6c6fac95fb81c70",
+              "top": 10640,
+              "height": 19,
+              "kind": "slice",
+              "key": "videos-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-desktop.png",
+              "sha256": "33a331c8301c58c4b2c93706b4d13a95856b563b24f3cc5e86df9b7efda58b93",
+              "kind": "fullpage",
+              "key": "videos-dark",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-desktop-slice-0.png",
+              "sha256": "90d6b3c0b835673b054307c254d9ae363c30cd31172ec246f24f1476c6bc22fc",
+              "top": 0,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-dark",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-desktop-slice-760.png",
+              "sha256": "dce0dad63f1b44e2baefea9f368ecfa4dcb86888be545291e8aab667f70f6a7a",
+              "top": 760,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-dark",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-desktop-slice-1520.png",
+              "sha256": "6b8bd05cae536050575aef35417b75f262ee7940bf59e60dc209ddb6ab318c08",
+              "top": 1520,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-dark",
+              "viewport": "desktop",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-desktop-slice-2280.png",
+              "sha256": "e8d5f7a51145238e9d592e427cd459596419cc44d62b4aeb5301f927467be96f",
+              "top": 2280,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-dark",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-desktop-slice-3040.png",
+              "sha256": "59b406b89ecb5e0623fcf9a53e9490d9e5eb8c3ad2f7487fb1b29a7803076291",
+              "top": 3040,
+              "height": 352,
+              "kind": "slice",
+              "key": "videos-dark",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-desktop-right-edge.png",
+              "sha256": "79b6869ce90d2430c491072141328e06b61ada094dd527b972efa4bdea30b35b",
+              "kind": "interaction",
+              "key": "videos-dark",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-mobile.png",
+              "sha256": "35d9cc065f2de61621ca92ee8d87fb0f84a3d69061bd90a3fdf7bb673f487f23",
+              "kind": "fullpage",
+              "key": "videos-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-mobile-slice-0.png",
+              "sha256": "92253252f2f5a646bcf7baed28d76c60cab666f543abd73edb348f272bee2e55",
+              "top": 0,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-mobile-slice-760.png",
+              "sha256": "e3e31861dd558d56409cdaef487fbb930e6388a9a8f450e621f65f0ffee94bca",
+              "top": 760,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-mobile-slice-1520.png",
+              "sha256": "95f70b52cb77913f8d9ff07b3442fba0a6b5cbaa744c7f7ae0d959505970f021",
+              "top": 1520,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-mobile-slice-2280.png",
+              "sha256": "eabcce84bffe568c775fbacd25d806b3433aed06f78c402793adf4c800f19f07",
+              "top": 2280,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-mobile-slice-3040.png",
+              "sha256": "a8353578e87614d8e2bce1bafcd366b4fe488fcb260fa4fe4010f0e8f22f4baa",
+              "top": 3040,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-mobile-slice-3800.png",
+              "sha256": "843555dd92c57e15f848b74d581310c0e30e49a7ea833411625553e376dfb956",
+              "top": 3800,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-mobile-slice-4560.png",
+              "sha256": "b79ef75fe1fac651735dd0e0f8c4da2a777ccbf72b02be1ebdebf8e21e865a60",
+              "top": 4560,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-mobile-slice-5320.png",
+              "sha256": "017f64861dabea5effbf8145323e32d04a962642072a76f961ad97f985cf323d",
+              "top": 5320,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-mobile-slice-6080.png",
+              "sha256": "792fe7c081ea6d35d3be5427c9e4c3bb83d8c9df3c596bc158e3d7a30ac76811",
+              "top": 6080,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-mobile-slice-6840.png",
+              "sha256": "3623fab94f1dbbbab14697ee4d1f909ada86a17037aafd8a7724ad147546b3a6",
+              "top": 6840,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-mobile-slice-7600.png",
+              "sha256": "ed5513ee839c76cd103f95174df272b857be8744ba573938b72129a7486f6c57",
+              "top": 7600,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-mobile-slice-8360.png",
+              "sha256": "c80638aebe6ba5e9807de36bacb90e7846477ed70892505d3fb0ba9867402437",
+              "top": 8360,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-mobile-slice-9120.png",
+              "sha256": "a434f6da8c3a2dd2146cd16c04a55e1e5910e8b0d9c649c26abdfa50f1a58a89",
+              "top": 9120,
+              "height": 800,
+              "kind": "slice",
+              "key": "videos-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-mobile-slice-9880.png",
+              "sha256": "12acb598940b2c5463b8bb0d9400cd66f1d62f68b3ed0c2dc9ecd5e5317e2df1",
+              "top": 9880,
+              "height": 779,
+              "kind": "slice",
+              "key": "videos-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-mobile-slice-10640.png",
+              "sha256": "e25900d50d35880d317d170245b4cf9a5f0ea5cfef8bbc6e865d8936b1c48813",
+              "top": 10640,
+              "height": 19,
+              "kind": "slice",
+              "key": "videos-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            }
+          ],
+          "acceptance": {
+            "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/production-acceptance.json",
+            "sha256": "b2c301f7a56dcc95fd0dbabdd488edac658ee4a8221a0c68a94d8fd9fed73a5d"
+          },
+          "routeComplete": false,
+          "candidateApprovalInherited": false,
+          "baselineResolutions": "Eight batch issues resolved in supplied images; original findings retained as historical.",
+          "limitations": [
+            "PASS_SCOPED covers only completed supplied production artifacts for APP 35501a3f269f2818115ea7277c66db765a4e267d, image c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920, BUILD b8g61kyNdOR6Pmo1TWxav; exact /channels, /videos, /tags/102/videos and /videos/kqdc4-YOmPM; light/dark; 1280/390; attached eight interaction states. No full F4 or full-site acceptance.",
+            "Independent non-author offline review. All 172 PNG SHA-256 values asserted; 104 unique images actually opened: 16 fullpages, 80 native slices and 8 interactions. The remaining 68 images are hash-only and their content is not counted as actual inspection.",
+            "Supplied index, manifests, completed artifacts, primary/interaction coherence, raw/normalized network, DNT 1/GPC 1 and proxy records independently read/validated. This is recorder/proxy-scoped evidence, not live or packet-level proof. Service identity and health verified from supplied artifacts, not live probes.",
+            "All 1588 recorded request status fields are 200; 55 ERR_ABORTED terminal failures retained separately. Google attempts/blocked/responses 0; accepted/complete/finalized/contextClosed true; unknown/overflow false; inflight/unmatched/5xx/timeouts/dropped 0. DNT 1/GPC 1 present before/after and in every retained request.",
+            "No other query/state, sort, record limit, pagination, submitted filter, expanded advanced filter, expanded header search, keyboard/focus, login/authentication, 收藏 interaction, loading/error/thumbnail404/fallback, sticky header behavior or every intermediate horizontal offset certified. Eight supplied interaction states were visually observed; reviewer did not perform them.",
+            "Capture themes and viewports differ in time. Per-image coherence does not establish identical datasets across captures, metric freshness, ingestion correctness, database timestamp semantics or underlying taxonomy query correctness.",
+            "No browser, network, capture, database, source editing, build/test or subagents used. Parent deployment/runtime/performance/rollback and 322 tests/typecheck statements remain parent-reported, not independently executed by this reviewer.",
+            "T-ref ff511870 vocabulary/pattern document read earlier; narrow stacks, wide horizontal scroll with pinned context, light/dark, missing versus zero and scope/provenance principles applied without full cross-site certification.",
+            "Earlier failed production low-memory videos-light capture and original rejected candidate videos-light capture remain excluded. Current production-f4b2-35501a3-videos-light is a new complete accepted batch. Candidate's 43 ERR_ABORTED requests are separate from this production batch's 55.",
+            "Thumbnail ECHPW008FvY original source and optimizer GET404; cause unknown; neutral fallback retained.",
+            "Per-statistic freshness and ingestion execution remain pending; record timestamps do not establish successful polling.",
+            "Separate babysit browser acceptance has not yet been received."
+          ]
+        }
+      ],
+      "currentProductionScopedStatus": "PASS_SCOPED"
     },
     {
       "route": "/videos.php",
@@ -30018,7 +31595,335 @@
         ],
         "priorReviewScope": "Historical reviewedSHA only; not approval of the next candidate",
         "recaptureMatrixEntry": "ledger-581"
-      }
+      },
+      "productionVisualReviews": [
+        {
+          "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+          "image": "sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920",
+          "buildID": "b8g61kyNdOR6Pmo1TWxav",
+          "route": "/videos/kqdc4-YOmPM",
+          "status": "PASS_SCOPED",
+          "review": {
+            "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-app35501a3-batch2-20261014T225408Z/review.json",
+            "sha256": "18e233eaf3779c40c121db8ae75442590377374db988bb4c0393e2555bda1810"
+          },
+          "reviewedAt": "2026-10-14T22:54:08.479922+00:00",
+          "reviewer": "/root/f2_visual_sol",
+          "scope": "anonymous default/real-example, light/dark, 1280/390; only supplied interaction states",
+          "manifests": [
+            {
+              "key": "video-detail-light",
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-light/captures.json",
+              "sha256": "e47c63edb0885b7a7f8fae32c81dca05c1ef7f936e730b29196fc025ed15f6ed",
+              "captureToolCommit": "a7c4487",
+              "pngFiles": 14
+            },
+            {
+              "key": "video-detail-dark",
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-dark/captures.json",
+              "sha256": "0c9eb07b7f9513a7e615c7765448747cecbdaca7e79167af9b0fad1a17b487eb",
+              "captureToolCommit": "a7c4487",
+              "pngFiles": 14
+            }
+          ],
+          "screenshots": [
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-light/video-detail-light-desktop.png",
+              "sha256": "3b4126e8d24bb33d5963b153f02076c81f5872a395e8d5439a72a45228da8220",
+              "kind": "fullpage",
+              "key": "video-detail-light",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-light/video-detail-light-desktop-slice-0.png",
+              "sha256": "f06ef7fa38d3e3336943fa4d1f426f761135c3f06e673f74795109b35bb76402",
+              "top": 0,
+              "height": 800,
+              "kind": "slice",
+              "key": "video-detail-light",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-light/video-detail-light-desktop-slice-760.png",
+              "sha256": "23c28973af574b8a93630deb76bf286ab860a61259b0beb358c1ed01637bbd70",
+              "top": 760,
+              "height": 800,
+              "kind": "slice",
+              "key": "video-detail-light",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-light/video-detail-light-desktop-slice-1520.png",
+              "sha256": "ad77755ad5f7b5d33382520aedd94c7267f4a75db1aef2c90d313e730ac799fe",
+              "top": 1520,
+              "height": 800,
+              "kind": "slice",
+              "key": "video-detail-light",
+              "viewport": "desktop",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-light/video-detail-light-desktop-slice-2280.png",
+              "sha256": "fc09e513468020f2ec13d97d71144071a57c529ee76a863d195cc54435eb3404",
+              "top": 2280,
+              "height": 800,
+              "kind": "slice",
+              "key": "video-detail-light",
+              "viewport": "desktop",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-light/video-detail-light-desktop-slice-3040.png",
+              "sha256": "4fc68a5d804eb81e29dfe6fff2b70a51afffb96d64aeb17c935b0cf452e8e7d7",
+              "top": 3040,
+              "height": 95,
+              "kind": "slice",
+              "key": "video-detail-light",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-light/video-detail-light-mobile.png",
+              "sha256": "f6c470a897f0dd03be88b56bffeb8c4c7967b54be7150bfb6670f2b31fdd1806",
+              "kind": "fullpage",
+              "key": "video-detail-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-light/video-detail-light-mobile-slice-0.png",
+              "sha256": "1a240e1a6685c9da568b3d131b5e258c7c1305b01b191c89b892536e27a97a02",
+              "top": 0,
+              "height": 800,
+              "kind": "slice",
+              "key": "video-detail-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-light/video-detail-light-mobile-slice-760.png",
+              "sha256": "391ac2aa72560d3194c85b32a6626cd7f38193817e54769a6519606592432a9d",
+              "top": 760,
+              "height": 800,
+              "kind": "slice",
+              "key": "video-detail-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-light/video-detail-light-mobile-slice-1520.png",
+              "sha256": "e29d404a57d768d5f6b504a9a0eb3c07b7fdb551a0917034e77df5a2f0bab0f9",
+              "top": 1520,
+              "height": 800,
+              "kind": "slice",
+              "key": "video-detail-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-light/video-detail-light-mobile-slice-2280.png",
+              "sha256": "1195202e68dbc0519fe12db4833625c51685dcff1fa1593eea1af4f8d5fe9c71",
+              "top": 2280,
+              "height": 800,
+              "kind": "slice",
+              "key": "video-detail-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-light/video-detail-light-mobile-slice-3040.png",
+              "sha256": "02794a847f32e5d6c23a94a58c9c2b65fd6f3c54434f1b305eca150a03c4b895",
+              "top": 3040,
+              "height": 800,
+              "kind": "slice",
+              "key": "video-detail-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-light/video-detail-light-mobile-slice-3800.png",
+              "sha256": "5fc8ac78bab01d4685c86382dc4ae80039ffa3469fe977732c41550737dff091",
+              "top": 3800,
+              "height": 800,
+              "kind": "slice",
+              "key": "video-detail-light",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-light/video-detail-light-mobile-slice-4560.png",
+              "sha256": "4f30f9d7dedb028d4503507feb139870798a3eb0818048242b66ef66ce1e72dd",
+              "top": 4560,
+              "height": 79,
+              "kind": "slice",
+              "key": "video-detail-light",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-dark/video-detail-dark-desktop.png",
+              "sha256": "2a95b764cbed8ca00e7df4dcc8c1aee3e714a4f4e90f9dc3e948080a412f4365",
+              "kind": "fullpage",
+              "key": "video-detail-dark",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-dark/video-detail-dark-desktop-slice-0.png",
+              "sha256": "8818e5d1cbfebdd2559e17bff4b54b1e5b89cbec8f60c7edfc232d1bff099cfc",
+              "top": 0,
+              "height": 800,
+              "kind": "slice",
+              "key": "video-detail-dark",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-dark/video-detail-dark-desktop-slice-760.png",
+              "sha256": "77afa919c91d56ca121b2d2d25be44543dd440665c6764fa64fa38bf8293c5b0",
+              "top": 760,
+              "height": 800,
+              "kind": "slice",
+              "key": "video-detail-dark",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-dark/video-detail-dark-desktop-slice-1520.png",
+              "sha256": "231bf4e3da16e8422a8218889e62063d50f0b5c02dd15da6e3ae63afa723b0f8",
+              "top": 1520,
+              "height": 800,
+              "kind": "slice",
+              "key": "video-detail-dark",
+              "viewport": "desktop",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-dark/video-detail-dark-desktop-slice-2280.png",
+              "sha256": "43621d44be5d1b4f06d32dcc5425299456a64836d7e978c6c2d3cc9c1f57abc4",
+              "top": 2280,
+              "height": 800,
+              "kind": "slice",
+              "key": "video-detail-dark",
+              "viewport": "desktop",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-dark/video-detail-dark-desktop-slice-3040.png",
+              "sha256": "7b796304537ac2052a6762b47670e75b5cc30354f58833a11b826f92e6e4cb56",
+              "top": 3040,
+              "height": 95,
+              "kind": "slice",
+              "key": "video-detail-dark",
+              "viewport": "desktop",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-dark/video-detail-dark-mobile.png",
+              "sha256": "3b9c17561289f60baf3900c6711a4f54e6ba9ddaf45124c544192307c8baed9b",
+              "kind": "fullpage",
+              "key": "video-detail-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-dark/video-detail-dark-mobile-slice-0.png",
+              "sha256": "f7954d45f5fff8aabe322755f85166d1bc876146ccadf03066ee4971e3865742",
+              "top": 0,
+              "height": 800,
+              "kind": "slice",
+              "key": "video-detail-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-dark/video-detail-dark-mobile-slice-760.png",
+              "sha256": "2ce30bd695f57ff23a3bf7682cd15dbb1347da41b27565131fce3ca1760898b7",
+              "top": 760,
+              "height": 800,
+              "kind": "slice",
+              "key": "video-detail-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-dark/video-detail-dark-mobile-slice-1520.png",
+              "sha256": "99696155457a60f8296788d64c87c86e5d1b472eff5949a644b41efd400c38b4",
+              "top": 1520,
+              "height": 800,
+              "kind": "slice",
+              "key": "video-detail-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-dark/video-detail-dark-mobile-slice-2280.png",
+              "sha256": "4633910f0dc74a1d808a6de0b35544003c14102e8332b3ef264c7377c1760064",
+              "top": 2280,
+              "height": 800,
+              "kind": "slice",
+              "key": "video-detail-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-dark/video-detail-dark-mobile-slice-3040.png",
+              "sha256": "7cd4384a8b4808c01d72e5eff0b432c38bad5c0793ecb7fec8c5a3f8be10437b",
+              "top": 3040,
+              "height": 800,
+              "kind": "slice",
+              "key": "video-detail-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-dark/video-detail-dark-mobile-slice-3800.png",
+              "sha256": "c38a1a2072ea605f8770d4af6d0ff0dacd750535a4d6e73462d5a185185c5745",
+              "top": 3800,
+              "height": 800,
+              "kind": "slice",
+              "key": "video-detail-dark",
+              "viewport": "mobile",
+              "actualOpened": false
+            },
+            {
+              "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-dark/video-detail-dark-mobile-slice-4560.png",
+              "sha256": "5f5e1d746aa760d6a80561babbd21527c6f5dc44a4cdde9e64aef16370f3b82f",
+              "top": 4560,
+              "height": 79,
+              "kind": "slice",
+              "key": "video-detail-dark",
+              "viewport": "mobile",
+              "actualOpened": true
+            }
+          ],
+          "acceptance": {
+            "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/production-acceptance.json",
+            "sha256": "b2c301f7a56dcc95fd0dbabdd488edac658ee4a8221a0c68a94d8fd9fed73a5d"
+          },
+          "routeComplete": false,
+          "candidateApprovalInherited": false,
+          "baselineResolutions": "Eight batch issues resolved in supplied images; original findings retained as historical.",
+          "limitations": [
+            "PASS_SCOPED covers only completed supplied production artifacts for APP 35501a3f269f2818115ea7277c66db765a4e267d, image c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920, BUILD b8g61kyNdOR6Pmo1TWxav; exact /channels, /videos, /tags/102/videos and /videos/kqdc4-YOmPM; light/dark; 1280/390; attached eight interaction states. No full F4 or full-site acceptance.",
+            "Independent non-author offline review. All 172 PNG SHA-256 values asserted; 104 unique images actually opened: 16 fullpages, 80 native slices and 8 interactions. The remaining 68 images are hash-only and their content is not counted as actual inspection.",
+            "Supplied index, manifests, completed artifacts, primary/interaction coherence, raw/normalized network, DNT 1/GPC 1 and proxy records independently read/validated. This is recorder/proxy-scoped evidence, not live or packet-level proof. Service identity and health verified from supplied artifacts, not live probes.",
+            "All 1588 recorded request status fields are 200; 55 ERR_ABORTED terminal failures retained separately. Google attempts/blocked/responses 0; accepted/complete/finalized/contextClosed true; unknown/overflow false; inflight/unmatched/5xx/timeouts/dropped 0. DNT 1/GPC 1 present before/after and in every retained request.",
+            "No other query/state, sort, record limit, pagination, submitted filter, expanded advanced filter, expanded header search, keyboard/focus, login/authentication, 收藏 interaction, loading/error/thumbnail404/fallback, sticky header behavior or every intermediate horizontal offset certified. Eight supplied interaction states were visually observed; reviewer did not perform them.",
+            "Capture themes and viewports differ in time. Per-image coherence does not establish identical datasets across captures, metric freshness, ingestion correctness, database timestamp semantics or underlying taxonomy query correctness.",
+            "No browser, network, capture, database, source editing, build/test or subagents used. Parent deployment/runtime/performance/rollback and 322 tests/typecheck statements remain parent-reported, not independently executed by this reviewer.",
+            "T-ref ff511870 vocabulary/pattern document read earlier; narrow stacks, wide horizontal scroll with pinned context, light/dark, missing versus zero and scope/provenance principles applied without full cross-site certification.",
+            "Earlier failed production low-memory videos-light capture and original rejected candidate videos-light capture remain excluded. Current production-f4b2-35501a3-videos-light is a new complete accepted batch. Candidate's 43 ERR_ABORTED requests are separate from this production batch's 55.",
+            "Thumbnail ECHPW008FvY original source and optimizer GET404; cause unknown; neutral fallback retained.",
+            "Per-statistic freshness and ingestion execution remain pending; record timestamps do not establish successful polling.",
+            "Separate babysit browser acceptance has not yet been received."
+          ]
+        }
+      ],
+      "currentProductionScopedStatus": "PASS_SCOPED"
     },
     {
       "route": "/videos/{videoId}",
@@ -40400,15 +42305,15 @@
     }
   },
   "currentProductionRuntime20261014": {
-    "recordedAt": "2026-10-14T21:10:55.285914+00:00",
+    "recordedAt": "2026-10-14T22:57:49.749449+00:00",
     "owner": "d7967e77",
-    "appSha": "fe7987945611328aabaa8bb8f4495ecd75168792",
-    "opsSha": "868b396636adf7dba14e640eee55d0e6c06c4ad0",
-    "image": "sha256:5816d4eec144c5c162ad3954aef4298fa36a5ecfc9476315e1ad9d0a59ecfb91",
+    "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+    "opsSha": "1945fc8980d58d782a595d8e11c67819520f0bbc",
+    "image": "sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920",
     "architecture": "arm64",
-    "buildId": "vet9FIruVMu5cIc9qIVeo",
-    "deployRequestedAt": "2026-10-14T21:08:55.975569+00:00",
-    "bothServicesCompletedAt": "2026-10-14T21:09:39.288349193Z",
+    "buildId": "b8g61kyNdOR6Pmo1TWxav",
+    "deployRequestedAt": "2026-10-14T22:38:31.558280+00:00",
+    "bothServicesCompletedAt": "2026-10-14T22:39:14.696493416Z",
     "method": "Dokploy compose.update then compose.deploy; exact existing image; no rebuild",
     "dokployComposeSynced": true,
     "databaseChanges": false,
@@ -40422,8 +42327,8 @@
       "sharp": "0.35.5",
       "sharpPath": "/opt/youtube-board/platform/node_modules/sharp/dist/index.cjs",
       "webpBytes": 44,
-      "buildId": "vet9FIruVMu5cIc9qIVeo",
-      "traceBuildId": "vet9FIruVMu5cIc9qIVeo",
+      "buildId": "b8g61kyNdOR6Pmo1TWxav",
+      "traceBuildId": "b8g61kyNdOR6Pmo1TWxav",
       "versions": {
         "next": {
           "source": "16.3.8",
@@ -40440,71 +42345,106 @@
       },
       "serverSha256": "13de5f37fcb08d9ed2601dc919b655c25baedc17e53d2b2b621e25d2557482c2",
       "manifests": {
-        "build-manifest.json": "48646be22fddd91983b2fbd165fee03d949fca23e9d7e078924d713772b566df",
+        "build-manifest.json": "26b622d48fef3cce01c9902da730668ecef0bc51319f1255fc245b8a54a8a06a",
         "routes-manifest.json": "73aba4d6f7e3f99e9892ad6c2294439b35d35397477691331dd63a7e3b41f101",
-        "prerender-manifest.json": "89aabb4d6c0f4582fbc461010003fb81393b33b87c7d45ae8784a1ff8fd6644e"
+        "prerender-manifest.json": "23c1404af625b4bfefa6842a9ec142e773c6c006c9a034cdd729f195857771c8"
       },
       "network": "none",
       "sourceWrites": false
     },
     "candidateReview": {
-      "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-candidate-acceptance.json",
-      "sha256": "56d3f12fbfb362c2f09416909b6d96d7a7578f1811157c427b9e05c7c07e308a"
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/candidate-acceptance.json",
+      "sha256": "217b3373f12361020c08479bfd432746354e6d2171777b99e79d9caee271cff0"
     },
     "candidateVisualScope": {
-      "views": 24,
       "routes": [
-        "/",
-        "/keywords",
-        "/live/current",
-        "/groups"
+        "/channels",
+        "/videos",
+        "/tags/102/videos",
+        "/videos/kqdc4-YOmPM"
       ],
-      "googleRequests": 0,
-      "actualPNGsViewed": 78,
-      "hashesChecked": 158
+      "views": 16,
+      "actualPNGsViewed": 104,
+      "hashesChecked": 172,
+      "googleRequests": 0
     },
     "checks": {
-      "predeploy-fresh02": {
-        "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-predeploy-fresh02.json",
-        "sha256": "1447df91e77b7bd978c9f1f2fd1937cc9af073fce98a1ac9f116178ba568ce7c"
+      "predeploy-fresh": {
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/predeploy-fresh.json",
+        "sha256": "2ae6cc54e55ffd2a528029d3a8d1e108d93e1f5f664db5d4b64bc710c1895795"
       },
-      "deploy-dry-run": {
-        "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-deploy-dry-run.json",
-        "sha256": "368e5f77d4b011fbc2cc673c492a8fd7f414e61a5524ff3bd458c71a3856fc74"
+      "deploy-final-dry-run": {
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/deploy-final-dry-run.json",
+        "sha256": "c8bd8710a912cffffb7a17b1e71bac8066bac4ef0cfcf70facd18dcd4f0a29f1"
       },
-      "services-after03": {
-        "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-services-after03.json",
-        "sha256": "b4250e8660e9a0ebdeb87a994e80c2b7bd807c09d70cb39a973f1e1bcf036e62"
+      "services-final": {
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/services-final.json",
+        "sha256": "22c99970820fe22faa2d72ae5f6384a2758e82f6b7a0741c8ce59510d7cbabb3"
       },
       "production-http": {
-        "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-http.json",
-        "sha256": "a85b78a30c54db372e0784e651898f69819855dbeed929623bfb4a17a2156b02"
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/production-http.json",
+        "sha256": "4a2bdd369ae16459486fdd93c3894ab41a99aed9e6976ab5b3744cd78faea836"
       },
       "production-privacy": {
-        "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-privacy.json",
-        "sha256": "66538061e9dea5baecc2019eedf56a07df5e8b3c1e649249894f07bf391b01ba"
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/production-privacy.json",
+        "sha256": "5046f4fc9f7926fceb19cf790089cede9ab6613424ebb1af465f30bcf0ee0c0b"
       },
       "postdeploy-fresh": {
-        "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-postdeploy-fresh.json",
-        "sha256": "734fcef4c853edfc60d3d8182e953cdfb710dce6559b19b74d010a6d02872506"
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/postdeploy-fresh.json",
+        "sha256": "9fa2d6591b7967badc533264922afda35983dbfc86db5eca01136f07997307ab"
       },
       "candidate-cleanup": {
-        "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-candidate-cleanup.json",
-        "sha256": "926f55bc382d3c1be368df0c5993b6d3ab53131719f077580600f0e8d1f92e48"
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/candidate-cleanup.json",
+        "sha256": "2dbfc555271b76b24bfeae0e1f3da5e0797f534503221376a52ba905395dd366"
       }
     },
-    "rollbackCommand": "python3 /tmp/babysit/mint-queue/youtube-f4-fe79879-deploy.py --execute --rollback",
-    "rollbackImage": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6",
+    "rollbackCommand": "python3 /tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/deploy.py --execute --rollback",
+    "rollbackImage": "sha256:5816d4eec144c5c162ad3954aef4298fa36a5ecfc9476315e1ad9d0a59ecfb91",
     "emergencyRollback": [
       "docker service rollback youtube-board-ts-6oukfq_web",
       "docker service rollback youtube-board-ts-6oukfq_account-maintenance"
     ],
-    "formalBrowserAcceptance": "32 production views independently actual-image reviewed PASS_SCOPED; separate babysit browser acceptance not yet received",
+    "formalBrowserAcceptance": "PASS_SCOPED independent supplied production images; separate babysit browser acceptance pending",
     "fullF4Acceptance": false,
-    "receipt": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-deployment.json",
+    "receipt": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/production-deployment-final.json",
+    "initialDeployment": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/production-deployment.json",
+      "sha256": "d490200046010a6d3c2d3bc7194038c78956c8a2a07a1f14e7d1e0d16e9e7807"
+    },
     "productionAcceptance": {
-      "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-acceptance.json",
-      "sha256": "348033db5ef2e143a08cf19d97151df9c1270b1768163e66d902b35ec93dd6e9"
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/production-acceptance.json",
+      "sha256": "b2c301f7a56dcc95fd0dbabdd488edac658ee4a8221a0c68a94d8fd9fed73a5d"
+    },
+    "latestServiceProof": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/services-end.json",
+      "sha256": "986203aac7b47dc2c44fc6baa18831b19a38fdf255e44601e236336fe6d73ee0"
+    },
+    "finalFreshProbe": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/final-fresh.json",
+      "sha256": "a4063ef51a33ae00c2e474da20db2c0a2dbab576b4a5d015abc2cfb2ca074f5b"
+    },
+    "wholeSiteAcceptance": false,
+    "baseline": {
+      "measuredAtUTC": "2026-10-13T05:47Z",
+      "measuredFrom": "SM",
+      "method": "curl DNT:1; homepage HTML only; five time_total samples per site; median",
+      "medianSeconds": {
+        "tag": 0.256,
+        "blog": 3.085,
+        "youtube": 0.289
+      },
+      "gateSeconds": {
+        "tag": 2.0,
+        "blog": 6.17,
+        "youtube": 2.0
+      },
+      "formula": "max(2 seconds, 2 * baseline)",
+      "blogMeasurementMeaning": "DYNAMIC/no-store time_total includes origin rendering, Cloudflare edge and network; not precise isolated origin rendering time.",
+      "receipt": {
+        "path": "/tmp/babysit/gate-baseline-receipt.md",
+        "sha256": "e53117e985fbb68465262d207b9a9b7ff209f4a26abf3efcbdbf6ddcb5ea1d73"
+      },
+      "currentProbeMethod": "SM homepage HTML with DNT:1; three samples per site, median; any individual curl error or non-200 fails; raw start/end/exit/bytes/cf-cache-status retained"
     }
   },
   "keywordRankedPoolSuccessor20261014": {
@@ -40858,6 +42798,114 @@
       },
       "rollbackCommand": "python3 /tmp/babysit/mint-queue/youtube-f1-top-72cb816-deploy.py --execute --rollback",
       "rollbackImage": "sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38"
+    },
+    {
+      "recordedAt": "2026-10-14T21:10:55.285914+00:00",
+      "owner": "d7967e77",
+      "appSha": "fe7987945611328aabaa8bb8f4495ecd75168792",
+      "opsSha": "868b396636adf7dba14e640eee55d0e6c06c4ad0",
+      "image": "sha256:5816d4eec144c5c162ad3954aef4298fa36a5ecfc9476315e1ad9d0a59ecfb91",
+      "architecture": "arm64",
+      "buildId": "vet9FIruVMu5cIc9qIVeo",
+      "deployRequestedAt": "2026-10-14T21:08:55.975569+00:00",
+      "bothServicesCompletedAt": "2026-10-14T21:09:39.288349193Z",
+      "method": "Dokploy compose.update then compose.deploy; exact existing image; no rebuild",
+      "dokployComposeSynced": true,
+      "databaseChanges": false,
+      "cloudflareChanges": false,
+      "nativeSmoke": {
+        "platform": "linux",
+        "arch": "arm64",
+        "node": "v24.21.0",
+        "abi": "137",
+        "glibcRuntime": "2.36",
+        "sharp": "0.35.5",
+        "sharpPath": "/opt/youtube-board/platform/node_modules/sharp/dist/index.cjs",
+        "webpBytes": 44,
+        "buildId": "vet9FIruVMu5cIc9qIVeo",
+        "traceBuildId": "vet9FIruVMu5cIc9qIVeo",
+        "versions": {
+          "next": {
+            "source": "16.3.8",
+            "traced": "16.3.8"
+          },
+          "react": {
+            "source": "19.2.8",
+            "traced": "19.2.8"
+          },
+          "react-dom": {
+            "source": "19.2.8",
+            "traced": "19.2.8"
+          }
+        },
+        "serverSha256": "13de5f37fcb08d9ed2601dc919b655c25baedc17e53d2b2b621e25d2557482c2",
+        "manifests": {
+          "build-manifest.json": "48646be22fddd91983b2fbd165fee03d949fca23e9d7e078924d713772b566df",
+          "routes-manifest.json": "73aba4d6f7e3f99e9892ad6c2294439b35d35397477691331dd63a7e3b41f101",
+          "prerender-manifest.json": "89aabb4d6c0f4582fbc461010003fb81393b33b87c7d45ae8784a1ff8fd6644e"
+        },
+        "network": "none",
+        "sourceWrites": false
+      },
+      "candidateReview": {
+        "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-candidate-acceptance.json",
+        "sha256": "56d3f12fbfb362c2f09416909b6d96d7a7578f1811157c427b9e05c7c07e308a"
+      },
+      "candidateVisualScope": {
+        "views": 24,
+        "routes": [
+          "/",
+          "/keywords",
+          "/live/current",
+          "/groups"
+        ],
+        "googleRequests": 0,
+        "actualPNGsViewed": 78,
+        "hashesChecked": 158
+      },
+      "checks": {
+        "predeploy-fresh02": {
+          "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-predeploy-fresh02.json",
+          "sha256": "1447df91e77b7bd978c9f1f2fd1937cc9af073fce98a1ac9f116178ba568ce7c"
+        },
+        "deploy-dry-run": {
+          "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-deploy-dry-run.json",
+          "sha256": "368e5f77d4b011fbc2cc673c492a8fd7f414e61a5524ff3bd458c71a3856fc74"
+        },
+        "services-after03": {
+          "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-services-after03.json",
+          "sha256": "b4250e8660e9a0ebdeb87a994e80c2b7bd807c09d70cb39a973f1e1bcf036e62"
+        },
+        "production-http": {
+          "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-http.json",
+          "sha256": "a85b78a30c54db372e0784e651898f69819855dbeed929623bfb4a17a2156b02"
+        },
+        "production-privacy": {
+          "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-privacy.json",
+          "sha256": "66538061e9dea5baecc2019eedf56a07df5e8b3c1e649249894f07bf391b01ba"
+        },
+        "postdeploy-fresh": {
+          "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-postdeploy-fresh.json",
+          "sha256": "734fcef4c853edfc60d3d8182e953cdfb710dce6559b19b74d010a6d02872506"
+        },
+        "candidate-cleanup": {
+          "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-candidate-cleanup.json",
+          "sha256": "926f55bc382d3c1be368df0c5993b6d3ab53131719f077580600f0e8d1f92e48"
+        }
+      },
+      "rollbackCommand": "python3 /tmp/babysit/mint-queue/youtube-f4-fe79879-deploy.py --execute --rollback",
+      "rollbackImage": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6",
+      "emergencyRollback": [
+        "docker service rollback youtube-board-ts-6oukfq_web",
+        "docker service rollback youtube-board-ts-6oukfq_account-maintenance"
+      ],
+      "formalBrowserAcceptance": "32 production views independently actual-image reviewed PASS_SCOPED; separate babysit browser acceptance not yet received",
+      "fullF4Acceptance": false,
+      "receipt": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-deployment.json",
+      "productionAcceptance": {
+        "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-acceptance.json",
+        "sha256": "348033db5ef2e143a08cf19d97151df9c1270b1768163e66d902b35ec93dd6e9"
+      }
     }
   ],
   "f1ProfileFollowup20261014": {
@@ -41715,5 +43763,512 @@
       "Independent review uses supplied service and T-ref binding evidence, not reviewer live probes or git binding execution."
     ],
     "babysitBrowserAcceptance": "not yet received"
+  },
+  "f4SecondBatch20261015": {
+    "recordedAt": "2026-10-14T22:14:23.928740+00:00",
+    "status": "PASS_SCOPED_PRODUCTION_FOUR_ROUTES",
+    "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+    "routes": [
+      "/channels",
+      "/videos",
+      "/tags/102/videos",
+      "/videos/kqdc4-YOmPM"
+    ],
+    "environment": "production",
+    "identity": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/identity.json",
+      "sha256": "59214e9664a2bdd2227c77e282a37156d3c12e84767be9b7245b4dd901ac3708"
+    },
+    "completedManifests": [
+      {
+        "key": "channels-light",
+        "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/captures.json",
+        "sha256": "68feef5a3f49f7f24614e90681c4b10d2861a1c90380bbf91d5204abe69a5656",
+        "captureToolCommit": "a7c4487",
+        "pngFiles": 25
+      },
+      {
+        "key": "channels-dark",
+        "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/captures.json",
+        "sha256": "80c6bcd5a7e53c9a68be1d6882c5ab9d7789689cd371d020681a3d447dee50d1",
+        "captureToolCommit": "a7c4487",
+        "pngFiles": 25
+      },
+      {
+        "key": "videos-light",
+        "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/captures.json",
+        "sha256": "96b4505729c0b330f4bb18279a65d771db0437ecb235f9ad7d0da0c632d27535",
+        "captureToolCommit": "a7c4487",
+        "pngFiles": 23
+      },
+      {
+        "key": "videos-dark",
+        "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/captures.json",
+        "sha256": "8b17e788218684dbab8de9b953f6828688b7c20c2881d52a1894ec274d7da3f6",
+        "captureToolCommit": "a7c4487",
+        "pngFiles": 23
+      },
+      {
+        "key": "tag102-videos-light",
+        "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/captures.json",
+        "sha256": "f1836fbdc23d279d4333bb120cc571bf73bec45ed4787011ef84f2a01e8645b4",
+        "captureToolCommit": "a7c4487",
+        "pngFiles": 24
+      },
+      {
+        "key": "tag102-videos-dark",
+        "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/captures.json",
+        "sha256": "b44c93b06844bcebf3c79ef77e990ccec891fb35fc883adae0f48e0dcba56494",
+        "captureToolCommit": "a7c4487",
+        "pngFiles": 24
+      },
+      {
+        "key": "video-detail-light",
+        "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-light/captures.json",
+        "sha256": "e47c63edb0885b7a7f8fae32c81dca05c1ef7f936e730b29196fc025ed15f6ed",
+        "captureToolCommit": "a7c4487",
+        "pngFiles": 14
+      },
+      {
+        "key": "video-detail-dark",
+        "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-dark/captures.json",
+        "sha256": "0c9eb07b7f9513a7e615c7765448747cecbdaca7e79167af9b0fad1a17b487eb",
+        "captureToolCommit": "a7c4487",
+        "pngFiles": 14
+      }
+    ],
+    "rejectedCaptures": [
+      {
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/capture-stop01.json",
+        "sha256": "ff40923deb9dd9b6b0d8c0522a093f8172f4cd9c80a95e08c86dce01cb8b7573"
+      },
+      {
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/capture-stop02.json",
+        "sha256": "9fc60534ab2f5095f898436be9e29bd5870b295dc4c9ecb6b2c69ef25184fe3f"
+      }
+    ],
+    "thumbnailSourceDiagnostic": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/thumbnail-source-diagnostic.json",
+      "sha256": "a6acb112d379e4ab52579fd80cad6a91e34b7e8a7f644aaad79115a32676a09f"
+    },
+    "thumbnailGETConfirmation": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/thumbnail-get-confirmation.json",
+      "sha256": "3a41587959fb306bd12fc7cdabc4740f4ab0e19401532534a53ecd4723fcae78"
+    },
+    "thumbnailFinding": "ECHPW008FvY canonical image GET404 and optimizer GET404. Existing neutral fallback retained; no evidence of optimizer regression or reason the source is unavailable.",
+    "sourceMetadata": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/public-source-metadata.json",
+      "sha256": "2204a1495ef8a3cc2839d4e618a0ed223b246b05ffda36a6b3296eb40a2b57f2"
+    },
+    "freshnessFinding": "Video updatedAt derives latest urt_video mtime/ctime (channel listings also completed-comment mtime/ctime); channel updatedAt derives latest channel and count timestamps. Report meta latest record does not prove each statistic is freshly observed. No writer/ingestion change yet.",
+    "candidateApproval": true,
+    "wholeSiteAcceptance": false,
+    "fullF4Acceptance": false,
+    "next": [
+      "Next four-page production review batch",
+      "Per-statistic freshness and source-image availability followup"
+    ],
+    "evidenceUpdatedAt": "2026-10-14T22:57:49.749449+00:00",
+    "baselineIndependentReview": {
+      "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-appfe79879-batch2-fourpage-issues-20261014T221926Z/review.json",
+      "sha256": "8253630c115b70bffa5b63ed392ceb0939e074b9c2d94e63c0153a55cbb6dc00"
+    },
+    "baselineCounts": {
+      "pages": 4,
+      "views": 8,
+      "hashedPNG": 93,
+      "actualOpened": 50,
+      "fullpagesOpened": 8,
+      "nativeSlicesOpened": 42,
+      "hashOnly": 43
+    },
+    "successorAppSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+    "successorOpsSha": "1945fc8980d58d782a595d8e11c67819520f0bbc",
+    "webTests": {
+      "passed": 322,
+      "failed": 0,
+      "log": {
+        "path": "/tmp/yt-f4-batch2-web-tests02.log",
+        "sha256": "ed00c47c54e02c14ff5bba0698031471630408de694afc7ede2d6890ede27661"
+      }
+    },
+    "webTypecheck": "PASS",
+    "buildPreparation": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/build-preparation.json",
+      "sha256": "78eae0b2ab41bc206a9044421ae60b8c749b9aefb742da4f67392a1c7480a6f1"
+    },
+    "productionFixAcceptance": true,
+    "sourceFixes": [
+      "Full selected channel metric and mobile expanded metrics instead of narrow table",
+      "Full video titles and taxonomy metrics in mobile cards; desktop tables retain all columns",
+      "Native advanced filters collapse with applied-state marker; GET controls preserved",
+      "No automatic header search expansion on /videos",
+      "Generic report input/actions44px T-ref control minimum",
+      "Explicit category name from validated authoritative filter-options response, ID fallback only",
+      "Last-record timestamps explicitly not proof of per-statistic freshness; unknown values retained"
+    ],
+    "sourceIndependentReview": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/source-review.json",
+      "sha256": "3144b3cd49aabc8f27f377614c2396b3a4986cc61087d69df341bec71a2227f2"
+    },
+    "sourceReviewVerdict": "PASS_SOURCE_ONLY",
+    "build": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/build-result.json",
+      "sha256": "8393e567e2af6c573674e38858ccb32b6b591b9f39d4b5cd3c9e9777b35d5022"
+    },
+    "nativeSmoke": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/native-smoke.json",
+      "sha256": "471fc5b6c12790502e8d6b352d5220c36b949a97d3b3ddfd5d6752709e13378d"
+    },
+    "nativeSmokeCleanup": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/native-smoke-cleanup.json",
+      "sha256": "72ec7119b6268cae3756e2546c8b8baed7d3fc8e55543816faa71e42a962cb76"
+    },
+    "candidateIdentity": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/candidate-identity.json",
+      "sha256": "2e1467710b1895f4fdd1b76435f3afb7aa3e914355a3660cf7391f8bb4a86c1a"
+    },
+    "candidatePrivacy": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/candidate-privacy.json",
+      "sha256": "453319b00f9d129154010eb10c74062a16e73b41eeba7d184c68b3486576a898"
+    },
+    "candidateCaptureIndex": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/candidate-capture-index.json",
+      "sha256": "21ceb323de5ea4052f90d5f63c724f47735af1a60fd2199a275adae4cabc7717"
+    },
+    "candidateExcluded": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/candidate-videos-light-rejected.json",
+      "sha256": "6f7f318b12fcb2b132603ac9030dd89ac133f4fa51a148cf4ebfa36b55bc2f3b"
+    },
+    "candidateIndependentReview": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/candidate-visual-review.json",
+      "sha256": "d938c6b3b57c5481bbc54ce9355e8ec87dae969a3c5c85630f526626cc6b63e1"
+    },
+    "candidateCounts": {
+      "views": 16,
+      "hashedPNG": 172,
+      "actualOpened": 104,
+      "hashOnly": 68
+    },
+    "productionDeployment": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/production-deployment.json",
+      "sha256": "d490200046010a6d3c2d3bc7194038c78956c8a2a07a1f14e7d1e0d16e9e7807"
+    },
+    "productionAcceptance": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/production-acceptance.json",
+      "sha256": "b2c301f7a56dcc95fd0dbabdd488edac658ee4a8221a0c68a94d8fd9fed73a5d"
+    },
+    "productionIndependentReview": {
+      "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-app35501a3-batch2-20261014T225408Z/review.json",
+      "sha256": "18e233eaf3779c40c121db8ae75442590377374db988bb4c0393e2555bda1810"
+    },
+    "productionCaptureIndex": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/production-capture-index.json",
+      "sha256": "ad0101f7a3800cc16a28b765b60ef56b9c41062380a128f3a26f4d52e84dec18"
+    },
+    "productionCounts": {
+      "pages": 4,
+      "themes": 2,
+      "views": 16,
+      "hashedPNG": 172,
+      "actualOpened": 104,
+      "fullpagesOpened": 16,
+      "nativeSlicesOpened": 80,
+      "interactionsOpened": 8,
+      "hashOnly": 68,
+      "recordedRequests": 1588,
+      "ERR_ABORTED": 55
+    },
+    "baselineResolutions": [
+      {
+        "id": "VIDEOS_MOBILE_TITLE_COLUMN_COLLAPSED",
+        "status": "RESOLVED_IN_SUPPLIED_PRODUCTION_IMAGES",
+        "text": "Both listings use 390px stacked cards with readable full multi-line titles, channel, publication time, public counts and per-row record-time caveat. Top, middle and late native samples show no narrow vertical title column. Taxonomy cards retain ratio and category links. Desktop titles intentionally truncate within stable rows.",
+        "evidence": [
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-mobile-slice-760.png",
+            "sha256": "5f147ee3b44d62aeb339a63ae39ea576ba331c25a930dae810c53bcf1d8f9164"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-mobile-slice-760.png",
+            "sha256": "e3e31861dd558d56409cdaef487fbb930e6388a9a8f450e621f65f0ffee94bca"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-mobile-slice-760.png",
+            "sha256": "02879a3612399e39da072a031cf01a6b6b7aff77b02d814a0635b4707de3f448"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-mobile-slice-760.png",
+            "sha256": "29546e7c6960029fd26552706b1704c341ac1767685c9a32176674f64a333b2d"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-mobile-slice-1520.png",
+            "sha256": "55b1894aeec0294821ebe07f9170cd133f0f83e8329d7fc83c131d7fdc9f807e"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-mobile-slice-1520.png",
+            "sha256": "95f70b52cb77913f8d9ff07b3442fba0a6b5cbaa744c7f7ae0d959505970f021"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-mobile-slice-1520.png",
+            "sha256": "283161d27114b526f1422b170c130d1cfc6bba2354ef264fb1c95165044f7309"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-mobile-slice-1520.png",
+            "sha256": "3160dbe31a9de6ebe51072433add6e76f6cd6bad0f1645e81c412433fe908bec"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-mobile-slice-8360.png",
+            "sha256": "22e4ca2991d58cc25b7de0fc1392ef8278b5111bf88615acbb26900c0a66415f"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-mobile-slice-8360.png",
+            "sha256": "c80638aebe6ba5e9807de36bacb90e7846477ed70892505d3fb0ba9867402437"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-mobile-slice-10640.png",
+            "sha256": "252e148d80757a7f1b4fb137378e31ee868554af1eee4b936d0fc07d97596f6b"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-mobile-slice-10640.png",
+            "sha256": "f660c7aa1a19bce295b2a32ed363abd7506f867f027d2c38f700d21b3fa531cb"
+          }
+        ]
+      },
+      {
+        "id": "CHANNELS_MOBILE_PRIMARY_METRIC_CLIPPED",
+        "status": "RESOLVED_IN_SUPPLIED_PRODUCTION_IMAGES",
+        "text": "Channel identity and selected 近七日觀看增量 are stacked and fully readable, including first value 61,998,368 in both themes. Supplied expanded first-channel images show complete values 6,151,197,724; 3,420,000; 71; 61,998,368; unknown estimates as —; distinct 0 and 10,000; category 未收錄.",
+        "evidence": [
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-mobile-slice-0.png",
+            "sha256": "ebb1e3dbee52121d6c769a575c64c1dbfc787c7aa77b696eed7c32522e588aa4"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-mobile-slice-0.png",
+            "sha256": "6eddca23f077a235d13cc23589bd14fc6ffa0a7349540d9d527fc46e4479f02d"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-desktop-right-edge.png",
+            "sha256": "043e82cfaf5ad2728dc75917b875f9e8dc461f761578aa51e07585fa1c83a1d5"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-mobile-expanded-metrics.png",
+            "sha256": "307b3e5795b0c7ff8ae06462cea90ee71a1c862d9c824d0512c4c740ac83b41f"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-desktop-right-edge.png",
+            "sha256": "4549f3aa4b64d3c91390bc44a93c3b3962bfd1c83e97bac69f15861a47951a72"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-mobile-expanded-metrics.png",
+            "sha256": "e1304a4d33d9a0a11559aa864dc68d49312b75f81c6357d9546ddec2dad12610"
+          }
+        ]
+      },
+      {
+        "id": "CHANNELS_WIDE_TABLE_SCROLL_DISCOVERY",
+        "status": "RESOLVED_IN_SUPPLIED_PRODUCTION_IMAGES",
+        "text": "Desktop has visible 左右捲動表格可查看其餘欄位 hint. Supplied right-edge geometry is left 662, width 1118, scrollWidth 1780 and is equal before/after screenshot. Images show final metric values with pinned channel identities. Mobile cards and expanded metrics remain readable. Interaction is vertically below headings; header stickiness and every intermediate offset are unverified.",
+        "evidence": [
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-desktop-slice-0.png",
+            "sha256": "ed888ddf803c71b3fcf863527880acea103384e5a1902ff8f6a2b55ae583bdd2"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-desktop-slice-0.png",
+            "sha256": "e2822fe5552da21488ce7d3ebefdba68318d329f327ce5bb81ae02444ecadb33"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-desktop-right-edge.png",
+            "sha256": "043e82cfaf5ad2728dc75917b875f9e8dc461f761578aa51e07585fa1c83a1d5"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-light/channels-light-mobile-expanded-metrics.png",
+            "sha256": "307b3e5795b0c7ff8ae06462cea90ee71a1c862d9c824d0512c4c740ac83b41f"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-desktop-right-edge.png",
+            "sha256": "4549f3aa4b64d3c91390bc44a93c3b3962bfd1c83e97bac69f15861a47951a72"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-channels-dark/channels-dark-mobile-expanded-metrics.png",
+            "sha256": "e1304a4d33d9a0a11559aa864dc68d49312b75f81c6357d9546ddec2dad12610"
+          }
+        ]
+      },
+      {
+        "id": "VIDEO_UPDATE_AND_CURRENT_STATS_SCOPE",
+        "status": "RESOLVED_IN_SUPPLIED_PRODUCTION_IMAGES",
+        "text": "Detail explicitly identifies 資料最後記錄 as video record time, separate from simultaneous views/likes/comments observation. Missing counts and duration remain —; — does not mean 0. Empty-history copy describes saved public statistics and explains missing values cannot create a historical time series. These images do not imply fresh simultaneous metric observations.",
+        "evidence": [
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-light/video-detail-light-mobile-slice-0.png",
+            "sha256": "1a240e1a6685c9da568b3d131b5e258c7c1305b01b191c89b892536e27a97a02"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-dark/video-detail-dark-mobile-slice-0.png",
+            "sha256": "f7954d45f5fff8aabe322755f85166d1bc876146ccadf03066ee4971e3865742"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-light/video-detail-light-mobile-slice-760.png",
+            "sha256": "391ac2aa72560d3194c85b32a6626cd7f38193817e54769a6519606592432a9d"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-video-detail-dark/video-detail-dark-mobile-slice-760.png",
+            "sha256": "2ce30bd695f57ff23a3bf7682cd15dbb1347da41b27565131fce3ca1760898b7"
+          }
+        ]
+      },
+      {
+        "id": "LISTING_MOBILE_FILTER_DEPTH",
+        "status": "RESOLVED_IN_SUPPLIED_PRODUCTION_IMAGES",
+        "text": "Advanced filters are visibly collapsed under 進階篩選（分類、日期與門檻）. Search, record limit, apply and reset remain visible. First results appear within the initial 844px viewport on both listings, around 500px for /videos and 675px for tag listing. Expanded filters and submitted-query states are unverified.",
+        "evidence": [
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-mobile-slice-0.png",
+            "sha256": "39b4ebd837695aaf8d9251cdca77c7d3608a23f286f4acd2ba040a12ad52018f"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-mobile-slice-0.png",
+            "sha256": "92253252f2f5a646bcf7baed28d76c60cab666f543abd73edb348f272bee2e55"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-mobile-slice-0.png",
+            "sha256": "1a849a7ae1f6a9fd9bd9601c31d713fdf33f55182f726aa2a3442cad9bb6bbaa"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-mobile-slice-0.png",
+            "sha256": "fc97cc677779beee3f8157dcadf1e6596a270ca473aacbc60676bbd87c988720"
+          }
+        ]
+      },
+      {
+        "id": "VIDEOS_MOBILE_HEADER_SEARCH_CRAMPED",
+        "status": "RESOLVED_IN_SUPPLIED_PRODUCTION_IMAGES",
+        "text": "Mobile /videos header uses the clean search icon without a narrow input or placeholder collision, in both themes. Production images also show 登入. Expanded search, typing, focus, keyboard and login interactions are unverified.",
+        "evidence": [
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-mobile-slice-0.png",
+            "sha256": "39b4ebd837695aaf8d9251cdca77c7d3608a23f286f4acd2ba040a12ad52018f"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-mobile-slice-0.png",
+            "sha256": "92253252f2f5a646bcf7baed28d76c60cab666f543abd73edb348f272bee2e55"
+          }
+        ]
+      },
+      {
+        "id": "TAG102_ACTIVE_CATEGORY_CONTEXT_MISSING",
+        "status": "RESOLVED_IN_SUPPLIED_PRODUCTION_IMAGES",
+        "text": "Heading explicitly reads 每日新聞頻道的影片 on desktop/mobile in both themes; the channel taxonomy scope note remains separate from the shared news content vocabulary.",
+        "evidence": [
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-mobile-slice-0.png",
+            "sha256": "1a849a7ae1f6a9fd9bd9601c31d713fdf33f55182f726aa2a3442cad9bb6bbaa"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-mobile-slice-0.png",
+            "sha256": "fc97cc677779beee3f8157dcadf1e6596a270ca473aacbc60676bbd87c988720"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-desktop-slice-0.png",
+            "sha256": "5dc0fe183950b62139ff3d6b2d8b99cb1b45743b37d909c4d8c152b7c6d91faf"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-desktop-slice-0.png",
+            "sha256": "43c07e518933db9d257935684c51534302ba65113414f3e8ad2cc4398915907f"
+          }
+        ]
+      },
+      {
+        "id": "TAG_VIDEOS_WIDE_TABLE_SCROLL_DISCOVERY",
+        "status": "RESOLVED_IN_SUPPLIED_PRODUCTION_IMAGES",
+        "text": "Tag desktop shows overflow hint and supplied right-edge images show final category values with pinned video titles. Geometry left 137, width 1118, scrollWidth 1255 reaches the right edge and is identical before/after screenshot. /videos desktop fitting-table images show all count columns; geometry width = scrollWidth = 1118 and left 0 requires no artificial movement.",
+        "evidence": [
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-desktop-slice-0.png",
+            "sha256": "f18217cb8b3e5e43328804e7edae319f905c62535d626feeb04effbe3804c6ae"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-desktop-slice-0.png",
+            "sha256": "90d6b3c0b835673b054307c254d9ae363c30cd31172ec246f24f1476c6bc22fc"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-desktop-slice-0.png",
+            "sha256": "5dc0fe183950b62139ff3d6b2d8b99cb1b45743b37d909c4d8c152b7c6d91faf"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-desktop-slice-0.png",
+            "sha256": "43c07e518933db9d257935684c51534302ba65113414f3e8ad2cc4398915907f"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-light/videos-light-desktop-right-edge.png",
+            "sha256": "84ecd514403b5809a4e17703ab3fa17544087c637251e841186b44121a9b97f4"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-videos-dark/videos-dark-desktop-right-edge.png",
+            "sha256": "79b6869ce90d2430c491072141328e06b61ada094dd527b972efa4bdea30b35b"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-light/tag102-videos-light-desktop-right-edge.png",
+            "sha256": "fe379a2a00f8e4738a0a56e2fce917756038690a801d6ac79a772dd93ac75b8b"
+          },
+          {
+            "path": "/home/deck/.cache/youtube-ui-review/production-f4b2-35501a3-tag102-videos-dark/tag102-videos-dark-desktop-right-edge.png",
+            "sha256": "769e5296248efd5a3d30591b201d220e47de36c944de8c62e85c7e3334267125"
+          }
+        ]
+      }
+    ],
+    "finalDeployment": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/production-deployment-final.json",
+      "sha256": "bf9042ceda3cb5fbd64cacb2fd3193c3559045e406a7acc97477fdae8935bb6c"
+    },
+    "limitations": [
+      "PASS_SCOPED covers only completed supplied production artifacts for APP 35501a3f269f2818115ea7277c66db765a4e267d, image c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920, BUILD b8g61kyNdOR6Pmo1TWxav; exact /channels, /videos, /tags/102/videos and /videos/kqdc4-YOmPM; light/dark; 1280/390; attached eight interaction states. No full F4 or full-site acceptance.",
+      "Independent non-author offline review. All 172 PNG SHA-256 values asserted; 104 unique images actually opened: 16 fullpages, 80 native slices and 8 interactions. The remaining 68 images are hash-only and their content is not counted as actual inspection.",
+      "Supplied index, manifests, completed artifacts, primary/interaction coherence, raw/normalized network, DNT 1/GPC 1 and proxy records independently read/validated. This is recorder/proxy-scoped evidence, not live or packet-level proof. Service identity and health verified from supplied artifacts, not live probes.",
+      "All 1588 recorded request status fields are 200; 55 ERR_ABORTED terminal failures retained separately. Google attempts/blocked/responses 0; accepted/complete/finalized/contextClosed true; unknown/overflow false; inflight/unmatched/5xx/timeouts/dropped 0. DNT 1/GPC 1 present before/after and in every retained request.",
+      "No other query/state, sort, record limit, pagination, submitted filter, expanded advanced filter, expanded header search, keyboard/focus, login/authentication, 收藏 interaction, loading/error/thumbnail404/fallback, sticky header behavior or every intermediate horizontal offset certified. Eight supplied interaction states were visually observed; reviewer did not perform them.",
+      "Capture themes and viewports differ in time. Per-image coherence does not establish identical datasets across captures, metric freshness, ingestion correctness, database timestamp semantics or underlying taxonomy query correctness.",
+      "No browser, network, capture, database, source editing, build/test or subagents used. Parent deployment/runtime/performance/rollback and 322 tests/typecheck statements remain parent-reported, not independently executed by this reviewer.",
+      "T-ref ff511870 vocabulary/pattern document read earlier; narrow stacks, wide horizontal scroll with pinned context, light/dark, missing versus zero and scope/provenance principles applied without full cross-site certification.",
+      "Earlier failed production low-memory videos-light capture and original rejected candidate videos-light capture remain excluded. Current production-f4b2-35501a3-videos-light is a new complete accepted batch. Candidate's 43 ERR_ABORTED requests are separate from this production batch's 55.",
+      "Thumbnail ECHPW008FvY original source and optimizer GET404; cause unknown; neutral fallback retained.",
+      "Per-statistic freshness and ingestion execution remain pending; record timestamps do not establish successful polling.",
+      "Separate babysit browser acceptance has not yet been received."
+    ],
+    "freshnessSourceFollowup": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/statistics-freshness-source-followup.json",
+      "sha256": "bc39e9a1acce32cbacebd36af5ed588cba5ec51061ee9d474455514f9a7285d6"
+    },
+    "tRef": {
+      "path": "/home/deck/Projects/tag-sm-f1-release/docs/cross-site-consistency.md",
+      "historicallyReadSHA256": "3d8e72036aab6cc73b3061f1b1d94afb1292d39b4bf86f1a65fc83945632eb91",
+      "currentPathSHA256": "ef280fabd036489c7afe1eb8c564b9524eb88251ad4c3b4ed32e3342252c0d68",
+      "currentContentRead": false,
+      "currentContentExcluded": true,
+      "use": "Historical T-ref ff511870 reference preserved by earlier immutable candidate review and binding proof. Shared source path changed since earlier reading; current file hash-only, not reinterpreted or accepted. Supplied production inputs remain exact."
+    },
+    "baselineAppSha": "fe7987945611328aabaa8bb8f4495ecd75168792",
+    "baselineCompletedManifests": [
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/production-f4-batch2-20261014T220850Z-channels-light-retake/captures.json",
+        "sha256": "9a027ef69e184be943f2927890a5e5abb6929a242e9539e65a488b139def2b00"
+      },
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/production-f4-batch2-20261014T220850Z-video-detail-light/captures.json",
+        "sha256": "72dfae30320b9f73ba297c6993b5b2de12fbe76bd89fb57e720ed4fb91bb01d8"
+      },
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/production-f4-batch2-20261014T220850Z-tag102-videos-light/captures.json",
+        "sha256": "35392bfa020d77b6c67fadea5a14dad3d1c688c7dbae7d0813f967ebf8ebad1f"
+      },
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/production-f4-batch2-20261014T220850Z-videos-light-retake/captures.json",
+        "sha256": "4cc248b7a9806eebfd4a805415fcf7d5e46fd3190573e7d6c9efa7bdbb3f7939"
+      }
+    ]
   }
 }

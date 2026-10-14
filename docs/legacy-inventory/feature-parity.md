@@ -268,3 +268,8 @@ Operator replacements consolidate workflow inventory, guarded preview/run and bo
 ### TS consistency follow-up — 2026-10-15
 
 `/live/current` keeps the desktop scrollable observation table and uses full-title mobile cards with all existing metrics/attribution. `/groups` distinguishes the two/two_all display labels and term/subcategory counting units, retaining routes, IDs and source memberships. Source-current-office labels carry freshness limitations. No ingestion, DB, scheduler, auth or legacy redirect change. T-ref source/deviations and remaining states are tracked in [cross-site consistency](../cross-site-consistency.md); source implementation is not production acceptance.
+
+
+## TypeScript F4 second batch — 2026-10-15
+
+`/channels`, `/videos`, `/tags/102/videos` and `/videos/kqdc4-YOmPM` now provide readable mobile titles/selected channel metrics, compact advanced filters, category context and explicit record-time semantics. Desktop tables retain their metric columns and measured overflow guidance. No source writer, scheduler or database migration changed. APP `35501a3`, image `c2e30339`, BUILD_ID `b8g61kyNdOR6Pmo1TWxav` deployed from the same candidate artifact. Four-page anonymous light/dark 1280/390 production review independently PASS_SCOPED; other states, source image404 and per-statistic freshness remain pending. See [second-batch deployment/review evidence](../f4-second-batch-2026-10-15.md) and [ledger](../ui-review-ledger.md).

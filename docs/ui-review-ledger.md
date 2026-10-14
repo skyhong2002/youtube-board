@@ -946,3 +946,26 @@ APP `fe7987945611328aabaa8bb8f4495ecd75168792`, image `sha256:5816d4eec144c5c162
 Acceptance: `/tmp/babysit/mint-queue/youtube-f4-fe79879-production-acceptance.json`. Both independent reviews/manifests/transcripts and hashes are bound there. Earlier deployment/capture-index snapshots accurately retain review pending at their creation; this final receipt supersedes only that pending status. Separate babysit browser acceptance has not been received.
 
 Nonblocking limits retained: four keyword-detail image404s/placeholders, ERR_ABORTED/null statuses, cross-capture mayor coverage differences, sparse keyword coverage and unverified source freshness. Mobile hidden columns and unexercised interactions remain unverified. Historical rejected503 and memory-stopped batches remain excluded. `/live/current` presentation and `/groups` scope/count fixes pass on the new artifact; no old screenshot relabeling. Method footer,44px generic controls,cross-site actual visual comparison and remaining routes/states keep F4 pending. See `docs/f4-first-batch-2026-10-15.md` for deployment/rollback.
+
+
+## F4 second batch — initial production baseline checkpoint
+
+Routes: `/channels`, `/videos`, `/tags/102/videos`, `/videos/kqdc4-YOmPM` on APPfe79879. Channels and video-detail light1280/390 baseline captured with nativeDNT1/GPCtrue and Google0; independent issues-only review submitted. Other views remain pending. Two attempts stopped at SM MemAvailable2.5GiB gate, ownbrowser closed; rejected directories preserved and excluded. No new build/deploy.
+
+Keyword-profile thumbnail404 traced by bounded40canonical-source HEAD and one source/optimizer GET: ECHPW008FvY returns404 at both endpoints. Source-unavailability reason unknown; not an established optimizer fault. Individual database record update time is not proof of each statistic freshness; source lineage and anonymous metadata snapshot recorded under f4SecondBatch20261015. No production data/writer edits.
+
+
+F4 second batch checkpoint: all four default-light1280/390 baseline routes completed; nonauthor `ISSUES_ONLY_NO_BATCH_PASS`,93PNG hashes/50actualopened. Actual issue receipt8253630c115b70bffa5b63ed392ceb0939e074b9c2d94e63c0153a55cbb6dc00. APP35501a3 source fixes cover channel sorted metric/title readability, collapsed filters, header search, category context and timestamp semantics;322web tests and typecheck pass. Independent source review in progress; no new image/candidate/deployment/visual fix PASS yet. OPS1945fc8 extends fixed four-route captures and first-channel expanded metrics/right-edge evidence; reviewer-found TDZ and default-DOM binding problems were corrected before execution.
+
+F4 second batch APP35501a3 / OPS1945fc8 source review PASS_SOURCE_ONLY (receipt3144b3cd); native arm64 build started after fresh median probe at2026-10-14T22:24Z. Candidate and production acceptance remain pending.
+
+Second batch candidate: APP35501a3, imagec2e30339 arm64, BUILD_IDb8g61kyNdOR6Pmo1TWxav. Native smoke and12privacy checks passed.16candidateviews/172PNG captured withDNT1/GPC andGoogle0; nonauthor visual review in progress. Original videos-light failed geometry assumption and is excluded, retake separately recorded. Capture geometry fixa7c4487 independently source-reviewed3fccb817. Production unchanged, no candidate/production PASS claimed.
+
+Second F4 batch deployed2026-10-14T22:38:31Z; bothservices completed/healthy22:39:14Z. APP35501a3 / imagec2e30339 / BUILD_IDb8g61kyNdOR6Pmo1TWxav, same artifact as candidate PASS_SCOPED(d938c6b3). Sevenroutes200,12privacy checks and postdeploy median gate passed. First cold home request9.216778s retained; subsequent SM3-sample median0.046845s. Production visual retest remains pending. Rollback to5816d4ee via same deployment script --execute --rollback (dry-run verified); Dokploy compose synchronized.
+
+
+## F4 second batch — final scoped production acceptance
+
+APP35501a3 / imagec2e30339 / BUILD_IDb8g61kyNdOR6Pmo1TWxav: four routes,16light/dark1280/390 views independently PASS_SCOPED; eight baseline issues resolved.172PNG hashes/104actualopened/68hash-only. Candidate and production separately reviewed; no inherited approval. NativeDNT1/GPCtrue, pre-navigation transport Google block, Google0;1588requests and55ERR_ABORTED retained. Only four current-artifact scoped entries updated; original review statuses/counts/findings stay historical; routeComplete=false and fullF4=false.
+
+Review `/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-app35501a3-batch2-20261014T225408Z/review.json` SHA256 `18e233eaf3779c40c121db8ae75442590377374db988bb4c0393e2555bda1810`. Final acceptance `/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/production-acceptance.json`; final deployment `/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/production-deployment-final.json`. See [f4-second-batch-2026-10-15.md](f4-second-batch-2026-10-15.md) for exact image, rollback, baseline provenance and evidence hashes. Changed latest T-ref source is hash-only/excluded. Thumbnail404 and statistic freshness remain pending, with source followup receipt; no production writer/jobs changed. Separate babysit browser acceptance pending.
