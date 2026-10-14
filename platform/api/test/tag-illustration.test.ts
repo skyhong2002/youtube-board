@@ -87,7 +87,8 @@ it('rejects bad image MIME, magic, oversized bytes and unsafe SVG as 404 without
  }
 });
 it('only reuses explicitly public anonymous responses, never private or cookie-bearing pictures',async()=>{
- for(const headers of [{'cache-control':'public, max-age=300'},{'cache-control':'private, no-store'},{'cache-control':'public, max-age=300','set-cookie':'private-value'}]){
+ const variants:Array<Record<string,string>>=[{'cache-control':'public, max-age=300'},{'cache-control':'private, no-store'},{'cache-control':'public, max-age=300','set-cookie':'private-value'}];
+ for(const headers of variants){
   const fetcher=mock(async()=>Response.json(person,{headers})),client=createTagIllustration({env,fetcher});
   await client.report(tag);await client.report(tag);
   expect(fetcher).toHaveBeenCalledTimes('set-cookie' in headers||headers['cache-control'].startsWith('private')?2:1);
