@@ -145,7 +145,9 @@ test('video row wraps the title below its small phone thumbnail; desktop stays i
 
 test('live phone title wraps below its thumbnail; rank stays desktop-only and attribution, metrics and source stay in their columns',()=>{
  const live:LiveRow={...video,currentViewers:10,todayPeak:20,allTimePeak:null,startedAt:null,trend:[],tags:[tag],partialLogEvidence:true};
- const html=render(createElement(LiveTable,{rows:[live],offset:0}));
+ const all=render(createElement(LiveTable,{rows:[live],offset:0}));
+ const html=all.slice(all.indexOf('<div class="table-frame'));
+ assert.match(all,/aria-label="直播觀測清單"/);
  assert.deepEqual(heads(html),['直播 / 頻道','同時在線','今日高峰','歷史高峰','頻道','頻道分類','更新時間','原始來源']);
  assert.match(html,new RegExp(`<div class="${escape(videoLead)}"><span class="table-lead-extra max-sm:hidden shrink-0 text-xs tabular-nums text-zinc-400">01</span>`));
  assert.match(html,thumb48);
@@ -189,4 +191,16 @@ test('video and live identity fallbacks keep unknown labels and encoded links wi
   assert.match(html,/data-thumbnail-state="missing"/);
   assert.doesNotMatch(html,/data-thumbnail-state="loaded"|data-thumbnail-src=|untrusted\.example|<img/);
  }
+});
+
+test('mobile live cards keep full distinguishing titles, attribution and every observation without a narrow sticky column',()=>{
+ const lives=['台灣地震現場','東京交通速報'].map((suffix,i)=>({...video,id:i?'ZyXwVuTs987':video.id,title:`【每日直播新聞】共用節目名稱日期與時段 ${suffix}`,currentViewers:10,todayPeak:20,allTimePeak:null,startedAt:null,trend:[],tags:[tag],partialLogEvidence:true} satisfies LiveRow));
+ const html=render(createElement(LiveTable,{rows:lives}));
+ const mobile=html.slice(0,html.indexOf('<div class="table-frame'));
+ assert.match(mobile,/sm:hidden/);assert.doesNotMatch(mobile,/table-lead|line-clamp|<table/);
+ for(const row of lives){assert.ok(mobile.includes(row.title));assert.ok(mobile.includes(`/videos/${row.id}`));}
+ for(const label of ['同時在線','今日高峰','歷史高峰','更新時間','頻道分類','YouTube 原始來源','部分取樣'])assert.ok(mobile.includes(label),label);
+ assert.equal(mobile.match(/>來源頻道</g)?.length,2);
+ assert.match(html,/min-width:1280px/);assert.match(html,/hidden sm:block/);
+ assert.match(mobile,/dark:text-zinc-400/);
 });

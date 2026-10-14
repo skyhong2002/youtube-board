@@ -25,6 +25,7 @@ export default function TableScroller({
   footer,
   startAtEnd = false,
   showMobileScrollHint = false,
+  showScrollHint = false,
 }: {
   children: ReactNode;
   card?: boolean;
@@ -36,6 +37,8 @@ export default function TableScroller({
   startAtEnd?: boolean;
   /** Opt-in explanation for wide comparison reports; only after overflow is measured. */
   showMobileScrollHint?: boolean;
+  /** Show measured overflow guidance on desktop too, for wide reports. */
+  showScrollHint?: boolean;
 }) {
   const ref = useRef<HTMLElement>(null);
   const [scroll, setScroll] = useState<ScrollX>();
@@ -100,7 +103,7 @@ export default function TableScroller({
     <div
       className={`table-frame relative ${card ? 'table-card overflow-hidden rounded-xl border border-zinc-300 bg-white dark:border-zinc-800 dark:bg-zinc-900' : ''} ${className}`}
     >
-      {showMobileScrollHint&&<TableScrollHint position={scroll}/>}
+      {(showMobileScrollHint||showScrollHint)&&<TableScrollHint position={scroll} allSizes={showScrollHint}/>}
       <div className="relative">
       {/* Keyboard users can focus the region to scroll it sideways. */}
       <section

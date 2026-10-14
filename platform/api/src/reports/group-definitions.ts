@@ -313,7 +313,7 @@ export const groupDefinitions: Record<string, {
         ]
     },
     "two_all": {
-        "label": "台灣立場 vs 中國立場",
+        "label": "台灣／中國立場與其他頻道分類",
         "groups": [
             {
                 "name": "台灣立場",

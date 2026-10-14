@@ -263,3 +263,8 @@ Retained channel identities keep all eight historical child reports without reac
 Mayor-person reports now add neutral daily observations, tied largest categories, comparable-day differences and seven-day raw media share using the city report's unweighted historical-list denominator. Missing buckets remain unknown, complete recorded zero remains zero, and people outside the city list receive no share. Metadata-first body budgets and publication checks protect sources; stored AI remains independently gated. See [MAYOR-PERSON-PARITY.md](../../platform/api/MAYOR-PERSON-PARITY.md).
 
 Operator replacements consolidate workflow inventory, guarded preview/run and bounded durable journal metadata in the ingestion console. Historical Laravel schedule strings are references, queue and journal IDs are distinct, and metadata is not proof of worker/provider readiness or complete execution history. Unsupported duplicate dashboards and their maintained replacements are explicitly mapped in [operator surface disposition](../../platform/docs/operator-surface-disposition.md). Its migration, grants and production ownership requirements remain rollout dependencies.
+
+
+### TS consistency follow-up — 2026-10-15
+
+`/live/current` keeps the desktop scrollable observation table and uses full-title mobile cards with all existing metrics/attribution. `/groups` distinguishes the two/two_all display labels and term/subcategory counting units, retaining routes, IDs and source memberships. Source-current-office labels carry freshness limitations. No ingestion, DB, scheduler, auth or legacy redirect change. T-ref source/deviations and remaining states are tracked in [cross-site consistency](../cross-site-consistency.md); source implementation is not production acceptance.

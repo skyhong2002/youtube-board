@@ -26,7 +26,7 @@ it('stored membership takes precedence without duplicate directory entries',asyn
  const app=buildApp({reader:fixture([{group_name:'tags_coldwar',count:1,tag:'已維護詞彙',latest_time:'2026-10-01 00:00:00'}])});
  const d=(await app.inject('/api/v1/groups?limit=200')).json().data;
  expect(d.rows.filter((r:any)=>r.group.href==='/groups/tags_coldwar')).toHaveLength(1);
- const g=(await app.inject('/api/v1/groups/tags_coldwar')).json().data;expect(g.total).toBe(1);expect(g.rows[0].term.value).toBe('已維護詞彙');expect(g.notes[0]).toContain('tag_group');await app.close();
+ const g=(await app.inject('/api/v1/groups/tags_coldwar')).json().data;expect(g.total).toBe(1);expect(g.rows[0].term.value).toBe('已維護詞彙');expect(g.notes[0]).toContain('既有內容詞彙群組');await app.close();
 });
 it('bounded reads fail explicitly rather than publishing silently truncated totals',async()=>{
  const app=buildApp({reader:fixture(Array.from({length:10001},()=>({group_name:'x',tag:'x'})))});
@@ -53,4 +53,16 @@ it('directory freshness excludes content rows replaced by static channel definit
 });
 it('enforces exact report capacity boundaries',async()=>{
  for(const [path,size,status]of [['groups',2000,200],['groups',2001,422],['groups/custom',10000,200],['groups/custom',10001,422]]as const){const app=buildApp({reader:fixture(Array.from({length:size},(_,i)=>({group_name:'fixture'+i,tag:'term'+i})))});expect((await app.inject('/api/v1/'+path)).statusCode).toBe(status);await app.close();}
+});
+
+it('distinguishes group scopes and counting units without changing identifiers or memberships',async()=>{
+ const app=buildApp({reader:fixture([{group_name:'現任立委',count:111,latest:'2023-01-24 06:20:00'}])});
+ const directory=(await app.inject('/api/v1/groups?limit=200')).json().data;
+ const a=directory.rows.find((r:any)=>r.group.href==='/groups/two'),b=directory.rows.find((r:any)=>r.group.href==='/groups/two_all');
+ expect(a.group.value).not.toBe(b.group.value);expect(a.count).toBe(2);expect(b.count).toBe(7);
+ expect(directory.columns.find((c:any)=>c.key==='count').label).toBe('項目數');
+ expect(directory.notes.join(' ')).toContain('不是頻道數');expect(directory.notes.join(' ')).toContain('不代表已查核目前任職');expect(directory.notes.join(' ')).not.toContain('tag_group');
+ expect(directory.updatedAt).toBeTruthy();
+ for(const name of ['two','two_all']){const detail=(await app.inject('/api/v1/groups/'+name)).json().data;expect(detail.rows).toHaveLength(name==='two'?2:7);}
+ await app.close();
 });

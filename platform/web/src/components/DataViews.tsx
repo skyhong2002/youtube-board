@@ -130,8 +130,31 @@ export function LiveTable({ rows,offset=0 }: { rows: LiveRow[];offset?:number })
             />
         );
     return (
-        <TableScroller card label="直播觀測表，可左右捲動">
-            <table className={table.nowrap}>
+      <>
+        {/* Long video titles and eight metrics do not fit a phone's sticky lead.
+            Use tag's single-column article/card pattern; keep every metric. */}
+        <ul aria-label="直播觀測清單" className="m-0 list-none space-y-3 p-0 sm:hidden">
+          {rows.map((row,index)=><li key={row.id} className="min-w-0 rounded-xl border border-zinc-300 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="flex items-start gap-3">
+              <span className="shrink-0 pt-1"><VideoThumbnail videoId={row.id} width={48} height={27}/></span>
+              <div className="min-w-0 flex-1">
+                <span className="text-xs tabular-nums text-zinc-600 dark:text-zinc-400">{String(offset+index+1).padStart(2,'0')}</span>
+                <Link className="block whitespace-normal break-words font-medium leading-6 hover:underline [overflow-wrap:anywhere]" href={`/videos/${encodeURIComponent(row.id)}`} prefetch={false}>{row.title||"直播標題尚未取得"}</Link>
+              </div>
+            </div>
+            <div className="mt-3 min-w-0"><ChannelCell id={row.channelId} title={row.channelTitle} avatar={row.channelAvatar}/></div>
+            <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-3 text-sm">
+              <div><dt className="text-xs text-zinc-600 dark:text-zinc-400">同時在線</dt><dd className="m-0 font-semibold tabular-nums">{count(row.currentViewers)}</dd></div>
+              <div><dt className="text-xs text-zinc-600 dark:text-zinc-400">今日高峰</dt><dd className="m-0 tabular-nums">{count(row.todayPeak)}{row.partialLogEvidence&&<span className="ml-1 text-xs text-zinc-600 dark:text-zinc-400">部分取樣</span>}</dd></div>
+              <div><dt className="text-xs text-zinc-600 dark:text-zinc-400">歷史高峰</dt><dd className="m-0 tabular-nums">{count(row.allTimePeak)}</dd></div>
+              <div><dt className="text-xs text-zinc-600 dark:text-zinc-400">更新時間</dt><dd className="m-0 whitespace-normal text-xs">{dateTime(row.updatedAt)}</dd></div>
+              <div className="col-span-2"><dt className="text-xs text-zinc-600 dark:text-zinc-400">頻道分類</dt><dd className="m-0 flex flex-wrap gap-1">{row.tags.length?row.tags.map(tag=><Link className="inline-flex min-h-11 items-center rounded-full border border-zinc-300 px-3 text-sm hover:underline dark:border-zinc-700" key={tag.id} href={`/live/current?tagid=${tag.id}`} prefetch={false}>{tag.name}</Link>):'—'}</dd></div>
+            </dl>
+            <a className="inline-flex min-h-11 items-center text-sm text-brand-700 underline dark:text-brand-400" href={youtubeUrl(row.youtubeUrl)} target="_blank" rel="noopener noreferrer">YouTube 原始來源 ↗</a>
+          </li>)}
+        </ul>
+        <TableScroller card label="直播觀測表，可左右捲動" className="hidden sm:block" showScrollHint>
+            <table className={table.nowrap} style={{minWidth:1280}}>
                 <thead>
                     <tr>
                         <th className={table.leadHead}>直播 / 頻道</th>
@@ -182,7 +205,8 @@ export function LiveTable({ rows,offset=0 }: { rows: LiveRow[];offset?:number })
                     ))}
                 </tbody>
             </table>
-        </TableScroller>
+      </TableScroller>
+      </>
     );
 }
 export function TopicCards({
