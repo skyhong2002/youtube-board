@@ -210,3 +210,21 @@ not in that snapshot are conservatively treated as competing/unknown work.
 8watchdog+10gate+5probe=23 offline regressions passed. This is tick source, not
 a live polling/controller/heartbeat/launcher or terminal cleanup adapter.
 No probe, lock, build, capture, container or image operation performed this step.
+
+## Latest global slot: open, not reserved for YT
+
+Babysit reports tag returned the slot atUTC02:45 without building because of
+memory admission. Next tag/YT owner is whichever first submits a complete exact
+checkable command. A fresh confirmed handoff is still required before execution.
+
+Watchdog review120fcf5 CHANGES REQUIRED (P1 W1): memory validated before final
+owned read/slot auth could age29->31seconds while raw health remained fresh.
+Original independent receipt retained at
+/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/native-watchdog-running-gate-independent-source-review-20261014T024345Z.json
+SHA256f7b5e202e3437734310587c78d5b83366075302d0f8d9a5f1911b7ed6cdb1192.
+Source now takes one decision timestamp AFTER both final IO boundaries and
+rechecks BOTH memory and health at that timestamp. Read-delay and auth-delay
+29->31s regressions correctly pause/retain custody; same-time assertion added.
+11watchdog+10gate+5probe=26 focused mocks passed; independent re-review pending.
+This fixes source only, not actual controller/heartbeat/terminal integration.
+No fresh probe, lock, build, export, container or capture executed.

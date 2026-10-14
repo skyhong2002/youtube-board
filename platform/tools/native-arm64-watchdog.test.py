@@ -108,4 +108,57 @@ class WatchdogTests(unittest.TestCase):
         self.assertFalse(watchdog.gate.evaluate(self.samples, cases.NOW, starting=False)['ok'])
         self.assertFalse(watchdog.gate.evaluate(self.samples, cases.NOW, owned_build_pids=frozenset({123}))['ok'])
 
+    def test_final_owned_read_can_expire_memory_while_health_remains_fresh(self):
+        clock = [cases.NOW]
+        self.job.now = lambda: clock[0]
+        for row in self.memory.values():
+            row['observedAt'] = (cases.NOW-datetime.timedelta(seconds=29)).isoformat()
+        original = self.executor.read
+        calls = [0]
+        def delayed_read():
+            calls[0] += 1
+            if calls[0] == 2:
+                clock[0] += datetime.timedelta(seconds=2)
+            return original()
+        self.executor.read = delayed_read
+        result = self.job.tick()
+        self.assertEqual(result['state'], 'stop-confirmed')
+        self.assertEqual(result['reason'], 'runtime-memory-expired-during-readback')
+        self.assertEqual(self.executor.pause_calls, 1)
+        self.assertEqual(calls[0], 2)
+
+    def test_final_slot_auth_can_expire_memory_while_health_remains_fresh(self):
+        clock = [cases.NOW]
+        self.job.now = lambda: clock[0]
+        for row in self.memory.values():
+            row['observedAt'] = (cases.NOW-datetime.timedelta(seconds=29)).isoformat()
+        calls = [0]
+        def delayed_auth(_):
+            calls[0] += 1
+            if calls[0] == 2:
+                clock[0] += datetime.timedelta(seconds=2)
+            return True
+        self.job.authenticate_slot = delayed_auth
+        result = self.job.tick()
+        self.assertEqual(result['state'], 'stop-confirmed')
+        self.assertEqual(self.executor.pause_calls, 1)
+        self.assertFalse(result['reservationReleaseAllowed'])
+        self.assertEqual(calls[0], 2)
+
+    def test_final_memory_and_health_share_one_decision_timestamp(self):
+        from unittest.mock import patch
+        decisions = []
+        original_memory = watchdog.memory_valid
+        original_health = watchdog.gate.evaluate
+        def memory_check(data, now):
+            decisions.append(('memory', now))
+            return original_memory(data, now)
+        def health_check(data, now, **kwargs):
+            decisions.append(('health', now))
+            return original_health(data, now, **kwargs)
+        with patch.object(watchdog, 'memory_valid', memory_check), patch.object(watchdog.gate, 'evaluate', health_check):
+            self.assertEqual(self.job.tick()['state'], 'running-observed')
+        self.assertEqual([name for name, _ in decisions], ['memory', 'memory', 'health'])
+        self.assertEqual(decisions[-2][1], decisions[-1][1])
+
 if __name__ == '__main__': unittest.main()

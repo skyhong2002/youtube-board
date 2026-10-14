@@ -37102,5 +37102,20 @@
       "receiptPath": "/home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/a27-production-deployment-handoff-20261013T2059Z.json",
       "receiptSha256": "964f9a269ee5699141fcd81b87398e8eb7e5e997674f66c4f87a861adda1072b"
     }
+  ],
+  "nativeBuildPreparationFindings": [
+    {
+      "finding": "W1-memory-freshness-after-final-readback",
+      "reviewedSha": "120fcf5492e399e3a0aaec86571ddd1c1a048909",
+      "severity": "P1",
+      "reviewVerdict": "changes-required",
+      "reviewReceipt": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/native-watchdog-running-gate-independent-source-review-20261014T024345Z.json",
+      "reviewReceiptSha256": "f7b5e202e3437734310587c78d5b83366075302d0f8d9a5f1911b7ed6cdb1192",
+      "sourceFix": "memory and health rechecked at one decision timestamp after final executor read and slot authentication",
+      "tests": "26 focused mocks pass; read-delay/auth-delay age29->31 regressions",
+      "status": "source-fixed-awaiting-independent-re-review",
+      "runtimeVerified": false,
+      "uiAcceptanceUnchanged": true
+    }
   ]
 }
