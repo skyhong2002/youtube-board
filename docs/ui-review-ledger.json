@@ -36928,7 +36928,7 @@
   "nextDeploymentTechnicalCheckpoint": {
     "observedAt": "2026-10-13T19:56:03.756028+00:00",
     "appSha": "073985b8bc4bbcc9ffb5d43c1e1a26060bb8ac4a",
-    "opsSha": "c04434948c6486499783e1bcde4f8af2167a9262",
+    "opsSha": "51dc9de1a20e73c428d4e9588fa8d5243643c742",
     "sourceIndependentReview": "pass",
     "candidateBuildId": null,
     "candidateManifest": null,
@@ -36999,7 +36999,9 @@
     "currentProductionImage": "sha256:4f5e2a3ae63629a85f1463f778a7548b8cf53b758b881cb417e5d84f34276ffa",
     "currentProductionReportedRevision": "7d4d945acfb48c1a4a5d3ff8d8d6cb4097a89826",
     "mustPersistDokploySuccessorComposeBeforeDeployment": true,
-    "rollbackImageBeforeF2": "sha256:4f5e2a3ae63629a85f1463f778a7548b8cf53b758b881cb417e5d84f34276ffa"
+    "rollbackImageBeforeF2": "sha256:4f5e2a3ae63629a85f1463f778a7548b8cf53b758b881cb417e5d84f34276ffa",
+    "candidateImageId": "sha256:15c7af2d4a509c65543826f354055152ccab4e17b1b3cec88908195b7da11ce8",
+    "nativeSmoke": "awaiting exact-command check"
   },
   "productionDeploymentHistory": [
     {
@@ -37195,5 +37197,45 @@
       "pauseResumeUsed": false,
       "notes": "Prior custom execution layers are retained but not required by this run. Exact command/fresh probe approval remains required."
     }
+  },
+  "nativeSimpleBuild20261014": {
+    "schema": "yt-simple-native-build-result-v1",
+    "owner": "d7967e77",
+    "completedAt": "2026-10-14T05:00:20.998653+00:00",
+    "recordedAt": "2026-10-14T05:00:49.727248+00:00",
+    "exitCode": 0,
+    "appSha": "073985b8bc4bbcc9ffb5d43c1e1a26060bb8ac4a",
+    "opsSha": "51dc9de1a20e73c428d4e9588fa8d5243643c742",
+    "imageId": "sha256:15c7af2d4a509c65543826f354055152ccab4e17b1b3cec88908195b7da11ce8",
+    "architecture": "arm64",
+    "os": "linux",
+    "sizeBytes": 1390936605,
+    "labels": {
+      "org.opencontainers.image.revision": "073985b8bc4bbcc9ffb5d43c1e1a26060bb8ac4a",
+      "tw.observe.build.ops-sha": "51dc9de1a20e73c428d4e9588fa8d5243643c742"
+    },
+    "buildLog": "/home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/yt-f2-simple-20261014t044808z/approved-simple-build.log",
+    "buildLogSha256": "364f9d9e2862544258049f13d7d8fc48a2fe4ff0e08921ff4fe8bcb87f915929",
+    "buildSlotReturned": true,
+    "nativeSmoke": "pending-babysit-command-check",
+    "candidateApproval": false,
+    "deploymentCompleted": false,
+    "productionImageRetained": "sha256:4f5e2a3ae63629a85f1463f778a7548b8cf53b758b881cb417e5d84f34276ffa",
+    "sourceReviews": [
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/native-f2-Dockerfile-APP073-independent-source-review-20261014T045055Z.json",
+        "sha256": "becaf7a3331f1b7131f2cc558f57939663d337ca212a944a09483b3476581f82",
+        "reviewer": "/root/capture_source_review",
+        "model": "gpt-6.1-sol",
+        "scope": "source-only PASS, no UI acceptance"
+      },
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/native-f2-prepared-context-APP073-independent-source-review-20261014T045527Z.json",
+        "sha256": "75b5b11d59334e5578f89146062e4ebe121f836cc503612c890360e300a6630e",
+        "reviewer": "/root/capture_source_review",
+        "model": "gpt-6.1-sol",
+        "scope": "source-only PASS, exact998archivefiles/scripts, no UI acceptance"
+      }
+    ]
   }
 }

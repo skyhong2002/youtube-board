@@ -635,3 +635,11 @@ f1ba54d42d3cc7fe2b4e070ef4dd72ced6181410a3bfc14b84624ded54a3547b).
 Its remaining integration notes are superseded for this run by explicit user
 instruction. This does not change privacy, resource gates or UI acceptance.
 Exact simple Docker command plus fresh probe goes to babysit before starting.
+
+## 2026-10-14 UTC 05:00 — simple native arm64 build
+
+Build succeeded for exact APP `073985b8bc4bbcc9ffb5d43c1e1a26060bb8ac4a` and recipe OPS `51dc9de1a20e73c428d4e9588fa8d5243643c742`. Image `sha256:15c7af2d4a509c65543826f354055152ccab4e17b1b3cec88908195b7da11ce8`, linux/arm64, 1,390,936,605 bytes; both revision labels verified. Typecheck, Next compile/typecheck/static generation succeeded, Next workers2. Only the approved simple Docker build ran; custom runtime monitoring layers were unused. The global build slot is returned.
+
+Result: `/tmp/babysit/mint-queue/youtube-simple-native-073985b8-result.json`, SHA256 `93cd4325b116b8a66398a89eee38c0756f8e7863d631f09111430149c9be10a2`. Private log: `/home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/yt-f2-simple-20261014t044808z/approved-simple-build.log`, SHA256 `364f9d9e2862544258049f13d7d8fc48a2fe4ff0e08921ff4fe8bcb87f915929`. Source reviews and their private paths/hashes are recorded in the JSON ledger.
+
+Native smoke, exact BUILD_ID, candidate screenshots and visual review are pending. No page status promoted. All new-artifact UI states remain pending; formal production remains `4f5e2a3a`, no F2 deployment yet. Both rollback images and all existing release/evidence trees are retained.
