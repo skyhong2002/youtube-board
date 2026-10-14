@@ -39439,9 +39439,26 @@
         "dark"
       ],
       "visualReview": "pending actual images existing reviewer",
-      "core": "in progress",
+      "core": {
+        "homeCompleted": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/profile72-capture-tools/candidate-app72-envelope-2026-10-14/app72cb816-core/run-4a42b591-f882-45f0-b696-e0edd04cf072/home-light-72cb816-completed.json",
+        "keywordsRetake": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/profile72-capture-tools/candidate-app72-envelope-2026-10-14/app72cb816-core-retake/run-3c52849c-fa66-4014-ba87-daf5cc9a20c2/captures.json",
+        "keywordsRetakeSHA256": "ca061ca08c1a994f9d2a0f55b0c236f9488feee4097a608dad1009429db5b1c8",
+        "viewportWidths": [
+          1280,
+          390
+        ],
+        "theme": "light",
+        "period": "week",
+        "failedOriginalPreserved": true,
+        "failedOriginalReason": "Taipei midnight crossed; privacyAfter absent; no network exception added",
+        "retakeDay": "2026-10-15",
+        "status": "CAPTURE_COMPLETE_VISUAL_REVIEW_PENDING"
+      },
       "bytes": 57851871
     },
-    "latestAuthority": "User: native remote build uses skyhong-blog resources; blog pure latency does not block; any HTTP/curl failure still blocks"
+    "latestAuthority": "User: native remote build uses skyhong-blog resources; blog pure latency does not block; any HTTP/curl failure still blocks",
+    "remoteMainSHA": "72cb81699088276215cc5ca8604feb07544a07aa",
+    "deploymentDryRun": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-deploy-dry-run02.json",
+    "deploymentAdmission": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-deploy-admission.json"
   }
 }
