@@ -39893,6 +39893,17 @@
       "review evidence"
     ],
     "futureBaseImage": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6",
-    "futureBaseRequirements": "pass explicit --build-arg BASE_IMAGE=<retained verified arm64 image>; Node major24/ABI137 smoke; never depend on deleted5b base tags"
+    "futureBaseRequirements": "pass explicit --build-arg BASE_IMAGE=<retained verified arm64 image>; Node major24/ABI137 smoke; never depend on deleted5b base tags",
+    "supplementalReceipt": {
+      "path": "/tmp/babysit/mint-queue/youtube-rolling-cleanup-extra-20261015.json",
+      "sha256": "256ce9a9c9cd4ccd761384f9d5b92c0d1be2ac8f75f2ab1dddf6a62a52fbcb3e"
+    },
+    "removedBuildDirectoriesTotal": 7,
+    "dfAfterSupplement": "Filesystem        1B-blocks         Used    Available Use% Mounted on\n/dev/sda1      206900281344 106526191616 100357312512  52% /\n",
+    "retainedDirectories": [
+      "/home/ubuntu/yt-ranked-pools-20261014t173643z",
+      "/home/ubuntu/yt-f1-top-20261014t153212z"
+    ],
+    "diagnosticSourcePreserved": "/home/ubuntu/yt-ranking-sql-diagnostic-20261014t1701z"
   }
 }
