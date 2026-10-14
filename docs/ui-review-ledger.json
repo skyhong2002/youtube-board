@@ -41387,5 +41387,59 @@
       }
     ],
     "nextBatch": "address live/current responsive blocker and group labels; continue unreviewed public routes in small batches"
+  },
+  "f4FirstBatch20261015": {
+    "recordedAt": "2026-10-14T21:02:26.585725+00:00",
+    "status": "candidate-review-in-progress-not-deployed",
+    "appSha": "fe7987945611328aabaa8bb8f4495ecd75168792",
+    "image": "sha256:5816d4eec144c5c162ad3954aef4298fa36a5ecfc9476315e1ad9d0a59ecfb91",
+    "buildId": "vet9FIruVMu5cIc9qIVeo",
+    "reference": {
+      "tagCommit": "ff511870",
+      "path": "/home/deck/Projects/tag-sm-f1-release/docs/cross-site-consistency.md",
+      "sha256": "3d8e72036aab6cc73b3061f1b1d94afb1292d39b4bf86f1a65fc83945632eb91"
+    },
+    "sourceReview": {
+      "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/f4-live-groups-fe79879-ops868b396-independent-source-review-20261014T205323Z.json",
+      "sha256": "998f1a46b4059579ab4c2b8b90aa412f148ba4af39aeac10c12aaeddf661f5ee"
+    },
+    "captureToolReview": {
+      "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/ops-candidate-capture-33b2387-independent-source-review-20261014T205736Z.json",
+      "sha256": "15a010d2f54681751fb937609461bef68092b1aacca7723b275269d4ed221bff"
+    },
+    "build": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-build-result.json",
+      "sha256": "2e4c45bb2f3ac0f5bdb4d292374b4956e41c5018ae65f23ae60063ca0858045f"
+    },
+    "nativeSmoke": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-native-smoke.json",
+      "sha256": "05f60ecc1dffab88be4d7819f70c89e0d92d123c77fc5b957815251897b2faf3"
+    },
+    "candidatePrivacy": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-candidate-privacy.json",
+      "sha256": "693afd4953ebb9cfeb966823f9f99f365e5da673678db79caf022ed99bfdd828"
+    },
+    "firstCaptureRejected": {
+      "directory": "/home/deck/.cache/youtube-ui-review/candidate-f4-fe79879-feature8-20261014T205900Z",
+      "reason": "homepage RSC prefetch503; not accepted",
+      "diagnostic": {
+        "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-candidate-prefetch-diagnostic.json",
+        "sha256": "2e92bb2f6c72753aef0d6e0a22f952a15090a677d5bf8012e1e4b661c3cbaccf"
+      }
+    },
+    "candidateFeatureManifest": {
+      "path": "/home/deck/.cache/youtube-ui-review/candidate-f4-fe79879-feature8-retake-20261014T210030Z/captures.json",
+      "sha256": "16f56b2e632dd09319551c6ac4c6474be670ed0360d1d2a3e2b7b1e45294403b"
+    },
+    "fullF4Acceptance": false,
+    "remaining": [
+      "actual independent candidate image review",
+      "production retest/new-release main-route captures",
+      "page-specific method footer consolidation",
+      "44px generic control audit",
+      "cross-site actual comparison",
+      "all other page and empty/error/auth/interaction states"
+    ],
+    "rollbackImage": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6"
   }
 }
