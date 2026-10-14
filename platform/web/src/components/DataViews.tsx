@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Fragment } from "react";
 import {ChannelAvatar} from "./ChannelAvatar";
 import {VideoThumbnail} from "./VideoThumbnail";
+import {VideoResults} from "./VideoResults";
 import type {
     ChannelRow,
     VideoRow,
@@ -85,12 +86,15 @@ export function ChannelTable({ rows, offset=0, ranking, responsive=false }: { ro
         </>
     );
 }
-export function VideoTable({ rows }: { rows: VideoRow[] }) {
+export function VideoTable({ rows, responsive=false }: { rows: VideoRow[]; responsive?:boolean }) {
     if (!rows.length) return <Empty title="尚無符合條件的影片" />;
     const channel=rows.some(r=>r.listing?.scope==='channel'),taxonomy=rows.some(r=>r.listing?.scope==='taxonomy');
     const ratio=(v:number|null|undefined,suffix:string)=>v===null||v===undefined?'—':v.toFixed(2)+suffix;
     return (
-        <TableScroller card label="影片觀測表，可左右捲動">
+        <>
+        {responsive&&<div className="sm:hidden"><VideoResults rows={rows} report/></div>}
+        <div className={responsive?'hidden sm:block':undefined}>
+        <TableScroller card label="影片觀測表，可左右捲動" showScrollHint={responsive}>
             <table className={table.nowrap}>
                 <thead>
                     <tr>
@@ -132,6 +136,8 @@ export function VideoTable({ rows }: { rows: VideoRow[] }) {
                 </tbody>
             </table>
         </TableScroller>
+        </div>
+        </>
     );
 }
 export function LiveTable({ rows,offset=0 }: { rows: LiveRow[];offset?:number }) {

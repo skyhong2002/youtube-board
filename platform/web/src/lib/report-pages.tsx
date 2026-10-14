@@ -1,4 +1,5 @@
 import {readKeywordMetadata} from './keyword-metadata-server';
+import {filterOptionsMatch,type FilterOptions} from '../../../shared/filter-options';
 import {reportLinkPrefetch} from "@/lib/report-contract";
 import {EventHeader} from '@/components/EventHeader';
 import {ChannelProfile} from '@/components/ChannelProfile';
@@ -204,10 +205,13 @@ export async function ReportPage({
             route.kind,
         )
     ) {
-        const [result,metadata] = await Promise.all([
+        const categoryId=route.kind==='tag-videos'?route.id:undefined;
+        const [result,metadata,categoryMetadata] = await Promise.all([
             api<VideoCollection>(route.apiPath, search),
             route.kind==='keyword-videos'&&route.id?readKeywordMetadata(route.id):Promise.resolve(undefined),
+            categoryId?api<FilterOptions>('filter-options/tags',{ids:categoryId},{optional:true}):Promise.resolve(undefined),
         ]);
+        const categoryName=categoryId&&categoryMetadata?.ok&&filterOptionsMatch(categoryMetadata.response.data,{kind:'tags',ids:[categoryId],limit:20})?categoryMetadata.response.data.rows.find(row=>row.id===categoryId)?.label:null;
         if (!result.ok)
             return <><Failure status={result.status} title={route.title} />{result.status===503&&first(search.q)?.trim()&&<><VideoSearchReadHint/><ReportFilters mode="videos" search={search} path={path}/></>}</>;
         const { data, meta } = result.response;
@@ -220,7 +224,7 @@ export async function ReportPage({
         return (
             <>
                 <Heading
-                    title={route.title}
+                    title={categoryId?`${categoryName||`分類 #${categoryId}`}的影片`:route.title}
                     description={route.description}
                     meta={meta}
                 />
@@ -229,7 +233,7 @@ export async function ReportPage({
                 <ReportFilters mode="videos" search={search} path={path} />
                 {route.kind==='channel-videos'&&<p className="muted">完整收錄時顯示本機留言數，否則顯示 YouTube 留言觀測；排序仍依 YouTube 原始統計。喜歡占互動＝喜歡 ÷（喜歡＋不喜歡＋顯示留言），任一來源缺值時不估算。作者、回覆與留言獲讚僅呈現完整批次。</p>}
                 <p className="my-3 text-sm text-zinc-600 dark:text-zinc-400">以下為已收錄影片；各影片記錄時間與各項統計觀測時間可能不同，並非即時數值。「—」表示尚未取得，不代表 0。</p>
-                <VideoTable rows={data.rows} />
+                <VideoTable rows={data.rows} responsive/>
                 <Pagination collection={data} search={search} path={path} />
             </>
         );

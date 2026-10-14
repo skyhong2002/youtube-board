@@ -22,3 +22,10 @@ test('missing provider and collection counts remain unknown; pending coverage is
 test('empty source listing explains observation scope',()=>{
  const html=render([]);assert.match(html,/尚未收錄，不代表頻道沒有發布影片/);assert.doesNotMatch(html,/<table|<ul/);
 });
+
+test('report mobile list preserves whole titles, missingness, taxonomy metrics and last-record timestamp',()=>{
+ const title='一段很長但必須可以完整辨識的影片標題與不同尾綴';
+ const item={...video,title,views:null,likes:0,updatedAt:'2026-10-14T22:00:00Z',listing:{...video.listing!,scope:'taxonomy' as const,commentsPerThousandViews:0,tags:[{id:102,name:'每日新聞頻道',kind:'channel' as const}]}};
+ const html=renderToStaticMarkup(createElement(ImageConfigContext.Provider,{value:{...imageConfigDefault,...config.images}},createElement(VideoResults,{rows:[item],report:true})));
+ assert.ok(html.includes(title));assert.doesNotMatch(html,/line-clamp|<table/);assert.match(html,/來源頻道/);assert.match(html,/累計觀看<\/dt><dd>—<\/dd>/);assert.match(html,/喜歡<\/dt><dd>0<\/dd>/);assert.match(html,/每千次觀看留言/);assert.match(html,/0\.00‰/);assert.match(html,/href="\/tags\/102\/videos"/);assert.match(html,/資料最後記錄/);assert.match(html,/各項統計未必在同一時間觀測/);
+});
