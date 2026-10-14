@@ -12,11 +12,12 @@ import {createNetworkRecorder,installNetworkGuard,waitForNetworkSettlement} from
 import {captureCoherentBuffer,snapshotDOMState,imageParts} from '/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/capture-coherence.mjs';
 const [planPath,outDir,identityPath]=process.argv.slice(2);assert(planPath&&outDir&&identityPath);
 const plan=JSON.parse(await readFile(planPath,'utf8'));const identity=JSON.parse(await readFile(identityPath,'utf8'));
-assert(plan.length>0&&plan.length<=6);assert.equal(identity.verified,true);assert(/^[a-f0-9]{40}$/.test(identity.appSha));assert(/^[a-f0-9]{64}$/.test(identity.imageSHA256));
+assert(plan.length>0&&plan.length<=6);assert.equal(identity.verified,true);assert(/^[a-f0-9]{40}$/.test(identity.appSha));assert(/^[a-f0-9]{64}$/.test(identity.imageSHA256));assert(typeof identity.buildID==='string'&&/^[A-Za-z0-9_-]{1,160}$/.test(identity.buildID),'Nonempty BUILD_ID required');
 assert(plan.every(i=>/^[a-z0-9-]+$/.test(i.key)&&new URL(i.url).origin==='https://youtube.observe.tw'&&!new URL(i.url).search&&!new URL(i.url).hash&&!new URL(i.url).username&&!new URL(i.url).password&&['light','dark'].includes(i.theme)&&[null,'today','week'].includes(i.window)));
 const hash=b=>createHash('sha256').update(b).digest('hex');
 const write=async(p,b)=>{await writeFile(p,b,{mode:0o600,flag:'wx'});return {path:p,sha256:hash(b)};};
 async function resources(start=false){const s=await statfs('/home');assert(Number(s.bavail)*Number(s.bsize)>=(start?40:30)*2**30,'Disk threshold');assert(os.loadavg()[0]<=12,'Load threshold');const mem=await readFile('/proc/meminfo','utf8');assert(Number(mem.match(/^MemAvailable:\s+(\d+)/m)[1])*1024>=2.5*2**30,'Memory threshold');}
+const serviceBytes=await readFile(identity.serviceProof);assert.equal(hash(serviceBytes),identity.serviceProofSha256);const serviceProof=JSON.parse(serviceBytes);assert(serviceProof.services.every(s=>s.containers.length===1&&s.containers[0].health==='healthy'&&s.containers[0].revision===identity.appSha&&s.containers[0].image==='sha256:'+identity.imageSHA256&&s.containers[0].buildId===identity.buildID),'Actual production service proof required');
 await resources(true);await mkdir(outDir,{mode:0o700});await chmod(outDir,0o700);sharp.concurrency(1);
 // Only these HTTPS CONNECT targets can leave this Chromium process; HTTP is denied.
 const destinations=new Set(['youtube.observe.tw:443','i.ytimg.com:443']);const sockets=new Set();const proxyRows=[];
@@ -40,7 +41,7 @@ try{
    context.on('request',r=>rawRow(r));context.on('response',r=>{const row=rawRow(r.request());if(row)row.status=r.status();});context.on('requestfinished',r=>{const row=rawRow(r);if(row)row.terminal='finished';});context.on('requestfailed',r=>{const row=rawRow(r);if(row){row.terminal='failed';row.failure=r.failure()?.errorText??'unknown';}});
    const networkPath=join(outDir,item.key+'-'+viewport+'-requests.json');let view;
    try{
-    await installNetworkGuard(context,network);const page=await context.newPage();const response=await page.goto(item.url,{waitUntil:'domcontentloaded',timeout:30000});assert.equal(response.status(),200);assert((await response.text()).includes(identity.buildID),'Production BUILD_ID changed');
+    await installNetworkGuard(context,network);const page=await context.newPage();const response=await page.goto(item.url,{waitUntil:'domcontentloaded',timeout:30000});assert.equal(response.status(),200);const rendered=(await response.text()).replaceAll('\\"','"');const builds=[...rendered.matchAll(/"(?:b|buildId)"\s*:\s*"([A-Za-z0-9_-]{1,160})"/g)].map(m=>m[1]);assert(builds.includes(identity.buildID),'Production Next BUILD_ID changed');
     await page.locator('body').waitFor();await page.waitForTimeout(1800);await page.evaluate(()=>document.fonts.ready);
     if(item.window){const radios=page.locator('input[type=radio][value="'+item.window+'"]');assert(await radios.count()>0);for(let i=0;i<await radios.count();i++)await radios.nth(i).check({force:true});await page.waitForTimeout(250);}
     const h=await page.evaluate(()=>document.documentElement.scrollHeight);assert(h<=24000,'Page too long; split capture');for(let y=0;y<h;y+=700){await page.evaluate(y=>scrollTo(0,y),y);await page.waitForTimeout(120);}await page.evaluate(()=>scrollTo(0,0));await page.waitForTimeout(250);
