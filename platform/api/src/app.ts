@@ -62,7 +62,7 @@ interface AppOptions {
     clock?: () => Date;
 }
 export function buildApp(options: AppOptions = {}) {
-    const rankingPools=options.rankingPools===false||options.dataset==='fixture'?undefined:options.rankingPools??createRankedPoolClient({clock:options.clock});
+    const rankingPools=options.rankingPools===false?undefined:options.rankingPools??(options.dataset==='fixture'?undefined:createRankedPoolClient({clock:options.clock}));
     const app = Fastify({ logger: false, routerOptions:{maxParamLength:240}, trustProxy: trustedProxies(process.env.AUTH_TRUSTED_PROXY_CIDRS), requestTimeout: 15000, bodyLimit: 16384 }), reader = options.reader ?? createReader(options.databaseUrl ?? process.env.DATABASE_URL), clock = options.clock ?? (() => new Date()), service = reports(reader, clock, homeDiagnosticSink(line=>{writeSync(2,line);}, clock),rankingPools);
     if(options.publicApi!==false)registerPublicApiPolicy(app,{clock,...options.publicApi});
     registerPublicV1Cache(app);

@@ -18,10 +18,12 @@ export function ReportFilters({
     // channelId is one urt_channel.u_id; channelIds is the independent legacy u_id list.
     const keywordVideos=mode==='videos'&&path.startsWith('/keywords/'),channelVideos=mode==='videos'&&/^\/channels\/\d+\/videos$/.test(path),maxLimit=mode==='videos'?VIDEO_LIST_MAX:200;
     const taxonomyPicker = mode === "channels" || mode === "live" || (mode === "videos" && !channelVideos);
+    const exactWindow=keywordVideos&&!!first(search.since)&&!!first(search.until);
     const requestedLimit = first(search.limit) || "50";
     const selectedLimit = /^\d+$/.test(requestedLimit) && Number(requestedLimit) >= 1 && Number(requestedLimit) <= maxLimit ? requestedLimit : "50";
     return (
         <form key={JSON.stringify([path,search])} className={ui.form} action={path} method="get">
+            {exactWindow&&['since','until'].map(key=><input key={key} type="hidden" name={key} value={first(search[key])}/>)}
             {['tagid','or','not','channelIds','days'].filter(key=>!(taxonomyPicker&&['tagid','or','not'].includes(key))&&!(keywordVideos&&key==='days')).flatMap(key => {
                 const value = search[key]; return (Array.isArray(value) ? value : value === undefined ? [] : [value]).map((value,index) => <input key={`${key}-${index}`} type="hidden" name={key} value={value} />);
             })}
@@ -71,12 +73,13 @@ export function ReportFilters({
                         <label className={ui.label}>最近開始直播（小時）<input className={ui.input} name="hours" type="number" min="1" max="168" defaultValue={first(search.hours)||''} placeholder="不限開始時間" /></label>
                     </>)}
                     {mode === "videos" && (<>
-                        {keywordVideos&&<label className={ui.label}>關鍵字往前日數<input className={ui.input} name="days" type="number" min="1" max="90" defaultValue={first(search.days)||''} placeholder="不限；7 表示含今天共 8 個日曆日" /></label>}
+                        {keywordVideos&&!exactWindow&&<label className={ui.label}>關鍵字往前日數<input className={ui.input} name="days" type="number" min="1" max="90" defaultValue={first(search.days)||''} placeholder="不限；7 表示含今天共 8 個日曆日" /></label>}
                         <label className={ui.label}>排序<select className={ui.input} name="column" defaultValue={first(search.column)||'publishedAt'}><option value="publishedAt">最新發布</option><option value="viewCount">觀看數</option><option value="likeCount">喜歡數</option><option value="commentCount">留言數</option></select></label>
-                        <label className={ui.label}>最近幾小時<input className={ui.input} name="hours" type="number" min="1" max="8760" defaultValue={first(search.hours)||''} placeholder="不限期間" /></label>
+                        {!exactWindow&&<label className={ui.label}>最近幾小時<input className={ui.input} name="hours" type="number" min="1" max="8760" defaultValue={first(search.hours)||''} placeholder="不限期間" /></label>}
                         <label className={ui.label}>至少觀看數<input className={ui.input} name="min" type="number" min="0" max="9007199254740991" defaultValue={first(search.min)||''} placeholder="不限" /></label>
-                        <label className={ui.label}>開始日期<input className={ui.input} name="from" type="date" defaultValue={first(search.from)||''}/></label>
-                        <label className={ui.label}>結束日期<input className={ui.input} name="to" type="date" defaultValue={first(search.to)||''}/></label>
+                        {!exactWindow&&<><label className={ui.label}>開始日期<input className={ui.input} name="from" type="date" defaultValue={first(search.from)||''}/></label>
+                        <label className={ui.label}>結束日期<input className={ui.input} name="to" type="date" defaultValue={first(search.to)||''}/></label></>}
+                        {exactWindow&&<p className={ui.label}>保留排行的精確發布時間窗；「清除」後可另選日期。</p>}
                         {!channelVideos&&<FilterPicker name="channelId" label="指定頻道" kind="channels" value={search.channelId??''} multiple={false}/>}
                     </>)}
                 </>

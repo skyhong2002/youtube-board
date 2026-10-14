@@ -20,7 +20,7 @@ function reader(sourceQuality: unknown): Reader {
     }, close: async () => {} };
 }
 it.each(['/api/v1/vocabulary', '/api/v1/keywords', '/api/v1/home'])('discloses quarantined tag counts through existing metadata warnings: %s', async path => {
-    const app = buildApp({ reader: reader(quality), clock: () => new Date('2026-10-11T01:00:00Z') });
+    const app = buildApp({ rankingPools:false,reader: reader(quality), clock: () => new Date('2026-10-11T01:00:00Z') });
     try {
         const response = await app.inject(path);
         expect(response.statusCode).toBe(200);
@@ -40,7 +40,7 @@ it.each(['/api/v1/vocabulary', '/api/v1/keywords', '/api/v1/home'])('discloses q
     } finally { await app.close(); }
 });
 it.each(['/api/v1/vocabulary', '/api/v1/home'])('keeps legacy quality unknown, without claiming zero rejections: %s', async path => {
-    const app = buildApp({ reader: reader(undefined) });
+    const app = buildApp({ rankingPools:false,reader: reader(undefined) });
     try {
         const response = await app.inject(path);
         expect(response.statusCode).toBe(200);

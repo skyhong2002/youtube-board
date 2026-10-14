@@ -8,6 +8,7 @@ import {join} from 'node:path';
 import {homeCategoryBandState,homeEdition,homeKeywordCloudWords,homeKeywordState,homeKeywordSummary,keywordVideosHref,keywordViewsLabel,visibleHomeKeywords} from './home-presentation';
 import {KeywordWindowPane,KeywordWindowProvider,KeywordWindowSwitch} from '../app/_home/KeywordWindow';
 import {KeywordRankingView} from '../components/KeywordRanking';
+import {reportHref} from './report-navigation';
 import type {ReportMeta} from '../../../api/src/contracts';
 type Row=HomeKeywordSummary['rows'][number];
 const summary=(patch:Partial<HomeKeywordSummary>={}):HomeKeywordSummary=>({vocabularyCoverage:'observed-article-window',vocabularyWindow:null,source:'https://tag.observe.tw',version:'run-1',status:'synchronized',reason:null,from:'2026-10-06T00:00:00+08:00',to:'2026-10-12T09:30:00+08:00',updatedAt:'2026-10-12T01:00:00.000Z',rows:[],sourceVideos:10,freshVideos:8,staleVideos:1,unprocessedVideos:1,metric:'current-cumulative-views-of-window-published-videos',rankingMethod:'youtube-channel-weighted-decay-v1',riseMethod:'equal-duration-heat-delta',ruleVersion:'youtube-quality-v2',comparison:null,exclusions:null,...patch});
@@ -66,6 +67,8 @@ test('ranked pool evidence links retain the exact rolling UTC bounds and state q
  assert.match(homeKeywordState(s,'today').message??'',/過去24小時.*本期新聞詞池與顯示規則/);
  const unavailable=summary({status:'unavailable',rankingPool:{status:'unavailable',reason:'contract',windows:{today:window,week:window}}});
  assert.match(homeKeywordState(unavailable,'today').message??'',/無法完整驗證/);
+ const path='/keywords/AI/videos';
+ const href=new URL(reportHref(path,window,path),'https://youtube.observe.tw');assert.equal(href.searchParams.get('since'),window.since);
 });
 test('the cloud keeps all forty ranked terms sized by heat and labels partial views as a lower bound',()=>{
  const rows=Array.from({length:40},(_,i)=>row(i+1));rows[5]={...rows[5]!,views:null,unknownViewVideos:2,measuredViewVideos:rows[5]!.videoCount-2};
