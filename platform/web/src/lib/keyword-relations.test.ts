@@ -353,3 +353,9 @@ test('keyword profile keeps its SSR controls, counts, null-vs-zero and evidence 
  assert.doesNotMatch(profile,/<Suspense|\buseEffect\b|\bfetch\(|fetchKeywordRelations|setTimeout|tag\.observe\.tw\/api/);
  assert.match(profile,/<KeywordRelations key=\{keyword\} keyword=\{keyword\} initialView=\{metadata\?\.relations\}\/>/);
 });
+test('deadline closes a stalled relation body even when stream reads ignore AbortSignal',async()=>{
+ let cancelled=0;const body=new ReadableStream({cancel(){cancelled++;}});
+ const result=await fetchKeywordRelations('交通',{timeoutMs:100,fetch:(async()=>new Response(body,{headers:{'content-type':'application/json'}})) as typeof fetch});
+ assert.equal(result?.kind,'unavailable');if(result?.kind==='unavailable')assert.equal(result.reason,'timeout');
+ await new Promise(resolve=>setTimeout(resolve,0));assert.equal(cancelled,1);assert.equal(body.locked,false);
+});

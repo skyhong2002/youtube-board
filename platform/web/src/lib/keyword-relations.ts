@@ -125,8 +125,11 @@ export async function fetchKeywordRelations(keyword:string,options:FetchRelation
  const forward=()=>controller.abort();options.signal?.addEventListener('abort',forward,{once:true});
  const timer=setTimeout(()=>{timedOut=true;controller.abort();},timeoutMs);
  let reader:ReadableStreamDefaultReader<Uint8Array>|undefined,response:Response|undefined;
+ const cancel=()=>{if(reader)void reader.cancel().catch(()=>{}).finally(()=>{try{reader?.releaseLock();}catch{}});else if(response?.body&&!response.bodyUsed)void response.body.cancel().catch(()=>{});};
+ controller.signal.addEventListener('abort',cancel,{once:true});
  try{
   response=await transport(relationsPath(keyword),{method:'GET',headers:{accept:'application/json'},credentials:'omit',cache:'no-store',redirect:'error',mode:'same-origin',referrerPolicy:'no-referrer',signal:controller.signal});
+  if(controller.signal.aborted){cancel();return options.signal?.aborted?null:unavailable('timeout');}
   if(response.redirected||response.type==='opaqueredirect')return unavailable('invalid-response');
   if(response.status===429)return unavailable('rate-limited',retryAfterSeconds(response.headers.get('retry-after'),now())??60);
   if(response.status===404)return unavailable('not-found');
@@ -136,7 +139,7 @@ export async function fetchKeywordRelations(keyword:string,options:FetchRelation
   if(length!==null&&(!/^\d+$/.test(length)||Number(length)>maxBytes))return unavailable('too-large');
   if(!response.body)return unavailable('invalid-response');
   reader=response.body.getReader();const chunks:Uint8Array[]=[];let size=0;
-  while(true){const chunk=await reader.read();if(chunk.done)break;size+=chunk.value.byteLength;if(size>maxBytes)return unavailable('too-large');chunks.push(chunk.value);}
+  while(true){const chunk=await reader.read();if(controller.signal.aborted)return options.signal?.aborted?null:unavailable('timeout');if(chunk.done)break;size+=chunk.value.byteLength;if(size>maxBytes)return unavailable('too-large');chunks.push(chunk.value);}
   const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
   let value:unknown;try{value=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));}catch{return unavailable('invalid-response');}
   if(options.signal?.aborted)return null;
@@ -147,7 +150,7 @@ export async function fetchKeywordRelations(keyword:string,options:FetchRelation
   return unavailable(timedOut?'timeout':'network');
  }finally{
   clearTimeout(timer);options.signal?.removeEventListener('abort',forward);
-  if(reader)void reader.cancel().catch(()=>{});else if(response?.body&&!response.bodyUsed)void response.body.cancel().catch(()=>{});
+  controller.signal.removeEventListener('abort',cancel);cancel();
   controller.abort();
  }
 }

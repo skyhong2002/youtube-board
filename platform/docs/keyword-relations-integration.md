@@ -129,3 +129,20 @@ Candidate acceptance still needs actual keyword pages with a known image and
 with missing data,1280/390 light/dark, observed Google0/DNT and private/no-store
 checks. Home/top40 pool correction is a separate pending upstream contract.
 Source tests are not candidate or formal-site visual acceptance.
+
+### Keyword profile initial render
+
+Pictures and approved relations appear above the video list, side by side at
+wider widths. The server reads both optional DTOs concurrently with the report,
+using the configured internal API only, without visitor cookies/authentication.
+Reads are no-store, DNT/GPC, bounded by3.5seconds and128/256KiB. Each completed
+branch survives a deadline on the other branch, including full Retry-After.
+Failures remain unavailable and never fabricate an empty source. Response bodies
+are cancelled on early errors, deadline, and late abort-ignoring responses.
+
+Canonical keyword-video profiles use the dynamic private/no-store render target
+while retaining canonical metadata and breadcrumb JSON-LD. Actual query variants
+remain noindex. Initial SSR props avoid duplicate hydration metadata fetches;
+manual retries and bounded expansion remain available. A new same-keyword server
+result replaces displayed data without resetting retry count or shortening holds.
+Images are eager/high-priority at a fixed96×96pixels, with original credit links.
