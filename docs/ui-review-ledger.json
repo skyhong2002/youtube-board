@@ -38046,7 +38046,7 @@
   "mobileKeywordIdentitySuccessor20261014": {
     "preparedAt": "2026-10-14T07:48:38.199292+00:00",
     "appSha": "d019ae69e922ba8530b7af8c98ae5e200138942a",
-    "sourceStatus": "committed locally; independent review pending",
+    "sourceStatus": "PASS_SOURCE_ONLY; pushed and exact remote verified",
     "tests": {
       "focusedPassed": 17,
       "webPassed": 297,
@@ -38057,13 +38057,39 @@
     "buildDraftPath": "/tmp/babysit/mint-queue/youtube-simple-native-d019ae69-request-v2.json",
     "buildDraftSha256": "04cbc1717fdb97275059dca70681970da4089aa66db3946d191b804f6ec587e0",
     "executionAllowed": false,
-    "freshProbe": "pending",
-    "build": "pending",
+    "freshProbe": {
+      "path": "/tmp/babysit/mint-queue/youtube-simple-native-d019ae69-submission-fresh-20261014T075151Z.json",
+      "sha256": "eb95480e58312bc80736abb73d74b7574fb328756bb7df3afd426ba5583c5856",
+      "measuredAt": "2026-10-14T07:52:08.581046+00:00",
+      "aggregateOk": true,
+      "maxRawSampleAgeSeconds": 30,
+      "refreshImmediatelyBeforeStart": true
+    },
+    "build": "exact request ready; babysit approval/slot pending",
     "capture": "pending",
     "candidateApproval": false,
     "routeComplete": false,
     "deployment": "pending",
     "supersededUnexecutedBuildDraft": "/tmp/babysit/mint-queue/youtube-simple-native-d019ae69-request.json",
-    "contextComparedTo9db": "1000 file entries; only KeywordRanking.tsx, keyword-ranking.test.ts, link-pending.test.ts differ in bytes; recipe/base unchanged"
+    "contextComparedTo9db": "1000 file entries; only KeywordRanking.tsx, keyword-ranking.test.ts, link-pending.test.ts differ in bytes; recipe/base unchanged",
+    "sourceReview": {
+      "status": "PASS_SOURCE_ONLY",
+      "immutableReceipt": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/mobile-keyword-d019ae69-v2-independent-source-review-20261014T075149Z.json",
+      "sha256": "14bcd371c10c975e840359e58987857359d03895753d8a1ef19784673da5997a",
+      "reviewedAt": "2026-10-14T07:51:49.626104+00:00",
+      "model": "gpt-6.1-sol",
+      "reviewer": "/root/capture_source_review",
+      "independentTestsPassed": 26,
+      "transcriptPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/mobile-keyword-d019ae69-v2-independent-source-review-20261014T075149Z.txt",
+      "transcriptSha256": "0c4007a26d2d31708e916b17441d9b1a8acad1e188624e93caea3210cd07754b",
+      "limitations": [
+        "No computed browser layout or image acceptance",
+        "No build, SSH, capture, browser, network, deployment or production mutation performed",
+        "ExecutionAllowed remains false; pending fresh probe and exact-command admission are not granted by this source review",
+        "v1 packet superseded; only exact v2 request hash reviewed"
+      ]
+    },
+    "buildRequestPath": "/tmp/babysit/mint-queue/youtube-simple-native-d019ae69-request-ready.json",
+    "buildRequestSha256": "36eca576bff8c623fef22b394b965471f177f9291d32d519e818533425eda812"
   }
 }
