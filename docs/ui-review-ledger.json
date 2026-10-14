@@ -37722,6 +37722,120 @@
     "candidateApproval": false,
     "routeComplete": false,
     "productionMutated": false,
-    "buildId": "RHlWKVp3wAIluf4BIRhI5"
+    "buildId": "RHlWKVp3wAIluf4BIRhI5",
+    "homeCapture": {
+      "manifest": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app9db8a309-home-20261014-prefetch01-v12/run-36f0c06d-c0b2-4fd0-aa1e-52eff1e6e20e/captures.json",
+      "manifestSha256": "07ce8e915a565f544e6b6ceaf5d49db20d47070773b944091dda6f17015ba6e7",
+      "capturedViewportPackages": 8,
+      "pngCount": 64,
+      "networkEvidence": [
+        {
+          "key": "home-today-light-9db8a309",
+          "viewport": "desktop",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app9db8a309-home-20261014-prefetch01-v12/run-36f0c06d-c0b2-4fd0-aa1e-52eff1e6e20e/home-today-light-9db8a309-desktop-requests.json",
+          "sha256": "03711459eb9f65b78a5c685d996df863a735975aedbcb199f4b31302900856de",
+          "complete": true,
+          "accepted": true,
+          "googleAttempts": 0,
+          "googleResponses": 0,
+          "DNT": "1",
+          "GPC": true
+        },
+        {
+          "key": "home-today-light-9db8a309",
+          "viewport": "mobile",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app9db8a309-home-20261014-prefetch01-v12/run-36f0c06d-c0b2-4fd0-aa1e-52eff1e6e20e/home-today-light-9db8a309-mobile-requests.json",
+          "sha256": "6e0e23e7b3537d5544e1203938fda41061be7dfbb69a545093e2632f5325903c",
+          "complete": true,
+          "accepted": true,
+          "googleAttempts": 0,
+          "googleResponses": 0,
+          "DNT": "1",
+          "GPC": true
+        },
+        {
+          "key": "home-today-dark-9db8a309",
+          "viewport": "desktop",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app9db8a309-home-20261014-prefetch01-v12/run-36f0c06d-c0b2-4fd0-aa1e-52eff1e6e20e/home-today-dark-9db8a309-desktop-requests.json",
+          "sha256": "15611dce4be09bab94255cfde43aa15a1380223800c5e5c01357040908f6282c",
+          "complete": true,
+          "accepted": true,
+          "googleAttempts": 0,
+          "googleResponses": 0,
+          "DNT": "1",
+          "GPC": true
+        },
+        {
+          "key": "home-today-dark-9db8a309",
+          "viewport": "mobile",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app9db8a309-home-20261014-prefetch01-v12/run-36f0c06d-c0b2-4fd0-aa1e-52eff1e6e20e/home-today-dark-9db8a309-mobile-requests.json",
+          "sha256": "b36867901a641403ce60ea7713bd546a3867223c43b49cd5e781cb51f2dcb657",
+          "complete": true,
+          "accepted": true,
+          "googleAttempts": 0,
+          "googleResponses": 0,
+          "DNT": "1",
+          "GPC": true
+        },
+        {
+          "key": "home-week-light-9db8a309",
+          "viewport": "desktop",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app9db8a309-home-20261014-prefetch01-v12/run-36f0c06d-c0b2-4fd0-aa1e-52eff1e6e20e/home-week-light-9db8a309-desktop-requests.json",
+          "sha256": "e8a62afcfcd8388993d535104194ab43a7338ec462bb2610c239e66d3d6dc96b",
+          "complete": true,
+          "accepted": true,
+          "googleAttempts": 0,
+          "googleResponses": 0,
+          "DNT": "1",
+          "GPC": true
+        },
+        {
+          "key": "home-week-light-9db8a309",
+          "viewport": "mobile",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app9db8a309-home-20261014-prefetch01-v12/run-36f0c06d-c0b2-4fd0-aa1e-52eff1e6e20e/home-week-light-9db8a309-mobile-requests.json",
+          "sha256": "2d4e35da58c309205e9ac4a7dbd7a0ee29690b92f4f87765a1b2ab990bb343dd",
+          "complete": true,
+          "accepted": true,
+          "googleAttempts": 0,
+          "googleResponses": 0,
+          "DNT": "1",
+          "GPC": true
+        },
+        {
+          "key": "home-week-dark-9db8a309",
+          "viewport": "desktop",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app9db8a309-home-20261014-prefetch01-v12/run-36f0c06d-c0b2-4fd0-aa1e-52eff1e6e20e/home-week-dark-9db8a309-desktop-requests.json",
+          "sha256": "09b06770f64203b30c8e9ad2c41ffed06a875bb679bfb813360af811199bc66c",
+          "complete": true,
+          "accepted": true,
+          "googleAttempts": 0,
+          "googleResponses": 0,
+          "DNT": "1",
+          "GPC": true
+        },
+        {
+          "key": "home-week-dark-9db8a309",
+          "viewport": "mobile",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app9db8a309-home-20261014-prefetch01-v12/run-36f0c06d-c0b2-4fd0-aa1e-52eff1e6e20e/home-week-dark-9db8a309-mobile-requests.json",
+          "sha256": "e34a893f1005961643e4492314614c02f29fdc8aca3acde742342fd24e6a2f09",
+          "complete": true,
+          "accepted": true,
+          "googleAttempts": 0,
+          "googleResponses": 0,
+          "DNT": "1",
+          "GPC": true
+        }
+      ],
+      "actualContainerVerification": "/tmp/babysit/mint-queue/youtube-candidate-d2e7e7bb-prefetch01-verified.json",
+      "candidateApproval": false,
+      "routeComplete": false,
+      "independentVisualReview": "inprogress",
+      "captureExceptions": []
+    },
+    "runtimePrivacyCanary": {
+      "path": "/tmp/babysit/mint-queue/youtube-prefetch01-runtime-cache-canary.json",
+      "sha256": "27e25c6c9e2b1f3e5a1bbf02566392b865f2820c2dd08df7643f90ea81a02ae9",
+      "passed": true
+    }
   }
 }
