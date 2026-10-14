@@ -769,3 +769,31 @@ Babysit approved exact request b795ad5d. Owner d7967e77 deployed the SAME review
 Predeploy fresh passed (SM medians tag0.387/blog4.958/YT0.239seconds); postdeploy passed(tag0.344/blog3.562/YT0.207). Anonymous DNT1/Sec-GPC1 GET /, /keywords, /mayor all200, no Set-Cookie, CSP present. HTTP checks do not prove browser Google behavior. Public homepage was CF HIT, keywords/mayor DYNAMIC; runtime identity is independently verified in containers, not inferred from cached HTML. Both rollback images4f5e2a3a and5b7d9171 retained, no release/backup/worktree cleanup. Persistent rollback command `/usr/bin/python3 /tmp/babysit/mint-queue/youtube-deploy-b4afbd8f-v2.py --execute --rollback`; immediate service rollback available.
 
 Deployment receipt `/tmp/babysit/mint-queue/youtube-b4afbd8f-production-deployment-result.json` SHA256 `abd16ea78d142a34829040ee4ace954db0e0a635dd0a11c5e0eaa36f3ba45bbb`. Formal babysit opt-out browser acceptance pending: noise exclusions Yahoo/合作媒體, complete mobile terms, homepage, mayor, observed GA0. Whole routes/auth/interactions/loading/error/backend counts remain pending; no full-route pass. Existing earlier candidate failures/reviews/images preserved.
+
+
+### Production scoped acceptance and primary ranked-pool correction — OPEN
+
+Babysit UTC2026-10-14T11:56 accepted current b4afbd8f / BUILD_ID
+`jdR1KzOv-6QylI10uKIQV`: whole mobile keyword labels, Yahoo/合作媒體 exclusion,
+HTTP200 and opt-out GA0. This is user-message evidence; no new screenshot
+receipt is invented. Generic-word ranking remains OPEN; /mayor actual browser
+acceptance and full route/state acceptance remain pending.
+
+Offline APPd4deebb has independently reviewed source-only fallback exclusions
+and measured-view lower-bound formatting (299web+17API+10jobs owner tests;
+API/web noEmit passed). Its manual-list-only build draft is WITHDRAWN, never
+executed; original artifacts and review receipts remain retained. Latest user
+direction requires tag's filtered ranking pool as the primary eligibility
+source; country/city/party and source/platform exclusions remain additional
+filters, the24-word supplement remains a fallback.
+
+Tag source confirms ranking is rolling24h, ignores days=7, and stores at most500
+candidates before public qualification. Formal saved samples:500all/446early;
+投資 remains rank75, reported count31/16media. Count is not a contractual
+distinct-article guarantee. Four offline receipt consistency checks passed.
+See `platform/docs/youtube-tag-ranked-pool-audit-2026-10-14.json` (SHA256
+`d99684ba71e6d508e799361ec737e25fe3d981e9016158050896b54e17ba0b51`)
+and `platform/docs/youtube-tag-ranked-pool-request-2026-10-14.md` for the
+windowed/paginated upstream contract request and candidate top40 comparison
+requirements. Today/week exact-window pools, contract integration, new source
+review/build/capture/deploy remain pending. No old-SHA approval transfers.

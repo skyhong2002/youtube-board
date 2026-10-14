@@ -38867,7 +38867,7 @@
       "sha256": "abd16ea78d142a34829040ee4ace954db0e0a635dd0a11c5e0eaa36f3ba45bbb",
       "recordedAt": "2026-10-14T11:55:29.781279+00:00",
       "owner": "d7967e77",
-      "status": "deployed-technical-checks-pass; babysit-production-browser-acceptance-pending",
+      "status": "deployed; babysit scoped acceptance passed; generic finding open",
       "appSha": "d019ae69e922ba8530b7af8c98ae5e200138942a",
       "opsRecipeSha": "51dc9de1a20e73c428d4e9588fa8d5243643c742",
       "imageId": "sha256:b4afbd8f7a1c43c3c3445e4996f16841a242ed2b802b30fbffa68a5ea7d43d4d",
@@ -38961,13 +38961,28 @@
       "routeComplete": false,
       "wholeRouteApproval": false,
       "pendingFormalAcceptance": [
-        "/keywords noise exclusions including Yahoo/合作媒體",
-        "390px full keyword names",
-        "homepage",
-        "/mayor",
-        "opt-out observed Google requests0"
+        "generic-word ranking eligibility pool",
+        "/mayor actual browser acceptance",
+        "remaining route/state acceptance"
       ],
-      "limitations": "Postdeploy HTTP checks do not prove browser GA behavior or hidden/account state correctness. Candidate static and technical review only; remaining routes/states pending."
+      "limitations": "Postdeploy HTTP checks do not prove browser GA behavior or hidden/account state correctness. Candidate static and technical review only; remaining routes/states pending.",
+      "scopedBabysitAcceptance": {
+        "at": "2026-10-14T11:56:00Z",
+        "source": "babysit user-message formal acceptance; no independent screenshot receipt supplied in this message",
+        "buildId": "jdR1KzOv-6QylI10uKIQV",
+        "scopePassed": [
+          "390px whole keyword labels",
+          "Yahoo and 合作媒體 removed",
+          "anonymous pages HTTP200",
+          "opt-out observed Google requests0"
+        ],
+        "remaining": [
+          "generic-word ranking pool finding OPEN",
+          "/mayor browser acceptance pending",
+          "remaining routes/states pending"
+        ],
+        "wholeRouteApproval": false
+      }
     }
   },
   "currentProductionRuntime20261014": {
@@ -39009,6 +39024,66 @@
       }
     },
     "recordedAt": "2026-10-14T11:55:29.781279+00:00",
-    "productionVisualAcceptance": "pending babysit; old productionReviewSHA evidence not promoted"
+    "productionVisualAcceptance": "babysit scoped acceptance passed; generic finding open; mayor and full-route acceptance pending",
+    "scopedBabysitAcceptance": {
+      "at": "2026-10-14T11:56:00Z",
+      "source": "babysit user-message formal acceptance; no independent screenshot receipt supplied in this message",
+      "buildId": "jdR1KzOv-6QylI10uKIQV",
+      "scopePassed": [
+        "390px whole keyword labels",
+        "Yahoo and 合作媒體 removed",
+        "anonymous pages HTTP200",
+        "opt-out observed Google requests0"
+      ],
+      "remaining": [
+        "generic-word ranking pool finding OPEN",
+        "/mayor browser acceptance pending",
+        "remaining routes/states pending"
+      ],
+      "wholeRouteApproval": false
+    }
+  },
+  "keywordRankedPoolSuccessor20261014": {
+    "status": "OPEN; upstream filtered windowed pool required; offline contract prepared",
+    "productionChanged": false,
+    "manualFallbackAppSha": "d4deebbba4d5a8e35ecc51b2a06ede61eba6521b",
+    "sourceReview": {
+      "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/topic-policy-d4deebbb-independent-source-review-20261014T120758Z.json",
+      "sha256": "d10d564d6ed4050f72ed62e5977628a21b802398ef8696b76cda6ad735ede93e",
+      "decision": "PASS_SOURCE_ONLY"
+    },
+    "ownerValidation": {
+      "webTests": 299,
+      "focusedApiTests": 17,
+      "matchingJobsTests": 10,
+      "apiAndWebNoEmit": "passed; reported earlier in this session, not rerun here"
+    },
+    "withdrawnBuild": {
+      "path": "/tmp/babysit/mint-queue/youtube-simple-native-d4deebbb-request-draft.json",
+      "sha256": "78c6a7d24150115eb8cb7172a5f521328353b56593ae0e41db082ab92c6988af",
+      "executionAllowed": false,
+      "reason": "latest primary-pool direction supersedes manual-list-only deployment; preserve all artifacts"
+    },
+    "upstreamAudit": {
+      "path": "/home/deck/Projects/youtube-board-f2/platform/docs/youtube-tag-ranked-pool-audit-2026-10-14.json",
+      "sha256": "d99684ba71e6d508e799361ec737e25fe3d981e9016158050896b54e17ba0b51",
+      "checksPassed": 4,
+      "rollingWindowHours": 24,
+      "days7Supported": false,
+      "sampleStoredCandidates": 500,
+      "sampleEarlyEligible": 446,
+      "sampleBroadEligible": 378,
+      "genericRemnant": "投資: reportedCount31,mediaCount16,rank75; passes early"
+    },
+    "upstreamRequest": {
+      "path": "/home/deck/Projects/youtube-board-f2/platform/docs/youtube-tag-ranked-pool-request-2026-10-14.md",
+      "sha256": "466eae161034641f5c7c98be68eae6b25b94eca384dce63b83a9fef9e41fd0b2",
+      "status": "proposed contract; tag coordination required"
+    },
+    "proposedInitialGate": "reuse tag early: >=2 outlets each >=2 DISTINCT articles; today/week formal validation pending",
+    "candidateTop40Today": "pending same-window upstream contract and candidate",
+    "candidateTop40Week": "pending same-window upstream contract and candidate",
+    "candidateApproval": false,
+    "fullRouteApproval": false
   }
 }

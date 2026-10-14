@@ -1,0 +1,393 @@
+{
+  "status": "upstream-windowed-pool-required; no build approval",
+  "tagSourceSha": "61fd537c0f8bc91c687ea2fe875cf0bd79215a77",
+  "sources": [
+    {
+      "path": "/tmp/babysit/mint-queue/youtube-tag-ranked-pool-all-20261014T120958Z.json",
+      "sha256": "1c90aa8d1f26e0758acfe688afbd46ac9c964a8a9d99e9ef012ed24b044fc9a1",
+      "sourceURL": "https://tag.observe.tw/api/v1/ranking?category=news&order=score&gate=all&limit=500",
+      "startedAt": "2026-10-14T12:09:57.942834+00:00",
+      "finishedAt": "2026-10-14T12:09:58.663410+00:00"
+    },
+    {
+      "path": "/tmp/babysit/mint-queue/youtube-tag-ranked-pool-early-20261014T120959Z.json",
+      "sha256": "dca652ab0e19defef742ab085726671bf4199ef8638d57738b6dc9323dd936c1",
+      "sourceURL": "https://tag.observe.tw/api/v1/ranking?category=news&order=score&gate=early&limit=500",
+      "startedAt": "2026-10-14T12:09:58.681511+00:00",
+      "finishedAt": "2026-10-14T12:09:59.712874+00:00"
+    }
+  ],
+  "snapshot": {
+    "id": 18063,
+    "category": "news",
+    "hourStart": "2026-10-14T12:00:00.000Z",
+    "computedAt": "2026-10-14T12:00:18.000Z",
+    "weight": 43,
+    "basis": {
+      "id": "fixed-media-v2:news:f6ebb3f64d1b",
+      "media": [
+        "bbc",
+        "bccnews",
+        "chinatimes",
+        "civilmedia",
+        "cmmedia",
+        "cna",
+        "cnews",
+        "ctee",
+        "ctitv",
+        "cts",
+        "ctv",
+        "ctwant",
+        "ebc",
+        "epochtimes",
+        "ettoday",
+        "ftnn",
+        "ftv",
+        "lihpao",
+        "ltn",
+        "mirror",
+        "newtalk",
+        "nextapple",
+        "nikkei",
+        "nownews",
+        "people",
+        "peopo",
+        "pts",
+        "reporter",
+        "rfi",
+        "rti",
+        "setn",
+        "storm",
+        "taipeitimes",
+        "taisounds",
+        "taro",
+        "theinitium",
+        "tnl",
+        "ttv",
+        "tvbs",
+        "udn",
+        "upmedia",
+        "ustv",
+        "yahoo"
+      ],
+      "coverageFrom": "2026-09-29T17:00:00.000Z",
+      "validFrom": "2026-09-30T17:00:00.000Z"
+    },
+    "available": true,
+    "articleCount": 8519,
+    "mediaCount": 41,
+    "historyAvailable": [
+      3,
+      6,
+      12,
+      24,
+      48
+    ]
+  },
+  "actualWindow": "rolling24h; days query unsupported",
+  "countSemantics": "API count and media values are reported tag occurrences; source does not deduplicate tags within an article. Distinct article guarantee needed in new endpoint.",
+  "samplingLimit": "All is already capped at500 before public gate; matchedCount is not full corpus count. Cannot validate whole pool or seven-day thresholds.",
+  "observedThresholds": [
+    {
+      "name": "tag-early",
+      "rule": ">=2 outlets each >=2 reported occurrences",
+      "eligibleFromStored500": 446
+    },
+    {
+      "name": "tag-broad",
+      "rule": ">=3 outlets, >=2 outlets each >=2, >=1 outlet >=3",
+      "eligibleFromStored500": 378
+    },
+    {
+      "name": "candidate-N4-M2",
+      "minimumReportedCount": 4,
+      "minimumMediaCount": 2,
+      "eligibleFromStored500": 500
+    },
+    {
+      "name": "candidate-N6-M3",
+      "minimumReportedCount": 6,
+      "minimumMediaCount": 3,
+      "eligibleFromStored500": 500
+    },
+    {
+      "name": "candidate-N10-M3",
+      "minimumReportedCount": 10,
+      "minimumMediaCount": 3,
+      "eligibleFromStored500": 484
+    },
+    {
+      "name": "candidate-N10-M5",
+      "minimumReportedCount": 10,
+      "minimumMediaCount": 5,
+      "eligibleFromStored500": 484
+    },
+    {
+      "name": "candidate-N20-M5",
+      "minimumReportedCount": 20,
+      "minimumMediaCount": 5,
+      "eligibleFromStored500": 203
+    }
+  ],
+  "auditedGenericRemnants": [
+    {
+      "tag": "投資",
+      "rank": 75,
+      "reportedCount": 31,
+      "mediaCount": 16
+    }
+  ],
+  "tagEarlyTop40": [
+    {
+      "rank": 1,
+      "tag": "沈伯洋",
+      "reportedCount": 790,
+      "mediaCount": 28
+    },
+    {
+      "rank": 2,
+      "tag": "AI",
+      "reportedCount": 186,
+      "mediaCount": 29
+    },
+    {
+      "rank": 3,
+      "tag": "蔣萬安",
+      "reportedCount": 467,
+      "mediaCount": 25
+    },
+    {
+      "rank": 4,
+      "tag": "川普",
+      "reportedCount": 219,
+      "mediaCount": 26
+    },
+    {
+      "rank": 5,
+      "tag": "民進黨",
+      "reportedCount": 242,
+      "mediaCount": 25
+    },
+    {
+      "rank": 6,
+      "tag": "國民黨",
+      "reportedCount": 199,
+      "mediaCount": 23
+    },
+    {
+      "rank": 7,
+      "tag": "賈永婕",
+      "reportedCount": 147,
+      "mediaCount": 24
+    },
+    {
+      "rank": 8,
+      "tag": "趙少康",
+      "reportedCount": 147,
+      "mediaCount": 25
+    },
+    {
+      "rank": 9,
+      "tag": "賴清德",
+      "reportedCount": 133,
+      "mediaCount": 25
+    },
+    {
+      "rank": 10,
+      "tag": "賴惠員",
+      "reportedCount": 112,
+      "mediaCount": 24
+    },
+    {
+      "rank": 11,
+      "tag": "中國",
+      "reportedCount": 171,
+      "mediaCount": 23
+    },
+    {
+      "rank": 12,
+      "tag": "台股",
+      "reportedCount": 217,
+      "mediaCount": 22
+    },
+    {
+      "rank": 13,
+      "tag": "蘇巧慧",
+      "reportedCount": 135,
+      "mediaCount": 22
+    },
+    {
+      "rank": 14,
+      "tag": "美國",
+      "reportedCount": 171,
+      "mediaCount": 21
+    },
+    {
+      "rank": 15,
+      "tag": "日本",
+      "reportedCount": 111,
+      "mediaCount": 23
+    },
+    {
+      "rank": 16,
+      "tag": "台積電",
+      "reportedCount": 139,
+      "mediaCount": 22
+    },
+    {
+      "rank": 17,
+      "tag": "台灣",
+      "reportedCount": 156,
+      "mediaCount": 21
+    },
+    {
+      "rank": 18,
+      "tag": "松山機場",
+      "reportedCount": 111,
+      "mediaCount": 21
+    },
+    {
+      "rank": 19,
+      "tag": "立法院",
+      "reportedCount": 151,
+      "mediaCount": 20
+    },
+    {
+      "rank": 20,
+      "tag": "台北市長",
+      "reportedCount": 106,
+      "mediaCount": 21
+    },
+    {
+      "rank": 21,
+      "tag": "李四川",
+      "reportedCount": 103,
+      "mediaCount": 21
+    },
+    {
+      "rank": 22,
+      "tag": "國台辦",
+      "reportedCount": 97,
+      "mediaCount": 20
+    },
+    {
+      "rank": 23,
+      "tag": "俄羅斯",
+      "reportedCount": 104,
+      "mediaCount": 20
+    },
+    {
+      "rank": 24,
+      "tag": "徐巧芯",
+      "reportedCount": 86,
+      "mediaCount": 18
+    },
+    {
+      "rank": 25,
+      "tag": "新北市",
+      "reportedCount": 84,
+      "mediaCount": 18
+    },
+    {
+      "rank": 26,
+      "tag": "高雄",
+      "reportedCount": 64,
+      "mediaCount": 20
+    },
+    {
+      "rank": 27,
+      "tag": "洋流",
+      "reportedCount": 129,
+      "mediaCount": 17
+    },
+    {
+      "rank": 28,
+      "tag": "桃園",
+      "reportedCount": 68,
+      "mediaCount": 19
+    },
+    {
+      "rank": 29,
+      "tag": "民眾黨",
+      "reportedCount": 53,
+      "mediaCount": 19
+    },
+    {
+      "rank": 30,
+      "tag": "新北",
+      "reportedCount": 63,
+      "mediaCount": 20
+    },
+    {
+      "rank": 31,
+      "tag": "黃珊珊",
+      "reportedCount": 51,
+      "mediaCount": 18
+    },
+    {
+      "rank": 32,
+      "tag": "車禍",
+      "reportedCount": 70,
+      "mediaCount": 18
+    },
+    {
+      "rank": 33,
+      "tag": "台中",
+      "reportedCount": 83,
+      "mediaCount": 18
+    },
+    {
+      "rank": 34,
+      "tag": "美股",
+      "reportedCount": 67,
+      "mediaCount": 18
+    },
+    {
+      "rank": 35,
+      "tag": "天然氣",
+      "reportedCount": 56,
+      "mediaCount": 19
+    },
+    {
+      "rank": 36,
+      "tag": "顧立雄",
+      "reportedCount": 53,
+      "mediaCount": 18
+    },
+    {
+      "rank": 37,
+      "tag": "肺腺癌",
+      "reportedCount": 39,
+      "mediaCount": 23
+    },
+    {
+      "rank": 38,
+      "tag": "烏克蘭",
+      "reportedCount": 79,
+      "mediaCount": 17
+    },
+    {
+      "rank": 39,
+      "tag": "大谷翔平",
+      "reportedCount": 68,
+      "mediaCount": 17
+    },
+    {
+      "rank": 40,
+      "tag": "阿拉斯加",
+      "reportedCount": 48,
+      "mediaCount": 20
+    }
+  ],
+  "candidateComparison": {
+    "today": "pending same-window upstream pool and new candidate",
+    "week": "pending same-window upstream pool and new candidate",
+    "noSubstitution": "24h snapshot is not today or week evidence"
+  },
+  "offlineChecks": {
+    "sameSnapshot": true,
+    "counts500And446": true,
+    "earlyPredicateMatchesSavedEndpoint": true,
+    "auditedRemnantExact": true
+  }
+}
