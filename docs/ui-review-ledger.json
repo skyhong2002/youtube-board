@@ -37324,6 +37324,29 @@
       "candidateLimitationProven": false
     },
     "cleanupReceipt": "/tmp/babysit/mint-queue/youtube-candidate-15c7af2d-cleanup.json",
-    "diagnosticRequest": "/tmp/babysit/mint-queue/youtube-candidate-15c7af2d-diagnostic-request.json"
+    "diagnosticRequest": "/tmp/babysit/mint-queue/youtube-candidate-15c7af2d-diagnostic-request.json",
+    "diagnosticAttempt1": {
+      "receipt": "/tmp/babysit/mint-queue/youtube-candidate-15c7af2d-diagnostic-result.json",
+      "sha256": "6e98ba2cf7f49ede592659080a6894d2eced422fb3a53cd986110771ac7a89db",
+      "starterReview": "2b99b04580de5d83a2fa4cd003037778ed0efbabf924f22157628658f50d2d9f",
+      "result": "12 readiness GETs returned503; AI HTML/RSC not reached; actual AI503 cause remains unproven",
+      "logs": {
+        "exitCode": 0,
+        "tailLimit": 1000,
+        "rawBytesInspected": 806,
+        "fixedErrorSignatures": {},
+        "errorLineCount": 1,
+        "nextErrorDigests": [],
+        "rawTextSaved": false,
+        "unmatchedErrorsRemainUnclassified": true
+      },
+      "cleanup": {
+        "stopExitCode": 0,
+        "containerAbsent": true,
+        "port18168Closed": true,
+        "productionWebHealthy": true,
+        "productionImageUnchanged": true
+      }
+    }
   }
 }
