@@ -37387,7 +37387,7 @@
       "Submit exact same-image deployment and rollback4f5e2a3a with Dokploy compose synchronization"
     ],
     "recapture01": {
-      "status": "home capture in progress; no visual acceptance",
+      "status": "failed mobile numeric-daily-ID RSC503 after verified runtimeReady200; allviewportpackages pending",
       "exactCommands": "/tmp/babysit/mint-queue/youtube-candidate-15c7af2d-recapture01-commands.json",
       "starterReviewSha256": "1ea055ac436cf077fe2c8ea92fe8bad8f318dde0c04be42ffb07eb8a9242588a",
       "helpersReviewSha256": "3e17bf60b0582a5d17bf5b59e2e2ee6048ba6afce161ea4f80e03ce89baeacdb",
@@ -37402,7 +37402,38 @@
       "plannedViewportPackages": 16,
       "uiAccepted": false,
       "candidateApproval": false,
-      "exceptions": []
+      "exceptions": [],
+      "completedViewportPackages": 0,
+      "candidateCurrentlyRunning": false,
+      "cleanupReceipt": "/tmp/babysit/mint-queue/youtube-recapture01-cleanup.json",
+      "runtimeErrorSignatures": "/tmp/babysit/mint-queue/youtube-recapture01-runtime-error-signatures.json",
+      "originalAi503Cause": "unproven; reproduced despite fullready; earlier date-route diagnostics did not test numeric daily-ID route",
+      "nextAction": "target actual homepage numeric daily-ID event links; do not substitute date-route200 or ignore503",
+      "captureEvidence": [
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app073-home-20261014-recapture01-v12/run-440e2717-b1f6-4e3f-9754-5b00df6f9afb/home-today-light-073985b8-desktop-requests.json",
+          "sha256": "39a19558d1459ebae58646a282a2b83769cabc6070d1286300b2aa04a82a1d4e"
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app073-home-20261014-recapture01-v12/run-440e2717-b1f6-4e3f-9754-5b00df6f9afb/home-today-light-073985b8-mobile-requests.json",
+          "sha256": "8c0e1470294b0723f0984123553cd768cc6a642f3ee6987dd6f9f27b6afea0f5"
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app073-home-20261014-recapture01-v12/run-440e2717-b1f6-4e3f-9754-5b00df6f9afb/home-today-light-073985b8-desktop-failure-diagnostics.json",
+          "sha256": "0d0ccd32693f56b9c32d2707295054abeab10f528b48719ca05b5da2075dfa2c"
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app073-home-20261014-recapture01-v12/run-440e2717-b1f6-4e3f-9754-5b00df6f9afb/home-today-light-073985b8-mobile-failure-diagnostics.json",
+          "sha256": "61f66d99dd9cc413a93a9afdc2c98eeb563c2504f419ef747a9f49db58e83693"
+        }
+      ],
+      "retainedArtifacts": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app073-home-20261014-recapture01-v12/run-440e2717-b1f6-4e3f-9754-5b00df6f9afb",
+      "googleRequests": 0,
+      "networkAcceptance": {
+        "desktop": true,
+        "mobile": false
+      },
+      "sourceFinding": "httpDiagnostic appends detailedAI fields only for isNumericAiEventsPath: /ai/days/[1-9][0-9]*/events; actual503 was numeric dailyID, not either previouslydiagnosed YYYY-MM-DD path."
     }
   }
 }
