@@ -39587,7 +39587,7 @@
   },
   "qualifiedWindowPoolSuccessor20261015": {
     "appSha": "19cd358ee19a3bd053b3acc28591155108222f7c",
-    "status": "building-not-deployed",
+    "status": "built-native-smoke-and-candidate-technical-pass-visual-review-pending",
     "productionChanged": false,
     "shortWindow": "rolling24h; visible label 過去24小時; actual bounds; ten-minute shared cutoff",
     "weekWindow": "seven Taipei calendar dates",
@@ -39634,9 +39634,50 @@
       "deploymentAllowed": false,
       "reason": "real SQL performance blocker; image retained, own candidate/tunnel removed"
     },
-    "candidateVisualStatus": "pending",
+    "candidateVisualStatus": "16views captured; actual independent review pending",
     "deploymentStatus": "pending",
     "rollbackTarget": "sha256:1e2513480d7d4a6713b135cf9547330300602324b66a2c830fc51ed5e3924140",
-    "buildPreparation": "/tmp/babysit/mint-queue/youtube-ranked-pools-19cd358-preparation.json"
+    "buildPreparation": "/tmp/babysit/mint-queue/youtube-ranked-pools-19cd358-preparation.json",
+    "image": "sha256:174e63540006c87637a067eceff142e0885f799bd26c96635bdc0959b460c23e",
+    "buildId": "x0_uh7qbrNZGSsGg38HMH",
+    "captureManifest": "/home/deck/.cache/youtube-ui-review/ranked-pools-19cd358-20261014T172753Z/captures.json",
+    "captureManifestSha256": "4857d019da6b059a049dee6e7c92fa369fe8d864ce49b45f261d98cbefb3bf2c",
+    "nativeSmoke": {
+      "node": "v24.21.0",
+      "abi": "137",
+      "arch": "arm64",
+      "glibc": "2.36",
+      "sharp": "0.35.5",
+      "webpBytes": 44,
+      "passed": true
+    },
+    "actualCandidate": {
+      "shortMatchedTerms": 9,
+      "weekMatchedTerms": 40,
+      "shortQualifiedTagTerms": 831,
+      "weekQualifiedTagTerms": 4214,
+      "privacyChecksPassed": 8,
+      "vocabularyReasonsVerified": [
+        "TVBS",
+        "聯合",
+        "三立",
+        "桃園",
+        "台南",
+        "報導"
+      ],
+      "networkReceipts": 16,
+      "googleRequests": 0,
+      "pngHashesChecked": 102
+    },
+    "buildSlotReturned": true,
+    "gateIncident": {
+      "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-19cd358-build-monitor02.json",
+      "reason": "blog500; build already completed when receipt returned; no next operation until fresh passed"
+    },
+    "interruptedCapture": {
+      "path": "/home/deck/.cache/youtube-ui-review/ranked-pools-19cd358-20261014T172407Z",
+      "acceptedForReview": false,
+      "reason": "owner shell failed to stop after memory assertion; own capture immediately interrupted; preserve partial evidence"
+    }
   }
 }
