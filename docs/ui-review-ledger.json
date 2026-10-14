@@ -39193,6 +39193,28 @@
       "viewportPackages": 8,
       "startEndHealth": "pass",
       "visualReview": "pending"
+    },
+    "actualCaptureBatches": [
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app78df4fd-profiles-20261014-f1-v2/run-3d53adc4-306b-465e-8ef9-a6c193f3da30/captures.json",
+        "sha256": "d9eb802083e53fb207d25211cc8b5c83799545c02c184d6881d98b75a3257b68",
+        "viewports": 12
+      },
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app78df4fd-home-20261014-f1-v2/run-b36f9a26-3952-45bf-8a97-0ab512bec93f/captures.json",
+        "sha256": "e48d49d70487e71795bfd2be4cd227c59b5abda796885318758f4a93b5d15770",
+        "viewports": 8
+      },
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app78df4fd-keywords-20261014-f1/run-796d47b2-8949-49dd-8108-68fd983ddbfc/captures.json",
+        "sha256": "6d65d88a2b4a41d55ee5c859ed5b522115099b3878670b1e4de43a0e8fe79004",
+        "viewports": 8
+      }
+    ],
+    "candidateCleanup": {
+      "ownContainerRemoved": true,
+      "remote18168Closed": true,
+      "ownedTunnelRemoved": true
     }
   }
 }
