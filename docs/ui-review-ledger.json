@@ -39153,6 +39153,20 @@
       "sha256": "4d49103110d72490bb9f8c610545b00c0277ba4377ad5a0f600db7bc8bc6d10e",
       "smoke": "pass",
       "buildSlotReturned": true
+    },
+    "candidateTechnical": {
+      "readiness": "200",
+      "privacyChecksPassed": 12,
+      "path": "/tmp/babysit/mint-queue/youtube-f1-78df4fd-candidate-privacy.json",
+      "firstCapture": "owner plan URL 404; retained; not accepted",
+      "retakeHealth": "denied blog500; fresh recheck required"
+    },
+    "deploymentPreparation": {
+      "dryRun": "pass",
+      "command": "/usr/bin/python3 /tmp/babysit/mint-queue/youtube-f1-78df4fd-deploy.py --execute",
+      "rollback": "/usr/bin/python3 /tmp/babysit/mint-queue/youtube-f1-78df4fd-deploy.py --execute --rollback",
+      "previousImage": "b4afbd8f",
+      "status": "pending actual visual review and fresh health"
     }
   }
 }
