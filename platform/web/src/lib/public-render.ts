@@ -53,6 +53,9 @@ export function publicRenderDecision(url: URL, method = "GET"): RenderDecision {
         // forms are rejected by request-status rather than allowed into ISR.
         return render(pathname.startsWith("/ai/") ? "filtered" : null, null);
     const segments = decodeReportSegments(pathname.slice(1).split("/"));
+    // The keyword profile embeds per-request private,no-store tag metadata. Keep the
+    // whole HTML/RSC render dynamic even on canonical query-free URLs.
+    if (segments && resolveRoute(segments)?.kind === 'keyword-videos') return render('filtered', null);
     if (segments && resolveRoute(segments))
         return filtered ? render("filtered", null) : render(null, "report");
     return render(null, null);

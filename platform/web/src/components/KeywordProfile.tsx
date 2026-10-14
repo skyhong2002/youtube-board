@@ -11,6 +11,7 @@ import FollowButton from './reader/FollowButton';
 import LinkPending from './LinkPending';
 import KeywordRelations from './KeywordRelations';
 import KeywordIllustration from './KeywordIllustration';
+import type {KeywordMetadata} from '@/lib/keyword-metadata';
 
 /** Layout from tag.observe.tw tag/[tag] and ArticleResults at afe0a653.
  * Keep API ranking and scope; a page of videos cannot establish global facets. */
@@ -18,9 +19,9 @@ import KeywordIllustration from './KeywordIllustration';
 export const MATCH_CAVEAT='標題或說明出現標籤，不代表影片主題；可能來自固定宣傳或版權文字。';
 type Period={from:string|null;to:string|null;days:string|null};
 const periodLabel=(p:Period|undefined)=>p?.from||p?.to?`發布日期 ${p.from??'不限'} 至 ${p.to??'不限'}（台北時間）`:p?.days&&/^\d+$/.test(p.days)?`往前 ${p.days} 日發布（含今天共 ${Number(p.days)+1} 個台北日曆日）`:p?.days?`往前 ${p.days} 日發布`:'全部已收錄期間';
-export function KeywordProfile({keyword,description,data,meta,notice,tabs,filters,pagination,period}:{
+export function KeywordProfile({keyword,description,data,meta,notice,tabs,filters,pagination,period,metadata}:{
  keyword:string;description:string;data:VideoCollection;meta:ReportMeta;
- notice:ReactNode;tabs:ReactNode;filters:ReactNode;pagination:ReactNode;period?:Period;
+ notice:ReactNode;tabs:ReactNode;filters:ReactNode;pagination:ReactNode;period?:Period;metadata?:KeywordMetadata;
 }){
  return <div className="space-y-6">
   <header className="flex flex-wrap items-baseline justify-between gap-3">
@@ -31,7 +32,10 @@ export function KeywordProfile({keyword,description,data,meta,notice,tabs,filter
    </div>
    <div className="flex gap-4 text-sm"><Link href="/keywords" className="inline-flex items-center gap-1 text-brand-700 hover:underline dark:text-brand-400">熱門標籤排行 →<LinkPending/></Link><a href="#method" className="text-brand-700 hover:underline dark:text-brand-400">怎麼算 ⓘ</a></div>
   </header>
-  <KeywordIllustration keyword={keyword}/>
+  <section className="grid min-w-0 items-start gap-4 sm:grid-cols-[10rem_minmax(0,1fr)]" aria-label="標籤圖片與關聯">
+   <KeywordIllustration key={keyword} keyword={keyword} initialView={metadata?.illustration}/>
+   <KeywordRelations key={keyword} keyword={keyword} initialView={metadata?.relations}/>
+  </section>
   {notice}
   {tabs}
   {/* One compact line, as tag.observe.tw's ranking subtitle; the long method text is in 「本頁資料來源與計算方式」. */}
@@ -40,7 +44,7 @@ export function KeywordProfile({keyword,description,data,meta,notice,tabs,filter
    <span>{periodLabel(period)}</span>
    <span>比對標題與說明・字幕尚未取得・未比對影片不列入</span>
   </p>
-  <section className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:grid-rows-[auto_1fr]" aria-label="共同標籤影片與比對範圍">
+  <section className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]" aria-label="共同標籤影片與比對範圍">
    <aside className="min-w-0 space-y-4 lg:order-2">
     <section className="space-y-3" aria-label="影片來源範圍">
      <h2 className="text-sm font-medium text-zinc-600 dark:text-zinc-400">收錄與比對範圍</h2>
@@ -51,17 +55,14 @@ export function KeywordProfile({keyword,description,data,meta,notice,tabs,filter
      <div className="min-w-0 px-1 [&_form]:my-0 [&_form]:rounded-none [&_form]:border-0 [&_form]:pt-1 [&_label]:w-full [&_input]:w-full [&_select]:w-full">{filters}</div>
     </details>
    </aside>
-   <div className="min-w-0 space-y-4 lg:row-span-2">
+   <div className="min-w-0 space-y-4">
     <h2 className="text-lg font-semibold tracking-tight">符合共同標籤的影片 <span className="text-sm font-normal text-zinc-500">{data.total===null?(data.totalStatus==='unavailable'?'總數暫時無法取得':'總數未計算'):`${count(data.total)} 部`}</span></h2>
     <p className="text-sm text-zinc-600 dark:text-zinc-400">{MATCH_CAVEAT}</p>
     {/* A page past the results is not "no matches": the counted total says otherwise. */}
     {!data.rows.length&&data.total!==null&&data.total>0?<p className="rounded-lg border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400" data-keyword-results="page-empty">這一頁沒有可呈現的影片，但目前條件共 {count(data.total)} 部符合；請改看其他頁碼。</p>:<KeywordVideoList rows={data.rows} total={data.total}/>}
     {pagination}
    </div>
-   {/* Optional Y2 relations: a client island read after hydration from the same-origin gateway.
-       Not part of this server render's data, ranking, counts or filters; on narrow screens it sits
-       after the videos, on wide screens under the coverage column. Keyed so a new keyword starts fresh. */}
-   <div className="min-w-0 lg:order-3"><KeywordRelations key={keyword} keyword={keyword}/></div>
+
   </section>
   <MethodDisclosure>
    <p>{TAG_SOURCE_ATTRIBUTION}。共同標籤「{keyword}」以文字比對影片標題與說明，不是 AI 判讀；命中不代表事件歸屬或立場，與頻道分類分開。字幕尚未取得，不列入比對。</p>

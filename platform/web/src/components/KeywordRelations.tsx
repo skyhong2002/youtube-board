@@ -3,11 +3,10 @@ import {useEffect,useState} from 'react';
 import {dateTime} from '@/lib/format';
 import {reportStyle as ui} from '@/lib/report-styles';
 import {INITIAL_RETRY_STATE,MAX_MANUAL_RETRIES,RELATION_TYPES,fetchKeywordRelations,isSupportedKeyword,recordFailure,retryDecision,waitText,
- type KeywordRelation,type RelationType,type RelationsView,type RetryState} from '@/lib/keyword-relations';
+ type KeywordRelation,type RelationType,type RelationsView,type RelationsResult,type RetryState} from '@/lib/keyword-relations';
 
-/** Optional Y2 relations panel for the keyword profile, a client enhancement after hydration.
- * The server-rendered videos, evidence, coverage, filters, pagination and methods never wait on
- * it and never change because of it. Visual vocabulary from tag.observe.tw MediaRelations
+/** Optional relations panel, initially read by the server; the browser retains manual retry
+ * and expansion. Videos, evidence, coverage, filters and pagination never change because of it. Visual vocabulary from tag.observe.tw MediaRelations
  * (compact neutral source panel, bounded preview, native expanders); no relation metrics. */
 
 export const RELATION_PREVIEW=5;
@@ -118,15 +117,17 @@ export function KeywordRelationsView({keyword,view,onRetry,retriesLeft=0,note=nu
  </section>;
 }
 
-/** Fetches after hydration only. One request per keyword plus bounded manual retries; aborts on
+/** Supplied server data avoids a duplicate hydration request. Otherwise one request per keyword
+ * plus bounded manual retries; aborts on
  * unmount/keyword change and ignores any response for a keyword that is no longer current. */
-export default function KeywordRelations({keyword}:{keyword:string}){
- const [state,setState]=useState<{keyword:string;view:RelationsView}>({keyword,view:{kind:'idle'}});
- const [retry,setRetry]=useState<{keyword:string;state:RetryState;attempt:number;note:string|null}>({keyword,state:INITIAL_RETRY_STATE,attempt:0,note:null});
+export default function KeywordRelations({keyword,initialView}:{keyword:string;initialView?:RelationsResult}){
+ const [state,setState]=useState<{keyword:string;view:RelationsView}>({keyword,view:initialView??{kind:'idle'}});
+ const [retry,setRetry]=useState<{keyword:string;state:RetryState;attempt:number;note:string|null}>({keyword,state:initialView?recordFailure(INITIAL_RETRY_STATE,initialView,Date.now()):INITIAL_RETRY_STATE,attempt:0,note:null});
  const [expanded,setExpanded]=useState<{keyword:string;types:Partial<Record<RelationType,boolean>>}>({keyword,types:{}});
  const current=retry.keyword===keyword?retry:{keyword,state:INITIAL_RETRY_STATE,attempt:0,note:null};
  const attempt=current.attempt;
  useEffect(()=>{
+  if(initialView&&attempt===0)return;
   if(!isSupportedKeyword(keyword)){setState({keyword,view:{kind:'unavailable',reason:'invalid-keyword',retryAfterSeconds:null,retryable:false}});return;}
   const controller=new AbortController();
   setState({keyword,view:{kind:'loading'}});
@@ -139,7 +140,7 @@ export default function KeywordRelations({keyword}:{keyword:string}){
     setState({keyword,view:result});
    });
   return()=>controller.abort();
- },[keyword,attempt]);
+ },[keyword,attempt,initialView]);
  const view:RelationsView=state.keyword===keyword?state.view:{kind:'idle'};
  const onRetry=()=>{
   const decision=retryDecision(current.state,view,Date.now());

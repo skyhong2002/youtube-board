@@ -10,7 +10,7 @@ const call=(path:string,init:{method?:string;headers?:Record<string,string>}={})
 const target=(response:Response)=>{const value=response.headers.get('x-middleware-request-'+INTERNAL_RENDER_HEADER);if(value!==null)assert.ok((response.headers.get('x-middleware-override-headers')??'').split(',').includes(INTERNAL_RENDER_HEADER));return value;};
 const spoofed={'x-nonce':'attacker-controlled','content-security-policy':"script-src 'nonce-attacker'",'content-security-policy-report-only':"script-src 'unsafe-inline'",[PUBLIC_RENDER_HEADER]:'report',[INTERNAL_RENDER_HEADER]:'filtered','x-forwarded-host':'evil.test'};
 test('HTML CSP is deterministic, nonce-free and never allows inline script; spoofed request headers are dropped',()=>{
- const a=call('/keywords/traffic/videos',{headers:spoofed}),b=call('/keywords/traffic/videos',{headers:spoofed});
+ const a=call('/videos',{headers:spoofed}),b=call('/videos',{headers:spoofed});
  const policy=a.headers.get('content-security-policy')!,report=a.headers.get('content-security-policy-report-only')!;
  assert.equal(policy,b.headers.get('content-security-policy'));assert.equal(report,b.headers.get('content-security-policy-report-only'));
  for(const value of [policy,report]){assert.doesNotMatch(value,/nonce-/);assert.doesNotMatch(value.match(/script-src[^;]*/)?.[0]??'',/unsafe-inline/);assert.match(value,/object-src 'none'/);assert.match(value,/frame-ancestors 'self'/);assert.match(value,/form-action 'self'/);assert.match(value,/base-uri 'self'/);}
@@ -32,10 +32,10 @@ test('image optimization does not inherit HTML CSP, eligibility or no-store poli
 // which then 404s the internal path. Selection goes through a request header instead.
 const neverRewrites=(response:Response,path:string)=>assert.equal(response.headers.get('x-middleware-rewrite'),null,path);
 test('canonical query-free public routes are marked eligible and keep Next ISR cache headers',()=>{
- for(const [path,route,internal] of [['/keywords/traffic/videos','report',null],['/videos','report',null],['/channels/12','report',null],['/live/current','report',null],['/','home','home'],['/events','events','events'],['/events/0d4c9e8a-1b2c-4d5e-8f90-123456789abc','event',null]] as const){
+ for(const [path,route,internal] of [['/videos','report',null],['/channels/12','report',null],['/live/current','report',null],['/','home','home'],['/events','events','events'],['/events/0d4c9e8a-1b2c-4d5e-8f90-123456789abc','event',null]] as const){
   const response=call(path);assert.equal(response.headers.get(PUBLIC_RENDER_HEADER),route,path);assert.equal(response.headers.get('cache-control'),null,path);assert.equal(target(response),internal,path);neverRewrites(response,path);
  }
- assert.equal(call('/keywords/traffic/videos',{method:'HEAD'}).headers.get(PUBLIC_RENDER_HEADER),'report');
+ assert.equal(call('/videos',{method:'HEAD'}).headers.get(PUBLIC_RENDER_HEADER),'report');
 });
 test('query variants select dynamic render targets, never eligible',()=>{
  const cases:[string,string|null][]=[
@@ -56,7 +56,7 @@ test('_rsc alone keeps the canonical route tree but is never shared-cache eligib
  // Real Next strips _rsc before the proxy runs; these cover the unnormalized case.
  const cases:[string,string|null][]=[
   ['/channels?_rsc=abc',null],
-  ['/keywords/%E4%BA%A4/videos?_rsc=abc',null],
+  ['/keywords/%E4%BA%A4/videos?_rsc=abc','filtered'],
   ['/?_rsc=abc','home'],
   ['/events?_rsc=abc','events'],
   ['/events/0d4c9e8a-1b2c-4d5e-8f90-123456789abc?_rsc=abc',null],
@@ -79,4 +79,8 @@ test('legacy redirects and request validation run before any render selection',(
  const legacy=call('/live.php?x=1');assert.equal(legacy.status,308);assert.equal(new URL(legacy.headers.get('location')!).pathname+new URL(legacy.headers.get('location')!).search,'/live/current?x=1');neverRewrites(legacy,'legacy');assert.equal(target(legacy),null);assert.equal(legacy.headers.get(PUBLIC_RENDER_HEADER),null);
  assert.equal(call('/ch/12/videos').status,308);
  const invalid=call('/videos?limit=0');assert.equal(invalid.status,400);neverRewrites(invalid,'invalid');assert.equal(target(invalid),null);assert.equal(invalid.headers.get('cache-control'),'no-store');
+});
+
+test('server-rendered keyword metadata keeps canonical HTML and HEAD private,no-store',()=>{
+ for(const method of ['GET','HEAD']){const response=call('/keywords/traffic/videos',{method,headers:spoofed});assert.equal(response.headers.get(PUBLIC_RENDER_HEADER),null);assert.equal(response.headers.get('cache-control'),'private, no-store');assert.equal(target(response),'filtered');}
 });

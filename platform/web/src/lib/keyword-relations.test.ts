@@ -198,7 +198,7 @@ test('abort on unmount or keyword change returns null so a stale response can ne
  assert.equal((await fetchKeywordRelations('新詞',{fetch:mockFetch(()=>json(envelope('舊詞'))).fn}))?.kind,'unavailable');
  // The component also keys on the keyword and aborts in its cleanup (source check; effects do not run in server markup).
  const source=readFileSync(join(components(),'KeywordRelations.tsx'),'utf8');
- assert.match(source,/^'use client';/);assert.match(source,/return\(\)=>controller\.abort\(\);/);assert.match(source,/state\.keyword===keyword\?state\.view:\{kind:'idle'\}/);assert.match(source,/\},\[keyword,attempt\]\);/);
+ assert.match(source,/^'use client';/);assert.match(source,/return\(\)=>controller\.abort\(\);/);assert.match(source,/state\.keyword===keyword\?state\.view:\{kind:'idle'\}/);assert.match(source,/\},\[keyword,attempt,initialView\]\);/);
 });
 
 test('manual retry: bounded count, respects Retry-After and a minimum gap, no timers or automatic retries',async()=>{
@@ -336,7 +336,7 @@ function components(){
  const dir=[process.cwd(),join(process.cwd(),'web'),join(process.cwd(),'platform/web')].map(root=>join(root,'src/components')).find(d=>existsSync(join(d,'KeywordProfile.tsx')));
  assert.ok(dir,'src/components not found');return dir;
 }
-test('keyword profile keeps its SSR controls, counts, null-vs-zero and evidence links; relations sit after the videos',()=>{
+test('keyword profile keeps its SSR controls, counts, null-vs-zero and evidence links; relations sit above the videos',()=>{
  const meta:ReportMeta={schemaVersion:1,requestedAt:'2026-10-12T00:00:00Z',updatedAt:null,timezone:'Asia/Taipei',source:'mariadb',dataset:'fixture',warnings:[],coverage:{}};
  const video=(id:string,views:number|null,patch:Partial<VideoRow>={})=>({id,title:`影片${id}`,views,channelId:42,channelTitle:'來源頻道',youtubeChannelId:'',description:'',thumbnail:null,publishedAt:'2026-10-12T00:00:00Z',likes:null,comments:0,updatedAt:null,youtubeUrl:'',...patch}) as VideoRow;
  const evidence=[{term:'交通',field:'title' as const,snippet:'前文交通後文',start:2,end:4,snippetStart:0}];
@@ -345,11 +345,11 @@ test('keyword profile keeps its SSR controls, counts, null-vs-zero and evidence 
  for(const label of ['合成資料提醒','報表分頁','保留條件','下一頁','120 部</span></h2>','目前條件共 120 部符合・本頁顯示 2 部。','<dt>累計觀看</dt><dd>無觀看值</dd>','<dt>累計觀看</dt><dd>0</dd>','href="/videos/AbCdEfGh123#keyword-evidence"','發布日期 2026-10-06 至 2026-10-12（台北時間）','本頁資料來源與計算方式'])assert.ok(markup.includes(label),label);
  assert.match(markup,/<span class="text-zinc-500">#<\/span>a\/b%41<\/h1>/);
  assert.equal(markup.match(/data-relations-state=/g)?.length,1);assert.match(markup,/data-relations-state="idle"/);
- // Narrow screens: after the list and pagination; wide screens: second column, below coverage.
- assert.ok(markup.indexOf('下一頁')<markup.indexOf('data-relations-state'));assert.ok(markup.indexOf('data-relations-state')<markup.indexOf('本頁資料來源與計算方式'));
- assert.match(markup,/lg:grid-cols-\[minmax\(0,1fr\)_18rem\] lg:grid-rows-\[auto_1fr\]/);assert.match(markup,/<div class="min-w-0 space-y-4 lg:row-span-2">/);assert.match(markup,/<div class="min-w-0 lg:order-3"><section aria-labelledby="keyword-relations-heading"/);
+ // Both widths: the metadata panel is above the video list and pagination.
+ assert.ok(markup.indexOf('data-relations-state')<markup.indexOf('符合共同標籤的影片'));assert.ok(markup.indexOf('data-relations-state')<markup.indexOf('本頁資料來源與計算方式'));
+ assert.match(markup,/lg:grid-cols-\[minmax\(0,1fr\)_18rem\]/);assert.match(markup,/<div class="min-w-0 space-y-4">/);assert.match(markup,/aria-label="標籤圖片與關聯"/);
  // The server component itself still has no client fetch, effect or Suspense; it only mounts the island.
  const profile=readFileSync(join(components(),'KeywordProfile.tsx'),'utf8');
  assert.doesNotMatch(profile,/<Suspense|\buseEffect\b|\bfetch\(|fetchKeywordRelations|setTimeout|tag\.observe\.tw\/api/);
- assert.match(profile,/<KeywordRelations key=\{keyword\} keyword=\{keyword\}\/>/);
+ assert.match(profile,/<KeywordRelations key=\{keyword\} keyword=\{keyword\} initialView=\{metadata\?\.relations\}\/>/);
 });

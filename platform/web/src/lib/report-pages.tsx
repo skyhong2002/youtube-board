@@ -1,3 +1,4 @@
+import {readKeywordMetadata} from './keyword-metadata-server';
 import {reportLinkPrefetch} from "@/lib/report-contract";
 import {EventHeader} from '@/components/EventHeader';
 import {ChannelProfile} from '@/components/ChannelProfile';
@@ -202,11 +203,14 @@ export async function ReportPage({
             route.kind,
         )
     ) {
-        const result = await api<VideoCollection>(route.apiPath, search);
+        const [result,metadata] = await Promise.all([
+            api<VideoCollection>(route.apiPath, search),
+            route.kind==='keyword-videos'&&route.id?readKeywordMetadata(route.id):Promise.resolve(undefined),
+        ]);
         if (!result.ok)
             return <><Failure status={result.status} title={route.title} />{result.status===503&&first(search.q)?.trim()&&<><VideoSearchReadHint/><ReportFilters mode="videos" search={search} path={path}/></>}</>;
         const { data, meta } = result.response;
-        if(route.kind==='keyword-videos'&&route.id)return <KeywordProfile keyword={route.id} description={route.description} data={data} meta={meta}
+        if(route.kind==='keyword-videos'&&route.id)return <KeywordProfile metadata={metadata} keyword={route.id} description={route.description} data={data} meta={meta}
             period={{from:first(search.from)??null,to:first(search.to)??null,days:first(search.days)??null}}
             notice={<DataNotice meta={meta}/>}
             tabs={<Tabs items={familyTabs(path,search,meta.coverage)} active={path}/>}

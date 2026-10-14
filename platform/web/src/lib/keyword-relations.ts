@@ -1,13 +1,6 @@
-/** Client-side reader for the optional Y2 keyword relations (tag.observe.tw relation rows).
- *
- * Browser-only enhancement: the keyword profile's videos, evidence, coverage, filters and
- * pagination stay server-rendered; nothing here is imported by a server read or an ISR page
- * read. The only request is the same-origin public gateway endpoint
- * `/api/v1/keywords/{encodeURIComponent(keyword)}/relations`; tag.observe.tw is never fetched
- * from the browser. Requests omit credentials, bypass the HTTP cache, refuse redirects, carry
- * only an Accept header (no auth, service, cookie or forwarding headers) and are bounded in time and size. Results live
- * only in the calling component's state: no shared cache, storage, telemetry or logging.
- * Only recognised DTO fields are copied; unknown fields are dropped. */
+/** Strict public DTO parser and bounded anonymous browser reader. Server metadata reads reuse
+ * the parser/reader via a fixed internal gateway transport; no visitor credentials are forwarded.
+ * Results have no shared cache, storage, telemetry or raw error logging. */
 
 export const TAG_RELATIONS_SOURCE='https://tag.observe.tw';
 export const RELATIONS_TIMEOUT_MS=8000;
