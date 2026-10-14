@@ -37437,9 +37437,9 @@
     }
   },
   "numericAiEventSourceFix20261014": {
-    "updatedAt": "2026-10-14T06:24:05.769676+00:00",
+    "updatedAt": "2026-10-14T06:29:51.669018+00:00",
     "parentAppSHA": "073985b8bc4bbcc9ffb5d43c1e1a26060bb8ac4a",
-    "successorAppSHA": "b9715b81b585e0f44f7514eac741e850a9533977",
+    "successorAppSHA": "0f1e109642465119a231407d14e5f18a0fe58e44",
     "finding": "Bare numeric daily-ID AI event routes require an event query but previously entered canonical ISR; mock API400 becomes a render failure. Captured event query was not retained, so exact cause of recapture503 remains unproven.",
     "fix": "Numeric daily-ID event routes always use filtered dynamic rendering with no shared-cache eligibility; missing, duplicate, whitespace-only and over-256 UTF-16 event names return400 before streaming with a fixed AI-daily recovery link. Date routes unchanged.",
     "analysis": {
@@ -37449,19 +37449,39 @@
       "sha256": "d5e70d013acf16180478f827625debfd82c1061b4748170c1cb70e54c1cee039"
     },
     "tests": {
-      "focusedPassed": 33,
-      "webPassed": 290,
+      "webPassed": 291,
       "webFailed": 0,
-      "webLog": "/tmp/babysit/mint-queue/youtube-b9715b8-web-tests.log",
-      "webLogSHA256": "2b8ce81acc5037becb68c0993c102fe96cb8f97149796c5945402e22ff4084ef",
-      "typecheck": "tsc --project web/tsconfig.json --noEmit --incremental false exit0; no typegen/build"
+      "typecheck": "tsc noEmit incremental false exit0",
+      "webLog": "/tmp/babysit/mint-queue/youtube-ai-event-alias-web-tests.log",
+      "webLogSHA256": "0b2a23c3ef93f06869b52fabf7542de6bbe3dc651430b06501324dde97f8de3b"
     },
-    "sourceReview": "pending",
+    "sourceReview": {
+      "status": "PASS_SOURCE_ONLY",
+      "reviewer": "/root/capture_source_review",
+      "model": "gpt-6.1-sol",
+      "scope": "073985b8..0f1e109642465119a231407d14e5f18a0fe58e44",
+      "returnedText": "Cumulative source review PASS; prior alias finding resolved. Independent changed tests19/19 and offline64invalid/7valid aliases passed. No runtime/UI acceptance.",
+      "immutableReceipt": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/numeric-ai-event-fix-0f1e109-independent-source-review-20261014T062854Z.json",
+      "sha256": "2a31888b38d910042f252a932ddc203d4a3caa6be24357ae0dda58271a47a639",
+      "reviewedAt": "2026-10-14T06:28:54Z"
+    },
     "runtimeRecheck": "pending",
     "candidateApproval": false,
     "routeComplete": false,
     "productionKeywordFix": "not-deployed",
     "productionImage": "sha256:4f5e2a3ae63629a85f1463f778a7548b8cf53b758b881cb417e5d84f34276ffa",
-    "next": "After independent source review, submit exact simple native arm64 successor build command/fresh probe to babysit. Retest numeric event links and main-page captures; preserve all previous failed evidence and no503exception."
+    "next": "After independent source review, submit exact simple native arm64 successor build command/fresh probe to babysit. Retest numeric event links and main-page captures; preserve all previous failed evidence and no503exception.",
+    "reviewHistory": [
+      {
+        "sha": "b9715b81b585e0f44f7514eac741e850a9533977",
+        "result": "FINDINGS",
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/numeric-ai-event-fix-b9715b8-independent-source-review-20261014T062542Z.json",
+        "sha256": "4c4128c8485ae131f32547a6c90c4e363dbabd6f9c1ca83266e197f84bc9f8bf",
+        "finding": "Leading-zero and encoded numeric route aliases bypassed raw regex validation and remained ISR."
+      }
+    ],
+    "followupFix": "Shared decoded path classifier covers numeric aliases; encoded first family cannot match rewrite and returns400/no-store; positive safe ID check mirrors API. Original runtime503 precise cause remains unproven.",
+    "simpleBuildRequest": "/tmp/babysit/mint-queue/youtube-simple-native-0f1e1096-request.json",
+    "buildStatus": "pending babysit exact-command/slot approval; no execution"
   }
 }
