@@ -158,7 +158,233 @@
         ],
         "priorReviewScope": "Historical reviewedSHA only; not approval of the next candidate",
         "recaptureMatrixEntry": "ledger-000"
-      }
+      },
+      "productionVisualReviews": [
+        {
+          "appSha": "335c8dbd023ed1466620b29a4dea6cda9e3cef80",
+          "image": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6",
+          "buildID": "NZua9VnOCd6zsK0BXUoF7",
+          "scope": "stated anonymous normal states only; candidate record separate",
+          "status": "PASS_SCOPED_PRODUCTION_ACTUAL_VISUAL",
+          "review": {
+            "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-app335c8db-main24-20261014T193550Z/review.json",
+            "sha256": "200d9d76c1e024fafc0dd7843db8bd9d312cfeb9697a212930261e06c44e1b99",
+            "reviewedAt": "2026-10-14T19:35:50.375175+00:00",
+            "reviewer": "/root/f2_visual_sol",
+            "model": "GPT-6 (Codex; inherited parent model, exact serving identifier not exposed)",
+            "decision": "PASS_SCOPED_PRODUCTION_MAIN_24_ACTUAL_VISUAL",
+            "actualPNGOpenedCount": 104,
+            "PNGHashesChecked": 190,
+            "hashOnlyPNGCount": 86,
+            "blockers": []
+          },
+          "views": [
+            {
+              "key": "home-short-light",
+              "route": "/",
+              "viewport": "desktop",
+              "theme": "light",
+              "window": "today",
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/home-short-light-desktop.png",
+                "sha256": "cc89748102d2202ee1aa313c3225f4e8109b2cdd1d48b1912f8078b75c055277"
+              },
+              "imageCount": 6,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/home-short-light-desktop-requests.json",
+                "sha256": "612a3ed113d7d13f948d33cd462c093bf3409512c51c13f7dac70dfe34bbc71c"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/home-short-light-desktop-raw-network.json",
+                "sha256": "770c6266224d8ade9cb6b9cde4f7029dd6fb147819d47e56d19ba5e36a73701d"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "home-short-light",
+              "route": "/",
+              "viewport": "mobile",
+              "theme": "light",
+              "window": "today",
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/home-short-light-mobile.png",
+                "sha256": "ce7dc7de2833c24282db0373a227545bbe091071c29be917aaae83866b149b8a"
+              },
+              "imageCount": 10,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/home-short-light-mobile-requests.json",
+                "sha256": "bad10dd138d73b9176f368b1bfcd896091f2e1eab5c071d17d7b0aee7c79f1cc"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/home-short-light-mobile-raw-network.json",
+                "sha256": "09f652e086ccc0b3f5feffc265539476969c449b541b605386d4ea1683d5ac13"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "home-week-light",
+              "route": "/",
+              "viewport": "desktop",
+              "theme": "light",
+              "window": "week",
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/home-week-light-desktop.png",
+                "sha256": "d08e668e256888e09ef4f4b9e0c9c8867b11bd07ebc8ce6c6e343086e6251d82"
+              },
+              "imageCount": 6,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/home-week-light-desktop-requests.json",
+                "sha256": "4b8bc267a29b7213d60b3c4a53047ba80eef1d850b00a431349388480d83a6dc"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/home-week-light-desktop-raw-network.json",
+                "sha256": "830931e09f97213044fdbcd0f8af8fe04f154be9f7beb65f96c9e767cceebfb2"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "home-week-light",
+              "route": "/",
+              "viewport": "mobile",
+              "theme": "light",
+              "window": "week",
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/home-week-light-mobile.png",
+                "sha256": "8e488a41dbc0da90b703f18dc3321ce345e74306d145c99b8724045f4fd5367a"
+              },
+              "imageCount": 10,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/home-week-light-mobile-requests.json",
+                "sha256": "38cc86d3d9564f2ebe51cbcfafa541aa64bda4c8e240bc0129832dfc3517b195"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/home-week-light-mobile-raw-network.json",
+                "sha256": "a7b4ffb7b705c381c56bb0730e0f640ede091ad66dc27d2de42dc6414a9678cc"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "home-short-dark",
+              "route": "/",
+              "viewport": "desktop",
+              "theme": "dark",
+              "window": "today",
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-20261014T192240Z/home-short-dark-desktop.png",
+                "sha256": "ac1461d706e15083a4de2e30034df54594c34ea6ebd37f395f46e51ac23c4943"
+              },
+              "imageCount": 6,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-20261014T192240Z/home-short-dark-desktop-requests.json",
+                "sha256": "4d5bf443d6b5ee4ab11e4fa9dad9284deae738309c20b5c0d9a549b08874253e"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-20261014T192240Z/home-short-dark-desktop-raw-network.json",
+                "sha256": "9138f0c8865959305c45e0101a2cbfd2589bbb6db134b5807fae13c76d582753"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "home-short-dark",
+              "route": "/",
+              "viewport": "mobile",
+              "theme": "dark",
+              "window": "today",
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-20261014T192240Z/home-short-dark-mobile.png",
+                "sha256": "9b010e6a11a55c2e32444376a6ffe99b3b3859519343187de1e43045909a8bf0"
+              },
+              "imageCount": 10,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-20261014T192240Z/home-short-dark-mobile-requests.json",
+                "sha256": "8320810854d4996c878aee4d9e6bfb93208c6703c32718d550c7259f68738017"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-20261014T192240Z/home-short-dark-mobile-raw-network.json",
+                "sha256": "0bc31429fa20c9ca1a0448d0be52af734814515fc617edb6a54d6ef8403602b3"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "home-week-dark",
+              "route": "/",
+              "viewport": "desktop",
+              "theme": "dark",
+              "window": "week",
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-20261014T192240Z/home-week-dark-desktop.png",
+                "sha256": "4215f1cf645f263ffdfb351aa5acca03fd082548d407601f634b1806a9d85047"
+              },
+              "imageCount": 6,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-20261014T192240Z/home-week-dark-desktop-requests.json",
+                "sha256": "db3b0e052c11820e4a8ed6eeb9e63bab83afe810f0e310b4d09c93be05ffe4d5"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-20261014T192240Z/home-week-dark-desktop-raw-network.json",
+                "sha256": "8d4bc97402d495cebc86904c205d6b816daf7cdf03b58d7b11594d5a74aec63c"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "home-week-dark",
+              "route": "/",
+              "viewport": "mobile",
+              "theme": "dark",
+              "window": "week",
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-20261014T192240Z/home-week-dark-mobile.png",
+                "sha256": "a536d2942c511bf1b2a17388d4e248a7646002a1e8af47a896c97ba42241d51c"
+              },
+              "imageCount": 10,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-20261014T192240Z/home-week-dark-mobile-requests.json",
+                "sha256": "c84ec538184b3883a6bc8b98d8f3631aa9965f8d11a75bef15136cd35cb0a2f5"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-20261014T192240Z/home-week-dark-mobile-raw-network.json",
+                "sha256": "aedf43792daf584cfcdb23d2d09f1dd797ccbbced765cac43535ae261d4613b3"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            }
+          ],
+          "routeComplete": false,
+          "F4": "pending tag T-ref",
+          "historicalFindingsNotAutomaticallyClosed": true
+        }
+      ]
     },
     {
       "route": "/__client_error_fixture",
@@ -17479,7 +17705,233 @@
         ],
         "priorReviewScope": "Historical reviewedSHA only; not approval of the next candidate",
         "recaptureMatrixEntry": "ledger-372"
-      }
+      },
+      "productionVisualReviews": [
+        {
+          "appSha": "335c8dbd023ed1466620b29a4dea6cda9e3cef80",
+          "image": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6",
+          "buildID": "NZua9VnOCd6zsK0BXUoF7",
+          "scope": "stated anonymous normal states only; candidate record separate",
+          "status": "PASS_SCOPED_PRODUCTION_ACTUAL_VISUAL",
+          "review": {
+            "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-app335c8db-main24-20261014T193550Z/review.json",
+            "sha256": "200d9d76c1e024fafc0dd7843db8bd9d312cfeb9697a212930261e06c44e1b99",
+            "reviewedAt": "2026-10-14T19:35:50.375175+00:00",
+            "reviewer": "/root/f2_visual_sol",
+            "model": "GPT-6 (Codex; inherited parent model, exact serving identifier not exposed)",
+            "decision": "PASS_SCOPED_PRODUCTION_MAIN_24_ACTUAL_VISUAL",
+            "actualPNGOpenedCount": 104,
+            "PNGHashesChecked": 190,
+            "hashOnlyPNGCount": 86,
+            "blockers": []
+          },
+          "views": [
+            {
+              "key": "keywords-short-light",
+              "route": "/keywords",
+              "viewport": "desktop",
+              "theme": "light",
+              "window": "today",
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/keywords-short-light-desktop.png",
+                "sha256": "2959bf1edb1dcf6585448ac01f94e2ed85c00bc44d2e50837cf21b54fde7c903"
+              },
+              "imageCount": 4,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/keywords-short-light-desktop-requests.json",
+                "sha256": "882023f5972f737c0cb74a993b2a939d65d3e3a75a3768a6fa1d377aaafcef25"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/keywords-short-light-desktop-raw-network.json",
+                "sha256": "c3608e59745c5f62cb98f14210ad4a38ada8c4e98b70ad4d923d4cf84b22dc2a"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "keywords-short-light",
+              "route": "/keywords",
+              "viewport": "mobile",
+              "theme": "light",
+              "window": "today",
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/keywords-short-light-mobile.png",
+                "sha256": "a2b00b71dff2cdebb0646e061e0e18a9206456056ad68200277cde98025d3c9d"
+              },
+              "imageCount": 4,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/keywords-short-light-mobile-requests.json",
+                "sha256": "bd4cf486eb27c8860243ab529cd21efc46500879da07ee285f21758d4b0c5702"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/keywords-short-light-mobile-raw-network.json",
+                "sha256": "9779bdb8ef809083038b6c55ab3ec1d7751e220bfcac22dd925b5ed9cf5c4a8a"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "keywords-week-light",
+              "route": "/keywords",
+              "viewport": "desktop",
+              "theme": "light",
+              "window": "week",
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/keywords-week-light-desktop.png",
+                "sha256": "b2539527263a7e5681e2498ebdd259638ac5bc230b6f0cb0bfe021d65de80bc0"
+              },
+              "imageCount": 5,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/keywords-week-light-desktop-requests.json",
+                "sha256": "933f40d95e180fa0dfa9d9e5fa4471bd8fa54702832d0f199ae257be6ee3ad56"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/keywords-week-light-desktop-raw-network.json",
+                "sha256": "f69718b102ab62f5102f9f41e64c8b38d5a2f6890d4b2a5373d822eb0c68ffde"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "keywords-week-light",
+              "route": "/keywords",
+              "viewport": "mobile",
+              "theme": "light",
+              "window": "week",
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/keywords-week-light-mobile.png",
+                "sha256": "d196bc2ebf85e48886c8fc4126782c7db14465a623fc3b07cf4d9884796d237c"
+              },
+              "imageCount": 6,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/keywords-week-light-mobile-requests.json",
+                "sha256": "c967c77024f5bb8aa0d590c27120751ee26e7706c38b06973f8e4cd048b39ddb"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/keywords-week-light-mobile-raw-network.json",
+                "sha256": "106a31fc1bcda2ef64b6ab8ad68e298286d0f53a72cfb7769564b2a27391b804"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "keywords-short-dark",
+              "route": "/keywords",
+              "viewport": "desktop",
+              "theme": "dark",
+              "window": "today",
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/keywords-short-dark-desktop.png",
+                "sha256": "189ceb5e5b2343a2409caf47cc40c78b2ff349179de310a7574865d306c42cb2"
+              },
+              "imageCount": 4,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/keywords-short-dark-desktop-requests.json",
+                "sha256": "1f6ceb960608162c352f18d1263c3592cba62f2b41f6cefce156d5acb1571a7b"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/keywords-short-dark-desktop-raw-network.json",
+                "sha256": "1fab86c8ae9b1c1f63442dff4de4bd67d9db37ca9161154667453f5518e2cf6b"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "keywords-short-dark",
+              "route": "/keywords",
+              "viewport": "mobile",
+              "theme": "dark",
+              "window": "today",
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/keywords-short-dark-mobile.png",
+                "sha256": "029c0995619366b07f38588899e0cc12c60b0645927801894fad8886f9b16bb8"
+              },
+              "imageCount": 4,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/keywords-short-dark-mobile-requests.json",
+                "sha256": "37f81d81c72e3d85d8d97d47cf59d2b9edec9a3becee6f3398924f100e38371e"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/keywords-short-dark-mobile-raw-network.json",
+                "sha256": "4de1538f3b11a30b044d3934d5606ba35d85502c42af738936bd882ad12fab01"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "keywords-week-dark",
+              "route": "/keywords",
+              "viewport": "desktop",
+              "theme": "dark",
+              "window": "week",
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/keywords-week-dark-desktop.png",
+                "sha256": "dddca00356ab86872ffe2ca2605403b489dfdab831b747caee747029c70360de"
+              },
+              "imageCount": 5,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/keywords-week-dark-desktop-requests.json",
+                "sha256": "e0a5efe65343b99cd501d523359a0e0657c34caeecb4b25c60a6f83b456c925c"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/keywords-week-dark-desktop-raw-network.json",
+                "sha256": "1094311bab563b36abd8bc770c6217942cfa9060645445481a4d3a4aaff1a94f"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "keywords-week-dark",
+              "route": "/keywords",
+              "viewport": "mobile",
+              "theme": "dark",
+              "window": "week",
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/keywords-week-dark-mobile.png",
+                "sha256": "1e30e5c6314d59924c50a4be3e701e5a746cc82d2d03b91e091cf8b1353be038"
+              },
+              "imageCount": 6,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/keywords-week-dark-mobile-requests.json",
+                "sha256": "4182b5b7088946a20d62657a603d7d6c6bf9780e7b19fd57e5c020641b84fe02"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/keywords-week-dark-mobile-raw-network.json",
+                "sha256": "72d0f56757c3620770ff891ad826c3410bd764f76a85fa2c24de14b83282f848"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            }
+          ],
+          "routeComplete": false,
+          "F4": "pending tag T-ref",
+          "historicalFindingsNotAutomaticallyClosed": true
+        }
+      ]
     },
     {
       "route": "/keywords/{keyword}/cloud",
@@ -19139,7 +19591,133 @@
         ],
         "priorReviewScope": "Historical reviewedSHA only; not approval of the next candidate",
         "recaptureMatrixEntry": "ledger-401"
-      }
+      },
+      "productionVisualReviews": [
+        {
+          "appSha": "335c8dbd023ed1466620b29a4dea6cda9e3cef80",
+          "image": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6",
+          "buildID": "NZua9VnOCd6zsK0BXUoF7",
+          "scope": "stated anonymous normal states only; candidate record separate",
+          "status": "PASS_SCOPED_PRODUCTION_ACTUAL_VISUAL",
+          "review": {
+            "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-app335c8db-main24-20261014T193550Z/review.json",
+            "sha256": "200d9d76c1e024fafc0dd7843db8bd9d312cfeb9697a212930261e06c44e1b99",
+            "reviewedAt": "2026-10-14T19:35:50.375175+00:00",
+            "reviewer": "/root/f2_visual_sol",
+            "model": "GPT-6 (Codex; inherited parent model, exact serving identifier not exposed)",
+            "decision": "PASS_SCOPED_PRODUCTION_MAIN_24_ACTUAL_VISUAL",
+            "actualPNGOpenedCount": 104,
+            "PNGHashesChecked": 190,
+            "hashOnlyPNGCount": 86,
+            "blockers": []
+          },
+          "views": [
+            {
+              "key": "kp-videos-light",
+              "route": "/keywords/%E6%9F%AF%E6%96%87%E5%93%B2/videos",
+              "viewport": "desktop",
+              "theme": "light",
+              "window": null,
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/kp-videos-light-desktop.png",
+                "sha256": "3c6313dd69358ad24061446f72b24d5a402a5d049d11013b68b13b94ba63fc14"
+              },
+              "imageCount": 11,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/kp-videos-light-desktop-requests.json",
+                "sha256": "4e0f9652b55db93adf991b84cf45bccb6f113f3c11928614854da22124f5c8b1"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/kp-videos-light-desktop-raw-network.json",
+                "sha256": "80bd87984ff84a412619c8e5df4545a9305ecc9c9b1ec2180655f4dfaf91c7f0"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "kp-videos-light",
+              "route": "/keywords/%E6%9F%AF%E6%96%87%E5%93%B2/videos",
+              "viewport": "mobile",
+              "theme": "light",
+              "window": null,
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/kp-videos-light-mobile.png",
+                "sha256": "c9da4126d28eb846598230f0e193e81af885b08e2af205f9a48a9769a4fbb45c"
+              },
+              "imageCount": 15,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/kp-videos-light-mobile-requests.json",
+                "sha256": "4f1c9f4194e1c31aab565601c79e05e78731c27561ece134072db2674e6d3d13"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/kp-videos-light-mobile-raw-network.json",
+                "sha256": "54995f23b78c17cdf6df0fd23ff7b6e46793977a8f7b41ba7b58011ad73b3396"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "kp-videos-dark",
+              "route": "/keywords/%E6%9F%AF%E6%96%87%E5%93%B2/videos",
+              "viewport": "desktop",
+              "theme": "dark",
+              "window": null,
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/kp-videos-dark-desktop.png",
+                "sha256": "1430143dd82de0247e6988b8a823e39436b3061a8778a27e3793fd10f493f9dd"
+              },
+              "imageCount": 11,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/kp-videos-dark-desktop-requests.json",
+                "sha256": "5be99eaa1d354a81d28b3f5758ab471a818b8385c760e9642ce339357b27268d"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/kp-videos-dark-desktop-raw-network.json",
+                "sha256": "a31623f78a56bf34587b10dc515012a86a5b5697c40f6acc5e300a9089e1f393"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "kp-videos-dark",
+              "route": "/keywords/%E6%9F%AF%E6%96%87%E5%93%B2/videos",
+              "viewport": "mobile",
+              "theme": "dark",
+              "window": null,
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/kp-videos-dark-mobile.png",
+                "sha256": "186bb9b2faa4899c747b636737c083793028ccf79fc7e771f1e4840b9eca896a"
+              },
+              "imageCount": 15,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/kp-videos-dark-mobile-requests.json",
+                "sha256": "c9f31f79e09552081621f47d8a30c8de1acfd69f579ecd24d2ea5c472c430cd3"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/kp-videos-dark-mobile-raw-network.json",
+                "sha256": "14beaacdeab6c6c45454e8fd9d7fd71ddc7832d308a567205e5006ef82eb0909"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            }
+          ],
+          "routeComplete": false,
+          "F4": "pending tag T-ref",
+          "historicalFindingsNotAutomaticallyClosed": true
+        }
+      ]
     },
     {
       "route": "/keywords/{keyword}/videos",
@@ -22453,7 +23031,133 @@
         "currentStatePass": false,
         "routeComplete": false,
         "sourceFixCommit": "4d7dc12100f8cd647f077978beb918d17157633a"
-      }
+      },
+      "productionVisualReviews": [
+        {
+          "appSha": "335c8dbd023ed1466620b29a4dea6cda9e3cef80",
+          "image": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6",
+          "buildID": "NZua9VnOCd6zsK0BXUoF7",
+          "scope": "stated anonymous normal states only; candidate record separate",
+          "status": "PASS_SCOPED_PRODUCTION_ACTUAL_VISUAL",
+          "review": {
+            "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-app335c8db-main24-20261014T193550Z/review.json",
+            "sha256": "200d9d76c1e024fafc0dd7843db8bd9d312cfeb9697a212930261e06c44e1b99",
+            "reviewedAt": "2026-10-14T19:35:50.375175+00:00",
+            "reviewer": "/root/f2_visual_sol",
+            "model": "GPT-6 (Codex; inherited parent model, exact serving identifier not exposed)",
+            "decision": "PASS_SCOPED_PRODUCTION_MAIN_24_ACTUAL_VISUAL",
+            "actualPNGOpenedCount": 104,
+            "PNGHashesChecked": 190,
+            "hashOnlyPNGCount": 86,
+            "blockers": []
+          },
+          "views": [
+            {
+              "key": "mayor-light",
+              "route": "/mayor",
+              "viewport": "desktop",
+              "theme": "light",
+              "window": null,
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/mayor-light-desktop.png",
+                "sha256": "172dc02cfe5f22f82745008a2618a31bf4322a379ec5a6c333b911bbcaf9e460"
+              },
+              "imageCount": 8,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/mayor-light-desktop-requests.json",
+                "sha256": "05c22d48a264a154cbfcc085142aa06913475a9151483bce473b8487ce6b2ee0"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/mayor-light-desktop-raw-network.json",
+                "sha256": "794a3d33a8e9797fddfd6eaec7d9a07713aa725747da7be1c39bcb75069a4261"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "mayor-light",
+              "route": "/mayor",
+              "viewport": "mobile",
+              "theme": "light",
+              "window": null,
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/mayor-light-mobile.png",
+                "sha256": "7da38edc25aea7173f216f2a03bdb971ce5af9e8e128834d8af6e9a581f4a79f"
+              },
+              "imageCount": 10,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/mayor-light-mobile-requests.json",
+                "sha256": "d63b2c2b030c22b9e3e51f937b7c22bad50cf28484d0ea050d68d8c5a5c66efa"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/mayor-light-mobile-raw-network.json",
+                "sha256": "c7aeaa4c6b1b5d42316a0b42b8856cfa3694c6171570d0549b110b2201b8db60"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "mayor-dark",
+              "route": "/mayor",
+              "viewport": "desktop",
+              "theme": "dark",
+              "window": null,
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/mayor-dark-desktop.png",
+                "sha256": "d25cc9fdbe7b0fab1a130f7e9ec99b8b13ff0dc7f011ed8ce541243d44ac4424"
+              },
+              "imageCount": 8,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/mayor-dark-desktop-requests.json",
+                "sha256": "9d499e11de27ef5699b92427e958646511a8dee9c6022d88926db89af8935ffb"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/mayor-dark-desktop-raw-network.json",
+                "sha256": "810e773c92e3748b3b1df8b9b3438b14a4d094e27ab48abc1f4271cde308268c"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            },
+            {
+              "key": "mayor-dark",
+              "route": "/mayor",
+              "viewport": "mobile",
+              "theme": "dark",
+              "window": null,
+              "status": 200,
+              "overflow": 0,
+              "screenshot": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/mayor-dark-mobile.png",
+                "sha256": "4f7e14e16add6fa0a42887cf4ab1956f94b358118df39ad4d2a72031bf339ce0"
+              },
+              "imageCount": 10,
+              "network": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/mayor-dark-mobile-requests.json",
+                "sha256": "91eed87f3504f55549ea96273b424a408219e1bd617c40dca4fe4c8c81e94c3f"
+              },
+              "rawNetwork": {
+                "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/mayor-dark-mobile-raw-network.json",
+                "sha256": "db668bace1f1ac06d1cf49bd966e9451c74af94fb8400585b0e12c8e9a3e1691"
+              },
+              "googleRequests": 0,
+              "DNT": "1",
+              "GPC": true
+            }
+          ],
+          "routeComplete": false,
+          "F4": "pending tag T-ref",
+          "historicalFindingsNotAutomaticallyClosed": true
+        }
+      ]
     },
     {
       "route": "/mayor/cities/{city}",
@@ -40004,5 +40708,134 @@
       "sha256": "7eff64d733b7eb19acaceeea5c86efbc412183459b2c83ea173e1a6350292ea7"
     },
     "conclusion": "Keep deployed early gate. Broad/N20M5 retain five of six weekly broad-topic labels while excluding concrete event競總成立; article/media abundance is not a semantic classifier. Follow-up recorded as nonblocking; no new exclusions authorized or applied."
+  },
+  "productionDNTPageReview20261015": {
+    "recordedAt": "2026-10-14T19:37:14.916522+00:00",
+    "environment": "production",
+    "appSha": "335c8dbd023ed1466620b29a4dea6cda9e3cef80",
+    "image": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6",
+    "buildID": "NZua9VnOCd6zsK0BXUoF7",
+    "captureIndex": {
+      "path": "/tmp/babysit/mint-queue/youtube-production-capture-index-335c8db-20261015.json",
+      "sha256": "805ac5634a5d359acbf63a1d2715017b1f5bbb1c7be14a8def006c16ad300636"
+    },
+    "captureMethod": "own native DNT1/GPC1 tool; prelaunch transmission-layer allowlist; raw network retained",
+    "acceptedViews": 32,
+    "reviewedMainViews": 24,
+    "secondaryViewsPending": 8,
+    "requiredWidths": [
+      1280,
+      390
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "independentReviews": [
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-app335c8db-main24-20261014T193550Z/review.json",
+        "sha256": "200d9d76c1e024fafc0dd7843db8bd9d312cfeb9697a212930261e06c44e1b99",
+        "reviewedAt": "2026-10-14T19:35:50.375175+00:00",
+        "reviewer": "/root/f2_visual_sol",
+        "model": "GPT-6 (Codex; inherited parent model, exact serving identifier not exposed)",
+        "decision": "PASS_SCOPED_PRODUCTION_MAIN_24_ACTUAL_VISUAL",
+        "actualPNGOpenedCount": 104,
+        "PNGHashesChecked": 190,
+        "hashOnlyPNGCount": 86,
+        "blockers": []
+      }
+    ],
+    "productionServicesAfter": {
+      "path": "/tmp/babysit/mint-queue/youtube-production-capture-services-after-20261015.json",
+      "sha256": "1d4d7b2dcc4a6f41e20baa98747d4c81695d03af4f13ab70f50aff11e9fc4fda"
+    },
+    "batches": [
+      {
+        "id": "main-light",
+        "views": 12,
+        "manifest": {
+          "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/captures.json",
+          "sha256": "5dabf379a805223f45ce6351aa40f7e6e420c70c28671586fc41efc3f07a62a7"
+        },
+        "prelaunchProxy": {
+          "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-light-20261014T192030Z/prelaunch-proxy.json",
+          "sha256": "f8ff8cde13bd583d8ce7a18a387441ceb8099b6e7f770809747a45b8d0fa0d99"
+        },
+        "visualStatus": "PASS_SCOPED"
+      },
+      {
+        "id": "main-home-dark",
+        "views": 4,
+        "manifest": {
+          "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-20261014T192240Z/completed-home-only-manifest.json",
+          "sha256": "08864b9be181d867bbdc38894a668fffd861abc336e157fe742c5a00daf74c14"
+        },
+        "prelaunchProxy": {
+          "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-20261014T192240Z/prelaunch-proxy.json",
+          "sha256": "eb2425351150d699bb0512fc995a3fddba960e01e0808d5658c584a811f595be"
+        },
+        "visualStatus": "PASS_SCOPED"
+      },
+      {
+        "id": "main-remaining-dark",
+        "views": 8,
+        "manifest": {
+          "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/captures.json",
+          "sha256": "2aa0dbb5ee2d21c037f5eba23ca9ad4d477a1a1ccb74ef8137a0cc168554ced1"
+        },
+        "prelaunchProxy": {
+          "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-remaining-20261014T192820Z/prelaunch-proxy.json",
+          "sha256": "afb807f5bdea72283456d4547bfb6d8f9ed45377b040df41f472f941c234b520"
+        },
+        "visualStatus": "PASS_SCOPED"
+      },
+      {
+        "id": "secondary",
+        "views": 8,
+        "manifest": {
+          "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/captures.json",
+          "sha256": "813a2bc304e619593567a8b980a30408ecaeea2337c7c66d9188fa69a46fbaab"
+        },
+        "prelaunchProxy": {
+          "path": "/home/deck/.cache/youtube-ui-review/production-335c8db-secondary-20261014T193015Z/prelaunch-proxy.json",
+          "sha256": "571826f3258cf77b2b983db918ed247c5531f98dbee4181bd66fb870dc93be88"
+        },
+        "visualStatus": "pending"
+      }
+    ],
+    "googleAnalyticsRequests": 0,
+    "DNT": "1",
+    "GPC": true,
+    "candidateReviewInherited": false,
+    "failedOriginalCapture": {
+      "root": "/home/deck/.cache/youtube-ui-review/production-335c8db-main-dark-20261014T192240Z",
+      "key": "keywords-short-dark-desktop",
+      "accepted": false,
+      "reason": "privacyAfter absent; original capture error masked by finally before tool fix; cannot establish root cause; allsuccess home records retained, retake8 independently accepted"
+    },
+    "findings": [
+      "All24 production main fullpages and80 native slices were actually opened across12light+4successfuldarkhome+8darkretry views. All190PNG hashes matched;104actually opened and86hash-only.",
+      "No blocking visual layout issue observed in reviewed1280/390 light/dark states. Independently opened dark images substantiate dark conclusion; candidate or source PASS was not inherited.",
+      "Homepage cloud avoids central mark; radio states agree within each view. Mobile stacks sections, keywordranking names are complete, and light/dark tables/card rows stay aligned. All9short/40week keywordnames, including山巔之城, verified in all native mobile ranking slices.",
+      "Warnings and distinctions資料不足/無觀看值/0次/≥subtotal/missingcounts remain readable in light/dark. Native profile肖像/source/license, single-direction政治人物relation, matchedtitle/description highlights and coverage未提供 warning fit both viewports/themes. Portrait white cutout background in dark mode is visible and does not obstruct attribution.",
+      "Mayor selectors/form/cards/charts fit;latest23/28coverage,3incompletedates,0unknown dates and dashed/hollowmarks explicitly warn against direct complete-period comparison. Mobile table deliberately permits horizontal region scrolling with swipe hint; actual swiping excluded. Native郭璽axis15,000/plateau13,758 matches table in both themes.",
+      "ERR_ABORTED failures and one/_next/image404perprofileviewport remain in network receipts; visible neutral videofallback prevents broken-image layout. Accepted means complete lifecycle/privacy accounting, not success of every request.",
+      "Live/cached publication bounds and coverage values change across batch captures. Light short3849/3847, darkretryshort3847/3855; lightweek23490/darkretryweek23500. Each view includes actualbounds/capturetime and must not be presented as one frozen data snapshot.",
+      "Homepage stored badge洋流·雙北連線 above AI headline沈伯洋掃街 retained as nonblocking editorial/data coherence observation; underlying factual/topic correctness not certified.",
+      "Raw HTTP rows show productionhosts youtube.observe.tw/i.ytimg.com, DNT1/GPC1 and match normalized id/method/resource/status/terminal. Normalized origin candidate is a generic tool label and pathsegments are redacted; productionproof uses rawURLs plus healthyexactservice image/build/revision receipt.",
+      "Original dark run stopped before keywords screenshot and its rejected lifecycleprivacy record is preserved/excluded. Success on the separate8viewretry does not convert the rejected original capture into PASS."
+    ],
+    "limitations": [
+      "Production-main24 capturedviews only;no fullsite acceptance. Secondarygroups/live,rawpool,otherprofiles/routes/auth/interactions excluded.",
+      "No candidate/source/historicalPASS inheritance. fc43909 source toolPASS is parent-reported only, not independent source audit by this reviewer.",
+      "No reviewer browser/newagent/network/build/capture/sourceedit/DBfetch/inputoverwrite.",
+      "86PNG hash-only;actualopened inventory separate. No console/pageerror or measuredcontrast/WCAG certification.",
+      "Prelaunchproxy and serviceidentity checks use hashedsuppliedreceipts, not independentpacket/livehost probe;boundedGooglepolicy plus expliciti.ytimg.comthumbnail exception.",
+      "Stored data/editorial correctness and one frozen cross-batch snapshot not certified. Earlier mistaken downscaled mayor millions reading was corrected by nativeimages;no actualscale defect."
+    ],
+    "allRoutesComplete": false,
+    "F4": "pending tag T-ref",
+    "historicalSummaryPolicy": "existing status/counts summarize historical inventory; current scoped production retests are separate, never a full route closure",
+    "document": "docs/production-ui-review-2026-10-15.md"
   }
 }

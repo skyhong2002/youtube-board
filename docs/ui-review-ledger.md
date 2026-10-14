@@ -1,8 +1,8 @@
 # UI review ledger
 
-> Current runtime: APP72cb816 / image1e251348 / BUILD_ID Fb8mfbUpeqBWyMVD2_Jsj is deployed and scoped F1 babysit acceptance passed at2026-10-14T16:18Z. APP19cd358 qualified rolling24h/seven-date keyword successor is source reviewed and building, NOT deployed. Current simple native arm64 workflow applies; historical Mint/freeze plans below do not override it. Whole-site page/state reviews remain pending.
+> Current runtime: APP335c8db / image cabe1558 / BUILD_ID NZua9VnOCd6zsK0BXUoF7 is deployed; scoped keyword production acceptance passed at 2026-10-14T18:04Z. New DNT=1 production screenshots and independent page reviews are recorded below, separately from candidate reviews. Current workflow: SM captures, native arm64 builds on skyhong-blog, normal tests/review, no per-step babysit approval. F4 awaits tag T-ref; whole-site states remain pending. Historical freezes, Mint plans, and preserve-all notes below do not override the latest user decisions.
 
-## 解凍後單一候選與重拍清單
+## 歷史計畫：解凍後單一候選與重拍清單（2026-10-13）
 
 操作計畫：[f2-single-candidate-after-thaw.md](../platform/docs/f2-single-candidate-after-thaw.md)。
 逐項矩陣：[ui-retake-matrix.json](ui-retake-matrix.json)，由
@@ -914,3 +914,10 @@ Cleanup supplement: removed obsolete78df4fd build context /home/ubuntu/yt-f1-sim
 Babysit reported PASS_SCOPED_PRODUCTION_KEYWORD_RANKING: exactBUILD_ID NZua9VnOCd6zsK0BXUoF7; opt-out Google requests0; homepage and /keywords terms agree, rolling24h/week labels correct, reported24generic/country/city/party/source exclusions absent, partial measured subtotal uses≥ with509missing. Acceptance receipt /tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-formal-acceptance.json SHA256 665194547522012b0fc2bbeb1755fb37bc44caad3d817a36e8795657e5d742e9. This closes this release's ranking acceptance pending, not fullsite/F1–F4, viewport coverage or /mayor acceptance. Immutable earlier deployment receipt correctly remains a record of acceptance pending at deploy time.
 
 Nonblocking broad-topic follow-up: retained complete tag snapshots assessed offline, receipt /tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-threshold-assessment.json SHA256 7eff64d733b7eb19acaceeea5c86efbc412183459b2c83ea173e1a6350292ea7. Weekly counts articles/media: 手機57/13, 社群11/8, 社區38/14, 機車88/19, 銀行43/15, 機場88/22. Broad removes社群 but keeps the other five, and removes concrete event競總成立7/5. N≥20/M≥5 has the same effect on existing weeklytop40; in short window it also removes青年/預售屋/房市/理財/手機/婚禮. No refill prediction or current-live-count claim. Keep deployed early gate: frequency thresholds cannot reliably distinguish these topic labels. Follow-up documented; no source/build/deployment change.
+
+
+## DNT1 production page captures — 2026-10-15 Taipei
+
+Details: [production-ui-review-2026-10-15.md](production-ui-review-2026-10-15.md). APP335c8db / BUILD_ID NZua9VnOCd6zsK0BXUoF7 / image cabe1558.32 accepted normal views: home and /keywords rolling24h/week, 柯文哲 videos, /mayor, then /groups and /live/current;1280/390, light/dark. Own tool nativeDNT1/GPC1, pre-navigation transmission-layer Google analytics block, raw network retained;Google analytics attempts/responses0. Both actual TS services stayed healthy/exactidentity after capture.
+
+Existing nonauthor /root/f2_visual_sol PASS_SCOPED_PRODUCTION_MAIN_24_ACTUAL_VISUAL, blockers[];104 actualPNG opened/190 hashed/86 hash-only. Review receipt200d9d76… is linked in the detail document and JSON. Secondary8 review pending. Four main normal-state entries now contain separate productionVisualReviews, without overwriting historical findings/candidate evidence. Live cutoffs/count drift, thumbnail404/fallback, stored homepage badge/headline observation and the original rejected dark attempt are explicitly retained. No whole-route, authenticated/error-state or F4 acceptance.
