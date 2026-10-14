@@ -37347,6 +37347,44 @@
         "productionWebHealthy": true,
         "productionImageUnchanged": true
       }
-    }
+    },
+    "diagnosticAttempt2": {
+      "receipt": "/tmp/babysit/mint-queue/youtube-candidate-15c7af2d-diagnostic02-result.json",
+      "sha256": "c6cba3397ec7691807e87d9e3009b6c1d0bc618f2ce648522aa2384cf29d8c9d",
+      "sourceReviewPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/diagnostic02-fixed-independent-source-review-20261014T054938Z.json",
+      "sourceReviewSha256": "28a938b5549b10f4ee95bfd8106c58c3e2ce5c90338967bc8a1e4c7be1e8b22f",
+      "requestSha256": "64ee340bd96deb79400d8addbe6776941301f5c6d0081399fdb92a97e5477ef5",
+      "scriptSha256": "7b2f459317f3a85ad80ad18b15010ca945b4b4e7f8c83a529970ac08c2269267",
+      "freshProbePath": "/tmp/babysit/mint-queue/youtube-candidate-15c7af2d-diagnostic02-execution-fresh.json",
+      "freshProbeSha256": "483dabd31f928aadab48131d27bf05340ff9977f9d5d36ad6ee5ab98cc010504",
+      "result": "Both dates HTML200 and RSC307->200 private/no-store; original AI503 not reproduced; readiness incomplete; cause remains unproven",
+      "logs": {
+        "exitCode": 0,
+        "tailLimit": 1000,
+        "rawBytesInspected": 807,
+        "fixedErrorSignatures": {},
+        "errorLineCount": 1,
+        "nextErrorDigests": [],
+        "rawTextSaved": false,
+        "unmatchedErrorsRemainUnclassified": true
+      },
+      "cleanup": {
+        "stopExitCode": 0,
+        "containerAbsent": true,
+        "port18168Closed": true,
+        "productionWebHealthy": true,
+        "productionImageUnchanged": true,
+        "errors": []
+      },
+      "aiPrefetchExceptionAuthorized": false,
+      "uiAccepted": false
+    },
+    "nextSteps": [
+      "Fresh exact candidate/capture packet with unique nonce and preserved failed evidence",
+      "Wait for full runtime readiness and warm main pages before browser launch",
+      "Retain 503/network-failure gates; no AI exception justified by current evidence",
+      "Capture 16 planned viewport packages and independently review homepage and keywords",
+      "Submit exact same-image deployment and rollback4f5e2a3a with Dokploy compose synchronization"
+    ]
   }
 }
