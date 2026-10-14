@@ -46,6 +46,25 @@ it('fails closed on missing service configuration without fetching anonymously',
  const fetcher=vi.fn(),{app}=server({tagRelations:{env:{TS_TAG_RELATIONS_ENABLED:'true'},fetcher,credentials:async()=>({})}});
  const result=await app.inject(path);expect(result.json().data).toMatchObject({status:'unavailable',reason:'configuration'});expect(fetcher).not.toHaveBeenCalled();expect(result.headers['cache-control']).toBe('private, no-store');
 });
+it('reads published F1 only in explicitly selected anonymous mode, without inbound credentials',async()=>{
+ const credentials=vi.fn(),fetcher=vi.fn(async(_url:unknown,init?:RequestInit)=>{
+  const headers=new Headers(init?.headers);
+  expect(headers.get('DNT')).toBe('1');expect(headers.get('Sec-GPC')).toBe('1');
+  for(const name of ['cookie','authorization','x-service-token','x-api-key'])expect(headers.has(name)).toBe(false);
+  return Response.json(payload,{headers:{'Cache-Control':'public, max-age=60'}});
+ });
+ const {app}=server({tagRelations:{env:{TS_TAG_RELATIONS_ENABLED:'true',TS_TAG_RELATIONS_AUTH_MODE:'anonymous'},fetcher,credentials}});
+ for(const headers of [{},{cookie:'private-inbound',authorization:'private-inbound','x-api-key':'private-inbound'}]){
+  const response=await app.inject({url:path,headers});
+  expect(response.json().data.status).toBe('available');expect(response.headers['cache-control']).toBe('private, no-store');
+  expect(response.body).not.toContain('private-inbound');
+ }
+ expect(credentials).not.toHaveBeenCalled();expect(fetcher).toHaveBeenCalledTimes(1);
+});
+it('rejects an unknown authentication mode instead of silently fetching anonymously',async()=>{
+ const fetcher=vi.fn(),{app}=server({tagRelations:{env:{TS_TAG_RELATIONS_ENABLED:'true',TS_TAG_RELATIONS_AUTH_MODE:'invalid'},fetcher}});
+ expect((await app.inject(path)).json().data.reason).toBe('configuration');expect(fetcher).not.toHaveBeenCalled();
+});
 it('rejects invalid tags with documented errors and no shared cache',async()=>{
  const {app}=server({tagRelations:{env:{}}});
  for(const term of [' '+ '交通','a'.repeat(61),'交通\n']){

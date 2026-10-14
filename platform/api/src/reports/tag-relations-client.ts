@@ -7,6 +7,7 @@ export type TagRelation={id:string;type:'is-a'|'related'|'alias';target:{id:stri
 export type TagRelations={tag:string;tagId:string;truncated:boolean;relations:TagRelation[]};
 export type RelationFallbackReason='disabled'|'rate-limited'|'upstream-unavailable'|'invalid-contract'|'response-cap'|'timeout'|'upstream-busy';
 export type TagRelationsResult<T>={status:'available';source:'https://tag.observe.tw';data:TagRelations;fallback:null;reason:null;retryAfterSeconds:null}|{status:'fallback';source:'https://tag.observe.tw';data:null;fallback:T;reason:RelationFallbackReason;retryAfterSeconds:number|null};
+export const F1_RELATIONS_PUBLICATION={appSHA:'aff5c028',buildId:'d1LVsC3sk6p04uOyWUx5T',switchedAt:'2026-10-14T13:46:00Z',verifiedAt:'2026-10-14T13:59:35Z',receipt:'/tmp/babysit/mint-queue/youtube-live-f1-contract-20261014T135936Z.json',receiptSHA256:'e931ebf95486fe505a1ac0ef0422b9f0494bcb06f8ed02e9fa68a9d680c20875'} as const;
 export const F1_RELATIONS_CONTRACT={source:'https://tag.observe.tw',candidateSHA:'b8d030c747f87c997800371e33e1ab2d168ad257',openapiPath:'app/src/v1/openapi.ts',openapiSHA256:'8d020d20cc23e62ef0170144a363c1fe0c68ef5da42ad5610fa8a9f6713849a1',endpoint:'/api/v1/tags/{tag}/relations',deployed:false} as const;
 const digest=(tag:string)=>createHash('sha256').update(tag,'utf8').digest('hex');
 function label(value:unknown,max=60):value is string{return typeof value==='string'&&value.length>0&&[...value].length<=max&&value===value.trim()&&!/[\p{Cc}\p{Cs}]/u.test(value);}
@@ -68,7 +69,7 @@ export function createTagRelationsClient<T>(options:TagRelationsClientOptions<T>
    const timeout=new Promise<never>((_,reject)=>{timer=setTimeout(()=>{timedOut=true;controller.abort();reject(new Error('Relations deadline'));},timeoutMs);});
    const work=async()=>{
     activeUpstream++;try{
-    const headers:Record<string,string>={accept:'application/json'};if(options.serviceToken)headers['X-Service-Token']=options.serviceToken;
+    const headers:Record<string,string>={accept:'application/json',DNT:'1','Sec-GPC':'1'};if(options.serviceToken)headers['X-Service-Token']=options.serviceToken;
     // Fixed origin, manual redirects, no user cookies/auth, no cached credentialed responses.
     const response=await transport('https://tag.observe.tw/api/v1/tags/'+encodeURIComponent(tag)+'/relations',{headers,redirect:'manual',credentials:'omit',cache:'no-store',signal:controller.signal});
     stream.body=response.body;if(controller.signal.aborted){void stream.body?.cancel().catch(()=>{});throw new Error('Relations deadline');}

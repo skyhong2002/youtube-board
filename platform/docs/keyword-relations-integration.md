@@ -74,3 +74,25 @@ rejects path parameters longer than 240 UTF-16 units with 404 before application
 validation; shorter invalid keyword values return 400. Disabled metadata may
 remain in a shared cache for its 60-second TTL plus 120-second stale window after
 activation; this is not evidence that the flag failed.
+
+## F1 public activation successor — 2026-10-14
+
+Babysit reports upstream APPaff5c028 / BUILD_IDd1LVsC3sk6p04uOyWUx5T
+switched13:46UTC and verified1280/390/GA0 at13:58. Actual DNT1/GPC1
+GET at13:59:35 returned柯文哲→政治人物 and public,max-age=60. Retained
+receipt `/tmp/babysit/mint-queue/youtube-live-f1-contract-20261014T135936Z.json`,
+SHA256e931ebf95486fe505a1ac0ef0422b9f0494bcb06f8ed02e9fa68a9d680c20875.
+Historical offline contract pins above are preserved rather than rewritten.
+
+YT current deployed image has no relations flag or tag credentials configured.
+For this published public read, explicitly select TS_TAG_RELATIONS_ENABLED=true
+and TS_TAG_RELATIONS_AUTH_MODE=anonymous. Default mode remains service; missing
+service credentials still fail closed and invalid modes do not contact tag.
+Anonymous mode never reads/forwards credentials, adds DNT1/Sec-GPC1, respects
+429/body/time/concurrency bounds and only reuses upstream explicitly public
+responses for at most60seconds. Downstream enabled DTOs remain private,no-store
+even in anonymous mode, preserving existing credential/privacy boundaries.
+
+All three relation types stay visible: successful empty types say 尚未收錄;
+missing types in a truncated response say 本次未取得（來源結果不完整）.
+This source change is not yet built or deployed; image integration follows.

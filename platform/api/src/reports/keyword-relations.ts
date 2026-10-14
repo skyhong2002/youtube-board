@@ -24,6 +24,10 @@ export function createKeywordRelationsReport(options:KeywordRelationsOptions={})
  const env=options.env??process.env,enabled=env.TS_TAG_RELATIONS_ENABLED==='true';
  const source='https://tag.observe.tw' as const;
  const initialize=async()=>{
+  // Explicit public mode after upstream F1 publication. Never infer anonymous
+  // access from missing credentials or forward request credentials to tag.
+  if(env.TS_TAG_RELATIONS_AUTH_MODE==='anonymous')return createTagRelationsClient({enabled:true,fetch:options.fetcher,clock:options.clock,fallback:async()=>null});
+  if(env.TS_TAG_RELATIONS_AUTH_MODE&&env.TS_TAG_RELATIONS_AUTH_MODE!=='service')throw new Error('Invalid relations authentication mode');
   const credentials=await (options.credentials??(()=>tagHttpOptions(env)))();
   // This service uses its assigned quota. Missing/invalid configuration must not
   // silently switch all public page traffic to the anonymous quota.

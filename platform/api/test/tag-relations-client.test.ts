@@ -51,7 +51,7 @@ describe('offline F1 relations contract',()=>{
   const cancel=vi.fn(),body=mock(async()=>new Response(new ReadableStream({pull(){},cancel}),{headers:{'content-type':'application/json'}}));expect(await createTagRelationsClient({enabled:true,fetch:body,fallback,timeoutMs:10})(tag)).toMatchObject({reason:'timeout'});expect(cancel).toHaveBeenCalled();
  });
  it('never returns token or transport error details',async()=>{
-  const secret='mock-service-token',fetch=mock(async()=>{throw new Error(secret);});const result=await createTagRelationsClient({enabled:true,fetch,fallback,serviceToken:secret})(tag);expect(JSON.stringify(result)).not.toContain(secret);expect(fetch).toHaveBeenCalledWith(expect.any(String),expect.objectContaining({headers:{accept:'application/json','X-Service-Token':secret}}));
+  const secret='mock-service-token',fetch=mock(async()=>{throw new Error(secret);});const result=await createTagRelationsClient({enabled:true,fetch,fallback,serviceToken:secret})(tag);expect(JSON.stringify(result)).not.toContain(secret);expect(fetch).toHaveBeenCalledWith(expect.any(String),expect.objectContaining({headers:{accept:'application/json',DNT:'1','Sec-GPC':'1','X-Service-Token':secret}}));
  });
  it.each([' leading','trailing ','\ncontrol','x'.repeat(61)])('rejects invalid tag without transport',async value=>{
   const fetch=transport();await expect(createTagRelationsClient({enabled:true,fetch,fallback})(value)).rejects.toThrow('Invalid relations tag');expect(fetch).not.toHaveBeenCalled();

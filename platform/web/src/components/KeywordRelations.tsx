@@ -48,11 +48,12 @@ function RelationRow({relation}:{relation:KeywordRelation}){
  </li>;
 }
 
-function RelationGroup({keyword,type,rows,sourceUrl,expanded,onExpand}:{keyword:string;type:RelationType;rows:KeywordRelation[];sourceUrl:string;expanded:boolean;onExpand?:(type:RelationType)=>void}){
+function RelationGroup({keyword,type,rows,sourceUrl,expanded,partial,onExpand}:{keyword:string;type:RelationType;rows:KeywordRelation[];sourceUrl:string;expanded:boolean;partial:boolean;onExpand?:(type:RelationType)=>void}){
  const copy=RELATION_COPY[type],limit=expanded?RELATION_GROUP_MAX:RELATION_PREVIEW,shown=rows.slice(0,limit),rest=rows.length-shown.length,listId=`keyword-relations-${type}`;
  return <section className="min-w-0" aria-label={copy.title} data-relation-group={type}>
   <h3 className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{copy.title} <span className="font-normal text-zinc-500 dark:text-zinc-400">{rows.length} 筆</span></h3>
   <p className="text-xs text-zinc-500 dark:text-zinc-400">{copy.note(keyword)}</p>
+  {rows.length===0&&<p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{partial?'本次未取得（來源結果不完整）':'尚未收錄'}</p>}
   <ul id={listId} className="divide-y divide-zinc-200 dark:divide-zinc-800">{shown.map((relation,i)=><RelationRow key={`${i}:${relation.id}`} relation={relation}/>)}</ul>
   {rest>0&&(!expanded&&onExpand
    ?<button type="button" className={toggle} aria-controls={listId} aria-expanded="false" onClick={()=>onExpand(type)}>顯示其餘 {Math.min(rest,RELATION_GROUP_MAX-RELATION_PREVIEW)} 筆</button>
@@ -94,10 +95,10 @@ export function KeywordRelationsView({keyword,view,onRetry,retriesLeft=0,note=nu
    const total=view.relations.length;
    status=total?`已讀取 ${total} 筆新文易數已核准的關聯${view.truncated?'；來源只回傳部分結果（已截斷），以下不是完整清單。':'。'}`
     :view.truncated?'來源回傳的結果不完整（已截斷），無法確認此標籤是否還有其他關聯。'
-    :'新文易數目前沒有此標籤已核准的關聯紀錄；僅指來源的已核准關聯，不代表沒有相關影片。';
-   const groups=RELATION_TYPES.map(type=>[type,view.relations.filter(r=>r.type===type)] as const).filter(([,rows])=>rows.length>0);
+    :'尚未收錄已核准的標籤關係；不代表沒有相關影片。';
+   const groups=RELATION_TYPES.map(type=>[type,view.relations.filter(r=>r.type===type)] as const);
    body=<div className="mt-2 space-y-3">
-    {groups.map(([type,rows])=><RelationGroup key={type} keyword={keyword} type={type} rows={rows} sourceUrl={view.sourceUrl} expanded={!!expanded[type]} onExpand={onExpand}/>)}
+    {groups.map(([type,rows])=><RelationGroup key={type} keyword={keyword} type={type} rows={rows} sourceUrl={view.sourceUrl} expanded={!!expanded[type]} partial={view.truncated} onExpand={onExpand}/>)}
     <details className="text-xs text-zinc-600 dark:text-zinc-400">
      <summary className="cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-brand-600">關聯類型說明</summary>
      <ul className="mt-1 list-disc space-y-0.5 pl-4">{RELATION_TYPES.map(type=><li key={type}><strong className="font-medium">{RELATION_COPY[type].title}</strong>：{RELATION_COPY[type].note(keyword)}</li>)}<li>{RELATIONS_SCOPE_NOTE}</li></ul>

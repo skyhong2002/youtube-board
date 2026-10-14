@@ -70,12 +70,21 @@ test('default disabled differs from a successful empty read and from unavailable
  assert.doesNotMatch(off,/筆|沒有此標籤已核准|<button|<a |TS_TAG|enabled|env/i);
  const empty=available('交通',[]);
  const none=view('交通',empty);
- assert.match(none,/data-relations-state="available"/);assert.match(none,/新文易數目前沒有此標籤已核准的關聯紀錄；僅指來源的已核准關聯，不代表沒有相關影片/);
+ assert.match(none,/data-relations-state="available"/);assert.match(none,/尚未收錄已核准的標籤關係；不代表沒有相關影片/);
  assert.doesNotMatch(none,/尚未開放|無法讀取|已截斷/);
  assert.deepEqual(anchors(none),['https://tag.observe.tw/tag/%E4%BA%A4%E9%80%9A/']);
  // Truncated with no rows is incomplete, never a complete absence.
  const cut=view('交通',available('交通',[],{truncated:true}));
  assert.match(cut,/結果不完整（已截斷），無法確認/);assert.doesNotMatch(cut,/沒有此標籤已核准/);
+});
+
+test('published sparse F1 keeps empty relation types visible and distinguishes truncation',()=>{
+ const markup=view('交通',available('交通',[rel('is-a','政治人物',{},{id:'group:1',href:'/group/1/'})]));
+ assert.equal((markup.match(/data-relation-group=/g)??[]).length,3);
+ assert.equal((markup.match(/尚未收錄/g)??[]).length,2);
+ const partial=view('交通',available('交通',[rel('is-a','政治人物',{},{id:'group:1',href:'/group/1/'})],{truncated:true}));
+ assert.doesNotMatch(partial,/尚未收錄/);
+ assert.equal((partial.match(/本次未取得（來源結果不完整）/g)??[]).length,2);
 });
 
 test('available: three relation types, is-a direction, provenance, inherited depth, IDs verbatim and escaped text',()=>{
