@@ -1,4 +1,13 @@
 """Generate a fixed read-only probe; import never executes curl or SSH."""
+# Baseline measured from SM at UTC2026-10-13T05:47Z: curl DNT:1, homepage
+# HTML only, five time_total samples per site, median: tag0.256s,
+# blog3.085s (DYNAMIC/no-store), youtube0.289s. Receipt:
+# /tmp/babysit/gate-baseline-receipt.md. Limits=max(2s,2*baseline):
+# tag2.0s/blog6.17s/youtube2.0s. Blog time_total includes origin rendering,
+# Cloudflare edge and network; it is not an isolated origin-render duration.
+# Since user UTC20:47 decision, live SM probes take THREE samples per site
+# and judge their median; any individual curl error or non200 still fails.
+
 import hashlib
 from pathlib import Path
 import types
