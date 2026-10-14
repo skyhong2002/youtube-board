@@ -66,6 +66,9 @@ test('proxy targets resolve through Next rewrites to the right route tree with t
   ['/channels?_rsc=abc','/channels',{_rsc:'abc'}],
   ['/channels?limit=5',FILTERED_REPORT_PREFIX+'/channels',{limit:'5'}],
   ['/channels?sort=x&_rsc=abc',FILTERED_REPORT_PREFIX+'/channels',{sort:'x',_rsc:'abc'}],
+  ['/ai/days/123/events',FILTERED_REPORT_PREFIX+'/ai/days/123/events',{}],
+  ['/ai/days/123/events?_rsc=abc',FILTERED_REPORT_PREFIX+'/ai/days/123/events',{_rsc:'abc'}],
+  ['/ai/days/123/events?event='+encodeURIComponent('交通 & A/B')+'&_rsc=abc',FILTERED_REPORT_PREFIX+'/ai/days/123/events',{event:'交通 & A/B',_rsc:'abc'}],
   ['/vocabulary?q=a',FILTERED_REPORT_PREFIX+'/vocabulary',{q:'a'}],
   ['/keywords/%E4%BA%A4%E9%80%9A/videos?days=7',FILTERED_REPORT_PREFIX+'/keywords/%E4%BA%A4%E9%80%9A/videos',{days:'7'}],
   // Literal percent and encoded slash terms stay byte-identical (decoded once by the page).
@@ -80,6 +83,12 @@ test('proxy targets resolve through Next rewrites to the right route tree with t
  // Without the proxy's header (or with the wrong value) nothing is rewritten.
  for(const [path,header] of [['/',null],['/',"filtered"],['/events','home'],['/channels?x=1',null],['/channels?x=1','home'],['/api/ops/x','filtered'],['/auth/me','filtered']] as const)
   assert.equal((await routed(path,header)).pathname,new URL(path,'http://n').pathname,`${path} ${header}`);
+});
+test('numeric daily events are always dynamic and never shared-cache eligible',()=>{
+ for(const path of ['/ai/days/123/events','/ai/days/123/events?_rsc=abc','/ai/days/123/events?event=交通'])
+  assert.deepEqual(decide(path),{kind:'render',target:'filtered',eligible:null},path);
+ // Date-based daily reports retain their existing canonical routing.
+ assert.deepEqual(decide('/ai/days/2026-10-14/events'),{kind:'render',target:null,eligible:'report'});
 });
 test('next.config carries exactly the contract rewrites in beforeFiles',async()=>{
  const {default:config}=await import('../../next.config');

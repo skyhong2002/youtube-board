@@ -46,6 +46,9 @@ export function publicRenderDecision(url: URL, method = "GET"): RenderDecision {
     // it, but only the bare canonical URL is eligible.
     const event = pathname.match(/^\/events\/([^/]+)$/);
     if (event) return render(null, uuid(event[1]) ? "event" : null);
+    // A numeric daily event requires an `event` query. Keep even a bare/prefetch
+    // URL out of ISR; request validation rejects missing names before streaming.
+    if (/^\/ai\/days\/[1-9][0-9]*\/events\/?$/.test(pathname)) return render("filtered", null);
     const segments = decodeReportSegments(pathname.slice(1).split("/"));
     if (segments && resolveRoute(segments))
         return filtered ? render("filtered", null) : render(null, "report");

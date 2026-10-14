@@ -43,7 +43,7 @@ export function proxy(request: NextRequest) {
     const decision = publicRenderDecision(url, request.method);
     if (decision.kind === "blocked") return new NextResponse("Not found", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
     const invalid = reportRequestStatus(url);
-    if (invalid) return new NextResponse(`<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><title>${invalid.status}</title><body><main><h1>${invalid.status}</h1><p>${invalid.message}</p><a href="/">回到 有影儀表板</a></main></body></html>`, {
+    if (invalid) return new NextResponse(`<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><title>${invalid.status}</title><body><main><h1>${invalid.status}</h1><p>${invalid.message}</p>${invalid.backHref === "/ai/days" ? '<a href="/ai/days">回到 AI 每日摘要</a>' : '<a href="/">回到 有影儀表板</a>'}</main></body></html>`, {
         status: invalid.status,
         headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Content-Security-Policy": "default-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'self'" },
     });

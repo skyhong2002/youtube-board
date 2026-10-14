@@ -2,7 +2,13 @@ import { parseBoardRequest } from "./boards";
 import { SEARCH_MAX_LENGTH } from "../../../shared/report-limits";
 
 /** Validate before React streaming commits a successful HTTP status. */
-export function reportRequestStatus(url: URL): { status: number; message: string } | null {
+export function reportRequestStatus(url: URL): { status: number; message: string; backHref?: "/ai/days" } | null {
+    if (/^\/ai\/days\/[1-9][0-9]*\/events\/?$/.test(url.pathname)) {
+        const events = url.searchParams.getAll("event");
+        // Match the API's string/trim/UTF-16 length checks, rejecting duplicates too.
+        if (events.length !== 1 || !events[0].trim() || events[0].length > 256)
+            return { status: 400, message: "請從 AI 每日摘要選擇事件；事件名稱不可空白、重複或超過 256 字元。", backHref: "/ai/days" };
+    }
     const videoList=/^\/(?:videos|tags(?:\/\d+)?\/videos|channels\/\d+\/videos|keywords\/[^/]+\/videos)\/?$/.test(url.pathname);
     if(videoList){
         const invalid=()=>({status:400,message:'影片篩選參數無效；顯示筆數須為 1 至 1000。'}),numeric:Record<string,[number,number]>={limit:[1,1000],offset:[0,100000],hours:[1,8760],min:[0,Number.MAX_SAFE_INTEGER],channelId:[1,Number.MAX_SAFE_INTEGER],...(url.pathname.startsWith('/keywords/')?{days:[1,90] as [number,number]}:{})};
