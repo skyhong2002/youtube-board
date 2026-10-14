@@ -37435,5 +37435,33 @@
       },
       "sourceFinding": "httpDiagnostic appends detailedAI fields only for isNumericAiEventsPath: /ai/days/[1-9][0-9]*/events; actual503 was numeric dailyID, not either previouslydiagnosed YYYY-MM-DD path."
     }
+  },
+  "numericAiEventSourceFix20261014": {
+    "updatedAt": "2026-10-14T06:24:05.769676+00:00",
+    "parentAppSHA": "073985b8bc4bbcc9ffb5d43c1e1a26060bb8ac4a",
+    "successorAppSHA": "b9715b81b585e0f44f7514eac741e850a9533977",
+    "finding": "Bare numeric daily-ID AI event routes require an event query but previously entered canonical ISR; mock API400 becomes a render failure. Captured event query was not retained, so exact cause of recapture503 remains unproven.",
+    "fix": "Numeric daily-ID event routes always use filtered dynamic rendering with no shared-cache eligibility; missing, duplicate, whitespace-only and over-256 UTF-16 event names return400 before streaming with a fixed AI-daily recovery link. Date routes unchanged.",
+    "analysis": {
+      "model": "gpt-6.1-sol",
+      "reviewer": "/root/capture_source_review",
+      "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/numeric-ai-event-prefetch-independent-source-analysis-20261014T062319Z.json",
+      "sha256": "d5e70d013acf16180478f827625debfd82c1061b4748170c1cb70e54c1cee039"
+    },
+    "tests": {
+      "focusedPassed": 33,
+      "webPassed": 290,
+      "webFailed": 0,
+      "webLog": "/tmp/babysit/mint-queue/youtube-b9715b8-web-tests.log",
+      "webLogSHA256": "2b8ce81acc5037becb68c0993c102fe96cb8f97149796c5945402e22ff4084ef",
+      "typecheck": "tsc --project web/tsconfig.json --noEmit --incremental false exit0; no typegen/build"
+    },
+    "sourceReview": "pending",
+    "runtimeRecheck": "pending",
+    "candidateApproval": false,
+    "routeComplete": false,
+    "productionKeywordFix": "not-deployed",
+    "productionImage": "sha256:4f5e2a3ae63629a85f1463f778a7548b8cf53b758b881cb417e5d84f34276ffa",
+    "next": "After independent source review, submit exact simple native arm64 successor build command/fresh probe to babysit. Retest numeric event links and main-page captures; preserve all previous failed evidence and no503exception."
   }
 }
