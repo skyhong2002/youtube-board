@@ -38066,7 +38066,7 @@
       "refreshImmediatelyBeforeStart": true
     },
     "build": "completed exit0; verified linux/arm64 and APP/OPS labels",
-    "capture": "home complete; keywords capture underway; both independent visual approval pending",
+    "capture": "completed 16 packages/108 PNGs; independent visual review final receipt pending",
     "candidateApproval": false,
     "routeComplete": false,
     "deployment": "pending",
@@ -38451,6 +38451,318 @@
       ],
       "independentVisualReview": "in_progress",
       "routeComplete": false
+    },
+    "keywordsCapture": {
+      "manifestPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/appd019ae69-keywords-20261014-mobile01-v12/run-a9cca643-3731-4eb2-a593-6e97c0806d2e/captures.json",
+      "manifestSHA256": "6a8977daff3e18b7673d51e6dd077498facb8cf9fdd5ec3eacbc546e24e5909f",
+      "viewportPackages": 8,
+      "pngCount": 44,
+      "checks": [
+        {
+          "key": "keywords-today-light-d019ae69",
+          "viewport": "desktop",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/appd019ae69-keywords-20261014-mobile01-v12/run-a9cca643-3731-4eb2-a593-6e97c0806d2e/keywords-today-light-d019ae69-desktop-requests.json",
+          "networkSHA256": "b8c31b02ba442026986856e23367679d8c65c9af559af1d76387aa1f16a80f62",
+          "accepted": true,
+          "complete": true,
+          "google": {
+            "attempts": 0,
+            "blocked": 0,
+            "responses": 0
+          },
+          "privacy": {
+            "dntRequested": "1",
+            "gpcEnabled": true,
+            "before": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "after": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "observed": true,
+            "requestMismatch": false
+          },
+          "httpErrors": [
+            {
+              "url": {
+                "origin": "candidate",
+                "path": "/_next/image"
+              },
+              "status": 404,
+              "resourceType": "image",
+              "publicImageTarget": "youtube-image-cdn/vi/:id/mqdefault.jpg",
+              "optimizerWidth": 48,
+              "optimizerQuality": 75,
+              "responseBodyDiagnostic": "omitted; no raw body retained"
+            }
+          ]
+        },
+        {
+          "key": "keywords-today-light-d019ae69",
+          "viewport": "mobile",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/appd019ae69-keywords-20261014-mobile01-v12/run-a9cca643-3731-4eb2-a593-6e97c0806d2e/keywords-today-light-d019ae69-mobile-requests.json",
+          "networkSHA256": "b8f2218152b9f12ba5509fc3fbf29680f9b728052b26734089c9843eb3971f69",
+          "accepted": true,
+          "complete": true,
+          "google": {
+            "attempts": 0,
+            "blocked": 0,
+            "responses": 0
+          },
+          "privacy": {
+            "dntRequested": "1",
+            "gpcEnabled": true,
+            "before": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "after": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "observed": true,
+            "requestMismatch": false
+          },
+          "httpErrors": []
+        },
+        {
+          "key": "keywords-today-dark-d019ae69",
+          "viewport": "desktop",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/appd019ae69-keywords-20261014-mobile01-v12/run-a9cca643-3731-4eb2-a593-6e97c0806d2e/keywords-today-dark-d019ae69-desktop-requests.json",
+          "networkSHA256": "1ff54e58dbf6d158e40a34af268bb2e0d0144255b097361e4a3d0cb4bbaccd0a",
+          "accepted": true,
+          "complete": true,
+          "google": {
+            "attempts": 0,
+            "blocked": 0,
+            "responses": 0
+          },
+          "privacy": {
+            "dntRequested": "1",
+            "gpcEnabled": true,
+            "before": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "after": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "observed": true,
+            "requestMismatch": false
+          },
+          "httpErrors": [
+            {
+              "url": {
+                "origin": "candidate",
+                "path": "/_next/image"
+              },
+              "status": 404,
+              "resourceType": "image",
+              "publicImageTarget": "youtube-image-cdn/vi/:id/mqdefault.jpg",
+              "optimizerWidth": 48,
+              "optimizerQuality": 75,
+              "responseBodyDiagnostic": "omitted; no raw body retained"
+            }
+          ]
+        },
+        {
+          "key": "keywords-today-dark-d019ae69",
+          "viewport": "mobile",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/appd019ae69-keywords-20261014-mobile01-v12/run-a9cca643-3731-4eb2-a593-6e97c0806d2e/keywords-today-dark-d019ae69-mobile-requests.json",
+          "networkSHA256": "3f63a1219f3aa2270dd14efb1fe7bbd31061caeb20e53cf29b8577cdb72a30a0",
+          "accepted": true,
+          "complete": true,
+          "google": {
+            "attempts": 0,
+            "blocked": 0,
+            "responses": 0
+          },
+          "privacy": {
+            "dntRequested": "1",
+            "gpcEnabled": true,
+            "before": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "after": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "observed": true,
+            "requestMismatch": false
+          },
+          "httpErrors": []
+        },
+        {
+          "key": "keywords-week-light-d019ae69",
+          "viewport": "desktop",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/appd019ae69-keywords-20261014-mobile01-v12/run-a9cca643-3731-4eb2-a593-6e97c0806d2e/keywords-week-light-d019ae69-desktop-requests.json",
+          "networkSHA256": "2768a275e448ab1775d5f716018c019b95d20dbd2282905e95051ce96ee98d0f",
+          "accepted": true,
+          "complete": true,
+          "google": {
+            "attempts": 0,
+            "blocked": 0,
+            "responses": 0
+          },
+          "privacy": {
+            "dntRequested": "1",
+            "gpcEnabled": true,
+            "before": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "after": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "observed": true,
+            "requestMismatch": false
+          },
+          "httpErrors": [
+            {
+              "url": {
+                "origin": "candidate",
+                "path": "/_next/image"
+              },
+              "status": 404,
+              "resourceType": "image",
+              "publicImageTarget": "youtube-image-cdn/vi/:id/mqdefault.jpg",
+              "optimizerWidth": 48,
+              "optimizerQuality": 75,
+              "responseBodyDiagnostic": "omitted; no raw body retained"
+            }
+          ]
+        },
+        {
+          "key": "keywords-week-light-d019ae69",
+          "viewport": "mobile",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/appd019ae69-keywords-20261014-mobile01-v12/run-a9cca643-3731-4eb2-a593-6e97c0806d2e/keywords-week-light-d019ae69-mobile-requests.json",
+          "networkSHA256": "393b2e192670da1e983c644096bdbc1b40631dc3477ae7f191950f687b2eff1b",
+          "accepted": true,
+          "complete": true,
+          "google": {
+            "attempts": 0,
+            "blocked": 0,
+            "responses": 0
+          },
+          "privacy": {
+            "dntRequested": "1",
+            "gpcEnabled": true,
+            "before": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "after": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "observed": true,
+            "requestMismatch": false
+          },
+          "httpErrors": []
+        },
+        {
+          "key": "keywords-week-dark-d019ae69",
+          "viewport": "desktop",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/appd019ae69-keywords-20261014-mobile01-v12/run-a9cca643-3731-4eb2-a593-6e97c0806d2e/keywords-week-dark-d019ae69-desktop-requests.json",
+          "networkSHA256": "ffe6e26d283192bd580c44991924c40a868f25591ef524c34435b980a748aa8f",
+          "accepted": true,
+          "complete": true,
+          "google": {
+            "attempts": 0,
+            "blocked": 0,
+            "responses": 0
+          },
+          "privacy": {
+            "dntRequested": "1",
+            "gpcEnabled": true,
+            "before": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "after": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "observed": true,
+            "requestMismatch": false
+          },
+          "httpErrors": [
+            {
+              "url": {
+                "origin": "candidate",
+                "path": "/_next/image"
+              },
+              "status": 404,
+              "resourceType": "image",
+              "publicImageTarget": "youtube-image-cdn/vi/:id/mqdefault.jpg",
+              "optimizerWidth": 48,
+              "optimizerQuality": 75,
+              "responseBodyDiagnostic": "omitted; no raw body retained"
+            }
+          ]
+        },
+        {
+          "key": "keywords-week-dark-d019ae69",
+          "viewport": "mobile",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/appd019ae69-keywords-20261014-mobile01-v12/run-a9cca643-3731-4eb2-a593-6e97c0806d2e/keywords-week-dark-d019ae69-mobile-requests.json",
+          "networkSHA256": "f8da69598462ab27e5de850de26d5cf40a96faf853615e2816ff33b450fdc158",
+          "accepted": true,
+          "complete": true,
+          "google": {
+            "attempts": 0,
+            "blocked": 0,
+            "responses": 0
+          },
+          "privacy": {
+            "dntRequested": "1",
+            "gpcEnabled": true,
+            "before": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "after": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "observed": true,
+            "requestMismatch": false
+          },
+          "httpErrors": []
+        }
+      ],
+      "independentVisualReview": "pending-newactual-images",
+      "routeComplete": false
+    },
+    "runtimePrivacyCanary": {
+      "path": "/tmp/babysit/mint-queue/youtube-mobile01-runtime-cache-canary.json",
+      "sha256": "777bd93ef8db7eea7e5e344df1a5cc8da7fc87f74e2ad860f9f2fa6a8c6a30f3",
+      "passed": false,
+      "fiveCasesPass": true,
+      "rscStatus": "incomplete: first harness rejected HTTPError but did not preserve status; cannot distinguish redirect/producterror, supplement required"
+    },
+    "candidateCleanup": {
+      "path": "/tmp/babysit/mint-queue/youtube-mobile01-cleanup.json",
+      "sha256": "e626ca945c2ca81976c94238c34b639a2396eac138a0e18c4bc581fa7ccb9531",
+      "at": "2026-10-14T08:20:06.959310+00:00",
+      "candidateContainer": "94ae14f223f01430ff2770db8aeabbb093863067311f062e0d897a786c45f57b",
+      "containerAbsent": true,
+      "port18168Closed": true,
+      "productionWebHealthy": true,
+      "productionImageUnchanged": true,
+      "errors": [],
+      "logs": {
+        "exitCode": 0,
+        "rawTextSaved": false,
+        "rawBytesInspected": 6008,
+        "fixedSignatures": {},
+        "unclassifiedErrorLines": 12
+      },
+      "stopExitCode": 0
     }
   }
 }
