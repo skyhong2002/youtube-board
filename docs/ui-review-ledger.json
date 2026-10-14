@@ -38837,8 +38837,8 @@
       "sha256": "4cc7cc678c04e02a14f84ba1d65ae82224ad772b24139dc77741549c62b717fe"
     },
     "deploymentRequest": {
-      "path": "/tmp/babysit/mint-queue/youtube-deploy-b4afbd8f-request-ready.json",
-      "sha256": "8f457a30741d67690f4a4e8508553bc04c05b3cd16065007f64783907f0cd75f",
+      "path": "/tmp/babysit/mint-queue/youtube-deploy-b4afbd8f-request-ready-v2.json",
+      "sha256": "b795ad5d13a4d02ec40a1bb27b1d455761f82f9efe87af376f2827e411943503",
       "status": "ready-for-babysit-review; executionAllowed=false",
       "deployArgv": [
         "/usr/bin/python3",
@@ -38854,6 +38854,13 @@
       "sameImageNoRebuild": true,
       "dokployComposeSyncedBySameCommand": true,
       "freshProbeRequiredImmediatelyBeforeExecution": true
-    }
+    },
+    "independentReadinessAddendum": {
+      "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/readiness-addendum-appd019ae69-20261014T084154Z/review.json",
+      "sha256": "d6f600f18cf944cca7c998e12bae8124b8bb3d5b656a26bc176dd2738ca138e8",
+      "transcriptPath": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/readiness-addendum-appd019ae69-20261014T084154Z/transcript.md",
+      "transcriptSha256": "55da212f998c68f3bad64bf4fd05df8a5db70b3c4964edffbe5365181a39fc18"
+    },
+    "coreDeploymentReviewPassed": true
   }
 }
