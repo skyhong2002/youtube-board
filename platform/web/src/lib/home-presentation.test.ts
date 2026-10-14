@@ -57,13 +57,13 @@ test('keyword links keep the selected Taipei publication dates',()=>{
  assert.equal(keywordVideosHref('x',{from:'invalid',to:'2026-10-12T00:00:00+08:00'}),'/keywords/x/videos');
  assert.equal(keywordVideosHref('x',null),'/keywords/x/videos');
 });
-test('the cloud keeps all forty ranked terms sized by heat; a null view total is 無觀看值 with a labelled subtotal',()=>{
+test('the cloud keeps all forty ranked terms sized by heat and labels partial views as a lower bound',()=>{
  const rows=Array.from({length:40},(_,i)=>row(i+1));rows[5]={...rows[5]!,views:null,unknownViewVideos:2,measuredViewVideos:rows[5]!.videoCount-2};
  const words=homeKeywordCloudWords(rows,summary({from:'2026-10-12T00:00:00+08:00',rows}),'today');
  assert.equal(words.length,40);assert.deepEqual(words.map(w=>w.count),rows.map(r=>r.heatScore));
  assert.ok(words.every(w=>w.href.endsWith('?from=2026-10-12&to=2026-10-12')));
  assert.deepEqual(words.map(w=>w.tone).slice(0,4),['brand','brand','brand','strong']);
- const unknown=words[5]!.card.rows.find(([k])=>k==='目前累計觀看')?.[1]??'';assert.match(unknown,/^無觀看值（已知小計 .+ 次・2 支缺值）$/);
+ const unknown=words[5]!.card.rows.find(([k])=>k==='目前累計觀看')?.[1]??'';assert.match(unknown,/^≥.+ 次（2 支缺值）$/);
  assert.equal(words[0]!.card.rows.find(([k])=>k==='熱度')?.[1],'99.0');assert.equal(words[0]!.card.rows.find(([k])=>k==='升溫')?.[1],'資料不足');
  assert.ok(words.every(w=>w.card.rows.every(([,v])=>!/AI|增量|文章/.test(v))));
 });

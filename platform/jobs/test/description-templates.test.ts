@@ -73,3 +73,15 @@ it('excludes authorized news sources and no-equal terms while retaining named su
  for(const term of ['美國','民進黨'])expect(tagDisplayExclusion(term)).toBe('upstream-no-equal-or-category');
  for(const term of ['沈伯洋','川普','台積電'])expect(tagDisplayExclusion(term)).toBeNull();
 });
+
+
+it('audited display noise uses whole terms and does not delete source matching evidence',()=>{
+ for(const term of ['支持','登場','粉絲','真相','曝光','未來','市場','打造','持續','公開','畫面','危機','影響','服務','感謝','攻擊','互動','投資','安全','挑戰','成功','相關','歷史','關注'])expect(tagDisplayExclusion(term)).toBe('youtube-generic-two-character');
+ for(const term of ['中共','北京','烏克蘭'])expect(tagDisplayExclusion(term)).toBe('youtube-country-city-party');
+ for(const term of ['沈伯洋','川普','台積電','國慶','雙十國慶','新聞直播','AI','假新聞','烏克蘭戰爭','中共軍演','市場改革','支持者'])expect(tagDisplayExclusion(term)).toBeNull();
+ expect(tagDisplayExclusion(' 支持 ')).toBe('youtube-generic-two-character');
+ const pool={...snapshot,terms:aggregateTerms([{id:'fixture',media:'fixture',publishedAt:'',tags:['支持','中共','烏克蘭','國慶']}])};
+ const before=JSON.stringify(pool);const result=evidenceForVideo({channelId:1,pk:1,videoId:'Video123456',title:'支持 中共 烏克蘭 國慶',description:'',observedAt:null},pool,buildDescriptionTemplateProfile(1,[]));
+ expect(result.evidence.map(e=>e.term)).toEqual(['支持','中共','烏克蘭','國慶']);
+ expect(JSON.stringify(pool)).toBe(before);
+});

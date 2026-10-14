@@ -71,13 +71,13 @@ test('completion count: null, omitted or malformed freshVideos is unknown progre
  assert.equal(state({status:'not-synchronized',freshVideos:null}).kind,'not-synchronized');
 });
 
-test('/keywords loaded: API order, selected-period links, null views stay 無觀看值 and a measured zero stays 0',()=>{
+test('/keywords loaded: API order, selected-period links, partial views show their lower bound and a measured zero stays 0',()=>{
  const week=summary({rows:[row(1,{term:'a/b%41',views:null,unknownViewVideos:2,measuredViewVideos:9,knownViews:4000}),row(9,{term:'零觀看',views:0,knownViews:0})]});
  const markup=html(createElement(KeywordRankingView,{exploration:{keywords:week,keywordToday:today({rows:[row(3,{term:'今日詞'})]})},meta:meta(),initial:'week'}));
  // Returned order, not re-sorted by heat (row 9 has the higher score).
  assert.ok(markup.indexOf('a/b%41')<markup.indexOf('零觀看'));
  assert.match(markup,/href="\/keywords\/a%2Fb%2541\/videos\?from=2026-10-06&amp;to=2026-10-12"/);
- assert.match(markup,/無觀看值<small[^>]*>（已知小計 4,000 次・2 支缺值）/);
+ assert.match(markup,/≥4,000 次<small[^>]*>（2 支缺值）/);
  assert.match(markup,/>0 次<\/td>/);
  assert.doesNotMatch(markup,/今日詞|data-keyword-state/);
  assert.deepEqual(checkedWindow(markup),['week']);

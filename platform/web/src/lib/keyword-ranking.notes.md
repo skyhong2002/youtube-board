@@ -21,9 +21,10 @@ Intentional differences:
   i.ytimg mqdefault, existing next/image whitelist, 48/96 widths); only the first row of
   the initially selected window is eager. Tag rows have no images.
 - Honesty rules: heat, rise and trend show 「資料不足」 unless the API reports
-  `youtube-channel-weighted-decay-v1` with finite scores and a complete comparison; null
-  views show 「無觀看值」, never 0. Match coverage (fresh/source) is described as matching
-  progress only; examples are described as illustrative, not a population sample.
+  `youtube-channel-weighted-decay-v1` with finite scores and a complete comparison. Fully missing measurements read
+  「無觀看值」; partial measurements show a floored lower bound (≥) with the missing
+  video count; missing values never become zero. Match coverage (fresh/source) is
+  matching progress only; examples are described as illustrative, not a population sample.
 - /vocabulary keeps the complete original pool and adds a read-only 「排行顯示」 column
   from `displayExclusion`; there are no override controls.
 
@@ -56,7 +57,7 @@ Mobile identity (729bcf7 review): rows stay one line and the lead keeps tag's 9.
 show as before. Live rows on phones lead with the channel avatar + name on the same video
 link, then the title (full text in `title`); the 頻道 column is unchanged. The homepage
 ranking keeps the term on its own line and folds metrics into one truncating line whose
-link title carries heat, rise, counts and the views summary (無觀看值 / 已知小計 intact).
+link title carries heat, rise, counts and the views summary (≥ measured subtotal with missing count, or 無觀看值 when entirely unknown).
 
 /mayor coverage (`components/MayorShare.tsx`): each rolling-7-day date is joined to its
 report row's `observedBuckets` (expected 28 = 4 categories × 7 days), not to the

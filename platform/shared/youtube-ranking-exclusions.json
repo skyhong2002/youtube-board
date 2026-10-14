@@ -1,0 +1,18 @@
+{
+  "version": "youtube-topic-exclusions-2026-10-14",
+  "scope": "whole-term ranking display only; preserve vocabulary and matching evidence",
+  "source": {
+    "kind": "operator-production-acceptance-audit",
+    "observedAtUTC": "2026-10-14T11:56Z",
+    "upstreamRepository": "tag-visuals",
+    "upstreamCheckedCommit": "61fd537c0f8bc91c687ea2fe875cf0bd79215a77",
+    "upstreamNoEqualSHA256": "1316f8e40390dbbf23bed0a382700919340b72f8e71167f37133b86e938734ee",
+    "note": "The current tag isTagNoise/media-keywords/no-equal policy does not exclude these audited terms. Reuse upstream checks first; this explicit supplemental list is based on the operator's observed ranking, not an inferred dictionary or a blanket two-character rule."
+  },
+  "genericTwoCharacterTerms": [
+    "支持", "登場", "粉絲", "真相", "曝光", "未來", "市場", "打造",
+    "持續", "公開", "畫面", "危機", "影響", "服務", "感謝", "攻擊",
+    "互動", "投資", "安全", "挑戰", "成功", "相關", "歷史", "關注"
+  ],
+  "countryCityPartyTerms": ["中共", "北京", "烏克蘭"]
+}

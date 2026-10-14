@@ -32,9 +32,9 @@ test('missing trend days stay gaps and an all-missing trend draws nothing',()=>{
  assert.equal(sparklineRuns([2,null,3.25]).length,2);
  assert.deepEqual(sparklineRuns([null,null]),[]);assert.deepEqual(trendValues(undefined),[]);
 });
-test('a null view total reads 無觀看值; a partial known subtotal is labelled and never shown as the total',()=>{
- const partial=viewsCell(row());assert.equal(partial.value,NO_VIEWS);assert.equal(partial.detail,'已知小計 3,000 次・1 支缺值');assert.match(partial.title,/不是合計/);
- assert.doesNotMatch(partial.value,/次/);assert.equal(viewsSummary(row()),'無觀看值（已知小計 3,000 次・1 支缺值）');
+test('partial measured views show a lower bound while all-missing and measured zero stay distinct',()=>{
+ const partial=viewsCell(row());assert.equal(partial.value,'≥3,000 次');assert.equal(partial.detail,'1 支缺值');assert.match(partial.title,/不是完整合計/);
+ assert.equal(viewsSummary(row()),'≥3,000 次（1 支缺值）');assert.doesNotMatch(viewsSummary(row()),/無觀看值/);
  const none=viewsCell(row({measuredViewVideos:0,knownViews:0,unknownViewVideos:4}));assert.equal(none.value,NO_VIEWS);assert.equal(none.detail,'4 支缺值');
  assert.deepEqual([viewsCell({videoCount:2,views:null,unknownViewVideos:2}).value,viewsCell({videoCount:2,views:null,unknownViewVideos:2}).detail],[NO_VIEWS,'2 支缺值']);
  const full=viewsCell(row({views:3000,unknownViewVideos:0,measuredViewVideos:4}));assert.equal(full.value,'3,000 次');assert.equal(full.detail,null);
@@ -52,7 +52,7 @@ test('method notes state coverage, weights, sampling limits and keep contextual 
  assert.ok(text.includes(DISPLAY_EXCLUSION_NOTE));assert.ok(text.includes(DESCRIPTION_TEMPLATE_NOTE));
  assert.match(DISPLAY_EXCLUSION_NOTE,/少數 YouTube 平台或宣傳用語/);assert.match(DESCRIPTION_TEMPLATE_NOTE,/「24小時」.*重複宣傳段落.*一般新聞內容時照常計入/);
  assert.doesNotMatch(text,/同一個詞出現在一般新聞內容時照常保留，不會整詞排除/);
- assert.match(text,/已知小計不是合計/);
+ assert.match(text,/已知小計不是完整合計/);
  assert.match(text,/上游判定為雜訊標籤 2 個/);
  assert.equal(matchCoveragePercent(summary({sourceVideos:0})),null);
 });
@@ -86,7 +86,7 @@ test('ranking table keeps desktop one-line rows, a sticky lead with fixed thumbn
  assert.match(html,/whitespace-nowrap/);assert.match(html,/table-lead sticky/);assert.match(html,/width:48px;height:27px/);
  assert.equal(html.match(/loading="eager"/g)?.length,1);
  assert.match(html,/href="\/keywords\/%E5%8F%B0%E7%A9%8D%E9%9B%BB\/videos\?from=2026-10-07&amp;to=2026-10-13"/);
- assert.match(html,/2 種寫法/);assert.match(html,/無觀看值<small[^>]*>（已知小計 3,000 次・1 支缺值）/);assert.doesNotMatch(html,/>3,000 次</);assert.match(html,new RegExp(INSUFFICIENT));assert.match(html,/href="\/channels\/7"/);
+ assert.match(html,/2 種寫法/);assert.match(html,/≥3,000 次<small[^>]*>（1 支缺值）/);assert.doesNotMatch(html,/>3,000 次</);assert.match(html,new RegExp(INSUFFICIENT));assert.match(html,/href="\/channels\/7"/);
  assert.doesNotMatch(html,/>0 次</);
 });
 
@@ -112,4 +112,18 @@ test('mobile ranking identities remain complete, wrap long terms, and keep scope
  const decorative=[...html.matchAll(/<a ([^>]*aria-hidden="true"[^>]*)>/g)];
  assert.equal(decorative.length,terms.length);
  assert.ok(decorative.every(link=>link[1].includes('max-sm:hidden')));
+});
+
+
+test('partial views retain honest zero and floor compact lower bounds at both unit scales',()=>{
+ assert.equal(viewsSummary(row({knownViews:0})),'≥0 次（1 支缺值）');
+ assert.equal(viewsSummary(row({knownViews:11183500,unknownViewVideos:509,videoCount:512})),'≥1,118.35 萬 次（509 支缺值）');
+ assert.equal(viewsCell(row({knownViews:19999})).value,'≥1.99 萬 次');
+ assert.equal(viewsCell(row({knownViews:199999999})).value,'≥1.99 億 次');
+ assert.match(viewsCell(row({knownViews:19999})).title,/至少 19,999 次/);
+});
+test('raw vocabulary reasons explain the audited generic and geographic exclusions',()=>{
+ assert.equal(displayExclusionLabel('youtube-generic-two-character'),'不列入排行：雙字通用詞（核定清單）');
+ assert.equal(displayExclusionLabel('youtube-country-city-party'),'不列入排行：國家、城市或政黨詞（補充排除清單）');
+ assert.match(DISPLAY_EXCLUSION_NOTE,/原始詞彙池列出排除原因/);
 });
