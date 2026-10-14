@@ -228,3 +228,34 @@ rechecks BOTH memory and health at that timestamp. Read-delay and auth-delay
 11watchdog+10gate+5probe=26 focused mocks passed; independent re-review pending.
 This fixes source only, not actual controller/heartbeat/terminal integration.
 No fresh probe, lock, build, export, container or capture executed.
+
+### Production keyword screenshot regression (2026-10-14)
+
+The user's production screenshot still contains 新聞／看／訂閱 and social
+platform terms; this is a delivery failure, not evidence that APP073 is running.
+APP073's home query applies exclusions before grouping and ranking limits even
+for the existing `exact-text-v1` vocabulary. Home cloud, home hot ranking and
+`/keywords` consume the same home summaries. New DB-free regression replays 29
+excluded screenshot/authorized terms and retains 沈伯洋／川普／台積電／24小時,
+checks both today/week, keeps null views, and verifies the raw labels unchanged.
+25 API focused mocks pass; independent review is recorded separately.
+
+Existing W1 and admission reviews have now been read back: source-only PASS,
+receipts `native-watchdog-w1-fix-independent-source-review-20261014T025415Z.json`
+(hash3283db7c9d025c8f13c26bec4465845c7d409597b6c2cf3b5d6c558ee86ba5b2)
+and `sm-native-executor-admission-v2-independent-source-review-20261014T014944Z.json`
+(hash94b2d6413d11da8ab79d8379296b0177d467f11343a77de0efdfa349f16141a6)
+under the private review-log directory already referenced above.
+
+`native-arm64-runtime-watch.py` wires real DockerBackend, CgroupBackend, Executor
+and Watchdog ports, rather than another configuration-only model. Input is one
+bounded sequenced JSON heartbeat per10seconds over the authenticated controller
+SSH stdin. EOF/timeout/invalid/replayed/withdrawn/stale packet or TERM/HUP/INT
+attempts physically verified pause of only the full pinned compiler container;
+unknown STOP retains custody. It does not launch, resume, package, release or
+deploy.10 adapter mocks +108 existing watchdog/gate/probe/executor/Docker/cgroup
+mocks pass. Independent review is required before live use. Remaining actual
+integration: SM controller must read current babysit grant, produce and preserve
+fresh authenticated observations, bootstrap one owned compiler identity, and
+supply these heartbeats. Terminal packaging still requires separate proof.
+No build or new candidate exists yet; no UI acceptance is promoted.
