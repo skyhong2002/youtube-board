@@ -37680,9 +37680,48 @@
     "resultPath": "/tmp/babysit/mint-queue/youtube-simple-native-9db8a309-result.json",
     "resultSha256": "e20ed3b8890e639f02ec25b5d1a392a4aae61fb72329fa2d0ac27da1b4d7b62f",
     "buildSlotReturnedAt": "2026-10-14T07:12:26.498250+00:00",
-    "nativeSmoke": "pending",
+    "nativeSmoke": {
+      "path": "/tmp/babysit/mint-queue/youtube-native-smoke-d2e7e7bb-result.json",
+      "sha256": "6cf8a20434a6370bf74f8a904b1dd2d72c7781b8ab1d505224e5ac6d189a6bfa",
+      "result": {
+        "platform": "linux",
+        "arch": "arm64",
+        "node": "v24.21.0",
+        "abi": "137",
+        "glibcRuntime": "2.36",
+        "sharp": "0.35.5",
+        "sharpPath": "/opt/youtube-board/platform/node_modules/sharp/dist/index.cjs",
+        "webpBytes": 44,
+        "buildId": "RHlWKVp3wAIluf4BIRhI5",
+        "traceBuildId": "RHlWKVp3wAIluf4BIRhI5",
+        "versions": {
+          "next": {
+            "source": "16.3.8",
+            "traced": "16.3.8"
+          },
+          "react": {
+            "source": "19.2.8",
+            "traced": "19.2.8"
+          },
+          "react-dom": {
+            "source": "19.2.8",
+            "traced": "19.2.8"
+          }
+        },
+        "serverSha256": "13de5f37fcb08d9ed2601dc919b655c25baedc17e53d2b2b621e25d2557482c2",
+        "manifests": {
+          "build-manifest.json": "76d366f37da68885dcbd0bba5a629b0fe56c52db0b62491a2f11df81f3d5ad00",
+          "routes-manifest.json": "73aba4d6f7e3f99e9892ad6c2294439b35d35397477691331dd63a7e3b41f101",
+          "prerender-manifest.json": "c756555614f0ee64ff3f10c49fa6d05670fb0feeb6bf124d79db3cfc491f01e0"
+        },
+        "network": "none",
+        "sourceWrites": false
+      },
+      "cleanup": "/tmp/babysit/mint-queue/youtube-native-smoke-d2e7e7bb-cleanup.json"
+    },
     "candidateApproval": false,
     "routeComplete": false,
-    "productionMutated": false
+    "productionMutated": false,
+    "buildId": "RHlWKVp3wAIluf4BIRhI5"
   }
 }
