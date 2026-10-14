@@ -37293,13 +37293,37 @@
     },
     "commandPacket": "/tmp/babysit/mint-queue/youtube-candidate-capture-15c7af2d-request.json",
     "commandPacketSha256": "41bdf02f7d7d11c3c51682951ec5837cd1bdbb7e7134d8f3e970e649706b1c4c",
-    "captureToolSourceReview": "fixed CV12 findings submitted to existing reviewer; pending exact-byte re-review",
-    "candidateStarted": false,
-    "captureExecuted": false,
+    "captureToolSourceReview": {
+      "verdict": "pass",
+      "scope": "source only",
+      "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/capture-v12-fixed-independent-source-review-20261014T052014Z.json",
+      "sha256": "507348b2d9bd85ba476af73a3504f73430215200f3359c23db41"
+    },
+    "candidateStarted": true,
+    "captureExecuted": true,
     "uiAccepted": false,
     "plannedViewportPackages": 16,
     "estimateDiskBytes": 112000000,
     "scope": "home and keywords × today/week × light/dark ×1280/390",
-    "retainedArtifactsPolicy": "historical capture directories and failed locks preserved; new artifact uses one fixed budget envelope across both batches"
+    "retainedArtifactsPolicy": "historical capture directories and failed locks preserved; new artifact uses one fixed budget envelope across both batches",
+    "candidateCurrentlyRunning": false,
+    "completedViewportPackages": 0,
+    "captureStatus": "failed-partial-preserved; all main-page acceptance pending",
+    "nodePathCorrectionPacket": "/tmp/babysit/mint-queue/youtube-candidate-capture-15c7af2d-node-path-request.json",
+    "failedCaptureDirectory": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app073-home-20261014-v12/run-9314a82d-5137-4930-a60d-884de6b8f830",
+    "failure": {
+      "routeFamily": "/ai/days/:id/events",
+      "requestType": "background RSC prefetch",
+      "status": 503,
+      "cause": "unproven; original full runtime errors not retained before --rm cleanup",
+      "desktopNetworkAccepted": true,
+      "mobileNetworkAccepted": false,
+      "completeViewportPackages": 0,
+      "googleAttempts": 0,
+      "originalEvidenceAndLockPreserved": true,
+      "candidateLimitationProven": false
+    },
+    "cleanupReceipt": "/tmp/babysit/mint-queue/youtube-candidate-15c7af2d-cleanup.json",
+    "diagnosticRequest": "/tmp/babysit/mint-queue/youtube-candidate-15c7af2d-diagnostic-request.json"
   }
 }

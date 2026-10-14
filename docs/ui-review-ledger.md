@@ -651,3 +651,11 @@ No-network/read-only smoke passed for image15c7af2d: Node24.21.0, ABI137, linux/
 ### Candidate / main-page capture preparation — APP073 / image15c7af2d
 
 Starter independent source PASS: `/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/candidate15c7af2d-starter-independent-source-review-20261014T050831Z.json`, SHA256 `e4e2cd2313b62d6e53c80781a8b20316f10db10b17b4f929e3135c63bdf9795e`, reviewer `/root/capture_source_review`, model `gpt-6.1-sol`, UTC05:08:31. No candidate runtime or UI acceptance inferred. Capture tool re-review remains pending after fixes to common disk envelope, before/after browser slot counting, failure cleanup, and actual CID/receipt binding. Planned16viewport packages,112MB estimate. No new screenshot or pass; original evidence and locks preserved.
+
+## APP073 candidate capture: partial failure, not visual acceptance
+
+The same image15c7af2d candidate ran with verified BUILD_ID04qbMMfQHdbJk0ZnbO_HQ and was removed after the failed batch; remote18168 is closed and production remains4f5e2a3a/healthy. Capture-v12 source review PASS507348b2 is source-only. The Node executable-only correction used the explicitly authorized SM path.
+
+The batch retained one desktop fullpage and five slices, but **0/16 completed viewport packages**, no completed manifest, no independent main-page visual pass. Desktop network evidence accepted; mobile failed with a background /ai/days/:id/events RSC prefetch503 and incomplete settlement. Google attempts/responses were0; this does not make the failed mobile evidence complete. Existing images/network diagnostics/failed lock remain untouched. Full runtime error lines were not retained before --rm cleanup; cause is unproven. Production HTML and RSC200 reported by babysit do not establish the new candidate cause.
+
+A diagnostic candidate restart is prepared with only a fresh nonce/log directory; same exact image and security/env limits. No rebuild, no source change, no monitoring layer, no ignored503. Exact starter request `/tmp/babysit/mint-queue/youtube-candidate-15c7af2d-diagnostic-request.json`; existing reviewer and fresh probe/operator verification precede execution. Bounded diagnostic GET/log command is prepared separately before running.
