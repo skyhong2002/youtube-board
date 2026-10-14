@@ -39179,6 +39179,20 @@
       "captureChildExitCode": 0,
       "outerCommandExitCode": 143,
       "outerCommandAnomalyRetained": true
+    },
+    "profileReview": {
+      "status": "PASS_SCOPED_F1_PROFILE_VISUAL",
+      "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/f1-app78df4fd-profiles-20261014T145029Z/review.json",
+      "sha256": "60e81fcfabb8878c958b21267c7d4b545433b077b11d1d696d384d3e3f5d3ebe",
+      "pngsActuallyViewed": 176,
+      "routeComplete": false
+    },
+    "homeCapture": {
+      "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app78df4fd-home-20261014-f1-v2/run-b36f9a26-3952-45bf-8a97-0ab512bec93f/captures.json",
+      "sha256": "e48d49d70487e71795bfd2be4cd227c59b5abda796885318758f4a93b5d15770",
+      "viewportPackages": 8,
+      "startEndHealth": "pass",
+      "visualReview": "pending"
     }
   }
 }
