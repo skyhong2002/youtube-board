@@ -9,8 +9,25 @@ import re
 APP = '073985b8bc4bbcc9ffb5d43c1e1a26060bb8ac4a'
 BASE = 'sha256:5b7d9171d9633c132766c65abd934c791787693a72b7f016bcd1408097dedadd'
 WORKDIR = '/home/node/yt-build-073985b8/platform'
-COMPILER = '''set -eu
-test "$(node -p 'process.arch')" = arm64
+# A fresh private tmpfs is empty at create. The SM controller may open this
+# barrier only AFTER owned identity, blog guardian and fresh admission verify.
+# Timing out exits before npm/typecheck/Next; no automatic admission or resume.
+ADMISSION_FILE = '/tmp/yt-native-compiler-admitted'
+
+
+def admission_barrier(path=ADMISSION_FILE, attempts=180):
+    if not isinstance(path, str) or not re.fullmatch(r'/[A-Za-z0-9/._-]+', path) or '..' in path.split('/') or type(attempts) is not int or not 1 <= attempts <= 180:
+        raise ValueError('Safe bounded barrier required')
+    return f'''remaining={attempts}
+while ! test -f {path} || test -L {path}; do
+ test "$remaining" -gt 0 || exit 77
+ sleep 1
+ remaining=$((remaining - 1))
+done
+'''
+
+
+COMPILER = 'set -eu\n' + admission_barrier() + '''test "$(node -p 'process.arch')" = arm64
 test "$(node -p 'process.version.split(".")[0]')" = v24
 test "$(node -p 'process.versions.modules')" = 137
 test -x /usr/bin/nice
@@ -65,5 +82,7 @@ def plan(generation, ops_sha):
             'compilerMemoryLimitGiB': 2, 'compilerTmpfsMiB': 512,
             'executionAllowed': False, 'runtimeGuardAdapterRequired': True,
             'packageOnlyAfterCompilerTerminalSuccess': True,
+            'startupAdmissionBarrier': {'path': ADMISSION_FILE, 'timeoutSeconds': 180,
+                                        'releaseOnlyAfterGuardianAndFreshAdmission': True},
             'pauseScope': 'only full owned compiler container ID; verify frozen cgroup before reporting STOP',
             'oldImagesRetained': True, 'newRuntimeWorkdir': WORKDIR}
