@@ -37482,6 +37482,73 @@
     ],
     "followupFix": "Shared decoded path classifier covers numeric aliases; encoded first family cannot match rewrite and returns400/no-store; positive safe ID check mirrors API. Original runtime503 precise cause remains unproven.",
     "simpleBuildRequest": "/tmp/babysit/mint-queue/youtube-simple-native-0f1e1096-request.json",
-    "buildStatus": "pending babysit exact-command/slot approval; no execution"
+    "buildStatus": "build succeeded; native smoke passed; candidate/visual/runtime recheck pending"
+  },
+  "nativeSuccessorBuild20261014": {
+    "owner": "d7967e77",
+    "appSha": "0f1e109642465119a231407d14e5f18a0fe58e44",
+    "opsSha": "51dc9de1a20e73c428d4e9588fa8d5243643c742",
+    "imageId": "sha256:278ee2588987643ba897c824f8f0b8e4545b569d2dfdbfd59b960ccd5293d1a9",
+    "imageTag": "youtube-board-ts:f2-0f1e1096-20261014t044808z",
+    "buildId": "s71TZ-9NEbXnwxLAwH-gT",
+    "architecture": "arm64",
+    "sizeBytes": 1390937260,
+    "layerCount": 108,
+    "resultPath": "/tmp/babysit/mint-queue/youtube-simple-native-0f1e1096-result.json",
+    "resultSha256": "bea21fd5ee690fc5d8657e9929e90a8f336629d7caef41f1e7d1ba46322f6911",
+    "smokePath": "/tmp/babysit/mint-queue/youtube-native-smoke-278ee258-retry01-result.json",
+    "smokeSha256": "8592aec0d73bf1b6e8ded72b87a408b488d976adc2bcba282cfdb3427801b541",
+    "smoke": {
+      "platform": "linux",
+      "arch": "arm64",
+      "node": "v24.21.0",
+      "abi": "137",
+      "glibcRuntime": "2.36",
+      "sharp": "0.35.5",
+      "sharpPath": "/opt/youtube-board/platform/node_modules/sharp/dist/index.cjs",
+      "webpBytes": 44,
+      "buildId": "s71TZ-9NEbXnwxLAwH-gT",
+      "traceBuildId": "s71TZ-9NEbXnwxLAwH-gT",
+      "versions": {
+        "next": {
+          "source": "16.3.8",
+          "traced": "16.3.8"
+        },
+        "react": {
+          "source": "19.2.8",
+          "traced": "19.2.8"
+        },
+        "react-dom": {
+          "source": "19.2.8",
+          "traced": "19.2.8"
+        }
+      },
+      "serverSha256": "13de5f37fcb08d9ed2601dc919b655c25baedc17e53d2b2b621e25d2557482c2",
+      "manifests": {
+        "build-manifest.json": "4a80b1166b880adb8c76396239d4ff4d68f1cbea15ddcd52564334b5fe5b714a",
+        "routes-manifest.json": "73aba4d6f7e3f99e9892ad6c2294439b35d35397477691331dd63a7e3b41f101",
+        "prerender-manifest.json": "fd3187634155140b89d3d86d5482fa55cbb2e3142da2d1be18109b359dc939c5"
+      },
+      "network": "none",
+      "sourceWrites": false
+    },
+    "cleanupPath": "/tmp/babysit/mint-queue/youtube-native-smoke-278ee258-cleanup.json",
+    "cleanupSha256": "e95ef2da3ac3f89cf08e0c5cc4567b0e21d83679acdcc1ecaf48bd6fa0102d3e",
+    "globalBuildSlot": "returned UTC06:35 after successful build; no other build started",
+    "descriptiveTagMismatch": {
+      "requestSummary": "youtube-board-ts:f2-0f1e1096-20261014t062704z",
+      "approvedExactCommandAndActual": "youtube-board-ts:f2-0f1e1096-20261014t044808z",
+      "noRetagOrReceiptRewrite": true
+    },
+    "initialSmokeTransportFailure": {
+      "path": "/tmp/babysit/mint-queue/youtube-native-smoke-278ee258-result.json",
+      "exitCode": 255,
+      "stage": "mistaken remote wrapping of local SSH command; no Docker container launched",
+      "retained": true
+    },
+    "candidateApproval": false,
+    "routeComplete": false,
+    "productionImage": "sha256:4f5e2a3ae63629a85f1463f778a7548b8cf53b758b881cb417e5d84f34276ffa",
+    "productionMutated": false
   }
 }
