@@ -26,6 +26,7 @@ const config: NextConfig = {
                     // (/:id/:rev/:width.webp) to the local API; production routes /media at the gateway.
                     { source: "/media/channels/:id/:revision", destination: "http://127.0.0.1:4100/media/channels/:id/:revision" },
                     { source: "/media/channels/:id/:revision/:width", destination: "http://127.0.0.1:4100/media/channels/:id/:revision/:width" },
+                    { source: "/media/tag-illustrations/:keyword/:kind/:revision", destination: "http://127.0.0.1:4100/media/tag-illustrations/:keyword/:kind/:revision" },
                 ]
                 : [],
             fallback: [],

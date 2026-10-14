@@ -10,6 +10,7 @@ import {KeywordEvidenceNotice} from './KeywordEvidenceNotice';
 import FollowButton from './reader/FollowButton';
 import LinkPending from './LinkPending';
 import KeywordRelations from './KeywordRelations';
+import KeywordIllustration from './KeywordIllustration';
 
 /** Layout from tag.observe.tw tag/[tag] and ArticleResults at afe0a653.
  * Keep API ranking and scope; a page of videos cannot establish global facets. */
@@ -30,6 +31,7 @@ export function KeywordProfile({keyword,description,data,meta,notice,tabs,filter
    </div>
    <div className="flex gap-4 text-sm"><Link href="/keywords" className="inline-flex items-center gap-1 text-brand-700 hover:underline dark:text-brand-400">熱門標籤排行 →<LinkPending/></Link><a href="#method" className="text-brand-700 hover:underline dark:text-brand-400">怎麼算 ⓘ</a></div>
   </header>
+  <KeywordIllustration keyword={keyword}/>
   {notice}
   {tabs}
   {/* One compact line, as tag.observe.tw's ranking subtitle; the long method text is in 「本頁資料來源與計算方式」. */}

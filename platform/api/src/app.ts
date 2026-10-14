@@ -1,3 +1,5 @@
+import {createTagIllustration} from './reports/tag-illustration.js';
+import {validTagLabel,validTagPictureRevision} from '../../shared/tag-illustration.js';
 import {writeSync} from 'node:fs';
 import {homeDiagnosticSink} from './reports/home-diagnostics.js';
 import {createKeywordRelationsReport,type KeywordRelationsOptions} from './reports/keyword-relations.js';
@@ -62,6 +64,14 @@ export function buildApp(options: AppOptions = {}) {
     if(options.publicApi!==false)registerPublicApiPolicy(app,{clock,...options.publicApi});
     registerPublicV1Cache(app);
     registerCrawlerLog(app);
+    const tagIllustration=createTagIllustration({...options.tagRelations,clock:options.clock??options.tagRelations?.clock});
+    app.get<{Params:{keyword:string;kind:string;revision:string}}>('/media/tag-illustrations/:keyword/:kind/:revision',async(request,reply)=>{
+        reply.header('Cache-Control','private, no-store').header('X-Content-Type-Options','nosniff').header('Content-Security-Policy',"default-src 'none'; sandbox; frame-ancestors 'none'");
+        const {keyword,kind,revision}=request.params;
+        if(!validTagLabel(keyword)||!['avatar','visual'].includes(kind)||!validTagPictureRevision(revision))return reply.code(404).send();
+        try{const result=await tagIllustration.image(keyword,kind as 'avatar'|'visual',revision);return reply.type(result.mime).send(result.bytes);}
+        catch{return reply.code(404).send();}
+    });
     const keywordRelations=createKeywordRelationsReport({...options.tagRelations,clock:options.clock??options.tagRelations?.clock});
     const sitemaps=registerSitemaps(app,reader,{staticLastModified:'2026-10-12T14:00:00.000Z',now:()=>+clock()});
     if(options.sitemapWarmup)app.addHook('onReady',async()=>{sitemaps.start();});
@@ -92,12 +102,12 @@ export function buildApp(options: AppOptions = {}) {
             const data = await handler(params, request.query as Query,channel);
             await enrichPublicMedia(reader, data);
             const m = meta(data), record = object(data);
-            if(path==='/keywords/:keyword/relations'){
+            if(path==='/keywords/:keyword/relations'||path==='/keywords/:keyword/illustration'){
                 m.source='tag.observe.tw';m.updatedAt=null;
                 m.coverage={status:text(record.status),truncated:record.truncated===true};
                 m.warnings.push('標籤來源：新文易數（tag.observe.tw）。別名不自動合併影片或人物身分；上下位有方向，相關關係不代表共現或同義。');
-                // Enabled reads carry our upstream service credential. Preserve the upstream
-                // private/no-store boundary even for approved public relation rows.
+                // Preserve the enabled-read private/no-store boundary in both explicit
+                // anonymous and service modes, including picture metadata.
                 if(record.status!=='disabled')markPublicV1Partial(reply);
             }
             if (record.evidenceCoverage && typeof record.evidenceCoverage === 'object')
@@ -152,6 +162,7 @@ export function buildApp(options: AppOptions = {}) {
     register('/videos', (_p, q) => service.videos(q));
     register('/keywords/:keyword/videos', (p, q) => service.videos({ ...q, keyword: p.keyword }));
     register('/keywords/:keyword/relations',p=>keywordRelations(p.keyword!));
+    register('/keywords/:keyword/illustration',p=>tagIllustration.report(p.keyword!));
     register('/videos/:id', (p) => service.video(videoId(p.id)));
     register('/videos/:id/tags', (p) => videoTagEvidence(reader, videoId(p.id)));
     register('/live/current', (_p, q) => service.live(q));

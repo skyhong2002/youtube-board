@@ -324,7 +324,8 @@ Schema coverage `partial` or `envelope-only` explicitly identifies incomplete fi
 | GET | `/api/v1/tags/videos` | Taxonomy-filtered videos | detailed |
 | GET | `/api/v1/videos` | Video search | detailed |
 | GET | `/api/v1/keywords/{keyword}/videos` | Videos with fresh maintained vocabulary evidence | detailed |
-| GET | `/api/v1/keywords/{keyword}/relations` | Maintained upstream tag relations; disabled until F1 activation. is-a is directional, related is not co-occurrence, and aliases do not merge identities. target.href is relative to https://tag.observe.tw, never this site. Enabled upstream reads remain private/no-store; no shared downstream caching. | detailed |
+| GET | `/api/v1/keywords/{keyword}/relations` | Maintained upstream tag relations; explicit activation after F1 publication. is-a is directional, related is not co-occurrence, and aliases do not merge identities. target.href is relative to https://tag.observe.tw, never this site. Enabled upstream reads remain private/no-store; no shared downstream caching. | detailed |
+| GET | `/api/v1/keywords/{keyword}/illustration` | Maintained tag picture and license attribution; optional explicit public/source-service mode. Browser images use same-origin bounded reads; no visitor credentials reach tag. | detailed |
 | GET | `/api/v1/videos/{id}` | Video details and stored observations | partial |
 | GET | `/api/v1/videos/{id}/tags` | Video vocabulary matching evidence | detailed |
 | GET | `/api/v1/live/current` | Current observed livestreams | detailed |
@@ -556,6 +557,14 @@ Typed report response; additive response fields are permitted.
 | `days` | query | {"type":"integer","minimum":1,"maximum":90} | Optional relative date window when keyword filtering is used. |
 
 ### /api/v1/keywords/{keyword}/relations
+
+Typed report response; additive response fields are permitted.
+
+| Parameter | In | Schema / bounds | Description |
+| --- | --- | --- | --- |
+| `keyword` (required) | path | {"type":"string","minLength":1,"maxLength":60,"description":"Unicode scalar characters; no surrounding whitespace or control characters."} | Exact maintained content term, percent-encoded as UTF-8. |
+
+### /api/v1/keywords/{keyword}/illustration
 
 Typed report response; additive response fields are permitted.
 

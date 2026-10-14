@@ -96,3 +96,36 @@ even in anonymous mode, preserving existing credential/privacy boundaries.
 All three relation types stay visible: successful empty types say 尚未收錄;
 missing types in a truncated response say 本次未取得（來源結果不完整）.
 This source change is not yet built or deployed; image integration follows.
+
+### Maintained tag pictures
+
+`GET /api/v1/keywords/:keyword/illustration` reads public person/avatar metadata,
+then nonperson visual metadata only after a successful empty person read. The
+DTO keeps only maintained image kind/label, a same-origin image path and original
+page/author/license links; all extra fields are dropped. Missing images say
+「尚未收錄」; timeouts, malformed data and upstream errors remain unavailable.
+Person/visual/emoji kinds do not change vocabulary, IDs, match counts or aliases.
+
+`GET /media/tag-illustrations/:keyword/:kind/:revision` fetches only the fixed
+tag avatar/visual-image endpoint for that exact keyword/version, using YT red.
+No user-supplied host/URL, redirects or visitor credentials are accepted. The
+browser never contacts tag for image bytes; CSP does not gain external origins.
+Both metadata and image responses remain private/no-store; there is no disk
+cache. Only anonymous upstream responses explicitly public and without
+Set-Cookie may be reused in a32-entry memory cache for at most60seconds
+(maximum about16MiB raw bytes). The two upstream slots remain occupied by
+abort-ignoring work until it settles. Each read has a3-second hard deadline,
+128KiB JSON/512KiB image cap and upstream429 cooldown; no automatic retries.
+
+WebP requires RIFF/WebP framing and declared length. SVG is parsed and rebuilt
+from a restricted inert-shape/attribute set, rejecting scripts, entities,
+foreignObject, links, styles and resource URLs. Served SVG also has sandbox CSP
+and nosniff. Unsupported source shapes degrade to an unavailable image, not
+false absence. UI includes image source and supplied author/license attribution,
+escaped as text, and safe HTTPS source links. This does not claim images or
+licenses are newly created/verified by YT; tag remains their authority.
+
+Candidate acceptance still needs actual keyword pages with a known image and
+with missing data,1280/390 light/dark, observed Google0/DNT and private/no-store
+checks. Home/top40 pool correction is a separate pending upstream contract.
+Source tests are not candidate or formal-site visual acceptance.
