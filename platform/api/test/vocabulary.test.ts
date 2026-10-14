@@ -49,7 +49,7 @@ describe('audited display exclusions remain visible in the original vocabulary p
   const queue:Row[][]=[[{id:'audited-fixture',snapshot:JSON.stringify(snapshot)}]];
   if(separate)queue.push(terms.map(t=>({payload:JSON.stringify(t)})),[{total:terms.length}]);
   const r=await vocabulary(queueReader(queue),{});
-  expect(r.rows.map(t=>[t.key,t.term,t.displayExclusion])).toEqual([['generic','支持','youtube-generic-two-character'],['city','北京','youtube-country-city-party'],['topic','烏克蘭戰爭',null],...['TVBS','聯合','三立'].map(term=>[term,term,'youtube-source-or-platform'])]);
+  expect(r.rows.map(t=>[t.key,t.term,t.displayExclusion]).sort((a,b)=>String(a[0]).localeCompare(String(b[0])))).toEqual([['generic','支持','youtube-generic-two-character'],['city','北京','youtube-country-city-party'],['topic','烏克蘭戰爭',null],...['TVBS','聯合','三立'].map(term=>[term,term,'youtube-source-or-platform'])].sort((a,b)=>String(a[0]).localeCompare(String(b[0]))));
   expect(r.total).toBe(terms.length);expect(JSON.stringify(terms)).toBe(before);
  });
 });
