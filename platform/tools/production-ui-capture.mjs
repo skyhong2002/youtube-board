@@ -17,7 +17,7 @@ assert(plan.every(i=>/^[a-z0-9-]+$/.test(i.key)&&new URL(i.url).origin==='https:
 const hash=b=>createHash('sha256').update(b).digest('hex');
 const write=async(p,b)=>{await writeFile(p,b,{mode:0o600,flag:'wx'});return {path:p,sha256:hash(b)};};
 async function resources(start=false){const s=await statfs('/home');assert(Number(s.bavail)*Number(s.bsize)>=(start?40:30)*2**30,'Disk threshold');assert(os.loadavg()[0]<=12,'Load threshold');const mem=await readFile('/proc/meminfo','utf8');assert(Number(mem.match(/^MemAvailable:\s+(\d+)/m)[1])*1024>=2.5*2**30,'Memory threshold');}
-const serviceBytes=await readFile(identity.serviceProof);assert.equal(hash(serviceBytes),identity.serviceProofSha256);const serviceProof=JSON.parse(serviceBytes);assert(serviceProof.services.every(s=>s.containers.length===1&&s.containers[0].health==='healthy'&&s.containers[0].revision===identity.appSha&&s.containers[0].image==='sha256:'+identity.imageSHA256&&s.containers[0].buildId===identity.buildID),'Actual production service proof required');
+const serviceBytes=await readFile(identity.serviceProof);assert.equal(hash(serviceBytes),identity.serviceProofSha256);const serviceProof=JSON.parse(serviceBytes);assert(Array.isArray(serviceProof.services)&&serviceProof.services.length===2);assert.deepEqual(serviceProof.services.map(s=>s.name).sort(),['youtube-board-ts-6oukfq_account-maintenance','youtube-board-ts-6oukfq_web']);assert(serviceProof.services.every(s=>s.containers.length===1&&s.containers[0].health==='healthy'&&s.containers[0].revision===identity.appSha&&s.containers[0].image==='sha256:'+identity.imageSHA256&&s.containers[0].buildId===identity.buildID),'Actual production service proof required');
 await resources(true);await mkdir(outDir,{mode:0o700});await chmod(outDir,0o700);sharp.concurrency(1);
 // Only these HTTPS CONNECT targets can leave this Chromium process; HTTP is denied.
 const destinations=new Set(['youtube.observe.tw:443','i.ytimg.com:443']);const sockets=new Set();const proxyRows=[];
@@ -33,7 +33,7 @@ await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0
 let browser;const report=[];
 try{
  browser=await chromium.launch({headless:true,proxy:{server:`http://127.0.0.1:${server.address().port}`,bypass:'<-loopback>'},args:['--disable-background-networking','--disable-quic']});
- for(const item of plan){const record={...item,environment:'production',identity,reviewed:false,captureAt:new Date().toISOString(),viewports:{}};
+ for(const item of plan){const record={key:item.key,url:item.url,routePath:new URL(item.url).pathname,theme:item.theme,window:item.window,environment:'production',identity:{verified:true,appSha:identity.appSha,imageSHA256:identity.imageSHA256,buildID:identity.buildID,serviceProof:identity.serviceProof,serviceProofSha256:identity.serviceProofSha256},reviewed:false,captureAt:new Date().toISOString(),viewports:{}};
   for(const [viewport,width,height]of [['desktop',1280,800],['mobile',390,844]]){
    await resources();const context=await browser.newContext({viewport:{width,height},deviceScaleFactor:1,colorScheme:item.theme,locale:'zh-TW',timezoneId:'Asia/Taipei',extraHTTPHeaders:{DNT:'1','Sec-GPC':'1'},serviceWorkers:'block'});
    const network=createNetworkRecorder({candidateOrigin:item.url});let before=null,after=null,closed=false;const raw=[];const known=new WeakMap();let rawUnknown=false;
