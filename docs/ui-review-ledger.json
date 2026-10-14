@@ -41718,7 +41718,7 @@
   },
   "f4SecondBatch20261015": {
     "recordedAt": "2026-10-14T22:14:23.928740+00:00",
-    "status": "production-baseline-capture-partial-independent-issues-review-in-progress",
+    "status": "four-page-production-baseline-issues-source-fixes-tested-independent-source-review-in-progress",
     "appSha": "fe7987945611328aabaa8bb8f4495ecd75168792",
     "routes": [
       "/channels",
@@ -41739,6 +41739,14 @@
       {
         "path": "/home/deck/.cache/youtube-ui-review/production-f4-batch2-20261014T220850Z-video-detail-light/captures.json",
         "sha256": "72dfae30320b9f73ba297c6993b5b2de12fbe76bd89fb57e720ed4fb91bb01d8"
+      },
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/production-f4-batch2-20261014T220850Z-tag102-videos-light/captures.json",
+        "sha256": "35392bfa020d77b6c67fadea5a14dad3d1c688c7dbae7d0813f967ebf8ebad1f"
+      },
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/production-f4-batch2-20261014T220850Z-videos-light-retake/captures.json",
+        "sha256": "4cc248b7a9806eebfd4a805415fcf7d5e46fd3190573e7d6c9efa7bdbb3f7939"
       }
     ],
     "rejectedCaptures": [
@@ -41773,6 +41781,45 @@
       "Read nonauthor issue review",
       "Implement scoped F4 source changes and focused tests",
       "Review meaningful UI/data changes; same-artifact candidate/deploy/production retest"
+    ],
+    "evidenceUpdatedAt": "2026-10-14T22:22:26.813272+00:00",
+    "baselineIndependentReview": {
+      "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-appfe79879-batch2-fourpage-issues-20261014T221926Z/review.json",
+      "sha256": "8253630c115b70bffa5b63ed392ceb0939e074b9c2d94e63c0153a55cbb6dc00"
+    },
+    "baselineCounts": {
+      "pages": 4,
+      "views": 8,
+      "hashedPNG": 93,
+      "actualOpened": 50,
+      "fullpagesOpened": 8,
+      "nativeSlicesOpened": 42,
+      "hashOnly": 43
+    },
+    "successorAppSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+    "successorOpsSha": "1945fc8980d58d782a595d8e11c67819520f0bbc",
+    "webTests": {
+      "passed": 322,
+      "failed": 0,
+      "log": {
+        "path": "/tmp/yt-f4-batch2-web-tests02.log",
+        "sha256": "ed00c47c54e02c14ff5bba0698031471630408de694afc7ede2d6890ede27661"
+      }
+    },
+    "webTypecheck": "PASS",
+    "buildPreparation": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/build-preparation.json",
+      "sha256": "78eae0b2ab41bc206a9044421ae60b8c749b9aefb742da4f67392a1c7480a6f1"
+    },
+    "productionFixAcceptance": false,
+    "sourceFixes": [
+      "Full selected channel metric and mobile expanded metrics instead of narrow table",
+      "Full video titles and taxonomy metrics in mobile cards; desktop tables retain all columns",
+      "Native advanced filters collapse with applied-state marker; GET controls preserved",
+      "No automatic header search expansion on /videos",
+      "Generic report input/actions44px T-ref control minimum",
+      "Explicit category name from validated authoritative filter-options response, ID fallback only",
+      "Last-record timestamps explicitly not proof of per-statistic freshness; unknown values retained"
     ]
   }
 }
