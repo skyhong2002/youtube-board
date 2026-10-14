@@ -12,7 +12,7 @@ COPY platform/ingestion/package.json ingestion/package.json
 COPY platform/ai/package.json ai/package.json
 COPY platform/notifications/package.json notifications/package.json
 ENV NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS=--max-old-space-size=768 UV_THREADPOOL_SIZE=2 RAYON_NUM_THREADS=2
-RUN node -e 'if(process.arch!=="arm64"||process.version.split(".")[0]!=="v24"||process.versions.modules!=="137")process.exit(1)'
+RUN nice -n 19 ionice -c3 node -e 'if(process.arch!=="arm64"||process.version.split(".")[0]!=="v24"||process.versions.modules!=="137")process.exit(1)'
 RUN nice -n 19 ionice -c3 npm ci --include=dev --no-audit --no-fund
 COPY platform/ ./
 # APP073 next.config.ts fixes experimental.cpus=2. No API/DB credentials are
