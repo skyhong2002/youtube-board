@@ -38066,10 +38066,10 @@
       "refreshImmediatelyBeforeStart": true
     },
     "build": "completed exit0; verified linux/arm64 and APP/OPS labels",
-    "capture": "completed 16 packages/108 PNGs; independent visual review final receipt pending",
+    "capture": "completed 16 packages/108 PNGs; independent scoped static PASS",
     "candidateApproval": false,
     "routeComplete": false,
-    "deployment": "pending",
+    "deployment": "pending babysit exact-command approval; production unchanged",
     "supersededUnexecutedBuildDraft": "/tmp/babysit/mint-queue/youtube-simple-native-d019ae69-request.json",
     "contextComparedTo9db": "1000 file entries; only KeywordRanking.tsx, keyword-ranking.test.ts, link-pending.test.ts differ in bytes; recipe/base unchanged",
     "sourceReview": {
@@ -38763,6 +38763,78 @@
         "unclassifiedErrorLines": 12
       },
       "stopExitCode": 0
+    },
+    "independentVisualReview": {
+      "status": "PASS_SCOPED_STATIC",
+      "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/static-appd019ae69-home-keywords-20261014T083516Z-complete/review.json",
+      "sha256": "4fe2c724f6ed4675f543326733f30036cf65eceb532034d2cc7d4f714fe53937",
+      "transcriptPath": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/static-appd019ae69-home-keywords-20261014T083516Z-complete/transcript.md",
+      "transcriptSha256": "768d91c579353fa8a28b5a092737416f7eab88a171848f7804bac5725f4a4e07",
+      "reviewer": {
+        "agent": "/root/f2_visual_sol",
+        "model": "GPT-6 (Codex; inherited parent model, exact serving identifier not exposed)"
+      },
+      "createdAt": "2026-10-14T08:35:16.151406+00:00",
+      "decision": {
+        "homeCoreStaticVisualReviewPassed": true,
+        "keywordsCoreStaticVisualReviewPassed": true,
+        "coreDeploymentVisualReviewPassed": true,
+        "coreDeploymentReviewPassed": false,
+        "overallTechnicalReadiness": "pending-resolution-of-supplied-failed-RSC-canary",
+        "routeComplete": false,
+        "visualBlockers": [],
+        "K01Closed": true,
+        "deployPerformed": false,
+        "scope": "Static core homepage/keywords visual review passes; full route acceptance remains incomplete and supplied failed RSC technical evidence prevents this reviewer certifying overall deployment readiness."
+      },
+      "limitations": [
+        "Offline review only; no fresh browser/network/build/probe/deploy/source writes performed by this reviewer.",
+        "Only supplied normal Today/Week × Light/Dark × Desktop/Mobile home and keywords captures plus four mobile horizontal-scroll screenshots are visually approved.",
+        "No complete period-switch interaction sequence, loading/error/login/logout/account states, other routes, post-deployment live verification or measured WCAG/contrast certification.",
+        "Supplemental scroll images lack supplied in-memory coherence proof and are independently hash-bound; initial fullpages and slices are manifest proof-backed.",
+        "Week supplemental scroll images cover approximately rows1–20. Row36 雙十 was directly inspected only in initial captures, not in horizontally scrolled images. Uniform exact-source mobile wrapping supports the broader identity behavior without claiming that missing image observation.",
+        "Capture times contain changing live data: home Today has12keywords/top8; keyword Today Light has12rows and Dark19rows. Cross-route Today top8 equality is not asserted across these sequential captures.",
+        "Network/privacy scope is bounded Playwright-observed HTTP lifecycle and supplied Google blocklist; no universal ownership or packet-level privacy claim.",
+        "Four keyword desktop logs contain one /_next/image404 each; all keyword mobile logs and homepage logs contain no HTTP errors. All network logs also preserve HTTP200 terminal-failed ERR_ABORTED fetches.",
+        "Cache canary passed=false due to an RSC HTTPError with status unspecified. It is technical evidence pending parent resolution, separate from visual approval."
+      ]
+    },
+    "keywordMobileIdentityFinding": "K01 closed by independent review of new d019 actual images; full route acceptance pending",
+    "runtimePrivacySupplement": {
+      "path": "/tmp/babysit/mint-queue/youtube-mobile-rsc01-canary-result-v3.json",
+      "sha256": "99b67bc5c88d83ae8f1424a7b80306c1d599b1b48c2ace650ec13c98a51e0ea4",
+      "passed": true,
+      "sourceReview": {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/candidateb4afbd8f-rsc01-canary-v3-independent-source-review-20261014T083825Z.json",
+        "sha256": "ff64241ce17cfd0898140a7c0201a3485b78f1a79877c0a05e318e9cbd116793"
+      },
+      "sourceTestsPassed": 20,
+      "candidateIdentity": {
+        "path": "/tmp/babysit/mint-queue/youtube-candidate-b4afbd8f-rsc01-verified.json",
+        "sha256": "28aa599ab17f7d92eeb719426707874bb185dbba57a61ec2987ac8818b0961db"
+      },
+      "readiness": {
+        "path": "/tmp/babysit/mint-queue/youtube-rsc01-ready-result.json",
+        "sha256": "76cd574fcc6e2fbda8ef7299c4ee842d3eb0a6b8cde6e9842d2b7dfb13013f2c"
+      },
+      "freshProbe": {
+        "path": "/tmp/babysit/mint-queue/youtube-rsc01-v3-execution-fresh-20261014T083825Z.json",
+        "sha256": "3556e5b5675919dba5142d39df99b6f873505a51f420196cb1114430d3122a75"
+      },
+      "firstStatus": 307,
+      "finalStatus": 200,
+      "bothHopsPrivateNoStore": true,
+      "setCookiePresent": false,
+      "finalContentType": "text/x-component",
+      "scope": "RSC-only separate verified candidate using SAME immutable image as original five passing HTML/query/synthetic-cookie cases; originals retained; no login or personal-data acceptance"
+    },
+    "diagnosticCleanup": {
+      "path": "/tmp/babysit/mint-queue/youtube-rsc01-cleanup-result.json",
+      "sha256": "3c5c2f13917591bce1d19f9b0c1ea6a3cfdef582ba41d648d611076f5495a9b9"
+    },
+    "ownedTunnelCleanup": {
+      "path": "/tmp/babysit/mint-queue/youtube-mobile01-tunnel-cleanup-result.json",
+      "sha256": "4cc7cc678c04e02a14f84ba1d65ae82224ad772b24139dc77741549c62b717fe"
     }
   }
 }
