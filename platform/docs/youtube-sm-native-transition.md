@@ -189,3 +189,24 @@ Pause confirmation, cgroup identity, resume replay prevention and unknown-state
 custody retention remain.32executor+29cgroup+21Docker offline mocks pass.
 This migration still requires independent review and does not wire runtime IO.
 No live probe, lock, build, container or image operation occurred this step.
+
+## Latest slot notification: tag currently owns global build slot
+
+Babysit reports tag acquired the sole global slot atUTC02:33 for SM web rebuild.
+YT queues after tag and still needs fresh babysit handoff/command approval before
+execution. No old handoff is promoted to current slot evidence.
+
+Offline compiler watchdog tick is now implemented with explicit injected ports:
+Executor.read verifies full owned container/cgroup before using the latest owned
+PID snapshot to exclude ONLY skyhong-blog's compiler build clients. Raw receipt
+values/counts are never overwritten. Startup stays40GiB/no builds; running gate
+uses30GiB and still rejects SM builds or any other native-host build.
+The watchdog checks current authenticated slot, median-v2 health and fresh memory
+evidence (pause if either host available RAM<768MiB), then rechecks ownership and
+slot after observations. All failures request only owned pause, report physical
+STOP truthfully, retain custody, never auto-resume, never package or release.
+Normal worker forks use the latest verified members; unknown or exited old clients
+not in that snapshot are conservatively treated as competing/unknown work.
+8watchdog+10gate+5probe=23 offline regressions passed. This is tick source, not
+a live polling/controller/heartbeat/launcher or terminal cleanup adapter.
+No probe, lock, build, capture, container or image operation performed this step.

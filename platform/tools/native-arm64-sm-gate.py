@@ -75,13 +75,21 @@ def normalized_sample(sample, host):
     return normalized if _validator.health_valid(normalized, host) else None
 
 
-def evaluate(samples, now):
+def evaluate(samples, now, *, starting=True, owned_build_pids=frozenset()):
     """Only emit fixed reasons, never unvalidated sample values or secrets."""
     checks = []
 
     def check(key, ok, reason):
         checks.append({'key': key, 'ok': bool(ok), 'reason': reason})
 
+    context_valid = type(starting) is bool and isinstance(owned_build_pids, frozenset) and all(
+        type(pid) is int and pid > 0 for pid in owned_build_pids)
+    context_valid = context_valid and (not owned_build_pids if starting else bool(owned_build_pids))
+    check('context', context_valid, 'running-exclusion-requires-verified-owned-cgroup-pids')
+    # Runtime adapter supplies these only from Executor.read() after verifying
+    # the full immutable container/image/labels, leader and complete cgroup.
+    owned = owned_build_pids if context_valid and not starting else frozenset()
+    floor = 40 if starting is True else 30
     complete = isinstance(samples, dict) and set(samples) == set(HOSTS)
     check('hosts', complete, 'exactly-SM-and-skyhong-blog-required')
     valid = {}
@@ -100,9 +108,12 @@ def evaluate(samples, now):
         except (ValueError, TypeError, OverflowError):
             fresh = False
         check(host + '.fresh', fresh, 'sample-age-zero-to-30-seconds')
-        check(host + '.disk', sample['freeBytes'] >= 40 * 1024 ** 3, 'start-floor-40-GiB')
+        check(host + '.disk', sample['freeBytes'] >= floor * 1024 ** 3,
+              'start-floor-40-GiB' if starting else 'running-floor-30-GiB')
         check(host + '.load', sample['load1'] <= 12, 'maximum-load-12')
-        check(host + '.builds', sample['buildCount'] == 0, 'no-existing-build')
+        competitors = [row for row in sample['buildProcesses']
+                       if host != 'skyhong-blog' or row['pid'] not in owned]
+        check(host + '.builds', not competitors, 'no-build-outside-verified-owned-compiler')
         for site, limit in LIMITS.items():
             attempts = sample['sites'][site]
             check(host + '.' + site + '.http', all(row['exitCode'] == 0 and row['status'] == 200 for row in attempts),
@@ -118,6 +129,7 @@ def evaluate(samples, now):
             'ok': all(row['ok'] for row in checks), 'checks': checks,
             'timeMeasurementHost': 'SM', 'timeLimitsSeconds': dict(LIMITS),
             'samplesPerSite': 3,
+            'diskFloorGiB': floor,
             'medianSeconds': {host: {site: statistics.median([r['totalSeconds'] for r in attempts])
                                      if all(r['totalSeconds'] is not None for r in attempts) else None
                                      for site, attempts in sample['sites'].items()}
