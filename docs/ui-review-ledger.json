@@ -39229,6 +39229,22 @@
       "routeComplete": false,
       "fullSiteAcceptance": false,
       "genericPool": "OPEN"
+    },
+    "formalAcceptance1520UTC": {
+      "reportedBy": "babysit",
+      "at": "2026-10-14T15:20:00Z",
+      "buildId": "hqA5C00BhxMB7igbPaZyL",
+      "scope": [
+        "柯文哲 profile avatar and KP / CC BY-SA 4.0 credit",
+        "one approved is-a 政治人物; related and alias 尚未收錄",
+        "opt-out GA requests 0"
+      ],
+      "result": "PASS_SCOPED_WITH_NONBLOCKING_FOLLOWUP",
+      "openFindings": [
+        "relations below 40 videos and client loading state",
+        "avatar initially blank 1–2 seconds"
+      ],
+      "genericRankedPool": "pending upstream exact-window pool; no manual-only deployment"
     }
   },
   "preservedProductionRuntimeSnapshots20261014": [
