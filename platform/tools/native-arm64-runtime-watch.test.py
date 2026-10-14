@@ -61,6 +61,32 @@ class Tests(unittest.TestCase):
             reader=m.PacketReader(0,selector=Selector,read=Mock(side_effect=chunks))
             with self.assertRaises(ValueError):reader.receive()
 
+    def test_backpressure_reaches_output_deadline(self):
+        class Selector:
+            def __enter__(self):return self
+            def __exit__(self,*a):pass
+            def register(self,*a):pass
+            def select(self,*a):return [True]
+        clock=Mock(side_effect=[0,0.1,1.1])
+        write=Mock(side_effect=BlockingIOError)
+        with self.assertRaises(ValueError):m.emit({'state':'running-observed'},clock=clock,selector=Selector,write=write,set_blocking=Mock())
+        write.assert_called_once()
+
+    def test_broken_output_cleanup_stops_before_any_output(self):
+        order=[]
+        self.watch.watchdog.stop=Mock(side_effect=lambda _:order.append('pause') or {'state':'stop-confirmed'})
+        with patch.object(m,'emit',side_effect=lambda _:order.append('output') or (_ for _ in ()).throw(BrokenPipeError())):
+            self.assertEqual(m.cleanup(self.watch),1)
+        self.assertEqual(order,['pause','output'])
+
+    def test_main_backpressure_pauses_without_another_input(self):
+        identity=Identity();watch=Mock()
+        watch.once.return_value={'state':'running-observed','reservationReleaseAllowed':False}
+        watch.watchdog.stop.return_value={'state':'stop-confirmed'}
+        with patch.object(m.sys,'argv',['watch','{}','{}']),patch.object(m.executor_module,'Identity',return_value=identity),patch.object(m.docker_module,'ToolPin'),patch.object(m,'wire',return_value=watch),patch.object(m.sys,'stdin'),patch.object(m.signal,'signal'),patch.object(m,'emit',side_effect=ValueError('output-timeout')):
+            self.assertEqual(m.main(),1)
+        watch.once.assert_called_once();watch.watchdog.stop.assert_called_once()
+
     def test_termination_enters_cleanup_instead_of_default_exit(self):
         for sig in (m.signal.SIGTERM,m.signal.SIGHUP,m.signal.SIGINT):
             with self.assertRaises(KeyboardInterrupt):m.interrupt_watch(sig,None)

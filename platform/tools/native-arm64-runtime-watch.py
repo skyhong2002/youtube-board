@@ -31,6 +31,8 @@ cgroup_module = load('runtime_watch_cgroup', 'native-arm64-cgroup-io.py')
 watchdog_module = load('runtime_watch_watchdog', 'native-arm64-watchdog.py')
 MAX_PACKET = 131072
 INPUT_WAIT_SECONDS = 10
+OUTPUT_WAIT_SECONDS = 1
+MAX_OUTPUT = 4096
 
 
 def unique(pairs):
@@ -112,6 +114,40 @@ def wire(identity, docker_pin, receive, now=lambda: dt.datetime.now(dt.timezone.
     return RuntimeWatch(executor, receive, now)
 
 
+def emit(value, fd=1, clock=time.monotonic, selector=selectors.DefaultSelector,
+         write=os.write, set_blocking=os.set_blocking):
+    """SSH output must not prevent heartbeat expiry or physical owned pause."""
+    raw = (json.dumps(value, sort_keys=True) + '\n').encode('utf-8')
+    if len(raw) > MAX_OUTPUT:
+        raise ValueError('fixed-state-output-over-cap')
+    set_blocking(fd, False)
+    deadline = clock() + OUTPUT_WAIT_SECONDS
+    offset = 0
+    with selector() as poller:
+        poller.register(fd, selectors.EVENT_WRITE)
+        while offset < len(raw):
+            remaining = deadline - clock()
+            if remaining <= 0 or not poller.select(remaining):
+                raise ValueError('controller-output-deadline')
+            try:
+                count = write(fd, raw[offset:])
+            except BlockingIOError:
+                continue
+            if type(count) is not int or not 0 < count <= len(raw) - offset:
+                raise ValueError('controller-output-incomplete')
+            offset += count
+
+
+def cleanup(watch):
+    # First perform physical STOP; even cleanup diagnostics must be bounded.
+    result = watch.watchdog.stop('runtime-watch-interrupted-or-output-unavailable')
+    try:
+        emit(result)
+    except Exception:
+        pass
+    return 1
+
+
 def interrupt_watch(signum, frame):
     raise KeyboardInterrupt
 
@@ -132,15 +168,13 @@ def main():
             # Only the fixed state/reason fields leave this worker. Accepted
             # health receipts are preserved by SM, not repeated here.
             out = {key: result[key] for key in ('state', 'reason', 'remoteStopConfirmed', 'reservationReleaseAllowed', 'runtimeReady') if key in result}
-            print(json.dumps(out, sort_keys=True), flush=True)
+            emit(out)
             if result['state'] != 'running-observed':
                 return 0 if result['state'] == 'terminal-proof-required' else 1
     except BaseException:
         for signum in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
             signal.signal(signum, signal.SIG_IGN)
-        result = watch.watchdog.stop('runtime-watch-interrupted')
-        print(json.dumps(result, sort_keys=True), flush=True)
-        return 1
+        return cleanup(watch)
 
 
 if __name__ == '__main__':
@@ -148,5 +182,8 @@ if __name__ == '__main__':
         raise SystemExit(main())
     except (ValueError, TypeError, OSError):
         # Identity not verified: never dispatch against an arbitrary container.
-        print(json.dumps({'state': 'identity-unavailable-reservation-retained', 'runtimeReady': False}), flush=True)
+        try:
+            emit({'state': 'identity-unavailable-reservation-retained', 'runtimeReady': False})
+        except Exception:
+            pass
         raise SystemExit(1)
