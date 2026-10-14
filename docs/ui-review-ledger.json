@@ -37953,6 +37953,27 @@
       "capDrop": [
         "ALL"
       ]
+    },
+    "cleanup": {
+      "path": "/tmp/babysit/mint-queue/youtube-prefetch01-cleanup.json",
+      "sha256": "181698be80d936d45f47b9092882b9255f0e1aa3a6db309ce1fdad37bf8a286a",
+      "containerAbsent": true,
+      "port18168Closed": true,
+      "productionUnchanged": true,
+      "productionHealthy": true,
+      "logLimits": "PublicDataError signature1 retained; precise route/cause unknown; no candidate/request5xx during completed captures. Rawlogs not saved."
+    },
+    "deploymentPreparation": {
+      "request": "/tmp/babysit/mint-queue/youtube-deploy-d2e7e7bb-request.json",
+      "executionAllowed": false,
+      "helperReview": {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/dokploy-deploy-d2e7e7bb-v2-independent-source-review-20261014T073654Z.json",
+        "sha256": "a867fe14aece802b043819c22ca8b6f8fa25eeba05d5df3e2235ec3eb3bf35cd",
+        "status": "PASS_SOURCE_ONLY",
+        "independentMockTests": 18
+      },
+      "coreVisualReview": "pending",
+      "productionMutated": false
     }
   }
 }
