@@ -68,6 +68,8 @@ test('proxy targets resolve through Next rewrites to the right route tree with t
   ['/channels?sort=x&_rsc=abc',FILTERED_REPORT_PREFIX+'/channels',{sort:'x',_rsc:'abc'}],
   ['/ai/days/123/events',FILTERED_REPORT_PREFIX+'/ai/days/123/events',{}],
   ['/ai/days/123/events?_rsc=abc',FILTERED_REPORT_PREFIX+'/ai/days/123/events',{_rsc:'abc'}],
+  ['/ai/days/0123/events?event=A',FILTERED_REPORT_PREFIX+'/ai/days/0123/events',{event:'A'}],
+  ['/ai/%64ays/%31%32%33/%65vents?event=A',FILTERED_REPORT_PREFIX+'/ai/%64ays/%31%32%33/%65vents',{event:'A'}],
   ['/ai/days/123/events?event='+encodeURIComponent('交通 & A/B')+'&_rsc=abc',FILTERED_REPORT_PREFIX+'/ai/days/123/events',{event:'交通 & A/B',_rsc:'abc'}],
   ['/vocabulary?q=a',FILTERED_REPORT_PREFIX+'/vocabulary',{q:'a'}],
   ['/keywords/%E4%BA%A4%E9%80%9A/videos?days=7',FILTERED_REPORT_PREFIX+'/keywords/%E4%BA%A4%E9%80%9A/videos',{days:'7'}],
@@ -85,7 +87,8 @@ test('proxy targets resolve through Next rewrites to the right route tree with t
   assert.equal((await routed(path,header)).pathname,new URL(path,'http://n').pathname,`${path} ${header}`);
 });
 test('numeric daily events are always dynamic and never shared-cache eligible',()=>{
- for(const path of ['/ai/days/123/events','/ai/days/123/events?_rsc=abc','/ai/days/123/events?event=交通'])
+ for(const path of ['/ai/days/123/events','/ai/days/123/events?_rsc=abc','/ai/days/123/events?event=交通',
+  '/ai/days/0123/events','/ai/days/%31%32%33/events?_rsc=abc','/ai/%64ays/123/%65vents'])
   assert.deepEqual(decide(path),{kind:'render',target:'filtered',eligible:null},path);
  // Date-based daily reports retain their existing canonical routing.
  assert.deepEqual(decide('/ai/days/2026-10-14/events'),{kind:'render',target:null,eligible:'report'});

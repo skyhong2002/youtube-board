@@ -1,12 +1,15 @@
 import { parseBoardRequest } from "./boards";
 import { SEARCH_MAX_LENGTH } from "../../../shared/report-limits";
+import { numericAiDailyEventId } from "./routes";
 
 /** Validate before React streaming commits a successful HTTP status. */
 export function reportRequestStatus(url: URL): { status: number; message: string; backHref?: "/ai/days" } | null {
-    if (/^\/ai\/days\/[1-9][0-9]*\/events\/?$/.test(url.pathname)) {
+    const dailyEventId = numericAiDailyEventId(url.pathname);
+    if (dailyEventId !== null) {
         const events = url.searchParams.getAll("event");
         // Match the API's string/trim/UTF-16 length checks, rejecting duplicates too.
-        if (events.length !== 1 || !events[0].trim() || events[0].length > 256)
+        if (!url.pathname.startsWith("/ai/") || !Number.isSafeInteger(Number(dailyEventId)) || Number(dailyEventId) < 1 ||
+            events.length !== 1 || !events[0].trim() || events[0].length > 256)
             return { status: 400, message: "請從 AI 每日摘要選擇事件；事件名稱不可空白、重複或超過 256 字元。", backHref: "/ai/days" };
     }
     const videoList=/^\/(?:videos|tags(?:\/\d+)?\/videos|channels\/\d+\/videos|keywords\/[^/]+\/videos)\/?$/.test(url.pathname);

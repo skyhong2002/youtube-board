@@ -1,4 +1,4 @@
-import { decodeReportSegments, resolveRoute } from "./routes";
+import { decodeReportSegments, numericAiDailyEventId, resolveRoute } from "./routes";
 import { uuid } from "../../../shared/editorial/contracts";
 import { INTERNAL_RENDER_TARGETS, isInternalRenderPath, TRANSPORT_QUERY_PARAMS, type InternalRenderTarget, type PublicRenderRoute } from "../../../shared/public-render-contract";
 import type { Search } from "./api";
@@ -48,7 +48,10 @@ export function publicRenderDecision(url: URL, method = "GET"): RenderDecision {
     if (event) return render(null, uuid(event[1]) ? "event" : null);
     // A numeric daily event requires an `event` query. Keep even a bare/prefetch
     // URL out of ISR; request validation rejects missing names before streaming.
-    if (/^\/ai\/days\/[1-9][0-9]*\/events\/?$/.test(pathname)) return render("filtered", null);
+    if (numericAiDailyEventId(pathname) !== null)
+        // The relative rewrite matches only a literal first family. Encoded-family
+        // forms are rejected by request-status rather than allowed into ISR.
+        return render(pathname.startsWith("/ai/") ? "filtered" : null, null);
     const segments = decodeReportSegments(pathname.slice(1).split("/"));
     if (segments && resolveRoute(segments))
         return filtered ? render("filtered", null) : render(null, "report");

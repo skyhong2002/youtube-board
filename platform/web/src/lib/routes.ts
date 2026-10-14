@@ -33,6 +33,13 @@ export function decodeReportSegments(encoded: string[]): string[] | null {
     try { const decoded=encoded.map(segment => decodeURIComponent(segment)); return decoded.some(segment=>!segment||segment==='.'||segment==='..')?null:decoded; }
     catch { return null; }
 }
+/** Classify the same decoded numeric daily-event route as resolveRoute, including
+ * leading zeros and percent-encoded segments. Return the original decoded ID. */
+export function numericAiDailyEventId(pathname: string): string | null {
+    const segments = decodeReportSegments(pathname.replace(/\/$/, "").slice(1).split("/"));
+    return segments?.length === 4 && segments[0] === "ai" && segments[1] === "days" &&
+        /^\d+$/.test(segments[2]) && segments[3] === "events" ? segments[2] : null;
+}
 
 /** Resolve already-decoded opaque path segments; encode only when building URLs. */
 export function resolveRoute(segments: string[]): ReportRoute | null {
