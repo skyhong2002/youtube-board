@@ -71,8 +71,8 @@ test('/keywords: every ranked term link (and only those) carries the hint; label
  assert.deepEqual(links.map(([href])=>href),['/keywords/a%2Fb%2541/videos?from=2026-10-06&amp;to=2026-10-12','/keywords/100%25/videos?from=2026-10-06&amp;to=2026-10-12']);
  assert.equal(markup.match(/data-link-pending=/g)?.length,2);
  for(const [,anchor] of links){
-  // The exact term stays the link's text in a truncating span; the hint follows it inside the same link.
-  assert.match(anchor,/<span class="min-w-0 max-w-full truncate">(a\/b%41|100%)<\/span><span class="[^"]*" data-link-pending="idle">/);
+  // The exact term wraps on phones; the hint follows it inside the same link.
+  assert.match(anchor,/<span class="min-w-0 max-w-full whitespace-normal \[overflow-wrap:anywhere\] sm:truncate sm:whitespace-nowrap">(a\/b%41|100%)<\/span><span class="[^"]*" data-link-pending="idle">/);
   assert.match(anchor,/class="[^"]*text-brand-700[^"]*dark:text-brand-400/);
   assert.doesNotMatch(anchor.slice(0,anchor.indexOf('>')),/aria-hidden|tabindex="-1"/);
  }

@@ -24,7 +24,7 @@ function view(exploration:Partial<HomeExploration>,window:KeywordWindow){
 export const keywordRankingViews=(exploration:Partial<HomeExploration>):View[]=>KEYWORD_WINDOWS.map(({value,label})=>({window:value,label,...view(exploration,value)}));
 
 /** /keywords: the homepage's effective-keyword ranking at full length, laid out as
- * tag.observe.tw /ranking (sticky keyword column, one line per row, sideways scroll). */
+ * tag.observe.tw /ranking (sticky keyword column, complete mobile labels, sideways scroll). */
 export function KeywordRankingView({exploration,meta,notice,tabs,initial='week'}:{exploration:Partial<HomeExploration>;meta:ReportMeta;notice?:ReactNode;tabs?:ReactNode;initial?:KeywordWindow}){
  const views=keywordRankingViews(exploration);
  return <div className="space-y-5">
@@ -82,10 +82,10 @@ export function KeywordRankingTable({rows,summary,window,basis,priority=false}:{
        <div className={`${table.leadBox} flex items-center gap-2`}>
         <span className="w-5 shrink-0 text-right text-xs tabular-nums text-zinc-500 sm:hidden">{index+1}</span>
         {row.representativeVideoId
-         ?<Link href={`/videos/${encodeURIComponent(row.representativeVideoId)}`} tabIndex={-1} aria-hidden="true" className={`${table.leadExtra} shrink-0`}><VideoThumbnail videoId={row.representativeVideoId} width={48} height={27} priority={priority&&index===0}/></Link>
-         :<span className={`${table.leadExtra} shrink-0`}><VideoThumbnail videoId={null} width={48} height={27}/></span>}
-        {/* The term truncates in its own span so the fixed-size pending hint stays visible inside the link. */}
-        <Link href={keywordVideosHref(row.term,summary)} className="inline-flex min-w-0 max-w-full items-center gap-1 font-medium text-brand-700 hover:underline dark:text-brand-400" title={row.term}><span className={table.leadText}>{row.term}</span><LinkPending/></Link>
+         ?<Link href={`/videos/${encodeURIComponent(row.representativeVideoId)}`} tabIndex={-1} aria-hidden="true" className={`${table.leadWide} shrink-0`}><VideoThumbnail videoId={row.representativeVideoId} width={48} height={27} priority={priority&&index===0}/></Link>
+         :<span className={`${table.leadWide} shrink-0`}><VideoThumbnail videoId={null} width={48} height={27}/></span>}
+        {/* Mobile labels wrap in full; the fixed-size pending hint stays visible inside the link. */}
+        <Link href={keywordVideosHref(row.term,summary)} className="inline-flex min-w-0 max-w-full items-center gap-1 font-medium text-brand-700 hover:underline dark:text-brand-400" title={row.term}><span className="min-w-0 max-w-full whitespace-normal [overflow-wrap:anywhere] sm:truncate sm:whitespace-nowrap">{row.term}</span><LinkPending/></Link>
        </div>
        {aliases.length>1&&<span className={`${table.leadExtra} text-xs text-zinc-500`} title={`合併寫法：${aliases.map(a=>a.term).join('、')}`}>{aliases.length} 種寫法</span>}
       </div>

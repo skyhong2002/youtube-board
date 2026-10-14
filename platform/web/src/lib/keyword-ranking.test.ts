@@ -80,7 +80,7 @@ test('warning sentences join without 。； and keep every warning',()=>{
  assert.equal(joinSentences(['涵蓋不完整。','觀看值缺漏；','比對版本為 exact-text-v1']),'涵蓋不完整；觀看值缺漏；比對版本為 exact-text-v1。');
  assert.doesNotMatch(joinSentences(['a。','b。']),/。；/);assert.equal(joinSentences(['只有一句。']),'只有一句。');assert.equal(joinSentences(['',' ']),'');
 });
-test('ranking table keeps one-line rows, a sticky lead with fixed thumbnails, and honest gaps',()=>{
+test('ranking table keeps desktop one-line rows, a sticky lead with fixed thumbnails, and honest gaps',()=>{
  const rows=[row(),row({key:'k2',term:'Apple',sourceTerms:[{key:'k2',term:'Apple'},{key:'k3',term:'apple'}],representativeVideoId:null,trend:[{date:'2026-10-13',heat:null}],views:null,measuredViewVideos:0,knownViews:0,channel:null})];
  const html=renderToStaticMarkup(createElement(ImageConfigContext.Provider,{value:{...imageConfigDefault,...config.images}},createElement(KeywordRankingTable,{rows,summary:summary(),window:'week',basis:'heat',priority:true})));
  assert.match(html,/whitespace-nowrap/);assert.match(html,/table-lead sticky/);assert.match(html,/width:48px;height:27px/);
@@ -92,4 +92,24 @@ test('ranking table keeps one-line rows, a sticky lead with fixed thumbnails, an
 
 test('labels authorized source exclusions with the specific reason',()=>{
  assert.equal(displayExclusionLabel('youtube-source-or-platform'),'不列入排行：來源或平台名稱');
+});
+
+
+test('mobile ranking identities remain complete, wrap long terms, and keep scoped evidence links',()=>{
+ const terms=['新聞直播','雙十國慶','雙十','極長新聞標籤'.repeat(12),'a/b%41'];
+ const rows=terms.map((term,i)=>row({key:`identity${i}`,term}));
+ const html=renderToStaticMarkup(createElement(ImageConfigContext.Provider,{value:{...imageConfigDefault,...config.images}},createElement(KeywordRankingTable,{rows,summary:summary(),window:'today',basis:'heat'})));
+ const links=[...html.matchAll(/<a ([^>]*?)><span class="([^"]*)">([^<]*)<\/span><span [^>]*data-link-pending="idle"/g)];
+ assert.deepEqual(links.map(link=>link[3]),terms);
+ for(const [i,link] of links.entries()){
+  assert.ok(link[1].includes(`/keywords/${encodeURIComponent(terms[i])}/videos?from=2026-10-07&amp;to=2026-10-13`));
+  const classes=link[2].split(' ');
+  assert.ok(classes.includes('whitespace-normal'));
+  assert.ok(classes.includes('[overflow-wrap:anywhere]'));
+  assert.ok(classes.includes('sm:truncate'));
+  for(const forbidden of ['truncate','overflow-hidden','text-ellipsis','whitespace-nowrap','line-clamp-1'])assert.ok(!classes.includes(forbidden));
+ }
+ const decorative=[...html.matchAll(/<a ([^>]*aria-hidden="true"[^>]*)>/g)];
+ assert.equal(decorative.length,terms.length);
+ assert.ok(decorative.every(link=>link[1].includes('max-sm:hidden')));
 });
