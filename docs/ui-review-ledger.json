@@ -38232,6 +38232,183 @@
         "sha256": "e869cf91e7e7c4e1004b9d2c637f5819ab4c0dad79f8f32acd82141f1084a69e"
       },
       "rollbackImage": "sha256:1e2513480d7d4a6713b135cf9547330300602324b66a2c830fc51ed5e3924140"
+    },
+    {
+      "supersededAt": "2026-10-14T21:09:39.288349193Z",
+      "runtime": {
+        "recordedAt": "2026-10-14T17:59:11.377006+00:00",
+        "owner": "d7967e77",
+        "appSha": "335c8dbd023ed1466620b29a4dea6cda9e3cef80",
+        "opsSha": "51dc9de1a20e73c428d4e9588fa8d5243643c742",
+        "image": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6",
+        "architecture": "arm64",
+        "buildId": "NZua9VnOCd6zsK0BXUoF7",
+        "deployRequestedAt": "2026-10-14T17:53:56.307227+00:00",
+        "bothServicesCompletedAt": "2026-10-14T17:54:39.495088599Z",
+        "method": "Dokploy compose.update then compose.deploy; no rebuild",
+        "dokployComposeSynced": true,
+        "databaseChanges": false,
+        "cloudflareChanges": false,
+        "nativeSmoke": {
+          "node": "v24.21.0",
+          "abi": "137",
+          "glibc": "2.36",
+          "sharp": "0.35.5",
+          "webpBytes": 44,
+          "passed": true
+        },
+        "visualReview": {
+          "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/ranked-pools-app335c8db-20261014T175405Z/review.json",
+          "sha256": "e31175eefe07f20bcfb4085a4c0f2e2677d687bf777a85d91f395f7d71e8a5d5"
+        },
+        "manifest": {
+          "path": "/home/deck/.cache/youtube-ui-review/ranked-pools-335c8db-20261014T174356Z/captures.json",
+          "sha256": "ac8a4a38fb0ec8e71512d8ee13a2dca2e270fe0b2553feb647479a7ff04949e8"
+        },
+        "visualScope": {
+          "routes": [
+            "/",
+            "/keywords"
+          ],
+          "views": 16,
+          "actualPNGsViewed": 32,
+          "pngHashesChecked": 102,
+          "hashOnly": 70,
+          "DNT": "1",
+          "GPC": true,
+          "googleRequests": 0,
+          "wholeSiteAcceptance": false
+        },
+        "checks": {
+          "build-result": {
+            "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-build-result.json",
+            "sha256": "f58612f3a9647a28f357ca570b0dc0e11ded35ef90194f44735d44509d860381"
+          },
+          "native-smoke-result": {
+            "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-native-smoke-result.json",
+            "sha256": "260ffbdbbf40fbe9728619abb3578d6fa1076f4aa2883dbf48b243c34645ca01"
+          },
+          "predeploy-fresh02": {
+            "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-predeploy-fresh02.json",
+            "sha256": "8ea0e07b162899536eacedd466dda140f49e94147008393cc07d08dac0a67cac"
+          },
+          "service-check03": {
+            "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-service-check03.json",
+            "sha256": "ac7120467296e29636ed9bad003cc2a46621f405d92268c01858715c774312b8"
+          },
+          "formal-http": {
+            "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-formal-http.json",
+            "sha256": "7fd4e30d4fa862cdfbcc5257bbe357d91dd55b9abe47588571de484ce8a061be"
+          },
+          "production-top40": {
+            "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-production-top40.json",
+            "sha256": "3c84a3128e0b193a47e1ed11166638364a75bd55d15eb765f0274573447a4c9c"
+          },
+          "production-privacy": {
+            "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-production-privacy.json",
+            "sha256": "bfaaafd12a9759b984fbef34dcb43288b471dec7d1febe165a0b0c1edf1992ab"
+          },
+          "postdeploy-fresh": {
+            "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-postdeploy-fresh.json",
+            "sha256": "11daa64c7d6c9cf9b3533a04e40e9417b614020777b0857ebbd6b5632928c977"
+          },
+          "cleanup": {
+            "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-cleanup.json",
+            "sha256": "77d9189a43ed175f4245cd3309fcb111758eed6a9065f8b21fc0bec8847f5bec"
+          },
+          "service-after-cleanup": {
+            "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-service-after-cleanup.json",
+            "sha256": "c14a5e76f0af5c21c38a652a86124116302e7b362de76652e8d99c8108c2efe8"
+          },
+          "final-fresh": {
+            "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-final-fresh.json",
+            "sha256": "ccac6f3a97fd41a5a4ec54474ebc3c8a655eaf0993cc3be350850014d10f6f4d"
+          }
+        },
+        "rollbackCommand": "python3 /tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-deploy.py --execute --rollback",
+        "rollbackImage": "sha256:1e2513480d7d4a6713b135cf9547330300602324b66a2c830fc51ed5e3924140",
+        "emergencyRollback": [
+          "docker service rollback youtube-board-ts-6oukfq_web",
+          "docker service rollback youtube-board-ts-6oukfq_account-maintenance"
+        ],
+        "formalBrowserAcceptance": {
+          "reportedAt": "2026-10-14T18:04:00Z",
+          "recordedAt": "2026-10-14T18:03:12.143888+00:00",
+          "reviewer": "babysit",
+          "source": "user-provided babysit formal browser acceptance; not independently rerun by this owner",
+          "decision": "PASS_SCOPED_PRODUCTION_KEYWORD_RANKING",
+          "appSha": "335c8dbd023ed1466620b29a4dea6cda9e3cef80",
+          "buildId": "NZua9VnOCd6zsK0BXUoF7",
+          "routes": [
+            "/",
+            "/keywords"
+          ],
+          "googleRequests": 0,
+          "privacyMode": "website opt-out",
+          "observations": [
+            "weekly40 starts沈伯洋/蔣萬安/川普/國慶/AI/賴清德/韓國瑜/雙十國慶/洋流/台股",
+            "reported24generic terms and country/city/party/source labels absent",
+            "過去24小時/近七日 controls displayed",
+            "measured views ≥1,118.35萬次（509支缺值）, no contradictory missing-total label",
+            "homepage cloud/ranking use same terms"
+          ],
+          "limitations": [
+            "not fullsite/F1-F4 acceptance",
+            "viewport sizes not specified in this acceptance report",
+            "no new /mayor acceptance reported"
+          ],
+          "nonblockingFollowup": {
+            "terms": [
+              "手機",
+              "機場",
+              "機車",
+              "社區",
+              "社群",
+              "銀行"
+            ],
+            "status": "documented threshold assessment; deployed policy unchanged",
+            "receipt": {
+              "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-threshold-assessment.json",
+              "sha256": "7eff64d733b7eb19acaceeea5c86efbc412183459b2c83ea173e1a6350292ea7"
+            }
+          },
+          "receipt": {
+            "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-formal-acceptance.json",
+            "sha256": "665194547522012b0fc2bbeb1755fb37bc44caad3d817a36e8795657e5d742e9"
+          }
+        },
+        "retention": {
+          "policy": "current + one rollback + deploying artifact; user explicitly authorized rolling release/cache cleanup",
+          "receipt": {
+            "path": "/tmp/babysit/mint-queue/youtube-rolling-cleanup-result-20261015.json",
+            "sha256": "f2f309706b9301214b331895660e8274bfdd650bc85d8e978ee58c875e7c0497"
+          },
+          "cacheReceipt": {
+            "path": "/tmp/babysit/mint-queue/youtube-build-cache-cleanup-result-20261015.json",
+            "sha256": "68ef9bf28fbab2f8b2f11f2906baa26d3b734d8d6bb989902f351c4fd767cc9a"
+          },
+          "removedImageTags": 18,
+          "removedStoppedContainers": 6,
+          "removedBuildDirectories": 6,
+          "dfBefore": "Filesystem        1B-blocks         Used   Available Use% Mounted on\n/dev/sda1      206900281344 113410027520 93473476608  55% /\n",
+          "dfAfter": "Filesystem        1B-blocks         Used    Available Use% Mounted on\n/dev/sda1      206900281344 106541944832 100341559296  52% /\n",
+          "preserved": [
+            "current image",
+            "rollback image",
+            "current build context",
+            "database backups",
+            "tag-backup",
+            "production data",
+            "all git worktrees and source",
+            "review evidence"
+          ],
+          "futureBaseImage": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6",
+          "futureBaseRequirements": "pass explicit --build-arg BASE_IMAGE=<retained verified arm64 image>; Node major24/ABI137 smoke; never depend on deleted5b base tags"
+        },
+        "receipt": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-production-deployment.json",
+        "sha256": "e869cf91e7e7c4e1004b9d2c637f5819ab4c0dad79f8f32acd82141f1084a69e",
+        "services": "web and account-maintenance completed; one healthy container each"
+      }
     }
   ],
   "nativeBuildPreparationFindings": [
@@ -40115,178 +40292,108 @@
     }
   },
   "currentProductionRuntime20261014": {
-    "recordedAt": "2026-10-14T17:59:11.377006+00:00",
+    "recordedAt": "2026-10-14T21:10:55.285914+00:00",
     "owner": "d7967e77",
-    "appSha": "335c8dbd023ed1466620b29a4dea6cda9e3cef80",
-    "opsSha": "51dc9de1a20e73c428d4e9588fa8d5243643c742",
-    "image": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6",
+    "appSha": "fe7987945611328aabaa8bb8f4495ecd75168792",
+    "opsSha": "868b396636adf7dba14e640eee55d0e6c06c4ad0",
+    "image": "sha256:5816d4eec144c5c162ad3954aef4298fa36a5ecfc9476315e1ad9d0a59ecfb91",
     "architecture": "arm64",
-    "buildId": "NZua9VnOCd6zsK0BXUoF7",
-    "deployRequestedAt": "2026-10-14T17:53:56.307227+00:00",
-    "bothServicesCompletedAt": "2026-10-14T17:54:39.495088599Z",
-    "method": "Dokploy compose.update then compose.deploy; no rebuild",
+    "buildId": "vet9FIruVMu5cIc9qIVeo",
+    "deployRequestedAt": "2026-10-14T21:08:55.975569+00:00",
+    "bothServicesCompletedAt": "2026-10-14T21:09:39.288349193Z",
+    "method": "Dokploy compose.update then compose.deploy; exact existing image; no rebuild",
     "dokployComposeSynced": true,
     "databaseChanges": false,
     "cloudflareChanges": false,
     "nativeSmoke": {
+      "platform": "linux",
+      "arch": "arm64",
       "node": "v24.21.0",
       "abi": "137",
-      "glibc": "2.36",
+      "glibcRuntime": "2.36",
       "sharp": "0.35.5",
+      "sharpPath": "/opt/youtube-board/platform/node_modules/sharp/dist/index.cjs",
       "webpBytes": 44,
-      "passed": true
+      "buildId": "vet9FIruVMu5cIc9qIVeo",
+      "traceBuildId": "vet9FIruVMu5cIc9qIVeo",
+      "versions": {
+        "next": {
+          "source": "16.3.8",
+          "traced": "16.3.8"
+        },
+        "react": {
+          "source": "19.2.8",
+          "traced": "19.2.8"
+        },
+        "react-dom": {
+          "source": "19.2.8",
+          "traced": "19.2.8"
+        }
+      },
+      "serverSha256": "13de5f37fcb08d9ed2601dc919b655c25baedc17e53d2b2b621e25d2557482c2",
+      "manifests": {
+        "build-manifest.json": "48646be22fddd91983b2fbd165fee03d949fca23e9d7e078924d713772b566df",
+        "routes-manifest.json": "73aba4d6f7e3f99e9892ad6c2294439b35d35397477691331dd63a7e3b41f101",
+        "prerender-manifest.json": "89aabb4d6c0f4582fbc461010003fb81393b33b87c7d45ae8784a1ff8fd6644e"
+      },
+      "network": "none",
+      "sourceWrites": false
     },
-    "visualReview": {
-      "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/ranked-pools-app335c8db-20261014T175405Z/review.json",
-      "sha256": "e31175eefe07f20bcfb4085a4c0f2e2677d687bf777a85d91f395f7d71e8a5d5"
+    "candidateReview": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-candidate-acceptance.json",
+      "sha256": "56d3f12fbfb362c2f09416909b6d96d7a7578f1811157c427b9e05c7c07e308a"
     },
-    "manifest": {
-      "path": "/home/deck/.cache/youtube-ui-review/ranked-pools-335c8db-20261014T174356Z/captures.json",
-      "sha256": "ac8a4a38fb0ec8e71512d8ee13a2dca2e270fe0b2553feb647479a7ff04949e8"
-    },
-    "visualScope": {
+    "candidateVisualScope": {
+      "views": 24,
       "routes": [
         "/",
-        "/keywords"
+        "/keywords",
+        "/live/current",
+        "/groups"
       ],
-      "views": 16,
-      "actualPNGsViewed": 32,
-      "pngHashesChecked": 102,
-      "hashOnly": 70,
-      "DNT": "1",
-      "GPC": true,
       "googleRequests": 0,
-      "wholeSiteAcceptance": false
+      "actualPNGsViewed": 78,
+      "hashesChecked": 158
     },
     "checks": {
-      "build-result": {
-        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-build-result.json",
-        "sha256": "f58612f3a9647a28f357ca570b0dc0e11ded35ef90194f44735d44509d860381"
-      },
-      "native-smoke-result": {
-        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-native-smoke-result.json",
-        "sha256": "260ffbdbbf40fbe9728619abb3578d6fa1076f4aa2883dbf48b243c34645ca01"
-      },
       "predeploy-fresh02": {
-        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-predeploy-fresh02.json",
-        "sha256": "8ea0e07b162899536eacedd466dda140f49e94147008393cc07d08dac0a67cac"
+        "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-predeploy-fresh02.json",
+        "sha256": "1447df91e77b7bd978c9f1f2fd1937cc9af073fce98a1ac9f116178ba568ce7c"
       },
-      "service-check03": {
-        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-service-check03.json",
-        "sha256": "ac7120467296e29636ed9bad003cc2a46621f405d92268c01858715c774312b8"
+      "deploy-dry-run": {
+        "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-deploy-dry-run.json",
+        "sha256": "368e5f77d4b011fbc2cc673c492a8fd7f414e61a5524ff3bd458c71a3856fc74"
       },
-      "formal-http": {
-        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-formal-http.json",
-        "sha256": "7fd4e30d4fa862cdfbcc5257bbe357d91dd55b9abe47588571de484ce8a061be"
+      "services-after03": {
+        "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-services-after03.json",
+        "sha256": "b4250e8660e9a0ebdeb87a994e80c2b7bd807c09d70cb39a973f1e1bcf036e62"
       },
-      "production-top40": {
-        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-production-top40.json",
-        "sha256": "3c84a3128e0b193a47e1ed11166638364a75bd55d15eb765f0274573447a4c9c"
+      "production-http": {
+        "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-http.json",
+        "sha256": "a85b78a30c54db372e0784e651898f69819855dbeed929623bfb4a17a2156b02"
       },
       "production-privacy": {
-        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-production-privacy.json",
-        "sha256": "bfaaafd12a9759b984fbef34dcb43288b471dec7d1febe165a0b0c1edf1992ab"
+        "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-privacy.json",
+        "sha256": "66538061e9dea5baecc2019eedf56a07df5e8b3c1e649249894f07bf391b01ba"
       },
       "postdeploy-fresh": {
-        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-postdeploy-fresh.json",
-        "sha256": "11daa64c7d6c9cf9b3533a04e40e9417b614020777b0857ebbd6b5632928c977"
+        "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-postdeploy-fresh.json",
+        "sha256": "734fcef4c853edfc60d3d8182e953cdfb710dce6559b19b74d010a6d02872506"
       },
-      "cleanup": {
-        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-cleanup.json",
-        "sha256": "77d9189a43ed175f4245cd3309fcb111758eed6a9065f8b21fc0bec8847f5bec"
-      },
-      "service-after-cleanup": {
-        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-service-after-cleanup.json",
-        "sha256": "c14a5e76f0af5c21c38a652a86124116302e7b362de76652e8d99c8108c2efe8"
-      },
-      "final-fresh": {
-        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-final-fresh.json",
-        "sha256": "ccac6f3a97fd41a5a4ec54474ebc3c8a655eaf0993cc3be350850014d10f6f4d"
+      "candidate-cleanup": {
+        "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-candidate-cleanup.json",
+        "sha256": "926f55bc382d3c1be368df0c5993b6d3ab53131719f077580600f0e8d1f92e48"
       }
     },
-    "rollbackCommand": "python3 /tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-deploy.py --execute --rollback",
-    "rollbackImage": "sha256:1e2513480d7d4a6713b135cf9547330300602324b66a2c830fc51ed5e3924140",
+    "rollbackCommand": "python3 /tmp/babysit/mint-queue/youtube-f4-fe79879-deploy.py --execute --rollback",
+    "rollbackImage": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6",
     "emergencyRollback": [
       "docker service rollback youtube-board-ts-6oukfq_web",
       "docker service rollback youtube-board-ts-6oukfq_account-maintenance"
     ],
-    "formalBrowserAcceptance": {
-      "reportedAt": "2026-10-14T18:04:00Z",
-      "recordedAt": "2026-10-14T18:03:12.143888+00:00",
-      "reviewer": "babysit",
-      "source": "user-provided babysit formal browser acceptance; not independently rerun by this owner",
-      "decision": "PASS_SCOPED_PRODUCTION_KEYWORD_RANKING",
-      "appSha": "335c8dbd023ed1466620b29a4dea6cda9e3cef80",
-      "buildId": "NZua9VnOCd6zsK0BXUoF7",
-      "routes": [
-        "/",
-        "/keywords"
-      ],
-      "googleRequests": 0,
-      "privacyMode": "website opt-out",
-      "observations": [
-        "weekly40 starts沈伯洋/蔣萬安/川普/國慶/AI/賴清德/韓國瑜/雙十國慶/洋流/台股",
-        "reported24generic terms and country/city/party/source labels absent",
-        "過去24小時/近七日 controls displayed",
-        "measured views ≥1,118.35萬次（509支缺值）, no contradictory missing-total label",
-        "homepage cloud/ranking use same terms"
-      ],
-      "limitations": [
-        "not fullsite/F1-F4 acceptance",
-        "viewport sizes not specified in this acceptance report",
-        "no new /mayor acceptance reported"
-      ],
-      "nonblockingFollowup": {
-        "terms": [
-          "手機",
-          "機場",
-          "機車",
-          "社區",
-          "社群",
-          "銀行"
-        ],
-        "status": "documented threshold assessment; deployed policy unchanged",
-        "receipt": {
-          "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-threshold-assessment.json",
-          "sha256": "7eff64d733b7eb19acaceeea5c86efbc412183459b2c83ea173e1a6350292ea7"
-        }
-      },
-      "receipt": {
-        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-formal-acceptance.json",
-        "sha256": "665194547522012b0fc2bbeb1755fb37bc44caad3d817a36e8795657e5d742e9"
-      }
-    },
-    "retention": {
-      "policy": "current + one rollback + deploying artifact; user explicitly authorized rolling release/cache cleanup",
-      "receipt": {
-        "path": "/tmp/babysit/mint-queue/youtube-rolling-cleanup-result-20261015.json",
-        "sha256": "f2f309706b9301214b331895660e8274bfdd650bc85d8e978ee58c875e7c0497"
-      },
-      "cacheReceipt": {
-        "path": "/tmp/babysit/mint-queue/youtube-build-cache-cleanup-result-20261015.json",
-        "sha256": "68ef9bf28fbab2f8b2f11f2906baa26d3b734d8d6bb989902f351c4fd767cc9a"
-      },
-      "removedImageTags": 18,
-      "removedStoppedContainers": 6,
-      "removedBuildDirectories": 6,
-      "dfBefore": "Filesystem        1B-blocks         Used   Available Use% Mounted on\n/dev/sda1      206900281344 113410027520 93473476608  55% /\n",
-      "dfAfter": "Filesystem        1B-blocks         Used    Available Use% Mounted on\n/dev/sda1      206900281344 106541944832 100341559296  52% /\n",
-      "preserved": [
-        "current image",
-        "rollback image",
-        "current build context",
-        "database backups",
-        "tag-backup",
-        "production data",
-        "all git worktrees and source",
-        "review evidence"
-      ],
-      "futureBaseImage": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6",
-      "futureBaseRequirements": "pass explicit --build-arg BASE_IMAGE=<retained verified arm64 image>; Node major24/ABI137 smoke; never depend on deleted5b base tags"
-    },
-    "receipt": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-production-deployment.json",
-    "sha256": "e869cf91e7e7c4e1004b9d2c637f5819ab4c0dad79f8f32acd82141f1084a69e",
-    "services": "web and account-maintenance completed; one healthy container each"
+    "formalBrowserAcceptance": "pending actual production captures and independent review; babysit acceptance pending",
+    "fullF4Acceptance": false,
+    "receipt": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-deployment.json"
   },
   "keywordRankedPoolSuccessor20261014": {
     "status": "source-tested-independent-review-in-progress",
@@ -41390,7 +41497,7 @@
   },
   "f4FirstBatch20261015": {
     "recordedAt": "2026-10-14T21:02:26.585725+00:00",
-    "status": "candidate-review-in-progress-not-deployed",
+    "status": "deployed-candidate-scoped-pass-production-visual-pending",
     "appSha": "fe7987945611328aabaa8bb8f4495ecd75168792",
     "image": "sha256:5816d4eec144c5c162ad3954aef4298fa36a5ecfc9476315e1ad9d0a59ecfb91",
     "buildId": "vet9FIruVMu5cIc9qIVeo",
@@ -41440,6 +41547,15 @@
       "cross-site actual comparison",
       "all other page and empty/error/auth/interaction states"
     ],
-    "rollbackImage": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6"
+    "rollbackImage": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6",
+    "candidateAcceptance": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-candidate-acceptance.json",
+      "sha256": "56d3f12fbfb362c2f09416909b6d96d7a7578f1811157c427b9e05c7c07e308a"
+    },
+    "productionDeployment": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-fe79879-production-deployment.json",
+      "sha256": "818e4739cd7915d231975d2d262c43e3d31f45359e1d3b143338f01f1a205722"
+    },
+    "productionVisualStatus": "pending"
   }
 }

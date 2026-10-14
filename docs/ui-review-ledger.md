@@ -930,3 +930,10 @@ Secondary immutable review6fa0e0ef…:8views,26actualPNG/52hashed/26hash-only. /
 Pinned tag T-ref ff511870 and documented shared foundations, authorized red branding and remaining differences in the APP docs/cross-site-consistency.md. Source review PASS_SOURCE_ONLY; web319tests, APIgroups7pass/1DBskip, both typechecks pass. Native arm64 build5816d4ee/BUILD_IDvet9FIruVMu5cIc9qIVeo completed; Node24.21/ABI137/sharp0.35.5 smoke pass. Build slot returned. Source-only evidence never closes visual issues.
 
 Candidate feature8view retake is captured with DNT1/GPC/Google0, new exactAPP/image/BUILD_ID; independent visual review pending. Initial rejected503 capture remains rejected and preserved, no network exception. Twelve anonymous/cookie/RSC privacy checks passed. Production remains335c8db/cabe1558 at this checkpoint. Next: finish same-artifact main-page capture/review, deploy with immediate rollback335, actual production retest. Full F4 and other pages/states remain pending. Exact receipts and hashes in f4FirstBatch20261015 JSON entry.
+
+
+### F4 first batch deployed — 2026-10-14T21:09:39.288349193Z UTC
+
+Owner d7967e77 deployed APPfe79879 image5816d4ee BUILD_IDvet9FIruVMu5cIc9qIVeo to both TS services; both healthy/converged, Dokploy compose synced, same native-smoked candidate artifact, no rebuild/migration/writer/CF/WAF changes. Candidate24views scoped independent PASS:158PNG hashed/78actually viewed, DNT1/GPCtrue/Google0. Technical formal six-route exactBUILD_ID HTTP200 and12privacy/no-store checks pass. Deployment receipt /tmp/babysit/mint-queue/youtube-f4-fe79879-production-deployment.json SHA256818e4739cd7915d231975d2d262c43e3d31f45359e1d3b143338f01f1a205722.
+
+Immediate rollback: `python3 /tmp/babysit/mint-queue/youtube-f4-fe79879-deploy.py --execute --rollback` restores335c8db/cabe1558 and persistent compose. Two-service docker rollback fallback remains available. Owncandidate removed, remote18168closed/tunnelterminated. New production screenshot/review is pending and independent of candidate PASS. FullF4/allroutes/empty/error/auth states remain pending; group source freshness not fixed.
