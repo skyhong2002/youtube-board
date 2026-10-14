@@ -39018,12 +39018,27 @@
     "sha256": "ce3d5b814c357a4c9f4f89f8c6ec595d295597796feb35187d849a180b7e3fd3",
     "services": "web and account-maintenance completed, onehealthycontainer each",
     "dokployComposeSynced": true,
-    "formalBrowserAcceptance": "pending babysit",
+    "formalBrowserAcceptance": {
+      "status": "PASS_SCOPED_F1_PROFILE",
+      "at": "2026-10-14T16:18:00Z",
+      "reviewer": "babysit",
+      "buildId": "Fb8mfbUpeqBWyMVD2_Jsj",
+      "googleRequests": 0,
+      "route": "/keywords/柯文哲/videos",
+      "observations": [
+        "relations above videos",
+        "SSR includes 政治人物",
+        "no loading flash",
+        "fixed 96px avatar; no blank"
+      ],
+      "fullSiteAcceptance": false,
+      "source": "user-provided babysit formal browser acceptance"
+    },
     "rollbackCommand": "python3 /tmp/babysit/mint-queue/youtube-f1-top-72cb816-deploy.py --execute --rollback",
     "rollbackImage": "sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38"
   },
   "keywordRankedPoolSuccessor20261014": {
-    "status": "OPEN; upstream filtered windowed pool required; offline contract prepared",
+    "status": "source-tested-independent-review-in-progress",
     "productionChanged": false,
     "manualFallbackAppSha": "d4deebbba4d5a8e35ecc51b2a06ede61eba6521b",
     "sourceReview": {
@@ -39060,18 +39075,29 @@
       "status": "proposed contract; tag coordination required"
     },
     "proposedInitialGate": "reuse tag early: >=2 outlets each >=2 DISTINCT articles; today/week formal validation pending",
-    "candidateTop40Today": "pending same-window upstream contract and candidate",
-    "candidateTop40Week": "pending same-window upstream contract and candidate",
+    "candidateTop40Today": "pending real DB candidate",
+    "candidateTop40Week": "pending real DB candidate",
     "candidateApproval": false,
     "fullRouteApproval": false,
     "liveContractCheck": {
-      "path": "/tmp/babysit/mint-queue/youtube-tag-current-ranking-contract-20261014.json",
-      "sha256": "7616c99cc33dd2711cb6cb58bec805a03401e6844892d5012fd5218f4ef4d072",
-      "status": 200,
-      "result": "public OpenAPI still lists fixed24h ranking; no windowed ranking pool contract"
+      "receipt": "/tmp/babysit/mint-queue/youtube-ranked-pool-rolling24h-live-20261015.json",
+      "sha256": "a311c3e53472a1e2536827c757f85d4f5308de93b3e86e2edc190ab5362dfa75",
+      "at": "2026-10-14T16:38:50.200Z",
+      "eligibleCounts": {
+        "today": 827,
+        "week": 4214
+      },
+      "completeChecksumValidated": true
     },
-    "waitingFor": "tag owner confirmation/availability of complete filtered today/week ranked pool contract, not build approval",
-    "independentDocumentReview": "requested earlier; no returned review text available in current session; not counted as PASS"
+    "waitingFor": null,
+    "independentDocumentReview": "requested earlier; no returned review text available in current session; not counted as PASS",
+    "appSha": "38b51bfdbc6863ce6ee03ca9f5a87de080f2bdd9",
+    "windowPolicy": {
+      "short": "always rolling24h",
+      "week": "seven Taipei calendar dates",
+      "sharedCutoff": "floor now to ten minutes",
+      "publicShortLabel": "過去24小時"
+    }
   },
   "currentOperatingWorkflow20261014": {
     "source": "latest babysit user-message conveying explicit relaxed workflow",
@@ -39427,7 +39453,22 @@
       "rollbackImage": "sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38",
       "dokployComposeSynced": true,
       "sameArtifactNoRebuild": true,
-      "formalBrowserAcceptance": "pending babysit"
+      "formalBrowserAcceptance": {
+        "status": "PASS_SCOPED_F1_PROFILE",
+        "at": "2026-10-14T16:18:00Z",
+        "reviewer": "babysit",
+        "buildId": "Fb8mfbUpeqBWyMVD2_Jsj",
+        "googleRequests": 0,
+        "route": "/keywords/柯文哲/videos",
+        "observations": [
+          "relations above videos",
+          "SSR includes 政治人物",
+          "no loading flash",
+          "fixed 96px avatar; no blank"
+        ],
+        "fullSiteAcceptance": false,
+        "source": "user-provided babysit formal browser acceptance"
+      }
     },
     "request": "/tmp/babysit/mint-queue/youtube-simple-native-72cb816-request.json",
     "freshProbe": {
