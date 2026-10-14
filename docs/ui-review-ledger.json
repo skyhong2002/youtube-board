@@ -37126,6 +37126,18 @@
       "receipt": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-production-deployment.json",
       "scope": "F1 SSR page-top profilemetadata; genericpoolOPEN",
       "formalBrowserAcceptance": "pending"
+    },
+    {
+      "owner": "d7967e77",
+      "appSha": "335c8dbd023ed1466620b29a4dea6cda9e3cef80",
+      "image": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6",
+      "buildId": "NZua9VnOCd6zsK0BXUoF7",
+      "at": "2026-10-14T17:54:39.495088599Z",
+      "receipt": {
+        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-production-deployment.json",
+        "sha256": "e869cf91e7e7c4e1004b9d2c637f5819ab4c0dad79f8f32acd82141f1084a69e"
+      },
+      "rollbackImage": "sha256:1e2513480d7d4a6713b135cf9547330300602324b66a2c830fc51ed5e3924140"
     }
   ],
   "nativeBuildPreparationFindings": [
@@ -39009,33 +39021,146 @@
     }
   },
   "currentProductionRuntime20261014": {
+    "recordedAt": "2026-10-14T17:59:11.377006+00:00",
     "owner": "d7967e77",
-    "appSha": "72cb81699088276215cc5ca8604feb07544a07aa",
-    "image": "sha256:1e2513480d7d4a6713b135cf9547330300602324b66a2c830fc51ed5e3924140",
+    "appSha": "335c8dbd023ed1466620b29a4dea6cda9e3cef80",
+    "opsSha": "51dc9de1a20e73c428d4e9588fa8d5243643c742",
+    "image": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6",
     "architecture": "arm64",
-    "buildId": "Fb8mfbUpeqBWyMVD2_Jsj",
-    "receipt": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-production-deployment.json",
-    "sha256": "ce3d5b814c357a4c9f4f89f8c6ec595d295597796feb35187d849a180b7e3fd3",
-    "services": "web and account-maintenance completed, onehealthycontainer each",
+    "buildId": "NZua9VnOCd6zsK0BXUoF7",
+    "deployRequestedAt": "2026-10-14T17:53:56.307227+00:00",
+    "bothServicesCompletedAt": "2026-10-14T17:54:39.495088599Z",
+    "method": "Dokploy compose.update then compose.deploy; no rebuild",
     "dokployComposeSynced": true,
-    "formalBrowserAcceptance": {
-      "status": "PASS_SCOPED_F1_PROFILE",
-      "at": "2026-10-14T16:18:00Z",
-      "reviewer": "babysit",
-      "buildId": "Fb8mfbUpeqBWyMVD2_Jsj",
-      "googleRequests": 0,
-      "route": "/keywords/柯文哲/videos",
-      "observations": [
-        "relations above videos",
-        "SSR includes 政治人物",
-        "no loading flash",
-        "fixed 96px avatar; no blank"
-      ],
-      "fullSiteAcceptance": false,
-      "source": "user-provided babysit formal browser acceptance"
+    "databaseChanges": false,
+    "cloudflareChanges": false,
+    "nativeSmoke": {
+      "node": "v24.21.0",
+      "abi": "137",
+      "glibc": "2.36",
+      "sharp": "0.35.5",
+      "webpBytes": 44,
+      "passed": true
     },
-    "rollbackCommand": "python3 /tmp/babysit/mint-queue/youtube-f1-top-72cb816-deploy.py --execute --rollback",
-    "rollbackImage": "sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38"
+    "visualReview": {
+      "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/ranked-pools-app335c8db-20261014T175405Z/review.json",
+      "sha256": "e31175eefe07f20bcfb4085a4c0f2e2677d687bf777a85d91f395f7d71e8a5d5"
+    },
+    "manifest": {
+      "path": "/home/deck/.cache/youtube-ui-review/ranked-pools-335c8db-20261014T174356Z/captures.json",
+      "sha256": "ac8a4a38fb0ec8e71512d8ee13a2dca2e270fe0b2553feb647479a7ff04949e8"
+    },
+    "visualScope": {
+      "routes": [
+        "/",
+        "/keywords"
+      ],
+      "views": 16,
+      "actualPNGsViewed": 32,
+      "pngHashesChecked": 102,
+      "hashOnly": 70,
+      "DNT": "1",
+      "GPC": true,
+      "googleRequests": 0,
+      "wholeSiteAcceptance": false
+    },
+    "checks": {
+      "build-result": {
+        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-build-result.json",
+        "sha256": "f58612f3a9647a28f357ca570b0dc0e11ded35ef90194f44735d44509d860381"
+      },
+      "native-smoke-result": {
+        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-native-smoke-result.json",
+        "sha256": "260ffbdbbf40fbe9728619abb3578d6fa1076f4aa2883dbf48b243c34645ca01"
+      },
+      "predeploy-fresh02": {
+        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-predeploy-fresh02.json",
+        "sha256": "8ea0e07b162899536eacedd466dda140f49e94147008393cc07d08dac0a67cac"
+      },
+      "service-check03": {
+        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-service-check03.json",
+        "sha256": "ac7120467296e29636ed9bad003cc2a46621f405d92268c01858715c774312b8"
+      },
+      "formal-http": {
+        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-formal-http.json",
+        "sha256": "7fd4e30d4fa862cdfbcc5257bbe357d91dd55b9abe47588571de484ce8a061be"
+      },
+      "production-top40": {
+        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-production-top40.json",
+        "sha256": "3c84a3128e0b193a47e1ed11166638364a75bd55d15eb765f0274573447a4c9c"
+      },
+      "production-privacy": {
+        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-production-privacy.json",
+        "sha256": "bfaaafd12a9759b984fbef34dcb43288b471dec7d1febe165a0b0c1edf1992ab"
+      },
+      "postdeploy-fresh": {
+        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-postdeploy-fresh.json",
+        "sha256": "11daa64c7d6c9cf9b3533a04e40e9417b614020777b0857ebbd6b5632928c977"
+      },
+      "cleanup": {
+        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-cleanup.json",
+        "sha256": "77d9189a43ed175f4245cd3309fcb111758eed6a9065f8b21fc0bec8847f5bec"
+      },
+      "service-after-cleanup": {
+        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-service-after-cleanup.json",
+        "sha256": "c14a5e76f0af5c21c38a652a86124116302e7b362de76652e8d99c8108c2efe8"
+      },
+      "final-fresh": {
+        "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-final-fresh.json",
+        "sha256": "ccac6f3a97fd41a5a4ec54474ebc3c8a655eaf0993cc3be350850014d10f6f4d"
+      }
+    },
+    "rollbackCommand": "python3 /tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-deploy.py --execute --rollback",
+    "rollbackImage": "sha256:1e2513480d7d4a6713b135cf9547330300602324b66a2c830fc51ed5e3924140",
+    "emergencyRollback": [
+      "docker service rollback youtube-board-ts-6oukfq_web",
+      "docker service rollback youtube-board-ts-6oukfq_account-maintenance"
+    ],
+    "formalBrowserAcceptance": {
+      "status": "pending",
+      "reviewer": "babysit",
+      "requestedRoutes": [
+        "/",
+        "/keywords",
+        "/mayor"
+      ],
+      "viewports": [
+        1280,
+        390
+      ],
+      "requirement": "opt-out / zero GA; validate new BUILD_ID and revised keyword lists"
+    },
+    "retention": {
+      "policy": "current + one rollback + deploying artifact; user explicitly authorized rolling release/cache cleanup",
+      "receipt": {
+        "path": "/tmp/babysit/mint-queue/youtube-rolling-cleanup-result-20261015.json",
+        "sha256": "f2f309706b9301214b331895660e8274bfdd650bc85d8e978ee58c875e7c0497"
+      },
+      "cacheReceipt": {
+        "path": "/tmp/babysit/mint-queue/youtube-build-cache-cleanup-result-20261015.json",
+        "sha256": "68ef9bf28fbab2f8b2f11f2906baa26d3b734d8d6bb989902f351c4fd767cc9a"
+      },
+      "removedImageTags": 18,
+      "removedStoppedContainers": 6,
+      "removedBuildDirectories": 6,
+      "dfBefore": "Filesystem        1B-blocks         Used   Available Use% Mounted on\n/dev/sda1      206900281344 113410027520 93473476608  55% /\n",
+      "dfAfter": "Filesystem        1B-blocks         Used    Available Use% Mounted on\n/dev/sda1      206900281344 106541944832 100341559296  52% /\n",
+      "preserved": [
+        "current image",
+        "rollback image",
+        "current build context",
+        "database backups",
+        "tag-backup",
+        "production data",
+        "all git worktrees and source",
+        "review evidence"
+      ],
+      "futureBaseImage": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6",
+      "futureBaseRequirements": "pass explicit --build-arg BASE_IMAGE=<retained verified arm64 image>; Node major24/ABI137 smoke; never depend on deleted5b base tags"
+    },
+    "receipt": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-production-deployment.json",
+    "sha256": "e869cf91e7e7c4e1004b9d2c637f5819ab4c0dad79f8f32acd82141f1084a69e",
+    "services": "web and account-maintenance completed; one healthy container each"
   },
   "keywordRankedPoolSuccessor20261014": {
     "status": "source-tested-independent-review-in-progress",
@@ -39125,10 +39250,11 @@
       "privacy predicate and no-store",
       "no Cloudflare/WAF changes",
       "no tag-backup changes",
-      "retain existing releases/backups/worktrees",
-      "rollback immediately if production breaks"
+      "rollback immediately if production breaks",
+      "DB backups, tag-backup, production data, git worktrees/source, current/slot refs"
     ],
-    "note": "Supersedes older per-command babysit approval text in retained historical packets; withdrawn manual-list-only build is still withdrawn because of the changed product direction."
+    "note": "Supersedes older per-command babysit approval text in retained historical packets; withdrawn manual-list-only build is still withdrawn because of the changed product direction.",
+    "artifactRetention": "current + one rollback + in-progress deployment; rolling delete old releases/build cache"
   },
   "f1PublicIntegration20261014": {
     "appSha": "78df4fd87f2df2c115512831372869276fa250df",
@@ -39358,6 +39484,35 @@
         "productionVisualAcceptance": "pending babysit new-release browser acceptance; previous b4 acceptance preserved separately",
         "genericRankedPoolFinding": "OPEN"
       }
+    },
+    {
+      "owner": "d7967e77",
+      "appSha": "72cb81699088276215cc5ca8604feb07544a07aa",
+      "image": "sha256:1e2513480d7d4a6713b135cf9547330300602324b66a2c830fc51ed5e3924140",
+      "architecture": "arm64",
+      "buildId": "Fb8mfbUpeqBWyMVD2_Jsj",
+      "receipt": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-production-deployment.json",
+      "sha256": "ce3d5b814c357a4c9f4f89f8c6ec595d295597796feb35187d849a180b7e3fd3",
+      "services": "web and account-maintenance completed, onehealthycontainer each",
+      "dokployComposeSynced": true,
+      "formalBrowserAcceptance": {
+        "status": "PASS_SCOPED_F1_PROFILE",
+        "at": "2026-10-14T16:18:00Z",
+        "reviewer": "babysit",
+        "buildId": "Fb8mfbUpeqBWyMVD2_Jsj",
+        "googleRequests": 0,
+        "route": "/keywords/柯文哲/videos",
+        "observations": [
+          "relations above videos",
+          "SSR includes 政治人物",
+          "no loading flash",
+          "fixed 96px avatar; no blank"
+        ],
+        "fullSiteAcceptance": false,
+        "source": "user-provided babysit formal browser acceptance"
+      },
+      "rollbackCommand": "python3 /tmp/babysit/mint-queue/youtube-f1-top-72cb816-deploy.py --execute --rollback",
+      "rollbackImage": "sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38"
     }
   ],
   "f1ProfileFollowup20261014": {
@@ -39586,9 +39741,9 @@
     "cleanup": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-cleanup.json"
   },
   "qualifiedWindowPoolSuccessor20261015": {
-    "appSha": "19cd358ee19a3bd053b3acc28591155108222f7c",
-    "status": "built-native-smoke-and-candidate-technical-pass-visual-review-pending",
-    "productionChanged": false,
+    "appSha": "335c8dbd023ed1466620b29a4dea6cda9e3cef80",
+    "status": "deployed-technical-and-candidate-scoped-visual-pass-formal-browser-pending",
+    "productionChanged": true,
     "shortWindow": "rolling24h; visible label 過去24小時; actual bounds; ten-minute shared cutoff",
     "weekWindow": "seven Taipei calendar dates",
     "qualification": "news early: two media each two distinct articles; complete immutable pages/checksum",
@@ -39603,8 +39758,8 @@
       "source": "explicit user decision in this thread"
     },
     "refillAudit": {
-      "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-refill-audit-final-20261015.json",
-      "sha256": "f37b53eed417aa050a54e3748ba070364d93dee8657cb860804e364ca7cb8077"
+      "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-refill-audit-party-final-20261015.json",
+      "sha256": "63cad0c0bebdebd1ce0278c0a6de5aa32b8711f2f81213534f35e8a621419b50"
     },
     "sourceReviews": [
       {
@@ -39621,6 +39776,11 @@
         "appSha": "19cd358",
         "decision": "PASS_SOURCE_ONLY",
         "sha256": "5b8339bdf0932f6d8675c154aabc8ddb6903784befd833808fc6c7b7eb28c7d2"
+      },
+      {
+        "appSha": "335c8dbd023ed1466620b29a4dea6cda9e3cef80",
+        "decision": "PASS_SOURCE_ONLY",
+        "sha256": "b7f1471af0a4ea94ea2b40f74e662bd2304720888832f7e66973ed3c3c32ac1e"
       }
     ],
     "sqlFix": {
@@ -39634,14 +39794,14 @@
       "deploymentAllowed": false,
       "reason": "real SQL performance blocker; image retained, own candidate/tunnel removed"
     },
-    "candidateVisualStatus": "16views captured; actual independent review pending",
-    "deploymentStatus": "pending",
+    "candidateVisualStatus": "PASS_SCOPED_RANKED_POOLS_HOME_KEYWORDS_ACTUAL_VISUAL",
+    "deploymentStatus": "deployed",
     "rollbackTarget": "sha256:1e2513480d7d4a6713b135cf9547330300602324b66a2c830fc51ed5e3924140",
     "buildPreparation": "/tmp/babysit/mint-queue/youtube-ranked-pools-19cd358-preparation.json",
-    "image": "sha256:174e63540006c87637a067eceff142e0885f799bd26c96635bdc0959b460c23e",
-    "buildId": "x0_uh7qbrNZGSsGg38HMH",
-    "captureManifest": "/home/deck/.cache/youtube-ui-review/ranked-pools-19cd358-20261014T172753Z/captures.json",
-    "captureManifestSha256": "4857d019da6b059a049dee6e7c92fa369fe8d864ce49b45f261d98cbefb3bf2c",
+    "image": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6",
+    "buildId": "NZua9VnOCd6zsK0BXUoF7",
+    "captureManifest": "/home/deck/.cache/youtube-ui-review/ranked-pools-335c8db-20261014T174356Z/captures.json",
+    "captureManifestSha256": "ac8a4a38fb0ec8e71512d8ee13a2dca2e270fe0b2553feb647479a7ff04949e8",
     "nativeSmoke": {
       "node": "v24.21.0",
       "abi": "137",
@@ -39654,20 +39814,13 @@
     "actualCandidate": {
       "shortMatchedTerms": 9,
       "weekMatchedTerms": 40,
-      "shortQualifiedTagTerms": 831,
-      "weekQualifiedTagTerms": 4214,
-      "privacyChecksPassed": 8,
-      "vocabularyReasonsVerified": [
-        "TVBS",
-        "聯合",
-        "三立",
-        "桃園",
-        "台南",
-        "報導"
-      ],
+      "shortQualifiedTagTerms": 832,
+      "weekQualifiedTagTerms": 4217,
+      "privacyChecksPassed": 6,
       "networkReceipts": 16,
       "googleRequests": 0,
-      "pngHashesChecked": 102
+      "pngHashesChecked": 102,
+      "actualPNGsViewed": 32
     },
     "buildSlotReturned": true,
     "gateIncident": {
@@ -39678,6 +39831,68 @@
       "path": "/home/deck/.cache/youtube-ui-review/ranked-pools-19cd358-20261014T172407Z",
       "acceptedForReview": false,
       "reason": "owner shell failed to stop after memory assertion; own capture immediately interrupted; preserve partial evidence"
-    }
+    },
+    "historicalArtifact19": {
+      "appSha": "19cd358ee19a3bd053b3acc28591155108222f7c",
+      "image": "sha256:174e63540006c87637a067eceff142e0885f799bd26c96635bdc0959b460c23e",
+      "buildId": "x0_uh7qbrNZGSsGg38HMH",
+      "captureManifest": "/home/deck/.cache/youtube-ui-review/ranked-pools-19cd358-20261014T172753Z/captures.json",
+      "captureManifestSha256": "4857d019da6b059a049dee6e7c92fa369fe8d864ce49b45f261d98cbefb3bf2c",
+      "actualCandidate": {
+        "shortMatchedTerms": 9,
+        "weekMatchedTerms": 40,
+        "shortQualifiedTagTerms": 831,
+        "weekQualifiedTagTerms": 4214,
+        "privacyChecksPassed": 8,
+        "vocabularyReasonsVerified": [
+          "TVBS",
+          "聯合",
+          "三立",
+          "桃園",
+          "台南",
+          "報導"
+        ],
+        "networkReceipts": 16,
+        "googleRequests": 0,
+        "pngHashesChecked": 102
+      }
+    },
+    "visualReview": {
+      "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/ranked-pools-app335c8db-20261014T175405Z/review.json",
+      "sha256": "e31175eefe07f20bcfb4085a4c0f2e2677d687bf777a85d91f395f7d71e8a5d5"
+    },
+    "deploymentReceipt": {
+      "path": "/tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-production-deployment.json",
+      "sha256": "e869cf91e7e7c4e1004b9d2c637f5819ab4c0dad79f8f32acd82141f1084a69e"
+    },
+    "formalBrowserAcceptance": "pending babysit; fullsite remains pending"
+  },
+  "rollingArtifactRetention20261015": {
+    "policy": "current + one rollback + deploying artifact; user explicitly authorized rolling release/cache cleanup",
+    "receipt": {
+      "path": "/tmp/babysit/mint-queue/youtube-rolling-cleanup-result-20261015.json",
+      "sha256": "f2f309706b9301214b331895660e8274bfdd650bc85d8e978ee58c875e7c0497"
+    },
+    "cacheReceipt": {
+      "path": "/tmp/babysit/mint-queue/youtube-build-cache-cleanup-result-20261015.json",
+      "sha256": "68ef9bf28fbab2f8b2f11f2906baa26d3b734d8d6bb989902f351c4fd767cc9a"
+    },
+    "removedImageTags": 18,
+    "removedStoppedContainers": 6,
+    "removedBuildDirectories": 6,
+    "dfBefore": "Filesystem        1B-blocks         Used   Available Use% Mounted on\n/dev/sda1      206900281344 113410027520 93473476608  55% /\n",
+    "dfAfter": "Filesystem        1B-blocks         Used    Available Use% Mounted on\n/dev/sda1      206900281344 106541944832 100341559296  52% /\n",
+    "preserved": [
+      "current image",
+      "rollback image",
+      "current build context",
+      "database backups",
+      "tag-backup",
+      "production data",
+      "all git worktrees and source",
+      "review evidence"
+    ],
+    "futureBaseImage": "sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6",
+    "futureBaseRequirements": "pass explicit --build-arg BASE_IMAGE=<retained verified arm64 image>; Node major24/ABI137 smoke; never depend on deleted5b base tags"
   }
 }
