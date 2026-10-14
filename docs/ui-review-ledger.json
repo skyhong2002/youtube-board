@@ -38835,6 +38835,25 @@
     "ownedTunnelCleanup": {
       "path": "/tmp/babysit/mint-queue/youtube-mobile01-tunnel-cleanup-result.json",
       "sha256": "4cc7cc678c04e02a14f84ba1d65ae82224ad772b24139dc77741549c62b717fe"
+    },
+    "deploymentRequest": {
+      "path": "/tmp/babysit/mint-queue/youtube-deploy-b4afbd8f-request-ready.json",
+      "sha256": "8f457a30741d67690f4a4e8508553bc04c05b3cd16065007f64783907f0cd75f",
+      "status": "ready-for-babysit-review; executionAllowed=false",
+      "deployArgv": [
+        "/usr/bin/python3",
+        "/tmp/babysit/mint-queue/youtube-deploy-b4afbd8f-v2.py",
+        "--execute"
+      ],
+      "rollbackArgv": [
+        "/usr/bin/python3",
+        "/tmp/babysit/mint-queue/youtube-deploy-b4afbd8f-v2.py",
+        "--execute",
+        "--rollback"
+      ],
+      "sameImageNoRebuild": true,
+      "dokployComposeSyncedBySameCommand": true,
+      "freshProbeRequiredImmediatelyBeforeExecution": true
     }
   }
 }
