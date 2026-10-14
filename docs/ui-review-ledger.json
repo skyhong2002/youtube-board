@@ -37154,6 +37154,34 @@
         "sha256": "94b2d6413d11da8ab79d8379296b0177d467f11343a77de0efdfa349f16141a6",
         "verdict": "source-only-pass"
       }
-    ]
+    ],
+    "confirmedProductionImage": {
+      "UTC": "2026-10-14T03:45:38Z",
+      "image": "sha256:4f5e2a3ae63629a85f1463f778a7548b8cf53b758b881cb417e5d84f34276ffa",
+      "services": [
+        "youtube-board-ts-6oukfq_web",
+        "youtube-board-ts-6oukfq_account-maintenance"
+      ],
+      "receipt": "/home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/keyword-production-image-20261014T034538Z.json",
+      "sha256": "916b130561f09e8189399f715b40932ffd6d8ce69613648c19f3cc1b4ff834fb"
+    },
+    "runtimeWatchReview": {
+      "verdict": "changes-required",
+      "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/native-runtime-watch-independent-source-review-20261014T034622Z.json",
+      "sha256": "088602b3de8983102766b0347233ce0ac0cedb8fd52a7f7168f78daa6f2036fe",
+      "finding": "RW1: unbounded stdout backpressure delays STOP",
+      "sourceFix": "bd74c93",
+      "tests": "13 adapter mocks pass, main-level backpressure reproduction now pauses before second input",
+      "status": "source-fixed-awaiting-independent-review"
+    },
+    "barrierSourceReview": {
+      "verdict": "source-only-pass",
+      "sha": "5c307783035206b160014e4e734182bc9ebaf435",
+      "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/native-startup-admission-barrier-independent-source-review-20261014T034622Z.json",
+      "sha256": "31d938dcfd486718895bb137014bd24f2f70829cb7716a4ef19a1129b7df187b",
+      "tests": 6,
+      "executionApproved": false
+    },
+    "reviewedRegressionPushedSHA": "249d9d1a624000207fd156b2b93b0e5d481b0692"
   }
 }

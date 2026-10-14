@@ -616,3 +616,11 @@ SHA2568c3dd0e4e0029129a49be9330e75079ebdd38056bf3fe94b86909c24619e7a86;
 actual transcript is the same stem with .log. Route/visual pending statuses stay
 unchanged. New real watchdog wiring and startup admission barrier are source
 only, awaiting independent review and the remaining SM launch integration.
+
+Production identity was actually read back at03:45:38Z: web and maintenance both
+remain image4f5e2a3a; receipt/hash in JSON. Startup barrier5c30778 source-only
+PASS is recorded with6 shell/mocks. Runtime-watch4c79649 review foundRW1
+(unbounded output backpressure); original receipt is retained. Fixbd74c93 uses
+nonblocking1s/cap4096 output, physical pause before bounded cleanup diagnostics;
+13 adapter mocks pass, independent fix review pending. Reviewed regression
+249d9d1 was pushed and remote SHA checked. None of this is UI acceptance.
