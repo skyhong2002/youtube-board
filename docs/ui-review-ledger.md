@@ -1,6 +1,8 @@
 # UI review ledger
 
-## 解凍後單一候選與重拍清單
+> Current runtime: APP335c8db / image cabe1558 / BUILD_ID NZua9VnOCd6zsK0BXUoF7 is deployed; scoped keyword production acceptance passed at 2026-10-14T18:04Z. New DNT=1 production screenshots and independent page reviews are recorded below, separately from candidate reviews. Current workflow: SM captures, native arm64 builds on skyhong-blog, normal tests/review, no per-step babysit approval. F4 awaits tag T-ref; whole-site states remain pending. Historical freezes, Mint plans, and preserve-all notes below do not override the latest user decisions.
+
+## 歷史計畫：解凍後單一候選與重拍清單（2026-10-13）
 
 操作計畫：[f2-single-candidate-after-thaw.md](../platform/docs/f2-single-candidate-after-thaw.md)。
 逐項矩陣：[ui-retake-matrix.json](ui-retake-matrix.json)，由
@@ -8,10 +10,10 @@
 這是待辦清單，不是 capture 或 review 證據。所有截止窗口已取消。SM 不新增 build／capture／restore；名額順序 tag → YT → blog，等待新交接。YT 採 skyhong-blog 原生 arm64 建置／封裝、Mint 只截圖。全站 1 個建置（含遠端）、2 個截圖瀏覽器；完整首頁相對閘門 tag/YT 2 秒、blog 6.17 秒；任一 5xx、未知或逾時、load >12 不啟動。建置開始至少40GiB、執行低於30GiB暫停。精確映像、隔離 API/readiness、executor guard、累計容量盤點未證前不執行。
 
 - 376 個 UI 狀態、110 個 UI route；每項分列亮／暗 × 1280／390，支援的頁面另列今日／近七日。合計 **2,060 個 viewport packages**（一個 package 包含整頁與必要分段），240 項仍需補實際樣本或既有隔離 mock；缺圖、缺權限或缺樣本都維持 pending。
-- 首輪：首頁與 `/keywords` 各兩種期間，`/keywords/沈伯洋/videos` 與 `/keywords/支持/videos` 各兩種期間，`/channels` 原有期間；共 36 個 packages、3 小批。首頁必須在每張整頁與分段前後確認文字雲及排行期間相同、資料世代未變。今日與七日只套用有該功能的區塊，不把頻道近期開始直播條件當成歷史日期範圍。
+- 初始預算組：首頁與 `/keywords` 各今日／近七日，`/keywords/合成焦點甲/videos` 各今日／近七日，`/channels` 原有期間；7 個完整組、28 個 packages、3 小批（12／12／4）。這些是 source-backed synthetic fixture 計畫，尚無實際fixture收據；沈伯洋與支持的4個真實範例組另列 postponed，合成詞不替代原finding的真實資料複驗。首頁必須在每張整頁與分段前後確認文字雲及排行期間相同、資料世代未變。今日與七日只套用有該功能的區塊，不把頻道近期開始直播條件當成歷史日期範圍。
 - 期間依源碼：一般 from/to 為台北 D 至 D 或 D-6 至 D；群組指標起日排除，七日用 D-7 至 D。單日頁另拍既有歷史日；沒有期間選擇器的頁面明示不適用，不捏造控制項。雲／部分 AI 的 backend query 能力與可見 UI 分開記錄。
 - 既有 654 目錄224張PNG共49,932,059 bytes；manifest內24個viewport packages引用202張、43,225,260 bytes，另22張保留但不擅自歸屬。每包中位1.31MB、最大5.90MB；規劃每包2.5MB、保守上界6MB。全矩陣約 **5.15 GB**，保守 **12.36 GB**，另需互動／參考圖／網路收據；這不代表獲准使用這些容量。
-- 首輪規劃36 packages、圖片預估90MB／上界216MB，證據額度30MB，合計上界246MB；每批含所有證據≤90MB、既有與新增累計≤300MB。已知舊圖49,932,059 bytes與停止批5,222,891 bytes若不重疊，加首輪已超額1,154,950 bytes。完整去重盤點未完成，故目前禁止執行；實測後縮減完整URL／狀態／期間／主題／寬度組，不重置預算、不刪證據。全矩陣5.15GB是估算，不是容量授权。
+- 本機兩個retained目錄已按device+inode核對，不重疊；舊目錄包含224 PNG的49,932,059 bytes及metadata1,562,080 bytes，停止批全部5,222,891 bytes，兩目錄小計56,717,030 bytes。初始28 packages圖片預估70MB／上界168MB，另留30MB證據，共198MB；已知保留加新增上界254,717,030 bytes，餘45,282,970 bytes只供尚未盤點的保留證據／誤差，不是新增組授權。三批上界82／82／34MB，均≤90,000,000 bytes。完整保留參考圖、網路與metadata scope仍未驗證，故全部executionAllowed=false；若實測保留量增加，重新分配並整組postpone，不刪除、不重置。全2060只是未解決Cartesian slots，不是可執行清單。
 - loading、empty、error、partial、互動及登入／權限是獨立狀態，不能用預設畫面取代。必須使用既有權限或經核准的去識別隔離資料，不能新增帳號／權限、不能在正式站故意製造錯誤或試寫。每一張新圖保存 SHA、BUILD_ID、artifact proof 連結與有上限的去識別網路紀錄；舊 zero-GA 未證保持未證。
 
 全站仍 **0 個完整 UI route 通過**；原0550／0620／0640 finding 與 SHA 限制不變。
@@ -482,3 +484,465 @@ root16:30的GSC補充與離線source結論另經獨立GPT-6.1 Sol核對，receip
 - 重拍 generator／matrix 已独立source review，可用 `--check --mint-manifest --candidate-sha <exact SHA>` 輸出portable清單；SHA參數只檢查格式，沒有驗證runtime。2060 packages全部pending，240項無resolved example、fixture/readiness均未證。receipt的path/hash/time與限制見JSON `mintOfflineAudits`。
 
 UI修正successor將只從e137父樹選入4d7dc12的11份reviewed UI code/test、最終Y2契約測試和規劃文件；不追隨準備分支tip，不納入parked jobs／worker permissions。所有376新artifact狀態待重拍，完整route通過0。
+
+
+## 固定後繼來源（不含 runtime／視覺通過）
+
+實際後繼 `70529cff13b6b7f5b3e0571a229e2b61660f9df4` 已組成，父鏈為e137 → 1ef45cb1 → 70529cff。相對e137只變更20份檔案：11份UI code/test、最終Y2測試、8份規劃／證據／generator文件。1ef的proof頂層Y2欄位曾因作者重用迴圈變數而誤記GSC文件hash，70529cff的新proof明示更正並保留原檔；Git中的Y2 bytes與reviewBindings始終正確。最終tree-boundary獨立review進行中。
+
+計畫輸出約1.45MB，所有package仍executionAllowed=false，沒有任何新截圖。JSON `mintQueue` 指向exact source proof及planning receipt；它們不能替代實際capture manifest。source之外BUILD_ID／digest／readiness／全站名額均未證，所有376狀態仍待重拍，完整route通過0。
+
+獨立實際tree-boundary review已接受70529cff的20檔範圍與review hash-binding，原檔 `mint-successor-70529cff-independent-boundary-review-final.json`，SHA256 `bf0e3513334bf4f57eba094deae061bfe0adb18549880a9c78598c14c891ae14`，UTC2026-10-13T09:07:27.867088Z，既有GPT-6.1 Sol reviewer。完整path/model/SHA/時間見JSON；source接受不等於部署或UI接受。APP源碼70529cff固定，但APP BUILD_ID/digest、OPS exact runtime SHA/digest均null/unverified；隔離API與executor STOP/admission guard仍pending。釋放Mint鎖不能提升ready。
+
+OPS／APP pending欄位另有獨立addendum，path見JSON `mintQueue.runtimeHandoffIndependentAddendum`；SHA256 `e5be92ac2915015d9182d37f66815fce96d33e2752dc8ee57f51c72599293e08`，UTC2026-10-13T09:09:40.418863Z。此追加只記來源review，不更動候選SHA、不提升任何ready或pass。
+
+
+## 原生 executor 離線準備（不是 ready）
+
+[五項執行前待辦](../platform/docs/mint-executor-prerequisites-2026-10-13.md)已完成獨立文件review；receipt、model、UTC與hash見JSON `mintOfflineAudits.executorPrerequisites`。原guard audit的model欄位未確定exact serving identifier，保留原文，不算GPT-6.1 UI review；本文件另由既有GPT-6.1 Sol reviewer核對。local STOP回讀修正正在另批實作；source/test獨立驗收前仍pending。它不等於remote native executor／cross-host lease／OPS readiness，不改APP70529來源，也未啟動任何main、build或capture。
+
+local STOP補丁已由作者之外的GPT-6.1 Sol完成final-byte source review，root獨立重跑30項mock、in-memory syntax與diff check通過。訊號後需要兩份穩定的stopped/exited觀測，未知／失敗明示STOP-unconfirmed；main不能只因group變空就釋放未確認STOP的guardian。receipt path/model/UTC/hash見JSON `mintOfflineAudits.executorPrerequisites.localStopSourceReview`，原finding與原author receipt保留。此補丁是準備分支的local工具，不混入APP70529；未測真實Linux停止、native remote executor、跨機lease或OPS readiness。五項待辦文件是本批補丁完成前的審查快照；最新source狀態以本段與JSON為準，runtime gate仍pending。
+
+
+## Mint runtime 小批準備（2026-10-13 UTC 09:46–09:50）
+
+APP70529 固定；OPS 已審基底 b4d85de，新 bootstrap／admission 工具須另經獨立 review。
+Mint 私有 APP source 已固定 exact SHA、Git clean、lockfile hash，20,017,713 bytes；沒有安裝依賴或啟動服務。
+真正的 Mint→SM pinned SSH probe 與 skyhong-blog 容量盤點已保存 path／hash（JSON `mintRuntimePreparation`），
+不以空鎖或當時健康當成名額／readiness。MariaDB10.11.14工具已存在，隔離SQL/API仍未啟動。
+沒有 BUILD_ID、新 image、capture 或部署；376新候選UIstates仍全部pending。
+接線與限制見 [runtime準備紀錄](../platform/docs/mint-runtime-preparation-2026-10-13.md)。
+
+另一個既有 GPT-6.1 Sol instance 已核對本批實測收據／文件，並審查 `ba3a129` admission準備source與30項mock；path／SHA256／UTC記於JSON `mintOfflineAudits`。
+原跨機收據沒有保存argv/process transcript，capacity收據没有filesystem identity，SQL readiness未測，這些限制均保留。
+source／文件審查不增加UI pass，也不授予名額或runtime許可。
+
+native compiler lifecycle 的另一批 source／29項mock已經由非作者 GPT-6.1 Sol review，parent也重跑通過；收據在JSON `mintOfflineAudits.nativeExecutorLifecycleSourceReview`。
+只實作owner／image／cgroup身分與freeze／terminal檢查的無預設backend介面；沒有真實Docker/SSH/kernel操作，並非實際STOP證據。共享coordinator、watchdog、launcher與封裝仍pending。
+
+隔離MariaDB／API的OPS supervisor與worker完成獨立final-byte source review，10Python＋11Node mocks通過；13個APP依賴檔也跟70529Git物件逐一核對。receipt／hash在JSON `mintOfflineAudits.isolatedFixtureBootstrapSourceReview`。
+使用實際APP的SQL Reader、合成fixture與三段SQL/injection/HTTP readiness檢查；目前沒有實跑DB或API。
+這是fixture-only subset（持續要求buildCount0），不監控nativebuild，不能以它當作完整跨機executor。
+UTC10:10起tag持有全站唯一建置名額；YT不啟動build／共享鎖DB/API。可信admission publisher、共享coordinator、runtime依賴、crash-surviving containment／watchdog與實際STOP仍pending。所有UI states維持pending。
+
+
+## Retake inclusive budget source followup (2026-10-13)
+
+這次只有離線路徑盤點、規劃與mock測試，沒有build、capture、服務啟動或網路probe。TAG仍持有全站名額；APP70529未改。原PNG、manifest與舊review收據全部保留。
+
+| 初始完整組 | 期間 | 亮／暗 ×1280／390 | PNG估算／上界 |
+| --- | --- | --- | --- |
+| `/` 合成fixture | 今日、近七日，各獨立組 | 每期間4 packages | 每組10／24MB |
+| `/keywords` 合成fixture | 今日、近七日，各獨立組 | 每期間4 packages | 每組10／24MB |
+| `/keywords/合成焦點甲/videos` 合成fixture | 今日、近七日，各獨立組 | 每期間4 packages | 每組10／24MB |
+| `/channels` 合成fixture | existing-window | 4 packages | 10／24MB |
+
+每批另留10MB供新增tag reference、網路与metadata證據，全部計入batch／cumulative cap。7組依序分為3／3／1組，上界82／82／34MB；兩個已盤點目錄加三批共254,717,030 bytes。整體完整scope未盤點前，預算可容納不代表可執行。若新增參考／診斷超過reserve，開始前縮減完整組或停批，不能超額。
+
+`/keywords/沈伯洋/videos`與`/keywords/支持/videos`各今日／近七日共4組明列postponed：缺少對應核准的隔離真實範例fixture，合成詞不能關閉原finding。其餘2060個Cartesian ledger slots全部仍pending；240項缺example URL，376項fixture setup均未實際驗證；多URL、loading、empty、error、互動、權限及其他補充狀態需另列完整組與預算，不可借預設畫面完成。
+
+實際兩目錄identity盤點收據：`/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-13/retake-retained-identity-inventory.json`，SHA-256 `171101d802b62ea3d79bb87ef32d5f97e0b65086507ff568763d9885601dedb6`。247個distinct regular-file identities，cross-root overlap0；內容相同但各自保留的copy仍各計bytes，hardlink／重複path才按device+inode計一次。此收據只證兩個本機目錄，不能宣稱Mint／全累計scope完整。
+
+
+## 剩餘 scope 交付追加（不提升 UI 驗收）
+
+完整42項清單：[YT剩餘scope](../platform/docs/youtube-remaining-scope-2026-10-13.md)，commit `d69b3b2`，已完整複製至 `/tmp/babysit/mint-queue/youtube.md`。分類含可離線、名額／鎖、上游、操作授權／真人；現在仍有可離線工作，不能說只剩等名額。獨立文件review path/model/UTC/hash見JSON `remainingScopeDelivery1013`。
+
+`8ca613e`修正queue舊500頁上限為共用20,000頁上限，default100及執行gates不變；23項mock通過／3 Redis integration跳過、jobs noEmit通過，另有独立source review。`691bc2c`重拍規劃9項離線測試/generator通過，独立review仅source/planning。已知retained56,717,030＋新上界198,000,000＝254,717,030 bytes，完整累計盤點仍缺；7組28packages全不允許執行。
+
+本追加在五檔retake原hash凍結review後寫入，只加metadata，保留原review的exact bytes binding。APP70529不變；tag仍持全站名額；376個新artifact狀態pending、完整route0，沒有新的PNG、runtime身份、GA外送或部署。
+
+
+## Runtime backend／原文位置映射追加（僅 source）
+
+`095e935` kernel IO source 29項mock通過；修正單次掃描漏新增執行緒/子cgroup的finding，雙次掃描仍僅sampled stability，不是running cgroup原子證明。`f485d41`正規化原文位置helper 18項pure測試通過，保留raw aliases/原文並明示VARCHAR240不相容；正式profile/writer/reader整合仍缺。fixed Docker lifecycle adapter 21項mock通過，但tool/runtime、socket peer/daemon與config內容仍未核對；不是admission或STOP。
+
+各項commit、實際獨立review path/model/UTC/hash與root測試結果見JSON `remainingScopeBackendFollowup1013`。所有來源由作者以外的既有GPT-6.1 Sol review，沒有新增agent。沒有kernel/Docker操作、DB/API startup、build、capture、GA或部署。TAG名額不變；376新artifact states pending、完整route0。完整42項清單的R01/V04只是部分source進度，仍有可離線工作，不宣稱只剩等待。
+
+
+## 離線 finding 後續（F2-04／F2-07；不提升 UI 驗收）
+
+`6a4a02d`防止 window/full source refresh 把已服務的v2 pointer自動換回v1，仍發布原始備援池；37項mock與jobs noEmit通過。這只防降版，連續v2 successor refresh/backmatch/activation仍待做，沒有推定正式曾降版。
+
+`edbf18e`加入NULL／實測0、partial／all-missing、heat排序與統計publisher/parser/eligibility回歸，以及有原始碼引用的調查；root ingestion11＋API12通過，author既有web9通過，independent ingestion/API noEmit通過。review要求修正文案：item_processing_failed可能晚於成功來源寫入，不能單憑catch reason推論NULL保留；r2原檔與receipt均保留。沒有證明歷史根因、沒有writer/scheduler/sort變更。
+
+實際獨立GPT-6.1 Sol receipt路徑、hash、UTC與commit見JSON `remainingScopeOfflineFindings1013`。完整42項盤點仍有可離線工作；APP70529固定，TAG持名額。110UIroutes／376新artifact狀態pending，完整route0。沒有build、DB/API、capture、runtime驗收或部署，舊review不提升。
+
+## Latest source checkpoint; candidate review pending
+
+APP `073985b8`, OPS `c0443494` have independent source PASS receipts recorded in the JSON checkpoint. Neither has a new BUILD_ID or actual candidate screenshots. Home (today/week), `/keywords` and the evidence page still need1280/390 candidate captures with DNT and saved zero-GA network evidence, followed by nonauthor review. Every new-artifact UI state remains pending. User now permits remaining pages to be reviewed after deployment; this changes ordering, not acceptance status. Native-runtime smoke exact command and fresh-probe packet are submitted to babysit; no container/build/capture/deploy started.
+
+## Exceptional a27 production deployment (2026-10-13T20:59Z)
+
+Human directly authorized a27ec0e6 at20:57Z; direct service update outside Dokploy.
+Sole ongoing YT deploy owner remains d7967e77; a27 reports no further independent
+deployment. Current image `sha256:4f5e2a3ae63629a85f1463f778a7548b8cf53b758b881cb417e5d84f34276ffa` (tag youtube-board-ts:7d4d945).
+Web UpdatedAt20:59:42.571053625Z; account-maintenance20:59:57.667726807Z.
+This thread verified the full image, previous image and both UpdatedAt fields
+via strict-pinned read-only service inspection.
+
+a27 reports composition: prior7eb48f4 image `sha256:5b7d9171d9633c132766c65abd934c791787693a72b7f016bcd1408097dedadd` plus7d4d945 frontend
+standalone tree and platform/api/src/reports/mayor.ts; other paths unchanged.
+Do not describe this as a separately reproduced homogeneous full build.
+
+Babysit21:01Z reported both1/1 Running; /, /keywords, /mayor,
+/mayor/cities/taipei?days=90&to=2026-10-10 return200; opt-out browser GA0.
+Taipei share chart: 蔣萬安36.8%,沈伯洋63.2%,郭璽0.0%, three lines on0–100% axis.
+No capture paths/model UI transcript attached to this handoff; F2 successor
+acceptance and pending route statuses are unchanged.
+
+Rollback points: pre-a27 `sha256:5b7d9171d9633c132766c65abd934c791787693a72b7f016bcd1408097dedadd`; current production `sha256:4f5e2a3ae63629a85f1463f778a7548b8cf53b758b881cb417e5d84f34276ffa`.
+The current image becomes the immediate rollback target for the F2 release.
+a27 reports service rollback available for both services; no rollback executed.
+Dokploy compose still points to the pre-a27 image according to a27. Do not run
+its retained deploy configuration. Before the next checked Dokploy deployment,
+persist the successor digest for BOTH services in compose and read it back.
+APP `073985b8bc4bbcc9ffb5d43c1e1a26060bb8ac4a` and reviewed historicalOPS `c04434948c6486499783e1bcde4f8af2167a9262` are verified Git descendants
+of `7d4d945acfb48c1a4a5d3ff8d8d6cb4097a89826`. Build/check that successor, deploy the same checked artifact,
+verify mayor plus F2, and preserve both image recovery points.
+
+Private handoff receipt: /home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/a27-production-deployment-handoff-20261013T2059Z.json
+SHA256 `964f9a269ee5699141fcd81b87398e8eb7e5e997674f66c4f87a861adda1072b`. This record is not build/capture/deployment permission.
+
+## Production screenshot follow-up (2026-10-14)
+
+The user still sees 新聞／看／訂閱 and platform words on production. F2 is
+**not deployed and not accepted**. APP073 legacy-snapshot filtering before SQL
+aggregation/limits and the common home/cloud/hot-list/keywords read path were
+independently source-reviewed again.65 unique tests,1052 independent checks
+passed; this is source evidence only. No new screenshots or BUILD_ID exist.
+
+Actual receipt (GPT-6.1 Sol,2026-10-14T03:39:07Z):
+/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/app073-home-keyword-display-regression-independent-source-review-20261014T033907Z.json
+SHA2568c3dd0e4e0029129a49be9330e75079ebdd38056bf3fe94b86909c24619e7a86;
+actual transcript is the same stem with .log. Route/visual pending statuses stay
+unchanged. New real watchdog wiring and startup admission barrier are source
+only, awaiting independent review and the remaining SM launch integration.
+
+Production identity was actually read back at03:45:38Z: web and maintenance both
+remain image4f5e2a3a; receipt/hash in JSON. Startup barrier5c30778 source-only
+PASS is recorded with6 shell/mocks. Runtime-watch4c79649 review foundRW1
+(unbounded output backpressure); original receipt is retained. Fixbd74c93 uses
+nonblocking1s/cap4096 output, physical pause before bounded cleanup diagnostics;
+13 adapter mocks pass, independent fix review pending. Reviewed regression
+249d9d1 was pushed and remote SHA checked. None of this is UI acceptance.
+
+## Explicit user execution simplification (2026-10-14)
+
+Use one native nice/ionice Docker build and manual resource/site checks every
+1–2 minutes; cancel only our build client on a failed gate. Do not integrate or
+use the retained watchdog/cgroup/bootstrap/barrier/pause-resume tools this run.
+RW1 fixbd74c93 was already independently source-only PASS at03:49:17Z (receipt
+f1ba54d42d3cc7fe2b4e070ef4dd72ced6181410a3bfc14b84624ded54a3547b).
+Its remaining integration notes are superseded for this run by explicit user
+instruction. This does not change privacy, resource gates or UI acceptance.
+Exact simple Docker command plus fresh probe goes to babysit before starting.
+
+## 2026-10-14 UTC 05:00 — simple native arm64 build
+
+Build succeeded for exact APP `073985b8bc4bbcc9ffb5d43c1e1a26060bb8ac4a` and recipe OPS `51dc9de1a20e73c428d4e9588fa8d5243643c742`. Image `sha256:15c7af2d4a509c65543826f354055152ccab4e17b1b3cec88908195b7da11ce8`, linux/arm64, 1,390,936,605 bytes; both revision labels verified. Typecheck, Next compile/typecheck/static generation succeeded, Next workers2. Only the approved simple Docker build ran; custom runtime monitoring layers were unused. The global build slot is returned.
+
+Result: `/tmp/babysit/mint-queue/youtube-simple-native-073985b8-result.json`, SHA256 `93cd4325b116b8a66398a89eee38c0756f8e7863d631f09111430149c9be10a2`. Private log: `/home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/yt-f2-simple-20261014t044808z/approved-simple-build.log`, SHA256 `364f9d9e2862544258049f13d7d8fc48a2fe4ff0e08921ff4fe8bcb87f915929`. Source reviews and their private paths/hashes are recorded in the JSON ledger.
+
+Native smoke, exact BUILD_ID, candidate screenshots and visual review are pending. No page status promoted. All new-artifact UI states remain pending; formal production remains `4f5e2a3a`, no F2 deployment yet. Both rollback images and all existing release/evidence trees are retained.
+
+### Native artifact smoke — UTC 2026-10-14T05:04Z
+
+No-network/read-only smoke passed for image15c7af2d: Node24.21.0, ABI137, linux/arm64, glibc2.36, sharp0.35.5 from new `/opt/youtube-board/platform/node_modules`, 44-byte WebP. BUILD_ID `04qbMMfQHdbJk0ZnbO_HQ` equals standalone BUILD_ID. Source/traced Next16.3.8, React19.2.8 and ReactDOM19.2.8 match. Receipt `/home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/yt-f2-simple-20261014t044808z/native-smoke-result-20261014T050408310380Z.json`, SHA256 `5bb0c8218b7903f1cf15a42405d14ac2bbaf19d375f61678666ffc5b2f04b51a`. Temporary container absent afterward; production web healthy and public homepage200, both production services still image4f5e2a3a. Candidate/UI/production acceptance remains pending; no page pass added.
+
+### Candidate / main-page capture preparation — APP073 / image15c7af2d
+
+Starter independent source PASS: `/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/candidate15c7af2d-starter-independent-source-review-20261014T050831Z.json`, SHA256 `e4e2cd2313b62d6e53c80781a8b20316f10db10b17b4f929e3135c63bdf9795e`, reviewer `/root/capture_source_review`, model `gpt-6.1-sol`, UTC05:08:31. No candidate runtime or UI acceptance inferred. Capture tool re-review remains pending after fixes to common disk envelope, before/after browser slot counting, failure cleanup, and actual CID/receipt binding. Planned16viewport packages,112MB estimate. No new screenshot or pass; original evidence and locks preserved.
+
+## APP073 candidate capture: partial failure, not visual acceptance
+
+The same image15c7af2d candidate ran with verified BUILD_ID04qbMMfQHdbJk0ZnbO_HQ and was removed after the failed batch; remote18168 is closed and production remains4f5e2a3a/healthy. Capture-v12 source review PASS507348b2 is source-only. The Node executable-only correction used the explicitly authorized SM path.
+
+The batch retained one desktop fullpage and five slices, but **0/16 completed viewport packages**, no completed manifest, no independent main-page visual pass. Desktop network evidence accepted; mobile failed with a background /ai/days/:id/events RSC prefetch503 and incomplete settlement. Google attempts/responses were0; this does not make the failed mobile evidence complete. Existing images/network diagnostics/failed lock remain untouched. Full runtime error lines were not retained before --rm cleanup; cause is unproven. Production HTML and RSC200 reported by babysit do not establish the new candidate cause.
+
+A diagnostic candidate restart is prepared with only a fresh nonce/log directory; same exact image and security/env limits. No rebuild, no source change, no monitoring layer, no ignored503. Exact starter request `/tmp/babysit/mint-queue/youtube-candidate-15c7af2d-diagnostic-request.json`; existing reviewer and fresh probe/operator verification precede execution. Bounded diagnostic GET/log command is prepared separately before running.
+
+### Diagnostic attempt 1 — bounded readiness did not pass
+Same image15c7af2d, nonce diag01, source PASS2b99b045; fresh launch probe passed. Receipt `/tmp/babysit/mint-queue/youtube-candidate-15c7af2d-diagnostic-result.json` SHA2566e98ba2cf7f49ede592659080a6894d2eced422fb3a53cd986110771ac7a89db. Twelve runtime/ready503 samples prevented AI route tests; logs had806bytes,1unclassified error line and no matched fixed signatures. Full arbitrary log text/body/env/visitor data not saved. Candidate removed,18168closed,production healthy/unchanged. Cause remains unproven; no capture exception or UI pass. Source readiness requires both complete sitemap generation and valid /about HTML; its failure alone does not prove the AI route is broken. Next bounded diagnostic will record readiness but still test the authorized two AI paths, avoiding readiness as an unrelated prerequisite for diagnosis.
+
+### Diagnostic attempt 2 — AI HTML/RSC succeeded, original503 not reproduced
+
+Receipt `/tmp/babysit/mint-queue/youtube-candidate-15c7af2d-diagnostic02-result.json` SHA256 `c6cba3397ec7691807e87d9e3009b6c1d0bc618f2ce648522aa2384cf29d8c9d`; same image15c7af2d. Both2026-10-14 and2026-10-13 AI paths returned HTML200; RSC307 was followed once to200 text/x-component with private/no-store on both hops. This is anonymous bounded GET diagnosis, not visual/pass or concurrent-prefetch acceptance. Early runtime/ready responses included startup curl52/56 and503; readiness remained incomplete before route tests. Source readiness requires complete sitemap generation plus valid/about HTML. Current evidence does not isolate which readiness component failed or prove its relationship to the prior AI503. Fixed log signatures empty,1unclassified error line; no arbitrary log/body/env data saved. Do not claim all runtime errors absent.
+
+Source review PASS receipt28a938b5,11independentmockscenarios plus digestboundarycases. Diagnostic finalcommand/script hashes are in youtube.md. Cleanup: ownedcontainerremoved,18168closed,productionwebhealthy/image4f5e2a3a unchanged. No capture503exception is introduced. Next capture must wait for fullruntime readiness, preserve old failedlock/images and use freshuniqueoutputs; homepage and/keywords acceptance remains pending and keywordfix remains undeployed.
+
+Recapture01 startup checkpoint: runtime/ready200 in41.164781s (<300), sameimage/actualBUILD_ID/security verified from fullCID87b25e98. Same16viewportpackages, capturev12andguards unchanged. Existingownedemptyfailedlock archived by same-root rename after noactivewriter/browser confirmation (sameinode2476605/dev66312), oldartifacts remain counted; nofilesdeleted. Homecapture started only after freshglobalprobe andSMmemory>=2.5GiB. NoUIpass/deployment inferred; execution/identity/recoveryreceipts in /tmp/babysit/mint-queue/.
+
+Recapture01 ended with exit1: desktop networkaccepted, mobile numeric-daily-ID AI RSC503164ms and1unsettledrequest;0/16completedpairedviewportpackages,noactualvisualapproval. Googleattempts/responses0,failedmobileprivacyafterstateunknown;allpartialPNGs/networkrecords/lockretained. Candidate was fullyreadybeforecapture (41.164781s), so readinessnotcomplete is not a supported explanation. Capture diagnostics add AI fields only after isNumericAiEventsPath matches: the failingrouteisnumericdailyID, whereas previousdiagnosis/babysit probes used YYYY-MM-DD paths. Those200results do not cover thisfailure. Runtime logs contained4PublicDataError/PublicAPIreadfailed occurrences; exacterrorstatus/code not yet retained, so causeunproven. Cleanupreceipt youtube-recapture01-cleanup.json confirmsownedcontainerremoved,18168closed,healthyunchangedproduction,owntunnelterminated. Next narrowdiagnosis must use actualhomepage numericdailyID links, preserving no-store/privacy and retaining allfailedbytes. No503exception,noUIpass,no deployment.
+
+
+### Numeric daily-ID AI event route — offline source fix, runtime pending
+
+APP successor `b9715b81b585e0f44f7514eac741e850a9533977` fixes a reproducible bare numeric event route defect: it now uses dynamic filtered rendering and rejects missing/duplicate/blank/overlong event names with no-store400 before streaming. Valid names (including special characters and the UTF-16 limit) preserve their query through the actual Next rewrite; date-based routes remain unchanged. Focused tests33/33; full web tests290/290; no-emit TypeScript check exit0. The initial full-suite invocation from platform cwd failed tsx alias/JSX resolution; rerunning from the normal web cwd passed all290 without source changes. Dependencies reuse an existing local node_modules symlink; no install/build.
+
+Independent original-APP analysis: `/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/numeric-ai-event-prefetch-independent-source-analysis-20261014T062319Z.json`, SHA256 `d5e70d013acf16180478f827625debfd82c1061b4748170c1cb70e54c1cee039`, reviewer `/root/capture_source_review`, model gpt-6.1-sol. Successor source review pending. The failed capture did not retain its event query; this source defect does **not** prove that capture's precise503 cause. Previous failed screenshots/logs are preserved; no exception, visual pass, route completion or deployment claimed. Main-page recapture and the keyword fix's production deployment remain pending.
+
+
+### Successor source review completed — APP `0f1e109642465119a231407d14e5f18a0fe58e44`
+
+The first fix b9715b8 received FINDINGS for leading-zero/encoded aliases. Follow-up0f1e109 shares decode-once classification between routing and validation, rejects unsupported encoded first-family forms and invalid positive-safe IDs before streaming, and keeps valid aliases dynamic/no-store. Full web291/291 and no-emit typecheck pass. Independently reviewer verified19tests plus64invalid/7valid alias cases. Source-only PASS receipt `/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/numeric-ai-event-fix-0f1e109-independent-source-review-20261014T062854Z.json`, SHA256 `2a31888b38d910042f252a932ddc203d4a3caa6be24357ae0dda58271a47a639`, gpt-6.1-sol `/root/capture_source_review`, UTC06:28:54. Source branch pushed and remote exact0f1e109 verified. Runtime/visual finding still open; no new image/capture/pass/deployment.
+
+Simple native build exact packet `/tmp/babysit/mint-queue/youtube-simple-native-0f1e1096-request.json` uses exact successor git archive (8,273,920bytes) and unchanged pinned OPS51dc9de Docker recipe/base Node24.21.0/ABI137. Estimate6GiB additional disk and8–20minutes, still unmeasured. nice19/ionice3, Next2, heap768MiB; one simple foreground build, manual health checks/cancel own client only. All prior images and drafts retained. Earlier b9715b8 draft is explicitly DO NOT EXECUTE (review finding and stale substitution); the new0f1e109 draft verifies old source/path/hash strings absent from execution scripts. Babysit command/slot check and fresh-at-execution probe required; no build started.
+
+
+### APP0f1e109 native build + smoke — candidate/visual pending
+
+Build completed exit0 UTC06:35:07 in146seconds, APP `0f1e109642465119a231407d14e5f18a0fe58e44`, recipe OPS `51dc9de1a20e73c428d4e9588fa8d5243643c742`. Image `sha256:278ee2588987643ba897c824f8f0b8e4545b569d2dfdbfd59b960ccd5293d1a9`, linux/arm64, 1390937260bytes,108layers; labels verified. Global build slot returned. Both manual monitoring receipts met site/resource limits; their only gate denial was the verified owned build client, PID3631710/exact argv/startTicks verified separately. No custom runtime executor was used. Result `/tmp/babysit/mint-queue/youtube-simple-native-0f1e1096-result.json` SHA256 `bea21fd5ee690fc5d8657e9929e90a8f336629d7caef41f1e7d1ba46322f6911`.
+
+The approved exact Docker command used tag `youtube-board-ts:f2-0f1e1096-20261014t044808z`; request summary predicted a different time suffix. Difference retained in result; no retagging or modification of original request/evidence. First smoke failed at SSH transport (double-wrapped local SSH script), exited255 without starting a container; failure receipt retained. Retry used the original single-hop pinned argv with only image/name changes and passed. `/tmp/babysit/mint-queue/youtube-native-smoke-278ee258-retry01-result.json` SHA256 `8592aec0d73bf1b6e8ded72b87a408b488d976adc2bcba282cfdb3427801b541`. Node24.21.0/ABI137/arm64/glibc2.36/sharp0.35.5; WebP44bytes. Source/traced BUILD_ID `s71TZ-9NEbXnwxLAwH-gT`, Next16.3.8/React+ReactDOM19.2.8 match; server/manifests hashes retained. Ownsmokecontainerremoved and bothformalserviceshealthy/unchanged4f5e2a3a.
+
+Candidate16viewportpackages/112MB estimate remain preauthorized with freshprobe/fullready/memory>=2.5GiB; pin/path delta independently reviewing. Fixed cumulative300MB envelope includes allfailedbatches. Original capture503 precisecause remainsunproven. No page pass orproductiondeployment.
+
+
+### APP0f1e109 partial capture and scoped prefetch successor
+
+The retained home/today/light capture contains 16 PNGs, but 0 completed viewport packages and no captures.json. Desktop network evidence accepted; mobile stopped with a numeric daily-event RSC400 and one unfinished request. No 5xx or Google attempts/responses recorded. Keywords was not run. Candidate and owned tunnel are removed; production remains healthy on4f5e2a3a. All original bytes and failed lock retained; no candidate or route approval.
+
+Independent Next16.3.8 source assessment: `numeric-ai-next-prefetch-mechanism-independent-source-analysis-20261014T065859Z.json`, SHA256 `6263c2582b3b87f1fc5c6458c842453976ce5adb1a8467bf6b569a483606fe5a`, gpt-6.1-sol `/root/capture_source_review`, UTC06:58:59. Next emits a separate queryless optimistic-tree prefetch; sampled real homepage links have valid event queries and HTML200/RSC307→200. The captured redacted query and terminal-null cause remain unproven.
+
+Offline successor `9db8a3094e62e78d9627e3f5d8b579e04b9d27fa` disables background prefetch only for numeric daily-event report links across topic/navigation/table/cloud emitters. It preserves click URLs and automatic prefetch elsewhere, with existing request validation and privacy/cache gates unchanged. Web296/296 and no-emit TypeScript pass; independent source review pending. New build/capture/deployment pending; source tests are not visual acceptance.
+
+APP9db8a309 source-only PASS: `/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/numeric-ai-prefetch-9db8a30-independent-source-review-20261014T070640Z.json`, SHA256 `78f6b5b63dc23117c08ac9acee383521e46ff9c99f51cc41f8ffdd9910de5488`, UTC07:06:40, independent30/30. APP branch pushed/remote verified. Exact simple arm64 request `/tmp/babysit/mint-queue/youtube-simple-native-9db8a309-request.json`, SHA256 `7d4cbc2cfd4f2c664f181c60025f6917d2f260c960add21ba5271fc5e1999af6`; context 7168000bytes; same pinned recipe/base, unique tag agrees between summary and executable argv. Fresh probe `/tmp/babysit/mint-queue/youtube-simple-native-9db8a309-submission-fresh.json`, SHA256 `9e26e8b9aa2f41ef6e39a9057416b01300dd6c085ecc95afeba9db5c3d898512`, UTC2026-10-14T07:06:39.791162+00:00, aggregate.ok=true. Execution remains disallowed pending babysit command/slot approval; fresh recheck required at execution. Candidate/visual/production pending.
+
+Partial actual-image review of16APP0f PNGs: `/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/static-app0f1e1096-home-today-light-20261014T070827Z/review.json`, SHA256`622f3ad951b9f9bdbdbabce553a9d949cea4961f1ea3f7b16a7cb4d32194891d`; transcript`/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/static-app0f1e1096-home-today-light-20261014T070827Z/transcript.md`, SHA256`f27866ba30eaf91d20c7d44b46833918570a6a44489b6210f8266babc27d78a4`, UTC2026-10-14T07:08:27.036553+00:00. Model attribution preserved exactly as receipt. Period controls/windows agree; mobile metric wrap, top8-vs-cloud semantic ambiguity and small metadata risk recorded. Candidate/network/route approval false; missing states remainpending. No priorSHApass transferred.
+
+APP9db8a309 simplearm64build completed exit0 UTC07:12:26 (156s); image`sha256:d2e7e7bb0f5e153d1d034c08f2d54ca3f9231df20830883bd29a0f5485d8ad4e`, tag`youtube-board-ts:f2-9db8a309-20261014t070523z`, labels APP9db8a309/OPS51dc9de1 verified, linux/arm64, 1390939747bytes/108layers. Buildslot returned immediately. Manualmonitor01/02 met HTTP/median/load/disk limits, soleownedDockerclientPID3665293 independently pinned; normaladmission denies ownbuild ratherthan bypassing it. Native smoke/candidate/visual/deploy pending. Production unchanged4f5e2a3a; alloldimages retained.
+
+APP9db smoke passes: Node24.21.0/ABI137/arm64/glibc2.36/sharp0.35.5, WebP44bytes; source/standalone BUILD_ID`RHlWKVp3wAIluf4BIRhI5`, Next16.3.8/React+ReactDOM19.2.8 match. Receipt`/tmp/babysit/mint-queue/youtube-native-smoke-d2e7e7bb-result.json` SHA256`6cf8a20434a6370bf74f8a904b1dd2d72c7781b8ab1d505224e5ac6d189a6bfa`; temporarycontainerabsent and bothformalserviceshealthy/unchanged4f5e2a3a. Candidatepin/pathdelta awaiting independent source review; no candidate/UI pass.
+
+APP9db homepage capture completed:8viewportpackages/64PNG, today/week×light/dark×1280/390; manifest`/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app9db8a309-home-20261014-prefetch01-v12/run-36f0c06d-c0b2-4fd0-aa1e-52eff1e6e20e/captures.json` SHA256`07ce8e915a565f544e6b6ceaf5d49db20d47070773b944091dda6f17015ba6e7`. All8networklogs complete/accepted, DNT1/GPCtrueobserved, Googleattempts/responses0. ActualfullCIDverified. Independent visualreview inprogress; notpage/candidatepass. Keywords browser launch withheld twice by2.5GiBMemAvailable floor, originalrejectedchecksretained; no exceptions. Runtimecachecanary6anonymousGETs pass (HTMLpublic/CSP; query,cookie,RSCprivate/no-store; noSet-Cookie/body/identifierstorage), APIuiproxy4/4pass.
+
+APP9db /keywords capture complete UTC07:34:29:8packages/44PNGs; manifest`/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app9db8a309-keywords-20261014-prefetch01-v12/run-e87628c7-619d-4ef9-89b6-eec7440456b2/captures.json` SHA256`440c0c9b37d3d9cb62219fd35281e399ce29532b16cd6b4ed1735f0511fa347b`; all8networklogs complete/accepted withobservedDNT1/GPCtrue andGoogleattempts/responses0. Totalcorecapture16packages/108PNGs; bothroutes await independentactual-image acceptance, allotherstates/routespending. Keywordbrowserstartallowed onlyafterMemAvailable2.819GiB andfreshprobe; earliermemorydenialsretained. ActualcandidatePID1NoNewPrivs1/readOnly/capdropALLverified. No productionwrite.
+
+Owned candidate/tunnelremoved, local+remote18168closed; productionhealthy/unchanged4f5. Cleanup logs retain1PublicDataErrorsignature (route/causeunproven) without rawlog;16completedcapture requestlogs havezero5xx, noexception. Deploymenthelperv1FINDINGSretained; v2sourceonlyPASS`/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/dokploy-deploy-d2e7e7bb-v2-independent-source-review-20261014T073654Z.json` SHA256`a867fe14aece802b043819c22ca8b6f8fa25eeba05d5df3e2235ec3eb3bf35cd`,18mockcasespass. Draftdeployrequestprepared; primaryactualvisualreview/freshprobe/babysitapprovalstillrequired; noformalwrite.
+
+APP9db actual core review found a blocking mobile keyword identity issue: 今日「新聞直播」→「新聞…」 and 近七日「雙十國慶」→「雙十…」 in all four390px packages; distinct「雙十」makes the label ambiguous. Reviewer inspected64home+44keywordsPNGs; homepage scoped static has no blocker. The image404 visibly falls back (weekrow33成功), not a route failure; no network exception added. Immutable final review receipt requested. Core deployment approval staysfalse; originalcaptures retained.
+
+Localized source fix `d019ae69e922ba8530b7af8c98ae5e200138942a` lets mobile terms wrap completely and hides decorative thumbnails on phones, preserving href/date/pending hints and desktop layout. Focused17/17, web297/297, noEmitTypeScriptpass; independent source review pending. Exact build draft `/tmp/babysit/mint-queue/youtube-simple-native-d019ae69-request.json` prepared with unchanged pinned recipe/base/OPS and fresh uniquegeneration; executiondisallowed until sourcePASS, freshprobe and babysitcheck. Newcandidate/capture/review required; production remains4f5e2a3a and buildslot remainsreturned.
+
+D019 build draft v2: `/tmp/babysit/mint-queue/youtube-simple-native-d019ae69-request-v2.json`, SHA256 `04cbc1717fdb97275059dca70681970da4089aa66db3946d191b804f6ec587e0`, tag `youtube-board-ts:f2-d019ae69-20261014t074748z`. Original unexecuted draft retained; v2 aligns tag timestamp with unique generation. Both archive file-byte sets compare1000entries: only the three source/test files change. Source review/freshprobe/babysitcheck pending; no build/capture/deploy.
+
+Complete independent APP9db actual-image review: `/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/static-app9db8a309-home-keywords-20261014T074952Z-complete/review.json` SHA256 `00a80e0b92960efe777a65fccf7edb73f1d5653122d2a31ab43a548525dbd776`; transcript `/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/static-app9db8a309-home-keywords-20261014T074952Z-complete/transcript.md` SHA256 `a519c60e24a0411d644f51dbf88ca2ddefc52d77973f01abdeb4516c7d30b189`, UTC `2026-10-14T07:49:52.254484+00:00`. Model attribution preserved exactly as receipt. All108PNGs inspected (16fullpages+88slices+4supplemental);104manifestcoherencehashes matched,4supplemental images locallyhashed with pathidentity only. Home scopedstaticPASS, /keywords K01BLOCKER (including horizontally-scrolled mobile images), combinedcoreDeploymentReviewPassed=false and routeComplete=false. Thumbnail404fallbacknonblocking; otherstates/interactions/auth/routes remainpending. Originalpartial/supersededreceipts andallimages retained. Newd019sourcefix does not closeK01 beforenewimagecapture/review.
+
+APPd019ae69 source+buildpacketv2 PASS_SOURCE_ONLY: `/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/mobile-keyword-d019ae69-v2-independent-source-review-20261014T075149Z.json` SHA256 `14bcd371c10c975e840359e58987857359d03895753d8a1ef19784673da5997a`, gpt-6.1-sol UTC2026-10-14T07:51:49.626104+00:00, independent26/26. APP pushed and remoteverifiedexact. Complete web297/297 and noEmitpass. Final exactrequest `/tmp/babysit/mint-queue/youtube-simple-native-d019ae69-request-ready.json` SHA256 `36eca576bff8c623fef22b394b965471f177f9291d32d519e818533425eda812` adds receipt/probe metadata only, executable commands unchanged from reviewedv2; executionAllowed=false. Freshprobe `/tmp/babysit/mint-queue/youtube-simple-native-d019ae69-submission-fresh-20261014T075151Z.json` SHA256 `eb95480e58312bc80736abb73d74b7574fb328756bb7df3afd426ba5583c5856`, SMmedians tag1.180483/blog3.761547/YT0.966564 allpass; builds0/browsers0 bothhosts. Requires babysit command/slot approval and immediate fresh-at-startrecheck. Mobilevisualfinding remainsopen; no newbuild/deploy performed.
+
+APPd019 simplearm64build completed exit0 UTC2026-10-14T07:58:19.879916+00:00 (145s); image `sha256:b4afbd8f7a1c43c3c3445e4996f16841a242ed2b802b30fbffa68a5ea7d43d4d`, tag `youtube-board-ts:f2-d019ae69-20261014t074748z`, APP/OPS labels verified, size1390940004bytes. Buildslot returned immediately at completion. Monitor01 HTTP/median/load/diskpass; buildcount1 was independently verified soleownedclientPID3706952/startTicks868911692, correctedargvcomparisonreceiptv2 retained with originaloff-by-onecheckerresult. Monitor02 allgatespass/build0/browser0. Source/olderimages/productionretained; productionunchanged4f5. Native/candidate/newvisualapprovalpending. Result `/tmp/babysit/mint-queue/youtube-simple-native-d019ae69-result.json` SHA256 `d87140cae64994c1f6fc439e580cf24940cf8ab5431d399b2f5d885f16cdf6a6`.
+
+APPd019 newimageb4afbd8f native smokePASS: Node24.21.0/ABI137/arm64/glibc2.36/sharp0.35.5,WebP44bytes, BUILD_ID `jdR1KzOv-6QylI10uKIQV` source/standaloneagree; Next16.3.8/React+ReactDOM19.2.8agree. Receipt `/tmp/babysit/mint-queue/youtube-native-smoke-b4afbd8f-result.json` SHA256 `5d86a8352451e1cda123c42349a6b8b4ffe3b653fcd68bcd525c1f02704db30d`. Temporarycontainerabsent and productionweb/maintenancehealthyunchanged4f5. Candidate/capture exactpin/pathdelta awaiting independentreview; no newbrowser/candidate/deploymentyet.
+
+Mobile01 toolkit source-onlyPASS `/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/candidateb4afbd8f-mobile01-packet-independent-source-review-20261014T080527Z-r2.json` SHA256 `accae8e935d9c2baf29c8c2189b8a5c8897865dd58336f27d6dc63252e5a932f`, fivefiles immutable pin/path replacements and16viewportpackageplan verified; unchanged network/resource/readiness/budget safeguards. Candidate start withheld at2026-10-14T08:06:08.321674+00:00: SMblogthirdattempt curl56/HTTP200/25975partialbytes; medianpass does not waive failedsample. Receipt `/tmp/babysit/mint-queue/youtube-mobile01-start-fresh.json` SHA256 `897ac4dbef96ab2e605fecde1840a249eea2b62eb125431509555c12fdb785d4` retained. No candidate/browserstarted; nextattemptrequiresnewcompletefreshprobe.
+
+Mobile01 candidate actualfullCID94ae14f223f01430ff2770db8aeabbb093863067311f062e0d897a786c45f57b verified against b4afbd8f image/APPd019/BUILD_IDjdR1KzOv-6QylI10uKIQV and fullrestrictions. Freshretry01passed afterretainedcurl56 denial. Startup readiness503observations retained then200 at08:08:05Z beforebrowser. RuntimeactualreadOnly/capDropALL/NoNewPrivs1verified. Home capturelaunchedafterfreshpass andMemAvailable3.452GiB; new normal loaded capture underway, noapproval/deployyet.
+
+APPd019 home8packages/64PNGs complete exit0; manifest `/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/appd019ae69-home-20261014-mobile01-v12/run-f249112d-d901-4de7-817c-e4b09bdee5aa/captures.json` SHA256 `5dc44f4bbfaa90279e5a6ecc97954250c464df77dbe95c60285370e975794054`. All8 network receipts complete/accepted, observedDNT1/GPCtrue, Googleattempts/responses0, no5xx/timeout/unknown/inflight. Source/actualidentitypins verified; independentactual-image review underway, no inherited priorSHApass. Keywordbatch launchedafterfreshallpass+MemAvailable3.037GiB andcurrentready200.
+
+APPd019 keywords8packages/44PNGs complete exit0; manifest `/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/appd019ae69-keywords-20261014-mobile01-v12/run-a9cca643-3731-4eb2-a593-6e97c0806d2e/captures.json` SHA256 `6a8977daff3e18b7673d51e6dd077498facb8cf9fdd5ec3eacbc546e24e5909f`. All8requests complete/accepted, DNT1/GPCtrue, Google0, no5xx/timeouts. Desktopeach1thumbnail404 retained, mobile0; finalactualvisualreviewpending. All16packages/108PNGscomplete. Runtimeprivacycanary5HTML/query/cookiecasesPASS butRSC HTTPError lacksstatus fromfirstNoRedirectharness: wholecanaryfalse, notproductbug/PASS claim. Originalcandidate94ae removed,remote18168closed,formalhealthyunchanged4f5; fullfailure/cleanupbytesretained. SameimageRSC-only boundedrestart prepared, priornative image/captureevidence notoverwritten.
+
+
+### APP d019 core static review — PASS, deployment still pending
+
+Independent reviewer inspected all 108 new-SHA PNGs (104 manifest/coherence proof-backed plus 4 independently hashed horizontal-scroll images). Homepage and /keywords normal Today/Week × Light/Dark × 1280/390 static visuals pass; mobile keyword identity K01 is closed with complete 新聞直播 and 雙十國慶. Review `/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/static-appd019ae69-home-keywords-20261014T083516Z-complete/review.json` SHA256 `4fe2c724f6ed4675f543326733f30036cf65eceb532034d2cc7d4f714fe53937`; transcript SHA256 `768d91c579353fa8a28b5a092737416f7eab88a171848f7804bac5725f4a4e07`. Attribution and limitations preserved exactly in JSON ledger. Four desktop thumbnail404 fallbacks and mobile scope label wrapping are nonblocking. Full routes, auth/loading/error/interactions and backend counts remain pending. Supplied RSC canary remains false; overall deployment readiness and production deployment have not passed yet. Originals remain unchanged.
+
+
+### APP d019 supplemental RSC actual check passed — awaiting deployment admission
+
+RSC supplement `/tmp/babysit/mint-queue/youtube-mobile-rsc01-canary-result-v3.json` SHA256 `99b67bc5c88d83ae8f1424a7b80306c1d599b1b48c2ace650ec13c98a51e0ea4`: same-origin307 then200 text/x-component, private/no-store on both hops, no Set-Cookie. Exact reviewed checker c1560889; independent20offline mocks pass. Empty `_rsc=` is documented Next16.3.8 behavior. This supplements five original HTML/query/synthetic-cookie passes using a separate verified candidate on the SAME immutable b4afbd8f image; does not rewrite the original failed harness receipts or certify account states. Diagnostic fullCIDfaa3dc removed, remote18168closed, formalhealthy/image4f5 unchanged; owned tunnelPID80360 identity verified then terminated, local18168closed. Fresh probe passed immediately before check. Final independent addendum and babysit exact deployment approval pending; no production mutation.
+
+
+### Exact successor deployment submitted for babysit review
+
+Request `/tmp/babysit/mint-queue/youtube-deploy-b4afbd8f-request-ready.json` SHA256 `8f457a30741d67690f4a4e8508553bc04c05b3cd16065007f64783907f0cd75f`. Deploy: `/usr/bin/python3 /tmp/babysit/mint-queue/youtube-deploy-b4afbd8f-v2.py --execute`; persistent rollback: same command with `--rollback`. Reviewed helper SHA2569d9c2cae, default read-only validation passed08:37:08. Two TS service images and additive128MiB cache tmpfs only; same existing image/no rebuild; persist Dokploy compose to avoid old-image rollback. Private0600 pre-deploy config backup occurs before mutation, no DB migration, preserved writer/env/routing/resource config. Submission fresh08:40:18 passed SM medians tag0.212/blog3.125/YT0.183; zero builds/browsers; refresh again immediately before execution. Execution remains disallowed pending babysit approval. All old artifacts and rollback images4f5/5b retained.
+
+
+Independent readiness addendum PASS: `/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/readiness-addendum-appd019ae69-20261014T084154Z/review.json` SHA256 `d6f600f18cf944cca7c998e12bae8124b8bb3d5b656a26bc176dd2738ca138e8`, transcript SHA256 `55da212f998c68f3bad64bf4fd05df8a5db70b3c4964edffbe5365181a39fc18`. Core technical+home/keywords scoped review passed; K01 closed and RSC T01 resolved by same-image separate-container actual evidence. Original failed receipts/limitations unchanged; routeComplete=false. Final deployment request v2 `/tmp/babysit/mint-queue/youtube-deploy-b4afbd8f-request-ready-v2.json` SHA256 `b795ad5d13a4d02ec40a1bb27b1d455761f82f9efe87af376f2827e411943503` adds this immutable addendum only; executable command and artifact unchanged. Supersedes unexecuted request-ready; pending babysit approval and fresh recheck at execution.
+
+
+## Production deployment — 2026-10-14 UTC 11:52
+
+Babysit approved exact request b795ad5d. Owner d7967e77 deployed the SAME reviewed arm64 image `sha256:b4afbd8f7a1c43c3c3445e4996f16841a242ed2b802b30fbffa68a5ea7d43d4d` (APP d019ae69, OPS recipe51dc9de1, BUILD_ID `jdR1KzOv-6QylI10uKIQV`) through Dokploy compose.update then compose.deploy. No rebuild or migration. Private0600 config backup saved before mutation. Web update completed11:52:18.898UTC; account-maintenance completed11:51:51.311UTC. Actual running containers both1/1 healthy with matching BUILD_ID/image. Dokploy deployment diqwRO7dBx5-2AysfHNG2 done; compose matches pinned candidate and environment/command/autodeploy settings unchanged.
+
+Predeploy fresh passed (SM medians tag0.387/blog4.958/YT0.239seconds); postdeploy passed(tag0.344/blog3.562/YT0.207). Anonymous DNT1/Sec-GPC1 GET /, /keywords, /mayor all200, no Set-Cookie, CSP present. HTTP checks do not prove browser Google behavior. Public homepage was CF HIT, keywords/mayor DYNAMIC; runtime identity is independently verified in containers, not inferred from cached HTML. Both rollback images4f5e2a3a and5b7d9171 retained, no release/backup/worktree cleanup. Persistent rollback command `/usr/bin/python3 /tmp/babysit/mint-queue/youtube-deploy-b4afbd8f-v2.py --execute --rollback`; immediate service rollback available.
+
+Deployment receipt `/tmp/babysit/mint-queue/youtube-b4afbd8f-production-deployment-result.json` SHA256 `abd16ea78d142a34829040ee4ace954db0e0a635dd0a11c5e0eaa36f3ba45bbb`. Formal babysit opt-out browser acceptance pending: noise exclusions Yahoo/合作媒體, complete mobile terms, homepage, mayor, observed GA0. Whole routes/auth/interactions/loading/error/backend counts remain pending; no full-route pass. Existing earlier candidate failures/reviews/images preserved.
+
+
+### Production scoped acceptance and primary ranked-pool correction — OPEN
+
+Babysit UTC2026-10-14T11:56 accepted current b4afbd8f / BUILD_ID
+`jdR1KzOv-6QylI10uKIQV`: whole mobile keyword labels, Yahoo/合作媒體 exclusion,
+HTTP200 and opt-out GA0. This is user-message evidence; no new screenshot
+receipt is invented. Generic-word ranking remains OPEN; /mayor actual browser
+acceptance and full route/state acceptance remain pending.
+
+Offline APPd4deebb has independently reviewed source-only fallback exclusions
+and measured-view lower-bound formatting (299web+17API+10jobs owner tests;
+API/web noEmit passed). Its manual-list-only build draft is WITHDRAWN, never
+executed; original artifacts and review receipts remain retained. Latest user
+direction requires tag's filtered ranking pool as the primary eligibility
+source; country/city/party and source/platform exclusions remain additional
+filters, the24-word supplement remains a fallback.
+
+Tag source confirms ranking is rolling24h, ignores days=7, and stores at most500
+candidates before public qualification. Formal saved samples:500all/446early;
+投資 remains rank75, reported count31/16media. Count is not a contractual
+distinct-article guarantee. Four offline receipt consistency checks passed.
+See `platform/docs/youtube-tag-ranked-pool-audit-2026-10-14.json` (SHA256
+`d99684ba71e6d508e799361ec737e25fe3d981e9016158050896b54e17ba0b51`)
+and `platform/docs/youtube-tag-ranked-pool-request-2026-10-14.md` for the
+windowed/paginated upstream contract request and candidate top40 comparison
+requirements. Today/week exact-window pools, contract integration, new source
+review/build/capture/deploy remain pending. No old-SHA approval transfers.
+
+
+### Operating workflow relaxed by explicit user direction
+
+Build/deploy no longer wait for per-command babysit hash approval. Before
+starting check three homes200 and no other active build; report result and
+rollback afterward. Ordinary edits use normal tests/self-check; independent
+review is reserved for major UI/data/privacy changes. No extra collision
+wrappers/mocks or step-by-step reviewer gating. DNT/no synthetic GA, privacy
+predicate/no-store, CF/WAF/tag-backup restrictions and retained artifacts stay
+in force; broken production is rolled back immediately. Historical approvals
+and original packets remain preserved, not rewritten.
+
+Live DNT1/GPC1 public OpenAPI check still has only fixed24h ranking, no
+windowed ranked-pool endpoint: receipt
+`/tmp/babysit/mint-queue/youtube-tag-current-ranking-contract-20261014.json`,
+SHA256 `7616c99cc33dd2711cb6cb58bec805a03401e6844892d5012fd5218f4ef4d072`.
+The primary-pool integration needs tag's confirmed complete today/week
+contract. This is a data dependency, not a build-admission wait. d4 manual-only
+build remains withdrawn for product scope, not for missing command permission.
+An earlier document-review request has no returned text in this session and
+is not counted as PASS or used as a gate for this documentation update.
+
+
+## F1 public relations and maintained pictures — source ready
+
+APP `78df4fd87f2df2c115512831372869276fa250df` pushed on `codex/f1-public-integration`, derived from current production d019ae69. This independent release excludes withdrawn d4 manual generic-pool changes. Tag upstream APP aff5c028 / BUILD_ID d1LVsC3sk6p04uOyWUx5T is live; YT explicit anonymous mode reads fixed tag endpoints with DNT/GPC, never forwards visitor credentials, and keeps downstream metadata/images private,no-store. Empty relation groups and missing pictures say 尚未收錄. Same-origin bounded image proxy sanitizes SVG and preserves attribution; aliases do not merge metrics.
+
+Existing nonauthor reviewer PASS_SOURCE_ONLY, 149/149 offline tests: `/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/f1-illustration-78df4fd-independent-source-review-20261014T141912Z.json` SHA256 `f11dc0bf1de8c6183737b7e7cfe31eaf63b9558bba534d51df0a15342896c6bf`. Owner exact-source full web303/303 and API/web noEmit exit0. Actual public adapter reads柯文哲 (1 relation, avatar11920bytes) and沈伯洋 (4 relations, avatar15034bytes): `/tmp/babysit/mint-queue/youtube-f1-live-adapter-78df4fd-1791987535536.json` SHA256 `b7991f63734b273a2e01251a4b2ccef7d487c5b68d202731af873ee902c56007`. Public adapter checks are not candidate or visual acceptance.
+
+Build packet prepared for simple native arm64 recipe51dc9de1, Node24.21.0/ABI137, nice19/ionice3/workers2. Source context6.88MiB, estimated extra6GiB/3–10min. New candidate/visual review/deployment pending; current production remains b4afbd8f / jdR1KzOv-6QylI10uKIQV. New deployment rollback must restore b4afbd8f and current persistent compose, preserving4f/5b. Primary filtered today/week ranking pool remains an upstream dependency and OPEN; this F1 release does not close the generic-word finding.
+
+
+F1 exactAPP78df4fd native arm64 build exit0: image sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38, BUILD_ID hqA5C00BhxMB7igbPaZyL; Node24.21.0/ABI137/glibc2.36/sharp0.35.5 WebP44bytes, source/standalone Next16.3.8 and React19.2.8 agree. Receipt `/tmp/babysit/mint-queue/youtube-f1-78df4fd-build-result.json` SHA256 `4d49103110d72490bb9f8c610545b00c0277ba4377ad5a0f600db7bc8bc6d10e`. Build completed; slot returned. Only own build client during monitoring; median/resource gates passed. Temporary smoke container absent, production two services healthy and unchangedb4. Read-only loopback candidate1a788c5f verified exactsource/image/build, relations enabled explicitanonymous, writes/jobs disabled, readiness200. Actual candidate visuals/private-no-store checks underway; no deployment. Generic ranked-pool correction remainsOPEN.
+
+
+F1 candidate API privacy checks12/12 pass (anonymous and synthetic-cookie), image bytes match public-adapter SHA; metadata/images private,no-store/no Set-Cookie. Receipt `/tmp/babysit/mint-queue/youtube-f1-78df4fd-candidate-privacy.json`. First visual capture failed due owner plan URL missing /videos, not product regression; all original evidence retained. Corrected plan v2 prepared. Fresh pre-retake receipt `/tmp/babysit/mint-queue/youtube-f1-78df4fd-retake-fresh.json` rejected: skyhong-blog measurement blog HTTP500 at2026-10-14T14:32:53Z. No new browser or deployment on this denial.
+
+F1 deployment dry-run validated current persistent compose. Command: `/usr/bin/python3 /tmp/babysit/mint-queue/youtube-f1-78df4fd-deploy.py --execute`; rollback `/usr/bin/python3 /tmp/babysit/mint-queue/youtube-f1-78df4fd-deploy.py --execute --rollback`, restoring exact priorb4 compose plus bothserviceimages. Helper SHA256 `35170fab264d2d024da1c9f6d47b08e0cd98465cf83b601df776f650152e3343`. Current compose private0600 backup preserved. Delta only twoimageids and web TS_TAG_RELATIONS_ENABLED=true / TS_TAG_RELATIONS_AUTH_MODE=anonymous. Exact source/image unchanged; no rebuild/DB/CF/WAF/writer mutation. Actualvisualreview + freshhealth required before execute. Productionb4 unchanged.
+
+
+F1 actual profiles12 viewport packages complete: `/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app78df4fd-profiles-20261014-f1-v2/run-3d53adc4-306b-465e-8ef9-a6c193f3da30/captures.json` SHA256 `d9eb802083e53fb207d25211cc8b5c83799545c02c184d6881d98b75a3257b68` (柯文哲/沈伯洋/新聞直播 ×light/dark×1280/390). DNT1/GPC observed; all12network lifecycles accepted, Google attempts/responses0, all main200, mobileoverflow0. Source aliases/count semantics preserved. Capture child reportedexit0; outer command wrapper returned143 after completed output, retained as execution anomaly rather than described as overallcommandexit0. Fullmanifest completed and independent actual-PNG review underway; no visualPASS declared. Home8 and keywords8 newSHA core batches remain pending. Firstwrong-route404/freshblog500 artifacts retained.
+
+
+Existing nonauthor actual F1 profiles reviewer PASS_SCOPED_F1_PROFILE_VISUAL: `/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/f1-app78df4fd-profiles-20261014T145029Z/review.json` SHA256 `60e81fcfabb8878c958b21267c7d4b545433b077b11d1d696d384d3e3f5d3ebe`;176/176 PNGs actually opened, source19hashes and149tests receipt verified. Only normal sparse profiles; no positive related/alias example or interactions approval; primary-ranked-pool stillOPEN, routeComplete=false. Sourcepicture proxy200 proof included; optimizer404/ERR_ABORTED video fallback limitations retained.
+
+Home second batch8 viewports complete: `/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app78df4fd-home-20261014-f1-v2/run-b36f9a26-3952-45bf-8a97-0ab512bec93f/captures.json` SHA256 `e48d49d70487e71795bfd2be4cd227c59b5abda796885318758f4a93b5d15770`, child/outerexit0, batchstart/endhealthpass. Firsthome failedblogmedian6.518>6.17 receipt retained. Based on latest user less-dense workflow, existingrunner `/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/capture-candidate-sm-78df4fd-f1-batch.mjs` SHA256 `f3e11782105b06c475a5999ecbe245f935280f5d24ecce70ab9c409abd0a8b9e` moves unchangedresourcechecks to smallbatchstart/end; privacy/network/identity/coherence untouched, node--checkpass. Keywords8capturing; combinedcore independentreview pending.
+
+
+F1 all28 viewport packages finished (profiles12/home8/keywords8), network receipts accepted/Google0. Full manifest pointers and hashes recorded in JSON ledger. Own candidate removed and remote18168closed; own exact-argv tunnel terminated; images/configs/all old artifacts retained. Combinedcoreactualreview pending; no deployment until nonblocking verdict and fresh health. APP clean unchanged78df4fd; sameimage0f70a7ce/BUILD_IDhqA5C00BhxMB7igbPaZyL.
+
+
+F1 core independent actual-image addendum PASS_SCOPED_CORE_VISUAL_ADDENDUM: `/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/core-addendum-app78df4fd-20261014T145941Z-readable/review.json` SHA256 `75c98871f13b36ec772f5a57f83a0fffc886ac8eba7fea3081389b496f709144`. All home64/keywords44 PNGs actually opened; withprofiles176 totals284PNGs/28views, exactAPP/image/BUILD_ID/CID/coherence/hashmatch. Main-page scopednormal visuals have no blocker. Fourkeyworddesktopoptimizer404, ERR_ABORTED terminalfailures and nooffscreenmobileinteractionproof preserved as limitations. GenericpoolOPEN, routeComplete/fullSiteAcceptance=false. Sameartifactdeployment next under latestown-checkauthorization; freshgate stillrequired.
+
+
+## F1 production deployment — 2026-10-14 UTC15:05
+
+Owner d7967e77 deployed SAME reviewed arm64 image `sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38`, APP78df4fd (also pushed/remoteverifiedmain), BUILD_ID `hqA5C00BhxMB7igbPaZyL`. Web completed2026-10-14T15:05:23.556558815Z; account-maintenance completed15:04:55.858320928Z. Both1/1Running/healthy with actualcontainerimage/source/buildmatch. Web explicitpublicrelationsenabled/anonymous; maintenanceflags unchanged. PersistentDokploycompose/image updated and read-backmatched; env/command/autodeployfalse preserved. Private0600 configbackup saved beforemutation; no rebuild/migration/CF/WAF/Laravelwriter/scheduler change.
+
+Receipt `/tmp/babysit/mint-queue/youtube-f1-78df4fd-production-deployment.json` SHA256 `32d67b211e7880c0699a1b7fbd4eefd64789a6a224756233c9264e9b4438bf9b`. Predeploy SMmedian tag0.988/blog4.500/YT1.035sec and postdeploy1.231/5.069/0.797 allpass, nootherbuild. AnonymousDNT1/GPC1 GET /,/keywords,/mayor,柯文哲profile all200/CSPpresent/noSetCookie. Formalrelations andillustration JSON plusavatarWebP200; anonymous/syntheticcookie privacyprivate,no-store. HTTP proof supplement `/tmp/babysit/mint-queue/youtube-f1-78df4fd-production-http-v2.json` preserves the original checkerfailure (lastcase accidentally parsed binary asJSON); corrected explicitmetadataendpoint passed, not a productfailure or rewrittenreceipt. HTTP checks do not prove productionbrowserGA behavior.
+
+All28candidateviewportpackages/284actualPNG independentlyreviewed; scopedcore/profile PASS, candidate observedDNT/GPC/Google0. Fullroutes/states/positivealiasexamples stillpending. Formalnewrelease1280/390 opt-outbrowser acceptance requested frombabysit for柯文哲/沈伯洋profile,empty新聞直播profile,homepage,/keywords,/mayor. Genericmeaningless-keywordpool remainsOPEN waitingtagcompleteexacttoday/weekrankedpool; thisF1 deployment doesnotfixit. Partialviewsformatting fromwithdrawnd4 also notdeployed.
+
+Immediatepersistentrollback: `/usr/bin/python3 /tmp/babysit/mint-queue/youtube-f1-78df4fd-deploy.py --execute --rollback` restores previousb4compose/image. Servicefallback: docker service rollback youtube-board-ts-6oukfq_web and youtube-board-ts-6oukfq_account-maintenance; restorepersistentcompose aswell. Allimages0f/b4/4f/5b,releases,backups,worktrees and failedreceipts retained. Owncandidate andlocal/remote18168closed; ownSSHtunnel removed.
+
+
+Babysit formal F1 acceptance UTC2026-10-14T15:20:00Z: BUILD_ID hqA5C00BhxMB7igbPaZyL, opt-out GA0, 柯文哲 avatar KP / CC BY-SA4.0 and one approved is-a政治人物 visible. Related/alias 尚未收錄. Scoped acceptance passed; nonblocking followup OPEN: move relations above video list with SSR metadata and reduce initial picture blank/loading. Generic-word correction remains upstream exact-window ranked-pool dependent; no manual-only fallback deployed. Other pending route/state reviews remain pending.
+
+
+F1 profile followup source b3d48a7 (includes e8db3b2): relations and compact eager96px picture before videos, anonymous concurrent server reads/private-no-store, canonical SEO preserved, same-keyword refresh adopts initial results without resetting retry holds, hard deadline cancels response bodies while preserving completed branches. Owner web312/312, tsc noEmit exit0. Existing reviewer recheck pending. Candidate/build/deploy all PENDING; fresh15:23Z probe rejected SM disk39.819GiB (<40). Request `/tmp/babysit/mint-queue/youtube-simple-native-b3d48a7-request.json`. Production remains0f70a7 / hqA5C00BhxMB7igbPaZyL; no new build/capture/deployment. Exact candidate retakes required; old visual passes not transferred.
+
+Followup exactAPP72cb816 now also cancels/releases stalled relation-reader bodies. Web313/313 and webnoEmit exit0, remote branch verified. Latest fresh15:33:15Z denied: SMload22.90>12; tagmedian6.683>2, blogmedian15.000>6.17 and HTTP/curl errors; disk40.384GiB. No new build/capture/deployment. Request `/tmp/babysit/mint-queue/youtube-simple-native-72cb816-request.json`. Preserve earlier denial and source findings; source recheck pending existing reviewer.
+
+Independent exact72cb816 review PASS_SOURCE_ONLY: five findings fixed, 68 focused tests,7 independent repair scenarios,2 component state/hold checks. Receipt `/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/f1-ssr-72cb816-independent-source-review-20261014T153451Z.json` SHA256 `d6a5ffb117451bcff5dbeefafcc1b9c4c74015cb56159e29a6589f84e8f6c682`. This does not pass candidate/screenshots/deployment; all remain pending resource gate.
+
+
+Final reviewed fresh UTC2026-10-14T15:35:56Z: tag0.286/blog7.480/YT0.226s, SMload7.69, free40.397GiB. DENIED solely blog median >6.17s. ExactAPP72cb816 source/test/review complete; only build/candidate/visual/deploy work remains awaiting resource recovery. No new build/capture/deployment started; production0f70a7 unchanged. Receipt /tmp/babysit/mint-queue/youtube-f1-top-72cb816-reviewed-fresh.json SHA256 0c739fb943bd68e570acbcff2e1a6e77a179eff191a99124b20912315c7ea902.
+
+
+User latest remote-build clarification applied explicitly; original gate receipts retained, no falsified allowed flag. Exact72cb816 native build image1e251348 arm64, BUILD_ID Fb8mfbUpeqBWyMVD2_Jsj; Node24.21.0/ABI137/glibc2.36/sharp0.35.5 WebP44bytes/source-tracedversions agree. New image1,391,124,890bytes total including base; build slot returned. Candidate ready200, fullCIDverified, nine profileSSR HTTP checks private/no-store/noSetCookie, approved relation appears before videos and no loading text, canonicalindexable/querynoindex. 12 profile viewport packages captured, 57,851,871bytes, GA0. Actual image reviewer pending; core capture underway. Deployment dryrun validated twoimage-only compose delta and rollback0f70a7. Production remains0f70a7 until execute.
+
+72cb816 main pushed/remote verified. Core home1280/390 captured; keywords original batch crossed Taipei midnight and lacks privacyAfter, rejected/preserved. New10/15 keywords retake1280/390 captured200/overflow0/acceptednetwork/GA0; manifest hash ca061ca08c1a994f9d2a0f55b0c236f9488feee4097a608dad1009429db5b1c8. Existing reviewer actual scoped image review underway. Deploy dryrun02 no drift; no new build. Production remains0f70a7 until execute.
+
+UTC2026-10-14T16:12:32Z requested/16:13:39Z bothconverged: ownerd7967e77 deployed exact72cb816 image1e251348 arm64, BUILD_ID Fb8mfbUpeqBWyMVD2_Jsj. BothTSservices completed/1healthy each; Dokploy persistentcompose synced, env/command/disabledautodeploypreserved, no rebuild/migration/CF/WAF. FormalHTTP6/6 passes exactBUILD_ID, profilesanonymous/syntheticcookie private-no-store/noSetCookie, canonicalindex/querynoindex. PostdeploySMmedian tag0.265/blog4.385/YT0.176s. Sourceweb313/313+typecheck0; independent sourcePASS and scoped actualvisualPASS12profile+4coreweek/lightstates;83PNGviewed/207hashchecked/124unviewed individual slices. Finalreview /home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/app72cb816-core-and-profile-final-20261014T161232Z/review.json sha256 e9368b42444f1dbda76c1f14f132962677442ff3d661120db7b2bbe3f2f30a86. Owncandidate+tunnel removed/18168closed; allimages/logs/backups/worktreesretained. Productionreceipt /tmp/babysit/mint-queue/youtube-f1-top-72cb816-production-deployment.json sha256 ce3d5b814c357a4c9f4f89f8c6ec595d295597796feb35187d849a180b7e3fd3. Rollback python3 /tmp/babysit/mint-queue/youtube-f1-top-72cb816-deploy.py --execute --rollback restores0f70a7 and priorpersistentcompose; service rollbackfallbackavailable. Originalmidnightcapture and checker103EarlyHintsparserfailurepreserved; correctedformalreceiptpasses, no productexception. Formal1280/390 opt-outbrowseracceptance requestedfrombabysit. Genericrankedpool remainsOPEN awaitingtag; otherpendingroutes/states unchanged.
+
+
+## F1 acceptance and qualified rolling-pool successor — 2026-10-14
+
+Babysit formal acceptance at16:18 UTC PASS_SCOPED_F1_PROFILE: exact72cb816 BUILD_ID Fb8mfbUpeqBWyMVD2_Jsj, GA0, /keywords/柯文哲/videos relations above videos and SSR政治人物/no loading flash, avatar96px/no blank. Whole-site pending items stay pending.
+
+New APP38b51bf (source review underway) uses tag complete exact-window ranking-pools gate early, all pages and checksum validated. Short period is always rolling24h, labeled 過去24小時; week remains seven Taipei calendar dates. Ten-minute shared cutoff, per-window exact Unicode eligibility before YouTube heat/top40, static no-equal/country/party/source exclusions layered on top. Raw vocabulary/evidence retained with per-period exclusion reasons; exact UTC bounds carried into video reports/cache/filter controls. Live anonymous DNT1/GPC1 read:827 short/4214week qualified terms, receipt /tmp/babysit/mint-queue/youtube-ranked-pool-rolling24h-live-20261015.json. Candidate real DB top40 comparison, actual captures/review, build and deployment remain pending; no old pass inherited.
+
+## Qualified window pools — APP19cd358
+
+Complete tag news/early snapshots qualify each exact window before YT heat/top40. Short is always 過去24小時 with displayed bounds; week remains seven Taipei dates. Real-data refill audit and user-authorized TVBS/聯合/三立 exclusions recorded in JSON, raw terms/evidence/reasons retained. Normal5s real SQL diagnostic passed after removing eligibility cross product. Existing reviewer source PASS; new exact image/candidate screenshots, visual review and deployment remain pending. Production stays72cb816; next rollback target1e251348. Previous5ea image and all evidence preserved.
+
+APP19cd358 arm64 build+native smoke passed, image174e6354 / BUILD_ID x0_uh7qbrNZGSsGg38HMH. Real candidate ranking short9/week40 all qualified; media/city/generic original-pool reasons verified. SSR/cookie/RSC checks8 passed. New16-view manifest4857d019 captured GA0/networkaccepted and102PNGhashchecked; actual visual review pending, no deployment. Monitor blog500 retained; freshrecheck passed before smoke/candidate. Owner accidental capture after failedmemoryassert was interrupted and excluded; retake startedwith3.31GiB/validcapturegate. All artifacts preserved.
+
+
+## Qualified pool ranking deployed — APP335c8db, 2026-10-15 Taipei
+
+Owner d7967e77 deployed 335c8dbd023ed1466620b29a4dea6cda9e3cef80 at 2026-10-14T17:54:39.495088599Z, image sha256:cabe15587df1d7dd80c561abe0629ba71a80a0188f402202858b7b60722b69f6, BUILD_ID NZua9VnOCd6zsK0BXUoF7. Both services healthy and converged; persistent Dokploy compose synced, no rebuild/migration/CF/WAF changes. Homepage and /keywords use complete tag early-qualified immutable time-window pools before YouTube heat/top40; short window labeled 過去24小時, week seven Taipei dates. Explicit media/country/city/party exclusions and traceable generic supplement remain visible in raw pool. Real candidate short9/week40 compared with full tag832/4217; new formal API lists synchronized and excluded terms absent. Partial view subtotals show ≥ with missing counts.
+
+Independent actual candidate review: /home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/ranked-pools-app335c8db-20261014T175405Z/review.json SHA256 e31175eefe07f20bcfb4085a4c0f2e2677d687bf777a85d91f395f7d71e8a5d5; exact manifest /home/deck/.cache/youtube-ui-review/ranked-pools-335c8db-20261014T174356Z/captures.json SHA256 ac8a4a38fb0ec8e71512d8ee13a2dca2e270fe0b2553feb647479a7ff04949e8. Reviewer opened32PNG (16fullpages+16native mobile keyword slices), hashed102, other70hash-only; sixteen view/network receipts accepted, DNT1/GPCtrue/Google0. Scope home+/keywords, short/week, light/dark,1280/390. No other page/state pass inferred. Formal browser acceptance remains pending babysit; fullsite/F1–F4 pending entries unchanged.
+
+Production receipt /tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-production-deployment.json SHA256 e869cf91e7e7c4e1004b9d2c637f5819ab4c0dad79f8f32acd82141f1084a69e. Formal six routeHTTP checks exactBUILD_ID; six SSR/cookie/RSC privacy checks allpass. Pre/post/final three-sample gate receipts stored. Immediate rollback: `python3 /tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-deploy.py --execute --rollback` restores72cb816 image sha256:1e2513480d7d4a6713b135cf9547330300602324b66a2c830fc51ed5e3924140 and persistent compose; two-service docker rollback fallback. Own candidate removed, remote18168closed, own tunnel stopped.
+
+User rolling-retention decision supersedes older preserve-all artifact notes: removed18 obsolete image tags, 6 stopped TS containers, 6 disposable build contexts, and pruned unused default/YT-specific build caches. Current335 and rollback72 kept; backups/tag-backup/productiondata/gitworktrees/source/review evidence untouched. Disk receipt: /tmp/babysit/mint-queue/youtube-build-cache-cleanup-result-20261015.json. Future builds must explicitly use retained verified current/rollback Node24.21/ABI137 arm64 base, not deleted5b tags. Historical deployment/retention assertions are dated evidence, not current inventory.
+
+Cleanup supplement: removed obsolete78df4fd build context /home/ubuntu/yt-f1-simple-20261014t142338z after the same unit/slot/mount/cwd checks. Seven disposable build directories removed in total. Current335 and rollback72 contexts kept; nonbuild SQL diagnostic source retained. Receipt /tmp/babysit/mint-queue/youtube-rolling-cleanup-extra-20261015.json SHA256 256ce9a9c9cd4ccd761384f9d5b92c0d1be2ac8f75f2ab1dddf6a62a52fbcb3e. Final /home available100357312512bytes (93.47GiB). Original deployment/cleanup receipts unchanged.
+
+
+## APP335c8db formal keyword acceptance — 2026-10-14 18:04 UTC
+
+Babysit reported PASS_SCOPED_PRODUCTION_KEYWORD_RANKING: exactBUILD_ID NZua9VnOCd6zsK0BXUoF7; opt-out Google requests0; homepage and /keywords terms agree, rolling24h/week labels correct, reported24generic/country/city/party/source exclusions absent, partial measured subtotal uses≥ with509missing. Acceptance receipt /tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-formal-acceptance.json SHA256 665194547522012b0fc2bbeb1755fb37bc44caad3d817a36e8795657e5d742e9. This closes this release's ranking acceptance pending, not fullsite/F1–F4, viewport coverage or /mayor acceptance. Immutable earlier deployment receipt correctly remains a record of acceptance pending at deploy time.
+
+Nonblocking broad-topic follow-up: retained complete tag snapshots assessed offline, receipt /tmp/babysit/mint-queue/youtube-ranked-pools-335c8db-threshold-assessment.json SHA256 7eff64d733b7eb19acaceeea5c86efbc412183459b2c83ea173e1a6350292ea7. Weekly counts articles/media: 手機57/13, 社群11/8, 社區38/14, 機車88/19, 銀行43/15, 機場88/22. Broad removes社群 but keeps the other five, and removes concrete event競總成立7/5. N≥20/M≥5 has the same effect on existing weeklytop40; in short window it also removes青年/預售屋/房市/理財/手機/婚禮. No refill prediction or current-live-count claim. Keep deployed early gate: frequency thresholds cannot reliably distinguish these topic labels. Follow-up documented; no source/build/deployment change.
+
+
+## DNT1 production page captures — 2026-10-15 Taipei
+
+Details: [production-ui-review-2026-10-15.md](production-ui-review-2026-10-15.md). APP335c8db / BUILD_ID NZua9VnOCd6zsK0BXUoF7 / image cabe1558.32 accepted normal views: home and /keywords rolling24h/week, 柯文哲 videos, /mayor, then /groups and /live/current;1280/390, light/dark. Own tool nativeDNT1/GPC1, pre-navigation transmission-layer Google analytics block, raw network retained;Google analytics attempts/responses0. Both actual TS services stayed healthy/exactidentity after capture.
+
+Existing nonauthor /root/f2_visual_sol PASS_SCOPED_PRODUCTION_MAIN_24_ACTUAL_VISUAL, blockers[];104 actualPNG opened/190 hashed/86 hash-only. Review receipt200d9d76… is linked in the detail document and JSON. Secondary8 review FAIL with one live-mobile layout blocker and other OPEN presentation findings. Six normal-state entries now contain separate productionVisualReviews, without overwriting historical findings/candidate evidence. Live cutoffs/count drift, thumbnail404/fallback, stored homepage badge/headline observation and the original rejected dark attempt are explicitly retained. No whole-route, authenticated/error-state or F4 acceptance.
+
+Secondary immutable review6fa0e0ef…:8views,26actualPNG/52hashed/26hash-only. /live/current mobile title width is unusable;desktop update time clipped. /groups different-range same-label/count-unit ambiguity, old-date/current-office clarity and schema copy remain OPEN. Technical DNT/raw-network PASS does not mean visual PASS. Combined32views:24scopedPASS/8issues,130actualPNG/242hashes/112hash-only. Source-only explanation ofgroups2/7 is recorded without claiming invalid numeric data. Current productionVisualReviews supplement historical status/counts; no routeComplete promotion.
+
+
+## F4 first batch — APP fe79879, 2026-10-15 Taipei
+
+Pinned tag T-ref ff511870 and documented shared foundations, authorized red branding and remaining differences in the APP docs/cross-site-consistency.md. Source review PASS_SOURCE_ONLY; web319tests, APIgroups7pass/1DBskip, both typechecks pass. Native arm64 build5816d4ee/BUILD_IDvet9FIruVMu5cIc9qIVeo completed; Node24.21/ABI137/sharp0.35.5 smoke pass. Build slot returned. Source-only evidence never closes visual issues.
+
+Candidate feature8view retake is captured with DNT1/GPC/Google0, new exactAPP/image/BUILD_ID; independent visual review pending. Initial rejected503 capture remains rejected and preserved, no network exception. Twelve anonymous/cookie/RSC privacy checks passed. Production remains335c8db/cabe1558 at this checkpoint. Next: finish same-artifact main-page capture/review, deploy with immediate rollback335, actual production retest. Full F4 and other pages/states remain pending. Exact receipts and hashes in f4FirstBatch20261015 JSON entry.
+
+
+### F4 first batch deployed — 2026-10-14T21:09:39.288349193Z UTC
+
+Owner d7967e77 deployed APPfe79879 image5816d4ee BUILD_IDvet9FIruVMu5cIc9qIVeo to both TS services; both healthy/converged, Dokploy compose synced, same native-smoked candidate artifact, no rebuild/migration/writer/CF/WAF changes. Candidate24views scoped independent PASS:158PNG hashed/78actually viewed, DNT1/GPCtrue/Google0. Technical formal six-route exactBUILD_ID HTTP200 and12privacy/no-store checks pass. Deployment receipt /tmp/babysit/mint-queue/youtube-f4-fe79879-production-deployment.json SHA256818e4739cd7915d231975d2d262c43e3d31f45359e1d3b143338f01f1a205722.
+
+Immediate rollback: `python3 /tmp/babysit/mint-queue/youtube-f4-fe79879-deploy.py --execute --rollback` restores335c8db/cabe1558 and persistent compose. Two-service docker rollback fallback remains available. Owncandidate removed, remote18168closed/tunnelterminated. New production screenshot/review is pending and independent of candidate PASS. FullF4/allroutes/empty/error/auth states remain pending; group source freshness not fixed.
+
+
+## F4 first batch — final scoped production acceptance
+
+APP `fe7987945611328aabaa8bb8f4495ecd75168792`, image `sha256:5816d4eec144c5c162ad3954aef4298fa36a5ecfc9476315e1ad9d0a59ecfb91`, BUILD_ID `vet9FIruVMu5cIc9qIVeo`: candidate24 and production32 views have separate nonauthor actual-image PASS. Production reviewer hashed246PNG and personally opened130;116 are hash-only. Six route examples cover home, keywords24h/week, 柯文哲/videos, mayor, groups and live/current at1280/390, light/dark. All32 raw-network receipts accepted: native DNT1/GPCtrue, pre-navigation transport Google block, Google attempts/responses0.
+
+Acceptance: `/tmp/babysit/mint-queue/youtube-f4-fe79879-production-acceptance.json`. Both independent reviews/manifests/transcripts and hashes are bound there. Earlier deployment/capture-index snapshots accurately retain review pending at their creation; this final receipt supersedes only that pending status. Separate babysit browser acceptance has not been received.
+
+Nonblocking limits retained: four keyword-detail image404s/placeholders, ERR_ABORTED/null statuses, cross-capture mayor coverage differences, sparse keyword coverage and unverified source freshness. Mobile hidden columns and unexercised interactions remain unverified. Historical rejected503 and memory-stopped batches remain excluded. `/live/current` presentation and `/groups` scope/count fixes pass on the new artifact; no old screenshot relabeling. Method footer,44px generic controls,cross-site actual visual comparison and remaining routes/states keep F4 pending. See `docs/f4-first-batch-2026-10-15.md` for deployment/rollback.
