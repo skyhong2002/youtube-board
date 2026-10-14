@@ -41718,7 +41718,7 @@
   },
   "f4SecondBatch20261015": {
     "recordedAt": "2026-10-14T22:14:23.928740+00:00",
-    "status": "source-reviewed-arm64-build-running-candidate-and-production-fix-acceptance-pending",
+    "status": "arm64-built-native-smoke-passed-candidate16-captured-independent-visual-review-in-progress",
     "appSha": "fe7987945611328aabaa8bb8f4495ecd75168792",
     "routes": [
       "/channels",
@@ -41777,11 +41777,11 @@
     "wholeSiteAcceptance": false,
     "fullF4Acceptance": false,
     "next": [
-      "Finish arm64 build and native smoke",
-      "Capture repaired artifact in light/dark at1280/390 and obtain actual nonauthor image review",
-      "Deploy same image and perform separate production review; retain freshness limitations"
+      "Read actual nonauthor candidate image review and fix blockers if any",
+      "Deploy same pinned image via synced Dokploy compose; rollback to current5816d4ee",
+      "Capture and independently review repaired production four pages; preserve other state pending"
     ],
-    "evidenceUpdatedAt": "2026-10-14T22:25:54.423352+00:00",
+    "evidenceUpdatedAt": "2026-10-14T22:34:53.030177+00:00",
     "baselineIndependentReview": {
       "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-appfe79879-batch2-fourpage-issues-20261014T221926Z/review.json",
       "sha256": "8253630c115b70bffa5b63ed392ceb0939e074b9c2d94e63c0153a55cbb6dc00"
@@ -41824,6 +41824,34 @@
       "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/source-review.json",
       "sha256": "3144b3cd49aabc8f27f377614c2396b3a4986cc61087d69df341bec71a2227f2"
     },
-    "sourceReviewVerdict": "PASS_SOURCE_ONLY"
+    "sourceReviewVerdict": "PASS_SOURCE_ONLY",
+    "build": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/build-result.json",
+      "sha256": "8393e567e2af6c573674e38858ccb32b6b591b9f39d4b5cd3c9e9777b35d5022"
+    },
+    "nativeSmoke": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/native-smoke.json",
+      "sha256": "471fc5b6c12790502e8d6b352d5220c36b949a97d3b3ddfd5d6752709e13378d"
+    },
+    "nativeSmokeCleanup": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/native-smoke-cleanup.json",
+      "sha256": "72ec7119b6268cae3756e2546c8b8baed7d3fc8e55543816faa71e42a962cb76"
+    },
+    "candidateIdentity": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/candidate-identity.json",
+      "sha256": "2e1467710b1895f4fdd1b76435f3afb7aa3e914355a3660cf7391f8bb4a86c1a"
+    },
+    "candidatePrivacy": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/candidate-privacy.json",
+      "sha256": "453319b00f9d129154010eb10c74062a16e73b41eeba7d184c68b3486576a898"
+    },
+    "candidateCaptureIndex": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/candidate-capture-index.json",
+      "sha256": "21ceb323de5ea4052f90d5f63c724f47735af1a60fd2199a275adae4cabc7717"
+    },
+    "candidateExcluded": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/candidate-videos-light-rejected.json",
+      "sha256": "6f7f318b12fcb2b132603ac9030dd89ac133f4fa51a148cf4ebfa36b55bc2f3b"
+    }
   }
 }
