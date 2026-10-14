@@ -38069,7 +38069,7 @@
     "capture": "completed 16 packages/108 PNGs; independent scoped static PASS",
     "candidateApproval": false,
     "routeComplete": false,
-    "deployment": "pending babysit exact-command approval; production unchanged",
+    "deployment": "deployed; technical verification passed; babysit formal browser acceptance pending",
     "supersededUnexecutedBuildDraft": "/tmp/babysit/mint-queue/youtube-simple-native-d019ae69-request.json",
     "contextComparedTo9db": "1000 file entries; only KeywordRanking.tsx, keyword-ranking.test.ts, link-pending.test.ts differ in bytes; recipe/base unchanged",
     "sourceReview": {
@@ -38861,6 +38861,154 @@
       "transcriptPath": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/readiness-addendum-appd019ae69-20261014T084154Z/transcript.md",
       "transcriptSha256": "55da212f998c68f3bad64bf4fd05df8a5db70b3c4964edffbe5365181a39fc18"
     },
-    "coreDeploymentReviewPassed": true
+    "coreDeploymentReviewPassed": true,
+    "productionDeployment": {
+      "path": "/tmp/babysit/mint-queue/youtube-b4afbd8f-production-deployment-result.json",
+      "sha256": "abd16ea78d142a34829040ee4ace954db0e0a635dd0a11c5e0eaa36f3ba45bbb",
+      "recordedAt": "2026-10-14T11:55:29.781279+00:00",
+      "owner": "d7967e77",
+      "status": "deployed-technical-checks-pass; babysit-production-browser-acceptance-pending",
+      "appSha": "d019ae69e922ba8530b7af8c98ae5e200138942a",
+      "opsRecipeSha": "51dc9de1a20e73c428d4e9588fa8d5243643c742",
+      "imageId": "sha256:b4afbd8f7a1c43c3c3445e4996f16841a242ed2b802b30fbffa68a5ea7d43d4d",
+      "buildId": "jdR1KzOv-6QylI10uKIQV",
+      "architecture": "linux/arm64",
+      "approval": {
+        "source": "babysit user message granting exact reviewed request execution",
+        "request": {
+          "path": "/tmp/babysit/mint-queue/youtube-deploy-b4afbd8f-request-ready-v2.json",
+          "sha256": "b795ad5d13a4d02ec40a1bb27b1d455761f82f9efe87af376f2827e411943503"
+        }
+      },
+      "dryRun": {
+        "at": "2026-10-14T11:50:54.892549+00:00",
+        "exitCode": 0,
+        "configDrift": false,
+        "imageArm64Verified": true,
+        "evidence": "actual exec tool output; not a fabricated independent receipt"
+      },
+      "execution": {
+        "path": "/tmp/babysit/mint-queue/youtube-deploy-b4afbd8f-authorized-command-20261014T115136Z.json",
+        "sha256": "68c345aec9825e8883d378dd413d51e191389ba79bf3c22125fd7b8d17f192b9"
+      },
+      "predeployProbe": {
+        "path": "/tmp/babysit/mint-queue/youtube-deploy-b4afbd8f-authorized-fresh-20261014T115134Z.json",
+        "sha256": "3e784d581fd074e0b52099aeb02fae970bdb0c2a84bd8282866ac184120438c3"
+      },
+      "serviceState": {
+        "path": "/tmp/babysit/mint-queue/youtube-b4afbd8f-service-state-20261014T115312Z.json",
+        "sha256": "6edce0e8772b6d0ad09a229ca129faed831aae1eba1c518f1a7b863c72d1bd9b"
+      },
+      "services": {
+        "youtube-board-ts-6oukfq_web": {
+          "desiredImage": "sha256:b4afbd8f7a1c43c3c3445e4996f16841a242ed2b802b30fbffa68a5ea7d43d4d",
+          "replicas": 1,
+          "updateState": "completed",
+          "updateStartedAt": "2026-10-14T11:51:36.342268273Z",
+          "updateCompletedAt": "2026-10-14T11:52:18.898451572Z",
+          "runningContainers": [
+            {
+              "containerId": "e9d282c6caa6cd027eb4218e1cda9ee12a238ecb47726ba1cced7b3fee200ece",
+              "image": "sha256:b4afbd8f7a1c43c3c3445e4996f16841a242ed2b802b30fbffa68a5ea7d43d4d",
+              "health": "healthy",
+              "startedAt": "2026-10-14T11:51:36.660132727Z",
+              "buildId": "jdR1KzOv-6QylI10uKIQV"
+            }
+          ]
+        },
+        "youtube-board-ts-6oukfq_account-maintenance": {
+          "desiredImage": "sha256:b4afbd8f7a1c43c3c3445e4996f16841a242ed2b802b30fbffa68a5ea7d43d4d",
+          "replicas": 1,
+          "updateState": "completed",
+          "updateStartedAt": "2026-10-14T11:51:36.336974215Z",
+          "updateCompletedAt": "2026-10-14T11:51:51.311116927Z",
+          "runningContainers": [
+            {
+              "containerId": "a249a435ed6f8517e67519adb9ce9b7c5a4f90a53d21c8f1d4ea7a0abe5a3082",
+              "image": "sha256:b4afbd8f7a1c43c3c3445e4996f16841a242ed2b802b30fbffa68a5ea7d43d4d",
+              "health": "healthy",
+              "startedAt": "2026-10-14T11:51:40.194200685Z",
+              "buildId": "jdR1KzOv-6QylI10uKIQV"
+            }
+          ]
+        }
+      },
+      "postdeployProbe": {
+        "path": "/tmp/babysit/mint-queue/youtube-deploy-b4afbd8f-post-fresh-20261014T115358Z.json",
+        "sha256": "d1db275a21a94e1aa5aa3489f39807f1f329593937647c750aa0e57b83068ac2"
+      },
+      "postdeployAnonymousGET": {
+        "path": "/tmp/babysit/mint-queue/youtube-b4afbd8f-post-anonymous-get-20261014T115400Z.json",
+        "sha256": "7b1e5ec32dad3821f62971fb508afb0b10e5ead50bc06032bf9ea5ef1821285b"
+      },
+      "dokployReadback": {
+        "path": "/tmp/babysit/mint-queue/youtube-b4afbd8f-dokploy-readback-20261014T115412Z.json",
+        "sha256": "3d583c7b90de9358df3e0ca3e7f1caa727bbbf7e64bb1ac5dd65c65d05f1d25d"
+      },
+      "dokployDeploymentId": "diqwRO7dBx5-2AysfHNG2",
+      "noRebuild": true,
+      "databaseMutation": false,
+      "cloudflareOrWafChange": false,
+      "rollbackImageId": "sha256:4f5e2a3ae63629a85f1463f778a7548b8cf53b758b881cb417e5d84f34276ffa",
+      "olderRollbackImageRetained": "sha256:5b7d9171d9633c132766c65abd934c791787693a72b7f016bcd1408097dedadd",
+      "rollbackArgv": [
+        "/usr/bin/python3",
+        "/tmp/babysit/mint-queue/youtube-deploy-b4afbd8f-v2.py",
+        "--execute",
+        "--rollback"
+      ],
+      "noCleanupOfRetainedArtifacts": true,
+      "routeComplete": false,
+      "wholeRouteApproval": false,
+      "pendingFormalAcceptance": [
+        "/keywords noise exclusions including Yahoo/合作媒體",
+        "390px full keyword names",
+        "homepage",
+        "/mayor",
+        "opt-out observed Google requests0"
+      ],
+      "limitations": "Postdeploy HTTP checks do not prove browser GA behavior or hidden/account state correctness. Candidate static and technical review only; remaining routes/states pending."
+    }
+  },
+  "currentProductionRuntime20261014": {
+    "appSha": "d019ae69e922ba8530b7af8c98ae5e200138942a",
+    "imageId": "sha256:b4afbd8f7a1c43c3c3445e4996f16841a242ed2b802b30fbffa68a5ea7d43d4d",
+    "buildId": "jdR1KzOv-6QylI10uKIQV",
+    "services": {
+      "youtube-board-ts-6oukfq_web": {
+        "desiredImage": "sha256:b4afbd8f7a1c43c3c3445e4996f16841a242ed2b802b30fbffa68a5ea7d43d4d",
+        "replicas": 1,
+        "updateState": "completed",
+        "updateStartedAt": "2026-10-14T11:51:36.342268273Z",
+        "updateCompletedAt": "2026-10-14T11:52:18.898451572Z",
+        "runningContainers": [
+          {
+            "containerId": "e9d282c6caa6cd027eb4218e1cda9ee12a238ecb47726ba1cced7b3fee200ece",
+            "image": "sha256:b4afbd8f7a1c43c3c3445e4996f16841a242ed2b802b30fbffa68a5ea7d43d4d",
+            "health": "healthy",
+            "startedAt": "2026-10-14T11:51:36.660132727Z",
+            "buildId": "jdR1KzOv-6QylI10uKIQV"
+          }
+        ]
+      },
+      "youtube-board-ts-6oukfq_account-maintenance": {
+        "desiredImage": "sha256:b4afbd8f7a1c43c3c3445e4996f16841a242ed2b802b30fbffa68a5ea7d43d4d",
+        "replicas": 1,
+        "updateState": "completed",
+        "updateStartedAt": "2026-10-14T11:51:36.336974215Z",
+        "updateCompletedAt": "2026-10-14T11:51:51.311116927Z",
+        "runningContainers": [
+          {
+            "containerId": "a249a435ed6f8517e67519adb9ce9b7c5a4f90a53d21c8f1d4ea7a0abe5a3082",
+            "image": "sha256:b4afbd8f7a1c43c3c3445e4996f16841a242ed2b802b30fbffa68a5ea7d43d4d",
+            "health": "healthy",
+            "startedAt": "2026-10-14T11:51:40.194200685Z",
+            "buildId": "jdR1KzOv-6QylI10uKIQV"
+          }
+        ]
+      }
+    },
+    "recordedAt": "2026-10-14T11:55:29.781279+00:00",
+    "productionVisualAcceptance": "pending babysit; old productionReviewSHA evidence not promoted"
   }
 }

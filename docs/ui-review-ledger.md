@@ -1,5 +1,7 @@
 # UI review ledger
 
+> Current runtime (2026-10-14): APP d019ae69 / image b4afbd8f / BUILD_ID jdR1KzOv-6QylI10uKIQV is deployed; both TS services healthy. Formal babysit browser acceptance remains pending. Earlier freeze/Mint/executor plans below are historical; current build/capture policy uses SM + native arm64 skyhong-blog, simple build, three-sample median gates. No full UI route acceptance is claimed.
+
 ## 解凍後單一候選與重拍清單
 
 操作計畫：[f2-single-candidate-after-thaw.md](../platform/docs/f2-single-candidate-after-thaw.md)。
@@ -758,3 +760,12 @@ Request `/tmp/babysit/mint-queue/youtube-deploy-b4afbd8f-request-ready.json` SHA
 
 
 Independent readiness addendum PASS: `/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/readiness-addendum-appd019ae69-20261014T084154Z/review.json` SHA256 `d6f600f18cf944cca7c998e12bae8124b8bb3d5b656a26bc176dd2738ca138e8`, transcript SHA256 `55da212f998c68f3bad64bf4fd05df8a5db70b3c4964edffbe5365181a39fc18`. Core technical+home/keywords scoped review passed; K01 closed and RSC T01 resolved by same-image separate-container actual evidence. Original failed receipts/limitations unchanged; routeComplete=false. Final deployment request v2 `/tmp/babysit/mint-queue/youtube-deploy-b4afbd8f-request-ready-v2.json` SHA256 `b795ad5d13a4d02ec40a1bb27b1d455761f82f9efe87af376f2827e411943503` adds this immutable addendum only; executable command and artifact unchanged. Supersedes unexecuted request-ready; pending babysit approval and fresh recheck at execution.
+
+
+## Production deployment — 2026-10-14 UTC 11:52
+
+Babysit approved exact request b795ad5d. Owner d7967e77 deployed the SAME reviewed arm64 image `sha256:b4afbd8f7a1c43c3c3445e4996f16841a242ed2b802b30fbffa68a5ea7d43d4d` (APP d019ae69, OPS recipe51dc9de1, BUILD_ID `jdR1KzOv-6QylI10uKIQV`) through Dokploy compose.update then compose.deploy. No rebuild or migration. Private0600 config backup saved before mutation. Web update completed11:52:18.898UTC; account-maintenance completed11:51:51.311UTC. Actual running containers both1/1 healthy with matching BUILD_ID/image. Dokploy deployment diqwRO7dBx5-2AysfHNG2 done; compose matches pinned candidate and environment/command/autodeploy settings unchanged.
+
+Predeploy fresh passed (SM medians tag0.387/blog4.958/YT0.239seconds); postdeploy passed(tag0.344/blog3.562/YT0.207). Anonymous DNT1/Sec-GPC1 GET /, /keywords, /mayor all200, no Set-Cookie, CSP present. HTTP checks do not prove browser Google behavior. Public homepage was CF HIT, keywords/mayor DYNAMIC; runtime identity is independently verified in containers, not inferred from cached HTML. Both rollback images4f5e2a3a and5b7d9171 retained, no release/backup/worktree cleanup. Persistent rollback command `/usr/bin/python3 /tmp/babysit/mint-queue/youtube-deploy-b4afbd8f-v2.py --execute --rollback`; immediate service rollback available.
+
+Deployment receipt `/tmp/babysit/mint-queue/youtube-b4afbd8f-production-deployment-result.json` SHA256 `abd16ea78d142a34829040ee4ace954db0e0a635dd0a11c5e0eaa36f3ba45bbb`. Formal babysit opt-out browser acceptance pending: noise exclusions Yahoo/合作媒體, complete mobile terms, homepage, mayor, observed GA0. Whole routes/auth/interactions/loading/error/backend counts remain pending; no full-route pass. Existing earlier candidate failures/reviews/images preserved.
