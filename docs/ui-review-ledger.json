@@ -37549,6 +37549,83 @@
     "candidateApproval": false,
     "routeComplete": false,
     "productionImage": "sha256:4f5e2a3ae63629a85f1463f778a7548b8cf53b758b881cb417e5d84f34276ffa",
-    "productionMutated": false
+    "productionMutated": false,
+    "failedCapture": {
+      "appSha": "0f1e109642465119a231407d14e5f18a0fe58e44",
+      "buildId": "s71TZ-9NEbXnwxLAwH-gT",
+      "retainedArtifacts": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app0f1e1096-home-20261014-successor01-v12/run-acd8cc07-2f4c-4296-9b51-632f0517e2f5",
+      "pngCount": 16,
+      "completedViewportPackages": 0,
+      "capturesManifestPresent": false,
+      "scope": "partial home/today/light desktop+mobile only; keywords not run",
+      "networkAcceptance": {
+        "desktop": true,
+        "mobile": false
+      },
+      "mobileFailure": "numeric daily-event RSC400; inflight1/terminal unknown; request settlement failed",
+      "http5xxCount": 0,
+      "googleAttempts": 0,
+      "googleResponses": 0,
+      "DNT": "1",
+      "GPC": true,
+      "candidateApproval": false,
+      "routeComplete": false,
+      "productionMutated": false,
+      "cleanup": "owned candidate and tunnel removed; remote18168 closed; formal services healthy/unchanged4f5e2a3a",
+      "evidence": [
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app0f1e1096-home-20261014-successor01-v12/run-acd8cc07-2f4c-4296-9b51-632f0517e2f5/home-today-light-0f1e1096-mobile-requests.json",
+          "sha256": "1c82dd63cf49704167f0dcb3e6019c5dccb01ac22c68d14ab738e4ce4b8c9822"
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app0f1e1096-home-20261014-successor01-v12/run-acd8cc07-2f4c-4296-9b51-632f0517e2f5/home-today-light-0f1e1096-desktop-requests.json",
+          "sha256": "4856b5f37ad06a03ed32b018700e63e50b1d495ad692f2c79408f9dcc4bcb4ba"
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app0f1e1096-home-20261014-successor01-v12/run-acd8cc07-2f4c-4296-9b51-632f0517e2f5/home-today-light-0f1e1096-mobile-failure-diagnostics.json",
+          "sha256": "03e50881bb164e61ad1f4cc59fa7ca58b31654a339f9e389e4c514c11efcf89f"
+        },
+        {
+          "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/app0f1e1096-home-20261014-successor01-v12/run-acd8cc07-2f4c-4296-9b51-632f0517e2f5/home-today-light-0f1e1096-desktop-failure-diagnostics.json",
+          "sha256": "0d0ccd32693f56b9c32d2707295054abeab10f528b48719ca05b5da2075dfa2c"
+        },
+        {
+          "path": "/tmp/babysit/mint-queue/youtube-successor01-home-execution.json",
+          "sha256": "b10468d07dbb7e77d6e711240b0c2961678bbf9e3a2deebf73e1ebe2b2dfc643"
+        },
+        {
+          "path": "/tmp/babysit/mint-queue/youtube-successor01-cleanup.json",
+          "sha256": "6932a9fddd29c394ca835d3b7c9fb6399ea9e0ecce4a7b0155f1270d9c0deed6"
+        },
+        {
+          "path": "/tmp/babysit/mint-queue/youtube-successor01-tunnel-cleanup.json",
+          "sha256": "427c583048e19a409fa39b4646fedb669d5a6278d4b8e189ee82c0453a3d7485"
+        },
+        {
+          "path": "/tmp/babysit/mint-queue/youtube-successor01-home-ai-link-shapes.json",
+          "sha256": "c67b9b0a49818798dd93d5c747dc33b399863313f6f0c3372067fc9ec3c49507"
+        },
+        {
+          "path": "/tmp/babysit/mint-queue/youtube-successor01-real-href-rsc-diagnostic.json",
+          "sha256": "9ded617412756fa90480e536fc76a58ab096ab3244765206410a2bcc11956308"
+        }
+      ],
+      "mechanismAssessment": {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/numeric-ai-next-prefetch-mechanism-independent-source-analysis-20261014T065859Z.json",
+        "sha256": "6263c2582b3b87f1fc5c6458c842453976ce5adb1a8467bf6b569a483606fe5a",
+        "model": "gpt-6.1-sol",
+        "reviewer": "/root/capture_source_review",
+        "reviewedAt": "2026-10-14T06:58:59Z",
+        "conclusion": "Installed Next16.3.8 separately prefetches queryless optimistic route tree; valid sampled homepage event hrefs preserve queries. Captured redacted query and unfinished lifecycle cause remain unproven."
+      },
+      "sourceSuccessor": {
+        "appSha": "9db8a3094e62e78d9627e3f5d8b579e04b9d27fa",
+        "change": "scoped false|undefined prefetch policy on numeric daily-event report links; click URLs and request/cache guards preserved",
+        "webTestsPassed": 296,
+        "typecheck": "noEmit passed",
+        "independentSourceReview": "pending",
+        "runtimeRetest": "pending"
+      }
+    }
   }
 }
