@@ -1,0 +1,46 @@
+# Native arm64 build from the reviewed APP073 context and verified local base.
+# Pin the local base tag's image ID immediately before docker build; never pull.
+ARG BASE_IMAGE=youtube-board-ts:f2-verified-base
+FROM ${BASE_IMAGE} AS build
+WORKDIR /opt/youtube-board/platform
+COPY platform/package.json platform/package-lock.json ./
+COPY platform/api/package.json api/package.json
+COPY platform/web/package.json web/package.json
+COPY platform/jobs/package.json jobs/package.json
+COPY platform/ingestion/package.json ingestion/package.json
+COPY platform/ai/package.json ai/package.json
+COPY platform/notifications/package.json notifications/package.json
+ENV NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS=--max-old-space-size=768 UV_THREADPOOL_SIZE=2 RAYON_NUM_THREADS=2
+RUN node -e 'if(process.arch!=="arm64"||process.version.split(".")[0]!=="v24"||process.versions.modules!=="137")process.exit(1)'
+RUN nice -n 19 ionice -c3 npm ci --include=dev --no-audit --no-fund
+COPY platform/ ./
+# APP073 next.config.ts fixes experimental.cpus=2. No API/DB credentials are
+# passed into the build; dynamic report pages are rendered only at runtime.
+RUN nice -n 19 ionice -c3 /bin/sh -ec 'mkdir -p web/public; npm run typecheck; ./node_modules/.bin/tsc -p runtime/tsconfig.json; npm run build --workspace=@youtube-board/web; test -s web/.next/BUILD_ID; test -f web/.next/standalone/web/server.js'
+
+FROM ${BASE_IMAGE} AS runtime
+ARG APP_SHA=073985b8bc4bbcc9ffb5d43c1e1a26060bb8ac4a
+ARG OPS_SHA
+LABEL org.opencontainers.image.revision=${APP_SHA} tw.observe.build.ops-sha=${OPS_SHA}
+# A new runtime tree prevents COPY merging a new build into old /app chunks.
+WORKDIR /opt/youtube-board/platform
+COPY --from=build --chown=node:node /opt/youtube-board/platform/node_modules ./node_modules
+COPY --from=build --chown=node:node /opt/youtube-board/platform/api ./api
+COPY --from=build --chown=node:node /opt/youtube-board/platform/jobs ./jobs
+COPY --from=build --chown=node:node /opt/youtube-board/platform/ingestion ./ingestion
+COPY --from=build --chown=node:node /opt/youtube-board/platform/ai ./ai
+COPY --from=build --chown=node:node /opt/youtube-board/platform/notifications ./notifications
+COPY --from=build --chown=node:node /opt/youtube-board/platform/shared ./shared
+COPY --from=build --chown=node:node /opt/youtube-board/platform/runtime ./runtime
+COPY --from=build --chown=node:node /opt/youtube-board/platform/inventory ./inventory
+COPY --from=build --chown=node:node /opt/youtube-board/platform/package.json /opt/youtube-board/platform/package-lock.json /opt/youtube-board/platform/tsconfig.base.json ./
+COPY --from=build --chown=node:node /opt/youtube-board/platform/web/.next/standalone ./web/.next/standalone
+COPY --from=build --chown=node:node /opt/youtube-board/platform/web/.next/static ./web/.next/standalone/web/.next/static
+COPY --from=build --chown=node:node /opt/youtube-board/platform/web/public ./web/.next/standalone/web/public
+COPY --from=build --chown=node:node /opt/youtube-board/platform/web/.next/BUILD_ID ./web/.next/BUILD_ID
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=8000 RUNTIME_ROLE=web
+USER node
+EXPOSE 8000
+HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=3 CMD ["node", "runtime/healthcheck.mjs"]
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["node", "runtime/launcher.mjs", "web"]

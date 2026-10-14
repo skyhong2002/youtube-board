@@ -37137,11 +37137,7 @@
     "productionFixed": false,
     "candidateApproval": false,
     "status": "pending-build-and-primary-page-candidate-review",
-    "remainingLaunchIntegration": [
-      "SM current grant and heartbeat controller",
-      "owned bootstrap/startup admission barrier release after guardian verification",
-      "terminal packaging proof"
-    ],
+    "remainingLaunchIntegration": [],
     "runtimeSourceDelta": "4c79649 + 5c30778; independent review pending",
     "priorSourceReviewsReadBack": [
       {
@@ -37172,7 +37168,14 @@
       "finding": "RW1: unbounded stdout backpressure delays STOP",
       "sourceFix": "bd74c93",
       "tests": "13 adapter mocks pass, main-level backpressure reproduction now pauses before second input",
-      "status": "source-fixed-awaiting-independent-review"
+      "status": "source-only-pass-RW1-resolved; unused by explicit user decision",
+      "fixReview": {
+        "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/native-runtime-watch-RW1-fix-independent-source-review-20261014T034917Z.json",
+        "sha256": "f1ba54d42d3cc7fe2b4e070ef4dd72ced6181410a3bfc14b84624ded54a3547b",
+        "verdict": "source-only-pass",
+        "mocks": 13,
+        "independentChecks": 71
+      }
     },
     "barrierSourceReview": {
       "verdict": "source-only-pass",
@@ -37182,6 +37185,15 @@
       "tests": 6,
       "executionApproved": false
     },
-    "reviewedRegressionPushedSHA": "249d9d1a624000207fd156b2b93b0e5d481b0692"
+    "reviewedRegressionPushedSHA": "249d9d1a624000207fd156b2b93b0e5d481b0692",
+    "executionMethodOverride": {
+      "origin": "explicit-user-decision-20261014",
+      "method": "native nice/ionice docker build; manually observe every 1-2 minutes; cancel own build client on any gate failure",
+      "customWatchdogUsed": false,
+      "customBootstrapUsed": false,
+      "compilerBarrierUsed": false,
+      "pauseResumeUsed": false,
+      "notes": "Prior custom execution layers are retained but not required by this run. Exact command/fresh probe approval remains required."
+    }
   }
 }

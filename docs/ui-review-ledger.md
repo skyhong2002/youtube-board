@@ -624,3 +624,14 @@ PASS is recorded with6 shell/mocks. Runtime-watch4c79649 review foundRW1
 nonblocking1s/cap4096 output, physical pause before bounded cleanup diagnostics;
 13 adapter mocks pass, independent fix review pending. Reviewed regression
 249d9d1 was pushed and remote SHA checked. None of this is UI acceptance.
+
+## Explicit user execution simplification (2026-10-14)
+
+Use one native nice/ionice Docker build and manual resource/site checks every
+1–2 minutes; cancel only our build client on a failed gate. Do not integrate or
+use the retained watchdog/cgroup/bootstrap/barrier/pause-resume tools this run.
+RW1 fixbd74c93 was already independently source-only PASS at03:49:17Z (receipt
+f1ba54d42d3cc7fe2b4e070ef4dd72ced6181410a3bfc14b84624ded54a3547b).
+Its remaining integration notes are superseded for this run by explicit user
+instruction. This does not change privacy, resource gates or UI acceptance.
+Exact simple Docker command plus fresh probe goes to babysit before starting.
