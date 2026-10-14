@@ -39124,5 +39124,26 @@
       "rollback immediately if production breaks"
     ],
     "note": "Supersedes older per-command babysit approval text in retained historical packets; withdrawn manual-list-only build is still withdrawn because of the changed product direction."
+  },
+  "f1PublicIntegration20261014": {
+    "appSha": "78df4fd87f2df2c115512831372869276fa250df",
+    "branch": "codex/f1-public-integration",
+    "sourceReview": {
+      "status": "PASS_SOURCE_ONLY",
+      "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/f1-illustration-78df4fd-independent-source-review-20261014T141912Z.json",
+      "sha256": "f11dc0bf1de8c6183737b7e7cfe31eaf63b9558bba534d51df0a15342896c6bf",
+      "independentPassed": 149
+    },
+    "tests": {
+      "fullWebPassed": 303,
+      "apiWebNoEmit": "pass"
+    },
+    "liveAdapter": {
+      "path": "/tmp/babysit/mint-queue/youtube-f1-live-adapter-78df4fd-1791987535536.json",
+      "sha256": "b7991f63734b273a2e01251a4b2ccef7d487c5b68d202731af873ee902c56007"
+    },
+    "candidateVisualReview": "pending",
+    "deployment": "pending",
+    "primaryRankedPoolFinding": "OPEN; upstream complete exact-window contract needed"
   }
 }

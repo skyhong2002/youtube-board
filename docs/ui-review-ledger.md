@@ -819,3 +819,12 @@ contract. This is a data dependency, not a build-admission wait. d4 manual-only
 build remains withdrawn for product scope, not for missing command permission.
 An earlier document-review request has no returned text in this session and
 is not counted as PASS or used as a gate for this documentation update.
+
+
+## F1 public relations and maintained pictures — source ready
+
+APP `78df4fd87f2df2c115512831372869276fa250df` pushed on `codex/f1-public-integration`, derived from current production d019ae69. This independent release excludes withdrawn d4 manual generic-pool changes. Tag upstream APP aff5c028 / BUILD_ID d1LVsC3sk6p04uOyWUx5T is live; YT explicit anonymous mode reads fixed tag endpoints with DNT/GPC, never forwards visitor credentials, and keeps downstream metadata/images private,no-store. Empty relation groups and missing pictures say 尚未收錄. Same-origin bounded image proxy sanitizes SVG and preserves attribution; aliases do not merge metrics.
+
+Existing nonauthor reviewer PASS_SOURCE_ONLY, 149/149 offline tests: `/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/f1-illustration-78df4fd-independent-source-review-20261014T141912Z.json` SHA256 `f11dc0bf1de8c6183737b7e7cfe31eaf63b9558bba534d51df0a15342896c6bf`. Owner exact-source full web303/303 and API/web noEmit exit0. Actual public adapter reads柯文哲 (1 relation, avatar11920bytes) and沈伯洋 (4 relations, avatar15034bytes): `/tmp/babysit/mint-queue/youtube-f1-live-adapter-78df4fd-1791987535536.json` SHA256 `b7991f63734b273a2e01251a4b2ccef7d487c5b68d202731af873ee902c56007`. Public adapter checks are not candidate or visual acceptance.
+
+Build packet prepared for simple native arm64 recipe51dc9de1, Node24.21.0/ABI137, nice19/ionice3/workers2. Source context6.88MiB, estimated extra6GiB/3–10min. New candidate/visual review/deployment pending; current production remains b4afbd8f / jdR1KzOv-6QylI10uKIQV. New deployment rollback must restore b4afbd8f and current persistent compose, preserving4f/5b. Primary filtered today/week ranking pool remains an upstream dependency and OPEN; this F1 release does not close the generic-word finding.
