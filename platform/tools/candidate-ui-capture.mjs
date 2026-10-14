@@ -8,7 +8,7 @@ import {startCaptureProxy} from '/home/deck/.cache/youtube-ui-review/ui_ledger-2
 import {createNetworkRecorder,installNetworkGuard,waitForNetworkSettlement} from '/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/profile72-capture-tools/capture-network-v10.mjs';
 import {snapshotDOMState,captureCoherentBuffer,imageParts} from '/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/profile72-capture-tools/capture-coherence.mjs';
 const [identityPath,out,planPath]=process.argv.slice(2);assert(identityPath&&out&&planPath);
-const plan=JSON.parse(await readFile(planPath,'utf8'));assert(Array.isArray(plan)&&plan.length>0&&plan.length<=6);assert.equal(new Set(plan.map(i=>i.key)).size,plan.length);assert(plan.every(i=>/^[a-z0-9-]+$/.test(i.key)&&['/','/keywords','/groups','/live/current'].includes(i.routePath)&&[null,'today','week'].includes(i.window)&&['light','dark'].includes(i.theme)));
+const plan=JSON.parse(await readFile(planPath,'utf8'));assert(Array.isArray(plan)&&plan.length>0&&plan.length<=6);assert.equal(new Set(plan.map(i=>i.key)).size,plan.length);assert(plan.every(i=>typeof i.key==='string'&&/^[a-z0-9-]+$/.test(i.key)&&['/','/keywords','/groups','/live/current'].includes(i.routePath)&&[null,'today','week'].includes(i.window)&&['light','dark'].includes(i.theme)));
 const identity=JSON.parse(await readFile(identityPath,'utf8'));
 assert.match(identity.appSha,/^[a-f0-9]{40}$/);assert.match(identity.image,/^sha256:[a-f0-9]{64}$/);assert.match(identity.buildId,/^[A-Za-z0-9_-]+$/);
 assert(identity.verified&&identity.containerId);
