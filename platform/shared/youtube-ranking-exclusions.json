@@ -93,7 +93,10 @@
     "中美",
     "全台",
     "綠營",
-    "藍營"
+    "藍營",
+    "民眾黨",
+    "台灣民眾黨",
+    "臺灣民眾黨"
   ],
   "refillAudit": {
     "source": "youtube-ranked-pools-querydiag-union-result.json",
@@ -102,7 +105,8 @@
     "note": "Supplement the qualified pool with exact general actions, abstract framing and unspecified roles observed among replenished first200. Concrete topics and named people remain eligible; unapproved media names remain pending.",
     "ambiguousRetainedTerms": [
       "巨大"
-    ]
+    ],
+    "partySupplement": "民眾黨 observed in retained first200; full party-name 台灣/臺灣 variants share existing user country/city/party exclusion authorization"
   },
   "genericContextTerms": [
     "主持人",

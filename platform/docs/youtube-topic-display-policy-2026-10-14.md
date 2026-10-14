@@ -60,7 +60,7 @@ contained 10 short and at least 200 weekly matched qualified groups. Its checksu
 is pinned in `youtube-ranking-exclusions.json`. The refill audit derives ranking
 order from retained heat, video count and group key; it neither crawls nor writes
 production data. Audit output:
-`/tmp/babysit/mint-queue/youtube-ranked-pools-refill-audit-final-20261015.json`.
+`/tmp/babysit/mint-queue/youtube-ranked-pools-refill-audit-party-final-20261015.json`.
 
 Supplemental generic exclusions are exact, observed general actions, abstract
 framing or unspecified roles/background; they are not a broad two-character
@@ -85,3 +85,8 @@ eligible as a named compound.
 
 The earlier `youtube-ranked-pools-refill-audit-20261015.json` is preserved as
 the pre-media-authorization/pre-ambiguity-correction audit, not the final result.
+
+Final top200 check also found 民眾黨 absent from the pinned no-equal list.
+The authorized party exclusion therefore supplements exact 民眾黨 and its
+台灣民眾黨/臺灣民眾黨 names. Compounds naming a concrete issue are not substring
+filtered. This follows the existing country/city/party exclusion decision.
