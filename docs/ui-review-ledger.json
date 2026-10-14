@@ -39308,10 +39308,11 @@
     }
   ],
   "f1ProfileFollowup20261014": {
-    "appSha": "b3d48a75915e69ef077caee5ef222e34101acbaa",
+    "appSha": "72cb81699088276215cc5ca8604feb07544a07aa",
     "commits": [
       "e8db3b215cb3f7203193cf29c9902696de3679d0",
-      "b3d48a75915e69ef077caee5ef222e34101acbaa"
+      "b3d48a75915e69ef077caee5ef222e34101acbaa",
+      "72cb81699088276215cc5ca8604feb07544a07aa"
     ],
     "sourceChanges": [
       "page-top relations next to compact illustration before video list",
@@ -39322,25 +39323,39 @@
       "hard deadline cancels body and keeps completed metadata branch"
     ],
     "tests": {
-      "fullWebPassed": 312,
+      "fullWebPassed": 313,
       "fullWebFailed": 0,
       "webTypecheck": "exit0"
     },
     "sourceReview": "pending existing reviewer recheck",
-    "build": "pending resource start gate",
+    "build": "pending resource gate: load22.9 and tag/blog health/time failures",
     "candidate": "pending",
     "visualReview": "pending",
     "deployment": "pending",
-    "request": "/tmp/babysit/mint-queue/youtube-simple-native-b3d48a7-request.json",
+    "request": "/tmp/babysit/mint-queue/youtube-simple-native-72cb816-request.json",
     "freshProbe": {
-      "path": "/tmp/babysit/mint-queue/youtube-f1-top-e8db3b2-preflight.json",
-      "sha256": "9656e02634ae659d245caccbe0c4d4facd1d28e21694caf96ed38d0120e6afc6",
-      "at": "2026-10-14T15:23:33.764436+00:00",
+      "path": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-preflight.json",
+      "sha256": "55cd567362f93d9483343c28b9edab1fa238aa697925356d140ed7e1465b06b4",
+      "at": "2026-10-14T15:33:15.362621+00:00",
       "ok": false,
       "reasons": [
-        "SM.disk:start-floor-40-GiB"
+        "SM.fresh:sample-age-zero-to-30-seconds",
+        "SM.load:maximum-load-12",
+        "SM.tag.http:every-attempt-curl-zero-and-HTTP-200-required",
+        "SM.tag.time:SM-three-attempt-median-within-baseline-gate",
+        "SM.blog.http:every-attempt-curl-zero-and-HTTP-200-required",
+        "SM.blog.time:SM-three-attempt-median-within-baseline-gate",
+        "skyhong-blog.fresh:sample-age-zero-to-30-seconds",
+        "skyhong-blog.tag.http:every-attempt-curl-zero-and-HTTP-200-required",
+        "skyhong-blog.blog.http:every-attempt-curl-zero-and-HTTP-200-required"
       ],
-      "smFreeGiB": 39.818
+      "smFreeGiB": 40.384,
+      "load1": 22.9013671875,
+      "smMedians": {
+        "tag": 6.683248,
+        "blog": 15.000278,
+        "youtube": 0.243025
+      }
     },
     "productionUnchanged": {
       "image": "sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38",
