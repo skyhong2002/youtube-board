@@ -37657,5 +37657,32 @@
         "findings": "Mobile metric wrap; cloud words outside top8 ranking semantic ambiguity; small metadata readability risk. Period controls and visible windows agree. Source explanation under independent followup; no original receipt overwrite."
       }
     }
+  },
+  "nativePrefetchSuccessorBuild20261014": {
+    "imageId": "sha256:d2e7e7bb0f5e153d1d034c08f2d54ca3f9231df20830883bd29a0f5485d8ad4e",
+    "architecture": "arm64",
+    "os": "linux",
+    "sizeBytes": 1390939747,
+    "layerCount": 108,
+    "labels": {
+      "org.opencontainers.image.revision": "9db8a3094e62e78d9627e3f5d8b579e04b9d27fa",
+      "tw.observe.build.ops-sha": "51dc9de1a20e73c428d4e9588fa8d5243643c742"
+    },
+    "actualTag": "youtube-board-ts:f2-9db8a309-20261014t070523z",
+    "build": {
+      "startedAt": "2026-10-14T07:09:50.775203+00:00",
+      "finishedAt": "2026-10-14T07:12:26.498250+00:00",
+      "exitCode": 0,
+      "logPath": "/home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/yt-f2-simple-20261014t070523z/approved-simple-build.log",
+      "logSha256": "f4f92b7eb9e5c044e4c14f4bb29156331153efb8228c969942f9123285c7fd55"
+    },
+    "owner": "d7967e77",
+    "resultPath": "/tmp/babysit/mint-queue/youtube-simple-native-9db8a309-result.json",
+    "resultSha256": "e20ed3b8890e639f02ec25b5d1a392a4aae61fb72329fa2d0ac27da1b4d7b62f",
+    "buildSlotReturnedAt": "2026-10-14T07:12:26.498250+00:00",
+    "nativeSmoke": "pending",
+    "candidateApproval": false,
+    "routeComplete": false,
+    "productionMutated": false
   }
 }
