@@ -36930,7 +36930,7 @@
     "appSha": "073985b8bc4bbcc9ffb5d43c1e1a26060bb8ac4a",
     "opsSha": "51dc9de1a20e73c428d4e9588fa8d5243643c742",
     "sourceIndependentReview": "pass",
-    "candidateBuildId": null,
+    "candidateBuildId": "04qbMMfQHdbJk0ZnbO_HQ",
     "candidateManifest": null,
     "candidateApproval": false,
     "uiAccepted": false,
@@ -37001,7 +37001,7 @@
     "mustPersistDokploySuccessorComposeBeforeDeployment": true,
     "rollbackImageBeforeF2": "sha256:4f5e2a3ae63629a85f1463f778a7548b8cf53b758b881cb417e5d84f34276ffa",
     "candidateImageId": "sha256:15c7af2d4a509c65543826f354055152ccab4e17b1b3cec88908195b7da11ce8",
-    "nativeSmoke": "awaiting exact-command check"
+    "nativeSmoke": "pass"
   },
   "productionDeploymentHistory": [
     {
@@ -37217,7 +37217,48 @@
     "buildLog": "/home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/yt-f2-simple-20261014t044808z/approved-simple-build.log",
     "buildLogSha256": "364f9d9e2862544258049f13d7d8fc48a2fe4ff0e08921ff4fe8bcb87f915929",
     "buildSlotReturned": true,
-    "nativeSmoke": "pending-babysit-command-check",
+    "nativeSmoke": {
+      "status": "pass",
+      "extent": "no-network native artifact smoke only; not UI or production acceptance",
+      "receiptPath": "/home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/yt-f2-simple-20261014t044808z/native-smoke-result-20261014T050408310380Z.json",
+      "receiptSha256": "5bb0c8218b7903f1cf15a42405d14ac2bbaf19d375f61678666ffc5b2f04b51a",
+      "postcheckPath": "/home/deck/.cache/youtube-ui-review/remote_build-2026-10-13/yt-f2-simple-20261014t044808z/native-smoke-postcheck-20261014T050408310380Z.json",
+      "postcheckSha256": "4a82864d135042d1674591374f7e8df35b6c20ee68e45d6d7022be51cd5e0323",
+      "result": {
+        "platform": "linux",
+        "arch": "arm64",
+        "node": "v24.21.0",
+        "abi": "137",
+        "glibcRuntime": "2.36",
+        "sharp": "0.35.5",
+        "sharpPath": "/opt/youtube-board/platform/node_modules/sharp/dist/index.cjs",
+        "webpBytes": 44,
+        "buildId": "04qbMMfQHdbJk0ZnbO_HQ",
+        "traceBuildId": "04qbMMfQHdbJk0ZnbO_HQ",
+        "versions": {
+          "next": {
+            "source": "16.3.8",
+            "traced": "16.3.8"
+          },
+          "react": {
+            "source": "19.2.8",
+            "traced": "19.2.8"
+          },
+          "react-dom": {
+            "source": "19.2.8",
+            "traced": "19.2.8"
+          }
+        },
+        "serverSha256": "13de5f37fcb08d9ed2601dc919b655c25baedc17e53d2b2b621e25d2557482c2",
+        "manifests": {
+          "build-manifest.json": "90a6fe8db825b4e63856ec073877e6d41373e2b76d8b5231b0bd6cd11a7e1835",
+          "routes-manifest.json": "73aba4d6f7e3f99e9892ad6c2294439b35d35397477691331dd63a7e3b41f101",
+          "prerender-manifest.json": "bc3296ed21589449a4ecbbc8d828c6034becca5047070195ea9739bf516d97df"
+        },
+        "network": "none",
+        "sourceWrites": false
+      }
+    },
     "candidateApproval": false,
     "deploymentCompleted": false,
     "productionImageRetained": "sha256:4f5e2a3ae63629a85f1463f778a7548b8cf53b758b881cb417e5d84f34276ffa",
