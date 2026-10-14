@@ -39306,5 +39306,68 @@
         "wholeRouteApproval": false
       }
     }
-  ]
+  ],
+  "f1ProfileFollowup20261014": {
+    "appSha": "b3d48a75915e69ef077caee5ef222e34101acbaa",
+    "commits": [
+      "e8db3b215cb3f7203193cf29c9902696de3679d0",
+      "b3d48a75915e69ef077caee5ef222e34101acbaa"
+    ],
+    "sourceChanges": [
+      "page-top relations next to compact illustration before video list",
+      "concurrent server metadata; private no-store without visitor credential forwarding",
+      "eager96px image in initial HTML",
+      "same-keyword refresh adopts latest server data while preserving retries and longest Retry-After",
+      "canonical SEO/breadcrumb preserved; query variants remain noindex",
+      "hard deadline cancels body and keeps completed metadata branch"
+    ],
+    "tests": {
+      "fullWebPassed": 312,
+      "fullWebFailed": 0,
+      "webTypecheck": "exit0"
+    },
+    "sourceReview": "pending existing reviewer recheck",
+    "build": "pending resource start gate",
+    "candidate": "pending",
+    "visualReview": "pending",
+    "deployment": "pending",
+    "request": "/tmp/babysit/mint-queue/youtube-simple-native-b3d48a7-request.json",
+    "freshProbe": {
+      "path": "/tmp/babysit/mint-queue/youtube-f1-top-e8db3b2-preflight.json",
+      "sha256": "9656e02634ae659d245caccbe0c4d4facd1d28e21694caf96ed38d0120e6afc6",
+      "at": "2026-10-14T15:23:33.764436+00:00",
+      "ok": false,
+      "reasons": [
+        "SM.disk:start-floor-40-GiB"
+      ],
+      "smFreeGiB": 39.818
+    },
+    "productionUnchanged": {
+      "image": "sha256:0f70a7ceed3b3b956c9b3b8c2675d6b1896946631073a3d089517adf5e7bed38",
+      "buildId": "hqA5C00BhxMB7igbPaZyL"
+    },
+    "candidatePlan": {
+      "routes": [
+        "/keywords/柯文哲/videos",
+        "/keywords/沈伯洋/videos",
+        "/keywords/尚未收錄測試/videos"
+      ],
+      "widths": [
+        1280,
+        390
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "checks": [
+        "relations precede videos and initial HTML has approved rows",
+        "image eager96px and no client metadata refetch",
+        "anonymous/cookie metadata and profile HTML private no-store",
+        "canonical remains indexable, real-query noindex",
+        "zero GA; DNT1/GPC1; source/build/image in manifest"
+      ]
+    },
+    "genericRankedPool": "pending tag upstream; no manual-only fallback deployed"
+  }
 }

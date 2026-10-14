@@ -864,3 +864,6 @@ Immediatepersistentrollback: `/usr/bin/python3 /tmp/babysit/mint-queue/youtube-f
 
 
 Babysit formal F1 acceptance UTC2026-10-14T15:20:00Z: BUILD_ID hqA5C00BhxMB7igbPaZyL, opt-out GA0, 柯文哲 avatar KP / CC BY-SA4.0 and one approved is-a政治人物 visible. Related/alias 尚未收錄. Scoped acceptance passed; nonblocking followup OPEN: move relations above video list with SSR metadata and reduce initial picture blank/loading. Generic-word correction remains upstream exact-window ranked-pool dependent; no manual-only fallback deployed. Other pending route/state reviews remain pending.
+
+
+F1 profile followup source b3d48a7 (includes e8db3b2): relations and compact eager96px picture before videos, anonymous concurrent server reads/private-no-store, canonical SEO preserved, same-keyword refresh adopts initial results without resetting retry holds, hard deadline cancels response bodies while preserving completed branches. Owner web312/312, tsc noEmit exit0. Existing reviewer recheck pending. Candidate/build/deploy all PENDING; fresh15:23Z probe rejected SM disk39.819GiB (<40). Request `/tmp/babysit/mint-queue/youtube-simple-native-b3d48a7-request.json`. Production remains0f70a7 / hqA5C00BhxMB7igbPaZyL; no new build/capture/deployment. Exact candidate retakes required; old visual passes not transferred.
