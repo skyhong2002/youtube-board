@@ -38114,6 +38114,50 @@
       },
       "buildSlotReturnedAt": "2026-10-14T07:58:19.879916+00:00"
     },
-    "buildSlotReturnedAt": "2026-10-14T07:58:19.879916+00:00"
+    "buildSlotReturnedAt": "2026-10-14T07:58:19.879916+00:00",
+    "nativeSmoke": {
+      "path": "/tmp/babysit/mint-queue/youtube-native-smoke-b4afbd8f-result.json",
+      "sha256": "5d86a8352451e1cda123c42349a6b8b4ffe3b653fcd68bcd525c1f02704db30d",
+      "startedAt": "2026-10-14T07:59:25.983792+00:00",
+      "finishedAt": "2026-10-14T07:59:27.201002+00:00",
+      "exitCode": 0,
+      "result": {
+        "platform": "linux",
+        "arch": "arm64",
+        "node": "v24.21.0",
+        "abi": "137",
+        "glibcRuntime": "2.36",
+        "sharp": "0.35.5",
+        "sharpPath": "/opt/youtube-board/platform/node_modules/sharp/dist/index.cjs",
+        "webpBytes": 44,
+        "buildId": "jdR1KzOv-6QylI10uKIQV",
+        "traceBuildId": "jdR1KzOv-6QylI10uKIQV",
+        "versions": {
+          "next": {
+            "source": "16.3.8",
+            "traced": "16.3.8"
+          },
+          "react": {
+            "source": "19.2.8",
+            "traced": "19.2.8"
+          },
+          "react-dom": {
+            "source": "19.2.8",
+            "traced": "19.2.8"
+          }
+        },
+        "serverSha256": "13de5f37fcb08d9ed2601dc919b655c25baedc17e53d2b2b621e25d2557482c2",
+        "manifests": {
+          "build-manifest.json": "54aaf1306b5b27f4cf8e6ad3aa8f1b96f9fe4a7e83d9259da7ba4d72e0f2c063",
+          "routes-manifest.json": "73aba4d6f7e3f99e9892ad6c2294439b35d35397477691331dd63a7e3b41f101",
+          "prerender-manifest.json": "6bbbf0df0210699db8bcfbeb76fec2dc12f3d1975380dc72bf2cb050d890a890"
+        },
+        "network": "none",
+        "sourceWrites": false
+      }
+    },
+    "nativeSmokeCleanupPath": "/tmp/babysit/mint-queue/youtube-native-smoke-b4afbd8f-cleanup.json",
+    "candidateToolsDeltaPath": "/tmp/babysit/mint-queue/youtube-candidate-b4afbd8f-mobile01-delta.json",
+    "candidateToolsSourceReview": "pending"
   }
 }
