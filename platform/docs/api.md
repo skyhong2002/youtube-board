@@ -485,6 +485,9 @@ Typed report response; additive response fields are permitted.
 | `column` | query | {"type":"string","enum":["publishedAt","viewCount","likeCount","commentCount"]} | Descending order, with source PK as deterministic tie-breaker; default publishedAt. |
 | `from` | query | {"type":"string","format":"date"} | Inclusive Taipei publication date. |
 | `to` | query | {"type":"string","format":"date"} | Inclusive Taipei publication date. |
+| `since` | query | {"type":"string","format":"date-time"} | Exact UTC publication start, inclusive; paired with until. Cannot combine with from/to/days/hours. |
+| `until` | query | {"type":"string","format":"date-time"} | Exact UTC publication end, exclusive; paired with since, past window at most 90 days. |
+| `rankingPool` | query | {"type":"string","enum":["early"]} | For keyword evidence with exact since/until: keep only same-window qualified news labels and display rules. |
 | `hours` | query | {"type":"integer","minimum":1,"maximum":8760} | Relative publication window, evaluated at request time. |
 | `min` | query | {"type":"integer","minimum":0,"maximum":9007199254740991} | Minimum cumulative video views. |
 | `keyword` | query | {"type":"string","minLength":1,"maxLength":240} | Exact maintained content term; not a taxonomy ID. |
@@ -507,6 +510,9 @@ Typed report response; additive response fields are permitted.
 | `column` | query | {"type":"string","enum":["publishedAt","viewCount","likeCount","commentCount"]} | Descending order, with source PK as deterministic tie-breaker; default publishedAt. |
 | `from` | query | {"type":"string","format":"date"} | Inclusive Taipei publication date. |
 | `to` | query | {"type":"string","format":"date"} | Inclusive Taipei publication date. |
+| `since` | query | {"type":"string","format":"date-time"} | Exact UTC publication start, inclusive; paired with until. Cannot combine with from/to/days/hours. |
+| `until` | query | {"type":"string","format":"date-time"} | Exact UTC publication end, exclusive; paired with since, past window at most 90 days. |
+| `rankingPool` | query | {"type":"string","enum":["early"]} | For keyword evidence with exact since/until: keep only same-window qualified news labels and display rules. |
 | `hours` | query | {"type":"integer","minimum":1,"maximum":8760} | Relative publication window, evaluated at request time. |
 | `min` | query | {"type":"integer","minimum":0,"maximum":9007199254740991} | Minimum cumulative video views. |
 | `keyword` | query | {"type":"string","minLength":1,"maxLength":240} | Exact maintained content term; not a taxonomy ID. |
@@ -529,6 +535,9 @@ Typed report response; additive response fields are permitted.
 | `column` | query | {"type":"string","enum":["publishedAt","viewCount","likeCount","commentCount"]} | Descending order, with source PK as deterministic tie-breaker; default publishedAt. |
 | `from` | query | {"type":"string","format":"date"} | Inclusive Taipei publication date. |
 | `to` | query | {"type":"string","format":"date"} | Inclusive Taipei publication date. |
+| `since` | query | {"type":"string","format":"date-time"} | Exact UTC publication start, inclusive; paired with until. Cannot combine with from/to/days/hours. |
+| `until` | query | {"type":"string","format":"date-time"} | Exact UTC publication end, exclusive; paired with since, past window at most 90 days. |
+| `rankingPool` | query | {"type":"string","enum":["early"]} | For keyword evidence with exact since/until: keep only same-window qualified news labels and display rules. |
 | `hours` | query | {"type":"integer","minimum":1,"maximum":8760} | Relative publication window, evaluated at request time. |
 | `min` | query | {"type":"integer","minimum":0,"maximum":9007199254740991} | Minimum cumulative video views. |
 | `keyword` | query | {"type":"string","minLength":1,"maxLength":240} | Exact maintained content term; not a taxonomy ID. |
@@ -552,6 +561,9 @@ Typed report response; additive response fields are permitted.
 | `column` | query | {"type":"string","enum":["publishedAt","viewCount","likeCount","commentCount"]} | Descending order, with source PK as deterministic tie-breaker; default publishedAt. |
 | `from` | query | {"type":"string","format":"date"} | Inclusive Taipei publication date. |
 | `to` | query | {"type":"string","format":"date"} | Inclusive Taipei publication date. |
+| `since` | query | {"type":"string","format":"date-time"} | Exact UTC publication start, inclusive; paired with until. Cannot combine with from/to/days/hours. |
+| `until` | query | {"type":"string","format":"date-time"} | Exact UTC publication end, exclusive; paired with since, past window at most 90 days. |
+| `rankingPool` | query | {"type":"string","enum":["early"]} | For keyword evidence with exact since/until: keep only same-window qualified news labels and display rules. |
 | `hours` | query | {"type":"integer","minimum":1,"maximum":8760} | Relative publication window, evaluated at request time. |
 | `min` | query | {"type":"integer","minimum":0,"maximum":9007199254740991} | Minimum cumulative video views. |
 | `days` | query | {"type":"integer","minimum":1,"maximum":90} | Optional relative date window when keyword filtering is used. |
@@ -647,6 +659,9 @@ Typed report response; additive response fields are permitted.
 | `column` | query | {"type":"string","enum":["publishedAt","viewCount","likeCount","commentCount"]} | Descending order, with source PK as deterministic tie-breaker; default publishedAt. |
 | `from` | query | {"type":"string","format":"date"} | Inclusive Taipei publication date. |
 | `to` | query | {"type":"string","format":"date"} | Inclusive Taipei publication date. |
+| `since` | query | {"type":"string","format":"date-time"} | Exact UTC publication start, inclusive; paired with until. Cannot combine with from/to/days/hours. |
+| `until` | query | {"type":"string","format":"date-time"} | Exact UTC publication end, exclusive; paired with since, past window at most 90 days. |
+| `rankingPool` | query | {"type":"string","enum":["early"]} | For keyword evidence with exact since/until: keep only same-window qualified news labels and display rules. |
 | `hours` | query | {"type":"integer","minimum":1,"maximum":8760} | Relative publication window, evaluated at request time. |
 | `min` | query | {"type":"integer","minimum":0,"maximum":9007199254740991} | Minimum cumulative video views. |
 | `keyword` | query | {"type":"string","minLength":1,"maxLength":240} | Exact maintained content term; not a taxonomy ID. |
@@ -1082,6 +1097,7 @@ The machine-readable spec is authoritative for complete constraints. Additive fi
 | `rows[].media` | array | yes |  |
 | `rows[].provenance` | string | yes |  |
 | `rows[].displayExclusion` | string \| null | no | Explainable display exclusion code; null means eligible. Original vocabulary terms and evidence are retained. |
+| `rows[].rankingEligibility` | object | no |  |
 | `total` | integer | yes |  |
 | `limit` | integer | yes |  |
 | `offset` | integer | yes |  |
@@ -1208,6 +1224,7 @@ The machine-readable spec is authoritative for complete constraints. Additive fi
 | `exploration.keywords.staleVideos` | number \| null | yes |  |
 | `exploration.keywords.unprocessedVideos` | number \| null | yes |  |
 | `exploration.keywords.metric` | string | yes |  |
+| `exploration.keywords.rankingPool` | object | no | Exact publication-window tag news pool, early gate (two media each two articles). Available includes immutable provenance/checksum; unavailable includes reason/windows. Short window is rolling 24h, week is seven Taipei calendar dates. Rise/history reuse current qualified cohort. |
 | `exploration.keywords.rankingMethod` | string | no | Title weight 3, description-only weight 1; per-channel geometric decay 1, 0.5, 0.25…, with title matches first. |
 | `exploration.keywords.riseMethod` | string | no |  |
 | `exploration.keywords.ruleVersion` | string | no |  |
@@ -1230,6 +1247,7 @@ The machine-readable spec is authoritative for complete constraints. Additive fi
 | `exploration.keywordToday.staleVideos` | number \| null | yes |  |
 | `exploration.keywordToday.unprocessedVideos` | number \| null | yes |  |
 | `exploration.keywordToday.metric` | string | yes |  |
+| `exploration.keywordToday.rankingPool` | object | no | Exact publication-window tag news pool, early gate (two media each two articles). Available includes immutable provenance/checksum; unavailable includes reason/windows. Short window is rolling 24h, week is seven Taipei calendar dates. Rise/history reuse current qualified cohort. |
 | `exploration.keywordToday.rankingMethod` | string | no | Title weight 3, description-only weight 1; per-channel geometric decay 1, 0.5, 0.25…, with title matches first. |
 | `exploration.keywordToday.riseMethod` | string | no |  |
 | `exploration.keywordToday.ruleVersion` | string | no |  |

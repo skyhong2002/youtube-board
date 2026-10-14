@@ -37,7 +37,9 @@ export function createRankedPoolClient({fetch:transport=fetch,clock=()=>new Date
   const get=async(path:string)=>{
    const response=await transport(ORIGIN+path,{headers:{accept:'application/json',DNT:'1','Sec-GPC':'1'},credentials:'omit',redirect:'manual',cache:'no-store',signal:controller.signal});stream.body=response.body;
    if(controller.signal.aborted){void stream.body?.cancel().catch(()=>{});throw new PoolUnavailable('deadline');}
-   if(response.status===429){const raw=response.headers.get('retry-after'),seconds=raw&&/^\d+$/.test(raw)?Number(raw):60;cooldownUntil=Math.max(cooldownUntil,clock().getTime()+Math.max(1,Number.isFinite(seconds)?seconds:86400)*1000);void stream.body?.cancel().catch(()=>{});throw new PoolUnavailable('rate-limited');}
+   if(response.status===429){const raw=response.headers.get('retry-after'),now=clock().getTime();
+    const retryAt=raw&&/^\d+$/.test(raw)?now+Math.max(1,Number(raw))*1000:raw&&Number.isFinite(Date.parse(raw))?Math.max(now+1000,Date.parse(raw)):now+60000;
+    cooldownUntil=Math.max(cooldownUntil,retryAt);void stream.body?.cancel().catch(()=>{});throw new PoolUnavailable('rate-limited');}
    if(response.status!==200){void stream.body?.cancel().catch(()=>{});throw new PoolUnavailable('unavailable');}
    if(!/^application\/json(?:;|$)/i.test(response.headers.get('content-type')??'')||!stream.body)throw new PoolUnavailable('contract');
    stream.reader=stream.body.getReader();let bytes=0;const chunks:Uint8Array[]=[];

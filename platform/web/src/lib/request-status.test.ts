@@ -6,6 +6,13 @@ import {proxy} from '../proxy';
 import {INTERNAL_RENDER_HEADER,PUBLIC_RENDER_HEADER} from '../../../shared/public-render-contract';
 
 const base='http://localhost:3100/ai/days/123/events';
+test('exact ranked evidence rejects malformed, repeated and mixed windows before streaming',()=>{
+ const path='http://localhost:3100/keywords/AI/videos',bounds='since=2026-10-13T16%3A00%3A00.000Z&until=2026-10-14T16%3A00%3A00.000Z';
+ for(const q of ['since=bogus',bounds+'&days=1',bounds+'&since=x',bounds+'&rankingPool=invalid',bounds+'&hours=24',bounds+'&until=2027-01-01T00:00:00.000Z']){
+  const url=new URL(path+'?'+q);assert.equal(reportRequestStatus(url)?.status,400,q);const response=proxy(new NextRequest(url));assert.equal(response.status,400);assert.equal(response.headers.get('cache-control'),'no-store');
+ }
+ assert.equal(reportRequestStatus(new URL(path+'?'+bounds+'&rankingPool=early')),null);
+});
 test('numeric daily events reject missing, duplicate, whitespace and overlong names before streaming',async()=>{
  const invalid=['','?_rsc=abc','?event=','?event=%20%09','?event=a&event=b',
   '?event='+encodeURIComponent('a'.repeat(257)),'?event='+encodeURIComponent('😀'.repeat(129))];
