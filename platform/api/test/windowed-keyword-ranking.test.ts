@@ -26,8 +26,8 @@ function reader(){const queries:{sql:string;params:unknown[]}[]=[],dialect=new M
 it('binds separate exact-label eligibility cohorts before SQL aggregation and top40',async()=>{const r=reader(),out=await homeExploration(r.data,now,undefined,client(['OPENAI','中共'],['OpenAI','中共']));
  expect(out.keywordToday.rows[0]).toMatchObject({term:'OPENAI',sourceTerms:[{key:'b',term:'OPENAI'}],videoCount:1});expect(out.keywords.rows[0]).toMatchObject({term:'OpenAI',sourceTerms:[{key:'a',term:'OpenAI'}]});
  expect(out.keywords.rankingPool).toMatchObject({status:'available',provenance:{window:windows.week},comparisonBasis:'current-eligible-terms'});
- const q=r.queries.find(q=>q.sql.includes('AS heat_score'))!;expect(q.sql).toContain('eligible.term_key=e.term_key');expect(q.sql).toContain('matched.window_key=w.window_key');
- const bindings=q.params.filter(p=>typeof p==='string'&&p.startsWith('[["week"'));expect(bindings.length).toBeGreaterThan(0);const rows=JSON.parse(bindings[0] as string);expect(rows).toEqual(expect.arrayContaining([['week','a','a'],['prior-week','a','a'],['today','b','a'],['prior-today','b','a']]));expect(JSON.stringify(rows)).not.toContain('country');expect(JSON.stringify(rows)).not.toContain('generic');
+ const q=r.queries.find(q=>q.sql.includes('AS heat_score'))!;expect(q.sql).not.toContain(' eligible');expect(q.sql).toContain('matched.window_key=w.window_key');
+ const filters=[...q.sql.matchAll(/e\.term_key IN \(([^)]*)\)/g)].map(m=>{const offset=(q.sql.slice(0,m.index).match(/\?/g)??[]).length,size=(m[1].match(/\?/g)??[]).length;return q.params.slice(offset,offset+size);});expect(filters).toEqual([['a'],['b'],['a'],['b']]);expect(q.params).not.toContain('country');expect(q.params).not.toContain('generic');
  expect(new Date(out.keywordToday.to).toISOString()).toBe('2026-10-14T14:09:59.000Z');
  const daily=r.queries.find(q=>q.sql.includes("CONCAT(matched.window_key,':',DATE"));expect(daily?.sql).toContain("GROUP BY CONCAT(matched.window_key,':',DATE(matched.publishedAt))");
 });

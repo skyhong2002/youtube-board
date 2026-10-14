@@ -70,8 +70,8 @@ export async function homeExploration(reader:Reader,now:Date,diagnostic?:HomeDia
   // Avoid spending evidence work on a comparison that cannot be displayed.
   const activeWindows=windows.filter(w=>w.key!=='prior-week'&&w.key!=='prior-today'||w.key==='prior-week'&&comparable.week||w.key==='prior-today'&&comparable.today);
   const evidenceFrom=activeWindows.reduce((lo,w)=>w.from<lo?w.from:lo,from);
-  const freshSourceRows=(since:string)=>{
-   const selected=sources.filter(r=>Number(r.fresh)===1&&text(r.publishedAt)>=since).map(r=>[r.pk,r.u_id,r.publishedAt,r.video_id,r.vocabulary_version,r.viewCount]);
+  const freshSourceRows=(since:string,until=to)=>{
+   const selected=sources.filter(r=>Number(r.fresh)===1&&text(r.publishedAt)>=since&&text(r.publishedAt)<=until).map(r=>[r.pk,r.u_id,r.publishedAt,r.video_id,r.vocabulary_version,r.viewCount]);
    return sql`SELECT j.* FROM JSON_TABLE(${JSON.stringify(selected)},'$[*]' COLUMNS(pk BIGINT UNSIGNED PATH '$[0]',u_id BIGINT UNSIGNED PATH '$[1]',publishedAt DATETIME PATH '$[2]',video_id VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin PATH '$[3]',vocabulary_version VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin PATH '$[4]',viewCount BIGINT PATH '$[5]')) j`;
   };
   const freshSources=freshSourceRows(evidenceFrom);
@@ -82,19 +82,25 @@ export async function homeExploration(reader:Reader,now:Date,diagnostic?:HomeDia
    FROM (${freshSources}) fv STRAIGHT_JOIN ts_video_tag_evidence e FORCE INDEX(PRIMARY) ON e.video_id=CONVERT(fv.video_id USING ascii) AND e.vocabulary_version=${version} AND BINARY e.video_id=BINARY fv.video_id
    WHERE BINARY e.rule_version=BINARY ${rule} LIMIT 25001`);
   if(terms.length>25000||Buffer.byteLength(JSON.stringify(terms))>8*1024*1024)throw new HomeSectionUnavailable('source-cap');
-  const allEligible=cohorts?new Set([...cohorts.week,...cohorts.today]):undefined,display=keywordDisplayMap(terms,allEligible),exclude=display.excluded.length?sql`AND e.term_key NOT IN (${sql.join(display.excluded.map(k=>sql`${k}`),sql`,`)})`:sql``;
-  const eligibilityRows=cohorts?[...display.groups.values()].flatMap(g=>g.sourceTerms.flatMap(t=>rankingWindowsForTerm(t.term).map(window=>[window,t.key,g.key]))):[];
-  function rankingWindowsForTerm(term:string){return [...(cohorts?.week.has(term)?['week',...(comparable.week?['prior-week']:[])]:[]),...(cohorts?.today.has(term)?['today',...(comparable.today?['prior-today']:[])]:[])];}
-  const eligibleTable=sql`JSON_TABLE(${JSON.stringify(eligibilityRows)},'$[*]' COLUMNS(window_key VARCHAR(20) PATH '$[0]',term_key VARCHAR(100) CHARACTER SET ascii COLLATE ascii_bin PATH '$[1]',group_key VARCHAR(100) CHARACTER SET ascii COLLATE ascii_bin PATH '$[2]')) eligible`;
+  const allEligible=cohorts?new Set([...cohorts.week,...cohorts.today]):undefined,display=keywordDisplayMap(terms,allEligible),exclude=!cohorts&&display.excluded.length?sql`AND e.term_key NOT IN (${sql.join(display.excluded.map(k=>sql`${k}`),sql`,`)})`:sql``;
+  const eligibleKeys=cohorts?Object.fromEntries((['week','today'] as const).map(period=>[period,[...display.groups.values()].flatMap(g=>g.sourceTerms.filter(t=>cohorts[period].has(t.term)).map(t=>t.key))])) as Record<'week'|'today',string[]>:undefined;
   const priorWeek=windows[2]!,priorToday=windows[3]!;
   // Group on narrow ASCII identity; only genuine display aliases need mapping.
   // Sorting variable-width Unicode labels at evidence scale spills temp tables.
   const groupKey=display.aliases.length?sql`CONVERT(CASE e.term_key ${sql.join(display.aliases.map(a=>sql`WHEN ${a.key} THEN ${a.canonical}`),sql` `)} ELSE e.term_key END USING ascii) COLLATE ascii_bin`:sql`e.term_key`;
-  const deduplicated=(sources:ReturnType<typeof freshSourceRows>,extra:ReturnType<typeof freshSourceRows>)=>sql`SELECT fv.pk,MAX(fv.u_id) AS u_id,MAX(fv.publishedAt) AS publishedAt,MAX(fv.viewCount) AS viewCount,${cohorts?sql`eligible.window_key,eligible.group_key`:sql`${groupKey} AS group_key`},MAX(e.field_name='title') AS has_title
-    FROM (${sources}) fv STRAIGHT_JOIN ts_video_tag_evidence e FORCE INDEX(PRIMARY) ON e.video_id=CONVERT(fv.video_id USING ascii) AND e.vocabulary_version=${version} AND BINARY e.video_id=BINARY fv.video_id
-    ${cohorts?sql`JOIN ${eligibleTable} ON eligible.term_key=e.term_key`:sql``}
-    WHERE BINARY e.rule_version=BINARY ${rule} ${extra}
-    GROUP BY fv.pk,${cohorts?sql`eligible.window_key,eligible.group_key`:sql`group_key`}`;
+  const deduplicated=(sources:ReturnType<typeof freshSourceRows>,extra:ReturnType<typeof freshSourceRows>,dailyHistory=false)=>{
+   const part=(windowKey:string|null,keys?:string[])=>sql`SELECT fv.pk,MAX(fv.u_id) AS u_id,MAX(fv.publishedAt) AS publishedAt,MAX(fv.viewCount) AS viewCount,${windowKey?sql`${windowKey} AS window_key,`:sql``}${groupKey} AS group_key,MAX(e.field_name='title') AS has_title
+    FROM (${windowKey&&!dailyHistory?freshSourceRows(windows.find(w=>w.key===windowKey)!.from,windows.find(w=>w.key===windowKey)!.to):sources}) fv STRAIGHT_JOIN ts_video_tag_evidence e FORCE INDEX(PRIMARY) ON e.video_id=CONVERT(fv.video_id USING ascii) AND e.vocabulary_version=${version} AND BINARY e.video_id=BINARY fv.video_id
+    WHERE BINARY e.rule_version=BINARY ${rule} ${extra} ${keys?keys.length?sql`AND e.term_key IN (${sql.join(keys.map(k=>sql`${k}`),sql`,`)})`:sql`AND FALSE`:sql``}
+    ${windowKey&&!dailyHistory?sql`AND fv.publishedAt>=${windows.find(w=>w.key===windowKey)!.from} AND fv.publishedAt<=${windows.find(w=>w.key===windowKey)!.to}`:sql``}
+    GROUP BY fv.pk,group_key`;
+   if(!cohorts)return part(null);
+   // A JSON_TABLE eligibility join multiplies the source-video rows by every
+   // eligible term before the indexed evidence lookup in MariaDB. Constant IN
+   // sets keep each exact cohort filter before aggregation without that fanout.
+   const keys=dailyHistory?['week','today']:activeWindows.filter(w=>['week','today','prior-week','prior-today'].includes(w.key)).map(w=>w.key);
+   return sql.join(keys.map(key=>part(key,eligibleKeys![key.endsWith('today')?'today':'week'])),sql` UNION ALL `);
+  };
   // Rank channel totals first. Daily bins for every candidate multiply row counts
   // without improving selection, so fetch history only for the two selected top40s.
   // Four-bit memberships split exact partial-day prior boundaries without fanout.
@@ -112,7 +118,7 @@ export async function homeExploration(reader:Reader,now:Date,diagnostic?:HomeDia
   const completeDays=days.filter(d=>d.complete&&coverageFor(d.date).freshVideos>0).map(d=>d.date);
   keywordStage='daily-history';
   const daily=selectedKeys.length&&completeDays.length?await reader.rows(sql`SELECT ${cohorts?sql`CONCAT(matched.window_key,':',DATE(matched.publishedAt))`:sql`DATE(matched.publishedAt)`} AS window_key,matched.group_key AS g,matched.u_id AS c,COUNT(*) AS n,SUM(matched.has_title) AS t,COUNT(matched.viewCount) AS m,COALESCE(SUM(matched.viewCount),0) AS v
-    FROM (${deduplicated(freshSourceRows(from),sql`AND e.term_key IN (${sql.join(selectedKeys.map(k=>sql`${k}`),sql`,`)}) AND DATE(fv.publishedAt) IN (${sql.join(completeDays.map(d=>sql`${d}`),sql`,`)})`)}) matched
+    FROM (${deduplicated(freshSourceRows(from),sql`AND e.term_key IN (${sql.join(selectedKeys.map(k=>sql`${k}`),sql`,`)}) AND DATE(fv.publishedAt) IN (${sql.join(completeDays.map(d=>sql`${d}`),sql`,`)})`,true)}) matched
     ${cohorts?sql`WHERE matched.window_key IN ('week','today')`:sql``} GROUP BY ${cohorts?sql`CONCAT(matched.window_key,':',DATE(matched.publishedAt))`:sql`window_key`},g,c LIMIT 20001`):[];
   if(daily.length>20000||Buffer.byteLength(JSON.stringify(daily))>4*1024*1024)throw new HomeSectionUnavailable('source-cap');
   const ranking=rankKeywordWindows([...records,...daily],display,days,comparable,cohorts);
