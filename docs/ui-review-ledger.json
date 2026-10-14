@@ -41718,7 +41718,7 @@
   },
   "f4SecondBatch20261015": {
     "recordedAt": "2026-10-14T22:14:23.928740+00:00",
-    "status": "four-page-production-baseline-issues-source-fixes-tested-independent-source-review-in-progress",
+    "status": "source-reviewed-arm64-build-running-candidate-and-production-fix-acceptance-pending",
     "appSha": "fe7987945611328aabaa8bb8f4495ecd75168792",
     "routes": [
       "/channels",
@@ -41777,12 +41777,11 @@
     "wholeSiteAcceptance": false,
     "fullF4Acceptance": false,
     "next": [
-      "Finish remaining baseline capture when SM memory permits; retain2.5GiB gate",
-      "Read nonauthor issue review",
-      "Implement scoped F4 source changes and focused tests",
-      "Review meaningful UI/data changes; same-artifact candidate/deploy/production retest"
+      "Finish arm64 build and native smoke",
+      "Capture repaired artifact in light/dark at1280/390 and obtain actual nonauthor image review",
+      "Deploy same image and perform separate production review; retain freshness limitations"
     ],
-    "evidenceUpdatedAt": "2026-10-14T22:22:26.813272+00:00",
+    "evidenceUpdatedAt": "2026-10-14T22:25:54.423352+00:00",
     "baselineIndependentReview": {
       "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-14/production-appfe79879-batch2-fourpage-issues-20261014T221926Z/review.json",
       "sha256": "8253630c115b70bffa5b63ed392ceb0939e074b9c2d94e63c0153a55cbb6dc00"
@@ -41820,6 +41819,11 @@
       "Generic report input/actions44px T-ref control minimum",
       "Explicit category name from validated authoritative filter-options response, ID fallback only",
       "Last-record timestamps explicitly not proof of per-statistic freshness; unknown values retained"
-    ]
+    ],
+    "sourceIndependentReview": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/source-review.json",
+      "sha256": "3144b3cd49aabc8f27f377614c2396b3a4986cc61087d69df341bec71a2227f2"
+    },
+    "sourceReviewVerdict": "PASS_SOURCE_ONLY"
   }
 }

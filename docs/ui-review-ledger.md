@@ -956,3 +956,5 @@ Keyword-profile thumbnail404 traced by bounded40canonical-source HEAD and one so
 
 
 F4 second batch checkpoint: all four default-light1280/390 baseline routes completed; nonauthor `ISSUES_ONLY_NO_BATCH_PASS`,93PNG hashes/50actualopened. Actual issue receipt8253630c115b70bffa5b63ed392ceb0939e074b9c2d94e63c0153a55cbb6dc00. APP35501a3 source fixes cover channel sorted metric/title readability, collapsed filters, header search, category context and timestamp semantics;322web tests and typecheck pass. Independent source review in progress; no new image/candidate/deployment/visual fix PASS yet. OPS1945fc8 extends fixed four-route captures and first-channel expanded metrics/right-edge evidence; reviewer-found TDZ and default-DOM binding problems were corrected before execution.
+
+F4 second batch APP35501a3 / OPS1945fc8 source review PASS_SOURCE_ONLY (receipt3144b3cd); native arm64 build started after fresh median probe at2026-10-14T22:24Z. Candidate and production acceptance remain pending.
