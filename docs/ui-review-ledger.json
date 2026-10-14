@@ -38066,7 +38066,7 @@
       "refreshImmediatelyBeforeStart": true
     },
     "build": "completed exit0; verified linux/arm64 and APP/OPS labels",
-    "capture": "home batch underway; all packages pending independent visual review",
+    "capture": "home complete; keywords capture underway; both independent visual approval pending",
     "candidateApproval": false,
     "routeComplete": false,
     "deployment": "pending",
@@ -38225,6 +38225,232 @@
       "pid1NoNewPrivs": 1,
       "verified": true
     },
-    "candidate": "running approved read-only loopback instance, not public service"
+    "candidate": "running approved read-only loopback instance, not public service",
+    "homeCapture": {
+      "manifestPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/appd019ae69-home-20261014-mobile01-v12/run-f249112d-d901-4de7-817c-e4b09bdee5aa/captures.json",
+      "manifestSHA256": "5dc44f4bbfaa90279e5a6ecc97954250c464df77dbe95c60285370e975794054",
+      "viewportPackages": 8,
+      "pngCount": 64,
+      "checks": [
+        {
+          "key": "home-today-light-d019ae69",
+          "viewport": "desktop",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/appd019ae69-home-20261014-mobile01-v12/run-f249112d-d901-4de7-817c-e4b09bdee5aa/home-today-light-d019ae69-desktop-requests.json",
+          "networkSHA256": "71cecaea1bb24c64946fb4dde6a5fa5bef115b4452b71d68293a1a88cc930709",
+          "accepted": true,
+          "complete": true,
+          "google": {
+            "attempts": 0,
+            "blocked": 0,
+            "responses": 0
+          },
+          "privacy": {
+            "dntRequested": "1",
+            "gpcEnabled": true,
+            "before": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "after": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "observed": true,
+            "requestMismatch": false
+          }
+        },
+        {
+          "key": "home-today-light-d019ae69",
+          "viewport": "mobile",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/appd019ae69-home-20261014-mobile01-v12/run-f249112d-d901-4de7-817c-e4b09bdee5aa/home-today-light-d019ae69-mobile-requests.json",
+          "networkSHA256": "c0dc8e1f0a0e68e14f06f9c0519b20a7530a8e881f3a58edc04d155b8e47f3b5",
+          "accepted": true,
+          "complete": true,
+          "google": {
+            "attempts": 0,
+            "blocked": 0,
+            "responses": 0
+          },
+          "privacy": {
+            "dntRequested": "1",
+            "gpcEnabled": true,
+            "before": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "after": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "observed": true,
+            "requestMismatch": false
+          }
+        },
+        {
+          "key": "home-today-dark-d019ae69",
+          "viewport": "desktop",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/appd019ae69-home-20261014-mobile01-v12/run-f249112d-d901-4de7-817c-e4b09bdee5aa/home-today-dark-d019ae69-desktop-requests.json",
+          "networkSHA256": "e6b8825f06a3729dd7a48187d49a8d3cbc5b81e4dfc508f1e3a68d1b13c86af4",
+          "accepted": true,
+          "complete": true,
+          "google": {
+            "attempts": 0,
+            "blocked": 0,
+            "responses": 0
+          },
+          "privacy": {
+            "dntRequested": "1",
+            "gpcEnabled": true,
+            "before": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "after": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "observed": true,
+            "requestMismatch": false
+          }
+        },
+        {
+          "key": "home-today-dark-d019ae69",
+          "viewport": "mobile",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/appd019ae69-home-20261014-mobile01-v12/run-f249112d-d901-4de7-817c-e4b09bdee5aa/home-today-dark-d019ae69-mobile-requests.json",
+          "networkSHA256": "5eb5b7a3ce78c9fd9212afc41f1d1e0676763d04590fc260ef32a2ebb61307df",
+          "accepted": true,
+          "complete": true,
+          "google": {
+            "attempts": 0,
+            "blocked": 0,
+            "responses": 0
+          },
+          "privacy": {
+            "dntRequested": "1",
+            "gpcEnabled": true,
+            "before": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "after": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "observed": true,
+            "requestMismatch": false
+          }
+        },
+        {
+          "key": "home-week-light-d019ae69",
+          "viewport": "desktop",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/appd019ae69-home-20261014-mobile01-v12/run-f249112d-d901-4de7-817c-e4b09bdee5aa/home-week-light-d019ae69-desktop-requests.json",
+          "networkSHA256": "a19d776e09a8794e0f7565c777ffb6d2327b1466fb36c4b08dcb48ee0f6136c8",
+          "accepted": true,
+          "complete": true,
+          "google": {
+            "attempts": 0,
+            "blocked": 0,
+            "responses": 0
+          },
+          "privacy": {
+            "dntRequested": "1",
+            "gpcEnabled": true,
+            "before": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "after": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "observed": true,
+            "requestMismatch": false
+          }
+        },
+        {
+          "key": "home-week-light-d019ae69",
+          "viewport": "mobile",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/appd019ae69-home-20261014-mobile01-v12/run-f249112d-d901-4de7-817c-e4b09bdee5aa/home-week-light-d019ae69-mobile-requests.json",
+          "networkSHA256": "5707efacbebb8f0e51b4719180d3dd569badf0fb171a9c4c9ba054a3636206f4",
+          "accepted": true,
+          "complete": true,
+          "google": {
+            "attempts": 0,
+            "blocked": 0,
+            "responses": 0
+          },
+          "privacy": {
+            "dntRequested": "1",
+            "gpcEnabled": true,
+            "before": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "after": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "observed": true,
+            "requestMismatch": false
+          }
+        },
+        {
+          "key": "home-week-dark-d019ae69",
+          "viewport": "desktop",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/appd019ae69-home-20261014-mobile01-v12/run-f249112d-d901-4de7-817c-e4b09bdee5aa/home-week-dark-d019ae69-desktop-requests.json",
+          "networkSHA256": "5a09ffaecae18ca8c3aa1d94f4c9fde7b47642967bce1f1cd073dab04e57883c",
+          "accepted": true,
+          "complete": true,
+          "google": {
+            "attempts": 0,
+            "blocked": 0,
+            "responses": 0
+          },
+          "privacy": {
+            "dntRequested": "1",
+            "gpcEnabled": true,
+            "before": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "after": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "observed": true,
+            "requestMismatch": false
+          }
+        },
+        {
+          "key": "home-week-dark-d019ae69",
+          "viewport": "mobile",
+          "networkPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/candidate-app073-envelope-2026-10-14/appd019ae69-home-20261014-mobile01-v12/run-f249112d-d901-4de7-817c-e4b09bdee5aa/home-week-dark-d019ae69-mobile-requests.json",
+          "networkSHA256": "66573abd50f2907c1066ad79b84abce4630a0b569d7ae11239cc1e9fd21cfcd2",
+          "accepted": true,
+          "complete": true,
+          "google": {
+            "attempts": 0,
+            "blocked": 0,
+            "responses": 0
+          },
+          "privacy": {
+            "dntRequested": "1",
+            "gpcEnabled": true,
+            "before": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "after": {
+              "dnt": "1",
+              "gpc": true
+            },
+            "observed": true,
+            "requestMismatch": false
+          }
+        }
+      ],
+      "independentVisualReview": "in_progress",
+      "routeComplete": false
+    }
   }
 }
