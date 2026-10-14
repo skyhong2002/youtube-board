@@ -38158,6 +38158,21 @@
     },
     "nativeSmokeCleanupPath": "/tmp/babysit/mint-queue/youtube-native-smoke-b4afbd8f-cleanup.json",
     "candidateToolsDeltaPath": "/tmp/babysit/mint-queue/youtube-candidate-b4afbd8f-mobile01-delta.json",
-    "candidateToolsSourceReview": "pending"
+    "candidateToolsSourceReview": {
+      "status": "PASS_SOURCE_ONLY",
+      "path": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/candidateb4afbd8f-mobile01-packet-independent-source-review-20261014T080527Z-r2.json",
+      "sha256": "accae8e935d9c2baf29c8c2189b8a5c8897865dd58336f27d6dc63252e5a932f",
+      "transcriptPath": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/review-logs/candidateb4afbd8f-mobile01-packet-independent-source-review-20261014T080527Z-r2.txt",
+      "transcriptSha256": "61adcba54be0333980c6eeabe9f6e12fe82f0425319df1f333cf523026957680",
+      "limitations": "Only immutable pin/path delta source inspection; runtime and visual acceptance pending"
+    },
+    "candidateStartDenied": {
+      "path": "/tmp/babysit/mint-queue/youtube-mobile01-start-fresh.json",
+      "sha256": "897ac4dbef96ab2e605fecde1840a249eea2b62eb125431509555c12fdb785d4",
+      "at": "2026-10-14T08:06:08.321674+00:00",
+      "reason": "SM blog third attempt curl56, HTTP200 partial25975bytes; nonzero curl fails regardless of median",
+      "candidateStarted": false,
+      "browserStarted": false
+    }
   }
 }
