@@ -946,3 +946,10 @@ APP `fe7987945611328aabaa8bb8f4495ecd75168792`, image `sha256:5816d4eec144c5c162
 Acceptance: `/tmp/babysit/mint-queue/youtube-f4-fe79879-production-acceptance.json`. Both independent reviews/manifests/transcripts and hashes are bound there. Earlier deployment/capture-index snapshots accurately retain review pending at their creation; this final receipt supersedes only that pending status. Separate babysit browser acceptance has not been received.
 
 Nonblocking limits retained: four keyword-detail image404s/placeholders, ERR_ABORTED/null statuses, cross-capture mayor coverage differences, sparse keyword coverage and unverified source freshness. Mobile hidden columns and unexercised interactions remain unverified. Historical rejected503 and memory-stopped batches remain excluded. `/live/current` presentation and `/groups` scope/count fixes pass on the new artifact; no old screenshot relabeling. Method footer,44px generic controls,cross-site actual visual comparison and remaining routes/states keep F4 pending. See `docs/f4-first-batch-2026-10-15.md` for deployment/rollback.
+
+
+## F4 second batch — initial production baseline checkpoint
+
+Routes: `/channels`, `/videos`, `/tags/102/videos`, `/videos/kqdc4-YOmPM` on APPfe79879. Channels and video-detail light1280/390 baseline captured with nativeDNT1/GPCtrue and Google0; independent issues-only review submitted. Other views remain pending. Two attempts stopped at SM MemAvailable2.5GiB gate, ownbrowser closed; rejected directories preserved and excluded. No new build/deploy.
+
+Keyword-profile thumbnail404 traced by bounded40canonical-source HEAD and one source/optimizer GET: ECHPW008FvY returns404 at both endpoints. Source-unavailability reason unknown; not an established optimizer fault. Individual database record update time is not proof of each statistic freshness; source lineage and anonymous metadata snapshot recorded under f4SecondBatch20261015. No production data/writer edits.

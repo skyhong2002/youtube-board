@@ -41715,5 +41715,64 @@
       "Independent review uses supplied service and T-ref binding evidence, not reviewer live probes or git binding execution."
     ],
     "babysitBrowserAcceptance": "not yet received"
+  },
+  "f4SecondBatch20261015": {
+    "recordedAt": "2026-10-14T22:14:23.928740+00:00",
+    "status": "production-baseline-capture-partial-independent-issues-review-in-progress",
+    "appSha": "fe7987945611328aabaa8bb8f4495ecd75168792",
+    "routes": [
+      "/channels",
+      "/videos",
+      "/tags/102/videos",
+      "/videos/kqdc4-YOmPM"
+    ],
+    "environment": "production",
+    "identity": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/identity.json",
+      "sha256": "59214e9664a2bdd2227c77e282a37156d3c12e84767be9b7245b4dd901ac3708"
+    },
+    "completedManifests": [
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/production-f4-batch2-20261014T220850Z-channels-light-retake/captures.json",
+        "sha256": "9a027ef69e184be943f2927890a5e5abb6929a242e9539e65a488b139def2b00"
+      },
+      {
+        "path": "/home/deck/.cache/youtube-ui-review/production-f4-batch2-20261014T220850Z-video-detail-light/captures.json",
+        "sha256": "72dfae30320b9f73ba297c6993b5b2de12fbe76bd89fb57e720ed4fb91bb01d8"
+      }
+    ],
+    "rejectedCaptures": [
+      {
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/capture-stop01.json",
+        "sha256": "ff40923deb9dd9b6b0d8c0522a093f8172f4cd9c80a95e08c86dce01cb8b7573"
+      },
+      {
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/capture-stop02.json",
+        "sha256": "9fc60534ab2f5095f898436be9e29bd5870b295dc4c9ecb6b2c69ef25184fe3f"
+      }
+    ],
+    "thumbnailSourceDiagnostic": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/thumbnail-source-diagnostic.json",
+      "sha256": "a6acb112d379e4ab52579fd80cad6a91e34b7e8a7f644aaad79115a32676a09f"
+    },
+    "thumbnailGETConfirmation": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/thumbnail-get-confirmation.json",
+      "sha256": "3a41587959fb306bd12fc7cdabc4740f4ab0e19401532534a53ecd4723fcae78"
+    },
+    "thumbnailFinding": "ECHPW008FvY canonical image GET404 and optimizer GET404. Existing neutral fallback retained; no evidence of optimizer regression or reason the source is unavailable.",
+    "sourceMetadata": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch2-20261014T220850Z/public-source-metadata.json",
+      "sha256": "2204a1495ef8a3cc2839d4e618a0ed223b246b05ffda36a6b3296eb40a2b57f2"
+    },
+    "freshnessFinding": "Video updatedAt derives latest urt_video mtime/ctime (channel listings also completed-comment mtime/ctime); channel updatedAt derives latest channel and count timestamps. Report meta latest record does not prove each statistic is freshly observed. No writer/ingestion change yet.",
+    "candidateApproval": false,
+    "wholeSiteAcceptance": false,
+    "fullF4Acceptance": false,
+    "next": [
+      "Finish remaining baseline capture when SM memory permits; retain2.5GiB gate",
+      "Read nonauthor issue review",
+      "Implement scoped F4 source changes and focused tests",
+      "Review meaningful UI/data changes; same-artifact candidate/deploy/production retest"
+    ]
   }
 }
