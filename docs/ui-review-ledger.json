@@ -39337,10 +39337,22 @@
       "componentStateChecks": 2,
       "unresolvedBlockers": []
     },
-    "build": "pending: blog median7.480s >6.17s; latest fresh gate denied",
-    "candidate": "pending",
+    "build": {
+      "status": "PASS_NATIVE_ARM64",
+      "receipt": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-build-result.json",
+      "image": "sha256:1e2513480d7d4a6713b135cf9547330300602324b66a2c830fc51ed5e3924140",
+      "buildId": "Fb8mfbUpeqBWyMVD2_Jsj",
+      "slotReturned": true,
+      "nativeSmoke": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-native-smoke-result.json"
+    },
+    "candidate": {
+      "status": "READY_VERIFIED",
+      "receipt": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-candidate-verified.json",
+      "httpChecks": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-candidate-http.json",
+      "coreHttp": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-candidate-core-http.json"
+    },
     "visualReview": "pending",
-    "deployment": "pending",
+    "deployment": "pending visual review, exact dry-run passed",
     "request": "/tmp/babysit/mint-queue/youtube-simple-native-72cb816-request.json",
     "freshProbe": {
       "path": "/tmp/babysit/mint-queue/youtube-f1-top-72cb816-reviewed-fresh.json",
@@ -39410,6 +39422,26 @@
           "youtube": 0.243025
         }
       }
-    ]
+    ],
+    "capture": {
+      "profiles": {
+        "manifest": "/home/deck/.cache/youtube-ui-review/ui_ledger-2026-10-13/profile72-capture-tools/candidate-app72-envelope-2026-10-14/app72cb816-profiles/run-dc9f7b43-316f-4c18-ae05-840b860787ec/captures.json",
+        "sha256": "c8f251f6f952ed5a56e049da650fcb18f5686057d3212e51697ed1f0ecee00e0",
+        "viewportPackages": 12
+      },
+      "gaOutbound": 0,
+      "viewports": [
+        1280,
+        390
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "visualReview": "pending actual images existing reviewer",
+      "core": "in progress",
+      "bytes": 57851871
+    },
+    "latestAuthority": "User: native remote build uses skyhong-blog resources; blog pure latency does not block; any HTTP/curl failure still blocks"
   }
 }

@@ -874,3 +874,6 @@ Independent exact72cb816 review PASS_SOURCE_ONLY: five findings fixed, 68 focuse
 
 
 Final reviewed fresh UTC2026-10-14T15:35:56Z: tag0.286/blog7.480/YT0.226s, SMload7.69, free40.397GiB. DENIED solely blog median >6.17s. ExactAPP72cb816 source/test/review complete; only build/candidate/visual/deploy work remains awaiting resource recovery. No new build/capture/deployment started; production0f70a7 unchanged. Receipt /tmp/babysit/mint-queue/youtube-f1-top-72cb816-reviewed-fresh.json SHA256 0c739fb943bd68e570acbcff2e1a6e77a179eff191a99124b20912315c7ea902.
+
+
+User latest remote-build clarification applied explicitly; original gate receipts retained, no falsified allowed flag. Exact72cb816 native build image1e251348 arm64, BUILD_ID Fb8mfbUpeqBWyMVD2_Jsj; Node24.21.0/ABI137/glibc2.36/sharp0.35.5 WebP44bytes/source-tracedversions agree. New image1,391,124,890bytes total including base; build slot returned. Candidate ready200, fullCIDverified, nine profileSSR HTTP checks private/no-store/noSetCookie, approved relation appears before videos and no loading text, canonicalindexable/querynoindex. 12 profile viewport packages captured, 57,851,871bytes, GA0. Actual image reviewer pending; core capture underway. Deployment dryrun validated twoimage-only compose delta and rollback0f70a7. Production remains0f70a7 until execute.
