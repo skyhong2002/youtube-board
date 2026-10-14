@@ -38066,7 +38066,7 @@
       "refreshImmediatelyBeforeStart": true
     },
     "build": "completed exit0; verified linux/arm64 and APP/OPS labels",
-    "capture": "pending",
+    "capture": "home batch underway; all packages pending independent visual review",
     "candidateApproval": false,
     "routeComplete": false,
     "deployment": "pending",
@@ -38173,6 +38173,58 @@
       "reason": "SM blog third attempt curl56, HTTP200 partial25975bytes; nonzero curl fails regardless of median",
       "candidateStarted": false,
       "browserStarted": false
-    }
+    },
+    "candidateIdentity": {
+      "path": "/tmp/babysit/mint-queue/youtube-candidate-b4afbd8f-mobile01-verified.json",
+      "sha256": "eca105fd3d1f333f331965909de64343ea0a76dd705333fd61f0450d7c1deff6",
+      "observedAt": "2026-10-14T08:07:53.918436+00:00",
+      "containerId": "94ae14f223f01430ff2770db8aeabbb093863067311f062e0d897a786c45f57b",
+      "verified": true,
+      "imageId": "sha256:b4afbd8f7a1c43c3c3445e4996f16841a242ed2b802b30fbffa68a5ea7d43d4d",
+      "buildId": "jdR1KzOv-6QylI10uKIQV",
+      "name": "yt-f2-candidate-d019ae6920261014",
+      "loopbackPort": 18168
+    },
+    "readiness": {
+      "path": "/tmp/babysit/mint-queue/youtube-mobile01-ready-result.json",
+      "sha256": "00261580e0c6da3ab093afdc5e51cd6defc10fca6e7f0581f04cfdc390292658",
+      "candidateContainer": "94ae14f223f01430ff2770db8aeabbb093863067311f062e0d897a786c45f57b",
+      "runtimeReady200": true,
+      "maxWaitSeconds": 300,
+      "observations": [
+        {
+          "at": "2026-10-14T08:07:54.616846+00:00",
+          "exitCode": 0,
+          "status": 503
+        },
+        {
+          "at": "2026-10-14T08:08:00.173049+00:00",
+          "exitCode": 0,
+          "status": 503
+        },
+        {
+          "at": "2026-10-14T08:08:05.296227+00:00",
+          "exitCode": 0,
+          "status": 200
+        }
+      ],
+      "finishedAt": "2026-10-14T08:08:05.356560+00:00"
+    },
+    "candidateKernelSecurity": {
+      "path": "/tmp/babysit/mint-queue/youtube-mobile01-runtime-security.json",
+      "sha256": "68bda1bc78c17f1a2e09a9306dfc80eb70aa161b4be8b964a06ab81bbe60e754",
+      "at": "2026-10-14T08:10:32.369806+00:00",
+      "containerId": "94ae14f223f01430ff2770db8aeabbb093863067311f062e0d897a786c45f57b",
+      "readOnlyRootfs": true,
+      "capDrop": [
+        "ALL"
+      ],
+      "securityOptions": [
+        "no-new-privileges"
+      ],
+      "pid1NoNewPrivs": 1,
+      "verified": true
+    },
+    "candidate": "running approved read-only loopback instance, not public service"
   }
 }
