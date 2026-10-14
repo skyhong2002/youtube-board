@@ -1,5 +1,5 @@
 'use client';
-import {useEffect,useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {dateTime} from '@/lib/format';
 import {reportStyle as ui} from '@/lib/report-styles';
 import {INITIAL_RETRY_STATE,MAX_MANUAL_RETRIES,RELATION_TYPES,fetchKeywordRelations,isSupportedKeyword,recordFailure,retryDecision,waitText,
@@ -121,12 +121,19 @@ export function KeywordRelationsView({keyword,view,onRetry,retriesLeft=0,note=nu
  * plus bounded manual retries; aborts on
  * unmount/keyword change and ignores any response for a keyword that is no longer current. */
 export default function KeywordRelations({keyword,initialView}:{keyword:string;initialView?:RelationsResult}){
+ const adopted=useRef(initialView);
  const [state,setState]=useState<{keyword:string;view:RelationsView}>({keyword,view:initialView??{kind:'idle'}});
  const [retry,setRetry]=useState<{keyword:string;state:RetryState;attempt:number;note:string|null}>({keyword,state:initialView?recordFailure(INITIAL_RETRY_STATE,initialView,Date.now()):INITIAL_RETRY_STATE,attempt:0,note:null});
  const [expanded,setExpanded]=useState<{keyword:string;types:Partial<Record<RelationType,boolean>>}>({keyword,types:{}});
  const current=retry.keyword===keyword?retry:{keyword,state:INITIAL_RETRY_STATE,attempt:0,note:null};
  const attempt=current.attempt;
  useEffect(()=>{
+  if(initialView&&adopted.current!==initialView){
+   adopted.current=initialView;setState({keyword,view:initialView});
+   // Preserve retry count and the longest upstream hold on same-keyword refresh.
+   setRetry(r=>r.keyword===keyword?{...r,state:recordFailure(r.state,initialView,Date.now()),note:null}:r);
+   return;
+  }
   if(initialView&&attempt===0)return;
   if(!isSupportedKeyword(keyword)){setState({keyword,view:{kind:'unavailable',reason:'invalid-keyword',retryAfterSeconds:null,retryable:false}});return;}
   const controller=new AbortController();
@@ -141,7 +148,7 @@ export default function KeywordRelations({keyword,initialView}:{keyword:string;i
    });
   return()=>controller.abort();
  },[keyword,attempt,initialView]);
- const view:RelationsView=state.keyword===keyword?state.view:{kind:'idle'};
+ const view:RelationsView=initialView&&adopted.current!==initialView?initialView:state.keyword===keyword?state.view:{kind:'idle'};
  const onRetry=()=>{
   const decision=retryDecision(current.state,view,Date.now());
   if(!decision.allowed){

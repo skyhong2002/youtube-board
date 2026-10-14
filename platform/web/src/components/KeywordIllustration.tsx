@@ -1,5 +1,5 @@
 'use client';
-import {useEffect,useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {validTagLabel} from '../../../shared/tag-illustration';
 
 import {parseKeywordIllustration,type IllustrationView as View} from '@/lib/keyword-illustration';
@@ -19,9 +19,10 @@ export function KeywordIllustrationView({view,onImageError}:{view:View;onImageEr
  </section>;
 }
 export default function KeywordIllustration({keyword,initialView}:{keyword:string;initialView?:View}){
+ const adopted=useRef(initialView);
  const [state,setState]=useState<{keyword:string;view:View}>({keyword,view:initialView??{kind:'loading'}});
  useEffect(()=>{
-  if(initialView)return;
+  if(initialView){adopted.current=initialView;setState({keyword,view:initialView});return;}
   if(!validTagLabel(keyword)){setState({keyword,view:{kind:'unavailable'}});return;}
   const controller=new AbortController(),timer=setTimeout(()=>{controller.abort();setState(s=>s.keyword===keyword?{keyword,view:{kind:'unavailable'}}:s);},7000);
   setState({keyword,view:{kind:'loading'}});
@@ -40,5 +41,5 @@ export default function KeywordIllustration({keyword,initialView}:{keyword:strin
   })();
   return()=>{clearTimeout(timer);controller.abort();};
  },[keyword,initialView]);
- return <KeywordIllustrationView view={state.keyword===keyword?state.view:{kind:'loading'}} onImageError={()=>setState({keyword,view:{kind:'unavailable'}})}/>;
+ return <KeywordIllustrationView view={initialView&&adopted.current!==initialView?initialView:state.keyword===keyword?state.view:{kind:'loading'}} onImageError={()=>setState({keyword,view:{kind:'unavailable'}})}/>;
 }

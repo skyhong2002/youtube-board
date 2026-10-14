@@ -33,3 +33,36 @@ test('SSR metadata has a hard deadline even when a transport ignores abort',asyn
  const data=await fetchKeywordMetadata(keyword,'http://127.0.0.1:4100/api/v1',(()=>new Promise(()=>{})) as typeof fetch);
  assert.equal(data.relations.kind,'unavailable');assert.equal(data.illustration.kind,'unavailable');
 });
+test('failed illustration responses always close their body',async()=>{
+ for(const [status,headers] of [[503,{'content-type':'application/json'}],[200,{'content-type':'text/html'}],[200,{'content-type':'application/json','content-length':'131073'}]] as const){
+  let cancelled=0;
+  const transport=(async(url)=>String(url).endsWith('/relations')?json(relation):new Response(new ReadableStream({cancel(){cancelled++;}}),{status,headers})) as typeof fetch;
+  await fetchKeywordMetadata(keyword,'http://127.0.0.1:4100/api/v1',transport);assert.equal(cancelled,1);
+ }
+});
+test('deadline cancels stalled illustration but preserves a settled relations Retry-After',async()=>{
+ let cancelled=0;
+ const data=await fetchKeywordMetadata(keyword,'http://127.0.0.1:4100/api/v1',(async(url)=>String(url).endsWith('/relations')?new Response('',{status:429,headers:{'retry-after':'120'}}):new Response(new ReadableStream({cancel(){cancelled++;}}),{headers:{'content-type':'application/json'}})) as typeof fetch);
+ assert.equal(cancelled,1);assert.equal(data.relations.kind,'unavailable');if(data.relations.kind==='unavailable')assert.equal(data.relations.retryAfterSeconds,120);
+});
+test('late ignored-abort illustration is cancelled without reading its body',async()=>{
+ let cancelled=0,pulled=0;
+ const transport=(async(url,init)=>{
+  if(String(url).endsWith('/relations'))return json(relation);
+  await new Promise<void>(resolve=>init!.signal!.addEventListener('abort',()=>resolve(),{once:true}));
+  return new Response(new ReadableStream({pull(){pulled++;},cancel(){cancelled++;}},{highWaterMark:0}),{headers:{'content-type':'application/json'}});
+ }) as typeof fetch;
+ const data=await fetchKeywordMetadata(keyword,'http://127.0.0.1:4100/api/v1',transport);await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(cancelled,1);assert.equal(pulled,0);assert.equal(data.relations.kind,'available');
+});
+test('dynamic canonical profiles retain indexing and breadcrumb data; real filters remain noindex',async()=>{
+ const {canonicalKeywordProfile}=await import('./public-render');const {resolveRoute}=await import('./routes');
+ const {reportMetadata,filteredReportMetadata,breadcrumbJsonLd,reportBreadcrumbs}=await import('./seo');
+ const segments=['keywords',keyword,'videos'],route=resolveRoute(segments)!;
+ for(const search of [{},{_rsc:'sample'},{days:'7'}]){
+  const canonical=canonicalKeywordProfile(route.kind,search);assert.equal(canonical,!('days' in search));
+  const meta=canonical?reportMetadata(route,segments):filteredReportMetadata(route,segments);
+  assert.equal((meta.robots as {index?:boolean}|undefined)?.index!==false,canonical);
+  if(canonical)assert.match(JSON.stringify(breadcrumbJsonLd(reportBreadcrumbs(route,segments))),/keywords/);
+ }
+});

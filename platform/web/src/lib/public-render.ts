@@ -60,3 +60,8 @@ export function publicRenderDecision(url: URL, method = "GET"): RenderDecision {
         return filtered ? render("filtered", null) : render(null, "report");
     return render(null, null);
 }
+
+/** Private rendering does not change canonical keyword profile indexing. */
+export function canonicalKeywordProfile(kind:string,search:Record<string,unknown>){
+ return kind==='keyword-videos'&&Object.keys(search).every(key=>key==='_rsc');
+}
