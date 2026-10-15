@@ -44389,6 +44389,11 @@
       "Continue fourth-page batches",
       "Investigate per-statistic freshness with read-only job evidence",
       "Keep ECHPW008FvY thumbnail source/optimizer 404 pending"
-    ]
+    ],
+    "freshnessRuntimeLogFollowup": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch3-20261015T021627Z/statistics-runtime-log-followup.json",
+      "sha256": "86915a348f639bf9fa7396955a788060bf9006d39df27b2485d40f76373a9f9d",
+      "finding": "bounded 24h scheduler log summary had 7,525 lines and no detected youtube.videos.stats completion/failure event; no inference of job failure"
+    }
   }
 }
