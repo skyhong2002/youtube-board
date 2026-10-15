@@ -1,0 +1,7 @@
+# F4 sixth batch — fail-closed partial capture
+
+Planned routes: `/live/periods`, `/live/trends/daily`, `/live/walls/alternate`, `/live/walls/china`, light 1280/390. APP `35501a3f269f2818115ea7277c66db765a4e267d`, image `sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920`, BUILD_ID `b8g61kyNdOR6Pmo1TWxav`.
+
+The fresh probe passed before capture; its receipt is [fresh-probe.json](/tmp/babysit/mint-queue/youtube-f4-batch6-20261015T090000Z/fresh-probe.json), SHA-256 `8ee97fe26ea8891a21dc2868dfb104320f619b6b1def6b10e069b88746a6e49c`. The first two routes completed four views. The capture then stopped fail-closed before writing the `/live/walls/alternate` image because network evidence contained unknown external-host failures and an aborted same-origin fetch; `/live/walls/china` was not attempted. Partial index: [partial-capture-index.json](/tmp/babysit/mint-queue/youtube-f4-batch6-20261015T090000Z/partial-capture-index.json), SHA-256 `8e52e5cb24b456399e273d3df59abcb40f213662294f7d8e59642523f38a1c54`.
+
+The existing reviewer `/root/f2_visual_sol` opened one light desktop full-page image for each completed route and returned `PASS_SCOPED`: `/live/periods` receipt SHA `c0d1b5171311bae93a5b631a640d4f615414add46296ddb9e57ed044089e9e7d`; `/live/trends/daily` receipt SHA `bbd3509b8bef3a65c2c240813f8668aa09448315bda613aae3f628e8bc21d781`. The wall failure remains pending; no route or F4 completion is claimed.

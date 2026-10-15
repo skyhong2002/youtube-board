@@ -76,6 +76,15 @@
       "actualOpened": 4,
       "wholeRoutesComplete": 0,
       "historicalCountersUnchanged": true
+    },
+    "currentArtifactBatch6": {
+      "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+      "routes": 2,
+      "plannedRoutes": 4,
+      "views": 4,
+      "actualOpened": 2,
+      "wholeRoutesComplete": 0,
+      "historicalCountersUnchanged": true
     }
   },
   "entries": [
@@ -34186,7 +34195,7 @@
     "ui_ledger": "Homepage, keyword/evidence, channels, videos, events, about, API HTML and error states.",
     "ui_review_2": "Live, tags, AI, groups, mayor, account gates, boards, comparisons, remaining public pages and existing-authorized admin/ops. Each reviewer must see the actual screenshots plus tag reference; no implementation self-review."
   },
-  "reviewEvidenceUpdatedAt": "2026-10-15T08:55:00Z",
+  "reviewEvidenceUpdatedAt": "2026-10-15T09:20:00Z",
   "capturePerformancePolicy": {
     "effectiveAt": "2026-10-12T19:40:30Z",
     "maxSharedCaptureBrowserInstances": 2,
@@ -44550,6 +44559,63 @@
       "Reviewer opened one light desktop full-page PNG per route; mobile light views were not independently viewed.",
       "Dark variants were not captured in this batch. Slices, raw network, DNT/GPC and manifest hashes were not independently reviewed by visual reviewer; capture receipts retain those claims.",
       "Per-statistic freshness and ECHPW008FvY thumbnail source/optimizer 404 remain pending."
+    ]
+  },
+  "f4SixthBatch20261015": {
+    "recordedAt": "2026-10-15T09:20:00Z",
+    "status": "PARTIAL_CAPTURE_FAIL_CLOSED",
+    "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+    "image": "sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920",
+    "buildID": "b8g61kyNdOR6Pmo1TWxav",
+    "plannedRoutes": [
+      "/live/periods",
+      "/live/trends/daily",
+      "/live/walls/alternate",
+      "/live/walls/china"
+    ],
+    "completedRoutes": [
+      "/live/periods",
+      "/live/trends/daily"
+    ],
+    "completedViews": 4,
+    "captureIndex": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch6-20261015T090000Z/partial-capture-index.json",
+      "sha256": "8e52e5cb24b456399e273d3df59abcb40f213662294f7d8e59642523f38a1c54"
+    },
+    "freshProbe": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch6-20261015T090000Z/fresh-probe.json",
+      "sha256": "8ee97fe26ea8891a21dc2868dfb104320f619b6b1def6b10e069b88746a6e49c"
+    },
+    "reviewer": "/root/f2_visual_sol",
+    "reviewReceipts": [
+      {
+        "route": "/live/periods",
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch6-20261015T090000Z/reviewer-live-periods-single.json",
+        "sha256": "c0d1b5171311bae93a5b631a640d4f615414add46296ddb9e57ed044089e9e7d"
+      },
+      {
+        "route": "/live/trends/daily",
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch6-20261015T090000Z/reviewer-live-trends-daily-single.json",
+        "sha256": "bbd3509b8bef3a65c2c240813f8668aa09448315bda613aae3f628e8bc21d781"
+      }
+    ],
+    "blockingFindings": [],
+    "routeComplete": false,
+    "fullF4Acceptance": false,
+    "failedRoutes": [
+      {
+        "route": "/live/walls/alternate",
+        "reason": "network evidence unknown; external-host failures and ERR_ABORTED; fail-closed capture stop"
+      },
+      {
+        "route": "/live/walls/china",
+        "reason": "not attempted after stop"
+      }
+    ],
+    "limitations": [
+      "Only two routes completed light desktop/mobile; reviewer opened one light desktop image per completed route.",
+      "The walls capture was stopped before image write when network evidence became unknown; do not infer a route defect or pass.",
+      "Dark views, remaining states, slices and raw network were not independently reviewed."
     ]
   }
 }
