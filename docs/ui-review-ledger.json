@@ -85,6 +85,14 @@
       "actualOpened": 2,
       "wholeRoutesComplete": 0,
       "historicalCountersUnchanged": true
+    },
+    "currentArtifactBatch7": {
+      "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+      "routes": 4,
+      "views": 8,
+      "actualOpened": 4,
+      "wholeRoutesComplete": 0,
+      "historicalCountersUnchanged": true
     }
   },
   "entries": [
@@ -34195,7 +34203,7 @@
     "ui_ledger": "Homepage, keyword/evidence, channels, videos, events, about, API HTML and error states.",
     "ui_review_2": "Live, tags, AI, groups, mayor, account gates, boards, comparisons, remaining public pages and existing-authorized admin/ops. Each reviewer must see the actual screenshots plus tag reference; no implementation self-review."
   },
-  "reviewEvidenceUpdatedAt": "2026-10-15T09:20:00Z",
+  "reviewEvidenceUpdatedAt": "2026-10-15T10:00:00Z",
   "capturePerformancePolicy": {
     "effectiveAt": "2026-10-12T19:40:30Z",
     "maxSharedCaptureBrowserInstances": 2,
@@ -44616,6 +44624,75 @@
       "Only two routes completed light desktop/mobile; reviewer opened one light desktop image per completed route.",
       "The walls capture was stopped before image write when network evidence became unknown; do not infer a route defect or pass.",
       "Dark views, remaining states, slices and raw network were not independently reviewed."
+    ]
+  },
+  "f4SeventhBatch20261015": {
+    "recordedAt": "2026-10-15T10:00:00Z",
+    "status": "PASS_SCOPED_PRODUCTION_FOUR_ROUTES_LIGHT",
+    "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+    "image": "sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920",
+    "buildID": "b8g61kyNdOR6Pmo1TWxav",
+    "routes": [
+      "/about",
+      "/about/brand",
+      "/vocabulary",
+      "/events"
+    ],
+    "themes": [
+      "light"
+    ],
+    "viewports": [
+      1280,
+      390
+    ],
+    "captureIndex": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch7-20261015T093000Z/production-capture-index.json",
+      "sha256": "6d49f5357efbcf99e6856e69ad985a4320e94f506b7bc3da0abc37dda6dd3d09"
+    },
+    "captureManifest": {
+      "path": "/home/deck/.cache/youtube-ui-review/production-f4b5-35501a3-light-20261015-batch7-rerun/captures.json",
+      "sha256": "8b02a33103d551e63b917082df0d291a3fd6a8448f470124003e9896a7203dce"
+    },
+    "freshProbe": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch7-20261015T093000Z/fresh-probe-final.json",
+      "sha256": "5e7d93180556d6b1c57da0b0b212e47f06917e562792df78d10e6f8fe145baa1"
+    },
+    "reviewer": "/root/f2_visual_sol",
+    "reviewReceipts": [
+      {
+        "route": "/about",
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch7-20261015T093000Z/reviewer-about-single.json",
+        "sha256": "36a83cf68bbc2dda646a857dc3b1ec9e5a5eeb9ca6916ffa1171694364f305b1"
+      },
+      {
+        "route": "/about/brand",
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch7-20261015T093000Z/reviewer-about-brand-single.json",
+        "sha256": "49fba9e04a6e0a52e98b3e210d4b6b207274b92c38bda8bde764394bee4e5490"
+      },
+      {
+        "route": "/vocabulary",
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch7-20261015T093000Z/reviewer-vocabulary-single.json",
+        "sha256": "fed890ffde82fcfada5f9f9635df5e76f8205a6a034b74c838d7f30f7288cd83"
+      },
+      {
+        "route": "/events",
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch7-20261015T093000Z/reviewer-events-single.json",
+        "sha256": "e1c3679b4be6f3650d570cc2d92c8e68004274b132af3f146279014559ddc295"
+      }
+    ],
+    "counts": {
+      "captureViews": 8,
+      "reviewedFullPageImages": 4,
+      "captureImagesNotIndependentlyReviewed": 4,
+      "hashOnlyOrUnopenedByReviewer": 4
+    },
+    "blockingFindings": [],
+    "routeComplete": false,
+    "fullF4Acceptance": false,
+    "limitations": [
+      "Reviewer opened one light desktop full-page PNG per route; mobile light views were not independently viewed.",
+      "Dark variants were not captured. Slices, raw network, DNT/GPC and manifest hashes were not independently reviewed by visual reviewer; capture receipts retain those claims.",
+      "Per-statistic freshness and ECHPW008FvY thumbnail source/optimizer 404 remain pending."
     ]
   }
 }

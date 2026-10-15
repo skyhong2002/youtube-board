@@ -1,0 +1,7 @@
+# F4 seventh production batch — 2026-10-15
+
+Routes captured at light 1280/390: `/about`, `/about/brand`, `/vocabulary`, and `/events`. Runtime identity: APP `35501a3f269f2818115ea7277c66db765a4e267d`, image `sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920`, BUILD_ID `b8g61kyNdOR6Pmo1TWxav`.
+
+A first fresh probe was rejected because SM's blog median was 6.610s, above the 6.17s gate. No browser was started. A retry probe passed; the final receipt is [fresh-probe-final.json](/tmp/babysit/mint-queue/youtube-f4-batch7-20261015T093000Z/fresh-probe-final.json), SHA-256 `5e7d93180556d6b1c57da0b0b212e47f06917e562792df78d10e6f8fe145baa1`; MemAvailable was 3.27 GiB immediately before capture. The capture index is [production-capture-index.json](/tmp/babysit/mint-queue/youtube-f4-batch7-20261015T093000Z/production-capture-index.json), SHA-256 `6d49f5357efbcf99e6856e69ad985a4320e94f506b7bc3da0abc37dda6dd3d09`; Google attempts/responses were zero and DNT/GPC were retained.
+
+The existing non-author reviewer `/root/f2_visual_sol` opened one light desktop full-page PNG per route and returned `PASS_SCOPED`: `/about` receipt SHA `36a83cf68bbc2dda646a857dc3b1ec9e5a5eeb9ca6916ffa1171694364f305b1`; `/about/brand` `49fba9e04a6e0a52e98b3e210d4b6b207274b92c38bda8bde764394bee4e5490`; `/vocabulary` `fed890ffde82fcfada5f9f9635df5e76f8205a6a034b74c838d7f30f7288cd83`; `/events` `e1c3679b4be6f3650d570cc2d92c8e68004274b132af3f146279014559ddc295`. Mobile/dark views and remaining states are pending; no route or F4 completion is claimed.
