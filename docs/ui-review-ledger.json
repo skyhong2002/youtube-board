@@ -68,6 +68,14 @@
       "actualOpened": 4,
       "wholeRoutesComplete": 0,
       "historicalCountersUnchanged": true
+    },
+    "currentArtifactBatch5": {
+      "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+      "routes": 4,
+      "views": 8,
+      "actualOpened": 4,
+      "wholeRoutesComplete": 0,
+      "historicalCountersUnchanged": true
     }
   },
   "entries": [
@@ -34178,7 +34186,7 @@
     "ui_ledger": "Homepage, keyword/evidence, channels, videos, events, about, API HTML and error states.",
     "ui_review_2": "Live, tags, AI, groups, mayor, account gates, boards, comparisons, remaining public pages and existing-authorized admin/ops. Each reviewer must see the actual screenshots plus tag reference; no implementation self-review."
   },
-  "reviewEvidenceUpdatedAt": "2026-10-15T08:10:00Z",
+  "reviewEvidenceUpdatedAt": "2026-10-15T08:55:00Z",
   "capturePerformancePolicy": {
     "effectiveAt": "2026-10-12T19:40:30Z",
     "maxSharedCaptureBrowserInstances": 2,
@@ -44472,6 +44480,75 @@
       "Reviewer actually opened one light desktop full-page PNG per route; dark and mobile variants and the other 12 full-page PNGs were not independently viewed.",
       "Slices, raw network, DNT/GPC and manifest hashes were not independently reviewed by the visual reviewer; capture receipts retain those claims.",
       "The stale /ai/events/5533 404 and queryless /ai/days/5550/events 400 are preserved in route-selection.json and are not counted as passes.",
+      "Per-statistic freshness and ECHPW008FvY thumbnail source/optimizer 404 remain pending."
+    ]
+  },
+  "f4FifthBatch20261015": {
+    "recordedAt": "2026-10-15T08:55:00Z",
+    "status": "PASS_SCOPED_PRODUCTION_FOUR_ROUTES_LIGHT",
+    "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+    "image": "sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920",
+    "buildID": "b8g61kyNdOR6Pmo1TWxav",
+    "routes": [
+      "/ai/periods",
+      "/live/continuous",
+      "/live/days",
+      "/live/hours"
+    ],
+    "themes": [
+      "light"
+    ],
+    "viewports": [
+      1280,
+      390
+    ],
+    "captureIndex": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch5-20261015T081500Z/production-capture-index.json",
+      "sha256": "222aa4992322287deec68c29755e41521899d7d328f2ddb4796c7a4d585f747a"
+    },
+    "captureManifest": {
+      "path": "/home/deck/.cache/youtube-ui-review/production-f4b5-35501a3-light-20261015-batch5-rerun/captures.json",
+      "sha256": "5869a107b659e22a62aefb96d2251cbdac15c19ba95c6f766293b98d8edfba6f"
+    },
+    "freshProbe": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch5-20261015T081500Z/fresh-probe.json",
+      "sha256": "4371726bc5038559f5ac47bec5e199377695078f68b0fa12c5fd4e18ec3f475f"
+    },
+    "reviewer": "/root/f2_visual_sol",
+    "reviewReceipts": [
+      {
+        "route": "/ai/periods",
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch5-20261015T081500Z/reviewer-ai-periods-single.json",
+        "sha256": "5e5e7d7e331e2371ccafac1a856f56415baeca67bc2ffc574d021c141d220810"
+      },
+      {
+        "route": "/live/continuous",
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch5-20261015T081500Z/reviewer-live-continuous-single.json",
+        "sha256": "11964cc2ed0c1275054bbfbacea4a51c91c4462232348d17a24e00ec7a841366"
+      },
+      {
+        "route": "/live/days",
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch5-20261015T081500Z/reviewer-live-days-single.json",
+        "sha256": "f1a6c755af169ce8f37e604f0ad4b01fe51173e8dcf216135a44eba5bfb7db1e"
+      },
+      {
+        "route": "/live/hours",
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch5-20261015T081500Z/reviewer-live-hours-single.json",
+        "sha256": "810851a5f1bc65c28580b456cee7ae0e0b56276c00d9fcd80bf8237b3297047e"
+      }
+    ],
+    "counts": {
+      "captureViews": 8,
+      "reviewedFullPageImages": 4,
+      "captureImagesNotIndependentlyReviewed": 4,
+      "hashOnlyOrUnopenedByReviewer": 4
+    },
+    "blockingFindings": [],
+    "routeComplete": false,
+    "fullF4Acceptance": false,
+    "limitations": [
+      "Reviewer opened one light desktop full-page PNG per route; mobile light views were not independently viewed.",
+      "Dark variants were not captured in this batch. Slices, raw network, DNT/GPC and manifest hashes were not independently reviewed by visual reviewer; capture receipts retain those claims.",
       "Per-statistic freshness and ECHPW008FvY thumbnail source/optimizer 404 remain pending."
     ]
   }
