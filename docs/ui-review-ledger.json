@@ -155,7 +155,7 @@
       "routes": 4,
       "views": 8,
       "networkCompleteViews": 6,
-      "actualOpened": 0,
+      "actualOpened": 3,
       "failClosedRoutes": 1,
       "wholeRoutesComplete": 0,
       "historicalCountersUnchanged": true
@@ -34269,7 +34269,7 @@
     "ui_ledger": "Homepage, keyword/evidence, channels, videos, events, about, API HTML and error states.",
     "ui_review_2": "Live, tags, AI, groups, mayor, account gates, boards, comparisons, remaining public pages and existing-authorized admin/ops. Each reviewer must see the actual screenshots plus tag reference; no implementation self-review."
   },
-  "reviewEvidenceUpdatedAt": "2026-10-16T18:40:00Z",
+  "reviewEvidenceUpdatedAt": "2026-10-16T18:50:00Z",
   "capturePerformancePolicy": {
     "effectiveAt": "2026-10-12T19:40:30Z",
     "maxSharedCaptureBrowserInstances": 2,
@@ -45159,7 +45159,7 @@
   },
   "f4FourteenthBatch20261016": {
     "recordedAt": "2026-10-16T18:40:00Z",
-    "status": "CAPTURED_REVIEW_PENDING_WITH_FAIL_CLOSED",
+    "status": "PASS_SCOPED_PRODUCTION_THREE_ROUTES_LIGHT_PLUS_FAIL_CLOSED",
     "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
     "image": "sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920",
     "buildID": "b8g61kyNdOR6Pmo1TWxav",
@@ -45189,7 +45189,19 @@
       "sha256": "85c18c479b7b162c87a8ba2400af89957d139bbbf14f867de61c5365dfd406f2"
     },
     "reviewer": "/root/f2_visual_sol",
-    "reviewReceipts": [],
+    "reviewReceipts": [
+      {
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch14-reviewer.json",
+        "sha256": "004e7cad12060e216ed31c8c962138d747d6b06595bbc6f84d999ad6fcb440a1",
+        "routes": [
+          "/mayor",
+          "/mayor/cities/taipei?days=90&to=2026-10-10",
+          "/mayor/cities/taipei/people/蔣萬安/days/2026-10-10"
+        ],
+        "decision": "PASS_SCOPED",
+        "scope": "light desktop 1280 only"
+      }
+    ],
     "outcomes": {
       "/mayor": "network-complete HTTP200 both views; review pending",
       "/mayor/cities/taipei": "network-complete HTTP200 both views; review pending",
@@ -45199,8 +45211,9 @@
     "counts": {
       "captureViews": 8,
       "networkCompleteViews": 6,
-      "reviewedFullPageImages": 0,
-      "failClosedRoutes": 1
+      "reviewedFullPageImages": 3,
+      "failClosedRoutes": 1,
+      "hashOnlyOrUnopenedByReviewer": 5
     },
     "routeComplete": false,
     "fullF4Acceptance": false,
