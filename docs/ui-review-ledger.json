@@ -93,6 +93,14 @@
       "actualOpened": 4,
       "wholeRoutesComplete": 0,
       "historicalCountersUnchanged": true
+    },
+    "currentArtifactBatch8": {
+      "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+      "routes": 4,
+      "views": 8,
+      "actualOpened": 4,
+      "wholeRoutesComplete": 0,
+      "historicalCountersUnchanged": true
     }
   },
   "entries": [
@@ -34203,7 +34211,7 @@
     "ui_ledger": "Homepage, keyword/evidence, channels, videos, events, about, API HTML and error states.",
     "ui_review_2": "Live, tags, AI, groups, mayor, account gates, boards, comparisons, remaining public pages and existing-authorized admin/ops. Each reviewer must see the actual screenshots plus tag reference; no implementation self-review."
   },
-  "reviewEvidenceUpdatedAt": "2026-10-15T10:00:00Z",
+  "reviewEvidenceUpdatedAt": "2026-10-15T14:40:00Z",
   "capturePerformancePolicy": {
     "effectiveAt": "2026-10-12T19:40:30Z",
     "maxSharedCaptureBrowserInstances": 2,
@@ -44678,6 +44686,75 @@
         "route": "/events",
         "path": "/tmp/babysit/mint-queue/youtube-f4-batch7-20261015T093000Z/reviewer-events-single.json",
         "sha256": "e1c3679b4be6f3650d570cc2d92c8e68004274b132af3f146279014559ddc295"
+      }
+    ],
+    "counts": {
+      "captureViews": 8,
+      "reviewedFullPageImages": 4,
+      "captureImagesNotIndependentlyReviewed": 4,
+      "hashOnlyOrUnopenedByReviewer": 4
+    },
+    "blockingFindings": [],
+    "routeComplete": false,
+    "fullF4Acceptance": false,
+    "limitations": [
+      "Reviewer opened one light desktop full-page PNG per route; mobile light views were not independently viewed.",
+      "Dark variants were not captured. Slices, raw network, DNT/GPC and manifest hashes were not independently reviewed by visual reviewer; capture receipts retain those claims.",
+      "Per-statistic freshness and ECHPW008FvY thumbnail source/optimizer 404 remain pending."
+    ]
+  },
+  "f4EighthBatch20261015": {
+    "recordedAt": "2026-10-15T14:40:00Z",
+    "status": "PASS_SCOPED_PRODUCTION_FOUR_ROUTES_LIGHT",
+    "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+    "image": "sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920",
+    "buildID": "b8g61kyNdOR6Pmo1TWxav",
+    "routes": [
+      "/live/tags",
+      "/tags/compare",
+      "/tags/cloud",
+      "/tags/comments"
+    ],
+    "themes": [
+      "light"
+    ],
+    "viewports": [
+      1280,
+      390
+    ],
+    "captureIndex": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch8-20261015T103000Z/production-capture-index.json",
+      "sha256": "1cebaef0641618a75cf5098ebbfc32571c281d771dc84117c37e6ada505c8d8f"
+    },
+    "captureManifest": {
+      "path": "/home/deck/.cache/youtube-ui-review/production-f4b5-35501a3-light-20261015-batch8/captures.json",
+      "sha256": "2d09f681dee1e45d20d4db52f276c0c353bbc184d1f34ce9c6393e42b7ba55d8"
+    },
+    "freshProbe": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch8-20261015T103000Z/fresh-probe-current.json",
+      "sha256": "36ba2d1343acc19a16eb06493f467e8ebffbb9e455d3ca62e2d4a1a7fe22f8ec"
+    },
+    "reviewer": "/root/f2_visual_sol",
+    "reviewReceipts": [
+      {
+        "route": "/live/tags",
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch8-20261015T103000Z/reviewer-live-tags-single.json",
+        "sha256": "c658920534ee8cec46c953c376276248c7915942b5a132e6bccb3a939be39d3a"
+      },
+      {
+        "route": "/tags/compare",
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch8-20261015T103000Z/reviewer-tags-compare-single.json",
+        "sha256": "0e7eef20cfb0d9edede7c3f1d0e5d57831e0ab0232d6424d3284a1b01786cafd"
+      },
+      {
+        "route": "/tags/cloud",
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch8-20261015T103000Z/reviewer-tags-cloud-single.json",
+        "sha256": "38a98c70f7c3d261ea368e7e019ba9e0b3b27974a95acadbb55500f318adf784"
+      },
+      {
+        "route": "/tags/comments",
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch8-20261015T103000Z/reviewer-tags-comments-single.json",
+        "sha256": "2fc4b259555b4634247f230b2089b8eae8a076e16ea30db70be71e02baa7063f"
       }
     ],
     "counts": {

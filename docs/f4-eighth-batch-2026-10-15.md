@@ -1,0 +1,7 @@
+# F4 eighth production batch — 2026-10-15
+
+Routes captured at light 1280/390: `/live/tags`, `/tags/compare`, `/tags/cloud`, and `/tags/comments`. Runtime identity: APP `35501a3f269f2818115ea7277c66db765a4e267d`, image `sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920`, BUILD_ID `b8g61kyNdOR6Pmo1TWxav`.
+
+The first batch8 gate failed earlier because SM blog had a curl exit 28 and a 6.224s sample. A later fresh probe passed before this capture: [fresh-probe-current.json](/tmp/babysit/mint-queue/youtube-f4-batch8-20261015T103000Z/fresh-probe-current.json), SHA-256 `36ba2d1343acc19a16eb06493f467e8ebffbb9e455d3ca62e2d4a1a7fe22f8ec`. The capture index is [production-capture-index.json](/tmp/babysit/mint-queue/youtube-f4-batch8-20261015T103000Z/production-capture-index.json), SHA-256 `1cebaef0641618a75cf5098ebbfc32571c281d771dc84117c37e6ada505c8d8f`; Google attempts/responses were zero and DNT/GPC were retained.
+
+The existing non-author reviewer `/root/f2_visual_sol` opened one light desktop full-page PNG per route and returned `PASS_SCOPED`: `/live/tags` receipt SHA `c658920534ee8cec46c953c376276248c7915942b5a132e6bccb3a939be39d3a`; `/tags/compare` `0e7eef20cfb0d9edede7c3f1d0e5d57831e0ab0232d6424d3284a1b01786cafd`; `/tags/cloud` `38a98c70f7c3d261ea368e7e019ba9e0b3b27974a95acadbb55500f318adf784`; `/tags/comments` `2fc4b259555b4634247f230b2089b8eae8a076e16ea30db70be71e02baa7063f`. Mobile/dark views and remaining states are pending; no route or F4 completion is claimed.
