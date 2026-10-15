@@ -119,6 +119,26 @@
       "failClosedRoutes": 3,
       "wholeRoutesComplete": 0,
       "historicalCountersUnchanged": true
+    },
+    "currentArtifactBatch11": {
+      "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+      "routes": 4,
+      "views": 8,
+      "networkCompleteViews": 6,
+      "actualOpened": 3,
+      "failClosedRoutes": 1,
+      "wholeRoutesComplete": 0,
+      "historicalCountersUnchanged": true
+    },
+    "currentArtifactBatch12": {
+      "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+      "routes": 4,
+      "views": 8,
+      "networkCompleteViews": 4,
+      "actualOpened": 0,
+      "failClosedRoutes": 2,
+      "wholeRoutesComplete": 0,
+      "historicalCountersUnchanged": true
     }
   },
   "entries": [
@@ -34229,7 +34249,7 @@
     "ui_ledger": "Homepage, keyword/evidence, channels, videos, events, about, API HTML and error states.",
     "ui_review_2": "Live, tags, AI, groups, mayor, account gates, boards, comparisons, remaining public pages and existing-authorized admin/ops. Each reviewer must see the actual screenshots plus tag reference; no implementation self-review."
   },
-  "reviewEvidenceUpdatedAt": "2026-10-16T17:40:00Z",
+  "reviewEvidenceUpdatedAt": "2026-10-16T18:00:00Z",
   "capturePerformancePolicy": {
     "effectiveAt": "2026-10-12T19:40:30Z",
     "maxSharedCaptureBrowserInstances": 2,
@@ -44924,6 +44944,119 @@
       "Only /live/walls/alternate light desktop was visually opened by reviewer.",
       "/live/walls/china, /boards and /events retain raw ERR_ABORTED and are fail-closed; no visual pass inferred.",
       "Mobile, dark, slices and other interaction/error/auth states remain pending.",
+      "Per-statistic freshness and ECHPW008FvY thumbnail source/optimizer 404 remain pending."
+    ]
+  },
+  "f4EleventhBatch20261016": {
+    "recordedAt": "2026-10-16T17:50:00Z",
+    "status": "PASS_SCOPED_PRODUCTION_THREE_ROUTES_LIGHT_PLUS_FAIL_CLOSED",
+    "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+    "image": "sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920",
+    "buildID": "b8g61kyNdOR6Pmo1TWxav",
+    "routes": [
+      "/channels/407",
+      "/channels/407/videos",
+      "/channels/407/comments",
+      "/channels/407/cloud"
+    ],
+    "themes": [
+      "light"
+    ],
+    "viewports": [
+      1280,
+      390
+    ],
+    "captureIndex": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch11-production-capture-index.json",
+      "sha256": "7f9cc67b0b17cb2a7462bde7389fb88b926726c2db8c2b9767f53b98145cedad"
+    },
+    "freshProbe": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch11-fresh-probe.json",
+      "sha256": "2782d30f17e07df03e7f22ba4844cb2a8b0dcd349f46ab97f121e6164e26926f"
+    },
+    "captureTool": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch10-capture-v2.mjs",
+      "sha256": "85c18c479b7b162c87a8ba2400af89957d139bbbf14f867de61c5365dfd406f2"
+    },
+    "reviewer": "/root/f2_visual_sol",
+    "reviewReceipts": [
+      {
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch11-reviewer.json",
+        "sha256": "4a2daa9932faae8d1754930f8dd4bd5ee2ec9b4875ab6efb14c13c28af03081f",
+        "routes": [
+          "/channels/407/videos",
+          "/channels/407/comments",
+          "/channels/407/cloud"
+        ],
+        "decision": "PASS_SCOPED",
+        "scope": "light desktop 1280 only"
+      }
+    ],
+    "counts": {
+      "captureViews": 8,
+      "networkCompleteViews": 6,
+      "reviewedFullPageImages": 3,
+      "failClosedRoutes": 1,
+      "hashOnlyOrUnopenedByReviewer": 5
+    },
+    "routeComplete": false,
+    "fullF4Acceptance": false,
+    "limitations": [
+      "/channels/407 retained raw request failures and is fail-closed.",
+      "Mobile/dark and other states remain pending.",
+      "Per-statistic freshness and ECHPW008FvY thumbnail source/optimizer 404 remain pending."
+    ]
+  },
+  "f4TwelfthBatch20261016": {
+    "recordedAt": "2026-10-16T18:00:00Z",
+    "status": "CAPTURED_REVIEW_PENDING_WITH_FAIL_CLOSED",
+    "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+    "image": "sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920",
+    "buildID": "b8g61kyNdOR6Pmo1TWxav",
+    "routes": [
+      "/channels/407/trends",
+      "/channels/407/people",
+      "/channels/407/ai",
+      "/channels/407/prompt"
+    ],
+    "themes": [
+      "light"
+    ],
+    "viewports": [
+      1280,
+      390
+    ],
+    "captureIndex": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch12-production-capture-index.json",
+      "sha256": "7571d533077e7302c82b36b24cb1f5cf4fc89224a43065a96240a33cc2c32547"
+    },
+    "freshProbe": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch12-fresh-probe.json",
+      "sha256": "a9fa0f3622a3728cf83bfd788e03862a06e8a76c6df27be619f205b3be6a7c5e"
+    },
+    "captureTool": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch10-capture-v2.mjs",
+      "sha256": "85c18c479b7b162c87a8ba2400af89957d139bbbf14f867de61c5365dfd406f2"
+    },
+    "reviewer": "/root/f2_visual_sol",
+    "reviewReceipts": [],
+    "outcomes": {
+      "/channels/407/trends": "network-complete HTTP200 both views; review pending",
+      "/channels/407/people": "HTTP503 both views; fail-closed",
+      "/channels/407/ai": "network-complete HTTP200 both views; review pending",
+      "/channels/407/prompt": "HTTP200 but raw ERR_ABORTED failures; fail-closed"
+    },
+    "counts": {
+      "captureViews": 8,
+      "networkCompleteViews": 4,
+      "reviewedFullPageImages": 0,
+      "failClosedRoutes": 2
+    },
+    "routeComplete": false,
+    "fullF4Acceptance": false,
+    "limitations": [
+      "Only light views captured; dark/mobile visual review pending.",
+      "503 and ERR_ABORTED routes remain pending; no visual pass inferred.",
       "Per-statistic freshness and ECHPW008FvY thumbnail source/optimizer 404 remain pending."
     ]
   }
