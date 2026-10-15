@@ -52,6 +52,14 @@
       "hashedPNG": 172,
       "wholeRoutesComplete": 0,
       "historicalCountersUnchanged": true
+    },
+    "currentArtifactBatch3": {
+      "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+      "routes": 4,
+      "views": 16,
+      "actualOpened": 16,
+      "wholeRoutesComplete": 0,
+      "historicalCountersUnchanged": true
     }
   },
   "entries": [
@@ -20751,7 +20759,32 @@
         ],
         "priorReviewScope": "Historical reviewedSHA only; not approval of the next candidate",
         "recaptureMatrixEntry": "ledger-405"
-      }
+      },
+      "productionVisualReviews": [
+        {
+          "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+          "image": "sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920",
+          "buildID": "b8g61kyNdOR6Pmo1TWxav",
+          "scope": "anonymous default, light/dark,1280/390",
+          "status": "PASS_SCOPED",
+          "review": {
+            "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-15/production-batch3-scoped-review.json",
+            "sha256": "d164092d87b574d41d2b3b93be7045a59bb41ffae8885dafcf50f5b8a368515d"
+          },
+          "captureIndex": {
+            "path": "/tmp/babysit/mint-queue/youtube-f4-batch3-20261015T021627Z/production-capture-index.json",
+            "sha256": "c2630d0b0bb531a75bb68c8c01d26ee84ee75224d4ecc1328ce06f20e0d7eec0"
+          },
+          "routeComplete": false,
+          "limitations": [
+            "This is scoped visual review, not full F4 or whole-site acceptance.",
+            "No query submission, sorting, pagination, filter submission, focus, authentication, loading, error, or denied-state review.",
+            "Thumbnail ECHPW008FvY source and optimizer remain 404 with neutral fallback; cause unknown.",
+            "Per-statistic freshness and ingestion completion remain unverified."
+          ]
+        }
+      ],
+      "currentProductionScopedStatus": "PASS_SCOPED"
     },
     {
       "route": "/live/continuous",
@@ -27756,7 +27789,32 @@
         ],
         "priorReviewScope": "Historical reviewedSHA only; not approval of the next candidate",
         "recaptureMatrixEntry": "ledger-532"
-      }
+      },
+      "productionVisualReviews": [
+        {
+          "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+          "image": "sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920",
+          "buildID": "b8g61kyNdOR6Pmo1TWxav",
+          "scope": "anonymous default, light/dark,1280/390",
+          "status": "PASS_SCOPED",
+          "review": {
+            "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-15/production-batch3-scoped-review.json",
+            "sha256": "d164092d87b574d41d2b3b93be7045a59bb41ffae8885dafcf50f5b8a368515d"
+          },
+          "captureIndex": {
+            "path": "/tmp/babysit/mint-queue/youtube-f4-batch3-20261015T021627Z/production-capture-index.json",
+            "sha256": "c2630d0b0bb531a75bb68c8c01d26ee84ee75224d4ecc1328ce06f20e0d7eec0"
+          },
+          "routeComplete": false,
+          "limitations": [
+            "This is scoped visual review, not full F4 or whole-site acceptance.",
+            "No query submission, sorting, pagination, filter submission, focus, authentication, loading, error, or denied-state review.",
+            "Thumbnail ECHPW008FvY source and optimizer remain 404 with neutral fallback; cause unknown.",
+            "Per-statistic freshness and ingestion completion remain unverified."
+          ]
+        }
+      ],
+      "currentProductionScopedStatus": "PASS_SCOPED"
     },
     {
       "route": "/tags/{tagId}/channels",
@@ -44269,6 +44327,68 @@
         "path": "/home/deck/.cache/youtube-ui-review/production-f4-batch2-20261014T220850Z-videos-light-retake/captures.json",
         "sha256": "4cc248b7a9806eebfd4a805415fcf7d5e46fd3190573e7d6c9efa7bdbb3f7939"
       }
+    ]
+  },
+  "f4ThirdBatch20261015": {
+    "recordedAt": "2026-10-15T03:00:42.827337+00:00",
+    "status": "PASS_SCOPED_PRODUCTION_FOUR_ROUTES",
+    "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+    "image": "sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920",
+    "buildID": "b8g61kyNdOR6Pmo1TWxav",
+    "routes": [
+      "/channels/3715",
+      "/channels/3715/videos",
+      "/tags/102/channels",
+      "/live/channels"
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "viewports": [
+      1280,
+      390
+    ],
+    "productionAcceptance": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch3-20261015T021627Z/production-acceptance.json",
+      "sha256": "25a6f752a9c9dcf1a2bef5cf06aaf790c8dc20145873503c69d5499faeaf7336"
+    },
+    "productionReview": {
+      "path": "/home/deck/.cache/youtube-ui-review/f2_visual_sol-2026-10-15/production-batch3-scoped-review.json",
+      "sha256": "a11f1b869d030ca73bd89b245a849cfc2476f45f7f76fe14aa9957b180568a9f"
+    },
+    "productionCaptureIndex": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch3-20261015T021627Z/production-capture-index.json",
+      "sha256": "c2630d0b0bb531a75bb68c8c01d26ee84ee75224d4ecc1328ce06f20e0d7eec0"
+    },
+    "freshProbes": [
+      {
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch3-20261015T021627Z/fresh-probe.json",
+        "sha256": "d03d253677fd82ab2be687ea5dd55cc4115d4fb197af38cadf51be83438d1167"
+      },
+      {
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch3-20261015T021627Z/fresh-probe-dark.json",
+        "sha256": "f1f2e881c6f71d5d2f05bc22bf325fcaf2ab69a3f67ab5bc37a009f25a954ece"
+      }
+    ],
+    "counts": {
+      "views": 16,
+      "actualOpened": 16,
+      "hashOnly": 0
+    },
+    "blockingFindings": [],
+    "routeComplete": false,
+    "fullF4Acceptance": false,
+    "limitations": [
+      "This is scoped visual review, not full F4 or whole-site acceptance.",
+      "No query submission, sorting, pagination, filter submission, focus, authentication, loading, error, or denied-state review.",
+      "Thumbnail ECHPW008FvY source and optimizer remain 404 with neutral fallback; cause unknown.",
+      "Per-statistic freshness and ingestion completion remain unverified."
+    ],
+    "next": [
+      "Continue fourth-page batches",
+      "Investigate per-statistic freshness with read-only job evidence",
+      "Keep ECHPW008FvY thumbnail source/optimizer 404 pending"
     ]
   }
 }
