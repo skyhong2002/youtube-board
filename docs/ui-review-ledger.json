@@ -101,6 +101,14 @@
       "actualOpened": 4,
       "wholeRoutesComplete": 0,
       "historicalCountersUnchanged": true
+    },
+    "currentArtifactBatch9": {
+      "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+      "routes": 4,
+      "views": 8,
+      "actualOpened": 4,
+      "wholeRoutesComplete": 0,
+      "historicalCountersUnchanged": true
     }
   },
   "entries": [
@@ -34211,7 +34219,7 @@
     "ui_ledger": "Homepage, keyword/evidence, channels, videos, events, about, API HTML and error states.",
     "ui_review_2": "Live, tags, AI, groups, mayor, account gates, boards, comparisons, remaining public pages and existing-authorized admin/ops. Each reviewer must see the actual screenshots plus tag reference; no implementation self-review."
   },
-  "reviewEvidenceUpdatedAt": "2026-10-15T14:40:00Z",
+  "reviewEvidenceUpdatedAt": "2026-10-16T17:30:00Z",
   "capturePerformancePolicy": {
     "effectiveAt": "2026-10-12T19:40:30Z",
     "maxSharedCaptureBrowserInstances": 2,
@@ -44755,6 +44763,75 @@
         "route": "/tags/comments",
         "path": "/tmp/babysit/mint-queue/youtube-f4-batch8-20261015T103000Z/reviewer-tags-comments-single.json",
         "sha256": "2fc4b259555b4634247f230b2089b8eae8a076e16ea30db70be71e02baa7063f"
+      }
+    ],
+    "counts": {
+      "captureViews": 8,
+      "reviewedFullPageImages": 4,
+      "captureImagesNotIndependentlyReviewed": 4,
+      "hashOnlyOrUnopenedByReviewer": 4
+    },
+    "blockingFindings": [],
+    "routeComplete": false,
+    "fullF4Acceptance": false,
+    "limitations": [
+      "Reviewer opened one light desktop full-page PNG per route; mobile light views were not independently viewed.",
+      "Dark variants were not captured. Slices, raw network, DNT/GPC and manifest hashes were not independently reviewed by visual reviewer; capture receipts retain those claims.",
+      "Per-statistic freshness and ECHPW008FvY thumbnail source/optimizer 404 remain pending."
+    ]
+  },
+  "f4NinthBatch20261016": {
+    "recordedAt": "2026-10-16T17:30:00Z",
+    "status": "PASS_SCOPED_PRODUCTION_FOUR_ROUTES_LIGHT",
+    "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+    "image": "sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920",
+    "buildID": "b8g61kyNdOR6Pmo1TWxav",
+    "routes": [
+      "/tags/days",
+      "/tags/trends",
+      "/tags/videos",
+      "/tags/live/videos"
+    ],
+    "themes": [
+      "light"
+    ],
+    "viewports": [
+      1280,
+      390
+    ],
+    "captureIndex": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch9-20261016T000000Z/production-capture-index.json",
+      "sha256": "d7824af520a11e0a25eab57be027d8455e23126958de959c3c900b5b2e2525d8"
+    },
+    "captureManifest": {
+      "path": "/home/deck/.cache/youtube-ui-review/production-f4b5-35501a3-light-20261016-batch9/captures.json",
+      "sha256": "d6714db9793783634f055384f8141c8a0b0d81b0bdaac449969972743604fa31"
+    },
+    "freshProbe": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch9-20261016T000000Z/fresh-probe-retry.json",
+      "sha256": "866fe1f0cf90c756a77bbd13ee9e5d01a6293e7c5e1e8f7960e55eae43fdc2ec"
+    },
+    "reviewer": "/root/f2_visual_sol",
+    "reviewReceipts": [
+      {
+        "route": "/tags/days",
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch9-20261016T000000Z/reviewer-tags-days-single.json",
+        "sha256": "eeec238d74a9eff7ec5a5326e60ca4c10a22d129d96f5b2a4cb4b7852ffd59fe"
+      },
+      {
+        "route": "/tags/trends",
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch9-20261016T000000Z/reviewer-tags-trends-single.json",
+        "sha256": "1fc786eaa6d859fb71ff364977956e4f40ac340b590b6c6a70dd0d6ecaaffb13"
+      },
+      {
+        "route": "/tags/videos",
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch9-20261016T000000Z/reviewer-tags-videos-single.json",
+        "sha256": "4c0cdb68dc8791a12d8060616a59174c30dda820205a29174c2538baf7cd33a7"
+      },
+      {
+        "route": "/tags/live/videos",
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch9-20261016T000000Z/reviewer-tags-live-videos-single.json",
+        "sha256": "102263aaf97eb372ae9c4f284d4489364ed66ebd7996d2c35f52bfd2a3065a16"
       }
     ],
     "counts": {
