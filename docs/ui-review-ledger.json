@@ -109,6 +109,16 @@
       "actualOpened": 4,
       "wholeRoutesComplete": 0,
       "historicalCountersUnchanged": true
+    },
+    "currentArtifactBatch10": {
+      "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+      "routes": 4,
+      "views": 8,
+      "networkCompleteViews": 2,
+      "actualOpened": 1,
+      "failClosedRoutes": 3,
+      "wholeRoutesComplete": 0,
+      "historicalCountersUnchanged": true
     }
   },
   "entries": [
@@ -34219,7 +34229,7 @@
     "ui_ledger": "Homepage, keyword/evidence, channels, videos, events, about, API HTML and error states.",
     "ui_review_2": "Live, tags, AI, groups, mayor, account gates, boards, comparisons, remaining public pages and existing-authorized admin/ops. Each reviewer must see the actual screenshots plus tag reference; no implementation self-review."
   },
-  "reviewEvidenceUpdatedAt": "2026-10-16T17:30:00Z",
+  "reviewEvidenceUpdatedAt": "2026-10-16T17:40:00Z",
   "capturePerformancePolicy": {
     "effectiveAt": "2026-10-12T19:40:30Z",
     "maxSharedCaptureBrowserInstances": 2,
@@ -44846,6 +44856,74 @@
     "limitations": [
       "Reviewer opened one light desktop full-page PNG per route; mobile light views were not independently viewed.",
       "Dark variants were not captured. Slices, raw network, DNT/GPC and manifest hashes were not independently reviewed by visual reviewer; capture receipts retain those claims.",
+      "Per-statistic freshness and ECHPW008FvY thumbnail source/optimizer 404 remain pending."
+    ]
+  },
+  "f4TenthBatch20261016": {
+    "recordedAt": "2026-10-16T17:40:00Z",
+    "status": "PARTIAL_CAPTURE_FAIL_CLOSED",
+    "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+    "image": "sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920",
+    "buildID": "b8g61kyNdOR6Pmo1TWxav",
+    "routes": [
+      "/live/walls/alternate",
+      "/live/walls/china",
+      "/boards",
+      "/events"
+    ],
+    "themes": [
+      "light"
+    ],
+    "viewports": [
+      1280,
+      390
+    ],
+    "captureIndex": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch10-production-capture-index.json",
+      "sha256": "0d923b5faeb99607adfe58e6c8277f817e228f8e9b085cbd48bcffbee7140aee"
+    },
+    "captureTool": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch10-capture.mjs",
+      "sha256": "eda8b14366cb5a868888e6236f6ca2d8f6dc1e280df7dfa28c268396f51d7a37"
+    },
+    "capturePlan": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch10-plan.json",
+      "sha256": "bed5efabad3bc66f7064031c153d830f0bce08ad882dddf05bd5744727f4347e"
+    },
+    "freshProbe": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch10-fresh-probe.json",
+      "sha256": "629840634cc66851a32cfda1c047be32b48fbf0c35a3a213ad8087a5dafa657a"
+    },
+    "networkOutcome": {
+      "/live/walls/alternate": "complete, both 200, no failures, Google 0",
+      "/live/walls/china": "fail-closed, desktop/mobile 200 but same-origin ERR_ABORTED",
+      "/boards": "fail-closed, desktop/mobile 200 but same-origin ERR_ABORTED",
+      "/events": "fail-closed, desktop/mobile 200 with multiple same-origin ERR_ABORTED"
+    },
+    "reviewer": "/root/f2_visual_sol",
+    "reviewReceipts": [
+      {
+        "route": "/live/walls/alternate",
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch10-reviewer-live-walls-alternate.json",
+        "sha256": "648d4390a5dd3dbd8cfdedcd7b426758082d86cd3271ffe66449888da60522de",
+        "decision": "PASS_SCOPED",
+        "scope": "light desktop 1280 only"
+      }
+    ],
+    "counts": {
+      "captureViews": 8,
+      "networkCompleteViews": 2,
+      "reviewedFullPageImages": 1,
+      "failClosedRoutes": 3,
+      "hashOnlyOrUnopenedByReviewer": 7
+    },
+    "blockingFindings": [],
+    "routeComplete": false,
+    "fullF4Acceptance": false,
+    "limitations": [
+      "Only /live/walls/alternate light desktop was visually opened by reviewer.",
+      "/live/walls/china, /boards and /events retain raw ERR_ABORTED and are fail-closed; no visual pass inferred.",
+      "Mobile, dark, slices and other interaction/error/auth states remain pending.",
       "Per-statistic freshness and ECHPW008FvY thumbnail source/optimizer 404 remain pending."
     ]
   }
