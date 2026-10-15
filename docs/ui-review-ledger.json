@@ -139,6 +139,16 @@
       "failClosedRoutes": 2,
       "wholeRoutesComplete": 0,
       "historicalCountersUnchanged": true
+    },
+    "currentArtifactBatch13": {
+      "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+      "routes": 4,
+      "views": 8,
+      "networkCompleteViews": 4,
+      "actualOpened": 0,
+      "failClosedRoutes": 2,
+      "wholeRoutesComplete": 0,
+      "historicalCountersUnchanged": true
     }
   },
   "entries": [
@@ -34249,7 +34259,7 @@
     "ui_ledger": "Homepage, keyword/evidence, channels, videos, events, about, API HTML and error states.",
     "ui_review_2": "Live, tags, AI, groups, mayor, account gates, boards, comparisons, remaining public pages and existing-authorized admin/ops. Each reviewer must see the actual screenshots plus tag reference; no implementation self-review."
   },
-  "reviewEvidenceUpdatedAt": "2026-10-16T18:05:00Z",
+  "reviewEvidenceUpdatedAt": "2026-10-16T18:20:00Z",
   "capturePerformancePolicy": {
     "effectiveAt": "2026-10-12T19:40:30Z",
     "maxSharedCaptureBrowserInstances": 2,
@@ -45069,6 +45079,59 @@
     "limitations": [
       "Only light views captured; dark/mobile visual review pending.",
       "503 and ERR_ABORTED routes remain pending; no visual pass inferred.",
+      "Per-statistic freshness and ECHPW008FvY thumbnail source/optimizer 404 remain pending."
+    ]
+  },
+  "f4ThirteenthBatch20261016": {
+    "recordedAt": "2026-10-16T18:20:00Z",
+    "status": "CAPTURED_REVIEW_PENDING_WITH_FAIL_CLOSED",
+    "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+    "image": "sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920",
+    "buildID": "b8g61kyNdOR6Pmo1TWxav",
+    "routes": [
+      "/videos/kqdc4-YOmPM",
+      "/videos/kqdc4-YOmPM/analytics",
+      "/live/videos/kqdc4-YOmPM/trend",
+      "/channels/407/ai/days"
+    ],
+    "themes": [
+      "light"
+    ],
+    "viewports": [
+      1280,
+      390
+    ],
+    "captureIndex": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch13-production-capture-index.json",
+      "sha256": "1cb423fb0e54ac85712419430fa44b65ede7ca255ecce8dcc95d82d47ea5d723"
+    },
+    "freshProbe": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch13-fresh-probe.json",
+      "sha256": "4cf9795f6380522d05d7d7eb63b809b67d3a8a7a2f30f5819d28b3cd69580176"
+    },
+    "captureTool": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch10-capture-v2.mjs",
+      "sha256": "85c18c479b7b162c87a8ba2400af89957d139bbbf14f867de61c5365dfd406f2"
+    },
+    "reviewer": "/root/f2_visual_sol",
+    "reviewReceipts": [],
+    "outcomes": {
+      "/videos/kqdc4-YOmPM": "network-complete HTTP200 both views; review pending",
+      "/videos/kqdc4-YOmPM/analytics": "network-complete HTTP200 both views; review pending",
+      "/live/videos/kqdc4-YOmPM/trend": "HTTP404 and request failures; fail-closed",
+      "/channels/407/ai/days": "HTTP200 but raw request failure; fail-closed"
+    },
+    "counts": {
+      "captureViews": 8,
+      "networkCompleteViews": 4,
+      "reviewedFullPageImages": 0,
+      "failClosedRoutes": 2
+    },
+    "routeComplete": false,
+    "fullF4Acceptance": false,
+    "limitations": [
+      "Only light views captured; dark/mobile visual review pending.",
+      "404 and raw-failure routes remain pending; no visual pass inferred.",
       "Per-statistic freshness and ECHPW008FvY thumbnail source/optimizer 404 remain pending."
     ]
   }
