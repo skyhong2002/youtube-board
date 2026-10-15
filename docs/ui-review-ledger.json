@@ -60,6 +60,14 @@
       "actualOpened": 16,
       "wholeRoutesComplete": 0,
       "historicalCountersUnchanged": true
+    },
+    "currentArtifactBatch4": {
+      "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+      "routes": 4,
+      "views": 16,
+      "actualOpened": 4,
+      "wholeRoutesComplete": 0,
+      "historicalCountersUnchanged": true
     }
   },
   "entries": [
@@ -34170,7 +34178,7 @@
     "ui_ledger": "Homepage, keyword/evidence, channels, videos, events, about, API HTML and error states.",
     "ui_review_2": "Live, tags, AI, groups, mayor, account gates, boards, comparisons, remaining public pages and existing-authorized admin/ops. Each reviewer must see the actual screenshots plus tag reference; no implementation self-review."
   },
-  "reviewEvidenceUpdatedAt": "2026-10-14T21:23:23.124347+00:00",
+  "reviewEvidenceUpdatedAt": "2026-10-15T08:10:00Z",
   "capturePerformancePolicy": {
     "effectiveAt": "2026-10-12T19:40:30Z",
     "maxSharedCaptureBrowserInstances": 2,
@@ -44395,5 +44403,76 @@
       "sha256": "86915a348f639bf9fa7396955a788060bf9006d39df27b2485d40f76373a9f9d",
       "finding": "bounded 24h scheduler log summary had 7,525 lines and no detected youtube.videos.stats completion/failure event; no inference of job failure"
     }
+  },
+  "f4FourthBatch20261015": {
+    "recordedAt": "2026-10-15T08:10:00Z",
+    "status": "PASS_SCOPED_PRODUCTION_FOUR_ROUTES",
+    "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+    "image": "sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920",
+    "buildID": "b8g61kyNdOR6Pmo1TWxav",
+    "routes": [
+      "/ai/aspects",
+      "/ai/days",
+      "/ai/days/2026-10-12",
+      "/ai/hours"
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "viewports": [
+      1280,
+      390
+    ],
+    "captureIndex": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch4-20261015T065612Z/production-capture-index.json",
+      "sha256": "245ac77d1cfbfbe0a441315882313f0ee4ca6ed27fe05ec821da121c79d91e29"
+    },
+    "freshProbe": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch4-20261015T065612Z/fresh-probe.json",
+      "sha256": "68597a64c51ba5e5e4f0dd5e34d2d06f337a74256fe6e61463af9b4400a98bdc"
+    },
+    "reviewer": "/root/f2_visual_sol",
+    "reviewReceipts": [
+      {
+        "route": "/ai/aspects",
+        "view": "light desktop 1280",
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch4-20261015T065612Z/reviewer-ai-aspects-single.json",
+        "sha256": "58eb5dff1bf5510c1bd4bca2caf0a5a11c1bcae671176df4cac0cf4b998e6d02"
+      },
+      {
+        "route": "/ai/days",
+        "view": "light desktop 1280",
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch4-20261015T065612Z/reviewer-ai-days-single.json",
+        "sha256": "677d108f9bbfb970ad1f9c9c79c252d7e284e51076514bae7616f8a84ac5d03e"
+      },
+      {
+        "route": "/ai/days/2026-10-12",
+        "view": "light desktop 1280",
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch4-20261015T065612Z/reviewer-ai-day-2026-10-12-single.json",
+        "sha256": "df0b3cf7e3b63b2e2eb421ac6a6281fe435e4d12d398a1856fa96952c314dc4c"
+      },
+      {
+        "route": "/ai/hours",
+        "view": "light desktop 1280",
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch4-20261015T065612Z/reviewer-ai-hours-single.json",
+        "sha256": "c04bcc814cbdc85716edc5a5e7c59dd361295b0c8d671ee4ba3cfd362deac6f1"
+      }
+    ],
+    "counts": {
+      "captureViews": 16,
+      "reviewedFullPageImages": 4,
+      "captureImagesNotIndependentlyReviewed": 12,
+      "hashOnlyOrUnopenedByReviewer": 12
+    },
+    "blockingFindings": [],
+    "routeComplete": false,
+    "fullF4Acceptance": false,
+    "limitations": [
+      "Reviewer actually opened one light desktop full-page PNG per route; dark and mobile variants and the other 12 full-page PNGs were not independently viewed.",
+      "Slices, raw network, DNT/GPC and manifest hashes were not independently reviewed by the visual reviewer; capture receipts retain those claims.",
+      "The stale /ai/events/5533 404 and queryless /ai/days/5550/events 400 are preserved in route-selection.json and are not counted as passes.",
+      "Per-statistic freshness and ECHPW008FvY thumbnail source/optimizer 404 remain pending."
+    ]
   }
 }
