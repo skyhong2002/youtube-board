@@ -159,6 +159,16 @@
       "failClosedRoutes": 1,
       "wholeRoutesComplete": 0,
       "historicalCountersUnchanged": true
+    },
+    "currentArtifactBatch15": {
+      "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+      "routes": 4,
+      "views": 8,
+      "networkCompleteViews": 6,
+      "actualOpened": 0,
+      "failClosedRoutes": 1,
+      "wholeRoutesComplete": 0,
+      "historicalCountersUnchanged": true
     }
   },
   "entries": [
@@ -34269,7 +34279,7 @@
     "ui_ledger": "Homepage, keyword/evidence, channels, videos, events, about, API HTML and error states.",
     "ui_review_2": "Live, tags, AI, groups, mayor, account gates, boards, comparisons, remaining public pages and existing-authorized admin/ops. Each reviewer must see the actual screenshots plus tag reference; no implementation self-review."
   },
-  "reviewEvidenceUpdatedAt": "2026-10-16T18:50:00Z",
+  "reviewEvidenceUpdatedAt": "2026-10-16T19:00:00Z",
   "capturePerformancePolicy": {
     "effectiveAt": "2026-10-12T19:40:30Z",
     "maxSharedCaptureBrowserInstances": 2,
@@ -45220,6 +45230,64 @@
     "limitations": [
       "Only light views captured; dark/mobile visual review pending.",
       "Person profile route retains raw failure and is fail-closed.",
+      "Per-statistic freshness and ECHPW008FvY thumbnail source/optimizer 404 remain pending."
+    ]
+  },
+  "f4FifteenthBatch20261016": {
+    "recordedAt": "2026-10-16T19:00:00Z",
+    "status": "CAPTURED_REVIEW_PENDING_WITH_FAIL_CLOSED",
+    "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+    "image": "sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920",
+    "buildID": "b8g61kyNdOR6Pmo1TWxav",
+    "routes": [
+      "/live/walls/china",
+      "/boards",
+      "/events",
+      "/live/walls/news"
+    ],
+    "themes": [
+      "light"
+    ],
+    "viewports": [
+      1280,
+      390
+    ],
+    "initialProbeRejected": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch15-fresh-probe.json",
+      "reason": "SM tag curl non-zero",
+      "sha256": "416f6181e7a17ff875394082dbddbd47bfaaf7ebf15296bcf98c03191036c6c2"
+    },
+    "captureIndex": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch15-production-capture-index.json",
+      "sha256": "5802d54d9f74d04a65ac14d96f0126c161c3c4927c7fe4918acdbe07d81a313c"
+    },
+    "freshProbe": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch15-fresh-probe-retry.json",
+      "sha256": "d9242cd88557c7389dce6658e22a864e4fe02d4a1eb329fa1b191f6772e3d35f"
+    },
+    "captureTool": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch10-capture-v2.mjs",
+      "sha256": "85c18c479b7b162c87a8ba2400af89957d139bbbf14f867de61c5365dfd406f2"
+    },
+    "reviewer": "/root/f2_visual_sol",
+    "reviewReceipts": [],
+    "outcomes": {
+      "/live/walls/china": "network-complete HTTP200 both views; review pending",
+      "/boards": "network-complete HTTP200 both views; review pending",
+      "/events": "HTTP200 but raw ERR_ABORTED; fail-closed",
+      "/live/walls/news": "network-complete HTTP200 both views; review pending"
+    },
+    "counts": {
+      "captureViews": 8,
+      "networkCompleteViews": 6,
+      "reviewedFullPageImages": 0,
+      "failClosedRoutes": 1
+    },
+    "routeComplete": false,
+    "fullF4Acceptance": false,
+    "limitations": [
+      "Only light views captured; dark/mobile visual review pending.",
+      "Events route retains raw failure and is fail-closed.",
       "Per-statistic freshness and ECHPW008FvY thumbnail source/optimizer 404 remain pending."
     ]
   }
