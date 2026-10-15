@@ -145,7 +145,7 @@
       "routes": 4,
       "views": 8,
       "networkCompleteViews": 4,
-      "actualOpened": 0,
+      "actualOpened": 2,
       "failClosedRoutes": 2,
       "wholeRoutesComplete": 0,
       "historicalCountersUnchanged": true
@@ -34259,7 +34259,7 @@
     "ui_ledger": "Homepage, keyword/evidence, channels, videos, events, about, API HTML and error states.",
     "ui_review_2": "Live, tags, AI, groups, mayor, account gates, boards, comparisons, remaining public pages and existing-authorized admin/ops. Each reviewer must see the actual screenshots plus tag reference; no implementation self-review."
   },
-  "reviewEvidenceUpdatedAt": "2026-10-16T18:20:00Z",
+  "reviewEvidenceUpdatedAt": "2026-10-16T18:25:00Z",
   "capturePerformancePolicy": {
     "effectiveAt": "2026-10-12T19:40:30Z",
     "maxSharedCaptureBrowserInstances": 2,
@@ -45084,7 +45084,7 @@
   },
   "f4ThirteenthBatch20261016": {
     "recordedAt": "2026-10-16T18:20:00Z",
-    "status": "CAPTURED_REVIEW_PENDING_WITH_FAIL_CLOSED",
+    "status": "PASS_SCOPED_PRODUCTION_TWO_ROUTES_LIGHT_PLUS_FAIL_CLOSED",
     "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
     "image": "sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920",
     "buildID": "b8g61kyNdOR6Pmo1TWxav",
@@ -45114,7 +45114,18 @@
       "sha256": "85c18c479b7b162c87a8ba2400af89957d139bbbf14f867de61c5365dfd406f2"
     },
     "reviewer": "/root/f2_visual_sol",
-    "reviewReceipts": [],
+    "reviewReceipts": [
+      {
+        "path": "/tmp/babysit/mint-queue/youtube-f4-batch13-reviewer.json",
+        "sha256": "71b2f58f1810369fdd95e6e0f7ccfe8f3f963214b5b0c42a375c06c7c4ff948e",
+        "routes": [
+          "/videos/kqdc4-YOmPM",
+          "/videos/kqdc4-YOmPM/analytics"
+        ],
+        "decision": "PASS_SCOPED",
+        "scope": "light desktop 1280 only"
+      }
+    ],
     "outcomes": {
       "/videos/kqdc4-YOmPM": "network-complete HTTP200 both views; review pending",
       "/videos/kqdc4-YOmPM/analytics": "network-complete HTTP200 both views; review pending",
@@ -45124,8 +45135,9 @@
     "counts": {
       "captureViews": 8,
       "networkCompleteViews": 4,
-      "reviewedFullPageImages": 0,
-      "failClosedRoutes": 2
+      "reviewedFullPageImages": 2,
+      "failClosedRoutes": 2,
+      "hashOnlyOrUnopenedByReviewer": 6
     },
     "routeComplete": false,
     "fullF4Acceptance": false,
