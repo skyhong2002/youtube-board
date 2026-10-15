@@ -149,6 +149,16 @@
       "failClosedRoutes": 2,
       "wholeRoutesComplete": 0,
       "historicalCountersUnchanged": true
+    },
+    "currentArtifactBatch14": {
+      "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+      "routes": 4,
+      "views": 8,
+      "networkCompleteViews": 6,
+      "actualOpened": 0,
+      "failClosedRoutes": 1,
+      "wholeRoutesComplete": 0,
+      "historicalCountersUnchanged": true
     }
   },
   "entries": [
@@ -34259,7 +34269,7 @@
     "ui_ledger": "Homepage, keyword/evidence, channels, videos, events, about, API HTML and error states.",
     "ui_review_2": "Live, tags, AI, groups, mayor, account gates, boards, comparisons, remaining public pages and existing-authorized admin/ops. Each reviewer must see the actual screenshots plus tag reference; no implementation self-review."
   },
-  "reviewEvidenceUpdatedAt": "2026-10-16T18:25:00Z",
+  "reviewEvidenceUpdatedAt": "2026-10-16T18:40:00Z",
   "capturePerformancePolicy": {
     "effectiveAt": "2026-10-12T19:40:30Z",
     "maxSharedCaptureBrowserInstances": 2,
@@ -45144,6 +45154,59 @@
     "limitations": [
       "Only light views captured; dark/mobile visual review pending.",
       "404 and raw-failure routes remain pending; no visual pass inferred.",
+      "Per-statistic freshness and ECHPW008FvY thumbnail source/optimizer 404 remain pending."
+    ]
+  },
+  "f4FourteenthBatch20261016": {
+    "recordedAt": "2026-10-16T18:40:00Z",
+    "status": "CAPTURED_REVIEW_PENDING_WITH_FAIL_CLOSED",
+    "appSha": "35501a3f269f2818115ea7277c66db765a4e267d",
+    "image": "sha256:c2e30339080be1b8679d49277260e48a57ad43b6a700fd8f782054cfae856920",
+    "buildID": "b8g61kyNdOR6Pmo1TWxav",
+    "routes": [
+      "/mayor",
+      "/mayor/cities/taipei?days=90&to=2026-10-10",
+      "/mayor/cities/taipei/people/蔣萬安",
+      "/mayor/cities/taipei/people/蔣萬安/days/2026-10-10"
+    ],
+    "themes": [
+      "light"
+    ],
+    "viewports": [
+      1280,
+      390
+    ],
+    "captureIndex": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch14-production-capture-index.json",
+      "sha256": "292a02f9b799b677690dc787f207ec64dfc0e8cde41f1c05d0f20479caa6454b"
+    },
+    "freshProbe": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch14-fresh-probe.json",
+      "sha256": "362560c0c9e501b77c0454455f1dc8a52003a5ced63566bcd402bfe26d0c4da2"
+    },
+    "captureTool": {
+      "path": "/tmp/babysit/mint-queue/youtube-f4-batch10-capture-v2.mjs",
+      "sha256": "85c18c479b7b162c87a8ba2400af89957d139bbbf14f867de61c5365dfd406f2"
+    },
+    "reviewer": "/root/f2_visual_sol",
+    "reviewReceipts": [],
+    "outcomes": {
+      "/mayor": "network-complete HTTP200 both views; review pending",
+      "/mayor/cities/taipei": "network-complete HTTP200 both views; review pending",
+      "/mayor/cities/taipei/people/蔣萬安": "HTTP200 but raw request failure; fail-closed",
+      "/mayor/cities/taipei/people/蔣萬安/days/2026-10-10": "network-complete HTTP200 both views; review pending"
+    },
+    "counts": {
+      "captureViews": 8,
+      "networkCompleteViews": 6,
+      "reviewedFullPageImages": 0,
+      "failClosedRoutes": 1
+    },
+    "routeComplete": false,
+    "fullF4Acceptance": false,
+    "limitations": [
+      "Only light views captured; dark/mobile visual review pending.",
+      "Person profile route retains raw failure and is fail-closed.",
       "Per-statistic freshness and ECHPW008FvY thumbnail source/optimizer 404 remain pending."
     ]
   }
