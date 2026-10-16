@@ -29,3 +29,4 @@ Homestead.yaml
 Thumbs.db
 __pycache__/
 /.worktrees/
+/.local/
