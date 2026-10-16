@@ -85,3 +85,48 @@ existing derivatives are skipped). Cancellation/run-budget interruptions leave
 the cursor before the interrupted item. Refresh forwards cancellation into the
 encoder and checks it again before committing the manifest pointer; partial
 unreferenced image files may remain and are not deleted automatically.
+
+## Optional stale-source resolution
+
+`--resolve-missing` explicitly enables a cache-only fallback when the stored URL is
+empty/rejected or its CDN responds with404/410. It is off by default, including
+existing schedules. A403/429/5xx, timeout, corrupt raster or transient failure does
+not trigger extra page requests. HTTP failures now include only a numeric
+`httpStatus`, so a generic download failure is not mislabeled as an expired URL.
+
+The worker constructs `https://www.youtube.com/channel/<exact UC channel ID>`
+itself. It accepts neither handles nor arbitrary page URLs. All DNS answers must
+be public and the selected address is pinned into verified TLS. Redirects,
+credentials, cookies, compression and script execution are disallowed. Both the
+page's canonical URL and `og:url` must identify that exact channel; only one
+unambiguous `og:image` from the existing two-host CDN allowlist may be downloaded.
+HTML is capped at2MiB/10seconds, metadata parsing at256KiB of head markup, and
+resolved images use the existing raster validation and192px PNG conversion.
+A resolved avatar is published through the same writer as any refresh, so it
+also receives the48/96/192px WebP derivatives described above.
+The run retains its120second/32MiB limits and allows at most20 page resolutions.
+
+Worker-only `avatar-resolutions.json` binds each resolution to the local channel
+ID, exact YouTube identity and original stored-URL fingerprint. Successful
+resolutions last7days; failed resolution attempts back off6hours. At most2,000
+entries/6MiB are retained, newest first. Atomic publication and the existing
+writer locks protect this file. Corrupt/symlink state fails closed. Include this
+file (`<MEDIA_CACHE_ROOT>/avatar-resolutions.json`, next to `manifest.json`) in
+media-volume backups/restores; restoring a volume without it only forgets cached
+resolutions/backoff and causes fresh page lookups. It is not a source-table
+replacement and is never served publicly. Failed refreshes preserve the last-good
+avatar, and neither the fallback nor its metadata changes `urt_channel`, source freshness or
+YouTube API quota. Source/identity changes invalidate the cached binding.
+
+Example for an explicitly authorized cache-only execution:
+
+```sh
+npm run start --workspace=@youtube-board/jobs -- channels:avatars:refresh --u_id=123 --resolve-missing --execute
+```
+
+A schedule may opt in with `"resolve-missing": true` only after reviewing its
+network scope: the flag adds HTTPS egress from the worker to `www.youtube.com`,
+which requires operator approval before production use. Public channel pages may require consent, redirect to a handle,
+return different markup or reject automated requests; these cases fail closed
+and retain the fixed-size text fallback. No live page compatibility is claimed
+by the offline transport/parser fixtures.
