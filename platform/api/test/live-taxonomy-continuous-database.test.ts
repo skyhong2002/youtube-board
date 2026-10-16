@@ -33,7 +33,7 @@ describe.skipIf(!url)('taxonomy source-row and continuous daily MariaDB contract
   const range=await get('/tags/live/videos',{tagid:String(uid),from:'2038-10-09',to:day});expect(range.total).toBe(5);expect(range.rows.filter((r:any)=>r.video.value==='Current title 0').map((r:any)=>r.date)).toEqual([day,day,'2038-10-09']);expect(range.evidenceCoverage).toMatchObject({invalidSamples:1,emptySampleRows:1,from:'2038-10-09',to:day});
  });
  it('retained display rescues orphan videos and exact-case identities never borrow another title',async()=>{
-  const data=await get('/tags/live/videos',{tagid:String(uid),date:day});expect(data.rows.map((r:any)=>r.video.value)).toEqual(['Lower retained title','Current title 0','Current title 0','Orphan retained title']);expect(data.rows[3].publishedAt).toBe('2038-10-08T08:00:00+08:00');expect(data.rows[1].samples.value).toBe('0 → 15');
+  const data=await get('/tags/live/videos',{tagid:String(uid),date:day});expect(data.rows.map((r:any)=>r.video.value)).toEqual(['Lower retained title','Current title 0','Current title 0','Orphan retained title']);expect(data.rows[3].publishedAt).toBe('2038-10-08T00:00:00.000Z');expect(data.rows[1].samples.value).toBe('0 → 15');
   const search=await get('/tags/live/videos',{tagid:String(uid),date:day,q:'Orphan retained'});expect(search.total).toBe(1);expect(search.rows[0].video.value).toBe('Orphan retained title');
  });
  it('path classification intersects query taxonomy, union and exclusion; pagination retains total',async()=>{

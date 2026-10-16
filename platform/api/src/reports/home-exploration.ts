@@ -5,7 +5,7 @@ import {canonicalVideoThumbnail} from '../../../shared/media-assets.js';
 import {sql} from 'drizzle-orm';
 import {DataSourceUnavailable,type Reader,type Row} from '../db/client.js';
 import type {HomeExploration,HomeKeywordSummary,TagRow} from '../contracts.js';
-import {integer,tagIds,text,object,taipeiDate,taipeiSql,timestamp,latest} from './normalize.js';
+import {integer,tagIds,text,object,taipeiDate,taipeiSql,timestamp,timestampWindow,latest} from './normalize.js';
 import {vocabularySourceQuality} from './vocabulary-quality.js';
 import {videoTextDigest} from './video-digest.js';
 import {MATCH_RULE,matchingRuleForSnapshot} from '../../../shared/youtube-match-policy.js';
@@ -38,7 +38,7 @@ export async function homeExploration(reader:Reader,now:Date,diagnostic?:HomeDia
   const versions=await reader.rows(sql`SELECT r.id,JSON_OBJECT('coverage',JSON_EXTRACT(r.snapshot,'$.coverage'),'window',JSON_EXTRACT(r.snapshot,'$.window'),'sourceQuality',JSON_EXTRACT(r.snapshot,'$.sourceQuality'),'matchingRule',JSON_EXTRACT(r.snapshot,'$.matchingRule')) AS source_meta FROM ts_vocabulary_current c JOIN ts_vocabulary_runs r ON r.id=c.run_id AND r.status='published' WHERE c.source='https://tag.observe.tw' LIMIT 1`),version=versions[0]?text(versions[0].id):null;
   const snapshot=object(versions[0]?.source_meta),window=object(snapshot.window),vocabularyCoverage=version?(snapshot.coverage==='all-current-indexed-article-tags'?'all-current-indexed-article-tags' as const:'observed-article-window' as const):'unavailable' as const;
   const quality=vocabularySourceQuality(snapshot.sourceQuality),rule=matchingRuleForSnapshot({matchingRule:snapshot.matchingRule??undefined});activeRule=rule;
-  const base={...keywordBase,...(quality?{sourceQuality:quality}:{}),ruleVersion:rule,vocabularyCoverage,vocabularyWindow:typeof window.since==='string'&&typeof window.until==='string'?{since:window.since,until:window.until}:null,version,reason:null};
+  const base={...keywordBase,...(quality?{sourceQuality:quality}:{}),ruleVersion:rule,vocabularyCoverage,vocabularyWindow:timestampWindow(window),version,reason:null};
   if(!version){emit('keywords','vocabulary','not-synchronized');return {keywords:{...base,status:'not-synchronized'},keywordToday:{...base,from:todayBase.from,status:'not-synchronized'}};}
   let pools:{week:RankedPool;today:RankedPool}|undefined;
   if(poolClient){try{const todayPool=await poolClient.load(poolWindows.today),weekPool=await poolClient.load(poolWindows.week);pools={today:todayPool,week:weekPool};}catch(error){poolFailure={status:'unavailable',reason:error instanceof PoolUnavailable?error.reason:'unavailable',windows:poolWindows};throw error instanceof PoolUnavailable?error:new PoolUnavailable('unavailable');}}

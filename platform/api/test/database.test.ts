@@ -46,7 +46,7 @@ describe.skipIf(!url)('isolated MariaDB synthetic fixtures', () => {
         expect(rows[0].trend.length).toBe(2);
     });
     it('paginates selected channels and escapes search wildcards', async () => { const r = await app.inject('/api/v1/videos?channelIds=990001,990002&limit=2&offset=1'); expect(r.statusCode).toBe(200); expect(r.json().data.total).toBe(4); expect(r.json().data.rows.length).toBe(2); const s = await app.inject('/api/v1/channels?q=%25'); expect(s.statusCode).toBe(200); expect(s.json().data.rows).toEqual([]); });
-    it('AI evidence has complete refs and source ids', async () => { const r = await app.inject('/api/v1/ai/days?pk=990001'); expect(r.statusCode).toBe(200); const d = r.json().data; expect(d.rawVideoRows).toBe(4); expect(d.sourceChannels).toBe(2); expect(d.rows[0].videoCount).toBe(3); expect(d.rows[0].evidence[0].source.id).toBe(990001); expect(Date.parse(r.json().meta.updatedAt)).toBe(Date.parse('2026-10-11T18:00:00+08:00')); });
+    it('AI evidence has complete refs and source ids', async () => { const r = await app.inject('/api/v1/ai/days?pk=990001'); expect(r.statusCode).toBe(200); const d = r.json().data; expect(d.rawVideoRows).toBe(4); expect(d.sourceChannels).toBe(2); expect(d.rows[0].videoCount).toBe(3); expect(d.rows[0].evidence[0].source.id).toBe(990001); expect(Date.parse(r.json().meta.updatedAt)).toBe(Date.parse('2026-10-11T10:00:00.000Z')); });
     it('daily-backed event does not require separate generated analysis', async () => { const r = await app.inject('/api/v1/ai/events/990001?event=' + encodeURIComponent('合成：城市交通議題')); expect(r.statusCode).toBe(200); expect(r.json().data.videos.length).toBe(3); });
     it('category aggregate computes median and totals', async () => {
         const r = await app.inject('/api/v1/tags?min=0');
@@ -59,7 +59,7 @@ describe.skipIf(!url)('isolated MariaDB synthetic fixtures', () => {
         expect(tag.median).toBe(750);
     });
     it('cloud subtracts a normalized long-period baseline', async () => { const r = await app.inject('/api/v1/channels/990001/cloud?days=7'); expect(r.statusCode).toBe(200); expect(r.json().data.rows).toHaveLength(1); expect(r.json().data.rows[0].term).toBe('交通'); expect(r.json().data.rows[0].score).toBeCloseTo(48.387, 3); });
-    it('channel history preserves missing observations instead of inventing zero growth', async () => { const r = await app.inject('/api/v1/channels/990001/trends?from=2026-10-09&to=2026-10-11'); expect(r.statusCode).toBe(200); expect(r.json().data.rows[1].views).toBeNull(); expect(r.json().data.rows[2].viewChange).toBeNull(); expect(r.json().data.updatedAt).toBe('2026-10-11T18:00:00+08:00'); expect(r.json().data.rows[0].views).toBe(100); });
+    it('channel history preserves missing observations instead of inventing zero growth', async () => { const r = await app.inject('/api/v1/channels/990001/trends?from=2026-10-09&to=2026-10-11'); expect(r.statusCode).toBe(200); expect(r.json().data.rows[1].views).toBeNull(); expect(r.json().data.rows[2].viewChange).toBeNull(); expect(r.json().data.updatedAt).toBe('2026-10-11T10:00:00.000Z'); expect(r.json().data.rows[0].views).toBe(100); });
     it('comments publish only completed batches', async () => { const r = await app.inject('/api/v1/channels/990001/comments?hours=24&min=0'); expect(r.statusCode).toBe(200); expect(r.json().data.rows[0].videoCount).toBe(1); });
     it('tag rolling trends show source-day coverage and correct totals', async () => { const r = await app.inject('/api/v1/tags/990001/trends?from=2026-10-10&to=2026-10-11'); expect(r.statusCode).toBe(200); expect(r.json().data.rows[1]).toMatchObject({ observedDays: 2, views: 400, videos: 5 }); });
     it('live hourly aggregate uses each video peak, not sum of polling samples', async () => { const r = await app.inject('/api/v1/live/hours?from=2026-10-11&to=2026-10-11'); expect(r.statusCode).toBe(200); expect(r.json().data.rows.find((row:any)=>row.hour==='17')['2026-10-11']).toBe(400); expect(r.json().data.sections[0].rows[0].videos).toBe(1); });
@@ -70,8 +70,8 @@ describe.skipIf(!url)('isolated MariaDB synthetic fixtures', () => {
     it('future video scheduling time never becomes data freshness', async () => {
         const r = await app.inject('/api/v1/videos/FixtureAa01');
         expect(r.statusCode).toBe(200);
-        expect(r.json().data.video.updatedAt).toBe('2026-10-11T18:00:00+08:00');
-        expect(Date.parse(r.json().meta.updatedAt)).toBe(Date.parse('2026-10-11T18:00:00+08:00'));
+        expect(r.json().data.video.updatedAt).toBe('2026-10-11T10:00:00.000Z');
+        expect(Date.parse(r.json().meta.updatedAt)).toBe(Date.parse('2026-10-11T10:00:00.000Z'));
     });
     it('flag_del zero channels remain available through profile and list', async () => {
         const r = await app.inject('/api/v1/channels/990002');

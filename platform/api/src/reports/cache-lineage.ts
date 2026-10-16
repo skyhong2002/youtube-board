@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm';
 import type { Reader, Row } from '../db/client.js';
 import { idList, type Query } from './query.js';
 import {ReportReadBound} from './cache-weights.js';
-import { integer, text } from './normalize.js';
+import { integer, text, object, timestamp, taipeiSql } from './normalize.js';
 export const cacheLineageNote = '新版快取若仍在發布中，或有未知觀看值，該分類日桶會暫時排除；缺少快取不等於零。日期尚未結束時僅代表截至生成時間的觀測，並非完整日總量。舊快取尚未記錄版本來源。';
 /** Sidecar protects readers while a reviewed worker replaces MyISAM cache rows. */
 export async function publishedTagCache(reader: Reader, records: Row[], query: Query, live = false): Promise<Row[]> {
@@ -37,7 +37,13 @@ export async function publishedReportRow(reader:Reader,table:string,keys:Record<
  if(!row)return undefined;return (await inspectReportRows(reader,table,[{keys,row}]))[0]?.row;
 }
 
+/** Keep internal publication identity exact; normalize only the public window DTO. */
+export function publicCacheWindow(value:unknown){
+ if(value===null||value===undefined)return null;
+ const window=object(value);return {from:window.from,to:window.to,closed:window.closed,observedUntil:timestamp(window.observedUntil)};
+}
+export function cacheObservationTime(value:unknown){const instant=timestamp(value);return instant?taipeiSql(new Date(instant)):null;}
 export function cacheWindowNotes(rows:Row[]):string[] {
- const open=new Map<string,string>();for(const row of rows){const w=row._cacheWindow as {from?:unknown;to?:unknown;closed?:boolean;observedUntil?:unknown}|undefined;if(w&&w.closed===false)open.set(String(w.from)+'～'+String(w.to),String(w.observedUntil??'未知'));}
+ const open=new Map<string,string>();for(const row of rows){const w=row._cacheWindow as {from?:unknown;to?:unknown;closed?:boolean;observedUntil?:unknown}|undefined;if(w&&w.closed===false)open.set(String(w.from)+'～'+String(w.to),cacheObservationTime(w.observedUntil)??'未知');}
  return [...open].slice(0,10).map(([period,until])=>`${period} 為部分期間觀測，資料截至台北時間 ${until}。`);
 }

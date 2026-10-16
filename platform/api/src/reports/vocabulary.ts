@@ -4,7 +4,7 @@ import { sourceTextFingerprint } from '../../../shared/video-fingerprint.js';
 import { sql } from 'drizzle-orm';
 import type { Reader } from '../db/client.js';
 import type { VocabularyData, VocabularyTerm, VideoTagEvidenceData } from '../contracts.js';
-import { object, list, text, integer, timestamp } from './normalize.js';
+import { object, list, text, integer, timestamp, timestampWindow } from './normalize.js';
 import { page, NotFound, search, type Query } from './query.js';
 import { vocabularySourceQuality } from './vocabulary-quality.js';
 const source = 'https://tag.observe.tw' as const;
@@ -31,7 +31,7 @@ export async function vocabulary(reader: Reader, query: Query = {},poolClient?:R
     // Use the same database case mapping for full and embedded snapshots, including Unicode.
     const matches = pattern ? new Set((await reader.rows(sql `SELECT term_key FROM JSON_TABLE(${JSON.stringify(terms)}, '$[*]' COLUMNS(term_key VARCHAR(100) PATH '$.key',term VARCHAR(240) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin PATH '$.term')) t WHERE LOWER(term) LIKE LOWER(${pattern}) ESCAPE '='`)).map(r => text(r.term_key))) : null;
     const filtered = terms.filter(t => matches === null || matches.has(t.key)).sort((a, b) => b.articleCount - a.articleCount || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
-    return annotate({ rows: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset, version: row ? text(row.id) : null, source, attribution: '標籤來源：新文易數（tag.observe.tw）', window: typeof window.since === 'string' && typeof window.until === 'string' ? { since: window.since, until: window.until } : null, publishedAt: timestamp(snapshot.publishedAt), coverage: snapshot.coverage === 'all-current-indexed-article-tags' ? 'all-current-indexed-article-tags' : 'observed-article-window', upstreamSnapshotConsistent: snapshot.upstreamSnapshotConsistent === true, ...(sourceQuality ? { sourceQuality } : {}) });
+    return annotate({ rows: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset, version: row ? text(row.id) : null, source, attribution: '標籤來源：新文易數（tag.observe.tw）', window: timestampWindow(window), publishedAt: timestamp(snapshot.publishedAt), coverage: snapshot.coverage === 'all-current-indexed-article-tags' ? 'all-current-indexed-article-tags' : 'observed-article-window', upstreamSnapshotConsistent: snapshot.upstreamSnapshotConsistent === true, ...(sourceQuality ? { sourceQuality } : {}) });
 }
 export async function videoTagEvidence(reader: Reader, videoId: string): Promise<VideoTagEvidenceData> {
     const v = (await reader.rows(sql `SELECT pk,videoId,title,description FROM urt_video WHERE videoId=${videoId} AND BINARY videoId=BINARY ${videoId} ORDER BY pk DESC LIMIT 1`))[0];

@@ -22,6 +22,11 @@ describe('offline F1 relations contract',()=>{
   expect(result).toMatchObject({status:'available',data:payload(),reason:null});expect(JSON.stringify(result)).not.toContain('sameAs');
   expect(fetch).toHaveBeenCalledWith('https://tag.observe.tw/api/v1/tags/'+encodeURIComponent(tag)+'/relations',expect.objectContaining({redirect:'manual',credentials:'omit',cache:'no-store'}));
  });
+ it('normalizes an upstream offset createdAt to the same UTC Z instant',async()=>{
+  const body=payload();body.relations[1]!.createdAt='2026-10-12T09:00:00+08:00';
+  const result=await createTagRelationsClient({enabled:true,fetch:transport(body),fallback})(tag);
+  expect(result.status).toBe('available');expect(result.data?.relations.map(r=>r.createdAt)).toEqual([null,'2026-10-12T01:00:00.000Z']);
+ });
  it('ignores added fields without exposing private extras',async()=>{
   const body={...payload(),future:1,createdBy:'private-account'};Object.assign(body.relations[0]!,{reviewReason:'private-reason'});
   const result=await createTagRelationsClient({enabled:true,fetch:transport(body),fallback})(tag);

@@ -24,7 +24,7 @@ export function parseVideoAnalytics(id:string,video:Row|undefined,liveRows:Row[]
   const day=validDay(text(r.the_date).slice(0,10));if(!day){coverage.malformedLogRows=Number(coverage.malformedLogRows)+1;continue;}
   const recorded=numeric(r.max_current);maxCurrent=maximum(maxCurrent,recorded);if(recorded!==null)daily.set(day,Math.max(daily.get(day)??0,recorded));
   const log=readLog(r.log_json,'Live',r.log_bytes);if(!log)continue;
-  for(const [time,value]of Object.entries(log)){const n=numeric(value);if(!/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(time)||n===null){coverage.invalidLogPoints=Number(coverage.invalidLogPoints)+1;continue;}const hour=day+'T'+time.slice(0,2)+':00:00+08:00';hourly.set(hour,Math.max(hourly.get(hour)??0,n));daily.set(day,Math.max(daily.get(day)??0,n));maxCurrent=maximum(maxCurrent,n);}
+  for(const [time,value]of Object.entries(log)){const n=numeric(value);if(!/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(time)||n===null){coverage.invalidLogPoints=Number(coverage.invalidLogPoints)+1;continue;}const hour=timestamp(day+' '+time.slice(0,2)+':00:00')!;hourly.set(hour,Math.max(hourly.get(hour)??0,n));daily.set(day,Math.max(daily.get(day)??0,n));maxCurrent=maximum(maxCurrent,n);}
  }
  for(const r of historyRows.slice(0,ANALYTICS_LIMITS.historyRows)){
   const month=validDay(text(r.themonth).slice(0,10)),log=readLog(r.thedata,'History',r.log_bytes);if(!month||!log)continue;
@@ -56,7 +56,7 @@ export function parseVideoComments(comment:Row|undefined,limit:number,summaryOnl
      decodedCount++;if(!summaryOnly)rows.push({id:ownId,authorId:authorId||null,authorName,text:body,likes,publishedAt,reply});
     };
     outer:for(const [key,value]of Object.entries(decoded)){if(processed>=ANALYTICS_LIMITS.comments){truncated=true;break;}add(key,value,false);const raw=(map(value)??{}).replies,children=Array.isArray(raw)?raw.map((v,i)=>[text(object(v).id)||'',v] as const):Object.entries(map(raw)??{});for(const [childId,child]of children){if(processed>=ANALYTICS_LIMITS.comments){truncated=true;break outer;}add(childId,child,true);}}
-    comments.status=truncated?'truncated':'complete';comments.decodedCount=decodedCount;comments.decodedAuthors=authors.size;if(!summaryOnly){comments.hourly=points(hours,limit).map(p=>({...p,time:p.time.replace(' ','T')+'+08:00'}));comments.daily=points(days,limit);comments.authors=[...authors.values()].sort((a,b)=>b.total-a.total||(a.id<b.id?-1:1)).slice(0,limit);comments.top=rows.sort((a,b)=>(b.likes??-1)-(a.likes??-1)||(a.id<b.id?-1:a.id>b.id?1:0)).slice(0,limit);}
+    comments.status=truncated?'truncated':'complete';comments.decodedCount=decodedCount;comments.decodedAuthors=authors.size;if(!summaryOnly){comments.hourly=points(hours,limit).map(p=>({...p,time:timestamp(p.time)!}));comments.daily=points(days,limit);comments.authors=[...authors.values()].sort((a,b)=>b.total-a.total||(a.id<b.id?-1:1)).slice(0,limit);comments.top=rows.sort((a,b)=>(b.likes??-1)-(a.likes??-1)||(a.id<b.id?-1:a.id>b.id?1:0)).slice(0,limit);}
    }
   }
  }

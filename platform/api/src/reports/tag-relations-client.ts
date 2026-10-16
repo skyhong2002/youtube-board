@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto';
+import {timestamp} from './normalize.js';
 /** Offline F1 contract provenance; this candidate has not been deployed.
  * tag-f1-release b8d030c (exact SHA recorded below), app/src/v1/openapi.ts:1816.
  * API schema SHA256 recorded below. Extra response fields are deliberately ignored.
@@ -25,7 +26,7 @@ function parse(value:unknown,tag:string,maxRows:number):TagRelations {
   const expected=group?`/group/${group[1]}/`:`/tag/${encodeURIComponent(t.label)}/`;
   if(t.href!==expected||(!group&&(t.id!==digest(t.label)||!label(t.label))))throw new ContractFailure();
   // Preserve upstream semantics and IDs; never emit person sameAs or merge aliases.
-  return {id:r.id,type:r.type,target:{id:t.id,label:t.label,href:t.href},source:r.source,sourceDetail:r.sourceDetail,createdAt:r.createdAt,status:'approved',inherited:r.inherited,depth:r.depth} as TagRelation;
+  return {id:r.id,type:r.type,target:{id:t.id,label:t.label,href:t.href},source:r.source,sourceDetail:r.sourceDetail,createdAt:timestamp(r.createdAt),status:'approved',inherited:r.inherited,depth:r.depth} as TagRelation;
  });
  return {tag,tagId:digest(tag),truncated:row.truncated,relations};
 }

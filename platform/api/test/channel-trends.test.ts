@@ -11,7 +11,7 @@ it('trend modes use the same reviewed projection while preserving measured field
   const response=await app.inject('/api/v1/channels/1/trends?from=2032-01-09&to=2032-01-15&'+query);
   expect(response.statusCode).toBe(200);const d=response.json().data;
   expect(d.rows.at(-1)).toMatchObject({date:'2032-01-15',views:14500,viewChange:100,videoChange:1,value:key==='videos'?1:100});
-  expect(d.updatedAt).toBe('2032-01-15T09:00:00+08:00');
+  expect(d.updatedAt).toBe('2032-01-15T01:00:00.000Z');
  }
  expect((await app.inject('/api/v1/channels/1/trends?mode=bogus')).statusCode).toBe(400);await app.close();
 });

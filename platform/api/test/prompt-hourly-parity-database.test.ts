@@ -38,12 +38,12 @@ describe.skipIf(!url)('prompt scope and historical hourly parsing MariaDB parity
  });
  it('latest blue date excludes other taxonomy, wrong-case CLI, deleted and non-complete-day rows',async()=>{
   const response=await app.inject('/api/v1/ai/days/prompt?condition=blue&type=week');expect(response.statusCode,response.body).toBe(200);
-  expect(response.json().data.period).toEqual({from:'2088-04-01 00:00:00',to:'2088-04-01 23:59:59'});expect(response.json().data.sourceCount).toBe(2);
+  expect(response.json().data.period).toEqual({from:'2088-03-31T16:00:00.000Z',to:'2088-04-01T15:59:59.000Z'});expect(response.json().data.sourceCount).toBe(2);
   const plan=await planAi(db,{kind:'daily',from:'2088-04-01 00:00:00',to:'2088-04-01 23:59:59',condition:'blue',dataType:'week',userToken:'CLI'});expect(response.json().data.prompt).toBe(plan.prompt);expect(response.json().data.blocked).toBe(plan.blocked);
  });
  it('omitted and explicit all use the latest eligible global scope while explicit empty dates remain visible',async()=>{
   for(const query of ['type=week','condition=all&type=week']){
-   const r=await app.inject('/api/v1/ai/days/prompt?'+query);expect(r.statusCode,r.body).toBe(200);expect(r.json().data.period.from).toBe('2088-04-03 00:00:00');expect(r.json().data.sourceCount).toBe(1);
+   const r=await app.inject('/api/v1/ai/days/prompt?'+query);expect(r.statusCode,r.body).toBe(200);expect(r.json().data.period.from).toBe('2088-04-02T16:00:00.000Z');expect(r.json().data.sourceCount).toBe(1);
   }
   const empty=await app.inject('/api/v1/ai/days/2088-04-02/blue/prompt?type=week');expect(empty.json().data).toMatchObject({sourceCount:0,blocked:'no_source_events'});
  });

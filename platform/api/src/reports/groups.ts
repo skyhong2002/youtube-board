@@ -5,7 +5,7 @@ import { publishedTagCache, cacheLineageNote } from './cache-lineage.js';
 import { sql } from 'drizzle-orm';
 import type { Reader, Row } from '../db/client.js';
 import { NotFound, type Query } from './query.js';
-import { integer, text, latest } from './normalize.js';
+import { integer, text, latest, timestamp } from './normalize.js';
 import { table, range, cacheFilters, link, type Register } from './table.js';
 import { groupDefinitions } from './group-definitions.js';
 import { contentGroups } from './content-groups.js';
@@ -36,7 +36,7 @@ export function registerGroups(register: Register, reader: Reader, clock: () => 
             return table(configured.label, [{key:'term',label:'詞彙'}], configured.terms.map(term => ({term:link(term, `/keywords/${encodeURIComponent(term)}/videos`)})), q, {updatedAt:null,notes:['來源為既有 GroupDirectoryReport 設定；非新聞共享詞彙同步。2024 候選人為歷史名單。']});
         if (!records.length)
             throw new NotFound();
-        return table(configured?.label ?? p.name, [{ key: 'term', label: '詞彙' }, { key: 'updatedAt', label: '來源更新', kind: 'datetime' }], records.map(r => ({ term: link(text(r.tag), `/keywords/${encodeURIComponent(text(r.tag))}/videos`), updatedAt: text(r.latest_time) })), q, { updatedAt: latest(...records.map(r => r.latest_time)), notes:['來源為既有內容詞彙群組；名稱沿用來源標記，不代表已查核目前任職或分類。'] });
+        return table(configured?.label ?? p.name, [{ key: 'term', label: '詞彙' }, { key: 'updatedAt', label: '來源更新', kind: 'datetime' }], records.map(r => ({ term: link(text(r.tag), `/keywords/${encodeURIComponent(text(r.tag))}/videos`), updatedAt: timestamp(r.latest_time) })), q, { updatedAt: latest(...records.map(r => r.latest_time)), notes:['來源為既有內容詞彙群組；名稱沿用來源標記，不代表已查核目前任職或分類。'] });
     });
     const metrics = async (name: string, q: Query, trend: boolean) => {
         const definition = Object.hasOwn(groupDefinitions, name) ? groupDefinitions[name] : undefined;

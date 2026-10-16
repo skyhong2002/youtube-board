@@ -5,7 +5,7 @@ import {DataQueryFailed,DataSourceUnavailable,type Reader,type Row} from '../db/
 import type {ReportData,ReportColumn,ReportCell,ReportValue} from '../report-contracts.js';
 import {aiBusinessKey} from '../../../shared/ai-business-key.js';
 import {BadQuery,NotFound,bounded,dateFilter,page,positiveId,type Query} from './query.js';
-import {text,latest} from './normalize.js';
+import {text,latest,timestamp} from './normalize.js';
 import {table,link} from './table.js';
 import {channelText,channelTopics,overviewItems,overviewAspects,storedNumber,decodedAnalysis,excludedChannelPeople,type ChannelTopic} from './channel-ai-shapes.js';
 export class ChannelAiBoundError extends BadQuery {}
@@ -17,7 +17,7 @@ const fields=sql`a.pk,a.u_id,a.date_from,a.date_to,a.data_type,a.user_token,a.ai
 const notes=['本頁只讀取既有 AI 分析，不會因瀏覽而呼叫模型。分析描述與分數是模型輸出，並非已驗證的客觀立場。','影片連結依結果引用與目前本地影片所屬頻道核對；不是對生成當時輸入快照的完整性認證。歷史來源可能缺漏；若內容與曾發布的 TypeScript 紀錄不符，會另列 divergedSources 並暫不顯示，不能重新假定為 Laravel 來源。'];
 function input(q:Query){page(q);dateFilter(q.date);if(q.pk!==undefined&&((q.date!==undefined)||(q.days!==undefined)||(q.type!==undefined)))throw new BadQuery('Select a source ID or period/type filters, not both.');return {pk:q.pk===undefined?null:positiveId(q.pk),date:dateFilter(q.date),days:bounded(q.days,1,1,90)};}
 function sourceLink(id:number,row:Row){return `/channels/${id}/ai${['topic','people','aspect'].includes(text(row.data_type))?'':'/days'}?pk=${row.pk}`;}
-function sourceSection(id:number,rows:Row[]):Section{return {key:'sources',title:'分析來源紀錄',columns:[{key:'source',label:'紀錄'},{key:'type',label:'類型'},{key:'from',label:'開始',kind:'datetime'},{key:'to',label:'結束',kind:'datetime'},{key:'model',label:'模型紀錄'},{key:'publication',label:'發布來源'},{key:'revision',label:'修訂狀態'}],rows:rows.map(r=>({source:link(`urt_channel_ai #${r.pk}`,sourceLink(id,r)),type:text(r.data_type),from:text(r.date_from)||null,to:text(r.date_to)||null,model:text(r.ai_type)||null,publication:r.tsPublished?'TypeScript 已發布紀錄':'無 TypeScript 發布紀錄',revision:r.superseded?'已有較新紀錄':r.superseded===false?'該範圍最新紀錄':'依本次篩選選取'}))};}
+function sourceSection(id:number,rows:Row[]):Section{return {key:'sources',title:'分析來源紀錄',columns:[{key:'source',label:'紀錄'},{key:'type',label:'類型'},{key:'from',label:'開始',kind:'datetime'},{key:'to',label:'結束',kind:'datetime'},{key:'model',label:'模型紀錄'},{key:'publication',label:'發布來源'},{key:'revision',label:'修訂狀態'}],rows:rows.map(r=>({source:link(`urt_channel_ai #${r.pk}`,sourceLink(id,r)),type:text(r.data_type),from:timestamp(r.date_from),to:timestamp(r.date_to),model:text(r.ai_type)||null,publication:r.tsPublished?'TypeScript 已發布紀錄':'無 TypeScript 發布紀錄',revision:r.superseded?'已有較新紀錄':r.superseded===false?'該範圍最新紀錄':'依本次篩選選取'}))};}
 /** Check current output publication with indexed EXISTS, without fetching unbounded run history. */
 export async function publishedChannelAi(reader:Reader,rows:Row[]){
  if(rows.length>maxRows)throw new ChannelAiBoundError('Channel analysis exceeds the 400-source review bound.');

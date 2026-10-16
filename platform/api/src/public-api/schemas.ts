@@ -5,7 +5,7 @@ export const ref = (name:string):Schema => ({$ref:`#/components/schemas/${name}`
 export const str:Schema={type:'string'}, num:Schema={type:'number'}, bool:Schema={type:'boolean'};
 export const count:Schema={type:'integer',minimum:0}, nullableNumber:Schema={type:['number','null']};
 export const nullableString:Schema={type:['string','null']};
-export const time:Schema={type:'string',format:'date-time',description:'ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00.'}, nullableTime:Schema={...time,type:['string','null']};
+export const time:Schema={type:'string',format:'date-time',pattern:'Z$',description:'UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z.'}, nullableTime:Schema={...time,type:['string','null']};
 export const array=(items:Schema):Schema=>({type:'array',items});
 export const object=(properties:Record<string,Schema>,required=Object.keys(properties)):Schema=>({type:'object',properties,required,additionalProperties:true});
 export const enumString=(...values:string[]):Schema=>({type:'string',enum:values});

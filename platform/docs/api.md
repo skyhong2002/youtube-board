@@ -10,7 +10,7 @@
 - 登入後在 /my/settings 建立個人 API 金鑰，每人最多3把有效金鑰、累計最多建立100把（含已撤銷）；以 x-api-key: ytb_… 傳送，同一帳號所有金鑰合計每分鐘1000次。伺服器只存 SHA-256，明文只在建立時顯示。失效或撤銷的金鑰使用匿名額度；金鑰不授予帳號或管理權限，勿放在網址、日誌或公開程式碼中。
 - 額外防濫用預算：每個 IP 網段每分鐘最多1000次金鑰驗證；IPv6 /48 合計4000次；單一 gateway 每分鐘保留匿名4000次與金鑰8000次，合計12000次；兩者不互相借用。未知金鑰每網段最多20次未命中驗證，超過後使用匿名額度並禁止共享快取。共享網路或過載時，這些上限可能先於個別額度生效。
 - 允許跨網域，CORS Access-Control-Allow-Origin: *，不傳送跨站憑證。
-- v1 時間戳使用 ISO 8601 並標示時區，可能為 UTC（Z）或台北偏移（+08:00）；不要假設所有欄位已統一為 UTC。「一天」指台北日曆日，日期型欄位保留 YYYY-MM-DD。舊 PHP API 保留相容格式。
+- v1 所有時間點（instant）一律為 UTC ISO 8601，以 Z 結尾，例如 2026-10-11T16:00:00.000Z；需要台北時間請自行轉換為 Asia/Taipei（UTC+8）。「一天」與日期視窗指台北日曆日，日期型欄位（YYYY-MM-DD）與 from/to 日期參數不轉換時區。舊 PHP API 保留相容格式。
 - 回應帶 Cache-Control：直播通常30秒、一般報表60秒、詞彙300秒、規格3600秒；快取時間不是來源保證更新頻率。請勿更頻繁輪詢，並檢查 meta.updatedAt 與 coverage。CDN 命中不消耗源站額度，限流標頭可能是建立快取時的快照。
 - 帶 x-api-key、Authorization、Cookie 或 Set-Cookie 的回應 private, no-store；私人追蹤、個人 RSS 與管理介面不屬於公開 API。
 - 公開 v1 錯誤格式為 {"error":"訊息","code":"MACHINE_CODE"}（code 可省略）。400參數錯誤、404找不到、409狀態已改變、422讀取預算不足、429太頻繁、500非預期錯誤、501未支援、503資料來源暫時無法使用。舊 PHP 與私人帳號路徑保留既有錯誤格式。
@@ -21,6 +21,10 @@
 ## 分頁與狀態
 
 影片列表保留 limit/offset。依 publishedAt 排序時，可將 nextCursor 放入 cursor，保持其他篩選條件相同，offset 省略或為0；limit 可以調整。其他排序不提供 cursor。游標是有界公開選取器，並非憑證或資料庫一致性快照，24小時後過期。下一頁排除第一頁之後新增的較大 PK；既有資料更新仍可能改變結果。游標或標籤版本不相容回400。nextCursor 為 null 或不存在時停止；total 為 null 時請查看 totalStatus 與 hasNext。
+
+## 相容性變更紀錄
+
+- 2026-10：時間戳統一改為 UTC（破壞性變更）。先前部分 v1 欄位輸出台北偏移，例如 2026-10-12T00:00:00+08:00，少數欄位輸出無時區的台北時間，例如 2026-10-12 00:00:00；本次發布起同一時間點一律改為 2026-10-11T16:00:00.000Z。表示的時間點不變，但字串不同：直接比較字串、切字串取日期或小時、或比對 +08:00 的程式須改用 ISO 8601 解析，需要時再轉換為 Asia/Taipei。影響範圍：影片與頻道 publishedAt/updatedAt、直播 startedAt 與逐時 trend/series 的 time、meta.updatedAt 與報表 updatedAt、報表 datetime 欄（例如 /groups/:name 的 updatedAt、留言收錄 latestComment/observedAt、頻道 AI 來源 from/to）、影片分析逐時 time 與 latestAt、首頁標籤 from/to/comparison/vocabularyWindow、/vocabulary 的 window 與 publishedAt、標籤關係 createdAt、/ai/days 的 dateFrom/dateTo、AI 提示詞預覽 period，以及文字雲 periods.*.observedUntil。YYYY-MM-DD 日期欄位、台北日曆日視窗、說明文字中的「台北時間」與舊 PHP API 不受影響。
 
 /api/status 在瀏覽器呈現 HTML，以 Accept: application/json 取得 JSON。只顯示 API 回應狀態與端點用途，不代表資料新鮮度或背景擷取正常。/api/v1/status 保留端點清單格式。36支舊 PHP API 保留相容輸出，新舊對照見下方。未知 /api/v1/* 報表回501。
 
@@ -112,7 +116,7 @@ curl --fail-with-body 'https://youtube.observe.tw/api/v1/editorial/events/<事�
         "monthlyEstimateGap": null,
         "legacyGrowthPercent": null,
         "averageWeeklyViewsPerVideo": null,
-        "updatedAt": "2026-10-11T18:00:00+08:00",
+        "updatedAt": "2026-10-11T10:00:00.000Z",
         "tags": [
           {
             "id": 990001,
@@ -162,11 +166,11 @@ curl --fail-with-body 'https://youtube.observe.tw/api/v1/editorial/events/<事�
         "description": "",
         "channelAvatar": null,
         "thumbnail": "https://i.ytimg.com/vi/FixtureAa01/mqdefault.jpg",
-        "publishedAt": "2026-10-11T18:00:00+08:00",
+        "publishedAt": "2026-10-11T10:00:00.000Z",
         "views": 200,
         "likes": 5,
         "comments": null,
-        "updatedAt": "2026-10-11T18:00:00+08:00",
+        "updatedAt": "2026-10-11T10:00:00.000Z",
         "youtubeUrl": "https://www.youtube.com/watch?v=FixtureAa01"
       }
     ],
@@ -230,7 +234,7 @@ curl --fail-with-body 'https://youtube.observe.tw/api/v1/editorial/events/<事�
     "videoId": "FixtureAa01",
     "version": "synthetic-vocabulary",
     "status": "matched",
-    "matchedAt": "2026-10-11T10:00:00Z",
+    "matchedAt": "2026-10-11T10:00:00.000Z",
     "source": "https://tag.observe.tw",
     "rows": [
       {
@@ -284,10 +288,10 @@ curl --fail-with-body 'https://youtube.observe.tw/api/v1/editorial/events/<事�
     "source": "https://tag.observe.tw",
     "attribution": "標籤來源：新文易數（tag.observe.tw）",
     "window": {
-      "since": "2026-10-10T00:00:00Z",
-      "until": "2026-10-11T00:00:00Z"
+      "since": "2026-10-09T16:00:00.000Z",
+      "until": "2026-10-10T16:00:00.000Z"
     },
-    "publishedAt": "2026-10-11T01:00:00Z",
+    "publishedAt": "2026-10-11T01:00:00.000Z",
     "coverage": "observed-article-window",
     "upstreamSnapshotConsistent": false
   },
@@ -1009,8 +1013,8 @@ The machine-readable spec is authoritative for complete constraints. Additive fi
 | Field | Type | Required in parent | Description |
 | --- | --- | --- | --- |
 | `schemaVersion` | number | yes |  |
-| `requestedAt` | string | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
-| `updatedAt` | string \| null | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
+| `requestedAt` | string | yes | UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z. |
+| `updatedAt` | string \| null | yes | UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z. |
 | `timezone` | string | yes |  |
 | `source` | string | yes |  |
 | `dataset` | string | yes |  |
@@ -1038,11 +1042,11 @@ The machine-readable spec is authoritative for complete constraints. Additive fi
 | `rows[].title` | string | yes |  |
 | `rows[].description` | string | yes |  |
 | `rows[].thumbnail` | string \| null | yes |  |
-| `rows[].publishedAt` | string \| null | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
+| `rows[].publishedAt` | string \| null | yes | UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z. |
 | `rows[].views` | number \| null | yes |  |
 | `rows[].likes` | number \| null | yes |  |
 | `rows[].comments` | number \| null | yes |  |
-| `rows[].updatedAt` | string \| null | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
+| `rows[].updatedAt` | string \| null | yes | UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z. |
 | `rows[].youtubeUrl` | string | yes |  |
 | `rows[].keywordEvidence` | array | no | At most three fresh matching snippets for each of the first fifty keyword-result videos; offsets are UTF-16 positions in the original source. Absence means enrichment unavailable. |
 | `total` | integer \| null | yes |  |
@@ -1064,7 +1068,7 @@ The machine-readable spec is authoritative for complete constraints. Additive fi
 | `rows[].title` | string | yes |  |
 | `rows[].thumbnail` | string \| null | yes |  |
 | `rows[].description` | string \| null | yes |  |
-| `rows[].publishedAt` | string \| null | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
+| `rows[].publishedAt` | string \| null | yes | UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z. |
 | `rows[].youtubeUrl` | string | yes |  |
 | `rows[].views` | number \| null | yes |  |
 | `rows[].subscribers` | number \| null | yes |  |
@@ -1080,7 +1084,7 @@ The machine-readable spec is authoritative for complete constraints. Additive fi
 | `rows[].monthlyEstimateGap` | number \| null | yes |  |
 | `rows[].legacyGrowthPercent` | number \| null | yes |  |
 | `rows[].averageWeeklyViewsPerVideo` | number \| null | yes |  |
-| `rows[].updatedAt` | string \| null | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
+| `rows[].updatedAt` | string \| null | yes | UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z. |
 | `rows[].tags` | array | yes |  |
 | `total` | integer | yes |  |
 | `limit` | integer | yes |  |
@@ -1112,10 +1116,10 @@ The machine-readable spec is authoritative for complete constraints. Additive fi
 | `attribution` | string | yes |  |
 | `window` | union | yes |  |
 | `window` | object | no |  |
-| `window.since` | string | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
-| `window.until` | string | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
+| `window.since` | string | yes | UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z. |
+| `window.until` | string | yes | UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z. |
 | `window` | null | no |  |
-| `publishedAt` | string \| null | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
+| `publishedAt` | string \| null | yes | UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z. |
 | `coverage` | string | yes |  |
 | `upstreamSnapshotConsistent` | boolean | yes |  |
 | `sourceQuality` | object | no |  |
@@ -1130,7 +1134,7 @@ The machine-readable spec is authoritative for complete constraints. Additive fi
 | `videoId` | string | yes |  |
 | `version` | string \| null | yes |  |
 | `status` | string | yes |  |
-| `matchedAt` | string \| null | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
+| `matchedAt` | string \| null | yes | UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z. |
 | `source` | string | yes |  |
 | `rows` | array | yes |  |
 | `rows[]` | object | no |  |
@@ -1161,7 +1165,7 @@ The machine-readable spec is authoritative for complete constraints. Additive fi
 | `channels[].title` | string | yes |  |
 | `channels[].thumbnail` | string \| null | yes |  |
 | `channels[].description` | string \| null | yes |  |
-| `channels[].publishedAt` | string \| null | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
+| `channels[].publishedAt` | string \| null | yes | UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z. |
 | `channels[].youtubeUrl` | string | yes |  |
 | `channels[].views` | number \| null | yes |  |
 | `channels[].subscribers` | number \| null | yes |  |
@@ -1177,7 +1181,7 @@ The machine-readable spec is authoritative for complete constraints. Additive fi
 | `channels[].monthlyEstimateGap` | number \| null | yes |  |
 | `channels[].legacyGrowthPercent` | number \| null | yes |  |
 | `channels[].averageWeeklyViewsPerVideo` | number \| null | yes |  |
-| `channels[].updatedAt` | string \| null | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
+| `channels[].updatedAt` | string \| null | yes | UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z. |
 | `channels[].tags` | array | yes |  |
 | `tags` | array | yes |  |
 | `tags[]` | object | no |  |
@@ -1197,16 +1201,16 @@ The machine-readable spec is authoritative for complete constraints. Additive fi
 | `live[].title` | string | yes |  |
 | `live[].description` | string | yes |  |
 | `live[].thumbnail` | string \| null | yes |  |
-| `live[].publishedAt` | string \| null | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
+| `live[].publishedAt` | string \| null | yes | UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z. |
 | `live[].views` | number \| null | yes |  |
 | `live[].likes` | number \| null | yes |  |
 | `live[].comments` | number \| null | yes |  |
-| `live[].updatedAt` | string \| null | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
+| `live[].updatedAt` | string \| null | yes | UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z. |
 | `live[].youtubeUrl` | string | yes |  |
 | `live[].currentViewers` | number | yes |  |
 | `live[].todayPeak` | number | yes |  |
 | `live[].allTimePeak` | number \| null | yes |  |
-| `live[].startedAt` | string \| null | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
+| `live[].startedAt` | string \| null | yes | UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z. |
 | `live[].trend` | array | yes |  |
 | `live[].tags` | array | yes |  |
 | `events` | array | yes |  |
@@ -1221,9 +1225,9 @@ The machine-readable spec is authoritative for complete constraints. Additive fi
 | `exploration.keywords.version` | string \| null | yes |  |
 | `exploration.keywords.status` | string | yes |  |
 | `exploration.keywords.reason` | string \| null | no |  |
-| `exploration.keywords.from` | string | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
-| `exploration.keywords.to` | string | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
-| `exploration.keywords.updatedAt` | string \| null | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
+| `exploration.keywords.from` | string | yes | UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z. |
+| `exploration.keywords.to` | string | yes | UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z. |
+| `exploration.keywords.updatedAt` | string \| null | yes | UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z. |
 | `exploration.keywords.rows` | array | yes |  |
 | `exploration.keywords.sourceVideos` | number \| null | yes |  |
 | `exploration.keywords.freshVideos` | number \| null | yes |  |
@@ -1244,9 +1248,9 @@ The machine-readable spec is authoritative for complete constraints. Additive fi
 | `exploration.keywordToday.version` | string \| null | yes |  |
 | `exploration.keywordToday.status` | string | yes |  |
 | `exploration.keywordToday.reason` | string \| null | no |  |
-| `exploration.keywordToday.from` | string | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
-| `exploration.keywordToday.to` | string | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
-| `exploration.keywordToday.updatedAt` | string \| null | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
+| `exploration.keywordToday.from` | string | yes | UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z. |
+| `exploration.keywordToday.to` | string | yes | UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z. |
+| `exploration.keywordToday.updatedAt` | string \| null | yes | UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z. |
 | `exploration.keywordToday.rows` | array | yes |  |
 | `exploration.keywordToday.sourceVideos` | number \| null | yes |  |
 | `exploration.keywordToday.freshVideos` | number \| null | yes |  |
@@ -1264,7 +1268,7 @@ The machine-readable spec is authoritative for complete constraints. Additive fi
 | `exploration.categories.reason` | string \| null | yes |  |
 | `exploration.categories.rows` | array | yes |  |
 | `exploration.categories.summary` | object | yes |  |
-| `exploration.categories.updatedAt` | string \| null | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
+| `exploration.categories.updatedAt` | string \| null | yes | UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z. |
 | `exploration.categories.minimumWeeklyViews` | number | yes |  |
 
 ### ApiAvailability
@@ -1273,7 +1277,7 @@ The machine-readable spec is authoritative for complete constraints. Additive fi
 | --- | --- | --- | --- |
 | `status` | string | yes |  |
 | `scope` | string | yes |  |
-| `checkedAt` | string | yes | ISO 8601 timestamp with explicit timezone; UTC Z or a source offset such as +08:00. |
+| `checkedAt` | string | yes | UTC ISO 8601 instant ending in Z, e.g. 2026-10-11T16:00:00.000Z. |
 | `services` | array | yes |  |
 | `services[]` | object | no |  |
 | `services[].id` | string | yes |  |

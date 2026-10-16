@@ -70,14 +70,20 @@ export function timestamp(value: unknown): string | null {
     const str = text(value);
     if (!str || str.startsWith('0000'))
         return null;
-    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d{1,6})?$/.test(str))
-        return str.replace(' ', 'T') + '+08:00';
-    if (/^\d{4}-\d{2}-\d{2}$/.test(str))
-        return str + 'T00:00:00+08:00';
-    return Number.isFinite(Date.parse(str)) ? new Date(str).toISOString() : null;
+    // Legacy SQL values are Taipei wall time. Only timestamp fields use this
+    // serializer; calendar dates and exact SQL cursor values remain untouched.
+    const instant = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d{1,6})?$/.test(str)
+        ? str.replace(' ', 'T') + '+08:00'
+        : /^\d{4}-\d{2}-\d{2}$/.test(str) ? str + 'T00:00:00+08:00' : str;
+    return Number.isFinite(Date.parse(instant)) ? new Date(instant).toISOString() : null;
 }
 export function latest(...values: unknown[]): string | null {
     return values.map(timestamp).filter((v): v is string => v !== null).sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? null;
+}
+/** Explicit instant-window DTO; source snapshots remain untouched. */
+export function timestampWindow(value: unknown): {since:string;until:string}|null {
+    const window=object(value),since=timestamp(window.since),until=timestamp(window.until);
+    return since&&until?{since,until}:null;
 }
 export function taipeiDate(date: Date): string { return new Date(date.getTime() + 8 * 3600000).toISOString().slice(0, 10); }
 export function taipeiSql(date: Date): string { return new Date(date.getTime() + 8 * 3600000).toISOString().slice(0, 19).replace('T', ' '); }

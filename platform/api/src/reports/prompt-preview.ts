@@ -5,7 +5,7 @@ import type {Reader} from '../db/client.js';
 import {planAi,conditionSql} from '../../../ai/src/planner.js';
 import {normalizeInput,PROMPT_VERSION,type Input,type Condition} from '../../../ai/src/contracts.js';
 import {BadQuery,bounded,dateFilter,positiveId,type Query} from './query.js';
-import {text,taipeiDate} from './normalize.js';
+import {text,taipeiDate,timestamp} from './normalize.js';
 import type {Register} from './table.js';
 /** Adapter is private to the reviewed planner's static SELECTs, never accepts HTTP SQL. */
 function planningReader(reader:Reader):Pick<Connection,'query'>{
@@ -52,7 +52,7 @@ export function registerPromptPreview(register:Register,reader:Reader,clock:()=>
   const input=makeInput(from,to);
   try{normalizeInput(input);}catch{throw new BadQuery('AI preview period/type must match the selected workflow (daily requires one complete day).');}
   const plan=await planAi(planningReader(reader),input);
-  return {title:channelId?`頻道 ${channelId} 提示詞預覽`:`${from} 每日彙整提示詞預覽`,promptVersion:PROMPT_VERSION,prompt:plan.prompt,schema:plan.schema,sourceCount:plan.sourceCount,sourceLimit:plan.input.limit,omitted:plan.omitted,bounds:plan.bounds,blocked:plan.blocked,period:{from:input.from,to:input.to},updatedAt:null,notes:['此頁使用與新版 AI 任務相同的規劃器，只讀取來源及組合提示詞，不呼叫模型或寫入資料。','顯示當下來源的預覽，不宣稱是過去 AI 生成時使用的不可變快照。','每日預覽省略 condition 時等同明確選擇 all；舊版 tagid/or/not 不會自動轉換，必須移除並重新選擇新版來源範圍。']};
+  return {title:channelId?`頻道 ${channelId} 提示詞預覽`:`${from} 每日彙整提示詞預覽`,promptVersion:PROMPT_VERSION,prompt:plan.prompt,schema:plan.schema,sourceCount:plan.sourceCount,sourceLimit:plan.input.limit,omitted:plan.omitted,bounds:plan.bounds,blocked:plan.blocked,period:{from:timestamp(input.from),to:timestamp(input.to)},updatedAt:null,notes:['此頁使用與新版 AI 任務相同的規劃器，只讀取來源及組合提示詞，不呼叫模型或寫入資料。','顯示當下來源的預覽，不宣稱是過去 AI 生成時使用的不可變快照。','每日預覽省略 condition 時等同明確選擇 all；舊版 tagid/or/not 不會自動轉換，必須移除並重新選擇新版來源範圍。']};
  };
  register('/channels/:id/prompt',(p,q,identity)=>preview(q,positiveId(p.id),{},identity));
  register('/ai/days/prompt',(_p,q)=>preview(q));

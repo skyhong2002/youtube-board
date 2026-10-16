@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 import {sql} from 'drizzle-orm';
 import type {Reader} from '../db/client.js';
 import {bounded,dateFilter,NotFound,videoId} from './query.js';
-import {latest,text} from './normalize.js';
+import {latest,text,timestamp} from './normalize.js';
 import {table,type Register} from './table.js';
 import {LIVE_READ_LIMITS,liveSamples,observedCount} from './live-observations.js';
 
@@ -24,7 +24,7 @@ export function registerLiveVideoTrend(register:Register,reader:Reader){
    if(!body||typeof raw!=='string'||Buffer.byteLength(raw)>LIVE_READ_LIMITS.rowBytes||Buffer.byteLength(raw)!==Number(row.log_bytes)||createHash('sha256').update(raw).digest('hex')!==row.log_hash||['the_date','mtime','ctime'].some(key=>text(body[key])!==text(row[key]))){coverage.changedRows++;continue;}
    let date:string|null;try{date=dateFilter(text(row.the_date).slice(0,10));}catch{date=null;}if(!date){coverage.invalidDates++;continue;}
    const parsed=liveSamples(raw);coverage.invalidSamples+=parsed.invalid;coverage.validSamples+=parsed.samples.size;if(parsed.malformed)coverage.malformedRows++;else if(!parsed.samples.size&&!parsed.invalid)coverage.emptyLogRows++;
-   for(const [time,value]of parsed.samples){const hour=`${date}T${time.slice(0,2)}:00:00+08:00`;hourly.set(hour,Math.max(hourly.get(hour)??0,value));daily.set(date,Math.max(daily.get(date)??0,value));}
+   for(const [time,value]of parsed.samples){const hour=timestamp(`${date} ${time.slice(0,2)}:00:00`)!;hourly.set(hour,Math.max(hourly.get(hour)??0,value));daily.set(date,Math.max(daily.get(date)??0,value));}
   }
   const points=(values:Map<string,number>)=>[...values].sort(([a],[b])=>a.localeCompare(b)).slice(-Math.min(count+1,200)).map(([time,value])=>({time,value}));
   const hp=points(hourly),dp=points(daily),partial=coverage.olderRowsOmitted||coverage.skippedRows+coverage.changedRows+coverage.malformedRows+coverage.invalidSamples+coverage.invalidDates+coverage.missingLogRows>0;

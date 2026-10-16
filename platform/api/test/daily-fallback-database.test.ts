@@ -31,7 +31,7 @@ describe.skipIf(!url)('daily fallback on isolated MariaDB',()=>{
   expect((await get('type=oneday')).data).toMatchObject({date:'2199-12-31',source:'daily-cache'});
  });
  it('regroups poor legacy caches but exact PK remains unchanged',async()=>{
-  await cache();await db.execute('UPDATE urt_ai_date SET mtime=? WHERE pk=?',['2300-01-01 00:00:00',daily]);const regrouped=await get();expect(regrouped.data).toMatchObject({source:'channel-summaries',dailyId:null,updatedAt:'2200-01-02T00:00:00+08:00'});expect(regrouped.meta.coverage.replacedDailyId).toBe(daily);expect((await get()).data.rows[0].title).not.toBe('舊零碎摘要');
+  await cache();await db.execute('UPDATE urt_ai_date SET mtime=? WHERE pk=?',['2300-01-01 00:00:00',daily]);const regrouped=await get();expect(regrouped.data).toMatchObject({source:'channel-summaries',dailyId:null,updatedAt:'2200-01-01T16:00:00.000Z'});expect(regrouped.meta.coverage.replacedDailyId).toBe(daily);expect((await get()).data.rows[0].title).not.toBe('舊零碎摘要');
   const pinned=await get('pk='+daily);expect(pinned.data.source).toBe('daily-cache');expect(pinned.data.rows[0].title).toBe('舊零碎摘要');expect(pinned.data.rows[0].unresolvedReferences).toHaveLength(1);
  });
  it('todate source citations resolve through their exact source PK',async()=>{

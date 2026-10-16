@@ -19,7 +19,7 @@ export const API_INTRO=`公開取用有影儀表板的影片、頻道排行、�
 - 登入後在 /my/settings 建立個人 API 金鑰，每人最多3把有效金鑰、累計最多建立100把（含已撤銷）；以 x-api-key: ytb_… 傳送，同一帳號所有金鑰合計每分鐘1000次。伺服器只存 SHA-256，明文只在建立時顯示。失效或撤銷的金鑰使用匿名額度；金鑰不授予帳號或管理權限，勿放在網址、日誌或公開程式碼中。
 - 額外防濫用預算：每個 IP 網段每分鐘最多1000次金鑰驗證；IPv6 /48 合計4000次；單一 gateway 每分鐘保留匿名4000次與金鑰8000次，合計12000次；兩者不互相借用。未知金鑰每網段最多20次未命中驗證，超過後使用匿名額度並禁止共享快取。共享網路或過載時，這些上限可能先於個別額度生效。
 - 允許跨網域，CORS Access-Control-Allow-Origin: *，不傳送跨站憑證。
-- v1 時間戳使用 ISO 8601 並標示時區，可能為 UTC（Z）或台北偏移（+08:00）；不要假設所有欄位已統一為 UTC。「一天」指台北日曆日，日期型欄位保留 YYYY-MM-DD。舊 PHP API 保留相容格式。
+- v1 所有時間點（instant）一律為 UTC ISO 8601，以 Z 結尾，例如 2026-10-11T16:00:00.000Z；需要台北時間請自行轉換為 Asia/Taipei（UTC+8）。「一天」與日期視窗指台北日曆日，日期型欄位（YYYY-MM-DD）與 from/to 日期參數不轉換時區。舊 PHP API 保留相容格式。
 - 回應帶 Cache-Control：直播通常30秒、一般報表60秒、詞彙300秒、規格3600秒；快取時間不是來源保證更新頻率。請勿更頻繁輪詢，並檢查 meta.updatedAt 與 coverage。CDN 命中不消耗源站額度，限流標頭可能是建立快取時的快照。
 - 帶 x-api-key、Authorization、Cookie 或 Set-Cookie 的回應 private, no-store；私人追蹤、個人 RSS 與管理介面不屬於公開 API。
 - 公開 v1 錯誤格式為 {"error":"訊息","code":"MACHINE_CODE"}（code 可省略）。400參數錯誤、404找不到、409狀態已改變、422讀取預算不足、429太頻繁、500非預期錯誤、501未支援、503資料來源暫時無法使用。舊 PHP 與私人帳號路徑保留既有錯誤格式。
@@ -30,6 +30,10 @@ export const API_INTRO=`公開取用有影儀表板的影片、頻道排行、�
 ## 分頁與狀態
 
 影片列表保留 limit/offset。依 publishedAt 排序時，可將 nextCursor 放入 cursor，保持其他篩選條件相同，offset 省略或為0；limit 可以調整。其他排序不提供 cursor。游標是有界公開選取器，並非憑證或資料庫一致性快照，24小時後過期。下一頁排除第一頁之後新增的較大 PK；既有資料更新仍可能改變結果。游標或標籤版本不相容回400。nextCursor 為 null 或不存在時停止；total 為 null 時請查看 totalStatus 與 hasNext。
+
+## 相容性變更紀錄
+
+- 2026-10：時間戳統一改為 UTC（破壞性變更）。先前部分 v1 欄位輸出台北偏移，例如 2026-10-12T00:00:00+08:00，少數欄位輸出無時區的台北時間，例如 2026-10-12 00:00:00；本次發布起同一時間點一律改為 2026-10-11T16:00:00.000Z。表示的時間點不變，但字串不同：直接比較字串、切字串取日期或小時、或比對 +08:00 的程式須改用 ISO 8601 解析，需要時再轉換為 Asia/Taipei。影響範圍：影片與頻道 publishedAt/updatedAt、直播 startedAt 與逐時 trend/series 的 time、meta.updatedAt 與報表 updatedAt、報表 datetime 欄（例如 /groups/:name 的 updatedAt、留言收錄 latestComment/observedAt、頻道 AI 來源 from/to）、影片分析逐時 time 與 latestAt、首頁標籤 from/to/comparison/vocabularyWindow、/vocabulary 的 window 與 publishedAt、標籤關係 createdAt、/ai/days 的 dateFrom/dateTo、AI 提示詞預覽 period，以及文字雲 periods.*.observedUntil。YYYY-MM-DD 日期欄位、台北日曆日視窗、說明文字中的「台北時間」與舊 PHP API 不受影響。
 
 /api/status 在瀏覽器呈現 HTML，以 Accept: application/json 取得 JSON。只顯示 API 回應狀態與端點用途，不代表資料新鮮度或背景擷取正常。/api/v1/status 保留端點清單格式。36支舊 PHP API 保留相容輸出，新舊對照見下方。未知 /api/v1/* 報表回501。`;
 
@@ -79,7 +83,7 @@ const examples:Record<string,unknown>={
  '/api/v1/keywords/:keyword/relations':{data:{keyword:'交通',source:'https://tag.observe.tw',sourceUrl:'https://tag.observe.tw/tag/%E4%BA%A4%E9%80%9A/',status:'disabled',reason:'disabled',tagId:null,truncated:false,relations:[],retryAfterSeconds:null},meta:{...EXAMPLE_META,source:'tag.observe.tw',updatedAt:null}},
  '/api/v1/videos':{data:{rows:[video(EXAMPLE_VIDEO_SOURCE)],total:null,totalStatus:'not-computed',hasNext:false,limit:50,offset:0,nextCursor:null},meta:EXAMPLE_META},
  '/api/v1/channels':{data:{rows:[channel({u_id:990001,youtube_id:'UCSynthetic990001',title:'範例新聞甲（合成）',view_week:1000,tags:'[990001]',ctime:'2026-10-11 18:00:00'},new Map([[990001,'範例分類（合成）']]))],total:1,limit:50,offset:0,ranking:{column:'view_week',scope:'directory',min:null,minMetric:'subscribers'}},meta:EXAMPLE_META},
- '/api/v1/vocabulary':{data:{rows:[{key:'example-term-key',term:'交通',articleCount:3,media:['範例媒體'],provenance:'upstream-article-tag-origin-unspecified'}],total:1,limit:50,offset:0,version:'synthetic-vocabulary',source:'https://tag.observe.tw',attribution:'標籤來源：新文易數（tag.observe.tw）',window:{since:'2026-10-10T00:00:00Z',until:'2026-10-11T00:00:00Z'},publishedAt:'2026-10-11T01:00:00Z',coverage:'observed-article-window',upstreamSnapshotConsistent:false},meta:EXAMPLE_META},
- '/api/v1/videos/:id/tags':{data:{videoId:'FixtureAa01',version:'synthetic-vocabulary',status:'matched',matchedAt:'2026-10-11T10:00:00Z',source:'https://tag.observe.tw',rows:[{key:'example-term-key',term:'交通',field:'title',start:5,end:7,text:'交通',snippet:'合成：城市交通規劃',snippetStart:0,ruleVersion:'exact-text-v1'}]},meta:EXAMPLE_META},
+ '/api/v1/vocabulary':{data:{rows:[{key:'example-term-key',term:'交通',articleCount:3,media:['範例媒體'],provenance:'upstream-article-tag-origin-unspecified'}],total:1,limit:50,offset:0,version:'synthetic-vocabulary',source:'https://tag.observe.tw',attribution:'標籤來源：新文易數（tag.observe.tw）',window:{since:'2026-10-09T16:00:00.000Z',until:'2026-10-10T16:00:00.000Z'},publishedAt:'2026-10-11T01:00:00.000Z',coverage:'observed-article-window',upstreamSnapshotConsistent:false},meta:EXAMPLE_META},
+ '/api/v1/videos/:id/tags':{data:{videoId:'FixtureAa01',version:'synthetic-vocabulary',status:'matched',matchedAt:'2026-10-11T10:00:00.000Z',source:'https://tag.observe.tw',rows:[{key:'example-term-key',term:'交通',field:'title',start:5,end:7,text:'交通',snippet:'合成：城市交通規劃',snippetStart:0,ruleVersion:'exact-text-v1'}]},meta:EXAMPLE_META},
 };
 for(const endpoint of PUBLIC_ENDPOINTS)if(Object.hasOwn(examples,endpoint.path))endpoint.example=examples[endpoint.path];
