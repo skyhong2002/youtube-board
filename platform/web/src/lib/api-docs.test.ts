@@ -24,6 +24,7 @@ test('generated docs parse into the same catalog the generator wrote, with no ha
  assert.ok(doc.intro.length>=1&&doc.intro.every(b=>b.kind==='paragraph'));
  for(const title of [API_DOCS_RULES_TITLE,'分頁與狀態','規格與文件入口','快速開始',API_DOCS_CATALOG_TITLE,'參數','回應欄位','舊版 PHP API 對照'])assert.equal(doc.sections.filter(s=>s.title===title).length,1,title);
  const rules=doc.sections.find(s=>s.title===API_DOCS_RULES_TITLE)!;
+ assert.ok(rules.blocks.some(b=>b.kind==='list'&&b.items.some(i=>i.includes('x-api-key'))));
  assert.ok(rules.blocks.some(b=>b.kind==='list'&&b.items.some(i=>/400參數錯誤.*503/.test(i))));
  // Every catalog row of the Markdown table is present, in order.
  const catalogRows=markdown.split(`## ${API_DOCS_CATALOG_TITLE}`)[1]!.split('\n## ')[0]!.split('\n').filter(l=>/^\| GET \|/.test(l));
@@ -47,7 +48,7 @@ test('generated docs parse into the same catalog the generator wrote, with no ha
  assert.match(file('next.config.ts'),/outputFileTracingIncludes: \{ "\/api": \["\.\.\/docs\/api\.md"\], "\/api\/status": \["\.\.\/docs\/api\.md"\] \}/);
 });
 test('quota, keys and pagination claims come only from the generated docs, never from the frontend',()=>{
- // This release documents anonymous limits and offset pagination; keys and cursors are pending.
+ // Key quotas and pagination are documented only by the generated docs; key management lives at /my/settings.
  const pagination=doc.sections.find(s=>s.title==='分頁與狀態')!;
  assert.match(text(pagination.blocks),/offset/);
  for(const page of pages){

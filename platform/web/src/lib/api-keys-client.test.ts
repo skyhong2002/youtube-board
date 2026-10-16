@@ -1,0 +1,40 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {join} from 'node:path';
+import {accountFetch,AccountError} from './account-client';
+import {activeKeys,canCreateKey,cleanLabel,keyPath,parseApiKeys,parseIssuedKey} from './api-keys-client';
+const big='9007199254740993';
+const key=(id:string,revokedAt:string|null=null)=>({id,prefix:'ytb_ab12',label:'腳本',createdAt:'2026-10-12T00:00:00.000Z',lastUsedAt:null,revokedAt});
+const session={enabled:true,csrfToken:'csrf-1',user:{id:7,email:'a@example.com',name:null,picture:null,role:'reader' as const,adminSource:null}};
+test('api key responses keep BIGINT ids as decimal strings and reject malformed shapes',()=>{
+ const keys=parseApiKeys({keys:[key(big),key('2','2026-10-12T01:00:00.000Z')]});
+ assert.equal(keys[0]!.id,big);assert.equal(typeof keys[0]!.id,'string');
+ assert.equal(activeKeys(keys).length,1);assert.equal(canCreateKey(keys),true);
+ assert.equal(canCreateKey([key('1'),key('2'),key('3'),key('4','2026-10-12T01:00:00.000Z')]),false);
+ for(const bad of [null,{},{keys:[{...key('1'),id:1}]},{keys:[key('01')]},{keys:[key('-1')]},{keys:[{...key('1'),createdAt:'x'}]}])assert.throws(()=>parseApiKeys(bad),AccountError);
+ assert.deepEqual(parseIssuedKey({key:key(big),token:'ytb_secret',extra:1}),{key:key(big),token:'ytb_secret'});
+ for(const bad of [{key:key('1'),token:'nope'},{key:key('1','2026-10-12T01:00:00.000Z'),token:'ytb_x'},{token:'ytb_x'}])assert.throws(()=>parseIssuedKey(bad),AccountError);
+ assert.equal(cleanLabel('  研究  '),'研究');assert.equal(cleanLabel('   '),null);assert.equal(cleanLabel('a\u0007'),null);assert.equal(cleanLabel('字'.repeat(65)),null);assert.equal(cleanLabel('字'.repeat(64)),'字'.repeat(64));
+ assert.equal(keyPath(),'/auth/me/api-keys');assert.equal(keyPath(big),'/auth/me/api-keys/'+big);
+ for(const bad of ['0','1.5','1e3','../x','1/2'])assert.throws(()=>keyPath(bad),AccountError);
+});
+test('api key requests use the session CSRF token and map a disabled server to API_KEYS_DISABLED',async()=>{
+ const seen:Array<{url:string;init:RequestInit}>=[];
+ const reply=(status:number,value:unknown)=>(async(url:RequestInfo|URL,init?:RequestInit)=>{seen.push({url:String(url),init:init!});return Response.json(value,{status});}) as typeof fetch;
+ await accountFetch(keyPath(),session,{method:'POST',body:{label:'x'}},reply(201,{key:key('1'),token:'ytb_x'}));
+ const post=seen[0]!;assert.equal(post.url,'/auth/me/api-keys');assert.equal(new Headers(post.init.headers).get('x-csrf-token'),'csrf-1');assert.equal(post.init.cache,'no-store');assert.equal(post.init.credentials,'same-origin');assert.equal(post.init.body,'{"label":"x"}');
+ await accountFetch(keyPath(big),session,{method:'DELETE'},reply(200,{revoked:true}));assert.equal(seen[1]!.url,'/auth/me/api-keys/'+big);assert.equal(seen[1]!.init.method,'DELETE');
+ await assert.rejects(accountFetch(keyPath(),session,{},reply(503,{error:{code:'SOMETHING'}})),(e:unknown)=>e instanceof AccountError&&e.code==='API_KEYS_DISABLED');
+ await assert.rejects(accountFetch('/auth/me/feed',session,{},reply(503,{})),(e:unknown)=>e instanceof AccountError&&e.code==='ACCOUNT_UNAVAILABLE');
+ await assert.rejects(accountFetch(keyPath(),null,{method:'POST',body:{label:'x'}},reply(201,{})),(e:unknown)=>e instanceof AccountError&&e.code==='SIGN_IN_REQUIRED');
+ await assert.rejects(accountFetch('/auth/me/api-keys/abc',session,{},reply(200,{})),(e:unknown)=>e instanceof AccountError&&e.code==='INVALID_REQUEST');
+});
+test('the settings component keeps the plaintext token in memory only and clears it on user change and close',()=>{
+ const roots=[process.cwd(),join(process.cwd(),'web'),join(process.cwd(),'platform/web')];
+ const source=roots.map(r=>{try{return readFileSync(join(r,'src/app/my/settings/ApiKeys.tsx'),'utf8');}catch{return '';}}).find(Boolean)!;
+ assert.doesNotMatch(source,/localStorage|sessionStorage|indexedDB|document\.cookie|console\.|history\.|location\.|searchParams|Number\(|parseInt|dangerouslySetInnerHTML/);
+ assert.match(source,/useEffect\(\(\)=>\{setToken\(''\)[^]*?\},\[userId,retry\]\)/);
+ assert.match(source,/const close=\(\)=>\{setToken\(''\)/);
+ assert.match(source,/API_KEYS_DISABLED/);
+});

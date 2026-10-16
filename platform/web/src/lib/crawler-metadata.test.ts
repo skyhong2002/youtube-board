@@ -25,7 +25,7 @@ test('robots allows public discovery but excludes auth, reader, operator and bea
  const metadata=robots();assert.equal(metadata.sitemap,new URL('/sitemap.xml',SITE_ORIGIN).href);
  assert.ok(!Array.isArray(metadata.rules));const rule=metadata.rules as {userAgent:string;allow:string;disallow:string[]};
  assert.equal(rule.userAgent,'*');assert.equal(rule.allow,'/');
- for(const path of ['/auth/google/callback','/login','/my','/my/follows','/manage','/ops/ingestion','/api/ops/editorial','/api/status','/api/v1/home','/feeds/u/private-token.xml','/runtime/ready'])assert.ok(rule.disallow.some(prefix=>path.startsWith(prefix)),path);
+ for(const path of ['/auth/google/callback','/login','/my','/my/follows','/manage','/ops/ingestion','/api/ops/editorial','/api/status','/api/v1/home','/api/private/keys','/feeds/u/private-token.xml','/runtime/ready'])assert.ok(rule.disallow.some(prefix=>path.startsWith(prefix)),path);
  for(const row of sitemap())assert.ok(!rule.disallow.some(prefix=>new URL(row.url).pathname.startsWith(prefix)),row.url);
  assert.ok(sitemap().some(row=>new URL(row.url).pathname==='/api'),'public /api docs are listed and crawlable');
 });

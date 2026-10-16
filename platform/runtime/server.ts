@@ -1,4 +1,6 @@
 import {registerAuth} from '../api/src/auth/index.js';
+import {mysqlApiKeyStore} from '../api/src/reader/api-key-store.js';
+import {registerPersonalApiKeys} from '../api/src/reader/api-keys.js';
 import {registerReaderAccounts} from '../api/src/reader/routes.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import { buildApp } from '../api/src/app.js';
@@ -13,9 +15,13 @@ import {loadUnavailableAssets} from '../api/src/ui-unavailable.js';
 import {analyticsTransportEnabled} from '../shared/analytics-runtime.js';
 
 const databases=frontendDatabases(process.env);
-const app = buildApp({sitemapWarmup:true});
+const apiKeys=databases.state?mysqlApiKeyStore(databases.state):null;
+const apiKeysReady=apiKeys?await apiKeys.ready():false;
+const app = buildApp({sitemapWarmup:true,publicApi:{keys:apiKeysReady?apiKeys:null}});
+if(apiKeys)app.addHook('onClose',()=>apiKeys.close());
 const auth=await registerAuth(app,{databaseUrl:databases.auth,env:{...process.env,DATABASE_URL:databases.auth}});
 await registerReaderAccounts(app,auth,{databaseUrl:databases.auth});
+await registerPersonalApiKeys(app,auth,{store:apiKeysReady?apiKeys:null});
 let stopping = false;
 const active = new Set<string>();
 app.addHook('onRequest', async (request, reply) => {
