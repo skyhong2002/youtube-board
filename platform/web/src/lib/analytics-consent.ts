@@ -67,13 +67,13 @@ export function writeOptOut(storage: OptOutStorage | null | undefined, optedOut:
   } catch { return false; }
 }
 
-export const PAGE_TYPES = ['home', 'videos', 'video', 'channels', 'channel', 'keywords', 'tags', 'tag', 'events', 'event', 'ai', 'live', 'groups', 'mayor', 'compare', 'about'] as const;
+export const PAGE_TYPES = ['home', 'videos', 'video', 'channels', 'channel', 'keywords', 'tags', 'tag', 'events', 'event', 'ai', 'live', 'groups', 'mayor', 'compare', 'about', 'api'] as const;
 export type PageType = (typeof PAGE_TYPES)[number];
 /** A measurable page: a fixed type and its location, which is exactly the browser URL. */
 export type AnalyticsPage = { type: PageType; location: string };
 // Account, admin, auth, private token, personal board and opt-out pages are never measured.
 const PRIVATE_PATH = /^\/(?:my|manage|ops|login|auth|boards|runtime|redir|observe|search)(?:\/|$)|^\/feeds\/u(?:\/|$)|^\/api\//;
-const STATIC_PAGES: Record<string, PageType> = { '/': 'home', '/events': 'events', '/compare/titles': 'compare', '/about': 'about', '/about/brand': 'about' };
+const STATIC_PAGES: Record<string, PageType> = { '/': 'home', '/events': 'events', '/compare/titles': 'compare', '/about': 'about', '/about/brand': 'about', '/api': 'api' };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 // Structural words, numeric IDs and dates. resolveRoute admits only fixed words outside the
