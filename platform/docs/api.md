@@ -282,7 +282,7 @@ curl --fail-with-body 'https://youtube.observe.tw/api/v1/editorial/events/<事�
     "offset": 0,
     "version": "synthetic-vocabulary",
     "source": "https://tag.observe.tw",
-    "attribution": "新文易數 tag.observe.tw",
+    "attribution": "標籤來源：新文易數（tag.observe.tw）",
     "window": {
       "since": "2026-10-10T00:00:00Z",
       "until": "2026-10-11T00:00:00Z"

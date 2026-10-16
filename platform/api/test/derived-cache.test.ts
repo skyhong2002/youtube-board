@@ -5,10 +5,12 @@ import {MySqlDialect} from 'drizzle-orm/mysql-core';
 import {buildApp} from '../src/app.js';
 import {createReader,DataSourceUnavailable,DataQueryFailed} from '../src/db/client.js';
 import {tagMetrics} from '../../ingestion/src/tag-backfill.js';
-import {loadDerivedSource} from '../src/reports/derived-cache.js';
+import {loadDerivedSource,derivedRow,derivedNote} from '../src/reports/derived-cache.js';
+import type {Row} from '../src/db/client.js';
 import {reportCacheKey} from '../../shared/report-cache-key.js';
 import {sourceTextFingerprint} from '../../shared/video-fingerprint.js';
 import {assertTestDatabaseUrl} from '../../shared/test-database.js';
+import {termKey} from '../../jobs/src/vocabulary.js';
 import {tagMetricsFromEvidence,keywordCloudFromEvidence,keywordDayFromEvidence,type MetricVideo} from '../../shared/cache-metrics.js';
 it('worker and reader math keeps title weighting, observed views and per-video co-occurrence separate',()=>{
  const videos:MetricVideo[]=[{videoId:'a',uId:1,publishedAt:'2036-10-12',viewCount:100,matches:[{term:'交通',field:'title'},{term:'交通',field:'description'},{term:'建設',field:'title'}]}];
@@ -16,13 +18,50 @@ it('worker and reader math keeps title weighting, observed views and per-video c
  expect(keywordCloudFromEvidence(videos,'交通').tags_result.建設?.weight).toBe((100*Math.sqrt(3/5)).toFixed(2));expect(keywordDayFromEvidence(videos,'交通').tags_json).toEqual({交通:1,建設:1});
  expect(tagMetricsFromEvidence([{...videos[0]!,viewCount:null}]).unknown_view_videos).toBe(1);expect(()=>tagMetricsFromEvidence([{...videos[0]!,viewCount:'9007199254740993'}])).toThrow();
 });
+/** In-memory reader routed by SQL text; records every statement so tests can prove which reads ran. */
+function scriptedReader(input:{aliases:Row[];evidence?:Row[];evidenceCount?:number}){
+ const dialect=new MySqlDialect(),statements:string[]=[],key=(c:string)=>c.repeat(64),source:Row={pk:1,videoId:'abcdefghijk',u_id:9,publishedAt:'2036-10-12 10:00:00',viewCount:100,mtime:'2036-10-12 11:00:00',ctime:'2036-10-12 11:00:00',source_bytes:20,source_hash:'h',source_pk:1,source_text_sha256:'h',rule_version:'youtube-quality-v2',evidence_count:input.evidenceCount??input.evidence?.length??0,match_epoch:Date.parse('2036-10-12T03:00:00Z')};
+ const reader={close:async()=>{},rows:async(query:Parameters<ReturnType<typeof createReader>['rows']>[0])=>{const text=dialect.sqlToQuery(query).sql;statements.push(text);
+  if(text.includes('FROM ts_vocabulary_current c'))return [{id:'v-unit',coverage:'"observed-article-window"',matching_rule:'youtube-quality-v2'}];
+  if(text.includes('AS alias_snapshot_bytes'))return [{alias_snapshot_bytes:100,separate_terms:null}];
+  if(text.includes('JSON_TABLE(r.snapshot'))return input.aliases.map((row,i)=>({term_key:key(String(i)),...row}));
+  if(text.includes('OCTET_LENGTH(COALESCE(title'))return [{n:1,bytes:20}];
+  if(text.includes('AS source_hash'))return [source];
+  if(text.includes('OCTET_LENGTH(term) AS bytes'))return [{n:input.evidence?.length??0,bytes:10}];
+  if(text.includes('SELECT e.video_id,e.term'))return (input.evidence??[]).map(row=>({video_id:'abcdefghijk',source:'https://tag.observe.tw',rule_version:'youtube-quality-v2',field_name:'title',...row}));
+  throw new Error('unexpected statement '+text);}};
+ return {reader:reader as unknown as ReturnType<typeof createReader>,statements};
+}
+const unitNow=new Date('2036-10-12T04:00:00Z');
+it('a keyword outside the maintained vocabulary is no-source before any video or evidence read',async()=>{
+ const {reader,statements}=scriptedReader({aliases:[{term:'ＡＩ'},{term:'AI '}]});
+ const source=await loadDerivedSource(reader,{},'2036-10-10','2036-10-12',unitNow,'AI');
+ expect(source.coverage).toMatchObject({status:'no-source',sourceVideos:0,version:'v-unit',selection:'keyword-text-prefilter'});expect(source.videos).toEqual([]);
+ expect(statements.some(text=>/urt_video|ts_video_tag/.test(text))).toBe(false);
+ // Exactly one bounded alias lookup decides the outcome.
+ expect(statements.filter(text=>text.includes('AS alias_snapshot_bytes'))).toHaveLength(1);
+});
+it('ASCII-case aliases recorded on one span count once while every evidence row is still verified',async()=>{
+ const evidence=[{term:'AI',start_offset:0,end_offset:2},{term:'ai',start_offset:0,end_offset:2},{term:'Ai',start_offset:0,end_offset:2},{term:'AI',start_offset:5,end_offset:7},{term:'AI',field_name:'description',start_offset:0,end_offset:2},{term:'交通',start_offset:2,end_offset:4}];
+ const {reader}=scriptedReader({aliases:[{term:'AI'},{term:'ai'},{term:'Ai'}],evidence});
+ const source=await loadDerivedSource(reader,{},'2036-10-10','2036-10-12',unitNow,'ai');
+ expect(source.coverage).toMatchObject({status:'ready',freshVideos:1});
+ expect(source.videos[0]!.matches).toEqual([{term:'AI',field:'title'},{term:'AI',field:'title'},{term:'AI',field:'description'},{term:'交通',field:'title'}]);
+ expect(derivedRow(source,'2036-10-10','2036-10-12',unitNow,'ai').reason).toBe('ready');
+ // The stored count covers all six rows, so duplicates neither trip evidence-changed nor inflate metrics.
+ const changed=await loadDerivedSource(scriptedReader({aliases:[{term:'AI'}],evidence,evidenceCount:4}).reader,{},'2036-10-10','2036-10-12',unitNow,'AI');expect(changed.coverage.status).toBe('evidence-changed');
+ for(const bad of [{start_offset:null},{start_offset:-1},{end_offset:0},{start_offset:3,end_offset:3},{end_offset:100001}]){
+  const invalid=await loadDerivedSource(scriptedReader({aliases:[{term:'AI'}],evidence:[{term:'AI',start_offset:0,end_offset:2,...bad}]}).reader,{},'2036-10-10','2036-10-12',unitNow,'AI');expect(invalid.coverage.status,JSON.stringify(bad)).toBe('invalid-evidence');
+ }
+ expect(derivedNote(source.coverage)).toContain('英文字母不分大小寫');
+});
 const url=process.env.TEST_DATABASE_URL?assertTestDatabaseUrl(process.env.TEST_DATABASE_URL):undefined;
 describe.skipIf(!url)('bounded source fallback on isolated MariaDB',()=>{
  let db:Connection,previous:string|undefined;const uid=randomInt(200000000,300000000),tag=String(uid),version='derived-'+randomUUID(),prefix=randomUUID().replaceAll('-','').slice(0,7),ids=[prefix+'Aa01',prefix+'aa01'],now=new Date('2036-10-12T04:00:00Z'),reader=createReader(url),app=buildApp({databaseUrl:url,dataset:'fixture',clock:()=>now});
  const read=async(path:string)=>{const r=await app.inject('/api/v1'+path);expect(r.statusCode,r.body).toBe(200);return r.json();};
  const clearCaches=async()=>{await db.execute('DELETE FROM urt_show_tag_cloud WHERE tagid=?',[tag]);await db.execute('DELETE FROM urt_show_tag_date WHERE tagid=?',[tag]);await db.execute('DELETE FROM urt_show_tag_cloud_tag WHERE tagid=?',[tag]);await db.execute("DELETE FROM urt_show_video_tag_date WHERE tag='交通' AND the_date BETWEEN '2036-10-01' AND '2036-10-12'");await db.execute('DELETE FROM ts_report_cache_lineage WHERE vocabulary_version=?',[version]);await db.execute('DELETE FROM ts_tag_cache_lineage WHERE vocabulary_version=?',[version]);};
  const match=async(id:string)=>{const[rows]=await db.query<RowDataPacket[]>('SELECT pk,title,description FROM urt_video WHERE BINARY videoId=BINARY ?',[id]),v=rows[0]!;const terms=['交通','建設'];await db.execute('DELETE FROM ts_video_tag_matches WHERE video_id=? AND vocabulary_version=?',[id,version]);await db.execute("INSERT INTO ts_video_tag_matches(video_id,vocabulary_version,source_pk,source_text_sha256,matched_at,rule_version,evidence_count) VALUES(?,?,?,?,'2036-10-12 03:00:00','exact-text-v1',2)",[id,version,v.pk,sourceTextFingerprint(v.title,v.description)]);for(const [i,term]of terms.entries())await db.execute("INSERT INTO ts_video_tag_evidence(video_id,vocabulary_version,term_key,term,source,field_name,start_offset,end_offset,matched_text,snippet,snippet_start,rule_version) VALUES(?,?,?,?,'https://tag.observe.tw','title',?,?,?, ?,0,'exact-text-v1')",[id,version,createHash('sha256').update(term).digest('hex'),term,i*2,i*2+2,term,'交通建設']);};
- beforeAll(async()=>{db=await mysql.createConnection({uri:url!,dateStrings:true});const[p]=await db.query<RowDataPacket[]>("SELECT run_id FROM ts_vocabulary_current WHERE source='https://tag.observe.tw'");previous=p[0]?.run_id;await db.execute("INSERT INTO ts_vocabulary_runs(id,window_since,window_until,status,snapshot) VALUES(?,'2036-10-01T00:00:00Z','2036-10-12T04:00:00Z','published',?)",[version,JSON.stringify({source:'https://tag.observe.tw',coverage:'observed-article-window',terms:[{term:'交通',articleCount:9999999},{term:'建設',articleCount:9999999}]})]);await db.execute("INSERT INTO ts_vocabulary_current(source,run_id) VALUES('https://tag.observe.tw',?) ON DUPLICATE KEY UPDATE run_id=VALUES(run_id)",[version]);await db.execute("INSERT INTO urt_channel(u_id,ctime,title,youtube_id,flag_del) VALUES(?,'2036-10-12','衍生測試','synthetic',0)",[uid]);await db.execute("INSERT INTO urt_count(u_id,ctime,tags) VALUES(?,'2036-10-12',?)",[uid,'['+tag+']']);for(const id of ids)await db.execute("INSERT INTO urt_video(videoId,u_id,title,description,ctime,mtime,publishedAt,viewCount,id,channelId,thumbnails,channelTitle,playlistId,position) VALUES(?,?,'交通建設','','2036-10-12 11:00:00','2036-10-12 11:00:00','2036-10-12 10:00:00',100,'fixture','fixture','','fixture','fixture',0)",[id,uid]);});
+ beforeAll(async()=>{db=await mysql.createConnection({uri:url!,dateStrings:true});const[p]=await db.query<RowDataPacket[]>("SELECT run_id FROM ts_vocabulary_current WHERE source='https://tag.observe.tw'");previous=p[0]?.run_id;await db.execute("INSERT INTO ts_vocabulary_runs(id,window_since,window_until,status,snapshot) VALUES(?,'2036-10-01T00:00:00Z','2036-10-12T04:00:00Z','published',?)",[version,JSON.stringify({source:'https://tag.observe.tw',coverage:'observed-article-window',terms:[{key:termKey('交通'),term:'交通',articleCount:9999999},{key:termKey('建設'),term:'建設',articleCount:9999999}]})]);await db.execute("INSERT INTO ts_vocabulary_current(source,run_id) VALUES('https://tag.observe.tw',?) ON DUPLICATE KEY UPDATE run_id=VALUES(run_id)",[version]);await db.execute("INSERT INTO urt_channel(u_id,ctime,title,youtube_id,flag_del) VALUES(?,'2036-10-12','衍生測試','synthetic',0)",[uid]);await db.execute("INSERT INTO urt_count(u_id,ctime,tags) VALUES(?,'2036-10-12',?)",[uid,'['+tag+']']);for(const id of ids)await db.execute("INSERT INTO urt_video(videoId,u_id,title,description,ctime,mtime,publishedAt,viewCount,id,channelId,thumbnails,channelTitle,playlistId,position) VALUES(?,?,'交通建設','','2036-10-12 11:00:00','2036-10-12 11:00:00','2036-10-12 10:00:00',100,'fixture','fixture','','fixture','fixture',0)",[id,uid]);});
  beforeEach(async()=>{await clearCaches();await db.execute("UPDATE urt_channel SET flag_del=0 WHERE u_id=?",[uid]);for(const [i,id]of ids.entries()){await db.execute("UPDATE urt_video SET title='交通建設',viewCount=?,publishedAt=?,mtime='2036-10-12 11:00:00' WHERE BINARY videoId=BINARY ?",[i?50:100,i?'2036-10-06 10:00:00':'2036-10-12 10:00:00',id]);await match(id);}});
  afterAll(async()=>{await app.close();await reader.close();if(!db)return;await clearCaches();if(previous)await db.execute("UPDATE ts_vocabulary_current SET run_id=? WHERE source='https://tag.observe.tw' AND run_id=?",[previous,version]);else await db.execute("DELETE FROM ts_vocabulary_current WHERE source='https://tag.observe.tw' AND run_id=?",[version]);await db.execute('DELETE FROM ts_video_tag_matches WHERE vocabulary_version=?',[version]);await db.execute('DELETE FROM ts_vocabulary_runs WHERE id=?',[version]);for(const id of ids)await db.execute('DELETE FROM urt_video WHERE BINARY videoId=BINARY ?',[id]);await db.execute('DELETE FROM urt_count WHERE u_id=?',[uid]);await db.execute('DELETE FROM urt_channel WHERE u_id=?',[uid]);await db.end();});
  it('missing category clouds derive both canonical periods from current evidence without news weights or writes',async()=>{const r=await read(`/tags/${uid}/cloud?days=3`);expect(r.meta.coverage.derived).toMatchObject({status:'derived',sourceVideos:2,freshVideos:2,version});expect(r.meta.coverage.divisor).toBe(7/3);expect(r.data.rows).toHaveLength(2);expect(r.data.rows[0].short).toBeLessThan(10);expect(r.meta.updatedAt).not.toContain('04:00:00');const[c]=await db.query<RowDataPacket[]>('SELECT COUNT(*) AS n FROM urt_show_tag_cloud WHERE tagid=?',[tag]);expect(Number(c[0]!.n)).toBe(0);});

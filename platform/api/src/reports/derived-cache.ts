@@ -1,5 +1,6 @@
 import {matchingRuleForSnapshot} from '../../../shared/youtube-match-policy.js';
-import {keywordTextContains} from './keyword-alias.js';
+import {maintainedKeywordIdentities,keywordTextContains} from './keyword-alias.js';
+import {asciiCaseFold} from '../../../shared/ascii-case.js';
 import {sql} from 'drizzle-orm';
 import {DataSourceUnavailable,type Reader,type Row} from '../db/client.js';
 import {idList,tagFilter,type Query} from './query.js';
@@ -21,6 +22,8 @@ export async function loadDerivedSource(reader:Reader,q:Query,from:string,to:str
  if(!keyword&&!idList(q.tagid).length&&!idList(q.or).length){coverage.status='taxonomy-required';return result;}
  const current=()=>reader.rows(sql`SELECT r.id,JSON_EXTRACT(r.snapshot,'$.coverage') AS coverage,JSON_UNQUOTE(JSON_EXTRACT(r.snapshot,'$.matchingRule')) AS matching_rule FROM ts_vocabulary_current c JOIN ts_vocabulary_runs r ON r.id=c.run_id AND r.status='published' WHERE c.source=${SOURCE} LIMIT 1`);
  const pin=(await current())[0];if(!pin)return result;const rule=matchingRuleForSnapshot({matchingRule:pin.matching_rule??undefined});coverage.version=text(pin.id);coverage.coverage=text(pin.coverage).replace(/^"|"$/g,'');if(!['observed-article-window','all-current-indexed-article-tags'].includes(coverage.coverage)){coverage.status='invalid-vocabulary';return result;}
+ // A keyword outside the maintained vocabulary has no evidence to verify; skip every source read.
+ if(keyword&&!(await maintainedKeywordIdentities(reader,coverage.version,keyword)).length){coverage.status='no-source';coverage.sourceVideos=0;return result;}
  const readChannels=()=>reader.rows(sql`SELECT c.u_id FROM urt_channel c LEFT JOIN urt_count n ON n.u_id=c.u_id WHERE (c.flag_del IS NULL OR c.flag_del<1) AND ${tagFilter(q)} ORDER BY c.u_id LIMIT 5001`);
  // Keyword fallback selects only potential literal matches before any payload/hash
  // budget. Unmatched unrelated videos cannot suppress every keyword on the site.
@@ -29,8 +32,8 @@ export async function loadDerivedSource(reader:Reader,q:Query,from:string,to:str
  if(!keyword&&!channels.length){coverage.status='no-source';coverage.sourceVideos=0;return result;}
  const end=to+' 23:59:59',cutoff=end<taipeiSql(now)?end:taipeiSql(now);
  const channelScope=keyword?sql`EXISTS(SELECT 1 FROM urt_channel c LEFT JOIN urt_count n ON n.u_id=c.u_id WHERE c.u_id=v.u_id AND (c.flag_del IS NULL OR c.flag_del<1) AND ${tagFilter(q)})`:sql`v.u_id IN (${sql.join(channels.map(r=>sql`${r.u_id}`),sql`,`)})`;
- // LOCATE over binary strings treats %, _ and Unicode literally; final matching
- // still requires fresh maintained-vocabulary evidence (no substring substitution).
+ // Literal binary candidates fold ASCII letters only; %, _ and Unicode stay exact.
+ // Final matching still requires fresh maintained-vocabulary evidence.
  const keywordScope=keyword?sql`AND (${keywordTextContains(sql`v.title`,keyword)} OR ${keywordTextContains(sql`v.description`,keyword)})`:sql``;
  const where=sql`${channelScope} AND v.publishedAt>=${from+' 00:00:00'} AND v.publishedAt<=${cutoff} ${keywordScope}`;
  const size=(await reader.rows(sql`SELECT COUNT(*) AS n,COALESCE(SUM(bytes),0) AS bytes FROM (SELECT OCTET_LENGTH(COALESCE(title,''))+OCTET_LENGTH(COALESCE(description,'')) AS bytes FROM urt_video v WHERE ${where} LIMIT ${MAX_VIDEOS+1}) bounded`))[0];
@@ -48,19 +51,21 @@ export async function loadDerivedSource(reader:Reader,q:Query,from:string,to:str
  const scope=sql`e.vocabulary_version=${coverage.version} AND e.video_id IN (${sql.join([...ids].map(id=>sql`${id}`),sql`,`)})`;
  const evidenceSize=(await reader.rows(sql`SELECT COUNT(*) AS n,COALESCE(SUM(bytes),0) AS bytes FROM (SELECT OCTET_LENGTH(term) AS bytes FROM ts_video_tag_evidence e WHERE ${scope} LIMIT ${MAX_EVIDENCE+1}) bounded`))[0];
  if(Number(evidenceSize?.n)>MAX_EVIDENCE||Number(evidenceSize?.bytes)>MAX_BYTES)throw new ReportReadBound('Derived cache evidence budget exceeded');
- const evidence=await reader.rows(sql`SELECT e.video_id,e.term,e.field_name,e.rule_version,e.source FROM ts_video_tag_evidence e WHERE ${scope} ORDER BY e.video_id,e.field_name,e.start_offset,e.term_key LIMIT ${MAX_EVIDENCE+1}`);
+ const evidence=await reader.rows(sql`SELECT e.video_id,e.term,e.field_name,e.start_offset,e.end_offset,e.rule_version,e.source FROM ts_video_tag_evidence e WHERE ${scope} ORDER BY e.video_id,e.field_name,e.start_offset,e.term_key LIMIT ${MAX_EVIDENCE+1}`);
  if(evidence.length>MAX_EVIDENCE||evidence.reduce((n,r)=>n+Buffer.byteLength(text(r.term)),0)>MAX_BYTES)throw new ReportReadBound('Derived cache evidence budget exceeded');
- const groups=new Map<string,MetricVideo['matches']>();for(const e of evidence){if(e.rule_version!==rule||e.source!==SOURCE||!['title','description'].includes(text(e.field_name))||!text(e.term)||[...text(e.term)].length>240){coverage.status='invalid-evidence';return result;}const matches=groups.get(text(e.video_id))??[];matches.push({term:text(e.term),field:e.field_name as 'title'|'description'});groups.set(text(e.video_id),matches);}
+ // ASCII-case aliases (AI/ai/Ai) of one maintained tag can each record the same span;
+ // the evidence count still checks every row, but metrics count that span once.
+ const groups=new Map<string,MetricVideo['matches']>(),uniqueGroups=new Map<string,Map<string,MetricVideo['matches'][number]>>();for(const e of evidence){const start=integer(e.start_offset),end=integer(e.end_offset);if(e.rule_version!==rule||e.source!==SOURCE||!['title','description'].includes(text(e.field_name))||!text(e.term)||[...text(e.term)].length>240||start===null||end===null||start<0||end<=start||end>100000){coverage.status='invalid-evidence';return result;}const id=text(e.video_id),matches=groups.get(id)??[],match={term:text(e.term),field:e.field_name as 'title'|'description'};matches.push(match);groups.set(id,matches);const unique=uniqueGroups.get(id)??new Map(),key=JSON.stringify([match.field,start,end,asciiCaseFold(match.term)]);if(!unique.has(key))unique.set(key,match);uniqueGroups.set(id,unique);}
  if(sources.some(v=>(groups.get(text(v.videoId))?.length??0)!==Number(v.evidence_count))){coverage.status='evidence-changed';return result;}
  const [after,sourceAfter,channelsAfter]=await Promise.all([current(),readSources(),keyword?Promise.resolve([]):readChannels()]);if(JSON.stringify(channelsAfter)!==JSON.stringify(channels)){coverage.status='taxonomy-changed';return result;}if(text(after[0]?.id)!==coverage.version||text(after[0]?.coverage)!==text(pin.coverage)||text(after[0]?.matching_rule)!==text(pin.matching_rule)){coverage.status='vocabulary-changed';return result;}if(JSON.stringify(sourceAfter)!==JSON.stringify(sources)){coverage.status='source-changed';return result;}
  coverage.updatedAt=latest(...sources.flatMap(v=>[v.mtime,v.ctime,v.match_epoch===null?null:new Date(Number(v.match_epoch)).toISOString()]));coverage.status='ready';
- result.videos=sources.map(v=>({videoId:text(v.videoId),uId:Number(v.u_id),publishedAt:text(v.publishedAt),viewCount:integer(v.viewCount)===null||Number(v.viewCount)<0?null:v.viewCount,matches:groups.get(text(v.videoId))??[]}));return result;
+ result.videos=sources.map(v=>({videoId:text(v.videoId),uId:Number(v.u_id),publishedAt:text(v.publishedAt),viewCount:integer(v.viewCount)===null||Number(v.viewCount)<0?null:v.viewCount,matches:[...(uniqueGroups.get(text(v.videoId))?.values()??[])]}));return result;
  } catch(error) {
   if(!(error instanceof ReportReadBound)&&!(error instanceof DataSourceUnavailable))throw error;
   result.videos=[];coverage.status='unavailable';coverage.reason=error instanceof ReportReadBound?'read-budget':'data-source-unavailable';return result;
  }
 }
-export function derivedNote(coverage:DerivedCoverage){return `共享詞彙即時計算：${coverage.status}${coverage.reason?'（'+coverage.reason+'）':''}；版本 ${coverage.version??'未同步'}；來源 ${coverage.sourceVideos??'未知'} 部、已比對 ${coverage.freshVideos} 部、過期 ${coverage.staleVideos} 部、未比對 ${coverage.unmatchedVideos} 部。觀看值未知 ${coverage.unknownViewVideos} 部（其中無效 ${coverage.invalidViewVideos} 部）。${coverage.selection==='keyword-text-prefilter'?'先依標題／描述的精確字串篩選候選，再驗證共享詞彙證據；':''}僅使用本機既有證據，不會啟動寫入或比對；未涵蓋影片不計為零。`;}
+export function derivedNote(coverage:DerivedCoverage){return `共享詞彙即時計算：${coverage.status}${coverage.reason?'（'+coverage.reason+'）':''}；版本 ${coverage.version??'未同步'}；來源 ${coverage.sourceVideos??'未知'} 部、已比對 ${coverage.freshVideos} 部、過期 ${coverage.staleVideos} 部、未比對 ${coverage.unmatchedVideos} 部。觀看值未知 ${coverage.unknownViewVideos} 部（其中無效 ${coverage.invalidViewVideos} 部）。${coverage.selection==='keyword-text-prefilter'?'先依標題／描述的字串篩選候選（英文字母不分大小寫），再驗證共享詞彙證據；':''}僅使用本機既有證據，不會啟動寫入或比對；未涵蓋影片不計為零。`;}
 export function derivedRow(source:DerivedSource,from:string,to:string,now:Date,keyword?:string):{row?:Row;reason:string}{
  if(source.coverage.status!=='ready')return {reason:'unavailable'};const videos=source.videos.filter(v=>v.publishedAt.slice(0,10)>=from&&v.publishedAt.slice(0,10)<=to);if(!videos.length)return {reason:'no-source'};
  const metrics=keyword?keywordCloudFromEvidence(videos,keyword):tagMetricsFromEvidence(videos);if(keyword&&!metrics.count_videos)return {reason:'no-matching-source'};if(metrics.unknown_view_videos)return {reason:'unknown-views'};

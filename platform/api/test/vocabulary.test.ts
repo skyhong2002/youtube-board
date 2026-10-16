@@ -3,6 +3,7 @@ import { vocabulary, videoTagEvidence } from '../src/reports/vocabulary.js';
 import { buildApp } from '../src/app.js';
 import type { Reader, Row } from '../src/db/client.js';
 import { sourceTextFingerprint } from '../../shared/video-fingerprint.js';
+import { MySqlDialect } from 'drizzle-orm/mysql-core';
 function queueReader(queue: Row[][]): Reader { return { rows: async <T extends Row>() => (queue.shift() ?? []) as T[], close: async () => { } }; }
 describe('published vocabulary and source evidence', () => {
     it('uses database pagination for complete immutable snapshots', async () => { const r = await vocabulary(queueReader([[{ id: 'full-v1', snapshot: JSON.stringify({ termsStoredSeparately: true, coverage: 'all-current-indexed-article-tags', upstreamSnapshotConsistent: true, publishedAt: '2026-10-11T00:00:00Z' }) }], [{ payload: JSON.stringify({ key: 'local-key', term: '城市', articleCount: 9, media: [], upstreamId: '12' }) }], [{ total: 50000 }]]), { limit: '1' }); expect(r.total).toBe(50000); expect(r.rows).toHaveLength(1); expect(r.coverage).toBe('all-current-indexed-article-tags'); expect(r.upstreamSnapshotConsistent).toBe(true); expect(r.window).toBeNull(); });
@@ -17,6 +18,19 @@ describe('published vocabulary and source evidence', () => {
     });
     it('does not show evidence when there is no published current run', async () => { const r = await videoTagEvidence(queueReader([[{ pk: 1, videoId: 'Aa', title: 'title', description: '' }], []]), 'Aa'); expect(r.status).toBe('not-synchronized'); expect(r.rows).toEqual([]); });
     it('a null evidence timestamp is not the Unix epoch', async () => { const r = await videoTagEvidence(queueReader([[{ pk: 1, videoId: 'Aa', title: 'title', description: '' }], [{ run_id: 'v1' }], [{ source_pk: 1, rule_version:'exact-text-v1', matched_epoch: null, source_text_sha256: sourceTextFingerprint('title', '') }], []]), 'Aa'); expect(r.matchedAt).toBeNull(); });
+    it('video evidence reads the latest byte-exact videoId row, never a case-insensitive sibling', async () => {
+        const dialect = new MySqlDialect(), queries: { sql: string; params: unknown[] }[] = [], queue: Row[][] = [[{ pk: 7, videoId: 'Aa', title: 'title', description: '' }], []];
+        const reader: Reader = { rows: async <T extends Row>(query: Parameters<Reader['rows']>[0]) => { queries.push(dialect.sqlToQuery(query)); return (queue.shift() ?? []) as T[]; }, close: async () => { } };
+        expect((await videoTagEvidence(reader, 'Aa')).status).toBe('not-synchronized');
+        expect(queries[0]!.sql).toMatch(/WHERE videoId=\? AND BINARY videoId=BINARY \? ORDER BY pk DESC LIMIT 1$/);
+        expect(queries[0]!.params).toEqual(['Aa', 'Aa']);
+    });
+    it('credits the tag source with the shared attribution text', async () => {
+        const row = { id: 'window-v1', snapshot: JSON.stringify({ terms: [], coverage: 'observed-article-window' }) };
+        expect((await vocabulary(queueReader([[row]]))).attribution).toBe('標籤來源：新文易數（tag.observe.tw）');
+        const full = { id: 'full-v1', snapshot: JSON.stringify({ termsStoredSeparately: true, coverage: 'all-current-indexed-article-tags' }) };
+        expect((await vocabulary(queueReader([[full], [], [{ total: 0 }]]))).attribution).toBe('標籤來源：新文易數（tag.observe.tw）');
+    });
     it('keyword list explicitly identifies missing synchronization', async () => {
         const app = buildApp({ reader: queueReader([[]]) });
         try {
