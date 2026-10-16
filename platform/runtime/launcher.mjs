@@ -37,5 +37,5 @@ if (role === 'worker') child(['--import', 'tsx', 'runtime/worker.ts'], { NODE_OP
 else if (role === 'scheduler') child(['--import', 'tsx', 'runtime/scheduler.ts'], { NODE_OPTIONS: '--max-old-space-size=128' });
 else {
   ui = child(['web/.next/standalone/web/server.js'], { HOSTNAME: '127.0.0.1', PORT: '3100', NODE_OPTIONS: '--max-old-space-size=384', YOUTUBE_API_BASE_URL: `http://127.0.0.1:${process.env.PORT ?? 8000}/api/v1` });
-  gateway = child(['--import', 'tsx', 'runtime/server.ts'], { NODE_OPTIONS: '--max-old-space-size=256', UI_ORIGIN: 'http://127.0.0.1:3100' });
+  gateway = child(['--import', 'tsx', 'runtime/server.ts'], { NODE_OPTIONS: '--max-old-space-size=384', UI_ORIGIN: 'http://127.0.0.1:3100' });
 }
