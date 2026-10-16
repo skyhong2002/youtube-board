@@ -226,3 +226,17 @@ it('hashes webpack dynamic-route URLs only when explicitly present in immutable 
  for(const invalid of [url.replace('%5B','%5b'),url.replace('%5B','['),url.replace('%5D',']'),url.replace('%5B','%5B%5B'),url.replace('%5B','%255B'),url.replace('%5B','%2F'),url+'?x=1',url.replace('page.js','other.js')])expect(()=>securePublicHtml(html(`<script src="${invalid}"></script>`),options)).toThrow('UNKNOWN_EXTERNAL_SCRIPT');
  expect(()=>securePublicHtml(html(`<script src="${url}"></script>`),opts)).toThrow('UNKNOWN_EXTERNAL_SCRIPT');
 });
+describe('integrity splicing', () => {
+  it('applies many replace and insert edits in one pass while keeping every other byte', () => {
+    const link = '<link rel="modulepreload" href="/_next/static/chunks/app.js">';
+    const tagged = '<script src="/_next/static/chunks/app.js" integrity="old"></script>';
+    const plain = '<script src="/_next/static/chunks/app.js"></script>';
+    const content = Array.from({ length: 6 }, (_, i) => `<p>段落 ${i} 😀</p>${link}${tagged}${plain}`).join('');
+    const result = secure(content);
+    const expected = html(content).toString()
+      .replaceAll(link, link.replace('>', ` integrity="${assetHash}">`))
+      .replaceAll(tagged, tagged.replace('integrity="old"', `integrity="${assetHash}"`))
+      .replaceAll(plain, plain.replace('"></script>', `" integrity="${assetHash}"></script>`));
+    expect(result.body.toString()).toBe(expected);
+  });
+});

@@ -221,9 +221,18 @@ export function securePublicHtml(
   const analyticsConnections = options.analytics ? ' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com' : '';
   const csp = `default-src 'self'; script-src ${scriptSources}; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://i.ytimg.com https://lh3.googleusercontent.com${analyticsImages}; font-src 'self'; connect-src 'self'${analyticsConnections}; frame-src https://www.youtube-nocookie.com https://www.youtube.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'`;
   if (Buffer.byteLength(csp) > MAX_CSP_BYTES) reject('CSP_TOO_LARGE');
-  edits.sort((a, b) => b.start - a.start);
-  for (const edit of edits) source = source.slice(0, edit.start) + edit.value + source.slice(edit.end);
-  const body = Buffer.from(source, 'utf8');
+  // Splice once, in source order. Rebuilding the whole document per edit copied
+  // a large page once per script/preload and dominated gateway heap churn.
+  edits.sort((a, b) => a.start - b.start);
+  const parts: string[] = [];
+  let cursor = 0;
+  for (const edit of edits) {
+    if (edit.start < cursor) reject('OVERLAPPING_HTML_EDITS');
+    parts.push(source.slice(cursor, edit.start), edit.value);
+    cursor = edit.end;
+  }
+  parts.push(source.slice(cursor));
+  const body = Buffer.from(parts.join(''), 'utf8');
   if (body.byteLength > MAX_HTML_BYTES) reject('HTML_TOO_LARGE');
   return { body, csp, clientRenderFailed };
 }
