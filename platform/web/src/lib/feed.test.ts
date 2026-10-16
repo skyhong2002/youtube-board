@@ -9,13 +9,13 @@ test("RSS escapes source text and preserves original video identity and observat
         channelTitle: "測試頻道",
         description: "文字 <script> & 內容",
         youtubeUrl: "https://www.youtube.com/watch?v=AbCdEfGh123",
-        publishedAt: "2026-10-10T00:00:00+08:00",
+        publishedAt: "2026-10-09T16:00:00.000Z",
     } as VideoRow;
     const feed = videoFeed({
         rows: [row],
         title: "觀測",
         link: "https://example.test/boards/view?q=A&B",
-        updatedAt: "2026-10-11T00:00:00+08:00",
+        updatedAt: "2026-10-10T16:00:00.000Z",
         fixture: true,
     });
     assert.ok(feed.includes("A &amp; B &lt;標題&gt; &quot;聲明&quot;"));

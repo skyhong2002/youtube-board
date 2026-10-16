@@ -26,6 +26,14 @@ export function dateTime(value: string | null | undefined, dateOnly = false) {
         ...(dateOnly ? {} : { hour: "2-digit", minute: "2-digit" }),
     }).format(date);
 }
+/** Taipei calendar date (YYYY-MM-DD) for a date-only value or an ISO instant such as the API's UTC `...Z` timestamps. */
+export function taipeiCalendarDate(value: string | null | undefined): string {
+    if (!value) return "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    if (!/^\d{4}-\d{2}-\d{2}T/.test(value)) return "";
+    const time = Date.parse(value);
+    return Number.isFinite(time) ? new Date(time + 8 * 3600000).toISOString().slice(0, 10) : "";
+}
 export function youtubeUrl(value: string): string | undefined {
     try {
         const url = new URL(value);

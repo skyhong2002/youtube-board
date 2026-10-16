@@ -1,6 +1,7 @@
 import type {Search} from '@/lib/api';
 import {reportStyle as ui} from '@/lib/report-styles';
-const day=(raw:string|undefined)=>raw&&/^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(raw)?raw.slice(0,10):'';
+import {taipeiCalendarDate} from '@/lib/format';
+const day=(raw:string|undefined)=>taipeiCalendarDate(raw);
 export function ComparisonControls({search,points}:{search:Search;points?:{time:string}[]}){
  const value=(key:string,fallback='')=>typeof search[key]==='string'?search[key]:fallback;
  const ambiguous=['tags','from','to','type'].some(key=>Array.isArray(search[key]));

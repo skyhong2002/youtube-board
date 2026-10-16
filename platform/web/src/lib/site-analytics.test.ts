@@ -127,7 +127,7 @@ const svgAnchor=(raw:string)=>node('a',node('svg'),{href:raw},{baseVal:raw,animV
 const events=(win:{dataLayer?:unknown[]})=>commands(win).filter(args=>args[0]==='event');
 test('a click on a keyword-cloud word (text inside an SVG <a>) sends select_content without the term',async()=>{
  const page=await browser('/');page.hydrate();
- page.click(node('text',svgAnchor(keywordVideosHref('秘密',{from:'2026-10-05T00:00:00+08:00',to:'2026-10-11T23:59:59+08:00'}))));
+ page.click(node('text',svgAnchor(keywordVideosHref('秘密',{from:'2026-10-04T16:00:00.000Z',to:'2026-10-11T15:59:59.000Z'}))));
  assert.deepEqual(events(page.win),[['event','select_content',{content_type:'keyword',source_page_type:'home'}]]);
  assert.doesNotMatch(JSON.stringify(page.win.dataLayer),/秘密|%E7%A7%98|from=/);
 });

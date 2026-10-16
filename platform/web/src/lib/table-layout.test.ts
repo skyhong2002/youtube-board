@@ -77,7 +77,7 @@ test('narrow report table stacks on phones with column labels instead of a stick
 
 const tag={id:3,name:'新聞',kind:'channel' as const};
 const channel={id:8,youtubeId:'UCfixture',title:longTitle,avatar:null,thumbnail:null,description:null,publishedAt:null,youtubeUrl:'https://www.youtube.com/channel/UCfixture',views:1,subscribers:2,videoCount:3,weeklyViews:4,monthlyViews:5,weeklySubscribers:null,weeklyVideos:null,monthlySubscribers:null,monthlyVideos:null,estimatedWeeklyViews:null,estimatedMonthlyViews:null,monthlyEstimateGap:null,legacyGrowthPercent:null,averageWeeklyViewsPerVideo:null,updatedAt:null,tags:[tag,{...tag,id:4,name:'政治'}]} satisfies ChannelRow;
-const video:VideoRow={id:'AbCdEfGh123',channelId:8,youtubeChannelId:'UCfixture',channelTitle:'來源頻道',title:longTitle,description:'',thumbnail:null,publishedAt:'2026-10-11T01:02:00+08:00',views:1234,likes:0,comments:17,updatedAt:null,youtubeUrl:'https://www.youtube.com/watch?v=AbCdEfGh123'};
+const video:VideoRow={id:'AbCdEfGh123',channelId:8,youtubeChannelId:'UCfixture',channelTitle:'來源頻道',title:longTitle,description:'',thumbnail:null,publishedAt:'2026-10-10T17:02:00.000Z',views:1234,likes:0,comments:17,updatedAt:null,youtubeUrl:'https://www.youtube.com/watch?v=AbCdEfGh123'};
 
 /** An <a> carrying all of these exact attributes, in any order (pattern source). */
 const escape=(text:string)=>text.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');

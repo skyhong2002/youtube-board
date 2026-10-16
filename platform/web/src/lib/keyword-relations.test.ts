@@ -25,7 +25,7 @@ const mockFetch=(respond:(url:string,init:Init)=>Response|Promise<Response>)=>{
 };
 const tagHref=(label:string)=>`/tag/${encodeURIComponent(label)}/`;
 type Raw=Record<string,unknown>;
-const rel=(type:'is-a'|'related'|'alias',label:string,patch:Raw={},target:Raw={}):Raw=>({id:`rel-${type}-${label}`,type,target:{id:'a'.repeat(64),label,href:tagHref(label),...target},source:'editor',sourceDetail:'人工審核',createdAt:'2026-10-01T08:00:00+08:00',status:'approved',inherited:false,depth:1,...patch});
+const rel=(type:'is-a'|'related'|'alias',label:string,patch:Raw={},target:Raw={}):Raw=>({id:`rel-${type}-${label}`,type,target:{id:'a'.repeat(64),label,href:tagHref(label),...target},source:'editor',sourceDetail:'人工審核',createdAt:'2026-10-01T00:00:00.000Z',status:'approved',inherited:false,depth:1,...patch});
 const envelope=(keyword:string,data:Raw={},meta:Raw={})=>({data:{keyword,source:'https://tag.observe.tw',sourceUrl:expectedSourceUrl(keyword),status:'available',reason:null,tagId:'b'.repeat(64),truncated:false,relations:[],retryAfterSeconds:null,...data},meta:{schemaVersion:1,requestedAt:'2026-10-13T00:00:00Z',updatedAt:null,timezone:'Asia/Taipei',source:'tag.observe.tw',dataset:'fixture',coverage:{},warnings:[],...meta}});
 const view=(keyword:string,v:RelationsView,extra:Raw={})=>renderToStaticMarkup(createElement(KeywordRelationsView,{keyword,view:v,...extra}));
 const anchors=(markup:string)=>(markup.match(/<a\s[^>]*href="([^"]*)"/g)??[]).map(a=>a.match(/href="([^"]*)"/)![1]!);
