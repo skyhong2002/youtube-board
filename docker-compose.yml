@@ -100,6 +100,8 @@ services:
 
   phpmyadmin:
     image: phpmyadmin:5-apache
+    # Debug-only UI: start with `docker compose --profile tools up -d phpmyadmin`.
+    profiles: ["tools"]
     ports:
       - "${PHPMYADMIN_PORT:-8081}:80"
     environment:

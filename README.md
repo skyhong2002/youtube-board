@@ -65,7 +65,7 @@ docker compose logs setup
 Open:
 
 - App: `http://127.0.0.1:8080`
-- phpMyAdmin: `http://localhost:8081`
+- phpMyAdmin: `http://localhost:8081` (opt-in: `docker compose --profile tools up -d phpmyadmin`)
 
 Default local database credentials:
 
