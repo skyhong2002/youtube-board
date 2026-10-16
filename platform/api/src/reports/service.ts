@@ -7,6 +7,7 @@ import {enrichKeywordEvidence} from './keyword-evidence.js';
 import {keywordCandidateSource, keywordIdentityPredicate, latestKeywordVideo} from './keyword-candidates.js';
 import {keywordVideoCache} from './keyword-video-cache.js';
 import {createHash} from 'node:crypto';
+import {cursorPk,cursorTimestamp,decodeVideoCursor,encodeVideoCursor,videoFilterDigest} from '../public-api/cursor.js';
 import {eventReport} from './event-report.js';
 import {VIDEO_LIST_MAX} from '../../../shared/video-listing.js';
 import {enrichVideoListings} from './video-listing.js';
@@ -20,7 +21,7 @@ import { sql, type SQL } from 'drizzle-orm';
 import { DataQueryFailed, DataSourceUnavailable, type Reader, type Row } from '../db/client.js';
 import type { ChannelData, ChannelRow, ChannelCollection, Collection, HomeData, LiveRow, TagRow, VideoData, VideoRow, VideoCollection, AiDaysData, AiEventData } from '../contracts.js';
 import { channel, integer, latest, list, object, tags, text, timestamp, video, taipeiDate, taipeiSql, tagIds } from './normalize.js';
-import { BadQuery, NotFound, page, tagFilter, search, positiveId, idList, dateFilter, bounded,utcPublicationWindow } from './query.js';
+import { BadQuery, NotFound, page, tagFilter, search, positiveId, idList, dateFilter, bounded,utcPublicationWindow,normalizedIdList } from './query.js';
 import type { Query } from './query.js';
 import { videoTextDigest } from './video-digest.js';
 import { dailyLineage } from './ai-lineage.js';
@@ -82,7 +83,15 @@ export function reports(reader: Reader, clock: () => Date = () => new Date(), di
             throw new BadQuery('Invalid vocabulary term.');
         if (from && to && from > to)
             throw new BadQuery('from must not follow to.');
-        const days=keyword&&optional(query.days)!==undefined?bounded(query.days,7,1,90):null,dayFrom=days===null?null:new Date(Date.parse(taipeiDate(now))-days*86400000).toISOString().slice(0,10);
+        const days=keyword&&optional(query.days)!==undefined?bounded(query.days,7,1,90):null;
+        // Bind every effective filter, including exact windows and ranking pools,
+        // so a cursor cannot be replayed against a different result set.
+        const filterDigest=videoFilterDigest({scope:requestedScope??'general',column,channelId,channelIds:normalizedIdList(query.channelIds),all:normalizedIdList(query.tagid),any:normalizedIdList(query.or),not:normalizedIdList(query.not),term,from,to,since:exactWindow?.since??null,until:exactWindow?.until??null,rankingPool:qualifiedEvidence?query.rankingPool:null,hours,min,days,keyword});
+        const cursor=query.cursor===undefined?null:decodeVideoCursor(query.cursor,now,filterDigest);
+        if(cursor&&(column!=='publishedAt'||offset!==0))throw new BadQuery('Video cursors require publishedAt ordering and offset 0.');
+        // Relative windows stay anchored to the first page across a cursor walk.
+        const windowNow=cursor?new Date(cursor.anchor):now;
+        const dayFrom=days===null?null:new Date(Date.parse(taipeiDate(windowNow))-days*86400000).toISOString().slice(0,10);
         const scope = sql `${tagFilter(query)} ${requestedScope==='taxonomy'?sql`AND n.u_id IS NOT NULL`:sql``}
       ${channelId === null ? sql `` : sql `AND v.u_id=${channelId}`}
       ${ids.length ? sql `AND v.u_id IN (${sql.join(ids.map(v => sql `${v}`), sql `, `)})` : sql ``}
@@ -90,13 +99,14 @@ export function reports(reader: Reader, clock: () => Date = () => new Date(), di
       ${exactWindow?sql`AND v.publishedAt>=${taipeiSql(new Date(exactWindow.since))} AND v.publishedAt<${taipeiSql(new Date(exactWindow.until))}`:sql``}
       ${from ? sql `AND v.publishedAt>=${from + ' 00:00:00'}` : sql ``}
       ${to ? sql `AND v.publishedAt<=${to + ' 23:59:59'}` : sql ``}
-      ${hours === null ? sql `` : sql `AND v.publishedAt>=${taipeiSql(new Date(now.getTime() - hours * 3600000))}`}
+      ${hours === null ? sql `` : sql `AND v.publishedAt>=${taipeiSql(new Date(windowNow.getTime() - hours * 3600000))}`}
       ${min === null ? sql `` : sql `AND v.viewCount>=${min}`}
-      ${dayFrom===null?sql``:sql`AND v.publishedAt>=${dayFrom+' 00:00:00'} AND v.publishedAt<=${taipeiDate(now)+' 23:59:59'}`}`;
+      ${dayFrom===null?sql``:sql`AND v.publishedAt>=${dayFrom+' 00:00:00'} AND v.publishedAt<=${taipeiDate(windowNow)+' 23:59:59'}`} ${cursor?sql`AND v.pk<=${cursor.maxPk}`:sql``}`;
         const pinned = keyword ? (await reader.rows(sql `SELECT c.run_id,JSON_UNQUOTE(JSON_EXTRACT(r.snapshot,'$.matchingRule')) AS matching_rule FROM ts_vocabulary_current c JOIN ts_vocabulary_runs r ON r.id=c.run_id AND r.status='published' WHERE c.source='https://tag.observe.tw' LIMIT 1`))[0] : undefined;
         const version=pinned?text(pinned.run_id)||null:null,rule=matchingRuleForSnapshot({matchingRule:pinned?.matching_rule??undefined});
+        if(cursor&&cursor.vocabulary!==version)throw new BadQuery('Vocabulary changed; restart video pagination.');
         if (keyword && !version)
-            return { rows: [], total: 0, hasNext:false,totalStatus:'exact',limit, offset, evidenceCoverage: { status: 'not-synchronized', vocabularyVersion: null } };
+            return { rows: [], total: 0, hasNext:false,totalStatus:'exact',limit, offset,...(column==='publishedAt'?{nextCursor:null}:{}), evidenceCoverage: { status: 'not-synchronized', vocabularyVersion: null } };
         const fresh = sql `m.rule_version=${rule} AND m.source_pk=v.pk AND BINARY m.source_text_sha256=BINARY ${videoTextDigest()}`;
         // utf8mb4_bin still uses PAD SPACE equality; an upstream label with a
         // trailing space must not match another exact vocabulary identity.
@@ -113,6 +123,12 @@ export function reports(reader: Reader, clock: () => Date = () => new Date(), di
         const order=sql`${sql.identifier('v')}.${sql.identifier(column)} DESC,v.pk DESC`;
         const source=keyword ? keywordCandidateSource(version!, keywordKey!, keyword,identities) : sql`FROM urt_video v LEFT JOIN urt_count n ON n.u_id=v.u_id`;
         const selection=async():Promise<{rows:Row[];hasNext:boolean}>=>{
+            if(cursor){
+                // Keyset continuation: DESC publishedAt then pk, NULL publication last.
+                const after=cursor.publishedAt===null?sql`v.publishedAt IS NULL AND v.pk<${cursor.pk}`:sql`(v.publishedAt<${cursor.publishedAt} OR (v.publishedAt=${cursor.publishedAt} AND v.pk<${cursor.pk}) OR v.publishedAt IS NULL)`;
+                const rows=await reader.rows(sql`SELECT ${fields} ${source} WHERE ${where} AND (${after}) ORDER BY ${order} LIMIT ${limit+1}`);
+                return {rows:rows.slice(0,limit),hasNext:rows.length>limit};
+            }
             // The single-column metric index can stop at the requested boundary.
             // Include every tie at that boundary before applying the original pk
             // tie-break; sorting only the first N metric rows would lose ties.
@@ -156,11 +172,25 @@ export function reports(reader: Reader, clock: () => Date = () => new Date(), di
         };
         const [selected, counted, coverageRows] = await Promise.all([selection(),count(),coverage()]);
         const {rows,hasNext}=selected,{total,totalStatus}=counted;
+        let nextCursor:string|null=null;
+        if(column==='publishedAt'&&hasNext&&rows.length){
+            const last=rows.at(-1)!;
+            // Capture a cheap global PK ceiling only when a first continuation
+            // exists. Exhausted/empty offset pages need no additional SQL. This
+            // bounds later inserts, not updates or a transactionally frozen snapshot.
+            const maxPk=cursor?.maxPk??(await reader.rows(sql`SELECT CAST(MAX(pk) AS CHAR) AS cursor_max_pk FROM urt_video`))[0]?.cursor_max_pk;
+            try{
+                // Already-returned rows may have been deleted before MAX(pk).
+                const ceiling=rows.reduce((max,row)=>{const pk=cursorPk(row.pk);return BigInt(pk)>BigInt(max)?pk:max;},cursorPk(maxPk??last.pk));
+                nextCursor=encodeVideoCursor({v:1,publishedAt:cursorTimestamp(last.publishedAt),pk:cursorPk(last.pk),maxPk:ceiling,anchor:cursor?.anchor??now.toISOString(),filters:filterDigest,vocabulary:version});
+            }
+            catch{throw new DataQueryFailed('INVALID_VIDEO_CURSOR_BOUNDARY');}
+        }
         const c = coverageRows?.[0];
         const listingScope=keyword?'keyword':requestedScope??(channelId!==null?'channel':idList(query.tagid).length||idList(query.or).length||idList(query.not).length?'taxonomy':'general');
         const enriched=await enrichVideoListings(reader,rows,listingScope,listingScope==='taxonomy'?await names():new Map());
         if(keyword&&version)await enrichKeywordEvidence(reader,enriched,version,rule,identities);
-        return { rows: enriched, total,hasNext,totalStatus, limit, offset,evidenceCoverage:{totalStatus,...(keyword? { status: 'synchronized', vocabularyVersion: version, coverageStatus:omitHistoricalCoverage?'not-calculated':coverageRows===null?'unavailable':'available',sourceVideos:coverageRows===null?null:integer(c?.sourceVideos) ?? 0, freshVideos:coverageRows===null?null:integer(c?.freshVideos) ?? 0, staleVideos:coverageRows===null?null:integer(c?.staleVideos) ?? 0, unprocessedVideos:coverageRows===null?null:integer(c?.unprocessedVideos) ?? 0, keywordMatchedVideos: total }:{})} };
+        return { rows: enriched, total,hasNext,totalStatus, limit, offset,...(column==='publishedAt'?{nextCursor}:{}),evidenceCoverage:{totalStatus,...(keyword? { status: 'synchronized', vocabularyVersion: version, coverageStatus:omitHistoricalCoverage?'not-calculated':coverageRows===null?'unavailable':'available',sourceVideos:coverageRows===null?null:integer(c?.sourceVideos) ?? 0, freshVideos:coverageRows===null?null:integer(c?.freshVideos) ?? 0, staleVideos:coverageRows===null?null:integer(c?.staleVideos) ?? 0, unprocessedVideos:coverageRows===null?null:integer(c?.unprocessedVideos) ?? 0, keywordMatchedVideos: total }:{})} };
     };
     const liveRows = (query: Query = {}) => currentLive(reader,query,clock,names);
     const tagRows = async (query: Query = {}): Promise<Collection<TagRow>> => {

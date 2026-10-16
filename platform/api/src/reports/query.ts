@@ -69,6 +69,8 @@ export function search(value: unknown): string | null {
     return `%${value.replace(/[=%_]/g, m => '=' + m)}%`;
 }
 export function mergeTagId(value: unknown, required: number): string { return [...new Set([required, ...idList(value)])].sort((a, b) => a - b).join(','); }
+/** Bind cursor filters by effective set membership, independent of input order. */
+export function normalizedIdList(value:unknown):number[]{return idList(value).sort((a,b)=>a-b);}
 
 /** Exact anonymous publication bounds used by ranked-pool evidence links. */
 export function utcPublicationWindow(since:unknown,until:unknown,now:Date){

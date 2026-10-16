@@ -20,7 +20,7 @@
 
 ## 分頁與狀態
 
-影片列表使用 limit/offset 分頁；下一頁保持篩選與排序不變，將 offset 增加本頁取得的筆數。hasNext 為 false 時停止；total 為 null 時請查看 totalStatus 與 hasNext。分頁期間來源可能更新，因此不保證跨頁一致性。cursor / nextCursor 尚未開放，請勿依賴；游標分頁仍在後續實作範圍。
+影片列表保留 limit/offset。依 publishedAt 排序時，可將 nextCursor 放入 cursor，保持其他篩選條件相同，offset 省略或為0；limit 可以調整。其他排序不提供 cursor。游標是有界公開選取器，並非憑證或資料庫一致性快照，24小時後過期。下一頁排除第一頁之後新增的較大 PK；既有資料更新仍可能改變結果。游標或標籤版本不相容回400。nextCursor 為 null 或不存在時停止；total 為 null 時請查看 totalStatus 與 hasNext。
 
 /api/status 在瀏覽器呈現 HTML，以 Accept: application/json 取得 JSON。只顯示 API 回應狀態與端點用途，不代表資料新鮮度或背景擷取正常。/api/v1/status 保留端點清單格式。36支舊 PHP API 保留相容輸出，新舊對照見下方。未知 /api/v1/* 報表回501。
 
@@ -38,30 +38,29 @@ Examples below use synthetic fixtures. Availability and quotas depend on the dep
 ```bash
 curl --fail-with-body --get 'https://youtube.observe.tw/api/v1/videos' \
   --data-urlencode 'q=交通' --data-urlencode 'limit=20' \
-  | jq '{rows: .data.rows, hasNext: .data.hasNext, totalStatus: .data.totalStatus, coverage: .meta.coverage}'
+  | jq '{rows: .data.rows, nextCursor: .data.nextCursor, totalStatus: .data.totalStatus, coverage: .meta.coverage}'
 
 curl --fail-with-body --get 'https://youtube.observe.tw/api/v1/vocabulary' \
   --data-urlencode 'q=交通' --data-urlencode 'limit=20' \
   | jq '.data | {version, source, coverage, rows}'
 ```
 
-Use offset pagination with unchanged filters. Respect `Retry-After` if a request returns 429. Personal key issuance and cursor pagination are pending.
+Follow a cursor without changing filters. Keep API keys in an HTTP header, never in the URL. Respect `Retry-After` if a request returns 429.
 
 ```js
 const base = new URL('https://youtube.observe.tw/api/v1/videos');
 base.searchParams.set('q', '交通');
 base.searchParams.set('limit', '20');
-let offset = 0;
+let cursor;
 do {
   const url = new URL(base);
-  url.searchParams.set('offset', String(offset));
+  if (cursor) url.searchParams.set('cursor', cursor);
   const response = await fetch(url);
   if (!response.ok) throw new Error(`API HTTP ${response.status}`);
   const {data, meta} = await response.json();
   console.log(data.rows, meta.coverage);
-  if (!data.hasNext || data.rows.length === 0) break;
-  offset += data.rows.length;
-} while (offset <= 100000);
+  cursor = data.nextCursor;
+} while (cursor);
 ```
 
 ### 常用情境（curl + jq）
@@ -74,7 +73,7 @@ curl --fail-with-body 'https://youtube.observe.tw/api/v1/home' | jq '.data.explo
 curl --fail-with-body 'https://youtube.observe.tw/api/v1/channels?column=view_week&limit=10' | jq '.data.rows'
 
 # 某頻道最新影片：8為站內頻道ID，可從頻道目錄取得
-curl --fail-with-body 'https://youtube.observe.tw/api/v1/channels/8/videos?limit=20' | jq '.data | {rows, hasNext}'
+curl --fail-with-body 'https://youtube.observe.tw/api/v1/channels/8/videos?limit=20' | jq '.data | {rows, nextCursor}'
 
 # 目前直播中的頻道與觀眾數
 curl --fail-with-body 'https://youtube.observe.tw/api/v1/live/current?limit=20' | jq '.data.rows'
@@ -175,7 +174,8 @@ curl --fail-with-body 'https://youtube.observe.tw/api/v1/editorial/events/<事�
     "totalStatus": "not-computed",
     "hasNext": false,
     "limit": 50,
-    "offset": 0
+    "offset": 0,
+    "nextCursor": null
   },
   "meta": {
     "schemaVersion": 1,
@@ -476,7 +476,7 @@ Typed report response; additive response fields are permitted.
 | --- | --- | --- | --- |
 | `id` (required) | path | {"type":"integer","minimum":1,"maximum":9007199254740991} | Local positive numeric record ID. |
 | `limit` | query | {"type":"integer","minimum":1,"maximum":1000,"default":50} | Page size. |
-| `offset` | query | {"type":"integer","minimum":0,"maximum":100000,"default":0} | Offset pagination; keep filters and ordering unchanged. |
+| `offset` | query | {"type":"integer","minimum":0,"maximum":100000,"default":0} | Offset pagination; keep filters and ordering unchanged. Cursor requests require 0 or omission. |
 | `q` | query | {"type":"string","maxLength":100} | Literal search text; runtime limit is 100 JavaScript UTF-16 code units. |
 | `tagid` | query | {"type":"string","maxLength":256} | Comma-separated channel taxonomy IDs, all required. |
 | `or` | query | {"type":"string","maxLength":256} | Comma-separated taxonomy IDs, any may match. |
@@ -488,10 +488,11 @@ Typed report response; additive response fields are permitted.
 | `since` | query | {"type":"string","format":"date-time"} | Exact UTC publication start, inclusive; paired with until. Cannot combine with from/to/days/hours. |
 | `until` | query | {"type":"string","format":"date-time"} | Exact UTC publication end, exclusive; paired with since, past window at most 90 days. |
 | `rankingPool` | query | {"type":"string","enum":["early"]} | For keyword evidence with exact since/until: keep only same-window qualified news labels and display rules. |
-| `hours` | query | {"type":"integer","minimum":1,"maximum":8760} | Relative publication window, evaluated at request time. |
+| `hours` | query | {"type":"integer","minimum":1,"maximum":8760} | Relative publication window, anchored by the first cursor page. |
 | `min` | query | {"type":"integer","minimum":0,"maximum":9007199254740991} | Minimum cumulative video views. |
 | `keyword` | query | {"type":"string","minLength":1,"maxLength":240} | Exact maintained content term; not a taxonomy ID. |
 | `days` | query | {"type":"integer","minimum":1,"maximum":90} | Optional relative date window when keyword filtering is used. |
+| `cursor` | query | {"type":"string","maxLength":1024} | Opaque nextCursor from a previous publishedAt page; keep the same filters. |
 
 ### /api/v1/tags/videos
 
@@ -500,7 +501,7 @@ Typed report response; additive response fields are permitted.
 | Parameter | In | Schema / bounds | Description |
 | --- | --- | --- | --- |
 | `limit` | query | {"type":"integer","minimum":1,"maximum":1000,"default":50} | Page size. |
-| `offset` | query | {"type":"integer","minimum":0,"maximum":100000,"default":0} | Offset pagination; keep filters and ordering unchanged. |
+| `offset` | query | {"type":"integer","minimum":0,"maximum":100000,"default":0} | Offset pagination; keep filters and ordering unchanged. Cursor requests require 0 or omission. |
 | `q` | query | {"type":"string","maxLength":100} | Literal search text; runtime limit is 100 JavaScript UTF-16 code units. |
 | `tagid` | query | {"type":"string","maxLength":256} | Comma-separated channel taxonomy IDs, all required. |
 | `or` | query | {"type":"string","maxLength":256} | Comma-separated taxonomy IDs, any may match. |
@@ -513,10 +514,11 @@ Typed report response; additive response fields are permitted.
 | `since` | query | {"type":"string","format":"date-time"} | Exact UTC publication start, inclusive; paired with until. Cannot combine with from/to/days/hours. |
 | `until` | query | {"type":"string","format":"date-time"} | Exact UTC publication end, exclusive; paired with since, past window at most 90 days. |
 | `rankingPool` | query | {"type":"string","enum":["early"]} | For keyword evidence with exact since/until: keep only same-window qualified news labels and display rules. |
-| `hours` | query | {"type":"integer","minimum":1,"maximum":8760} | Relative publication window, evaluated at request time. |
+| `hours` | query | {"type":"integer","minimum":1,"maximum":8760} | Relative publication window, anchored by the first cursor page. |
 | `min` | query | {"type":"integer","minimum":0,"maximum":9007199254740991} | Minimum cumulative video views. |
 | `keyword` | query | {"type":"string","minLength":1,"maxLength":240} | Exact maintained content term; not a taxonomy ID. |
 | `days` | query | {"type":"integer","minimum":1,"maximum":90} | Optional relative date window when keyword filtering is used. |
+| `cursor` | query | {"type":"string","maxLength":1024} | Opaque nextCursor from a previous publishedAt page; keep the same filters. |
 
 ### /api/v1/videos
 
@@ -525,7 +527,7 @@ Typed report response; additive response fields are permitted.
 | Parameter | In | Schema / bounds | Description |
 | --- | --- | --- | --- |
 | `limit` | query | {"type":"integer","minimum":1,"maximum":1000,"default":50} | Page size. |
-| `offset` | query | {"type":"integer","minimum":0,"maximum":100000,"default":0} | Offset pagination; keep filters and ordering unchanged. |
+| `offset` | query | {"type":"integer","minimum":0,"maximum":100000,"default":0} | Offset pagination; keep filters and ordering unchanged. Cursor requests require 0 or omission. |
 | `q` | query | {"type":"string","maxLength":100} | Literal search text; runtime limit is 100 JavaScript UTF-16 code units. |
 | `tagid` | query | {"type":"string","maxLength":256} | Comma-separated channel taxonomy IDs, all required. |
 | `or` | query | {"type":"string","maxLength":256} | Comma-separated taxonomy IDs, any may match. |
@@ -538,10 +540,11 @@ Typed report response; additive response fields are permitted.
 | `since` | query | {"type":"string","format":"date-time"} | Exact UTC publication start, inclusive; paired with until. Cannot combine with from/to/days/hours. |
 | `until` | query | {"type":"string","format":"date-time"} | Exact UTC publication end, exclusive; paired with since, past window at most 90 days. |
 | `rankingPool` | query | {"type":"string","enum":["early"]} | For keyword evidence with exact since/until: keep only same-window qualified news labels and display rules. |
-| `hours` | query | {"type":"integer","minimum":1,"maximum":8760} | Relative publication window, evaluated at request time. |
+| `hours` | query | {"type":"integer","minimum":1,"maximum":8760} | Relative publication window, anchored by the first cursor page. |
 | `min` | query | {"type":"integer","minimum":0,"maximum":9007199254740991} | Minimum cumulative video views. |
 | `keyword` | query | {"type":"string","minLength":1,"maxLength":240} | Exact maintained content term; not a taxonomy ID. |
 | `days` | query | {"type":"integer","minimum":1,"maximum":90} | Optional relative date window when keyword filtering is used. |
+| `cursor` | query | {"type":"string","maxLength":1024} | Opaque nextCursor from a previous publishedAt page; keep the same filters. |
 
 ### /api/v1/keywords/{keyword}/videos
 
@@ -551,7 +554,7 @@ Typed report response; additive response fields are permitted.
 | --- | --- | --- | --- |
 | `keyword` (required) | path | {"type":"string"} | Exact maintained content term, percent-encoded as UTF-8. |
 | `limit` | query | {"type":"integer","minimum":1,"maximum":1000,"default":50} | Page size. |
-| `offset` | query | {"type":"integer","minimum":0,"maximum":100000,"default":0} | Offset pagination; keep filters and ordering unchanged. |
+| `offset` | query | {"type":"integer","minimum":0,"maximum":100000,"default":0} | Offset pagination; keep filters and ordering unchanged. Cursor requests require 0 or omission. |
 | `q` | query | {"type":"string","maxLength":100} | Literal search text; runtime limit is 100 JavaScript UTF-16 code units. |
 | `tagid` | query | {"type":"string","maxLength":256} | Comma-separated channel taxonomy IDs, all required. |
 | `or` | query | {"type":"string","maxLength":256} | Comma-separated taxonomy IDs, any may match. |
@@ -564,9 +567,10 @@ Typed report response; additive response fields are permitted.
 | `since` | query | {"type":"string","format":"date-time"} | Exact UTC publication start, inclusive; paired with until. Cannot combine with from/to/days/hours. |
 | `until` | query | {"type":"string","format":"date-time"} | Exact UTC publication end, exclusive; paired with since, past window at most 90 days. |
 | `rankingPool` | query | {"type":"string","enum":["early"]} | For keyword evidence with exact since/until: keep only same-window qualified news labels and display rules. |
-| `hours` | query | {"type":"integer","minimum":1,"maximum":8760} | Relative publication window, evaluated at request time. |
+| `hours` | query | {"type":"integer","minimum":1,"maximum":8760} | Relative publication window, anchored by the first cursor page. |
 | `min` | query | {"type":"integer","minimum":0,"maximum":9007199254740991} | Minimum cumulative video views. |
 | `days` | query | {"type":"integer","minimum":1,"maximum":90} | Optional relative date window when keyword filtering is used. |
+| `cursor` | query | {"type":"string","maxLength":1024} | Opaque nextCursor from a previous publishedAt page; keep the same filters. |
 
 ### /api/v1/keywords/{keyword}/relations
 
@@ -649,7 +653,7 @@ Typed report response; additive response fields are permitted.
 | --- | --- | --- | --- |
 | `id` (required) | path | {"type":"integer","minimum":1,"maximum":9007199254740991} | Local positive numeric record ID. |
 | `limit` | query | {"type":"integer","minimum":1,"maximum":1000,"default":50} | Page size. |
-| `offset` | query | {"type":"integer","minimum":0,"maximum":100000,"default":0} | Offset pagination; keep filters and ordering unchanged. |
+| `offset` | query | {"type":"integer","minimum":0,"maximum":100000,"default":0} | Offset pagination; keep filters and ordering unchanged. Cursor requests require 0 or omission. |
 | `q` | query | {"type":"string","maxLength":100} | Literal search text; runtime limit is 100 JavaScript UTF-16 code units. |
 | `tagid` | query | {"type":"string","maxLength":256} | Comma-separated channel taxonomy IDs, all required. |
 | `or` | query | {"type":"string","maxLength":256} | Comma-separated taxonomy IDs, any may match. |
@@ -662,10 +666,11 @@ Typed report response; additive response fields are permitted.
 | `since` | query | {"type":"string","format":"date-time"} | Exact UTC publication start, inclusive; paired with until. Cannot combine with from/to/days/hours. |
 | `until` | query | {"type":"string","format":"date-time"} | Exact UTC publication end, exclusive; paired with since, past window at most 90 days. |
 | `rankingPool` | query | {"type":"string","enum":["early"]} | For keyword evidence with exact since/until: keep only same-window qualified news labels and display rules. |
-| `hours` | query | {"type":"integer","minimum":1,"maximum":8760} | Relative publication window, evaluated at request time. |
+| `hours` | query | {"type":"integer","minimum":1,"maximum":8760} | Relative publication window, anchored by the first cursor page. |
 | `min` | query | {"type":"integer","minimum":0,"maximum":9007199254740991} | Minimum cumulative video views. |
 | `keyword` | query | {"type":"string","minLength":1,"maxLength":240} | Exact maintained content term; not a taxonomy ID. |
 | `days` | query | {"type":"integer","minimum":1,"maximum":90} | Optional relative date window when keyword filtering is used. |
+| `cursor` | query | {"type":"string","maxLength":1024} | Opaque nextCursor from a previous publishedAt page; keep the same filters. |
 
 ### /api/v1/ai/events/{id}
 
@@ -1045,6 +1050,7 @@ The machine-readable spec is authoritative for complete constraints. Additive fi
 | `offset` | integer | yes |  |
 | `hasNext` | boolean | yes |  |
 | `totalStatus` | string | yes |  |
+| `nextCursor` | string \| null | no |  |
 | `evidenceCoverage` | object | no | Route-specific provenance, completeness and source-quality evidence; inspect the route description. Nested evidence is permitted. |
 
 ### ChannelCollection

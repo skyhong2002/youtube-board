@@ -89,6 +89,8 @@ export interface LiveRow extends VideoRow {
     tags: ChannelTag[];
 }
 export interface VideoCollection extends Omit<Collection<VideoRow>,'total'> {
+    /** Present only for publishedAt ordering. Resume with identical filters and offset 0. */
+    nextCursor?: string | null;
     total: number | null;
     hasNext: boolean;
     totalStatus: 'exact' | 'not-computed' | 'unavailable';
