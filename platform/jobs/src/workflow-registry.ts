@@ -29,7 +29,7 @@ const fields: Record<string, [string[], string[]]> = {
   'youtube.tag_videos.backfill': [['tagid', 'or', 'not', 'from', 'to', 'days', 'max-pages', 'max-results', 'video-limit', 'vocabulary-version'], ['no-cache']],
 };
 const definitions: Record<string, Definition> = Object.create(null);
-definitions[MEDIA_AVATAR_JOB] = { command: MEDIA_AVATAR_COMMAND, values: ['u_id', 'after-id', 'limit', 'max-age-days'], flags: [], kind: 'media' };
+definitions[MEDIA_AVATAR_JOB] = { command: MEDIA_AVATAR_COMMAND, values: ['u_id', 'after-id', 'limit', 'max-age-days'], flags: ['resolve-missing'], kind: 'media' };
 for (const [command, job] of Object.entries(youtubeCommands)) {
   const definition = fields[job];
   if (definition) definitions[job] = { command, values: [...common, ...definition[0]], flags: definition[1], kind: 'youtube' };

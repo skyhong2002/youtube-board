@@ -11,10 +11,11 @@ import { refreshChannelAvatars } from './media-avatars.js';
 export const MEDIA_AVATAR_JOB = 'channels.avatars.refresh';
 export const MEDIA_AVATAR_COMMAND = 'channels:avatars:refresh';
 export function validateMediaArguments(args: string[]) {
-  if (args[0] !== MEDIA_AVATAR_COMMAND || args.length > 7) throw new Error('Invalid media refresh command');
-  const options = new Map<string, string>(); let execute = false;
+  if (args[0] !== MEDIA_AVATAR_COMMAND || args.length > 8) throw new Error('Invalid media refresh command');
+  const options = new Map<string, string>(); let execute = false, resolveMissing = false;
   for (const arg of args.slice(1)) {
     if (arg === '--execute' && !execute) { execute = true; continue; }
+    if (arg === '--resolve-missing' && !resolveMissing) { resolveMissing = true; continue; }
     const match = /^--(u_id|after-id|limit|max-age-days)=(\d+)$/.exec(arg);
     if (!match || options.has(match[1]!)) throw new Error('Invalid media refresh option');
     options.set(match[1]!, match[2]!);
@@ -25,7 +26,7 @@ export function validateMediaArguments(args: string[]) {
     return value;
   };
   if (options.has('u_id') && options.has('after-id')) throw new Error('Choose channel or cursor');
-  return { execute, limit: number('limit', 100, 1, 500), maxAgeDays: number('max-age-days', 7, 1, 90),
+  return { execute, resolveMissing, limit: number('limit', 100, 1, 500), maxAgeDays: number('max-age-days', 7, 1, 90),
     id: options.has('u_id') ? number('u_id', 0, 1, Number.MAX_SAFE_INTEGER) : undefined,
     afterId: options.has('after-id') ? number('after-id', 0, 0, Number.MAX_SAFE_INTEGER) : undefined };
 }
@@ -56,7 +57,7 @@ export async function executeMediaWorkflow(args: string[], env: NodeJS.ProcessEn
     await assertOwnership();
     await db.execute('INSERT INTO ts_job_runs(job_key,execution_key,status) VALUES(?,?,?)', [MEDIA_AVATAR_JOB, executionKey, 'running']);
     try {
-      const result = await refreshChannelAvatars({ root, channels, execute: true, limit: input.limit, maxAgeDays: input.maxAgeDays, signal: workflowShutdownSignal(), assertOwnership });
+      const result = await refreshChannelAvatars({ root, channels, execute: true, limit: input.limit, maxAgeDays: input.maxAgeDays, resolveMissing: input.resolveMissing, signal: workflowShutdownSignal(), assertOwnership });
       await assertOwnership();
       if (automatic) await writeCursor(root, rows.length <= input.limit && !result.truncated ? 0 : result.lastProcessedId ?? afterId);
       await db.execute('UPDATE ts_job_runs SET status=?,result=? WHERE job_key=? AND execution_key=?', [result.truncated || result.results.some(item => item.status === 'failed') ? 'incomplete' : 'completed', JSON.stringify(result), MEDIA_AVATAR_JOB, executionKey]);
