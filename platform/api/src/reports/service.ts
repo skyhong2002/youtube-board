@@ -135,7 +135,13 @@ export function reports(reader: Reader, clock: () => Date = () => new Date(), di
             // Exact substring counts require scanning the full text table and can
             // exceed the production deadline. Never invent a total from page size.
             if(term)return {total:null,totalStatus:'not-computed'};
-            try{const rows=await reader.rows(sql`SELECT COUNT(*) AS total ${source} WHERE ${where}`);return {total:integer(rows[0]?.total)??0,totalStatus:'exact'};}
+            // urt_count.u_id is unique, so the LEFT JOIN cannot change the count
+            // unless the predicate reads n.*. MariaDB eliminates the join but then
+            // scans every urt_video index entry (~1.2 s); without it, MyISAM answers
+            // the unfiltered total from table metadata.
+            const tagScoped=requestedScope==='taxonomy'||idList(query.tagid).length>0||idList(query.or).length>0||idList(query.not).length>0;
+            const countSource=keyword||tagScoped?source:sql`FROM urt_video v`;
+            try{const rows=await reader.rows(sql`SELECT COUNT(*) AS total ${countSource} WHERE ${where}`);return {total:integer(rows[0]?.total)??0,totalStatus:'exact'};}
             catch(error){if(error instanceof DataSourceUnavailable)return {total:null,totalStatus:'unavailable'};throw error;}
         };
         // The unbounded historical coverage scan is independent of the indexed

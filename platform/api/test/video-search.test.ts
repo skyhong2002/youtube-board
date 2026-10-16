@@ -29,3 +29,12 @@ it('page errors remain errors rather than empty successful data',async()=>{
 it('rejects invalid bounds before database access',async()=>{
  const reader:Reader={rows:async()=>{throw Error('Unexpected database access');},close:async()=>{}};for(const query of [{limit:'1) UNION SELECT 1'},{offset:'-1'},{limit:'1001'}])await expect(reports(reader).videos({q:'search',...query})).rejects.toThrow();
 });
+it('unfiltered and channel totals skip the urt_count join, tag-scoped totals keep it',async()=>{
+ const counts:string[]=[],reader:Reader={rows:async query=>{const q=dialect.sqlToQuery(query);if(q.sql.startsWith('SELECT COUNT(*) AS total')){counts.push(q.sql);return [{total:7}] as any;}return(q.sql.includes('MIN(boundary.')?[{selected:0,nulls:0,cutoff:null}]:[])as any;},close:async()=>{}};
+ expect(await reports(reader).videos({})).toMatchObject({total:7,totalStatus:'exact'});
+ await reports(reader).videos({channelId:'12'});
+ await reports(reader).videos({tagid:'3'});
+ expect(counts[0]).toMatch(/^SELECT COUNT\(\*\) AS total FROM urt_video v WHERE /);expect(counts[0]).not.toContain('urt_count');
+ expect(counts[1]).not.toContain('urt_count');
+ expect(counts[2]).toContain('LEFT JOIN urt_count n ON n.u_id=v.u_id');
+});
