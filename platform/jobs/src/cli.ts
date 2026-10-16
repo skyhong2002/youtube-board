@@ -18,6 +18,7 @@ import { matchVideoBatch } from './video-evidence.js';
 import { executeSnapshotImport, SNAPSHOT_IMPORT_JOB } from './snapshot-import.js';
 import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { migrationStatements } from './migration-statements.js';
 import { connectDatabase } from './database.js';
 import { executeVocabulary, enqueueVocabulary, startWorker } from './worker.js';
 import { executionPolicy } from './policy.js';
@@ -85,7 +86,7 @@ async function main() {
         if (name === '008_report_cache_lineage.sql') await assertReportCacheSchema(db);
         if (name === '007_source_counts_and_comments.sql') await assertSourceCountSchema(db);
         const sql = await readFile(`${directory}/${name}`, 'utf8');
-        for (const statement of sql.split(';').map(s => s.trim()).filter(Boolean)) await db.query(statement);
+        for (const statement of migrationStatements(sql)) await db.query(statement);
       }
       return console.log('Reviewed platform migrations applied to isolated local database');
     } finally { await db.end(); }
