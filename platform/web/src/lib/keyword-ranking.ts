@@ -104,6 +104,7 @@ export function keywordMethodNotes(summary:HomeKeywordSummary|null,basis:Ranking
  return [
   `${TAG_SOURCE_ATTRIBUTION}。${vocabularyPoolLabel(summary)}`,
   `範圍：${dateTime(summary.from)} 至 ${dateTime(summary.to)} 發布的已收錄影片；${keywordCoverageLabel(summary)}。${matchCoveragePercent(summary)?`有效比對占 ${matchCoveragePercent(summary)}，這只是比對完成的影片比例，不是內容失真、無用詞或樣板的比例。`:''}尚未收錄或尚未比對的影片不在排行內。`,
+  `更新：共同詞彙比對最後更新於 ${summary.updatedAt?dateTime(summary.updatedAt):'未記錄'}。`,
   `比對：以共同詞彙比對影片標題與說明的文字（${ruleVersionLabel(summary.ruleVersion)}），不是 AI 判讀；字幕尚未取得，不列入比對。${summary.ruleVersion==='exact-text-v1'?'此期間仍使用舊版精確文字比對，尚未套用 YouTube 品質過濾。':`${DESCRIPTION_TEMPLATE_NOTE}`}`,
   basis==='heat'
    ?'熱度：標題命中的影片計 3、僅說明命中的影片計 1；同一頻道的影片依序乘以 1、0.5、0.25……遞減（標題命中的影片先計），再加總各頻道。單一頻道大量上片不會無限推高熱度。'

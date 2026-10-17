@@ -9,7 +9,7 @@ import MethodLink from '@/components/MethodLink';
 import {HomeMethod,PageNotes,SourceMethod} from '@/components/MethodNotes';
 import {metaNotes} from '@/components/ReportMethod';
 import {mastheadEdition} from '@/lib/masthead-cloud';
-import {HOME_KEYWORD_RANKING,KEYWORD_WINDOWS,homeCategoryBandState,homeKeywordCloudWords,homeKeywordState,homeKeywordSummary,keywordRangeLabel,keywordUpdatedLabel,keywordVideosHref,type KeywordWindow} from '@/lib/home-presentation';
+import {HOME_KEYWORD_RANKING,KEYWORD_WINDOWS,homeCategoryBandState,homeKeywordCloudWords,homeKeywordState,homeKeywordSummary,keywordRangeLabel,keywordVideosHref,type KeywordWindow} from '@/lib/home-presentation';
 import {viewsSummary,heatLabel,keywordMethodNotes,rankingBasis,riseLabel,trendLabel,trendValues} from '@/lib/keyword-ranking';
 import {VideoThumbnail} from '@/components/VideoThumbnail';
 import LinkPending from '@/components/LinkPending';
@@ -28,14 +28,14 @@ function keywordView(exploration:HomeData['exploration'],window:KeywordWindow){c
 function KeywordRanking({view}:{view:KeywordView}){
  const heat=view.basis==='heat';
  return <>{view.rows.length?<ol className={styles.ranking}>{view.rows.slice(0,HOME_KEYWORD_RANKING).map((term,index)=>{const rise=heat?riseLabel(term,view.summary):null,values=heat?trendValues(term.trend):[];return <li key={term.key}><Link href={keywordVideosHref(term.term,view.summary)} title={[term.term,...(heat?[`熱度 ${heatLabel(term)}`,`升溫 ${rise!.text}`]:[]),`${count(term.videoCount)} 支影片`,...(typeof term.channelCount==='number'?[`${count(term.channelCount)} 個頻道`]:[]),`觀看 ${viewsSummary(term)}`].join(' · ')}><span className={styles.rank}>{String(index+1).padStart(2,'0')}</span><VideoThumbnail videoId={view.fixture?null:term.representativeVideoId??null} width={48} height={27}/>{/* Keep the identity on its own line; wrap metrics so coverage notes and supporting counts remain visible. */}<span className={styles.rankBody}><strong>{term.term}</strong><span className={styles.rankMeta}><small>{heat?<>熱度 {heatLabel(term)}<span className={rise!.tone==='up'?styles.rankUp:styles.rankSame}>{rise!.text}</span> · </>:null}{count(term.videoCount)} 支{typeof term.channelCount==='number'&&` · ${count(term.channelCount)} 頻道`}</small>{values.some(v=>v!==null)&&<span className="shrink-0 text-brand-700 dark:text-brand-400" role="img" aria-label={trendLabel(term.trend)}><Sparkline values={values} className="h-3.5 w-10"/></span>}</span></span><LinkPending className="text-(--accent)"/></Link></li>;})}</ol>:<p className={styles.notice} role="status" data-keyword-state={view.kind}>{view.message}</p>}
- <p className={styles.panelNote}>{view.summary?<>{keywordRangeLabel(view.summary,view.window)} · {keywordUpdatedLabel(view.summary)}{heat?'':' · 依已比對影片數排序'} · </>:`${view.label}範圍與比對狀態未知。`}<MethodLink>怎麼算</MethodLink></p></>;
+ <p className={styles.panelNote}>{view.summary?<>{keywordRangeLabel(view.summary,view.window)}{heat?'':' · 依已比對影片數排序'} · </>:`${view.label}範圍與比對狀態未知。`}<MethodLink>怎麼算</MethodLink></p></>;
 }/** Packed around the masthead; an empty window leaves the mark on its own and the caption explains why. */
 function KeywordCloud({view}:{view:KeywordView}){
  const words=view.summary?homeKeywordCloudWords(view.rows,view.summary,view.window):[];
  return words.length?<WordCloud words={words} canvases={mastheadCanvases} label={`YouTube ${view.label}關鍵字文字雲`} title={`${view.label}已比對影片的關鍵字`}/>:null;
 }
 function KeywordCloudNote({view}:{view:KeywordView}){
- return view.rows.length&&view.summary?<p className={styles.panelNote}>{keywordRangeLabel(view.summary,view.window)} · {keywordUpdatedLabel(view.summary)}</p>:<p className={styles.panelNote} role="status" data-keyword-state={view.kind}>{view.message}</p>;
+ return view.rows.length&&view.summary?<p className={styles.panelNote}>{keywordRangeLabel(view.summary,view.window)}</p>:<p className={styles.panelNote} role="status" data-keyword-state={view.kind}>{view.message}</p>;
 }
 /** Same notes as /keywords' 本頁的資料來源與計算方式, for the window being read. */
 function KeywordMethod({view}:{view:KeywordView}){

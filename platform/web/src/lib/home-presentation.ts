@@ -67,10 +67,15 @@ export function keywordVideosHref(term:string,summary:Pick<HomeKeywordSummary,'f
  const from=taipeiDay(summary?.from),to=taipeiDay(summary?.to);
  return from&&to&&from<=to?`${base}?from=${from}&to=${to}`:base;
 }
-export function keywordRangeLabel(summary:Pick<HomeKeywordSummary,'from'|'to'>,window:KeywordWindow){
- return `${window==='today'?'過去24小時':'近七個日曆日'}發布：${dateTime(summary.from)} 至 ${dateTime(summary.to)}`;
+/** Taipei MM/DD (and HH:MM) for the page body; the exact window and match update time are in the method block. */
+function shortTaipei(value:string|null|undefined,time:boolean){
+ const at=value?Date.parse(value):NaN;if(!Number.isFinite(at))return null;
+ const iso=new Date(at+8*3600000).toISOString();return iso.slice(5,10).replace('-','/')+(time?' '+iso.slice(11,16):'');
 }
-export function keywordUpdatedLabel(summary:Pick<HomeKeywordSummary,'updatedAt'>){return summary.updatedAt?`比對更新 ${dateTime(summary.updatedAt)}`:'比對更新時間未記錄';}
+export function keywordRangeLabel(summary:Pick<HomeKeywordSummary,'from'|'to'>,window:KeywordWindow){
+ const from=shortTaipei(summary.from,window==='today'),to=shortTaipei(summary.to,window==='today');
+ return from&&to?`${from}–${to}`:'期間未記錄';
+}
 export function vocabularyCoverageLabel(summary:Pick<HomeKeywordSummary,'vocabularyCoverage'>|null){
  return summary?.vocabularyCoverage==='observed-article-window'?'目前詞彙取自上游文章觀測窗口，不代表完整詞庫。':summary?.vocabularyCoverage==='all-current-indexed-article-tags'?'目前使用上游已索引的完整標籤快照。':'共同詞彙目前尚無可確認的同步資料。';
 }
