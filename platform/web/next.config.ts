@@ -24,6 +24,8 @@ const config: NextConfig = {
             // The admin area moved from /manage to /admin on 2026-10-17; keep old bookmarks working.
             { source: "/manage", destination: "/admin", permanent: true },
             { source: "/manage/:path*", destination: "/admin/:path*", permanent: true },
+            // Event/channel curation is hidden (not used, production writes off); temporary so it can return.
+            { source: "/admin/editorial", destination: "/admin", permanent: false },
         ];
     },
     async rewrites() {
