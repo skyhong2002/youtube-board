@@ -15,11 +15,11 @@ const utc=(value:unknown)=>{const s=text(value);if(!s)return null;const at=new D
 const later=(a:string|null,b:string|null)=>!a?b:!b?a:a>b?a:b;
 export const editorialKind=(action:string):EditorialActivityKind=>action==='candidate.submit'?'nomination':action.startsWith('candidate.')?'decision':'event';
 type Group={id:unknown;n?:unknown;at?:unknown;action?:unknown};
-export interface ActivityGroups {follows:Group[];saves:Group[];apiKeys:Group[];feeds:Group[];sessions:Group[];roles:Group[];editorial:Group[]}
+export interface ActivityGroups {follows:Group[];saves:Group[];apiKeys:Group[];feeds:Group[];sessions:Group[];roles:Group[];editorial:Group[];keywordReviews?:Group[]}
 /** Per-account counts from the account and audit tables; accounts without any row are left to the caller. */
 export function accountActivity(groups:ActivityGroups):AccountActivity[]{
  const out=new Map<number,AccountActivity>();
- const entry=(row:Group)=>{const id=integer(row.id);if(id===null||id<1)return null;let item=out.get(id);if(!item)out.set(id,item={userId:id,follows:0,saves:0,apiKeys:0,feed:false,sessions:0,editorial:{event:0,nomination:0,decision:0},roleChanges:0,lastActiveAt:null});item.lastActiveAt=later(item.lastActiveAt,utc(row.at));return item;};
+ const entry=(row:Group)=>{const id=integer(row.id);if(id===null||id<1)return null;let item=out.get(id);if(!item)out.set(id,item={userId:id,follows:0,saves:0,apiKeys:0,feed:false,sessions:0,editorial:{event:0,nomination:0,decision:0},keywordReviews:0,roleChanges:0,lastActiveAt:null});item.lastActiveAt=later(item.lastActiveAt,utc(row.at));return item;};
  const count=(row:Group)=>integer(row.n)??0;
  for(const row of groups.follows){const item=entry(row);if(item)item.follows=count(row);}
  for(const row of groups.saves){const item=entry(row);if(item)item.saves=count(row);}
@@ -29,6 +29,7 @@ export function accountActivity(groups:ActivityGroups):AccountActivity[]{
  for(const row of groups.sessions){const item=entry({id:row.id});if(item)item.sessions=count(row);}
  for(const row of groups.roles){const item=entry(row);if(item)item.roleChanges=count(row);}
  for(const row of groups.editorial){const item=entry(row);if(item)item.editorial[editorialKind(text(row.action))]+=count(row);}
+ for(const row of groups.keywordReviews??[]){const item=entry(row);if(item)item.keywordReviews+=count(row);}
  return [...out.values()].sort((a,b)=>a.userId-b.userId);
 }
 export interface ActivityStore {activity():Promise<AccountActivity[]>;close():Promise<void>}
@@ -48,7 +49,9 @@ export function mysqlActivityStore(databaseUrl:string):ActivityStore{
    "SELECT SUBSTRING(actor,6) id,action,COUNT(*) n,MAX(created_at) at FROM ts_editorial_audit WHERE actor LIKE 'user:%' GROUP BY actor,action LIMIT 10000",
   ])results.push(await query(statement));
   const [follows,saves,apiKeys,feeds,sessions,roles,editorial]=results as [Group[],Group[],Group[],Group[],Group[],Group[],Group[]];
-  return accountActivity({follows,saves,apiKeys,feeds,sessions,roles,editorial});
+  // Keyword review tables arrive with migration 015 and their own grants; before that they count as none.
+  const keywordReviews=await query("SELECT SUBSTRING(actor,6) id,COUNT(*) n,MAX(created_at) at FROM ts_keyword_review_audit WHERE actor LIKE 'user:%' GROUP BY actor LIMIT 10000").catch((error:unknown)=>{const code=(error as {code?:unknown})?.code;if(code==='ER_TABLEACCESS_DENIED_ERROR'||code==='ER_NO_SUCH_TABLE')return [] as Group[];throw error;});
+  return accountActivity({follows,saves,apiKeys,feeds,sessions,roles,editorial,keywordReviews});
  }};
 }
 export function channelStatus(row:{archived:boolean;latestVideoAt:string|null;statsAt:string|null},now:Date):ManagedChannelStatus{

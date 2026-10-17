@@ -194,7 +194,7 @@ test('ISR route files use literal segment config, no request data and no build-t
   assert.match(text,/enablePublicRevalidation\(\)/,file);
   assert.doesNotMatch(text,/searchParams|next\/headers|cookies\(|headers\(|force-dynamic|connection\(/,file);
  }
- for(const file of ['src/app/render-filtered/report/[...segments]/page.tsx','src/app/events/page.tsx','src/app/page.tsx','src/app/compare/titles/page.tsx','src/app/boards/page.tsx','src/app/boards/view/page.tsx','src/app/login/page.tsx','src/app/my/layout.tsx','src/app/manage/page.tsx','src/app/manage/editorial/page.tsx','src/app/manage/users/page.tsx','src/app/ops/ingestion/page.tsx']){
+ for(const file of ['src/app/render-filtered/report/[...segments]/page.tsx','src/app/events/page.tsx','src/app/page.tsx','src/app/compare/titles/page.tsx','src/app/boards/page.tsx','src/app/boards/view/page.tsx','src/app/login/page.tsx','src/app/my/layout.tsx','src/app/admin/page.tsx','src/app/admin/editorial/page.tsx','src/app/admin/users/page.tsx','src/app/ops/ingestion/page.tsx']){
   const text=source(file);assert.match(text,/^export const dynamic ?= ?['"]force-dynamic['"];$/m,file);assert.doesNotMatch(text,/enablePublicRevalidation|export const revalidate/,file);
  }
 });

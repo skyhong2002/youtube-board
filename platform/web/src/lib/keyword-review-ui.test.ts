@@ -4,10 +4,10 @@ import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {NOT_APPLIED_NOTICE,parseDetail,parseReview,parseStatus,parseVocabularyLookup,type ReviewPreview} from './keyword-review-client';
 import {loginHref} from './account-client';
-import KeywordReviewAccess from '../app/manage/keywords/console';
-import {ExecutionView,GateNotice,GateSummary,NotAppliedBadge,PreviewView,ReviewDetailView,ReviewTable,SelectedVocabulary,VocabularyResults,type GateState} from '../app/manage/keywords/review-details';
-import KeywordsPage,{dynamic as keywordsDynamic,metadata as keywordsMetadata} from '../app/manage/keywords/page';
-import ManagePage,{metadata as manageMetadata} from '../app/manage/page';
+import KeywordReviewAccess from '../app/admin/keywords/console';
+import {ExecutionView,GateNotice,GateSummary,NotAppliedBadge,PreviewView,ReviewDetailView,ReviewTable,SelectedVocabulary,VocabularyResults,type GateState} from '../app/admin/keywords/review-details';
+import KeywordsPage,{dynamic as keywordsDynamic,metadata as keywordsMetadata} from '../app/admin/keywords/page';
+import ManagePage,{metadata as manageMetadata} from '../app/admin/page';
 
 const ID='11111111-1111-4111-8111-111111111111',REQ='22222222-2222-4222-8222-222222222222',KEY='c'.repeat(64),HASH='d'.repeat(64);
 const XSS_TERM='<img src=x onerror=alert(1)>',XSS_REASON='</p><script>alert("r")</script>';
@@ -24,7 +24,7 @@ test('gate notices cover login-disabled, sign-in, permission, disabled, schema a
  const cases:[GateState,RegExp][]=[
   [{kind:'loading'},/載入登入狀態/],
   [{kind:'login-disabled'},/Google 登入尚未開放.*不接受服務權杖/],
-  [{kind:'signed-out',loginUrl:loginHref('/manage/keywords')},/href="\/auth\/google\?next=%2Fmanage%2Fkeywords"/],
+  [{kind:'signed-out',loginUrl:loginHref('/admin/keywords')},/href="\/auth\/google\?next=%2Fadmin%2Fkeywords"/],
   [{kind:'forbidden'},/沒有管理員權限/],
   [{kind:'feature-disabled'},/尚未啟用/],
   [{kind:'schema-unavailable'},/資料表尚未就緒/],
@@ -88,14 +88,14 @@ test('selected vocabulary shows the exact original term, version and key as read
  assert.match(out,new RegExp('value="'+VKEY+'"'));assert.match(out,/value="run_2026_10_13"/);assert.match(out,/value="&lt;img src=x onerror=alert\(1\)&gt;"/);
  assert.match(out,/未在瀏覽器推導/);assert.match(out,/up-1/);assert.doesNotMatch(out,/<img src=x/);
 });
-test('pages are force-dynamic noindex; /manage is the channel table, not a redirect',()=>{
+test('pages are force-dynamic noindex; /admin is the channel table, not a redirect',()=>{
  assert.equal(keywordsDynamic,'force-dynamic');assert.deepEqual(keywordsMetadata.robots,{index:false,follow:false});assert.deepEqual(manageMetadata.robots,{index:false,follow:false});
  const keywords=html(createElement(KeywordsPage));assert.match(keywords,/關鍵字覆核/);assert.match(keywords,new RegExp(NOT_APPLIED_NOTICE));
  const manage=html(createElement(ManagePage));assert.match(manage,/頻道管理表/);
 });
 
 import KeywordExcludeButton from '../components/admin/KeywordExcludeButton';
-import {RankingExclusionsView} from '../app/manage/keywords/ranking-exclusions';
+import {RankingExclusionsView} from '../app/admin/keywords/ranking-exclusions';
 test('the ranking exclude button renders nothing without an administrator session',()=>{
  assert.equal(html(createElement(KeywordExcludeButton,{terms:['OpenAI'],label:'OpenAI'})),'');
 });

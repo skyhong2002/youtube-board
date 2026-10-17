@@ -1,7 +1,7 @@
 import type {ReactNode} from 'react';
 import {NOT_APPLIED_NOTICE,VOCABULARY_LIMIT,VOCABULARY_SOURCE,actionLabels,contextLabels,decisionLabels,statusLabels,type KeywordReview,type ReviewDetail,type ReviewExecution,type ReviewPreview,type ReviewStatusInfo,type VocabularyChoice,type VocabularyLookup} from '@/lib/keyword-review-client';
 /**
- * Pure presentational pieces for /manage/keywords (no hooks, no fetch), so they render in SSR tests.
+ * Pure presentational pieces for /admin/keywords (no hooks, no fetch), so they render in SSR tests.
  * All values are rendered as React text; no raw HTML and no arbitrary payload/JSON dumps.
  */
 export const styles={

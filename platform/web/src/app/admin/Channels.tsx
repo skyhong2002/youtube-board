@@ -1,5 +1,5 @@
 'use client';
-import {useEffect,useMemo,useState} from 'react';
+import {Fragment,useEffect,useMemo,useState} from 'react';
 import Link from 'next/link';
 import type {ManagedChannel,ManagedChannelList,ManagedChannelStatus} from '../../../../shared/manage-contracts';
 import {ChannelAvatar} from '@/components/ChannelAvatar';
@@ -35,14 +35,14 @@ export default function Channels(){
  if(!data)return <p role="status" className={note}>載入中…</p>;
  const columns:SortColumn<ManagedChannel>[]=[
   {key:'title',label:'頻道',sort:r=>r.channelTitle,cell:r=><Link href={`/channels/${r.channelId}`} className="flex min-w-0 items-center gap-2 font-medium hover:underline" title={`${r.channelTitle}（${r.youtubeChannelId||'無 YouTube ID'} · #${r.channelId}）`}><ChannelAvatar avatar={r.channelAvatar} title={r.channelTitle} size={24}/><span className={`${table.leadText} sm:max-w-60`}>{r.channelTitle}</span></Link>},
+  {key:'week',label:'7 天新片',num:true,sort:r=>r.weekVideos,cell:r=>count(r.weekVideos)},
   {key:'status',label:'收錄狀態',sort:r=>CHANNEL_STATUS[r.status].rank,first:'asc',cell:r=><span className={'rounded-full px-2 py-0.5 text-xs '+CHANNEL_STATUS[r.status].tone}>{CHANNEL_STATUS[r.status].label}</span>},
-  {key:'tags',label:'分類',sort:r=>r.tags.length?r.tags.map(id=>names.get(id)??id).join('、'):null,cell:r=>r.tags.length?<span className={`${table.clip} text-xs text-zinc-600 dark:text-zinc-400`} title={r.tags.map(id=>names.get(id)??id).join('、')}>{r.tags.map(id=>names.get(id)??id).join('、')}</span>:<span className="text-xs text-zinc-400">未分類</span>},
+  {key:'tags',label:'分類',sort:r=>r.tags.length?r.tags.map(id=>names.get(id)??id).join('、'):null,cell:r=>r.tags.length?<span className="inline-block max-w-xs truncate align-middle text-xs text-zinc-600 dark:text-zinc-400" title={r.tags.map(id=>names.get(id)??id).join('、')}>{r.tags.map((id,i)=><Fragment key={id}>{i>0&&'、'}<button type="button" className={'hover:text-brand-700 hover:underline dark:hover:text-brand-400 '+(tag===id?'font-semibold text-brand-700 dark:text-brand-400':'')} title={`只看「${names.get(id)??id}」分類`} onClick={()=>setTag(tag===id?null:id)}>{names.get(id)??id}</button></Fragment>)}</span>:<button type="button" className="text-xs text-zinc-400 hover:text-brand-700 hover:underline dark:hover:text-brand-400" title="只看未分類的頻道" onClick={()=>setTag(tag===0?null:0)}>未分類</button>},
   {key:'subscribers',label:'訂閱',num:true,sort:r=>r.subscribers,cell:r=>compact(r.subscribers)},
   {key:'videos',label:'影片',num:true,sort:r=>r.videos,cell:r=>count(r.videos)},
-  {key:'week',label:'7 天新片',num:true,sort:r=>r.weekVideos,cell:r=>count(r.weekVideos)},
-  {key:'latest',label:'最新影片',num:true,sort:r=>time(r.latestVideoAt),cell:r=>r.latestVideoAt?dateTime(r.latestVideoAt,true):'—'},
-  {key:'stats',label:'統計更新',num:true,sort:r=>time(r.statsAt),cell:r=>r.statsAt?dateTime(r.statsAt):'—'},
-  {key:'added',label:'加入',num:true,sort:r=>time(r.addedAt),cell:r=>r.addedAt?dateTime(r.addedAt,true):'—'},
+  {key:'latest',label:'最新影片',num:true,time:true,sort:r=>time(r.latestVideoAt),cell:r=>r.latestVideoAt?dateTime(r.latestVideoAt,true):'—'},
+  {key:'stats',label:'統計更新',num:true,time:true,sort:r=>time(r.statsAt),cell:r=>r.statsAt?dateTime(r.statsAt):'—'},
+  {key:'added',label:'加入',num:true,time:true,sort:r=>time(r.addedAt),cell:r=>r.addedAt?dateTime(r.addedAt,true):'—'},
  ];
  const sortedTags=[...data.tags].sort((a,b)=>(tagCounts.get(b.id)??0)-(tagCounts.get(a.id)??0)||a.id-b.id);
  return <div className="grid gap-4">
@@ -57,7 +57,6 @@ export default function Channels(){
    <button type="button" aria-pressed={status===null} className={pill+' '+(status===null?pillOn:pillOff)} onClick={()=>setStatus(null)}>全部 <span className="tabular-nums">{[...statusCounts.values()].reduce((a,b)=>a+b,0)}</span></button>
    {STATUSES.map(s=><button type="button" key={s} aria-pressed={status===s} className={pill+' '+(status===s?pillOn:pillOff)} onClick={()=>setStatus(status===s?null:s)}>{CHANNEL_STATUS[s].label} <span className="tabular-nums">{statusCounts.get(s)??0}</span></button>)}
   </div>
-  <p className="text-sm text-zinc-600 dark:text-zinc-400">共 {count(data.channels.length)} 個頻道，符合條件 {count(rows.length)} 個 · 資料時間 {dateTime(data.generatedAt)}</p>
-  <SortTable rows={rows} columns={columns} rowKey={r=>r.channelId} label="頻道管理表" initial={{key:'subscribers',dir:'desc'}} page={200} empty="沒有符合條件的頻道。"/>
+  <SortTable rows={rows} columns={columns} rowKey={r=>r.channelId} label="頻道管理表" initial={{key:'week',dir:'desc'}} page={200} empty="沒有符合條件的頻道。" summary={`共 ${count(data.channels.length)} 個頻道，符合條件 ${count(rows.length)} 個 · 資料時間 ${dateTime(data.generatedAt)}`}/>
  </div>;
 }

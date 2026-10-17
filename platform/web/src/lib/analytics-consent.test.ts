@@ -38,7 +38,7 @@ test('opt-out is stored per browser, and unreadable storage blocks rather than g
  assert.equal(readOptOut(broken),true);assert.equal(writeOptOut(broken,true),false);assert.equal(writeOptOut(null,true),false);
 });
 test('private, auth, search, unknown, query and fragment pages are never measured',()=>{
- for(const path of ['/my','/my/settings','/manage','/manage/users','/ops/ingestion','/login','/auth/google','/auth/callback','/feeds/u/private-token.xml','/boards','/boards/view','/observe/opt-out','/api/status','/api/v1/videos','/api/','/runtime/ready','/search','/unknown','/videos/','/events/123','/channels/12/prompt','/ai/days/2026-10-01/prompt','/comments/authors/someone','/keywords/%E4%ZZ/videos'])assert.equal(analyticsPageType(path),null,path);
+ for(const path of ['/my','/my/settings','/admin','/admin/users','/manage','/manage/users','/ops/ingestion','/login','/auth/google','/auth/callback','/feeds/u/private-token.xml','/boards','/boards/view','/observe/opt-out','/api/status','/api/v1/videos','/api/','/runtime/ready','/search','/unknown','/videos/','/events/123','/channels/12/prompt','/ai/days/2026-10-01/prompt','/comments/authors/someone','/keywords/%E4%ZZ/videos'])assert.equal(analyticsPageType(path),null,path);
  // Any query at all, not just q/keyword, and any fragment.
  for(const [path,search,hash] of [['/videos','?q=%E4%BA%A4%E9%80%9A',''],['/channels','?sort=views',''],['/events','?page=2',''],['/','?utm_source=x',''],['/videos','','#token=abc'],['/about','','#section'],['/api','?token=abc',''],['/api','','#videos']])
   assert.equal(analyticsPage({pathname:path,search,hash}),null,path+search+hash);

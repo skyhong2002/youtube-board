@@ -19,7 +19,12 @@ const config: NextConfig = {
     // The three brand candidates were folded into one flat set; already-shared OG
     // images and installed icons keep resolving to the same file name.
     async redirects() {
-        return [{ source: "/brand/:kind(family|legacy|original)/:file", destination: "/brand/:file", permanent: true }];
+        return [
+            { source: "/brand/:kind(family|legacy|original)/:file", destination: "/brand/:file", permanent: true },
+            // The admin area moved from /manage to /admin on 2026-10-17; keep old bookmarks working.
+            { source: "/manage", destination: "/admin", permanent: true },
+            { source: "/manage/:path*", destination: "/admin/:path*", permanent: true },
+        ];
     },
     async rewrites() {
         return {

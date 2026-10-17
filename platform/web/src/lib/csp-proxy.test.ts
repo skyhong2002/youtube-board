@@ -64,7 +64,7 @@ test('_rsc alone keeps the canonical route tree but is never shared-cache eligib
  for(const [path,internal] of cases){const response=call(path,{headers:{[PUBLIC_RENDER_HEADER]:'report'}});assert.equal(target(response),internal,path);neverRewrites(response,path);assert.equal(response.headers.get(PUBLIC_RENDER_HEADER),null,path);assert.equal(response.headers.get('cache-control'),'private, no-store',path);}
 });
 test('private, account and query-dependent routes stay private no-store even with spoofed headers',()=>{
- for(const path of ['/my','/my/following','/login?next=/my','/boards','/boards/view?q=a','/manage/users','/manage/editorial','/compare/titles?left=AbC_123xYz9','/compare/titles','/events/not-a-uuid','/events/0D4C9E8A-1B2C-4D5E-8F90-123456789ABC','/about','/not-a-report']){
+ for(const path of ['/my','/my/following','/login?next=/my','/boards','/boards/view?q=a','/admin/users','/admin/editorial','/compare/titles?left=AbC_123xYz9','/compare/titles','/events/not-a-uuid','/events/0D4C9E8A-1B2C-4D5E-8F90-123456789ABC','/about','/not-a-report']){
   const response=call(path,{headers:{[PUBLIC_RENDER_HEADER]:'report',[INTERNAL_RENDER_HEADER]:'filtered'}});assert.equal(response.headers.get(PUBLIC_RENDER_HEADER),null,path);assert.equal(response.headers.get('cache-control'),'private, no-store',path);assert.equal(target(response),null,path);neverRewrites(response,path);
  }
  assert.equal(call('/videos',{method:'POST'}).headers.get(PUBLIC_RENDER_HEADER),null);

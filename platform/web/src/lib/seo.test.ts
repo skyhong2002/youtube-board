@@ -35,7 +35,7 @@ test('private pages are noindex; query variants are noindex and canonical to the
  }
  assert.equal(filteredReportMetadata(route('/vocabulary').route,['vocabulary']).alternates?.canonical,'https://youtube.observe.tw/vocabulary');
  assert.equal(filteredReportMetadata(route('/keywords').route,['keywords']).alternates?.canonical,'https://youtube.observe.tw/keywords');
- for(const file of ['src/app/my/layout.tsx','src/app/login/page.tsx','src/app/manage/page.tsx','src/app/boards/page.tsx','src/app/boards/view/page.tsx','src/app/ops/ingestion/page.tsx','src/app/observe/opt-out/page.tsx'])
+ for(const file of ['src/app/my/layout.tsx','src/app/login/page.tsx','src/app/admin/page.tsx','src/app/boards/page.tsx','src/app/boards/view/page.tsx','src/app/ops/ingestion/page.tsx','src/app/observe/opt-out/page.tsx'])
   assert.match(source(file),/index:false|privateMetadata\(/,file);
  assert.match(source('src/app/events/page.tsx'),/metadata=filteredEventsMetadata\(\)/);
  assert.match(source('src/app/render-filtered/report/[...segments]/page.tsx'),/filteredReportMetadata\(route, segments\)/);
@@ -98,6 +98,6 @@ test('public ISR entries keep request-free rendering and true 404s',()=>{
 test('robots names the sitemap and keeps private and search URLs out',()=>{
  const metadata=robots(),rule=metadata.rules as {disallow:string[]};
  assert.equal(metadata.sitemap,'https://youtube.observe.tw/sitemap.xml');
- for(const path of ['/my','/manage','/ops','/login','/auth','/boards','/feeds/u/','/search','/*?q=','/*&q='])assert.ok(rule.disallow.includes(path),path);
+ for(const path of ['/my','/admin','/manage','/ops','/login','/auth','/boards','/feeds/u/','/search','/*?q=','/*&q='])assert.ok(rule.disallow.includes(path),path);
  assert.ok(!rule.disallow.some(path=>path.startsWith('/observe')),'opt-out stays crawlable so its noindex is seen');
 });

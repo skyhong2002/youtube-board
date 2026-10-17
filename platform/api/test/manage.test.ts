@@ -18,10 +18,10 @@ async function setup(reader:Reader,store:ActivityStore|null){
  return {app,admin,reader:reader2,data};
 }
 it('groups account activity per user and keeps logins out of the last-action time',()=>{
- const rows=accountActivity({follows:[{id:'1',n:'3',at:'2026-10-10 01:00:00.000'}],saves:[{id:2,n:1,at:'2026-10-11 01:00:00.000'}],apiKeys:[{id:1,n:'1',at:'2026-10-12 02:00:00.000'}],feeds:[{id:1,at:'2026-10-01 00:00:00.000'}],sessions:[{id:2,n:'2'}],roles:[{id:1,n:1,at:'2026-10-09 00:00:00.000'}],editorial:[{id:'1',action:'create',n:2,at:'2026-10-13 00:00:00.000'},{id:'1',action:'rename',n:1,at:'2026-10-08 00:00:00.000'},{id:'1',action:'candidate.submit',n:1},{id:'2',action:'candidate.approve',n:4},{id:'x',action:'create',n:9}]});
+ const rows=accountActivity({follows:[{id:'1',n:'3',at:'2026-10-10 01:00:00.000'}],saves:[{id:2,n:1,at:'2026-10-11 01:00:00.000'}],apiKeys:[{id:1,n:'1',at:'2026-10-12 02:00:00.000'}],feeds:[{id:1,at:'2026-10-01 00:00:00.000'}],sessions:[{id:2,n:'2'}],roles:[{id:1,n:1,at:'2026-10-09 00:00:00.000'}],editorial:[{id:'1',action:'create',n:2,at:'2026-10-13 00:00:00.000'},{id:'1',action:'rename',n:1,at:'2026-10-08 00:00:00.000'},{id:'1',action:'candidate.submit',n:1},{id:'2',action:'candidate.approve',n:4},{id:'x',action:'create',n:9}],keywordReviews:[{id:'2',n:3,at:'2026-10-14 00:00:00.000'}]});
  expect(rows).toEqual([
-  {userId:1,follows:3,saves:0,apiKeys:1,feed:true,sessions:0,editorial:{event:3,nomination:1,decision:0},roleChanges:1,lastActiveAt:'2026-10-13T00:00:00.000Z'},
-  {userId:2,follows:0,saves:1,apiKeys:0,feed:false,sessions:2,editorial:{event:0,nomination:0,decision:4},roleChanges:0,lastActiveAt:'2026-10-11T01:00:00.000Z'},
+  {userId:1,follows:3,saves:0,apiKeys:1,feed:true,sessions:0,editorial:{event:3,nomination:1,decision:0},keywordReviews:0,roleChanges:1,lastActiveAt:'2026-10-13T00:00:00.000Z'},
+  {userId:2,follows:0,saves:1,apiKeys:0,feed:false,sessions:2,editorial:{event:0,nomination:0,decision:4},keywordReviews:3,roleChanges:0,lastActiveAt:'2026-10-14T00:00:00.000Z'},
  ]);
  expect(['candidate.reject','candidate.adopt'].map(editorialKind)).toEqual(['decision','decision']);expect(['merge','split','refresh'].map(editorialKind)).toEqual(['event','event','event']);
 });
@@ -40,7 +40,7 @@ it('admin overview routes are session-admin only and list archived channels with
   'COUNT(*) AS n FROM urt_video':[{u_id:7,n:'4'}],
   'FROM urt_tag':[{tag_id:3,tag_name:'泛藍'},{tag_id:12,tag_name:'電視台'},{tag_id:99,tag_name:'沒用到'}],
  });
- const store:ActivityStore={activity:async()=>[{userId:1,follows:1,saves:0,apiKeys:0,feed:false,sessions:1,editorial:{event:0,nomination:0,decision:0},roleChanges:0,lastActiveAt:null}],close:async()=>{}};
+ const store:ActivityStore={activity:async()=>[{userId:1,follows:1,saves:0,apiKeys:0,feed:false,sessions:1,editorial:{event:0,nomination:0,decision:0},keywordReviews:0,roleChanges:0,lastActiveAt:null}],close:async()=>{}};
  const s=await setup(reader,store);try{
   for(const url of ['/auth/admin/user-activity','/auth/admin/channels']){
    expect((await s.app.inject(url)).statusCode).toBe(401);

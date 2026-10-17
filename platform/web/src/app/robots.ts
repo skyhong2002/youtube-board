@@ -5,7 +5,7 @@ import {SITE_ORIGIN} from '@/lib/site';
 export default function robots():MetadataRoute.Robots {
  return {
   rules:{userAgent:'*',allow:'/',disallow:[
-   '/auth', '/login', '/my', '/manage', '/ops', '/api/', '/runtime/',
+   '/auth', '/login', '/my', '/admin', '/manage', '/ops', '/api/', '/runtime/',
    '/feeds/u/', '/boards', '/redir/', '/prompt/',
    // Search results: the header search submits `q` (to /videos); report filters reuse it.
    '/search', '/*?q=', '/*&q=',

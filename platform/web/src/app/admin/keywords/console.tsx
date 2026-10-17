@@ -7,7 +7,7 @@ import {DECISIONS,MAX_REASON,REVIEW_CONTEXTS,RULE_VERSIONS,VOCABULARY_QUERY_MAX,
 import RankingExclusions from './ranking-exclusions';
 import {ExecutionView,GateNotice,GateSummary,NotAppliedBadge,PreviewView,ReviewDetailView,ReviewTable,SelectedVocabulary,VocabularyResults,styles,type GateState,type VocabularySearchState} from './review-details';
 
-const NEXT='/manage/keywords';
+const NEXT='/admin/keywords';
 /** Session gate: Google administrator session only. No service-token input or storage exists here. */
 export default function KeywordReviewAccess(){
  const {session,loading,error}=useSessionState();

@@ -72,7 +72,7 @@ export type PageType = (typeof PAGE_TYPES)[number];
 /** A measurable page: a fixed type and its location, which is exactly the browser URL. */
 export type AnalyticsPage = { type: PageType; location: string };
 // Account, admin, auth, private token, personal board and opt-out pages are never measured.
-const PRIVATE_PATH = /^\/(?:my|manage|ops|login|auth|boards|runtime|redir|observe|search)(?:\/|$)|^\/feeds\/u(?:\/|$)|^\/api\//;
+const PRIVATE_PATH = /^\/(?:my|admin|manage|ops|login|auth|boards|runtime|redir|observe|search)(?:\/|$)|^\/feeds\/u(?:\/|$)|^\/api\//;
 const STATIC_PAGES: Record<string, PageType> = { '/': 'home', '/events': 'events', '/compare/titles': 'compare', '/about': 'about', '/about/brand': 'about', '/api': 'api' };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;

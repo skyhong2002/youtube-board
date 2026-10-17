@@ -7,7 +7,7 @@ import {pill,pillOff} from '../reader/FollowButton';
 /** Administrator-only island on public keyword surfaces. Anonymous HTML stays shareable:
  * nothing renders until the client session reports role 'admin'. One confirmed click
  * submits and approves a ranking-display exclusion for every exact label of the row;
- * vocabulary and matching evidence are kept, and /manage/keywords can restore it. */
+ * vocabulary and matching evidence are kept, and /admin/keywords can restore it. */
 export default function KeywordExcludeButton({terms,label,compact=false}:{terms:string[];label:string;compact?:boolean}){
  const session=useSession(),ref=useRef<HTMLSpanElement>(null),[state,setState]=useState<'idle'|'busy'|'done'>('idle'),[error,setError]=useState('');
  if(session?.user?.role!=='admin'||!terms.length)return null;
