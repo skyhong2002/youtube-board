@@ -10,9 +10,14 @@ tag.observe.tw 是一個常駐 TS worker（BullMQ + Redis）加上定時批次�
 的 Dokploy TS compose（`youtube-board-ts-6oukfq`）裡加入：
 
 - `redis`：私有、AOF 持久化、noeviction。
-- `worker`：消費 BullMQ 佇列，執行 `platform/jobs` 已註冊的工作（`workflow-registry.ts`）。
-- `scheduler`：依 `jobs/src/scheduler.ts` 的排程設定（Asia/Taipei、五欄 cron）產生工作；與 worker 分開。
-- 三者用與 web 相同的 image digest；每個工作只用自己的 facade 資料庫帳號與 `TS_INGESTION_WRITE_ALLOWLIST`。
+- `worker-*`：每個交接批次一個 worker 程序（快取、YouTube 來源、留言、AI 每日、AI 每小時、AI 人物、Telegram，共 7 個），
+  `TS_QUEUE_MODE=workflow`，每個工作一條佇列，長工作（每日 AI 約 40 分鐘）不會卡住每分鐘的直播輪詢。
+  每個 worker 用自己的資料庫帳號，權限是該批工作在 `shared/worker-permissions.json` 的聯集（`tools/worker-principal.mjs`），
+  只有資料表層級權限、沒有 DDL。主機 12GB（2026-10-18 可用約 4.7GB）、2 核心：每個 worker 約 150–250MB，合計約 1.5GB；
+  每個工作一個 facade 程序（約 29 個、4–5GB）會吃光剩餘記憶體，所以按批分組。
+- `scheduler`：依 `jobs/src/scheduler.ts` 的排程設定（Asia/Taipei、五欄 cron）產生工作；與 worker 分開。排程時間沿用 Laravel
+  原本錯開的分鐘，避免 2 核心同時被大工作佔滿。
+- 全部用與 web 相同的 image digest。
 
 目前暫用的 systemd timer（`ts-worker.py` 的關鍵字比對、頭像）在對應批次交接時一併改由 scheduler 產生。
 
