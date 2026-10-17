@@ -15,9 +15,10 @@ export function youtubeRetryOptions(env: NodeJS.ProcessEnv) {
   return { transientRetries: bounded(env.YOUTUBE_API_TRANSIENT_RETRIES, 1, 3), retryDelayMs: bounded(env.YOUTUBE_API_RETRY_DELAY_MS, 250, 5000) };
 }
 export function youtubeResultState(result: { skipped: unknown[]; applied?:unknown[]; enqueued?:unknown[]; truncated?: boolean; checkpointed?: unknown[]; stoppedReason?: string; capacityBlocked?: string }): 'failed' | 'incomplete' | 'completed' | 'skipped' {
-  if(result.skipped.length)return 'failed';
   if(result.stoppedReason==='quota-exhausted')return result.applied?.length || result.enqueued?.length || result.checkpointed?.length ? 'incomplete' : 'skipped';
   if (result.stoppedReason) return 'failed';
+  // Like Laravel, a per-item skip (e.g. a deleted channel missing from the API) is logged and the run continues.
+  if(result.skipped.length)return 'incomplete';
   if(result.capacityBlocked)return 'incomplete';
   return result.truncated || result.checkpointed?.length ? 'incomplete' : 'completed';
 }

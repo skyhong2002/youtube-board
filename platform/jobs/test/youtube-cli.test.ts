@@ -20,6 +20,8 @@ it('scheduled source execution rejects missing exact ownership and scheduler gat
 });
 it('normal bounded continuation differs from errors and handler ignores prototype command names',async()=>{
   expect(youtubeResultState({skipped:[],checkpointed:['video']})).toBe('incomplete');
+  expect(youtubeResultState({skipped:[{uId:3724,reason:'api-item-missing-or-invalid'}],applied:[1]})).toBe('incomplete');
+  expect(youtubeResultState({skipped:[{uId:1}],stoppedReason:'quota-budget'})).toBe('failed');
   expect(youtubeResultState({skipped:[],truncated:true})).toBe('incomplete');
   expect(youtubeResultState({skipped:[],stoppedReason:'quota-budget'})).toBe('failed');
   expect(youtubeResultState({skipped:[],stoppedReason:'quota-exhausted'})).toBe('skipped');
@@ -27,7 +29,7 @@ it('normal bounded continuation differs from errors and handler ignores prototyp
   expect(youtubeResultState({skipped:[],enqueued:['video'],stoppedReason:'quota-exhausted'})).toBe('incomplete');
   expect(youtubeResultState({skipped:[],checkpointed:['video'],stoppedReason:'quota-exhausted'})).toBe('incomplete');
   expect(youtubeResultState({skipped:[],capacityBlocked:'stage-size'})).toBe('incomplete');
-  expect(youtubeResultState({skipped:[{reason:'invalid-source'}],capacityBlocked:'stage-size'})).toBe('failed');
+  expect(youtubeResultState({skipped:[{reason:'invalid-source'}],capacityBlocked:'stage-size'})).toBe('incomplete');
   expect(youtubeResultState({skipped:[{reason:'invalid-source'}]})).toBe('failed');
   expect(youtubeResultState({skipped:[]})).toBe('completed');
   expect(await handleYoutubeCli(['toString'],{})).toBe(false);
