@@ -3,6 +3,8 @@ import {sql} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
 import type {AuthRuntime} from '../auth/index.js';
 import {privateAuthReply} from '../auth/index.js';
+import {AuthStoreFailure} from '../auth/store.js';
+import {RateLimitError} from '../rate-limit.js';
 import {createReader,DataQueryFailed,DataSourceUnavailable,type Reader,type Row} from '../db/client.js';
 import {enrichPublicMedia} from '../reports/media.js';
 import {integer,tagIds,taipeiSql,text,timestamp} from '../reports/normalize.js';
@@ -35,15 +37,17 @@ export function mysqlActivityStore(databaseUrl:string):ActivityStore{
  const pool=mysql.createPool({uri:databaseUrl,connectionLimit:2,queueLimit:16,connectTimeout:3000,dateStrings:true,timezone:'Z',supportBigNumbers:true,bigNumberStrings:true,multipleStatements:false});
  const query=async(statement:string)=>{const [rows]=await pool.query<RowDataPacket[]>({sql:'SET STATEMENT max_statement_time=5 FOR '+statement,timeout:6000});return rows as Group[];};
  return {close:()=>pool.end(),async activity(){
-  const [follows,saves,apiKeys,feeds,sessions,roles,editorial]=await Promise.all([
-   query('SELECT user_id id,COUNT(*) n,MAX(created_at) at FROM ts_reader_follows GROUP BY user_id'),
-   query('SELECT user_id id,COUNT(*) n,MAX(updated_at) at FROM ts_reader_saves GROUP BY user_id'),
-   query('SELECT user_id id,SUM(revoked_at IS NULL) n,MAX(GREATEST(created_at,COALESCE(last_used_at,created_at),COALESCE(revoked_at,created_at))) at FROM ts_reader_api_keys GROUP BY user_id'),
-   query('SELECT user_id id,created_at at FROM ts_reader_feed_tokens'),
-   query('SELECT user_id id,COUNT(*) n FROM ts_auth_sessions WHERE expires_at>UTC_TIMESTAMP(3) GROUP BY user_id'),
-   query('SELECT actor_id id,COUNT(*) n,MAX(created_at) at FROM ts_auth_role_audit WHERE actor_id IS NOT NULL GROUP BY actor_id'),
-   query("SELECT SUBSTRING(actor,6) id,action,COUNT(*) n,MAX(created_at) at FROM ts_editorial_audit WHERE actor LIKE 'user:%' GROUP BY actor,action LIMIT 10000"),
-  ]);
+  // One after another: the small pool must not queue seven reads per request.
+  const results:Group[][]=[];for(const statement of [
+   'SELECT user_id id,COUNT(*) n,MAX(created_at) at FROM ts_reader_follows GROUP BY user_id',
+   'SELECT user_id id,COUNT(*) n,MAX(updated_at) at FROM ts_reader_saves GROUP BY user_id',
+   'SELECT user_id id,SUM(revoked_at IS NULL) n,MAX(GREATEST(created_at,COALESCE(last_used_at,created_at),COALESCE(revoked_at,created_at))) at FROM ts_reader_api_keys GROUP BY user_id',
+   'SELECT user_id id,created_at at FROM ts_reader_feed_tokens',
+   'SELECT user_id id,COUNT(*) n FROM ts_auth_sessions WHERE expires_at>UTC_TIMESTAMP(3) GROUP BY user_id',
+   'SELECT actor_id id,COUNT(*) n,MAX(created_at) at FROM ts_auth_role_audit WHERE actor_id IS NOT NULL GROUP BY actor_id',
+   "SELECT SUBSTRING(actor,6) id,action,COUNT(*) n,MAX(created_at) at FROM ts_editorial_audit WHERE actor LIKE 'user:%' GROUP BY actor,action LIMIT 10000",
+  ])results.push(await query(statement));
+  const [follows,saves,apiKeys,feeds,sessions,roles,editorial]=results as [Group[],Group[],Group[],Group[],Group[],Group[],Group[]];
   return accountActivity({follows,saves,apiKeys,feeds,sessions,roles,editorial});
  }};
 }
@@ -78,7 +82,7 @@ export async function registerManage(app:FastifyInstance,auth:AuthRuntime,option
  const clock=options.clock??(()=>new Date()),store=options.store!==undefined?options.store:auth.enabled&&options.stateUrl?mysqlActivityStore(options.stateUrl):null,reader=options.reader??createReader(options.reportsUrl);
  app.addHook('onClose',async()=>{if(store&&options.store===undefined)await store.close();if(!options.reader)await reader.close();});
  await app.register(async routes=>{
-  routes.setErrorHandler((error,_request,reply)=>{privateAuthReply(reply);const code=error&&typeof error==='object'&&'code' in error?String(error.code):'';const unavailable=error instanceof DataSourceUnavailable||error instanceof DataQueryFailed||unavailableCodes.has(code);return reply.code(unavailable?503:500).send({error:{code:unavailable?'ACCOUNT_UNAVAILABLE':'ACCOUNT_FAILED'}});});
+  routes.setErrorHandler((error,_request,reply)=>{privateAuthReply(reply);if(error instanceof RateLimitError)return reply.header('Retry-After',String(error.retryAfter)).code(429).send({error:{code:'RATE_LIMITED'}});const code=error&&typeof error==='object'&&'code' in error?String(error.code):'';const unavailable=error instanceof AuthStoreFailure||error instanceof DataSourceUnavailable||error instanceof DataQueryFailed||unavailableCodes.has(code);return reply.code(unavailable?503:500).send({error:{code:unavailable?'ACCOUNT_UNAVAILABLE':'ACCOUNT_FAILED'}});});
   routes.get('/auth/admin/user-activity',async(req,reply)=>{if(!await auth.requireAdmin(req,reply))return reply;if(!store)return reply.code(503).send({error:{code:'ACCOUNT_UNAVAILABLE'}});return {activity:await store.activity(),generatedAt:clock().toISOString()} satisfies AccountActivityList;});
   routes.get('/auth/admin/channels',async(req,reply)=>{if(!await auth.requireAdmin(req,reply))return reply;return managedChannels(reader,clock());});
  });

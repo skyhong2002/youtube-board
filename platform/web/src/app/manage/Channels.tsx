@@ -58,6 +58,6 @@ export default function Channels(){
    {STATUSES.map(s=><button type="button" key={s} aria-pressed={status===s} className={pill+' '+(status===s?pillOn:pillOff)} onClick={()=>setStatus(status===s?null:s)}>{CHANNEL_STATUS[s].label} <span className="tabular-nums">{statusCounts.get(s)??0}</span></button>)}
   </div>
   <p className="text-sm text-zinc-600 dark:text-zinc-400">共 {count(data.channels.length)} 個頻道，符合條件 {count(rows.length)} 個 · 資料時間 {dateTime(data.generatedAt)}</p>
-  {rows.length?<SortTable rows={rows} columns={columns} rowKey={r=>r.channelId} label="頻道管理表" initial={{key:'subscribers',dir:'desc'}} page={200}/>:<p className={note}>沒有符合條件的頻道。</p>}
+  <SortTable rows={rows} columns={columns} rowKey={r=>r.channelId} label="頻道管理表" initial={{key:'subscribers',dir:'desc'}} page={200} empty="沒有符合條件的頻道。"/>
  </div>;
 }

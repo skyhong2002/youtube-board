@@ -3,6 +3,7 @@ import test from 'node:test';
 import {compareKeys} from '../app/manage/SortTable';
 import {channelMatches} from '../app/manage/Channels';
 import {contributions,interactions,lastSeen,type UserRow} from '../app/manage/users/Users';
+import type {ManagedChannel} from '../../../shared/manage-contracts';
 test('admin table sort keeps missing values last in both directions',()=>{
  const keys=[3,null,10,1];
  assert.deepEqual([...keys].sort((a,b)=>compareKeys(a,b,'desc')),[10,3,1,null]);
@@ -10,7 +11,7 @@ test('admin table sort keeps missing values last in both directions',()=>{
  assert.deepEqual(['乙','甲',null].sort((a,b)=>compareKeys(a,b,'asc')).at(-1),null);
 });
 test('channel search matches titles, exact YouTube IDs and local numbers',()=>{
- const row={channelId:42,channelTitle:'公視新聞網',youtubeChannelId:'UCabcdefghijklmnopqrstuv',status:'active',tags:[],subscribers:null,videos:null,weekVideos:0,latestVideoAt:null,statsAt:null,addedAt:null} as const;
+ const row:ManagedChannel={channelId:42,channelTitle:'公視新聞網',youtubeChannelId:'UCabcdefghijklmnopqrstuv',status:'active',tags:[],subscribers:null,videos:null,weekVideos:0,latestVideoAt:null,statsAt:null,addedAt:null};
  for(const q of ['','公視','ucabcdefghijklmnopqrstuv','42'])assert.ok(channelMatches(row,q),q);
  for(const q of ['UCabc','4','民視'])assert.ok(!channelMatches(row,q),q);
 });

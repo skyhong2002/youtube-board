@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 import {MySqlDialect} from 'drizzle-orm/mysql-core';
 import type {SQL} from 'drizzle-orm';
 import {registerAuth} from '../src/auth/index.js';
+import {AuthStoreFailure} from '../src/auth/store.js';
 import {accountActivity,channelStatus,editorialKind,registerManage,type ActivityStore} from '../src/manage/routes.js';
 import type {Reader,Row} from '../src/db/client.js';
 import {authEnv,memoryAuthStore} from './auth-fixture.js';
@@ -14,7 +15,7 @@ async function setup(reader:Reader,store:ActivityStore|null){
  const auth=await registerAuth(app,{env:authEnv,store:data.store,provider:{authenticate:async()=>person},clock:()=>now});await registerManage(app,auth,{store,reader,clock:()=>now});
  const login=async()=>{const r=await app.inject('/auth/google?next=/manage'),url=new URL(r.headers.location!),cb=await app.inject({url:'/auth/google/callback?state='+url.searchParams.get('state')+'&code=x',headers:{cookie:cookie(r.headers,'yt_dev_oauth')}});return cookie(cb.headers,'yt_dev_session');};
  const admin=await login();person={sub:'reader',email:'reader@example.test',name:'Reader',picture:null};const reader2=await login();
- return {app,admin,reader:reader2};
+ return {app,admin,reader:reader2,data};
 }
 it('groups account activity per user and keeps logins out of the last-action time',()=>{
  const rows=accountActivity({follows:[{id:'1',n:'3',at:'2026-10-10 01:00:00.000'}],saves:[{id:2,n:1,at:'2026-10-11 01:00:00.000'}],apiKeys:[{id:1,n:'1',at:'2026-10-12 02:00:00.000'}],feeds:[{id:1,at:'2026-10-01 00:00:00.000'}],sessions:[{id:2,n:'2'}],roles:[{id:1,n:1,at:'2026-10-09 00:00:00.000'}],editorial:[{id:'1',action:'create',n:2,at:'2026-10-13 00:00:00.000'},{id:'1',action:'rename',n:1,at:'2026-10-08 00:00:00.000'},{id:'1',action:'candidate.submit',n:1},{id:'2',action:'candidate.approve',n:4},{id:'x',action:'create',n:9}]});
@@ -61,5 +62,11 @@ it('a missing activity store or failing source reads answer 503 without detail',
  const s=await setup(failing,null);try{
   expect((await s.app.inject({url:'/auth/admin/user-activity',headers:{cookie:s.admin}})).statusCode).toBe(503);
   const r=await s.app.inject({url:'/auth/admin/channels',headers:{cookie:s.admin}});expect(r.statusCode).toBe(503);expect(r.body).not.toContain('secret');
+ }finally{await s.app.close();}
+});
+it('a failing login store answers 503, not 500',async()=>{
+ const s=await setup(fakeReader({}),null);try{
+  s.data.store.sessionUser=async()=>{throw new AuthStoreFailure();};
+  for(const url of ['/auth/admin/user-activity','/auth/admin/channels']){const r=await s.app.inject({url,headers:{cookie:s.admin}});expect(r.statusCode).toBe(503);expect(r.json()).toEqual({error:{code:'ACCOUNT_UNAVAILABLE'}});}
  }finally{await s.app.close();}
 });
