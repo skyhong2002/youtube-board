@@ -4,7 +4,8 @@ import type { SQL } from 'drizzle-orm';
 import mysql from 'mysql2/promise';
 export type Row = Record<string, unknown>;
 export interface Reader {
-    rows<T extends Row = Row>(query: SQL): Promise<T[]>;
+    /** statementMs raises or lowers this query's server-side deadline within the reader bounds. */
+    rows<T extends Row = Row>(query: SQL, options?: { statementMs?: number }): Promise<T[]>;
     close(): Promise<void>;
 }
 export class DataSourceUnavailable extends Error {
@@ -56,7 +57,9 @@ export function createReader(databaseUrl: string | undefined, limits = { acquire
             });
     }
     return {
-        async rows<T extends Row>(query: SQL): Promise<T[]> {
+        async rows<T extends Row>(query: SQL, options?: { statementMs?: number }): Promise<T[]> {
+            const statementMs = options?.statementMs ?? limits.statementMs;
+            if (!Number.isSafeInteger(statementMs) || statementMs < 10 || statementMs > 15000) throw new Error("Invalid query deadline");
             try {
                 const compiled = dialect.sqlToQuery(query);
                 const connection = await acquire();
@@ -64,7 +67,7 @@ export function createReader(databaseUrl: string | undefined, limits = { acquire
                 try {
                     // Server-side cancellation bounds SQL work; socket timeout also
                     // covers transport failure. No background timed-out SELECT remains.
-                    const [rows] = await connection.execute({ sql: `SET STATEMENT max_statement_time=${limits.statementMs / 1000} FOR ${compiled.sql}`, timeout: limits.statementMs + 1000 }, compiled.params as ExecuteValues[]);
+                    const [rows] = await connection.execute({ sql: `SET STATEMENT max_statement_time=${statementMs / 1000} FOR ${compiled.sql}`, timeout: statementMs + 1000 }, compiled.params as ExecuteValues[]);
                     return rows as unknown as T[];
                 } catch (error) { failed = true; connection.destroy(); throw error; }
                 finally { if (!failed) connection.release(); }
