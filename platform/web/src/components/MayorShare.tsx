@@ -94,10 +94,11 @@ export function MayorSwitcher({city,search}:{city:string;search:Record<string,st
  const base='rounded-md px-2.5 py-1 text-sm',idle=base+' text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800',active=base+' bg-zinc-900 font-medium text-white dark:bg-zinc-100 dark:text-zinc-900';
  const chip=(on:boolean,label:string,to:string)=><Link key={to+label} href={to} aria-current={on?'page':undefined} className={on?active:idle}>{label}</Link>;
  return <div className="space-y-3">
-  <nav aria-label="縣市" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">{REGIONS.map(([label,keys])=><div key={label} className={ui.panel+' !p-2'}><p className="mb-1 px-1 text-xs font-semibold text-zinc-500">{label}</p><div className="flex flex-wrap gap-1">{keys.filter(key=>cities[key]).map(key=>chip(key===city,cities[key].label,href(key,{type,days,from:one('from'),to:one('to'),today:one('today')})))}</div></div>)}</nav>
+  <nav aria-label="縣市" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">{REGIONS.map(([label,keys])=><div key={label} className="px-1 py-1"><p className="mb-1 px-1 text-xs font-semibold text-zinc-500">{label}</p><div className="flex flex-wrap gap-1">{keys.filter(key=>cities[key]).map(key=>chip(key===city,cities[key].label,href(key,{type,days,from:one('from'),to:one('to'),today:one('today')})))}</div></div>)}</nav>
   <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
    <nav aria-label="日期範圍" className="flex flex-wrap gap-1">{PERIODS.map(([value,label])=>chip(!explicit&&Number(days||30)===value,label,href(city,{type,days:String(value)})))}</nav>
-   <nav aria-label="指標" className="flex flex-wrap gap-1 border-zinc-300 sm:border-l sm:pl-4 dark:border-zinc-700">{METRICS.map(([value,label])=>chip((type||'tags_views')===value,label,href(city,{type:value,days,from:one('from'),to:one('to'),today:one('today')})))}</nav>
+   <nav aria-label="指標" className="flex flex-wrap items-center gap-1 border-zinc-300 sm:border-l sm:pl-4 dark:border-zinc-700">{METRICS.map(([value,label])=>chip((type||'tags_views')===value,label,href(city,{type:value,days,from:one('from'),to:one('to'),today:one('today')})))}
+    <a href="#mayor-metrics" className="ml-1 whitespace-nowrap text-sm text-brand-700 hover:underline dark:text-brand-400">指標說明 ⓘ</a></nav>
   </div>
  </div>;
 }
