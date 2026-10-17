@@ -11,9 +11,17 @@ const tables = new Set(['urt_video', 'urt_video_schedule', 'urt_video_log', 'urt
 const primaryKey: Record<string, string> = { urt_show_video_live: 'pk_live', urt_channel: 'u_id', urt_count: 'u_id', urt_video_duration: 'pk_video', urt_comment_author: 'author_id', urt_comment_rev: 'author_id' };
 function identifier(value: string): string { if (!/^[A-Za-z_][A-Za-z_0-9]*$/.test(value)) throw new Error('Invalid internal SQL identifier'); return '`' + value + '`'; }
 function params(values: unknown[]): (string | number | boolean | Date | null)[] { return values.map(value => { if (value === null || typeof value === 'string' || typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value)) || value instanceof Date) return value; throw new Error('Invalid SQL scalar'); }); }
+const binaryKeys = new Set(['videoId', 'youtube_id', 'ChannelId', 'channelId', 'tag']);
 export function whereKeys(keys: Record<string, unknown>) {
   if (!Object.keys(keys).length) throw new Error('Empty database identity');
-  return { sql: Object.keys(keys).map(k => keys[k] === null && ['tagid', 'tag_or', 'tag_not'].includes(k) ? `(${identifier(k)} IS NULL OR ${identifier(k)} = '')` : `${['videoId', 'youtube_id', 'ChannelId', 'channelId', 'tag'].includes(k) ? 'BINARY ' : ''}${identifier(k)} <=> ${['videoId', 'youtube_id', 'ChannelId', 'channelId', 'tag'].includes(k) ? 'BINARY ' : ''}?`).join(' AND '), values: Object.entries(keys).filter(([k, v]) => !(v === null && ['tagid', 'tag_or', 'tag_not'].includes(k))).map(([, v]) => v) };
+  const sql: string[] = [], values: unknown[] = [];
+  for (const [k, v] of Object.entries(keys)) {
+    if (v === null && ['tagid', 'tag_or', 'tag_not'].includes(k)) { sql.push(`(${identifier(k)} IS NULL OR ${identifier(k)} = '')`); continue; }
+    // A plain equality lets MariaDB use the index; BINARY then keeps the byte-exact (case-sensitive) identity.
+    if (binaryKeys.has(k) && v !== null) { sql.push(`${identifier(k)} = ? AND BINARY ${identifier(k)} = BINARY ?`); values.push(v, v); continue; }
+    sql.push(`${binaryKeys.has(k) ? 'BINARY ' : ''}${identifier(k)} <=> ${binaryKeys.has(k) ? 'BINARY ' : ''}?`); values.push(v);
+  }
+  return { sql: sql.join(' AND '), values };
 }
 export async function selectOne(db: Connection, table: string, keys: Record<string, unknown>): Promise<RowDataPacket | undefined> {
   if (!tables.has(table)) throw new Error('Unregistered write table'); const where = whereKeys(keys);
