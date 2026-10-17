@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import {usePathname,useRouter} from 'next/navigation';
 import {useEffect,useRef,useState} from 'react';
 import {cities} from '../../../shared/city-definitions';
 import {chartTimeLabel} from '@/lib/chart-window';
@@ -30,6 +31,8 @@ export function mayorShares(series:Series[]){
   return {time,value:total>0.000001?(values[series.indexOf(s)] as number)/total*100:0};
  })}));
 }
+/** The trend chart's y-axis: raw volume unless the URL asks for share. */
+export const mayorView=(search:Record<string,string|string[]|undefined>):'share'|'raw'=>{const v=search.view;return (Array.isArray(v)?v[0]:v)==='share'?'share':'raw';};
 const share=(value:number|null|undefined)=>value===null||value===undefined?'n/a':value.toFixed(1)+'%';
 export {MAYOR_EXPECTED_BUCKETS,coverageLabel,coverageSegments,mayorCoverage,type BucketCoverage} from '@/lib/bucket-coverage';
 
@@ -41,7 +44,11 @@ export function MayorShare({part,city,series,search,rows}:{part:'chart'|'candida
  const lastIndex=(()=>{for(let i=dates.length-1;i>=0;i--)if(shares.some(s=>s.points[i]?.value!==null))return i;return -1;})();
  const last=lastIndex<0?undefined:{index:lastIndex},one=(key:string)=>{const value=search[key];return Array.isArray(value)?value[0]:value;};
  const lastCoverage=last?coverage[last.index]:undefined,incomplete=coverage.filter(c=>c.status!=='complete');
- const ref=useRef<HTMLDivElement>(null),[failed,setFailed]=useState(false),[view,setView]=useState<'share'|'raw'>('share');
+ // 原始量 is the default; 占比 is kept in the URL (view=share) so city, period and metric links carry it.
+ const router=useRouter(),pathname=usePathname(),[view,setView]=useState<'share'|'raw'>(()=>mayorView(search));
+ const urlView=mayorView(search);useEffect(()=>setView(urlView),[urlView]);// back/forward and links change the URL view
+ const ref=useRef<HTMLDivElement>(null),[failed,setFailed]=useState(false);
+ const pickView=(next:'share'|'raw')=>{setView(next);const query=new URLSearchParams();for(const [k,v] of Object.entries(search))for(const item of Array.isArray(v)?v:v===undefined?[]:[v])if(k!=='view')query.append(k,item);if(next==='share')query.set('view','share');const text=query.toString();router.replace(`${pathname}${text?'?'+text:''}`,{scroll:false});};
  const unit=series[0]?.unit??'',raw=view==='raw',plotted=raw?series:shares;
  useEffect(()=>{if(part!=='chart'||!dates.length)return;let disposed=false,chart:import('echarts').ECharts|undefined,resize:ResizeObserver|undefined,observer:MutationObserver|undefined;
   async function load(){const echarts=await import('echarts');if(disposed||!ref.current)return;chart=echarts.init(ref.current,undefined,{renderer:'svg'});
@@ -63,7 +70,7 @@ export function MayorShare({part,city,series,search,rows}:{part:'chart'|'candida
  const period=`${dates[0]}～${dates[dates.length-1]}`;
  if(part==='chart')return <figure className={ui.panel+' mx-0 mt-4 mb-5'} aria-label="候選人媒體聲量占比趨勢">
    <figcaption className="space-y-1"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-semibold">{raw?`${unit}趨勢（七日合計）`:'媒體聲量占比趨勢'} <span className="text-sm font-normal text-zinc-500">{period}</span></h2>
-    <div className="inline-flex rounded-md bg-zinc-100 p-0.5 text-sm dark:bg-zinc-800" role="group" aria-label="縱軸">{([['share','占比'],['raw','原始量']] as const).map(([key,label])=><button type="button" key={key} aria-pressed={view===key} onClick={()=>setView(key)} className={'rounded px-2.5 py-1 '+(view===key?'bg-white font-medium shadow-sm dark:bg-zinc-700':'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100')}>{label}</button>)}</div></div>
+    <div className="inline-flex rounded-md bg-zinc-100 p-0.5 text-sm dark:bg-zinc-800" role="group" aria-label="縱軸">{([['raw','原始量'],['share','占比']] as const).map(([key,label])=><button type="button" key={key} aria-pressed={view===key} onClick={()=>pickView(key)} className={'rounded px-2.5 py-1 '+(view===key?'bg-white font-medium shadow-sm dark:bg-zinc-700':'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100')}>{label}</button>)}</div></div>
     {partialNote?<CoverageDisclosure coverage={coverage}/>
      :<p className="text-xs text-zinc-500">圖中每個日期的七日範圍皆涵蓋 {MAYOR_EXPECTED_BUCKETS}/{MAYOR_EXPECTED_BUCKETS} 個分類日桶。</p>}
    </figcaption>
@@ -92,7 +99,7 @@ const dateInput='rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm te
 
 export function MayorSwitcher({city,search,from,to}:{city:string;search:Record<string,string|string[]|undefined>;from?:string;to?:string}){
  const one=(key:string)=>{const value=search[key];return Array.isArray(value)?value[0]:value;};
- const href=(key:string,params:Record<string,string|undefined>)=>{const query=new URLSearchParams();for(const [k,v] of Object.entries(params))if(v)query.set(k,v);const text=query.toString();return `/mayor/cities/${encodeURIComponent(key)}${text?'?'+text:''}`;};
+ const href=(key:string,params:Record<string,string|undefined>)=>{const query=new URLSearchParams();if(mayorView(search)==='share')params={...params,view:'share'};for(const [k,v] of Object.entries(params))if(v)query.set(k,v);const text=query.toString();return `/mayor/cities/${encodeURIComponent(key)}${text?'?'+text:''}`;};
  const type=one('type'),days=one('days'),explicit=Boolean(one('from')||one('to')||one('today'));
  const base='rounded-md px-2.5 py-1 text-sm',idle=base+' text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800',active=base+' bg-zinc-900 font-medium text-white dark:bg-zinc-100 dark:text-zinc-900';
  const chip=(on:boolean,label:string,to:string)=><Link key={to+label} href={to} aria-current={on?'page':undefined} className={on?active:idle}>{label}</Link>;
@@ -105,6 +112,7 @@ export function MayorSwitcher({city,search,from,to}:{city:string;search:Record<s
    {/* The custom range replaces the generic filter form, whose metric and day-count fields repeated the chips. */}
    <form key={`${type}|${from}|${to}`} action={`/mayor/cities/${encodeURIComponent(city)}`} aria-label="自訂日期範圍" className="flex flex-wrap items-center gap-2 border-zinc-300 text-sm sm:border-l sm:pl-4 dark:border-zinc-700">
     {type&&<input type="hidden" name="type" value={type}/>}
+    {mayorView(search)==='share'&&<input type="hidden" name="view" value="share"/>}
     <span className="text-zinc-500">自訂</span>
     <input type="date" name="from" defaultValue={from} aria-label="開始日期" className={dateInput}/>
     <span className="text-zinc-500" aria-hidden="true">–</span>
