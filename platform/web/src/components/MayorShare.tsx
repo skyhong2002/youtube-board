@@ -33,7 +33,7 @@ export function mayorShares(series:Series[]){
 const share=(value:number|null|undefined)=>value===null||value===undefined?'n/a':value.toFixed(1)+'%';
 export {MAYOR_EXPECTED_BUCKETS,coverageLabel,coverageSegments,mayorCoverage,type BucketCoverage} from '@/lib/bucket-coverage';
 
-/** Mayor pages render this twice: the share chart under the title, and the candidate cards below the filters. */
+/** Mayor pages render this twice: the share chart right after the filters, and the candidate cards below it. */
 export function MayorShare({part,city,series,search,rows}:{part:'chart'|'candidates';city:string;series:Series[];search:Record<string,string|string[]|undefined>;rows?:readonly Record<string,unknown>[]}){
  const blocs=cities[city]?.candidates??{},others=Object.keys(blocs).filter(name=>blocs[name]==='other'),color=(name:string,index:number)=>blocs[name]==='other'?OTHER_COLORS[others.indexOf(name)%OTHER_COLORS.length]!:BLOC_COLORS[blocs[name]??'']??FALLBACK[index%FALLBACK.length];
  const shares=mayorShares(series),dates=shares[0]?.points.map(p=>p.time)??[],coverage=mayorCoverage(rows,dates);
