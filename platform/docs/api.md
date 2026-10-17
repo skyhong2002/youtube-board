@@ -328,6 +328,7 @@ Schema coverage `partial` or `envelope-only` explicitly identifies incomplete fi
 | GET | `/api/v1/tags/videos` | Taxonomy-filtered videos | detailed |
 | GET | `/api/v1/videos` | Video search | detailed |
 | GET | `/api/v1/keywords/{keyword}/videos` | Videos with fresh maintained vocabulary evidence | detailed |
+| GET | `/api/v1/keywords/illustrations` | Bulk maintained tag pictures for many keywords (word cloud): kind, same-origin image path, emoji and optional width/height aspect clamped to 0.25–8. Valid avatars win over visuals; malformed upstream entries are omitted, so a missing keyword is not proof of absence. No license attribution; read /keywords/{keyword}/illustration for credits. Enabled reads remain private/no-store. | detailed |
 | GET | `/api/v1/keywords/{keyword}/relations` | Maintained upstream tag relations; explicit activation after F1 publication. is-a is directional, related is not co-occurrence, and aliases do not merge identities. target.href is relative to https://tag.observe.tw, never this site. Enabled upstream reads remain private/no-store; no shared downstream caching. | detailed |
 | GET | `/api/v1/keywords/{keyword}/illustration` | Maintained tag picture and license attribution; optional explicit public/source-service mode. Browser images use same-origin bounded reads; no visitor credentials reach tag. | detailed |
 | GET | `/api/v1/videos/{id}` | Video details and stored observations | partial |

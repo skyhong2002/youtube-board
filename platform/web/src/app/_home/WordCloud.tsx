@@ -36,7 +36,13 @@ export default function WordCloud({
   label: string;
   title: string;
 }) {
-  const terms = words.map((w) => ({ label: w.label.trim(), count: w.count }));
+  // A word with a picture is packed as the picture with its name under it (pictureBox).
+  const terms = words.map((w) => ({
+    label: w.label.trim(),
+    count: w.count,
+    square: !!(w.picture?.image || w.picture?.emoji),
+    aspect: w.picture?.image ? w.picture.aspect : undefined,
+  }));
   const lay = (canvas: CloudCanvas, className: string): CloudCanvasLayout => ({
     width: canvas.width,
     height: canvas.height,

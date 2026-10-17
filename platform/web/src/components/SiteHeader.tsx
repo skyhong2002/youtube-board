@@ -36,7 +36,7 @@ function HomeLink({ searchOpen, revealed }: { searchOpen: boolean; revealed: boo
         pressed ? 'scale-95 bg-brand-100 text-brand-800 dark:bg-brand-900 dark:text-brand-200' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'
       }`}
     >
-      <Wordmark className="h-6 w-auto" />
+      <Wordmark className="h-8 w-auto" />
       <NavPending />
     </Link>
   );

@@ -106,16 +106,46 @@ page/author/license links; all extra fields are dropped. Missing images say
 「尚未收錄」; timeouts, malformed data and upstream errors remain unavailable.
 Person/visual/emoji kinds do not change vocabulary, IDs, match counts or aliases.
 
+`GET /api/v1/keywords/illustrations` is the bulk form for the home word cloud.
+It reads tag's public `/api/v1/tag-avatars` and `/api/v1/tag-visuals` maps
+concurrently and returns `{source,status,pictures}`, where `pictures` maps the
+byte-exact tag to `{kind,image,emoji,aspect}`. A valid avatar wins over a visual
+for the same tag. Each entry is validated on its own (tag label, kind
+avatar/place/flag/logo/emoji, exact-tag upstream path with only documented
+query keys including `size=small|large`, emoji non-empty text of at most32
+characters without control characters); a malformed entry is omitted, so a
+missing key is not proof of absence. `aspect` is width÷height clamped to
+0.25–8, otherwise null; emoji and avatars carry null. `image` is always the
+same-origin path below. Keys such as `__proto__` stay plain data in a
+null-prototype record. No attribution is copied; credits come from the
+single-keyword route. Disabled returns empty pictures without contacting tag; a
+failed read or malformed `avatars`/`visuals` envelope returns `unavailable`
+with empty pictures. Each map has a512KiB JSON cap; other JSON stays 128KiB.
+
 `GET /media/tag-illustrations/:keyword/:kind/:revision` fetches only the fixed
-tag avatar/visual-image endpoint for that exact keyword/version, using YT red.
+tag avatar/visual-image endpoint for that exact keyword/version, using YT red
+(always `size=small` for visuals, even when the bulk map listed `size=large`).
 No user-supplied host/URL, redirects or visitor credentials are accepted. The
 browser never contacts tag for image bytes; CSP does not gain external origins.
-Both metadata and image responses remain private/no-store; there is no disk
-cache. Only anonymous upstream responses explicitly public and without
-Set-Cookie may be reused in a32-entry memory cache for at most60seconds
-(maximum about16MiB raw bytes). The two upstream slots remain occupied by
-abort-ignoring work until it settles. Each read has a3-second hard deadline,
-128KiB JSON/512KiB image cap and upstream429 cooldown; no automatic retries.
+Both metadata and image responses remain private/no-store to the browser; there
+is no disk cache.
+
+Upstream reads share two slots per API process. JSON metadata reads fail fast
+when both are busy. Image reads instead wait in a FIFO queue of at most24
+waiters; a further image read fails at once, and a waiter that has not received
+a slot within4seconds gives up (404). A released slot passes directly to the
+oldest waiter, which re-checks the429 cooldown and the cache before fetching.
+The two slots remain occupied by abort-ignoring work until it settles. Each
+upstream read has a3-second hard deadline starting when it holds a slot,
+128KiB JSON (512KiB bulk map)/512KiB image cap and the upstream429 cooldown;
+no automatic retries.
+
+One in-memory cache holds at most64entries and24MiB of raw bytes, evicting the
+oldest entry first. A response is reused only when it is explicitly `public`,
+has a positive `max-age`, no `private`/`no-store`/`no-cache` and no Set-Cookie.
+JSON metadata is reused only in anonymous mode and for at most60seconds.
+Image URLs are revisioned (`v=`) and therefore immutable, so image bytes are
+reused in anonymous or service mode for min(upstream max-age,86400) seconds.
 
 WebP requires RIFF/WebP framing and declared length. SVG is parsed and rebuilt
 from a restricted inert-shape/attribute set, rejecting scripts, entities,

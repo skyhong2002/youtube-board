@@ -6,7 +6,7 @@ import { SITE_DESCRIPTION, SITE_NAME, SITE_ORIGIN, siteMetadata } from './site';
 // Shared route metadata and JSON-LD. Pure: data-backed names arrive as arguments (see
 // seo-data.ts), so canonical/title/robots rules stay testable without the API.
 
-const OG_IMAGE = { url: '/brand/family/og-light.png', width: 1200, height: 630, alt: SITE_NAME };
+const OG_IMAGE = { url: '/brand/og-light.png', width: 1200, height: 630, alt: SITE_NAME };
 /** Absolute canonical URL; the origin carries no trailing slash, paths start with `/`. */
 export const absoluteUrl = (path: string) => SITE_ORIGIN + (path === '/' ? '' : path);
 const clip = (value: string, max: number) => { const text = value.replace(/\s+/g, ' ').trim(); return text.length > max ? text.slice(0, max - 1) + '…' : text; };
@@ -159,7 +159,7 @@ export function homeJsonLd() {
     '@graph': [
       { '@type': 'WebSite', '@id': `${SITE_ORIGIN}/#website`, url: absoluteUrl('/'), name: SITE_NAME, description: SITE_DESCRIPTION, inLanguage: 'zh-Hant-TW', publisher: { '@id': ORGANIZATION_ID },
         potentialAction: { '@type': 'SearchAction', target: { '@type': 'EntryPoint', urlTemplate: `${SITE_ORIGIN}/videos?q={search_term_string}` }, 'query-input': 'required name=search_term_string' } },
-      { '@type': 'Organization', '@id': ORGANIZATION_ID, name: SITE_NAME, url: absoluteUrl('/'), logo: absoluteUrl('/brand/family/apple-180-light.png') },
+      { '@type': 'Organization', '@id': ORGANIZATION_ID, name: SITE_NAME, url: absoluteUrl('/'), logo: absoluteUrl('/brand/apple-180-light.png') },
     ],
   };
 }

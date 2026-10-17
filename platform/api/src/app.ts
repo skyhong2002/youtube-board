@@ -106,7 +106,7 @@ export function buildApp(options: AppOptions = {}) {
             const data = await handler(params, request.query as Query,channel);
             await enrichPublicMedia(reader, data);
             const m = meta(data), record = object(data);
-            if(path==='/keywords/:keyword/relations'||path==='/keywords/:keyword/illustration'){
+            if(path==='/keywords/:keyword/relations'||path==='/keywords/:keyword/illustration'||path==='/keywords/illustrations'){
                 m.source='tag.observe.tw';m.updatedAt=null;
                 m.coverage={status:text(record.status),truncated:record.truncated===true};
                 m.warnings.push('標籤來源：新文易數（tag.observe.tw）。別名不自動合併影片或人物身分；上下位有方向，相關關係不代表共現或同義。');
@@ -167,6 +167,7 @@ export function buildApp(options: AppOptions = {}) {
     register('/keywords/:keyword/videos', (p, q) => service.videos({ ...q, keyword: p.keyword }));
     register('/keywords/:keyword/relations',p=>keywordRelations(p.keyword!));
     register('/keywords/:keyword/illustration',p=>tagIllustration.report(p.keyword!));
+    register('/keywords/illustrations',()=>tagIllustration.pictures());
     register('/videos/:id', (p) => service.video(videoId(p.id)));
     register('/videos/:id/tags', (p) => videoTagEvidence(reader, videoId(p.id)));
     register('/live/current', (_p, q) => service.live(q));

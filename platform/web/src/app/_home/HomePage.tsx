@@ -9,7 +9,7 @@ import MethodLink from '@/components/MethodLink';
 import {HomeMethod,PageNotes,SourceMethod} from '@/components/MethodNotes';
 import {metaNotes} from '@/components/ReportMethod';
 import {mastheadEdition} from '@/lib/masthead-cloud';
-import {HOME_KEYWORD_RANKING,KEYWORD_WINDOWS,homeCategoryBandState,homeKeywordCloudWords,homeKeywordState,homeKeywordSummary,keywordRangeLabel,keywordVideosHref,type KeywordWindow} from '@/lib/home-presentation';
+import {HOME_KEYWORD_RANKING,KEYWORD_WINDOWS,cloudPictures,homeCategoryBandState,homeKeywordCloudWords,homeKeywordState,homeKeywordSummary,keywordRangeLabel,keywordVideosHref,type KeywordWindow} from '@/lib/home-presentation';
 import {viewsSummary,heatLabel,keywordMethodNotes,rankingBasis,riseLabel,trendLabel,trendValues} from '@/lib/keyword-ranking';
 import {VideoThumbnail} from '@/components/VideoThumbnail';
 import LinkPending from '@/components/LinkPending';
@@ -30,8 +30,8 @@ function KeywordRanking({view}:{view:KeywordView}){
  return <>{view.rows.length?<ol className={styles.ranking}>{view.rows.slice(0,HOME_KEYWORD_RANKING).map((term,index)=>{const rise=heat?riseLabel(term,view.summary):null,values=heat?trendValues(term.trend):[];return <li key={term.key}><Link href={keywordVideosHref(term.term,view.summary)} title={[term.term,...(heat?[`熱度 ${heatLabel(term)}`,`升溫 ${rise!.text}`]:[]),`${count(term.videoCount)} 支影片`,...(typeof term.channelCount==='number'?[`${count(term.channelCount)} 個頻道`]:[]),`觀看 ${viewsSummary(term)}`].join(' · ')}><span className={styles.rank}>{String(index+1).padStart(2,'0')}</span><VideoThumbnail videoId={view.fixture?null:term.representativeVideoId??null} width={48} height={27}/>{/* Keep the identity on its own line; wrap metrics so coverage notes and supporting counts remain visible. */}<span className={styles.rankBody}><strong>{term.term}</strong><span className={styles.rankMeta}><small>{heat?<>熱度 {heatLabel(term)}<span className={rise!.tone==='up'?styles.rankUp:styles.rankSame}>{rise!.text}</span> · </>:null}{count(term.videoCount)} 支{typeof term.channelCount==='number'&&` · ${count(term.channelCount)} 頻道`}</small>{values.some(v=>v!==null)&&<span className="shrink-0 text-brand-700 dark:text-brand-400" role="img" aria-label={trendLabel(term.trend)}><Sparkline values={values} className="h-3.5 w-10"/></span>}</span></span><LinkPending className="text-(--accent)"/></Link></li>;})}</ol>:<p className={styles.notice} role="status" data-keyword-state={view.kind}>{view.message}</p>}
  <p className={styles.panelNote}>{view.summary?<>{keywordRangeLabel(view.summary,view.window)}{heat?'':' · 依已比對影片數排序'} · </>:`${view.label}範圍與比對狀態未知。`}<MethodLink>怎麼算</MethodLink></p></>;
 }/** Packed around the masthead; an empty window leaves the mark on its own and the caption explains why. */
-function KeywordCloud({view}:{view:KeywordView}){
- const words=view.summary?homeKeywordCloudWords(view.rows,view.summary,view.window):[];
+function KeywordCloud({view,pictures}:{view:KeywordView;pictures:ReturnType<typeof cloudPictures>}){
+ const words=view.summary?homeKeywordCloudWords(view.rows,view.summary,view.window).map(w=>({...w,picture:pictures[w.label]})):[];
  return words.length?<WordCloud words={words} canvases={mastheadCanvases} label={`YouTube ${view.label}關鍵字文字雲`} title={`${view.label}已比對影片的關鍵字`}/>:null;
 }
 function KeywordCloudNote({view}:{view:KeywordView}){
@@ -47,11 +47,13 @@ function TopicMeta({topic,date}:{topic:TopicRow;date:string|null}){return <p cla
 function TopicReferences({topic}:{topic:TopicRow}){return <div className={styles.compactDistribution}><span>{count(topic.videoCount)} {topic.grouping?'支引用影片（去重）':'筆影片引用'}</span>{topic.unresolvedReferences.length>0&&<span>· 另有待確認的來源引用</span>}</div>;}
 /** Shared by the ISR entry (/render-isr/home/current, failures throw) and the dynamic fallback at /. */
 export default async function HomePage(){
- const result=await api<HomeData>('home');if(!result.ok)return <Unavailable status={result.status} title="有影儀表板"/>;
+ // Pictures are optional: any failure (including ISR's thrown reads) leaves the cloud as words.
+ const [result,illustrations]=await Promise.all([api<HomeData>('home'),api<unknown>('keywords/illustrations',{},{optional:true}).catch(()=>null)]);if(!result.ok)return <Unavailable status={result.status} title="有影儀表板"/>;
+ const pictures=cloudPictures(illustrations?.ok?illustrations.response.data:null);
  const {data,meta}=result.response,discovery=data.exploration,lead=data.events[0],rest=data.events.slice(1,5),edition=mastheadEdition(meta.updatedAt,data.aiDate),keywordViews:KeywordView[]=KEYWORD_WINDOWS.map(({value,label})=>({window:value,label,fixture:meta.dataset==='fixture',...keywordView(discovery,value)})),categories=discovery.categories.status==='available'?discovery.categories.rows:[],otherCategories=categories.slice(3),categoryBand=homeCategoryBandState(discovery.categories.status),maxCategoryViews=Math.max(1,...categories.map(r=>r.weeklyViews)),leadChannels=lead?[...new Map(lead.evidence.filter(e=>Number.isSafeInteger(e.channelId)&&e.channelId>0).map(e=>[e.channelId,e])).values()].slice(0,3):[];
  return <div className={styles.home}><div className={styles.main}>
   <KeywordWindowProvider>
-  <Masthead edition={edition} cloud={<div id="home-keyword-cloud">{keywordViews.map(view=><KeywordWindowPane key={view.window} window={view.window} region className="contents"><KeywordCloud view={view}/></KeywordWindowPane>)}</div>} caption={<section className={styles.cloudCaption} aria-labelledby="home-cloud-heading"><h2 id="home-cloud-heading">關鍵字文字雲</h2><KeywordWindowSwitch name="home-keyword-window-cloud" className=""/>{keywordViews.map(view=><KeywordWindowPane key={view.window} window={view.window}><KeywordCloudNote view={view}/></KeywordWindowPane>)}</section>}/>
+  <Masthead edition={edition} cloud={<div id="home-keyword-cloud">{keywordViews.map(view=><KeywordWindowPane key={view.window} window={view.window} region className="contents"><KeywordCloud view={view} pictures={pictures}/></KeywordWindowPane>)}</div>} caption={<section className={styles.cloudCaption} aria-labelledby="home-cloud-heading"><h2 id="home-cloud-heading">關鍵字文字雲</h2><KeywordWindowSwitch name="home-keyword-window-cloud" className=""/>{keywordViews.map(view=><KeywordWindowPane key={view.window} window={view.window}><KeywordCloudNote view={view}/></KeywordWindowPane>)}</section>}/>
   <DataNotice meta={meta}/>
   <div className={styles.columns}>
    <aside className={styles.left} aria-label="關鍵字排行與頻道動態">
