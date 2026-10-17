@@ -111,3 +111,99 @@ it('deadlines include ignored-abort transports and stalled bodies; late work can
   const config=creds.report(tag);await vi.advanceTimersByTimeAsync(3000);expect((await config).status).toBe('unavailable');expect(fetcher).toHaveBeenCalledTimes(3);
  }finally{vi.useRealTimers();}
 });
+const webp=()=>{const b=Buffer.alloc(16);b.write('RIFF',0,'ascii');b.writeUInt32LE(8,4);b.write('WEBP',8,'ascii');return b;};
+const avatarUrl=(t:string,v=revision)=>'/api/v1/tags/'+encodeURIComponent(t)+'/avatar?v='+v;
+const visualUrl=(t:string,v=revision,extra='')=>'/api/v1/tags/'+encodeURIComponent(t)+'/visual-image?v='+v+extra;
+const bulk=(avatars:unknown,visuals:unknown)=>mock(async url=>url.endsWith('/api/v1/tag-avatars')?Response.json(avatars):url.endsWith('/api/v1/tag-visuals')?Response.json(visuals):new Response('',{status:404}));
+it('bulk pictures: avatar wins, bad entries are skipped, aspect is clamped and __proto__ stays data',async()=>{
+ const entries:Record<string,unknown>={
+  [tag]:{kind:'logo',image:visualUrl(tag),emoji:null,aspect:2},'台積電':{kind:'logo',image:visualUrl('台積電','tmqtza'),emoji:null,aspect:3.97},'台北市':{kind:'place',image:visualUrl('台北市','tmqplo','&size=large'),emoji:null},
+  '寬':{kind:'flag',image:visualUrl('寬'),aspect:40},'窄':{kind:'flag',image:visualUrl('窄'),aspect:0.01},'怪':{kind:'flag',image:visualUrl('怪'),aspect:'2'},'火車':{kind:'emoji',image:null,emoji:'🚆',aspect:3},'只有視覺':{kind:'place',image:visualUrl('只有視覺')},
+  '壞種類':{kind:'svg',image:visualUrl('壞種類')},'壞網址':{kind:'logo',image:'https://evil.example/x.png'},'錯詞':{kind:'logo',image:visualUrl('別詞')},'空表情':{kind:'emoji',emoji:''},'長表情':{kind:'emoji',emoji:'x'.repeat(33)},'控制':{kind:'emoji',emoji:'a\u0007'},' 空白':{kind:'logo',image:visualUrl(' 空白')},'非物件':'x',
+ };
+ // Raw JSON text so __proto__ arrives as an own upstream key, as JSON.parse produces it.
+ const visuals=JSON.parse('{"visuals":{"__proto__":{"kind":"emoji","emoji":"🧪"},'+JSON.stringify(entries).slice(1)+'}');
+ const avatars={avatars:{[tag]:avatarUrl(tag),'壞頭像':'https://evil.example/a.webp','只有視覺':avatarUrl('別人')}};
+ const result=await createTagIllustration({env,fetcher:bulk(avatars,visuals)}).pictures();
+ expect(result.status).toBe('available');expect(result.source).toBe('https://tag.observe.tw');
+ expect(result.pictures[tag]).toEqual({kind:'avatar',image:tagPicturePath(tag,'avatar',revision),emoji:null,aspect:null});
+ expect(result.pictures['台積電']).toEqual({kind:'logo',image:tagPicturePath('台積電','visual','tmqtza'),emoji:null,aspect:3.97});
+ expect(result.pictures['台北市']).toEqual({kind:'place',image:tagPicturePath('台北市','visual','tmqplo'),emoji:null,aspect:null});
+ expect(result.pictures['寬']!.aspect).toBe(8);expect(result.pictures['窄']!.aspect).toBe(0.25);expect(result.pictures['怪']!.aspect).toBeNull();
+ expect(result.pictures['火車']).toEqual({kind:'emoji',image:null,emoji:'🚆',aspect:null});
+ expect(result.pictures['只有視覺']).toMatchObject({kind:'place'});
+ expect(Object.getPrototypeOf(result.pictures)).toBeNull();expect(Object.hasOwn(result.pictures,'__proto__')).toBe(true);expect(result.pictures['__proto__']).toEqual({kind:'emoji',image:null,emoji:'🧪',aspect:null});
+ expect(Object.keys(result.pictures).sort()).toEqual([tag,'台積電','台北市','寬','窄','怪','火車','只有視覺','__proto__'].sort());
+});
+it('bulk pictures: disabled does not contact upstream; malformed envelopes or a failed read are unavailable',async()=>{
+ const fetcher=vi.fn();expect(await createTagIllustration({env:{},fetcher}).pictures()).toEqual({source:'https://tag.observe.tw',status:'disabled',pictures:{}});expect(fetcher).not.toHaveBeenCalled();
+ for(const [a,v] of [[{avatars:[]},{visuals:{}}],[{avatars:{}},{visuals:null}],[{},{visuals:{}}],[[],{visuals:{}}]] as Array<[unknown,unknown]>)
+  expect(await createTagIllustration({env,fetcher:bulk(a,v)}).pictures()).toEqual({source:'https://tag.observe.tw',status:'unavailable',pictures:{}});
+ const failing=mock(async url=>url.endsWith('tag-visuals')?new Response('',{status:503}):Response.json({avatars:{[tag]:avatarUrl(tag)}}));
+ expect((await createTagIllustration({env,fetcher:failing}).pictures()).status).toBe('unavailable');
+ // 512 KiB envelope cap instead of the 128 KiB single-tag cap.
+ const big=bulk({avatars:{[tag]:avatarUrl(tag),pad:'x'.repeat(200000)}},{visuals:{}});expect((await createTagIllustration({env,fetcher:big}).pictures()).status).toBe('available');
+ const huge=bulk({avatars:{pad:'x'.repeat(524288)}},{visuals:{}});expect((await createTagIllustration({env,fetcher:huge}).pictures()).status).toBe('unavailable');
+});
+it('bulk route matches the catalog schema, keeps private/no-store and is not a :keyword route',async()=>{
+ const {app}=server(bulk({avatars:{[tag]:avatarUrl(tag)}},{visuals:{'台北市':{kind:'place',image:visualUrl('台北市','tmqplo','&size=large'),emoji:null,aspect:1.5}}}));
+ const endpoint=PUBLIC_ENDPOINTS.find(e=>e.path==='/api/v1/keywords/illustrations')!;expect(endpoint.parameters.filter(p=>p.in==='path')).toEqual([]);
+ const response=await app.inject('/api/v1/keywords/illustrations'),validate=responseValidator(endpoint);
+ expect(response.statusCode).toBe(200);expect(response.headers['cache-control']).toBe('private, no-store');
+ const body=response.json();expect(validate(body),JSON.stringify(validate.errors)).toBe(true);expect(body.meta.source).toBe('tag.observe.tw');
+ expect(body.data.pictures).toEqual({[tag]:{kind:'avatar',image:tagPicturePath(tag,'avatar',revision),emoji:null,aspect:null},'台北市':{kind:'place',image:tagPicturePath('台北市','visual','tmqplo'),emoji:null,aspect:1.5}});
+});
+it('accepts size=large on visual-image URLs but nothing else',()=>{
+ expect(pictureRevision(visualUrl(tag,revision,'&size=large'),tag,'visual')).toBe(revision);
+ expect(pictureRevision(visualUrl(tag,revision,'&size=huge'),tag,'visual')).toBeNull();
+});
+it('queues concurrent image reads behind the two upstream slots instead of failing',async()=>{
+ let running=0,peak=0;
+ const fetcher=mock(async()=>{running++;peak=Math.max(peak,running);await new Promise(r=>setTimeout(r,40));running--;return new Response(webp(),{headers:{'content-type':'image/webp'}});});
+ const client=createTagIllustration({env,fetcher});
+ const results=await Promise.allSettled(Array.from({length:9},(_,i)=>client.image(tag,'avatar','r'+i)));
+ expect(results.map(r=>r.status)).toEqual(Array(9).fill('fulfilled'));expect(peak).toBe(2);expect(fetcher).toHaveBeenCalledTimes(9);
+ const {app}=server(fetcher),responses=await Promise.all(Array.from({length:9},(_,i)=>app.inject(tagPicturePath(tag,'avatar','s'+i))));
+ expect(responses.map(r=>r.statusCode)).toEqual(Array(9).fill(200));expect(responses.every(r=>r.headers['cache-control']==='private, no-store')).toBe(true);
+});
+it('bounds the image queue at 24 waiters and 4 seconds, and JSON reads still fail fast',async()=>{
+ vi.useFakeTimers();
+ try{
+  const pending:Array<(r:Response)=>void>=[],fetcher=mock(()=>new Promise(resolve=>pending.push(resolve))),client=createTagIllustration({env,fetcher});
+  const reads=Array.from({length:27},(_,i)=>client.image(tag,'avatar','q'+i).then(()=>'ok',()=>'failed'));
+  expect(await reads[26]).toBe('failed');expect((await client.report(tag)).status).toBe('unavailable');
+  await vi.advanceTimersByTimeAsync(0);expect(fetcher).toHaveBeenCalledTimes(2);
+  // Two ignored-abort transports keep their slots; every waiter gives up at 4 s.
+  await vi.advanceTimersByTimeAsync(4000);expect(await Promise.all(reads)).toEqual(Array(27).fill('failed'));expect(fetcher).toHaveBeenCalledTimes(2);
+  for(const resolve of pending)resolve(new Response(webp(),{headers:{'content-type':'image/webp'}}));await vi.advanceTimersByTimeAsync(0);
+  const later=client.image(tag,'avatar','after');await vi.advanceTimersByTimeAsync(0);pending.at(-1)!(new Response(webp(),{headers:{'content-type':'image/webp'}}));
+  await expect(later).resolves.toMatchObject({mime:'image/webp'});
+ }finally{vi.useRealTimers();}
+});
+it('queued image reads re-check the 429 cooldown when they receive a slot',async()=>{
+ const gates:Array<()=>void>=[],fetcher=mock(async()=>{await new Promise<void>(r=>gates.push(r));return new Response('',{status:429,headers:{'Retry-After':'120'}});});
+ const client=createTagIllustration({env,fetcher}),reads=Array.from({length:5},(_,i)=>client.image(tag,'avatar','c'+i).then(()=>'ok',()=>'failed'));
+ await new Promise(r=>setTimeout(r,0));expect(fetcher).toHaveBeenCalledTimes(2);for(const open of gates)open();
+ expect(await Promise.all(reads)).toEqual(Array(5).fill('failed'));expect(fetcher).toHaveBeenCalledTimes(2);
+});
+it('caches revisioned public images up to min(max-age, one day) in either auth mode, never private ones',async()=>{
+ let now=Date.parse('2026-10-17T00:00:00Z');const clock=()=>new Date(now);
+ const service={TS_TAG_RELATIONS_ENABLED:'true',TS_TAG_RELATIONS_AUTH_MODE:'service'},credentials=async()=>({serviceToken:'service-secret'});
+ for(const [control,ttl] of [['public, max-age=86400',86400],['public, max-age=999999',86400],['public, max-age=120',120],['private, max-age=86400',0],['public, no-store, max-age=86400',0],['public',0]] as Array<[string,number]>){
+  const fetcher=mock(async()=>new Response(webp(),{headers:{'content-type':'image/webp','cache-control':control}}));
+  const client=createTagIllustration({env:service,credentials,fetcher,clock});
+  await client.image(tag,'avatar',revision);now+=Math.max(0,ttl-1)*1000;await client.image(tag,'avatar',revision);
+  expect(fetcher,control).toHaveBeenCalledTimes(ttl?1:2);
+  now+=2000;await client.image(tag,'avatar',revision);expect(fetcher,control).toHaveBeenCalledTimes(ttl?2:3);
+ }
+ const cookie=mock(async()=>new Response(webp(),{headers:{'content-type':'image/webp','cache-control':'public, max-age=86400','set-cookie':'a=b'}})),client=createTagIllustration({env,fetcher:cookie,clock});
+ await client.image(tag,'avatar',revision);await client.image(tag,'avatar',revision);expect(cookie).toHaveBeenCalledTimes(2);
+ // Service-mode JSON metadata keeps the existing no-reuse rule.
+ const json=bulk({avatars:{}},{visuals:{}}),meta=createTagIllustration({env:service,credentials,fetcher:json,clock});await meta.pictures();await meta.pictures();expect(json).toHaveBeenCalledTimes(4);
+});
+it('image cache keeps at most 64 entries and evicts oldest first',async()=>{
+ const fetcher=mock(async()=>new Response(webp(),{headers:{'content-type':'image/webp','cache-control':'public, max-age=86400'}})),client=createTagIllustration({env,fetcher});
+ for(let i=0;i<65;i++)await client.image(tag,'avatar','e'+i);expect(fetcher).toHaveBeenCalledTimes(65);
+ await client.image(tag,'avatar','e64');await client.image(tag,'avatar','e1');expect(fetcher).toHaveBeenCalledTimes(65);
+ await client.image(tag,'avatar','e0');expect(fetcher).toHaveBeenCalledTimes(66);
+});

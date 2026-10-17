@@ -91,3 +91,19 @@ export function homeKeywordCloudWords(rows:HomeKeywordRow[],summary:HomeKeywordS
   ?[['熱度',heatLabel(r)],['升溫',riseLabel(r,summary).text],['影片',`${count(r.videoCount)} 支・${count(r.channelCount)} 個頻道`],['目前累計觀看',viewsSummary(r)],['範圍',range]]
   :[['影片',`${count(r.videoCount)} 支`],['目前累計觀看',keywordViewsLabel(r)],['範圍',range],['比對','共同詞彙比對標題與說明']]) as [string,string][]}}));
 }
+/** tag.observe.tw pictures for the masthead cloud, from /keywords/illustrations: only
+ * same-origin picture paths, short emoji and a bounded aspect survive. Anything else,
+ * or an unavailable source, leaves the word as text. */
+export function cloudPictures(data:unknown):Record<string,{image?:string;emoji?:string;aspect?:number}>{
+ const out:Record<string,{image?:string;emoji?:string;aspect?:number}>=Object.create(null);
+ const pictures=(data as {status?:unknown;pictures?:unknown}|null)?.status==='available'?(data as {pictures?:unknown}).pictures:null;
+ if(typeof pictures!=='object'||pictures===null||Array.isArray(pictures))return out;
+ for(const [tag,value] of Object.entries(pictures)){
+  const p=value as {image?:unknown;emoji?:unknown;aspect?:unknown}|null;if(typeof p!=='object'||p===null)continue;
+  const image=typeof p.image==='string'&&/^\/media\/tag-illustrations\/[^/?#]+\/(?:avatar|visual)\/[a-z0-9.-]{1,64}$/.test(p.image)?p.image:undefined;
+  const emoji=!image&&typeof p.emoji==='string'&&p.emoji.length>0&&p.emoji.length<=32&&!/[\p{Cc}\p{Cs}]/u.test(p.emoji)?p.emoji:undefined;
+  const aspect=image&&typeof p.aspect==='number'&&Number.isFinite(p.aspect)&&p.aspect>1?Math.min(4,p.aspect):undefined;
+  if(image||emoji)out[tag]={...(image?{image}:{}),...(emoji?{emoji}:{}),...(aspect?{aspect}:{})};
+ }
+ return out;
+}

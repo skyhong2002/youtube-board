@@ -16,6 +16,11 @@ const config: NextConfig = {
         maximumRedirects: 0, dangerouslyAllowLocalIP: false, dangerouslyAllowSVG: false,
         maximumResponseBody: 2 * 1024 * 1024, maximumDiskCacheSize: 128 * 1024 * 1024,
     },
+    // The three brand candidates were folded into one flat set; already-shared OG
+    // images and installed icons keep resolving to the same file name.
+    async redirects() {
+        return [{ source: "/brand/:kind(family|legacy|original)/:file", destination: "/brand/:file", permanent: true }];
+    },
     async rewrites() {
         return {
             // Internal render targets chosen by the proxy (see INTERNAL_RENDER_HEADER).

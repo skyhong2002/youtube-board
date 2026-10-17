@@ -66,7 +66,7 @@ export default function SiteFooter() {
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-20">
           <div className="space-y-5">
             <Link href="/" aria-label="有影儀表板 首頁" className="inline-block text-zinc-900 dark:text-zinc-100">
-              <Wordmark className="h-9 w-auto" />
+              <Wordmark className="h-11 w-auto" />
             </Link>
             <div className="space-y-1.5">
               <p className="text-base font-medium text-zinc-900 dark:text-zinc-100">看見影片，也看見公共議題。</p>

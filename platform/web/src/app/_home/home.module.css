@@ -325,7 +325,7 @@
 }
 .mastheadCloudCompact, .mastheadCloudMedium { display: none; }
 .mastheadCloudCentre { --u: calc(100cqw / var(--cw)); position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; pointer-events: none; }
-/* The family mark is a light/dark image pair rather than the parent's inline Logo. */
+/* The logo is a light/dark image pair rather than the parent's inline Logo. */
 .mastheadCloudCentre h1 { line-height: 0; display: flex; justify-content: center; }
 .mastheadCloudMark { width: calc(var(--logo) * var(--u)); height: calc(var(--logo) * var(--u)); }
 .mastheadCloudCentre .mastheadTagline { font-size: calc(var(--t) * var(--u)); margin-top: calc(var(--logo) * .03 * var(--u)); white-space: nowrap; }

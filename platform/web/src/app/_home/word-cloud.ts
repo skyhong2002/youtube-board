@@ -4,13 +4,18 @@
  * ellipse matching the canvas) against an occupancy grid, so small terms can
  * still fill the gaps between large ones; a spiral samples too sparsely far
  * from the centre for a few hundred terms.
- * The text-only subset of the parent site's lib/word-cloud.mts, including the
- * masthead's hole/clear boxes; the YouTube homepage weights are keyword heat scores
- * (matched video counts while the API has not published heat).
+ * A subset of the parent site's lib/word-cloud.mts: words and pictures (a sketch or
+ * logo with its name under it), plus the masthead's hole/clear boxes; the YouTube
+ * homepage weights are keyword heat scores (matched video counts while the API has
+ * not published heat).
  */
 export interface CloudTerm {
   label: string;
   count: number;
+  /** Drawn as a square picture (a person's sketch) instead of text. */
+  square?: boolean;
+  /** …or a picture this many times wider than tall (a wordmark logo). */
+  aspect?: number;
 }
 export interface PlacedWord extends CloudTerm {
   x: number;
@@ -27,6 +32,41 @@ const widthOf = (label: string, size: number) =>
   ) *
     size +
   4;
+/** A picture's side, in font sizes: about the area of a three-character name (3 × 1.6). */
+export const SQUARE = 2.2;
+/** The name under a picture, in picture sides: its font size, and the line it takes. */
+export const CAPTION = 0.17;
+/** …but never smaller than this, in viewBox units, so a small face's name stays legible. */
+const CAPTION_MIN = 8.5;
+const CAPTION_LINE = 1.35;
+/** Widest a picture may be drawn, as width ÷ height: a long wordmark is still squeezed this far. */
+const ASPECT_MAX = 4;
+/**
+ * A picture with its name under it. A square (a face) is `side` across; a
+ * wider picture (a wordmark logo) keeps the same area but takes its own
+ * shape, `pictureWidth` × `pictureHeight`, so its letters stay readable
+ * instead of shrinking to a line inside a square. The box widens if the name is longer.
+ */
+export const pictureBox = (label: string, size: number, aspect = 1) => {
+  const side = size * SQUARE;
+  const stretch = Math.sqrt(Math.min(ASPECT_MAX, Math.max(1, aspect)));
+  const pictureWidth = side * stretch;
+  const pictureHeight = side / stretch;
+  const caption = Math.max(side * CAPTION, CAPTION_MIN);
+  return {
+    side,
+    pictureWidth,
+    pictureHeight,
+    caption,
+    width: Math.max(pictureWidth, widthOf(label, caption)),
+    height: pictureHeight + caption * CAPTION_LINE,
+  };
+};
+const boxOf = (term: CloudTerm, size: number): [number, number] => {
+  if (!term.square && !term.aspect) return [widthOf(term.label, size), size * 1.6];
+  const { width, height } = pictureBox(term.label, size, term.aspect);
+  return [width, height];
+};
 /** Font sizes in viewBox units for the rarest and the most frequent term; the spread between them is what a wide cloud buys. */
 export interface CloudSizes {
   min: number;
@@ -59,7 +99,8 @@ export function layoutWordCloud(terms: CloudTerm[], width = 300, height = 230, s
   const unique = new Map<string, CloudTerm>();
   for (const term of terms) {
     const label = term.label.trim();
-    if (label && Number.isFinite(term.count) && term.count > 0 && !unique.has(label)) unique.set(label, { label, count: term.count });
+    if (label && Number.isFinite(term.count) && term.count > 0 && !unique.has(label))
+      unique.set(label, { label, count: term.count, ...(term.square ? { square: true } : {}), ...(term.aspect ? { aspect: term.aspect } : {}) });
   }
   const sorted = [...unique.values()]
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'zh-TW'))
@@ -67,8 +108,8 @@ export function layoutWordCloud(terms: CloudTerm[], width = 300, height = 230, s
   const max = sorted[0]?.count ?? 1;
   const naturalSize = (count: number) => sizes.min + (sizes.max - sizes.min) * (count / max) ** (sizes.curve ?? 0.5);
   const requestedArea = sorted.reduce((sum, term) => {
-    const size = naturalSize(term.count);
-    return sum + widthOf(term.label, size) * size * 1.6;
+    const [w, h] = boxOf(term, naturalSize(term.count));
+    return sum + w * h;
   }, 0);
   const hole = sizes.hole;
   const holeCells = hole?.mask?.join('') ?? '';
@@ -141,8 +182,7 @@ export function layoutWordCloud(terms: CloudTerm[], width = 300, height = 230, s
     const natural = Math.max(floor, Math.round(naturalSize(term.count) * scale));
     for (let fontSize = natural; fontSize >= floor && !done; fontSize--) {
       // CJK ascent/descent can exceed the nominal em box in system fonts.
-      const w = widthOf(term.label, fontSize),
-        h = fontSize * 1.6;
+      const [w, h] = boxOf(term, fontSize);
       if (w > width - 8 || h > height - 8 || failed.some(([fw, fh]) => w >= fw && h >= fh)) continue;
       const fits: Array<[number, number]> = [];
       let until = centres.length;

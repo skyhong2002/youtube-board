@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import {markPreviewClick} from '@/components/NavPending';
 import { useEffect, useLayoutEffect, useRef, useState, useId } from 'react';
+import { pictureBox } from './word-cloud';
 import styles from './WordCloudView.module.css';
 
 // Draws word clouds laid out on the server (WordCloud) and opens a card with a
@@ -21,6 +22,14 @@ export interface CloudWordInfo {
   tone?: CloudTone;
   fontWeight?: number;
   card?: CloudCard;
+  /** Drawn instead of the text: a tag.observe.tw sketch or logo (same-origin path) or an emoji. */
+  picture?: CloudPicture;
+}
+export interface CloudPicture {
+  image?: string;
+  emoji?: string;
+  /** Width ÷ height of a wide picture (a wordmark logo). */
+  aspect?: number;
 }
 export interface PlacedBox {
   label: string;
@@ -42,6 +51,13 @@ const tones: Record<CloudTone, string> = {
   strong: 'fill-zinc-800 dark:fill-zinc-200',
   muted: 'fill-zinc-700 dark:fill-zinc-300',
   stone: 'fill-stone-600 dark:fill-stone-400',
+};
+/** The same colours as `tones`, as `color` for the pictures' flood (feFlood takes currentColor). */
+const inks: Record<CloudTone, string> = {
+  brand: 'text-brand-700 dark:text-brand-400',
+  strong: 'text-zinc-800 dark:text-zinc-200',
+  muted: 'text-zinc-700 dark:text-zinc-300',
+  stone: 'text-stone-600 dark:text-stone-400',
 };
 const badges = {
   brand: 'bg-brand-700 text-white dark:bg-brand-600',
@@ -103,6 +119,10 @@ function Canvas({
     setActive(word);
   };
   const { width, height, words, className } = layout;
+  const filterId = 'ink' + useId().replace(/[^\w-]/g, '');
+  const pictured = words.flatMap((word) => (info[word.label]?.picture?.image ? [info[word.label]] : []));
+  const used = [...new Set(pictured.filter((w) => !sketch(w.picture!)).map((w) => w.tone ?? 'strong'))];
+  const figures = pictured.some((w) => sketch(w.picture!) && (w.tone ?? 'strong') !== 'brand');
   const card = active ? info[active.label]?.card : undefined;
   const pct = (n: number, of: number) => `${(n / of) * 100}%`;
   return (
@@ -116,6 +136,14 @@ function Canvas({
     >
       <svg viewBox={`0 0 ${width} ${height}`} aria-label={label} className="block w-full">
         <title>{title}</title>
+        {(used.length > 0 || figures) && (
+          <defs>
+            {used.map((tone) => (
+              <Ink key={tone} id={`${filterId}-${tone}`} className={inks[tone]} />
+            ))}
+            {figures && <Figure id={`${filterId}-figure`} />}
+          </defs>
+        )}
         {words.map((word) => {
           const w = info[word.label];
           if (!w) return null;
@@ -151,6 +179,9 @@ function Canvas({
               }}
             >
               <rect x={word.x - 1} y={word.y - 1} width={word.width + 2} height={word.height + 2} rx="3" />
+              {w.picture?.image || w.picture?.emoji ? (
+                <Sketch picture={w.picture} word={word} tone={tones[w.tone ?? 'strong']} filter={pictureFilter(w, filterId)} />
+              ) : (
               <text
                 x={word.x + 2}
                 y={word.y + word.fontSize * 1.25}
@@ -162,6 +193,7 @@ function Canvas({
               >
                 {word.label}
               </text>
+              )}
             </Link>
           );
         })}
@@ -209,6 +241,70 @@ function Canvas({
         </div>
       )}
     </div>
+  );
+}
+
+/** A person's sketch: tag.observe.tw's own look, a white figure with strokes on it. */
+const sketch = (picture: CloudPicture) => !!picture.image?.includes('/avatar/');
+/** Red words keep the served layer as it is (YouTube-red strokes on the white figure);
+ *  other sketches get dark strokes on the same white figure; logos take the word's colour. */
+function pictureFilter(w: CloudWordInfo, filterId: string) {
+  const tone = w.tone ?? 'strong';
+  if (!sketch(w.picture!)) return `url(#${filterId}-${tone})`;
+  return tone === 'brand' ? undefined : `url(#${filterId}-figure)`;
+}
+
+/** Keeps the white figure of a sketch and redraws its red strokes dark (see Ink for how
+ *  strokes are read off the green channel), so it reads on light and dark pages alike. */
+function Figure({ id }: { id: string }) {
+  return (
+    <filter id={id} colorInterpolationFilters="sRGB" x="0" y="0" width="1" height="1">
+      <feFlood floodColor="#fff" />
+      <feComposite in2="SourceAlpha" operator="in" result="figure" />
+      <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 -1 0 1 0" result="ink" />
+      <feFlood floodColor="#27272a" />
+      <feComposite in2="ink" operator="in" result="strokes" />
+      <feMerge>
+        <feMergeNode in="figure" />
+        <feMergeNode in="strokes" />
+      </feMerge>
+    </filter>
+  );
+}
+
+/**
+ * Repaints a tag.observe.tw picture in one colour. The served layer has red
+ * strokes on a white figure (logos are red too): ink is how far a pixel is from
+ * white, read off its green channel, so strokes keep their weight and the white
+ * figure drops out. The flood is the word's own colour, red or the text colour.
+ */
+function Ink({ id, className }: { id: string; className: string }) {
+  return (
+    <filter id={id} colorInterpolationFilters="sRGB" x="0" y="0" width="1" height="1">
+      <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 -1 0 1 0" result="ink" />
+      <feFlood className={className} style={{ floodColor: 'currentColor' }} />
+      <feComposite in2="ink" operator="in" />
+    </filter>
+  );
+}
+
+/** A tag's picture with its name under it in small type, both in the word's colour. */
+function Sketch({ picture, word, tone, filter }: { picture: CloudPicture; word: PlacedBox; tone: string; filter?: string }) {
+  const { side, pictureWidth, pictureHeight, caption } = pictureBox(word.label, word.fontSize, picture.aspect);
+  const x = word.x + (word.width - pictureWidth) / 2;
+  return (
+    <>
+      {picture.image ? (
+        <image href={picture.image} x={x} y={word.y} width={pictureWidth} height={pictureHeight} filter={filter} />
+      ) : (
+        <text x={x + side / 2} y={word.y + side * 0.82} fontSize={side * 0.82} textAnchor="middle">
+          {picture.emoji}
+        </text>
+      )}
+      <text x={word.x + word.width / 2} y={word.y + pictureHeight + caption * 1.05} fontSize={caption} fontWeight={600} textAnchor="middle" className={tone}>
+        {word.label}
+      </text>
+    </>
   );
 }
 

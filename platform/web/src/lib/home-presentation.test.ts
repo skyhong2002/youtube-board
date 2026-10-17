@@ -5,7 +5,7 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import type {HomeKeywordSummary} from '../../../api/src/contracts';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
-import {homeCategoryBandState,homeEdition,homeKeywordCloudWords,homeKeywordState,homeKeywordSummary,keywordVideosHref,keywordViewsLabel,visibleHomeKeywords} from './home-presentation';
+import {cloudPictures,homeCategoryBandState,homeEdition,homeKeywordCloudWords,homeKeywordState,homeKeywordSummary,keywordVideosHref,keywordViewsLabel,visibleHomeKeywords} from './home-presentation';
 import {KeywordWindowPane,KeywordWindowProvider,KeywordWindowSwitch} from '../app/_home/KeywordWindow';
 import {KeywordRankingView} from '../components/KeywordRanking';
 import {reportHref} from './report-navigation';
@@ -127,4 +127,18 @@ test('/keywords uses the same pane and switch markers for its table and method n
   assert.doesNotMatch(html,new RegExp(`data-keyword-window-pane="${other}"`));
   assert.match(html,new RegExp(`<div id="keyword-ranking-table"><div class="space-y-3" data-keyword-window-pane="${initial}"><p role="status"`));
  }
+});
+test('cloud pictures keep only same-origin tag pictures, short emoji and bounded aspects',()=>{
+ const pictures=cloudPictures({status:'available',pictures:{
+  沈伯洋:{kind:'avatar',image:'/media/tag-illustrations/%E6%B2%88%E4%BC%AF%E6%B4%8B/avatar/tmqigj-2',emoji:null,aspect:null},
+  台積電:{kind:'logo',image:'/media/tag-illustrations/%E5%8F%B0%E7%A9%8D%E9%9B%BB/visual/tmqtza',emoji:null,aspect:9},
+  颱風:{kind:'emoji',image:null,emoji:'🌀',aspect:null},
+  遠端:{kind:'logo',image:'https://example.com/a.png',emoji:null,aspect:null},
+  __proto__:{kind:'avatar',image:'/media/tag-illustrations/x/avatar/v1',emoji:null,aspect:null},
+ }});
+ assert.deepEqual(Object.keys(pictures).sort(),['台積電','沈伯洋','颱風'].sort());
+ assert.equal(pictures['台積電']!.aspect,4);assert.equal(pictures['沈伯洋']!.aspect,undefined);assert.equal(pictures['颱風']!.emoji,'🌀');
+ assert.equal(Object.getPrototypeOf(pictures),null);
+ assert.deepEqual(Object.keys(cloudPictures({status:'unavailable',pictures:{a:{image:'/media/tag-illustrations/a/avatar/v'}}})),[]);
+ assert.deepEqual(Object.keys(cloudPictures(null)),[]);
 });
