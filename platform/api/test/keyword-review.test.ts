@@ -10,8 +10,9 @@ const evidence:Evidence={...base,sha256:hash(base)};
 const raw={requestId,id,action:'submit',reason:'保留原始詞，排除泛用排行',vocabularyVersion:'v1',termKey:'a'.repeat(64),ruleVersion:'youtube-quality-v2',context:'youtube-ranking-display',decision:'exclude'};
 const command=()=>parseCommand(raw);
 function memory(){let records=new Map<string,Review>(),requests=new Map<string,SavedRequest>();const audit:unknown[]=[];let source:Evidence|null=evidence,failAudit=false,ready=true,transactions=0;
- const tx:ReviewTransaction={get:async id=>records.get(id)??null,evidence:async()=>source,request:async id=>requests.get(id)??null,save:async(plan,inputHash)=>{records.set(plan.after.id,structuredClone(plan.after));if(failAudit)throw Error('audit failure');audit.push(structuredClone(plan));const result={review:structuredClone(plan.after),requestId:plan.command.requestId,applied:false as const,applicationStatus:'not-applied' as const,replayed:false};requests.set(plan.command.requestId,{actor:plan.actor,inputHash,result});return result;}};
- const repo:ReviewRepository={ready:async()=>ready,list:async(page)=>({rows:[...records.values()],page,limit:50,hasMore:false}),detail:async id=>records.has(id)?{review:records.get(id)!,audit}:null,read:fn=>fn(tx),transaction:async fn=>{transactions++;const before=structuredClone(records),previous=structuredClone(requests),n=audit.length;try{return await fn(tx);}catch(e){records=before;requests=previous;audit.length=n;throw e;}}};
+ const effective=(termKey:string)=>[...records.values()].filter(r=>r.evidence.termKey===termKey&&r.context==='youtube-ranking-display'&&r.status==='approved').at(-1)??null;
+ const tx:ReviewTransaction={get:async id=>records.get(id)??null,evidence:async c=>source&&c.termKey&&source.termKey!==c.termKey?{...source,termKey:c.termKey,rawTerm:'term:'+c.termKey.slice(0,6),sha256:hash({...source,termKey:c.termKey})}:source,serving:async()=>'v1',effective:async k=>effective(k),request:async id=>requests.get(id)??null,save:async(plan,inputHash)=>{records.set(plan.after.id,structuredClone(plan.after));if(failAudit)throw Error('audit failure');audit.push(structuredClone(plan));const result={review:structuredClone(plan.after),requestId:plan.command.requestId,applied:false as const,applicationStatus:'not-applied' as const,replayed:false};requests.set(plan.command.requestId,{actor:plan.actor,inputHash,result});return result;}};
+ const repo:ReviewRepository={ready:async()=>ready,rankingDisplay:async()=>[...new Set([...records.values()].map(r=>r.evidence.termKey))].map(effective).filter((r):r is Review=>r?.decision==='exclude').map(r=>({termKey:r.evidence.termKey,term:r.evidence.rawTerm,reviewId:r.id,vocabularyVersion:r.evidence.vocabularyVersion,decidedBy:r.submittedBy,decidedAt:r.updatedAt,reason:r.reason})),list:async(page)=>({rows:[...records.values()],page,limit:50,hasMore:false}),detail:async id=>records.has(id)?{review:records.get(id)!,audit}:null,read:fn=>fn(tx),transaction:async fn=>{transactions++;const before=structuredClone(records),previous=structuredClone(requests),n=audit.length;try{return await fn(tx);}catch(e){records=before;requests=previous;audit.length=n;throw e;}}};
  return {repo,audit,records:()=>records,setSource:(v:Evidence|null)=>{source=v;},failAudit:()=>{failAudit=true;},setReady:(v:boolean)=>{ready=v;},transactions:()=>transactions};
 }
 describe('keyword review domain and atomic service',()=>{
@@ -51,3 +52,28 @@ it('integrates the actual admin session guard: reader/anonymous/bearer denied; O
 });
 
 it('rejects array/object enum coercion for every command discriminant',()=>{for(const field of ['action','ruleVersion','context','decision'] as const){for(const invalid of [[raw[field]],{value:raw[field]},null,42])expect(()=>parseCommand({...raw,[field]:invalid})).toThrow(ReviewError);}expect(()=>parseCommand({id,requestId,action:['approve'],reason:'reason',expectedRevision:1})).toThrow(ReviewError);});
+
+describe('one-click ranking display decisions',()=>{
+ const url='/api/ops/keyword-reviews/ranking-display',rid=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
+ it('submits and approves every label in one transaction, then restores, and only changes invalidate caches',async()=>{
+  const m=memory(),env={TS_KEYWORD_REVIEW_ENABLED:'true',TS_KEYWORD_REVIEW_WRITE_ENABLED:'true'},app=Fastify();let changed=0;
+  await registerKeywordReviewOps(app,{auth:mockAuth(),env,keywordReviewRepository:m.repo,clock:()=>new Date(at),onRankingDisplayChanged:()=>{changed++;}});
+  try{
+   expect((await app.inject({method:'POST',url,headers:{'x-mock-role':'admin'},payload:{requestId:rid(10),terms:['OpenAI'],decision:'exclude'}})).statusCode).toBe(403);
+   const first=await app.inject({method:'POST',url,headers,payload:{requestId:rid(10),terms:['OpenAI','openai'],decision:'exclude'}});
+   expect(first.statusCode).toBe(200);expect(first.json()).toMatchObject({changed:true,results:[{term:'OpenAI',status:'decided',review:{status:'approved',decision:'exclude',context:'youtube-ranking-display',reason:'管理員從排行一鍵排除'}},{term:'openai',status:'decided'}]});
+   expect(m.audit).toHaveLength(4);expect(m.transactions()).toBe(1);expect(changed).toBe(1);
+   expect((await app.inject({method:'POST',url,headers,payload:{requestId:rid(10),terms:['OpenAI','openai'],decision:'exclude'}})).json().results.map((r:{status:string})=>r.status)).toEqual(['replayed','replayed']);
+   expect((await app.inject({method:'POST',url,headers,payload:{requestId:rid(11),terms:['OpenAI'],decision:'exclude'}})).json()).toMatchObject({changed:false,results:[{status:'unchanged'}]});expect(changed).toBe(1);
+   const list=await app.inject({url,headers});expect(list.json().rows).toHaveLength(2);expect(list.headers['cache-control']).toBe('private, no-store');
+   expect((await app.inject({method:'POST',url,headers,payload:{requestId:rid(12),terms:['OpenAI'],decision:'keep',reason:'誤按'}})).json()).toMatchObject({changed:true,results:[{status:'decided',review:{decision:'keep',reason:'誤按'}}]});
+   expect((await app.inject({url,headers})).json().rows).toHaveLength(1);expect(changed).toBe(2);
+   expect((await app.inject({method:'POST',url,headers,payload:{requestId:rid(13),terms:['未排除'],decision:'keep'}})).json().error.code).toBe('NOTHING_TO_RESTORE');
+   for(const payload of [{requestId:rid(14),terms:[],decision:'exclude'},{requestId:rid(14),terms:[' x'],decision:'exclude'},{requestId:rid(14),terms:['a','a'],decision:'exclude'},{requestId:rid(14),terms:['a'],decision:'delete'},{requestId:'x',terms:['a'],decision:'exclude'},{requestId:rid(14),terms:['a'],decision:'exclude',actor:'user:9'}])
+    expect((await app.inject({method:'POST',url,headers,payload})).json().error.code).toBe('INVALID_RANKING_DECISION');
+   m.setSource(null);expect((await app.inject({method:'POST',url,headers,payload:{requestId:rid(15),terms:['新詞'],decision:'exclude'}})).json().error.code).toBe('TERM_NOT_IN_VOCABULARY');
+   env.TS_KEYWORD_REVIEW_WRITE_ENABLED='false';expect((await app.inject({method:'POST',url,headers,payload:{requestId:rid(16),terms:['x'],decision:'exclude'}})).json().error.code).toBe('KEYWORD_REVIEW_WRITE_DISABLED');
+   expect((await app.inject({url:'/api/ops/keyword-reviews/status',headers})).json()).toMatchObject({rankingOverlayEnabled:true,phase:'ranking-display-applied'});
+  }finally{await app.close();}
+ });
+});

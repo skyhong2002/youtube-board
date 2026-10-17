@@ -32,7 +32,7 @@ export function planReview(command:Command,before:Review|null,evidence:Evidence|
   if(before.status!=='pending')return fail('REVIEW_ALREADY_DECIDED',409);
   after={...before,revision:before.revision+1,status:command.action==='approve'?'approved':'rejected',updatedAt:at};
  }
- const warnings=['覆核只記錄提案與決策，尚未套用排行或文字比對；原始詞彙與命中證據保留。'];
+ const warnings=[after.context==='youtube-ranking-display'?'排行顯示決定核准後套用到熱門標籤排行，同一詞以最新一筆已核准決定為準；原始詞彙與命中證據保留。':'文字比對決定只記錄提案與決策，尚未套用到比對；原始詞彙與命中證據保留。'];
  // Clock is execution metadata, not a mutable preview identity.
  const canonicalState=(r:Review|null)=>r?{...r,createdAt:undefined,updatedAt:undefined}:null;
  const previewHash=hash({command,before:canonicalState(before),after:canonicalState(after),actor,warnings});

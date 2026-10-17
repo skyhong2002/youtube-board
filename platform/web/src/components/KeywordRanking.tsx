@@ -1,5 +1,6 @@
 import type {ReactNode} from 'react';
 import Link from 'next/link';
+import KeywordExcludeButton from './admin/KeywordExcludeButton';
 import type {HomeExploration,ReportMeta} from '../../../api/src/contracts';
 import {count,dateTime} from '@/lib/format';
 import {table} from '@/lib/table-styles';
@@ -92,6 +93,7 @@ export function KeywordRankingTable({rows,summary,window,basis,priority=false}:{
         <Link href={keywordVideosHref(row.term,summary)} className="inline-flex min-w-0 max-w-full items-center gap-1 font-medium text-brand-700 hover:underline dark:text-brand-400" title={row.term}><span className="min-w-0 max-w-full whitespace-normal [overflow-wrap:anywhere] sm:truncate sm:whitespace-nowrap">{row.term}</span><LinkPending/></Link>
        </div>
        {aliases.length>1&&<span className={`${table.leadExtra} text-xs text-zinc-500`} title={`合併寫法：${aliases.map(a=>a.term).join('、')}`}>{aliases.length} 種寫法</span>}
+       <KeywordExcludeButton terms={aliases.length?aliases.map(a=>a.term):[row.term]} label={row.term} compact/>
       </div>
      </td>
      <td className={`${table.num} ${heat?'font-medium':'text-xs text-zinc-400'}`}>{heat?heatLabel(row):INSUFFICIENT}</td>

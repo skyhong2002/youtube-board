@@ -8,6 +8,7 @@ import type {HomeExploration,HomeKeywordSummary,TagRow} from '../contracts.js';
 import {integer,tagIds,text,object,taipeiDate,taipeiSql,timestamp,timestampWindow,latest} from './normalize.js';
 import {vocabularySourceQuality} from './vocabulary-quality.js';
 import {videoTextDigest} from './video-digest.js';
+import {rankingDisplayExclusions} from './keyword-overlay.js';
 import {MATCH_RULE,matchingRuleForSnapshot} from '../../../shared/youtube-match-policy.js';
 import {HomeSectionUnavailable,measuredCount,keywordDisplayMap,rankKeywordWindows,KEYWORD_RANKING_METHOD,KEYWORD_RISE_METHOD,KEYWORD_COMPARISON_MIN_COVERAGE,coverageSufficient} from './home-keyword-ranking.js';
 /** Seven-day evidence scans run in a background keyword refresh (see keywordWindowCache),
@@ -86,11 +87,12 @@ export async function homeExploration(reader:Reader,now:Date,diagnostic?:HomeDia
   // This bounded labels-only scan applies the exact case-sensitive upstream
   // exclusions BEFORE LOWER display merging, and preserves all source keys.
   keywordStage='term-labels';
+  const adminExcluded=await rankingDisplayExclusions(reader);
   const terms=await reader.rows(sql`SELECT DISTINCT e.term_key,e.term
    FROM (${freshSources}) fv STRAIGHT_JOIN ts_video_tag_evidence e FORCE INDEX(PRIMARY) ON e.video_id=CONVERT(fv.video_id USING ascii) AND e.vocabulary_version=${version} AND BINARY e.video_id=BINARY fv.video_id
    WHERE BINARY e.rule_version=BINARY ${rule} LIMIT 25001`,KEYWORD_QUERY);
   if(terms.length>25000||Buffer.byteLength(JSON.stringify(terms))>8*1024*1024)throw new HomeSectionUnavailable('source-cap');
-  const allEligible=cohorts?new Set([...cohorts.week,...cohorts.today]):undefined,display=keywordDisplayMap(terms,allEligible),exclude=!cohorts&&display.excluded.length?sql`AND e.term_key NOT IN (${sql.join(display.excluded.map(k=>sql`${k}`),sql`,`)})`:sql``;
+  const allEligible=cohorts?new Set([...cohorts.week,...cohorts.today]):undefined,display=keywordDisplayMap(terms,allEligible,adminExcluded),exclude=!cohorts&&display.excluded.length?sql`AND e.term_key NOT IN (${sql.join(display.excluded.map(k=>sql`${k}`),sql`,`)})`:sql``;
   const eligibleKeys=cohorts?Object.fromEntries((['week','today'] as const).map(period=>[period,[...display.groups.values()].flatMap(g=>g.sourceTerms.filter(t=>cohorts[period].has(t.term)).map(t=>t.key))])) as Record<'week'|'today',string[]>:undefined;
   const priorWeek=windows[2]!,priorToday=windows[3]!;
   // Group on narrow ASCII identity; only genuine display aliases need mapping.
@@ -160,7 +162,7 @@ export async function homeExploration(reader:Reader,now:Date,diagnostic?:HomeDia
   if(text(stillCurrent?.run_id)!==version){keywordDiagnosticReason='version-changed';throw new HomeSectionUnavailable('source-cap');}
   const summary=(window:'week'|'today'):HomeKeywordSummary=>{
    const matchedAt=counts.get(window)?.latest_match,prior=windows.find(w=>w.key==='prior-'+window)!;
-   return {...base,from:window==='today'?todayBase.from:base.from,status:'synchronized',rows:ranking[window],exclusions:cohorts?keywordDisplayMap(terms,cohorts[window]).exclusions:display.exclusions,...(pools?{rankingPool:{status:'available' as const,provenance:pools[window].provenance,comparisonBasis:'current-eligible-terms' as const}}:{}),
+   return {...base,from:window==='today'?todayBase.from:base.from,status:'synchronized',rows:ranking[window],exclusions:cohorts?keywordDisplayMap(terms,cohorts[window],adminExcluded).exclusions:display.exclusions,...(pools?{rankingPool:{status:'available' as const,provenance:pools[window].provenance,comparisonBasis:'current-eligible-terms' as const}}:{}),
     comparison:{from:timestamp(prior.from)!,to:timestamp(prior.to)!,complete:comparable[window],minCoverage:KEYWORD_COMPARISON_MIN_COVERAGE,...coverageFor(prior.key)},
     updatedAt:matchedAt!==null&&matchedAt!==undefined&&Number.isFinite(Number(matchedAt))?new Date(Number(matchedAt)).toISOString():null,...coverageFor(window)};
   };

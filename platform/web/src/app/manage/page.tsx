@@ -3,7 +3,7 @@ export const dynamic='force-dynamic';
 export const metadata={title:'管理後台',robots:{index:false,follow:false}};
 const links=[
  ['/manage/editorial','事件與頻道審核','預覽並執行事件、來源與頻道提名異動。'],
- ['/manage/keywords','關鍵字覆核','記錄關鍵字保留／排除提案與決定；尚未套用排行或文字比對。'],
+ ['/manage/keywords','關鍵字覆核','排除或恢復熱門標籤排行中的關鍵字，並查看覆核紀錄。'],
  ['/manage/users','管理角色','檢視帳號並調整管理員角色。'],
 ] as const;
 export default function Page(){

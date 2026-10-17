@@ -13,7 +13,7 @@ function reader(overrides:Partial<Record<Stage,()=>Row[]>>={}):Reader {
   const sql=dialect.sqlToQuery(query).sql;
   const stage=sql.includes('FROM urt_count')?'categories':sql.includes('AS source_meta')?'versions':sql.includes('1 AS source_videos')?'sources':sql.includes('SELECT DISTINCT e.term_key')?'labels':sql.includes('SELECT c.run_id')?'current':null;
   if(stage)return (overrides[stage]?.()??(stage==='versions'?[version]:stage==='current'?[{run_id:'v1'}]:[])) as never;
-  if(sql.includes('FROM urt_tag'))return [];
+  if(sql.includes('FROM urt_tag')||sql.includes('FROM ts_keyword_reviews'))return [];
   throw new Error('Unexpected mocked query');
  }};
 }

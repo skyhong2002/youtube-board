@@ -30,7 +30,7 @@ app.addHook('onRequest', async (request, reply) => {
 });
 app.addHook('onResponse', async request => { active.delete(request.id); });
 app.addHook('onRequestAbort', async request => { active.delete(request.id); });
-await registerOps(app,{auth});
+await registerOps(app,{auth,onRankingDisplayChanged:()=>app.keywordRankingChanged()});
 const uiOrigin = process.env.UI_ORIGIN ?? 'http://127.0.0.1:3100';
 const assets=await publicScriptManifest(fileURLToPath(new URL('../web/.next/standalone/web/.next/static/',import.meta.url)));
 const unavailable=await loadUnavailableAssets(new URL('../web/.next/standalone/web/public/errors/',import.meta.url));

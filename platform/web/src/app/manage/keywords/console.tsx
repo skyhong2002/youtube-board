@@ -4,6 +4,7 @@ import {loginHref,refreshSession,useSessionState} from '@/lib/session';
 import {commandId} from '@/lib/account-client';
 import type {AccountSession} from '../../../../../shared/account-contracts';
 import {DECISIONS,MAX_REASON,REVIEW_CONTEXTS,RULE_VERSIONS,VOCABULARY_QUERY_MAX,KeywordReviewError,applyVocabularyChoice,buildDecideCommand,buildSubmitCommand,contextLabels,decisionLabels,executeReviewCommand,fetchReviewDetail,fetchReviewList,fetchReviewStatus,keywordReviewMessage,lookupVocabulary,needsRepreview,previewReviewCommand,reasonProblem,submitInputProblem,vocabularyQuery,type KeywordReview,type ReviewCommand,type ReviewDetail,type ReviewExecution,type ReviewPreview,type ReviewStatusInfo,type SubmitInput,type VocabularyChoice} from '@/lib/keyword-review-client';
+import RankingExclusions from './ranking-exclusions';
 import {ExecutionView,GateNotice,GateSummary,NotAppliedBadge,PreviewView,ReviewDetailView,ReviewTable,SelectedVocabulary,VocabularyResults,styles,type GateState,type VocabularySearchState} from './review-details';
 
 const NEXT='/manage/keywords';
@@ -21,6 +22,7 @@ export default function KeywordReviewAccess(){
   <NotAppliedBadge/>
   {gate||!session?.user?<GateNotice state={gate??{kind:'loading'}} action={retry}/>:<>
    <p className={styles.note}>操作帳號：{session.user.name??session.user.email}（{session.user.email}）· Google 管理員</p>
+   <RankingExclusions key={'exclusions:'+session.user.id+':'+(session.csrfToken??'')} session={session}/>
    <KeywordReviewConsole key={session.user.id+':'+(session.csrfToken??'')} session={session}/>
   </>}
  </div>;

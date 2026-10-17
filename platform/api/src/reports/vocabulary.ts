@@ -7,9 +7,12 @@ import type { VocabularyData, VocabularyTerm, VideoTagEvidenceData } from '../co
 import { object, list, text, integer, timestamp, timestampWindow } from './normalize.js';
 import { page, NotFound, search, type Query } from './query.js';
 import { vocabularySourceQuality } from './vocabulary-quality.js';
+import {ADMIN_RANKING_EXCLUSION,rankingDisplayExclusions} from './keyword-overlay.js';
 const source = 'https://tag.observe.tw' as const;
 export async function vocabulary(reader: Reader, query: Query = {},poolClient?:RankedPoolClient,now=new Date()): Promise<VocabularyData> {
-    const annotate=async(data:VocabularyData):Promise<VocabularyData>=>{
+    const annotate=async(raw:VocabularyData):Promise<VocabularyData>=>{
+        // Administrator ranking decisions are read last, after the vocabulary page itself.
+        const adminExcluded=await rankingDisplayExclusions(reader),data={...raw,rows:raw.rows.map(row=>({...row,displayExclusion:row.displayExclusion??(adminExcluded.has(row.key)?ADMIN_RANKING_EXCLUSION:null)}))};
         if(!poolClient)return data;
         const windows=rankingPoolWindows(now),sets:Partial<Record<'today'|'week',Set<string>>>={};
         for(const period of ['today','week'] as const){try{sets[period]=new Set((await poolClient.load(windows[period])).entries.map(e=>e.tag));}catch{/* unavailable is explicit per window; raw rows remain intact */}}

@@ -18,3 +18,10 @@ it('returns independent copies so request-time enrichment cannot leak into the c
  const first=await cache(async()=>({rows:[{name:'a'}]}));first.rows[0]!.name='changed';
  expect(await cache(async()=>({rows:[]}))).toEqual({rows:[{name:'a'}]});
 });
+it('invalidate drops the saved result and ignores a refresh that started before it',async()=>{
+ let release:(v:{v:number})=>void=()=>{};const cache=keywordWindowCache<{v:number}>(()=>true,{freshMs:10,now:()=>clock});let clock=0;
+ await cache(async()=>({v:1}));clock=20;
+ expect(await cache(()=>new Promise(r=>{release=r;}))).toEqual({v:1});
+ cache.invalidate();release({v:2});await new Promise(r=>setTimeout(r,0));
+ expect(await cache(async()=>({v:3}))).toEqual({v:3});
+});

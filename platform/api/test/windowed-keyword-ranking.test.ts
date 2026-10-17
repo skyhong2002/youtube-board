@@ -20,6 +20,7 @@ function reader(){const queries:{sql:string;params:unknown[]}[]=[],dialect=new M
  if(q.sql.includes('AS heat_score'))return ['today','week'].map(window_key=>({window_key,g:'a',n:1,t:1,m:1,v:10,channel_count:1,heat_score:3,representative_pk:1})) as never;
  if(q.sql.includes('SELECT c.run_id'))return [{run_id:'fixture-v1'}] as never;
  if(q.sql.includes('SELECT r.id,r.snapshot'))return [{id:'fixture-v1',snapshot:{terms:[{key:'a',term:'OpenAI',articleCount:3,media:[]},{key:'g',term:'表示',articleCount:99,media:[]},{key:'y',term:'Yahoo',articleCount:99,media:[]}]}}] as never;
+ if(q.sql.includes('FROM ts_keyword_reviews'))return [];
  if(q.sql.includes('FROM urt_count')||q.sql.includes('FROM urt_tag')||q.sql.includes('FROM urt_video v WHERE v.pk')||q.sql.includes('DATE(matched.publishedAt)'))return [];
  throw Error('Unexpected query: '+q.sql.slice(0,100));
  }};return {data,queries};}

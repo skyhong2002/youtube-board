@@ -5,7 +5,8 @@ import type {AccountSession} from '../../../shared/account-contracts';
  * Local wire contracts only: never import the backend runtime into the client bundle.
  * Every result is a review record; nothing here applies ranking or text matching.
  */
-export const NOT_APPLIED_NOTICE='尚未套用排行或文字比對';
+/** Ranking-display approvals feed the ranking overlay; text-matching decisions stay records only. */
+export const NOT_APPLIED_NOTICE='排行顯示的已核准決定會套用到熱門標籤排行；文字比對決定只記錄，尚未套用';
 export const REVIEW_CONTEXTS=['youtube-ranking-display','youtube-text-matching'] as const;
 export const RULE_VERSIONS=['exact-text-v1','youtube-quality-v2'] as const;
 export const DECISIONS=['keep','exclude'] as const;
@@ -18,7 +19,7 @@ export type ReviewStatus=typeof REVIEW_STATUSES[number];
 export type AuditAction=typeof AUDIT_ACTIONS[number];
 export const contextLabels:Record<ReviewContext,string>={'youtube-ranking-display':'YouTube 排行顯示','youtube-text-matching':'YouTube 文字比對'};
 export const decisionLabels:Record<Decision,string>={keep:'提案保留',exclude:'提案排除'};
-export const statusLabels:Record<ReviewStatus,string>={pending:'待覆核',approved:'已核准（僅記錄）',rejected:'已駁回'};
+export const statusLabels:Record<ReviewStatus,string>={pending:'待覆核',approved:'已核准',rejected:'已駁回'};
 export const actionLabels:Record<AuditAction,string>={submit:'提出提案',approve:'核准',reject:'駁回'};
 export const REVIEW_LIMIT=50,AUDIT_LIMIT=100,MAX_REASON=2000,MAX_PAGE=1000;
 const BASE='/api/ops/keyword-reviews';
@@ -82,6 +83,9 @@ export const keywordReviewMessages:Record<string,string>={
  VOCABULARY_MALFORMED:'詞彙 API 回應格式無法驗證，已停止顯示以免誤選。',
  NETWORK_ERROR:'無法連線至覆核服務，請稍後重試。',
  ABORTED:'請求已取消。',
+ INVALID_RANKING_DECISION:'排行決定的內容不正確（詞彙或理由格式）。',
+ TERM_NOT_IN_VOCABULARY:'目前詞彙版本找不到這個詞，無法排除。',
+ NOTHING_TO_RESTORE:'這個詞目前沒有被管理員排除。',
 };
 const GENERIC='覆核操作暫時無法完成，請稍後重試。';
 export class KeywordReviewError extends Error{
@@ -93,6 +97,7 @@ export const keywordReviewMessage=(error:unknown)=>error instanceof KeywordRevie
 export function isKeywordReviewEndpoint(target:string,method:string):boolean{
  if(typeof target!=='string'||target.length>300||!target.startsWith(BASE))return false;
  const [path,query,...rest]=target.split('?');if(rest.length)return false;
+ if(path===BASE+'/ranking-display')return query===undefined&&(method==='POST'||method==='GET');
  if(method==='POST')return query===undefined&&(path===BASE+'/preview'||path===BASE+'/execute');
  if(method!=='GET')return false;
  if(path===BASE+'/status'||UUID.test(path.slice(BASE.length+1))&&path===BASE+'/'+path.slice(BASE.length+1))return query===undefined;
@@ -222,6 +227,27 @@ export async function executeReviewCommand(preview:Pick<ReviewPreview,'command'|
  validateCommand(preview.command);if(!HASH.test(preview.previewHash))throw new KeywordReviewError('PREVIEW_REQUIRED');
  const value=await keywordReviewFetch(BASE+'/execute','POST',{...o,session,uncertainOnFailure:true,body:{command:preview.command,previewHash:preview.previewHash,execute:true}});
  try{return parseExecution(value,preview.command);}catch(e){if(e instanceof KeywordReviewError)throw new KeywordReviewError(e.code,200,true);throw e;}
+}
+
+// ---------- one-click ranking display decisions ----------
+export interface RankingDisplayEntry {termKey:string;term:string;reviewId:string;vocabularyVersion:string;decidedBy:string;decidedAt:string;reason:string}
+export interface RankingDecisionResult {decision:Decision;changed:boolean;results:{term:string;status:'decided'|'unchanged'|'replayed'}[]}
+export function parseRankingDisplay(v:unknown):RankingDisplayEntry[]{
+ if(!isObject(v)||!Array.isArray(v.rows)||v.rows.length>20000)return malformed();
+ return v.rows.map(r=>{if(!isObject(r)||!TERM_KEY.test(String(r.termKey))||!UUID.test(String(r.reviewId)))malformed();const row=r as Record<string,unknown>;
+  return {termKey:str(row.termKey,64),term:str(row.term,240),reviewId:str(row.reviewId,36),vocabularyVersion:str(row.vocabularyVersion,100),decidedBy:str(row.decidedBy,100),decidedAt:str(row.decidedAt,40),reason:str(row.reason,MAX_REASON)};});
+}
+export function parseRankingDecision(v:unknown,terms:string[]):RankingDecisionResult{
+ if(!isObject(v)||!Array.isArray(v.results)||v.results.length!==terms.length)return malformed();
+ const results=v.results.map((r,i)=>{if(!isObject(r)||r.term!==terms[i])malformed();return {term:terms[i]!,status:oneOf((r as Record<string,unknown>).status,['decided','unchanged','replayed'] as const)};});
+ return {decision:oneOf(v.decision,DECISIONS),changed:bool(v.changed),results};
+}
+export const fetchRankingDisplay=async(o:Call={})=>parseRankingDisplay(await keywordReviewFetch(BASE+'/ranking-display','GET',o));
+/** Submit+approve in one server transaction for every exact label of a ranking row. */
+export async function decideRankingDisplay(terms:string[],decision:Decision,session:AccountSession|null,reason='',o:Call&{newId?:()=>string}={}){
+ if(!terms.length||terms.length>20||reasonProblem(reason||'x'))throw new KeywordReviewError('INVALID_RANKING_DECISION');
+ const body={requestId:(o.newId??(()=>crypto.randomUUID()))(),terms,decision,...(reason.trim()?{reason:reason.trim()}:{})};
+ return parseRankingDecision(await keywordReviewFetch(BASE+'/ranking-display','POST',{...o,session,uncertainOnFailure:true,body}),terms);
 }
 
 // ---------- public read-only vocabulary lookup (separate from the restricted ops helper) ----------

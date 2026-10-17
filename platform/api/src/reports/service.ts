@@ -18,6 +18,7 @@ import { CHANNEL_SORTS, type ChannelRankingScope, type ChannelSort } from '../..
 import { optionalChannelAi } from './channel-ai.js';
 import { homeExploration, type KeywordWindows } from './home-exploration.js';
 import { keywordWindowCache } from './home-keyword-cache.js';
+import { rankingDisplayExclusions } from './keyword-overlay.js';
 import { sql, type SQL } from 'drizzle-orm';
 import { DataQueryFailed, DataSourceUnavailable, type Reader, type Row } from '../db/client.js';
 import type { ChannelData, ChannelRow, ChannelCollection, Collection, HomeData, LiveRow, TagRow, VideoData, VideoRow, VideoCollection, AiDaysData, AiEventData } from '../contracts.js';
@@ -37,12 +38,13 @@ export interface ReportService {
     aiDays(query?: Query): Promise<AiDaysData>;
     aiEvent(id: number, event?: string): Promise<AiEventData>;
     home(query?: Query): Promise<HomeData>;
+    invalidateKeywordRanking(): void;
 }
 const channelSelect = sql `c.u_id,c.youtube_id,c.title,c.thumbnails,c.description,c.publishedAt,c.mtime,c.stime,c.ctime,
   CASE WHEN n.u_id IS NULL THEN c.viewCount ELSE n.viewCount END AS viewCount,CASE WHEN n.u_id IS NULL THEN c.subscriberCount ELSE n.subscriberCount END AS subscriberCount,
   CASE WHEN n.u_id IS NULL THEN c.videoCount ELSE n.videoCount END AS videoCount,n.view_week,n.view_month,n.sub_week,n.sub_month,n.video_week,n.video_month,n.views_pred_week,n.views_pred_month,n.tags,n.mtime AS count_mtime`;
 export function reports(reader: Reader, clock: () => Date = () => new Date(), diagnostic?:HomeDiagnosticCallback,rankingPools?:RankedPoolClient): ReportService {
-    const cachedHome=homeResultCache(),cachedKeywordWindows=keywordWindowCache<KeywordWindows>(value=>value.keywords.status==='synchronized'&&value.keywordToday.status==='synchronized');
+    let cachedHome=homeResultCache();const cachedKeywordWindows=keywordWindowCache<KeywordWindows>(value=>value.keywords.status==='synchronized'&&value.keywordToday.status==='synchronized');
     const cachedKeywordVideos=keywordVideoCache<VideoCollection>({cacheable:(value,query)=>query.cursor===undefined&&value.totalStatus!=='unavailable'&&value.evidenceCoverage?.coverageStatus!=='unavailable'});
     const names = async () => new Map((await reader.rows(sql `SELECT tag_id,tag_name FROM urt_tag ORDER BY tag_id`)).map(r => [integer(r.tag_id) ?? 0, text(r.tag_name)]));
     const channelWhere = (query: Query): SQL => {
@@ -116,7 +118,8 @@ export function reports(reader: Reader, clock: () => Date = () => new Date(), di
         if(qualifiedEvidence){
             if(!rankingPools)throw new DataSourceUnavailable();
             let qualified:Set<string>;try{qualified=new Set((await rankingPools.load(exactWindow!)).entries.map(e=>e.tag));}catch{throw new DataSourceUnavailable();}
-            identities=identities.filter(identity=>qualified.has(identity.term)&&!tagDisplayExclusion(identity.term));
+            const adminExcluded=await rankingDisplayExclusions(reader);
+            identities=identities.filter(identity=>qualified.has(identity.term)&&!tagDisplayExclusion(identity.term)&&!adminExcluded.has(identity.key));
         }
         const evidence = sql `EXISTS(SELECT 1 FROM ts_video_tag_evidence e WHERE e.video_id=m.video_id AND BINARY e.video_id=BINARY m.video_id AND e.vocabulary_version=${version} AND e.rule_version=${rule} AND ${keywordIdentityPredicate(identities)})`;
         const where = sql `${scope} ${keyword ? sql `AND EXISTS(SELECT 1 FROM ts_video_tag_matches m WHERE m.video_id=CONVERT(v.videoId USING ascii) AND BINARY m.video_id=BINARY v.videoId AND m.vocabulary_version=${version} AND ${fresh} AND ${evidence}) AND ${latestKeywordVideo()}` : sql ``}`;
@@ -248,6 +251,8 @@ export function reports(reader: Reader, clock: () => Date = () => new Date(), di
             return { video: video(r), commentSummary:summarizeVideoComments(comments[0]), durationSeconds: integer(durations[0]?.duration), captionAvailable: caption == null ? null : caption === 'true' || caption === '1', history: [...history.values()].sort((a, b) => a.date.localeCompare(b.date)), liveHistory: [...liveHistory.values()].sort((a, b) => a.time.localeCompare(b.time)) };
         },
         aiEvent: (id,event)=>eventReport(reader,aiDays,id,event),
+        /** After an administrator ranking decision: the next home read recomputes keywords. */
+        invalidateKeywordRanking(){cachedKeywordWindows.invalidate();cachedHome=homeResultCache();},
         home: () => cachedHome(async () => {
             const [channels, tags, live, days, exploration, totals] = await Promise.all([channelsRows({ limit: '12' }), tagRows({ limit: '20' }).then(v => ({rows:v.rows,status:'available' as const})).catch(error => {if(error?.statusCode===422)return {rows:[],status:'bounded' as const};throw error;}), liveRows({ limit: '20' }), aiDays(), homeExploration(reader, clock(), diagnostic,rankingPools,cachedKeywordWindows), reader.rows(sql `SELECT (SELECT COUNT(*) FROM urt_channel WHERE flag_del IS NULL OR flag_del<1) AS channels,(SELECT COUNT(*) FROM urt_video) AS videos,(SELECT COALESCE(SUM(view_week),0) FROM urt_count) AS weeklyViews,(SELECT COUNT(DISTINCT u_id) FROM urt_video_live WHERE actualEndTime IS NULL AND concurrentViewers>0 AND mtime>=${taipeiSql(new Date(clock().getTime() - 3600000))}) AS liveChannels,(SELECT COALESCE(SUM(concurrentViewers),0) FROM urt_video_live WHERE actualEndTime IS NULL AND concurrentViewers>0 AND mtime>=${taipeiSql(new Date(clock().getTime() - 3600000))}) AS liveViewers`)]);
             const t = totals[0] ?? {};

@@ -90,9 +90,10 @@ export const TAG_DISPLAY_EXCLUSION_LABELS:Record<string,string>={
  'upstream-tag-noise':'上游判定為雜訊標籤',
  'upstream-number-or-date':'純數字或日期',
  'upstream-nonword':'不含文字或數字',
+ 'admin-ranking-exclusion':'管理員從排行排除',
 };
 /** Two different mechanisms; keep them apart in every method note. */
-export const DISPLAY_EXCLUSION_NOTE='顯示排除：符合標籤顯示規則的詞（上游排除詞、雜訊、純數字或日期、長度不符，以及核定的來源或平台名稱、雙字通用詞、國家城市政黨詞、少數 YouTube 平台或宣傳用語）整詞不列入排行，但仍保留在原始詞彙池與比對證據中；原始詞彙池列出排除原因。雙字通用詞只依核定清單判定，包含它們的人名、事件或具體議題不會因此被排除。';
+export const DISPLAY_EXCLUSION_NOTE='顯示排除：符合標籤顯示規則的詞（上游排除詞、雜訊、純數字或日期、長度不符，以及核定的來源或平台名稱、雙字通用詞、國家城市政黨詞、少數 YouTube 平台或宣傳用語）整詞不列入排行，但仍保留在原始詞彙池與比對證據中；原始詞彙池列出排除原因。雙字通用詞只依核定清單判定，包含它們的人名、事件或具體議題不會因此被排除。管理員也可以在排行上直接排除個別標籤，同樣只影響排行顯示，每次排除與恢復都留有紀錄。';
 export const DESCRIPTION_TEMPLATE_NOTE='說明欄樣板：同一頻道說明欄反覆出現的宣傳段落不列入比對。「24小時」這類詞只在這種重複宣傳段落中略過，出現在一般新聞內容時照常計入；這不同於整詞的顯示排除。';
 export const exclusionReasonLabel=(code:string)=>TAG_DISPLAY_EXCLUSION_LABELS[code]??`其他顯示規則（${code}）`;
 /** undefined = API without the field; null = eligible for the ranking. */

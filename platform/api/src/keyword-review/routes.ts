@@ -1,8 +1,9 @@
 import type {FastifyInstance,FastifyRequest} from 'fastify';
 import type {AuthRuntime} from '../auth/types.js';
 import {ReviewError,fail,parseCommand} from './domain.js';
-import {executeReview,previewReview,type ReviewRepository} from './repository.js';
-export interface KeywordReviewOptions {auth?:AuthRuntime;env?:NodeJS.ProcessEnv;keywordReviewRepository?:ReviewRepository;clock?:()=>Date}
+import {decideRankingDisplay,executeReview,parseRankingDisplay,previewReview,type ReviewRepository} from './repository.js';
+/** onRankingDisplayChanged: drop in-process ranking caches after a one-click decision. */
+export interface KeywordReviewOptions {auth?:AuthRuntime;env?:NodeJS.ProcessEnv;keywordReviewRepository?:ReviewRepository;clock?:()=>Date;onRankingDisplayChanged?:()=>void}
 const object=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const idPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 /** Deliberately session-only: existing ops bearer authority never grants review access. */
@@ -29,7 +30,7 @@ export async function registerKeywordReviewOps(app:FastifyInstance,options:Keywo
   });
   routes.get('/api/ops/keyword-reviews/status',async()=>{
    const schemaReady=enabled()&&!!repo&&await repo.ready();
-   return {enabled:enabled(),writeEnabled:writable(),schemaReady,status:!enabled()?'disabled':!schemaReady?'schema-unavailable':'ready',phase:'review-record-only',applied:false,applicationStatus:'not-applied',rankingOverlayEnabled:false};
+   return {enabled:enabled(),writeEnabled:writable(),schemaReady,status:!enabled()?'disabled':!schemaReady?'schema-unavailable':'ready',phase:'ranking-display-applied',applied:false,applicationStatus:'not-applied',rankingOverlayEnabled:true};
   });
   routes.get<{Querystring:{page?:string;version?:string}}>('/api/ops/keyword-reviews',async req=>{
    const page=Number(req.query.page??1),version=req.query.version;
@@ -39,6 +40,17 @@ export async function registerKeywordReviewOps(app:FastifyInstance,options:Keywo
   routes.get<{Params:{id:string}}>('/api/ops/keyword-reviews/:id',async req=>{
    if(!idPattern.test(req.params.id))return fail('INVALID_REVIEW_ID');
    const db=await available(),detail=await db.detail(req.params.id);if(!detail)return fail('REVIEW_NOT_FOUND',404);return detail;
+  });
+  // Approved youtube-ranking-display decisions are read by the ranking (keyword-overlay.ts);
+  // text-matching decisions remain records only.
+  routes.get('/api/ops/keyword-reviews/ranking-display',async()=>({rows:await (await available()).rankingDisplay()}));
+  routes.post('/api/ops/keyword-reviews/ranking-display',{bodyLimit:16384},async req=>{
+   const actor=actors.get(req);if(!actor)return fail('ADMIN_ACTOR_REQUIRED',403);
+   const input=parseRankingDisplay(req.body),db=await available();
+   if(!writable())return fail('KEYWORD_REVIEW_WRITE_DISABLED',403);
+   const result=await decideRankingDisplay(db,input,actor,clock().toISOString());
+   if(result.changed)options.onRankingDisplayChanged?.();
+   return result;
   });
   for(const mode of ['preview','execute'] as const)routes.post('/api/ops/keyword-reviews/'+mode,{bodyLimit:16384},async req=>{
    const actor=actors.get(req);if(!actor)return fail('ADMIN_ACTOR_REQUIRED',403);

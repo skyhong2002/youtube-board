@@ -1,5 +1,6 @@
 -- Own TS schema only; reviewed migration required. Never run automatically from review routes.
--- Phase 1 records decisions only: it cannot activate ranking/matching overrides.
+-- Approved youtube-ranking-display decisions feed the ranking overlay; text-matching ones stay records.
+-- Production provisioning: tools/keyword-review-upgrade.mjs (tables, triggers and exact grants).
 CREATE TABLE IF NOT EXISTS ts_keyword_reviews (
  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
  revision INT UNSIGNED NOT NULL,

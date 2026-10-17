@@ -45,10 +45,10 @@ test('detail escapes stored term/reason, shows selected provenance and audit, an
  assert.match(out,/#5/);assert.match(out,/user:7/);assert.match(out,/提出提案/);assert.match(out,/（新建）/);
  assert.match(out,new RegExp(NOT_APPLIED_NOTICE));assert.doesNotMatch(out,/PAYLOAD_SECRET_FIELD/);assert.doesNotMatch(out,APPLIED_CLAIM);
 });
-test('list renders empty state and rows labelled as not applied',()=>{
+test('list renders empty state and approved rows without the record-only label',()=>{
  assert.match(html(createElement(ReviewTable,{rows:[],selectedId:null})),/沒有覆核紀錄/);
  const out=html(createElement(ReviewTable,{rows:[parseReview(raw({status:'approved'}))],selectedId:ID}));
- assert.match(out,/已核准（僅記錄）/);assert.match(out,/未套用/);assert.match(out,/aria-pressed="true"/);assert.doesNotMatch(out,/<img src=x/);assert.doesNotMatch(out,APPLIED_CLAIM);
+ assert.match(out,/已核准/);assert.doesNotMatch(out,/僅記錄/);assert.match(out,/aria-pressed="true"/);assert.doesNotMatch(out,/<img src=x/);assert.doesNotMatch(out,APPLIED_CLAIM);
 });
 test('preview shows server-resolved term, write-gate state, and never claims application',()=>{
  const after=parseReview(raw()),preview:ReviewPreview={command:{requestId:REQ,id:ID,action:'submit',reason:'r',vocabularyVersion:'v2026_10',termKey:KEY,ruleVersion:'exact-text-v1',context:'youtube-text-matching',decision:'keep'},before:null,after,previewHash:HASH,warnings:['覆核只記錄提案與決策，尚未套用排行或文字比對；原始詞彙與命中證據保留。'],writes:0,applied:false,applicationStatus:'not-applied'};
@@ -56,7 +56,7 @@ test('preview shows server-resolved term, write-gate state, and never claims app
  assert.match(gated,/寫入開關未開放：可以預覽，但無法執行/);assert.match(gated,/&lt;img src=x/);assert.match(gated,new RegExp(NOT_APPLIED_NOTICE));assert.match(gated,new RegExp(REQ));assert.doesNotMatch(gated,APPLIED_CLAIM);
  assert.doesNotMatch(html(createElement(PreviewView,{preview,writeEnabled:true})),/無法執行/);
  const decide=html(createElement(PreviewView,{preview:{...preview,command:{requestId:REQ,id:ID,action:'approve',reason:'r',expectedRevision:2},before:parseReview(raw()),after:parseReview(raw({status:'approved',revision:3}))},writeEnabled:true}));
- assert.match(decide,/待覆核（修訂 2）→ 已核准（僅記錄）（修訂 3）/);assert.doesNotMatch(decide,APPLIED_CLAIM);
+ assert.match(decide,/待覆核（修訂 2）→ 已核准（修訂 3）/);assert.doesNotMatch(decide,APPLIED_CLAIM);
 });
 test('successful and replayed writes still prominently say not applied',()=>{
  for(const replayed of [false,true]){
@@ -92,4 +92,15 @@ test('pages are force-dynamic noindex; /manage is a navigation page, not a redir
  assert.equal(keywordsDynamic,'force-dynamic');assert.deepEqual(keywordsMetadata.robots,{index:false,follow:false});assert.deepEqual(manageMetadata.robots,{index:false,follow:false});
  const keywords=html(createElement(KeywordsPage));assert.match(keywords,/關鍵字覆核/);assert.match(keywords,new RegExp(NOT_APPLIED_NOTICE));
  const manage=html(createElement(ManagePage));assert.match(manage,/管理後台/);
+});
+
+import KeywordExcludeButton from '../components/admin/KeywordExcludeButton';
+import {RankingExclusionsView} from '../app/manage/keywords/ranking-exclusions';
+test('the ranking exclude button renders nothing without an administrator session',()=>{
+ assert.equal(html(createElement(KeywordExcludeButton,{terms:['OpenAI'],label:'OpenAI'})),'');
+});
+test('administrator exclusions list escapes labels and offers restore',()=>{
+ assert.match(html(createElement(RankingExclusionsView,{rows:[],busy:null})),/目前沒有管理員排除的關鍵字/);
+ const out=html(createElement(RankingExclusionsView,{rows:[{termKey:KEY,term:XSS_TERM,reviewId:ID,vocabularyVersion:'v1',decidedBy:'user:7',decidedAt:'2026-10-17T14:00:00.000Z',reason:'泛用詞'}],busy:null,onRestore:()=>{}}));
+ assert.match(out,/&lt;img src=x/);assert.doesNotMatch(out,/<img src=x/);assert.match(out,/恢復顯示/);assert.match(out,/user:7/);assert.match(out,/泛用詞/);
 });

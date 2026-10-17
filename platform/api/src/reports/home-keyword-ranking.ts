@@ -2,6 +2,7 @@ import type {HomeKeywordSummary} from '../contracts.js';
 import type {Row} from '../db/client.js';
 import {asciiCaseFold} from '../../../shared/ascii-case.js';
 import {integer,text} from './normalize.js';
+import {ADMIN_RANKING_EXCLUSION} from './keyword-overlay.js';
 import {MATCH_FIELD_WEIGHTS,tagDisplayExclusion,TAG_POLICY_SOURCE,YOUTUBE_DISPLAY_POLICY_VERSION} from '../../../shared/youtube-match-policy.js';
 export class HomeSectionUnavailable extends Error {constructor(public reason:'source-cap'|'precision'){super(reason);}}
 export function measuredCount(value:unknown){const n=integer(value);if(n===null||n<0)throw new HomeSectionUnavailable('precision');return n;}
@@ -14,9 +15,10 @@ export const KEYWORD_COMPARISON_MIN_COVERAGE=0.95 as const;
 export const coverageSufficient=(fresh:number,source:number)=>fresh>=source*KEYWORD_COMPARISON_MIN_COVERAGE;
 /** Titles lead each channel's geometric sequence. Distinct source videos only. */
 export function channelHeat(titles:number,descriptions:number){return MATCH_FIELD_WEIGHTS.title*2*(1-0.5**titles)+MATCH_FIELD_WEIGHTS.description*0.5**titles*2*(1-0.5**descriptions);}
-export function keywordDisplayMap(terms:Row[],eligible?:Set<string>){
+/** adminExcluded: term keys from approved administrator ranking-display decisions. */
+export function keywordDisplayMap(terms:Row[],eligible?:Set<string>,adminExcluded?:Set<string>){
  const groups=new Map<string,{key:string;term:string;sourceTerms:{key:string;term:string}[]}>(),excluded:string[]=[],reasons:Record<string,number>={};
- for(const r of terms){const key=text(r.term_key),term=text(r.term),reason=tagDisplayExclusion(term)??(eligible&&!eligible.has(term)?'upstream-window-not-qualified':null);if(reason){excluded.push(key);reasons[reason]=(reasons[reason]??0)+1;continue;}
+ for(const r of terms){const key=text(r.term_key),term=text(r.term),reason=tagDisplayExclusion(term)??(adminExcluded?.has(key)?ADMIN_RANKING_EXCLUSION:null)??(eligible&&!eligible.has(term)?'upstream-window-not-qualified':null);if(reason){excluded.push(key);reasons[reason]=(reasons[reason]??0)+1;continue;}
   // Group ASCII case only; preserve all exact upstream labels and identities.
   const groupName=asciiCaseFold(term),group=groups.get(groupName)??{key,term,sourceTerms:[]};group.sourceTerms.push({key,term});if(key<group.key){group.key=key;group.term=term;}groups.set(groupName,group);
  }

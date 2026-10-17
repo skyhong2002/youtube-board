@@ -9,6 +9,7 @@ import {ChannelAvatar} from './ChannelAvatar';
 import {VideoThumbnail} from './VideoThumbnail';
 import {KeywordEvidenceNotice} from './KeywordEvidenceNotice';
 import FollowButton from './reader/FollowButton';
+import KeywordExcludeButton from './admin/KeywordExcludeButton';
 import LinkPending from './LinkPending';
 import KeywordRelations from './KeywordRelations';
 import KeywordIllustration from './KeywordIllustration';
@@ -25,7 +26,7 @@ export function KeywordProfile({keyword,description,data,meta,notice,tabs,filter
  return <div className="space-y-6">
   <header className="flex flex-wrap items-baseline justify-between gap-3">
    <div className="min-w-0 space-y-1">
-    <div className="flex flex-wrap items-center gap-3"><h1 className="min-w-0 break-words text-2xl font-semibold tracking-tight [overflow-wrap:anywhere]"><span className="text-zinc-500">#</span>{keyword}</h1><FollowButton kind="tag" target={keyword}/></div>
+    <div className="flex flex-wrap items-center gap-3"><h1 className="min-w-0 break-words text-2xl font-semibold tracking-tight [overflow-wrap:anywhere]"><span className="text-zinc-500">#</span>{keyword}</h1><FollowButton kind="tag" target={keyword}/><KeywordExcludeButton terms={[keyword]} label={keyword}/></div>
     <p className="text-sm text-zinc-600 dark:text-zinc-400">更新於 {dateTime(meta.updatedAt)} · 台北時間 · <MethodLink/></p>
    </div>
    <div className="flex gap-4 text-sm"><Link href="/keywords" className="inline-flex items-center gap-1 text-brand-700 hover:underline dark:text-brand-400">熱門標籤排行 →<LinkPending/></Link></div>

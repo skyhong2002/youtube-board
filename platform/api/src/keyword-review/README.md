@@ -1,17 +1,30 @@
-# Effective keyword review: phase 1
+# Keyword review and administrator ranking exclusions
 
-No serving overlay is implemented. A keep/exclude proposal and even an approved
-proposal return `applied:false`, `applicationStatus:'not-applied'`. Raw vocabulary
-terms, video matching evidence, upstream tag pools, source DB rows and vocabulary
-serving pointers are untouched. The context is `youtube-ranking-display` or
-`youtube-text-matching`; a future controlled apply must bind the same vocabulary,
-term key, matching rule and context. Decisions do not silently carry into new
-vocabulary versions. Rejected/approved records are terminal; replacement proposals
-use a new review UUID, preserving prior records.
+Approved `youtube-ranking-display` decisions are applied to the 熱門標籤排行:
+`api/src/reports/keyword-overlay.ts` reads them through the report principal and
+`keywordDisplayMap` drops the excluded term keys (reason `admin-ranking-exclusion`),
+as do `/vocabulary` and keyword video lists that use the ranking pool. For each term
+key the latest approved decision wins (`exclude` or `keep`); `term_key` hashes source
+and exact label, so a decision follows the same label into later vocabulary versions.
+`youtube-text-matching` decisions remain records only. Stored records keep their
+phase-1 `applied:false` fields; application is reported by `rankingOverlayEnabled`.
+Raw vocabulary terms, video matching evidence, upstream tag pools, source DB rows
+and vocabulary serving pointers are untouched. Rejected/approved records are
+terminal; a later decision uses a new review UUID, preserving prior records.
 
-## Registration and migration (not executed)
+The one-click endpoint `POST /api/ops/keyword-reviews/ranking-display`
+`{requestId,terms[1–20 exact labels],decision:'exclude'|'keep',reason?}` submits and
+approves one review per label in a single transaction (two audit rows each), using
+the serving vocabulary (restores fall back to the version being reversed). Retries
+with the same requestId replay; labels already in the requested state are
+`unchanged`. A change drops the API process's keyword caches; pages follow within
+about one to two minutes (ISR/HTTP caches). `GET` on the same path lists the labels
+currently excluded. Without the tables or grants the overlay is empty and the static
+display policy still applies.
 
-Root registers `registerKeywordReviewOps(app,{auth,env,keywordReviewRepository})`.
+## Registration and migration
+
+Root registers `registerKeywordReviewOps(app,{auth,env,keywordReviewRepository,onRankingDisplayChanged})`.
 All routes, including status/list, require the existing Google administrator
 session. POST preview/execute both require existing same-origin Origin,
 Sec-Fetch-Site and X-CSRF checks. No account or service-token authority is added.
@@ -21,17 +34,19 @@ Both `TS_KEYWORD_REVIEW_ENABLED` and `TS_KEYWORD_REVIEW_WRITE_ENABLED` default f
 Disabled registration does not connect to a DB. Missing repository/schema fails
 closed. `015_keyword_reviews.sql` adds three InnoDB tables only to the TS state
 schema; it is a separately reviewed, privileged migration and must not be run by
-HTTP. No migration, grants, production gate, scheduling or deployment is authorized
-by these files. Do not provision source-write privileges. Repository construction
+HTTP. `tools/keyword-review-upgrade.mjs` provisions an existing TS schema with a
+fresh verified backup: the tables, four append-only triggers, the state writer's
+SELECT/INSERT/UPDATE on reviews and SELECT/INSERT on audit and requests, and the
+report reader's SELECT on reviews (the ranking overlay). Do not provision
+source-write privileges. Repository construction
 requires an explicit TS schema, verifies DATABASE(), and rejects `youtube_board`.
-Runtime grants must exclude DDL/TRUNCATE and audit/request UPDATE/DELETE. New table
-grants/facade integration need a separate reviewed change; current frontend grants
-are not assumed to include them. No automatic CREATE or schema repair exists.
+Runtime grants must exclude DDL/TRUNCATE and audit/request UPDATE/DELETE. No
+automatic CREATE or schema repair exists.
 
 ## API contract
 
 - GET `/api/ops/keyword-reviews/status`: `{enabled,writeEnabled,schemaReady,status,
-  phase:'review-record-only',applied:false,applicationStatus:'not-applied',rankingOverlayEnabled:false}`.
+  phase:'ranking-display-applied',applied:false,applicationStatus:'not-applied',rankingOverlayEnabled:true}`.
   `status` is disabled/schema-unavailable/ready. Authentication still applies.
 - GET `/api/ops/keyword-reviews?page=1&version=...`: 50 records plus hasMore;
   version is optional. No filters claim current serving applicability.

@@ -57,3 +57,14 @@ it('the common ranking pool excludes audited generic and geographic terms while 
  for(const period of [ranked.today,ranked.week])expect(period.map(r=>r.term).sort()).toEqual([...retained].sort());
  expect(JSON.stringify(raw)).toBe(before);
 });
+import {rankingDisplayExclusions} from '../src/reports/keyword-overlay.js';
+import {DataQueryFailed,DataSourceUnavailable,type Reader} from '../src/db/client.js';
+it('administrator ranking exclusions remove a display key after the static policy, latest decision wins, unprovisioned tables are no overrides',async()=>{
+ const d=keywordDisplayMap([{term_key:'a',term:'OpenAI'},{term_key:'b',term:'技術'},{term_key:'c',term:'沈伯洋'}],undefined,new Set(['a','b']));
+ expect(d.excluded.sort()).toEqual(['a','b']);expect(d.exclusions.reasons).toEqual({'youtube-generic-two-character':1,'admin-ranking-exclusion':1});expect([...d.groups.keys()]).toEqual(['沈伯洋']);
+ const reader=(rows:unknown[]|Error):Reader=>({rows:async()=>{if(rows instanceof Error)throw rows;return rows as never;},close:async()=>{}});
+ expect([...await rankingDisplayExclusions(reader([{term_key:'a',decision:'exclude'},{term_key:'b',decision:'exclude'},{term_key:'a',decision:'keep'}]))]).toEqual(['b']);
+ expect((await rankingDisplayExclusions(reader(new DataQueryFailed('ER_NO_SUCH_TABLE')))).size).toBe(0);
+ expect((await rankingDisplayExclusions(reader(new DataSourceUnavailable('ER_TABLEACCESS_DENIED_ERROR')))).size).toBe(0);
+ await expect(rankingDisplayExclusions(reader(new DataSourceUnavailable('ECONNREFUSED')))).rejects.toBeInstanceOf(DataSourceUnavailable);
+});

@@ -180,3 +180,19 @@ test('selected result fills the proposal with exact returned version/key; nothin
  const unsynced=parseVocabularyLookup(vocabBody({version:null,rows:[],total:0}));
  assert.throws(()=>applyVocabularyChoice(base,unsynced,lookup.rows[0]!),{code:'INVALID_INPUT'});
 });
+
+import {isKeywordReviewEndpoint as allowed,decideRankingDisplay as decide,parseRankingDisplay as parseExclusions} from './keyword-review-client';
+test('one-click ranking display calls the exact endpoint with CSRF and validates the answer',async()=>{
+ assert.equal(allowed('/api/ops/keyword-reviews/ranking-display','POST'),true);assert.equal(allowed('/api/ops/keyword-reviews/ranking-display','GET'),true);
+ assert.equal(allowed('/api/ops/keyword-reviews/ranking-display?x=1','GET'),false);assert.equal(allowed('/api/ops/keyword-reviews/ranking-display','DELETE'),false);
+ const session={enabled:true,user:{id:1,email:'a@example.test',name:null,picture:null,role:'admin' as const,adminSource:'config' as const},csrfToken:'csrf'};
+ let seen:{url:string;init:RequestInit}|null=null;
+ const fetcher=(async(url:string,init:RequestInit)=>{seen={url,init};return Response.json({decision:'exclude',changed:true,results:[{term:'OpenAI',status:'decided'},{term:'openai',status:'unchanged'}]});}) as unknown as typeof fetch;
+ const result=await decide(['OpenAI','openai'],'exclude',session as never,'',{fetcher,newId:()=>'33333333-3333-4333-8333-333333333333'});
+ assert.deepEqual(result,{decision:'exclude',changed:true,results:[{term:'OpenAI',status:'decided'},{term:'openai',status:'unchanged'}]});
+ assert.equal(seen!.url,'/api/ops/keyword-reviews/ranking-display');assert.equal((seen!.init.headers as Record<string,string>)['x-csrf-token'],'csrf');
+ assert.deepEqual(JSON.parse(String(seen!.init.body)),{requestId:'33333333-3333-4333-8333-333333333333',terms:['OpenAI','openai'],decision:'exclude'});
+ await assert.rejects(decide(['OpenAI'],'exclude',session as never,'',{fetcher:(async()=>Response.json({decision:'exclude',changed:true,results:[{term:'other',status:'decided'}]})) as unknown as typeof fetch}),/伺服器回應格式無法驗證/);
+ await assert.rejects(decide([],'exclude',session as never),/排行決定的內容不正確/);
+ assert.throws(()=>parseExclusions({rows:[{termKey:'bad'}]}),/伺服器回應格式無法驗證/);
+});

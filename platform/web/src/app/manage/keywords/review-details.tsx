@@ -13,7 +13,7 @@ export const styles={
  alert:'rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100',
 };
 export function NotAppliedBadge(){
- return <p role="note" className="inline-flex items-center gap-2 rounded-full border border-amber-400 bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-900 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-100">{NOT_APPLIED_NOTICE}<span className="font-normal">（僅記錄提案與決策）</span></p>;
+ return <p role="note" className="inline-flex items-center gap-2 rounded-full border border-amber-400 bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-900 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-100">{NOT_APPLIED_NOTICE}<span className="font-normal">（原始詞彙與命中證據保留）</span></p>;
 }
 export type GateState={kind:'loading'}|{kind:'session-error';message:string}|{kind:'login-disabled'}|{kind:'signed-out';loginUrl:string}|{kind:'forbidden'}|{kind:'feature-disabled'}|{kind:'schema-unavailable'}|{kind:'status-error';message:string};
 /** Access and feature-gate notices. `action` is an optional retry/login control supplied by the caller. */
@@ -46,7 +46,7 @@ export function ReviewFields({review}:{review:KeywordReview}){
   <Field label="情境">{contextLabels[review.context]}（{review.context}）</Field>
   <Field label="提案">{decisionLabels[review.decision]}</Field>
   <Field label="狀態">{statusLabels[review.status]} · 修訂 {review.revision}</Field>
-  <Field label="套用狀態">{NOT_APPLIED_NOTICE}（applied:false）</Field>
+  <Field label="套用狀態">{NOT_APPLIED_NOTICE}</Field>
   <Field label="來源">{e.source}</Field>
   <Field label="上游編號">{e.provenance.upstreamId??'（未提供）'}</Field>
   <Field label="媒體">{e.provenance.media.length?e.provenance.media.join('、'):'（未提供）'}</Field>

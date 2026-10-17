@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
-import {planFrontend,settings,stateStatements,grantStatements,sourceTables,publicStateTables,executeFrontend,verifyGrants} from './frontend-schema.mjs';
+import {planFrontend,settings,stateStatements,grantStatements,sourceTables,publicStateTables,reportStateTables,executeFrontend,verifyGrants} from './frontend-schema.mjs';
 test('frontend dry-run needs no DB credentials and cannot mutate or connect',()=>{
  const out=JSON.parse(execFileSync(process.execPath,['tools/frontend-schema.mjs'],{cwd:new URL('..',import.meta.url),env:{PATH:process.env.PATH},encoding:'utf8'}));assert.equal(out.mode,'dry-run');assert.equal(out.sourceWrites,0);assert.equal(out.externalCalls,0);assert.equal(out.target,'youtube_board_ts');assert.ok(out.baseTables>20);
 });
@@ -11,7 +11,7 @@ test('new schema and principals must be distinct and identifiers cannot inject S
 test('dedicated state migration never touches source schemas and grants cannot write sources/views',async()=>{
  const plan=await planFrontend();assert.ok(plan.statements.length>30);assert.ok(plan.views.every(v=>v.includes("DEFINER='youtube_ts_report'@'%' SQL SECURITY DEFINER")&&v.includes('`youtube_board_ts`.')&&v.includes('FROM `youtube_board`.')));
  assert.ok(plan.tables.every(t=>t.startsWith('ts_')));assert.equal(new Set(plan.tables).size,plan.tables.length);
- for(const grant of plan.grants){assert.doesNotMatch(grant,/\b(?:ALL|CREATE|ALTER|DROP|TRIGGER|GRANT OPTION)\b/);if(!grant.startsWith('GRANT SELECT ON')){assert.match(grant,/ON `youtube_board_ts`\.`ts_(?:auth|reader)_/);assert.doesNotMatch(grant,/'youtube_ts_report'/);}}
+ for(const grant of plan.grants){assert.doesNotMatch(grant,/\b(?:ALL|CREATE|ALTER|DROP|TRIGGER|GRANT OPTION)\b/);if(!grant.startsWith('GRANT SELECT ON')){assert.match(grant,/ON `youtube_board_ts`\.`ts_(?:auth_|reader_|keyword_review)/);assert.doesNotMatch(grant,/'youtube_ts_report'/);}}
  assert.throws(()=>grantStatements(settings({}),[...plan.tables,'urt_video']));assert.ok(!sourceTables.includes('users'));assert.ok(!sourceTables.includes('cache'));
 });
 test('DDL guard rejects source DML/DDL, views, cross-schema references and dynamic SQL',()=>{
@@ -37,7 +37,8 @@ test('production requires explicit restricted IPv4 account host and a contiguous
 });
 test('public report grants exclude private identities, saved items and operational queues',async()=>{
  const plan=await planFrontend();
- for(const grant of plan.grants.filter(g=>g.endsWith("TO 'youtube_ts_report'@'%'"))){assert.doesNotMatch(grant,/ts_(?:auth_|reader_|notification_|job_|comment_stage|youtube_item)/);if(grant.includes('`.`ts_'))assert.ok(publicStateTables.some(t=>grant.includes('`'+t+'`')));}
+ for(const grant of plan.grants.filter(g=>g.endsWith("TO 'youtube_ts_report'@'%'"))){assert.doesNotMatch(grant,/ts_(?:auth_|reader_|notification_|job_|comment_stage|youtube_item)/);if(grant.includes('`.`ts_'))assert.ok([...publicStateTables,...reportStateTables].some(t=>grant.includes('`'+t+'`')));}
+ assert.deepEqual(reportStateTables,['ts_keyword_reviews']);
  for(const grant of plan.grants.filter(g=>g.endsWith("TO 'youtube_ts_state'@'%'")))assert.ok(grant.includes('ON `youtube_board_ts`.'));
 });
 test('postcreate privilege inspection fails closed on unexpected grants',async()=>{
@@ -58,4 +59,10 @@ test('global USAGE cannot hide GRANT OPTION or PUBLIC delegation rights',async()
    return [[]];
   }};await assert.rejects(verifyGrants(db,plan),/RUNTIME_GRANTS_MISMATCH/);
  }
+});
+test('keyword review upgrade adds only the reviewed tables, append-only triggers and exact grants',async()=>{
+ const {planKeywordReviews}=await import('./keyword-review-upgrade.mjs'),plan=await planKeywordReviews({});
+ assert.equal(plan.statements.length,7);assert.ok(plan.statements.slice(3).every(s=>/^CREATE TRIGGER IF NOT EXISTS ts_keyword_review_(?:audit|requests)_no_(?:update|delete) BEFORE/.test(s)));
+ assert.deepEqual(plan.grants.filter(g=>g.includes("'youtube_ts_report'")),["GRANT SELECT ON `youtube_board_ts`.`ts_keyword_reviews` TO 'youtube_ts_report'@'%'"]);
+ assert.ok(plan.grants.every(g=>!/\b(?:DELETE|DROP|ALTER|TRIGGER)\b/.test(g)));assert.ok(!plan.grants.some(g=>/UPDATE ON `youtube_board_ts`\.`ts_keyword_review_(?:audit|requests)`/.test(g)));
 });

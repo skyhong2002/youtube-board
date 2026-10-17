@@ -75,7 +75,7 @@ export function createReader(databaseUrl: string | undefined, limits = { acquire
             catch (cause) {
                 if (cause instanceof DataSourceUnavailable) throw cause;
                 const code = driverCode(cause);
-                throw unavailableCodes.has(code) ? new DataSourceUnavailable() : new DataQueryFailed(code);
+                throw unavailableCodes.has(code) ? new DataSourceUnavailable(code) : new DataQueryFailed(code);
             }
         },
         close: async () => {
