@@ -133,7 +133,7 @@ export async function ExpandedReport({
                     </Link>
                 </form>
             )}
-            {mayorCity && data.series?.length ? <MayorShare part="chart" city={mayorCity} series={data.series} search={search} rows={data.rows} /> : null}
+            {mayorCity && data.series?.length ? <MayorShare part="chart" city={mayorCity} series={data.series} search={search} rows={data.bucketCoverage ?? data.rows} /> : null}
             {data.metrics?.length ? (
                 <div className="metrics">
                     {data.metrics.map((metric, index) => (
@@ -207,7 +207,7 @@ export async function ExpandedReport({
                     </section>
                 </>
             ) : null}
-            {mayorCity && data.series?.length ? <MayorShare part="candidates" city={mayorCity} series={data.series} search={search} rows={data.rows} /> : null}
+            {mayorCity && data.series?.length ? <MayorShare part="candidates" city={mayorCity} series={data.series} search={search} rows={data.bucketCoverage ?? data.rows} /> : null}
             {/* Mayor pages show every candidate in the one share chart above, so no per-person raw charts. */}
             {mayorCity ? null : data.series?.map((series, index) => (
                 <section key={`${series.name}-${index}`}>

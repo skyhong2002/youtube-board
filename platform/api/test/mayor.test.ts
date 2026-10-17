@@ -65,3 +65,8 @@ it('mayor counts press spellings under the registered name and keeps the CEC ros
  expect(Object.values(cities).reduce((n,c)=>n+Object.keys(c.candidates).length,0)).toBe(81);
  expect(Object.keys(cities.nantou!.candidates)).toEqual(['許淑華','温世政']);
 });
+it('mayor bucket coverage spans every charted date while table rows stay paginated',async()=>{
+ const r=await request('/mayor/cities/taipei?from=2026-07-19&to=2026-10-16',()=>[]);expect(r.statusCode).toBe(200);
+ const data=r.json().data;expect(data.series[0].points).toHaveLength(90);expect(data.rows).toHaveLength(50);
+ expect(data.bucketCoverage).toHaveLength(90);expect(data.bucketCoverage.at(-1)).toEqual({date:'2026-10-16',observedBuckets:0});
+});

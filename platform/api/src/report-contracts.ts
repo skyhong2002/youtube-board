@@ -60,4 +60,9 @@ export interface ReportData {
         }[];
     }[];
     updatedAt?: string | null;
+    /** Per-date bucket coverage for every charted date; unlike rows it is never paginated. */
+    bucketCoverage?: {
+        date: string;
+        observedBuckets: number;
+    }[];
 }
