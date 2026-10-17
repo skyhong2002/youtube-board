@@ -6,7 +6,8 @@ import {assertQueueJob,consumerQueue,queueMode,schedulerNamespace,statusQueues,w
 
 const expected={
  cache:['reports.counts.build','reports.people.build','reports.tag_cloud.build','reports.tag_date.build','reports.keywords.cache','reports.schedule.build','reports.live.build','reports.live.clean','tags.videos.match.recent','channels.avatars.refresh'],
- 'youtube-source':['youtube.channels.stats','youtube.channels.videos.general','youtube.channels.videos.live','youtube.channels.videos.live_group','youtube.tvbs.videos','youtube.videos.stats','youtube.live.poll','youtube.tvbs.live.poll','youtube.videos.duration','youtube.live.cleanup','youtube.tag_videos.backfill'],
+ 'youtube-source':['youtube.channels.stats','youtube.channels.videos.general','youtube.channels.videos.live','youtube.channels.videos.live_group','youtube.tvbs.videos','youtube.videos.stats','youtube.videos.duration','youtube.live.cleanup','youtube.tag_videos.backfill'],
+ 'youtube-live':['youtube.live.poll','youtube.tvbs.live.poll'],
  comments:['youtube.comments.queue','youtube.comments.fetch'],
  'ai-daily':['ai.daily','ai.daily.catchup','ai.channel','reports.ai_topic.build'],
  'ai-hourly':['ai.hourly'],
@@ -17,7 +18,7 @@ const union=(workflows:readonly string[])=>{const tables:Record<string,string[]>
 const facadeEnv=(batch:string,patch:NodeJS.ProcessEnv={})=>({TS_WORKER_SCHEMA_MODE:'facade',DB_DATABASE:batchFacadeSchema(batch),TS_WORKER_BATCH:batch,...patch});
 
 describe('worker batch registry',()=>{
- it('maps the seven handoff batches to their TS workflows, each workflow in exactly one batch',()=>{
+ it('maps the handoff batches to their TS workflows, each workflow in exactly one batch',()=>{
   expect(Object.fromEntries(workerBatchIds.map(b=>[b,[...workerBatches[b]]]))).toEqual(expected);
   const all=workerBatchIds.flatMap(b=>workerBatches[b]);expect(new Set(all).size).toBe(all.length);
   for(const workflow of all){expect(registeredWorkflows,workflow).toContain(workflow);expect(()=>workerProfile(workflow)).not.toThrow();expect(workflowBatch(workflow)).toBe(workerBatchIds.find(b=>workerBatches[b].includes(workflow)));}
