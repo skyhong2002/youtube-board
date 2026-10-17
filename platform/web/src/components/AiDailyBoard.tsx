@@ -1,11 +1,16 @@
 import Link from "next/link";
+import SectionTabs from "@/components/SectionTabs";
+import {ChannelAvatar} from "@/components/ChannelAvatar";
+import {Metric} from "@/components/ReportUI";
 import {reportLinkPrefetch} from "@/lib/report-contract";
+import {reportStyle as ui} from "@/lib/report-styles";
 import {count} from "@/lib/format";
 import type {AiDaysData,TopicRow} from "@/lib/api";
 import {sourceStats,topicSummary,type ChannelAiEvent} from "@/lib/ai-daily-summary";
 
-/** The Laravel /ai/days layout: date and condition switchers, coverage cards, numbered topics
- * with per-channel events, a summary box and up to three embedded representative videos. */
+/** The Laravel /ai/days content and order (date and condition switchers, coverage, numbered
+ * topics with per-channel events, a summary box and up to three embedded videos), drawn with
+ * the site's own cards, tabs, tags and avatars. */
 export const AI_DAILY_CONDITIONS = [["all","全部"],["green","泛綠"],["blue","泛藍"],["neutral","較無偏"],["finance","財經"],["world","世界"]] as const;
 export function aiDailyTitle(date:string|null,condition:string){
     if(!date)return "主要事件與各媒體報導";
@@ -14,36 +19,47 @@ export function aiDailyTitle(date:string|null,condition:string){
 function shiftDate(date:string,days:number){const d=new Date(date+"T00:00:00Z");d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);}
 function taipeiToday(){return new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Taipei"}).format(new Date());}
 const dayHref=(date:string,condition:string)=>`/ai/days/${date}${condition==="all"?"":"/"+encodeURIComponent(condition)}`;
-const chip="inline-flex min-h-7 items-center rounded-md border px-2 py-0.5 text-xs";
-const idle=chip+" border-zinc-300 bg-white text-zinc-700 hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300";
-const current=chip+" border-brand-300 bg-brand-50 font-bold text-brand-700 dark:border-brand-800 dark:bg-brand-950 dark:text-brand-300";
-const counts=(rows:{term:string;count:number}[])=>rows.length?rows.map(r=>`${r.term}(${count(r.count)})`).join(", "):<span className="text-zinc-500">無</span>;
+const conditionLabel=(key:string)=>AI_DAILY_CONDITIONS.find(([k])=>k===key)?.[1]??key;
 
-function Coverage({label,value,detail}:{label:string;value:string;detail:string}){
-    return <div className="min-w-0 border border-zinc-300 bg-white px-2.5 py-2 dark:border-zinc-800 dark:bg-zinc-900"><div className="text-xs text-zinc-600 dark:text-zinc-400">{label}</div><div className="mt-0.5 text-lg font-bold leading-tight tabular-nums">{value}</div><div className="mt-0.5 text-xs leading-snug text-zinc-600 dark:text-zinc-400">{detail}</div></div>;
+function Counts({rows,link}:{rows:{term:string;count:number}[];link?:boolean}){
+    if(!rows.length)return <span className="text-zinc-500">無</span>;
+    return <span className="flex flex-wrap gap-1.5">{rows.map(r=>{const body=<>{r.term}<span className="ml-1 tabular-nums text-zinc-500">{count(r.count)}</span></>;
+        return link?<Link key={r.term} className={ui.tag+" hover:bg-zinc-200 dark:hover:bg-zinc-700"} href={`/keywords/${encodeURIComponent(r.term)}/videos`}>{body}</Link>:<span key={r.term} className={ui.tag}>{body}</span>;})}</span>;
+}
+function Pair({a,b}:{a:[string,number];b:[string,number]}){
+    return <span className="tabular-nums">{a[0]} {count(a[1])} 則<span className="mx-2 text-zinc-400">/</span>{b[0]} {count(b[1])} 則</span>;
 }
 function Topic({topic,index,sources}:{topic:TopicRow;index:number;sources:AiDailySources}){
     const s=topicSummary(topic,sources.events,sources.green,sources.blue),href=`/ai/days/${topic.dailyId}/events?event=${encodeURIComponent(topic.title)}`;
-    return <article className="mb-6 pb-1.5" id={`topic-${topic.id}`}>
-        <h2 className="mb-3 text-xl font-semibold leading-snug sm:text-[23px]">{index+1}. {topic.grouping?topic.title:<Link className="text-brand-700 hover:underline dark:text-brand-400" href={href} prefetch={reportLinkPrefetch(href)}>{topic.title}</Link>}</h2>
-        <ul className="mb-2.5 list-disc pl-5 leading-relaxed sm:ml-6">
-            {topic.evidence.map((e,i)=>{const videos=e.videoIds.length||e.withheldVideoReferenceCount||0;return <li className="my-px" key={`${e.source.id}-${i}`}><Link className="font-bold text-brand-700 hover:underline dark:text-brand-400" href={`/channels/${e.channelId}`}>{e.channelTitle}</Link> =&gt; {e.event}{videos>1&&<span className="whitespace-nowrap text-zinc-500"> ({count(videos)} 則)</span>}</li>;})}
-            {topic.unresolvedReferences.map((r,i)=><li className="my-px" key={`u-${i}`}><strong>{r.channelTitle}</strong> =&gt; {r.event}</li>)}
+    const rows:[string,React.ReactNode][]=[
+        ["媒體數",<span className="tabular-nums" key="m">{count(topic.channelCount)} 個媒體 · {count(topic.videoCount)} 則影片</span>],
+        ["關鍵字",<Counts rows={s.keywords} link key="k"/>],
+        ["人物",<Counts rows={s.people} key="p"/>],
+        ["媒體陣營",<Pair a={["泛綠媒體",s.party.green]} b={["泛藍媒體",s.party.blue]} key="g"/>],
+        ["報導角度",<Pair a={["台灣角度",s.angle.taiwan]} b={["中國角度",s.angle.china]} key="a"/>],
+        ["政黨觀點",<Pair a={["民進黨觀點",s.camp.dpp]} b={["國民黨觀點",s.camp.kmt]} key="c"/>],
+    ];
+    return <article className={ui.panel+" scroll-mt-20"} id={`topic-${topic.id}`}>
+        <h2 className="flex gap-2 text-lg font-semibold leading-snug">
+            <span className="shrink-0 tabular-nums text-zinc-400">{index+1}.</span>
+            {topic.grouping?<span>{topic.title}</span>:<Link className="hover:text-brand-700 hover:underline dark:hover:text-brand-400" href={href} prefetch={reportLinkPrefetch(href)}>{topic.title}</Link>}
+        </h2>
+        <ul className="mt-3 space-y-1.5 text-sm leading-relaxed">
+            {topic.evidence.map((e,i)=>{const videos=e.videoIds.length||e.withheldVideoReferenceCount||0;return <li className="flex gap-2" key={`${e.source.id}-${i}`}>
+                <ChannelAvatar className="mt-0.5 shrink-0" avatar={e.channelAvatar} title={e.channelTitle} size={20}/>
+                <span className="min-w-0"><Link className="font-medium text-zinc-900 hover:text-brand-700 hover:underline dark:text-zinc-100 dark:hover:text-brand-400" href={`/channels/${e.channelId}`}>{e.channelTitle}</Link><span className="mx-1.5 text-zinc-400">→</span><span className="text-zinc-700 dark:text-zinc-300">{e.event}</span>{videos>1&&<span className="ml-1.5 whitespace-nowrap text-xs tabular-nums text-zinc-500">{count(videos)} 則</span>}</span>
+            </li>;})}
+            {topic.unresolvedReferences.map((r,i)=><li className="flex gap-2 pl-7" key={`u-${i}`}><span className="min-w-0"><span className="font-medium">{r.channelTitle}</span><span className="mx-1.5 text-zinc-400">→</span><span className="text-zinc-700 dark:text-zinc-300">{r.event}</span></span></li>)}
         </ul>
-        <div className="mt-2.5 border border-zinc-400 bg-white px-3 pb-3 pt-2 sm:ml-6 dark:border-zinc-700 dark:bg-zinc-900">
-            <ul className="mb-2.5 ml-4 list-disc leading-relaxed">
-                <li>媒體數：{count(topic.channelCount)} 個 / 影片數：{count(topic.videoCount)} 則</li>
-                <li>關鍵字：{counts(s.keywords)}</li>
-                <li>人物：{counts(s.people)}</li>
-                <li>泛綠媒體：{count(s.party.green)} 則 / 泛藍媒體：{count(s.party.blue)} 則</li>
-                <li>台灣角度：{count(s.angle.taiwan)} 則 / 中國角度：{count(s.angle.china)} 則</li>
-                <li>民進黨觀點：{count(s.camp.dpp)} 則 / 國民黨觀點：{count(s.camp.kmt)} 則</li>
-            </ul>
-            {s.videos.length>0&&<div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3" aria-label="代表影片">
-                {s.videos.map(v=><div className="min-w-0" key={v.videoId}>
-                    <iframe className="aspect-video w-full border-0 bg-slate-900" src={`https://www.youtube-nocookie.com/embed/${v.videoId}`} title={`${v.channelTitle} - ${v.event}`} loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/>
-                    <a className="mt-1 block truncate text-xs text-zinc-700 hover:underline dark:text-zinc-300" href={`https://www.youtube.com/watch?v=${v.videoId}`} target="_blank" rel="noopener noreferrer">{v.channelTitle} · {v.event}</a>
-                </div>)}
+        <div className="mt-4 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-950/60">
+            <dl className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-3 gap-y-2">
+                {rows.map(([label,value])=><div className="contents" key={label}><dt className="pt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{label}</dt><dd className="min-w-0">{value}</dd></div>)}
+            </dl>
+            {s.videos.length>0&&<div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="代表影片">
+                {s.videos.map(v=><figure className="min-w-0" key={v.videoId}>
+                    <iframe className="aspect-video w-full rounded-md border-0 bg-zinc-900" src={`https://www.youtube-nocookie.com/embed/${v.videoId}`} title={`${v.channelTitle} - ${v.event}`} loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/>
+                    <figcaption className="mt-1 truncate text-xs text-zinc-600 dark:text-zinc-400"><a className="hover:underline" href={`https://www.youtube.com/watch?v=${v.videoId}`} target="_blank" rel="noopener noreferrer">{v.channelTitle} · {v.event}</a></figcaption>
+                </figure>)}
             </div>}
         </div>
     </article>;
@@ -52,24 +68,23 @@ export interface AiDailySources { events: Map<number,ChannelAiEvent[]>; green: S
 export function AiDailyBoard({data,dated,sources}:{data:AiDaysData;dated:boolean;sources:AiDailySources}){
     const condition=data.condition||"all",anchor=data.date??taipeiToday(),prev=shiftDate(anchor,-1),next=shiftDate(anchor,1),stats=sourceStats(sources.events,condition);
     const summaryRefs=data.rows.reduce((n,t)=>n+t.videoCount,0);
-    return <div className="max-w-[980px]">
-        <nav className="mb-3 flex flex-wrap gap-2" aria-label="日期">
-            <Link className={idle} href={dayHref(prev,condition)}>{prev}</Link>
-            {data.date&&<Link className={current} aria-current="page" href={dayHref(data.date,condition)}>{data.date}</Link>}
-            <Link className={idle} href={dayHref(next,condition)}>{next}</Link>
-        </nav>
-        <nav className="mb-3 flex flex-wrap gap-2" aria-label="條件">
-            {AI_DAILY_CONDITIONS.map(([key,label])=>{const href=dated&&data.date?dayHref(data.date,key):key==="all"?"/ai/days":`/ai/days?condition=${key}`;return <Link key={key} className={condition===key?current:idle} aria-current={condition===key?"page":undefined} href={href}>{label}</Link>;})}
-        </nav>
-        <div className="mb-5 flex flex-wrap gap-2" aria-label="目前條件">
-            {[`condition=${condition}`,...(data.date?[`date=${data.date}`]:[]),...(data.dailyId?[`pk=${data.dailyId}`]:[])].map(label=><span key={label} className={chip+" border-zinc-300 bg-white text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400"}>{label}</span>)}
+    const conditionHref=(key:string)=>dated&&data.date?dayHref(data.date,key):key==="all"?"/ai/days":`/ai/days?condition=${key}`;
+    return <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+            <SectionTabs label="日期" tabs={[
+                {href:dayHref(prev,condition),label:`← ${prev}`},
+                ...(data.date?[{href:dayHref(data.date,condition),label:data.date,current:true}]:[]),
+                {href:dayHref(next,condition),label:`${next} →`},
+            ]}/>
+            <SectionTabs label="條件" tabs={AI_DAILY_CONDITIONS.map(([key,label])=>({href:conditionHref(key),label,current:condition===key}))}/>
         </div>
-        <section className="mb-5 grid grid-cols-1 gap-2.5 sm:grid-cols-3" aria-label="AI 涵蓋範圍">
-            <Coverage label="Raw 收錄" value={data.rawVideoRows===null?"n/a":count(data.rawVideoRows)} detail="urt_video rows"/>
-            <Coverage label="AI source" value={count(stats.videoRefs)} detail={`${count(stats.channelsWithEvents)} / ${count(data.sourceChannels)} channels · ${count(stats.eventRows)} events`}/>
-            <Coverage label="Daily summary" value={count(summaryRefs)} detail={`${count(data.rows.length)} topics`}/>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">條件：{conditionLabel(condition)}{data.date&&<> · 日期：{data.date}</>}{data.dailyId?<> · 每日彙整 #{data.dailyId}</>:<> · 由頻道摘要重新分組</>}</p>
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="AI 涵蓋範圍">
+            <Metric label="原始收錄" value={data.rawVideoRows===null?"—":count(data.rawVideoRows)} unit="則" detail="來源頻道當日影片"/>
+            <Metric label="AI 來源" value={count(stats.videoRefs)} unit="則" detail={`${count(stats.channelsWithEvents)} / ${count(data.sourceChannels)} 個頻道 · ${count(stats.eventRows)} 個事件`}/>
+            <Metric label="每日彙整" value={count(summaryRefs)} unit="則" detail={`${count(data.rows.length)} 個議題`}/>
         </section>
-        {data.rows.length?data.rows.map((topic,index)=><Topic key={topic.id} topic={topic} index={index} sources={sources}/>)
-            :<div className="border border-zinc-300 bg-white p-7 text-center text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">目前沒有符合條件的 AI daily summary。</div>}
+        {data.rows.length?<div className="space-y-4">{data.rows.map((topic,index)=><Topic key={topic.id} topic={topic} index={index} sources={sources}/>)}</div>
+            :<div className="rounded-lg border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">目前沒有符合條件的 AI 每日彙整。</div>}
     </div>;
 }
