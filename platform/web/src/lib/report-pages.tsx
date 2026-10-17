@@ -1,17 +1,12 @@
 import {readKeywordMetadata} from './keyword-metadata-server';
 import {filterOptionsMatch,type FilterOptions} from '../../../shared/filter-options';
-import {reportLinkPrefetch} from "@/lib/report-contract";
-import {EventHeader} from '@/components/EventHeader';
 import {ChannelProfile} from '@/components/ChannelProfile';
 import {VideoSearchReadHint} from '@/components/VideoSearchReadHint';
 import {KeywordProfile} from '@/components/KeywordProfile';
-import TableScroller from '@/components/TableScroller';
 import {ChannelAvatar} from '@/components/ChannelAvatar';
 import {VideoThumbnail} from '@/components/VideoThumbnail';
-import {table as tableStyle} from '@/lib/table-styles';
 import SaveButton from '@/components/reader/SaveButton';
-import {familyTabs,eventTabs} from '@/lib/report-navigation';
-import {EventAnalysis,eventAnalysisNotes} from '@/components/EventAnalysis';
+import {familyTabs} from '@/lib/report-navigation';
 import {liveCoverageNotes} from '@/components/LiveCoverageNotice';
 import { VideoCommentSummary } from '@/components/VideoCommentSummary';
 import { TagFilters } from '@/components/TagFilters';
@@ -20,8 +15,14 @@ import { PromptPreview } from '@/components/PromptPreview';
 import { LiveWall } from '@/components/LiveWall';
 import { AiDailyBoard, aiDailyTitle } from '@/components/AiDailyBoard';
 import { aiDailySources } from './ai-daily-sources';
+import { AiHoursBoard } from '@/components/ai/AiHoursBoard';
+import { AiPeriodsBoard } from '@/components/ai/AiPeriodsBoard';
+import { AiAspectsBoard } from '@/components/ai/AiAspectsBoard';
+import { AiEventPeopleBoard } from '@/components/ai/AiEventPeopleBoard';
+import { AiDayPromptBoard } from '@/components/ai/AiDayPromptBoard';
+import { AiEventWallBoard } from '@/components/ai/AiEventWallBoard';
+import { AiEventBoard } from '@/components/ai/AiEventBoard';
 import Link from "next/link";
-import { Fragment } from "react";
 import { notFound } from "next/navigation";
 import {
     api,
@@ -34,10 +35,8 @@ import {
     type VideoData,
     type LiveRow,
     type AiDaysData,
-    type AiEventData,
     type TagRow,
     type KeywordRow,
-    type TopicRow,
     type HomeData,
 } from "./api";
 import { KeywordRankingView } from "@/components/KeywordRanking";
@@ -73,88 +72,6 @@ function Failure({ status, title }: { status: number; title: string }) {
     if (status === 404) notFound();
     return <Unavailable status={status} title={title} />;
 }
-function TopicEvidence({ topic }: { topic: TopicRow }) {
-    return (
-        <>
-            <div className="tags">
-                {topic.keywords.map((tag) => (
-                    <Link
-                        className="tag"
-                        key={tag}
-                        href={`/keywords/${encodeURIComponent(tag)}/videos`}
-                    >
-                        {tag}
-                    </Link>
-                ))}
-            </div>
-            <details>
-                <summary
-                    className="muted"
-                    style={{ fontSize: 12, cursor: "pointer" }}
-                >
-                    查看分組依據 · {topic.evidence.length} 筆來源分析
-                </summary>
-                <TableScroller card className="mt-3" label="議題分組依據與影片引用">
-                    <table className={"w-full text-left text-sm " + tableStyle.nowrap + " " + tableStyle.stack}>
-                        <thead>
-                            <tr>
-                                <th className={tableStyle.cell}>頻道 / 來源議題</th>
-                                <th className={tableStyle.cell}>影片證據</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {topic.evidence.map((item, index) => {
-                                const unverified = (id: string) => !!item.resolvedVideoIds && !item.resolvedVideoIds.includes(id);
-                                const notes = [
-                                    item.withheldVideoReferenceCount ? `${count(item.withheldVideoReferenceCount)} 筆引用超過呈現範圍，請查看來源紀錄。` : "",
-                                    item.invalidReferenceCount ? `${count(item.invalidReferenceCount)} 筆引用格式不符，未建立連結。` : "",
-                                ].filter(Boolean);
-                                // One line per cell: the source link comes before the free-text topic so it is never cut.
-                                return (
-                                <tr className={tableStyle.row} key={`${item.source.id}-${index}`}>
-                                    <td data-label="頻道 / 來源議題" className={tableStyle.cell}>
-                                        <span className={tableStyle.clip + " sm:max-w-md"} title={`${item.channelTitle} · ${item.event}`}>
-                                            <Link
-                                                className="hover:underline"
-                                                href={`/channels/${item.channelId}`}
-                                            >
-                                                <ChannelAvatar className="mr-1.5" avatar={item.channelAvatar} title={item.channelTitle} size={20}/>{item.channelTitle}
-                                            </Link>
-                                            {" · "}
-                                            {item.source.snapshotRunId?<small>生成快照來源 #{item.source.id}</small>:<Link className="hover:underline" href={`/channels/${item.channelId}/ai/days?pk=${item.source.id}`}>來源紀錄 #{item.source.id}{item.source.itemIndex===undefined?'':` · 第 ${item.source.itemIndex+1} 項`}</Link>}
-                                            {" · "}
-                                            <small>{item.event}</small>
-                                        </span>
-                                    </td>
-                                    <td data-label="影片證據" className={tableStyle.cell}>
-                                        <span className={tableStyle.clip + " sm:max-w-md"} title={[...notes, item.videoIds.map((id) => unverified(id) ? `${id}（本地來源未核對）` : id).join("、")].join(" ")}>
-                                            {notes.map((note) => <small className="mr-1.5" key={note}>{note}</small>)}
-                                            {item.videoIds.map((id, i) => <Fragment key={id}>{i > 0 && "、"}{unverified(id)?<span>{id}（本地來源未核對）</span>:(
-                                                <Link
-                                                    className="hover:underline"
-                                                    href={`/videos/${encodeURIComponent(id)}`}
-                                                >
-                                                    {id}
-                                                </Link>
-                                            )}</Fragment>)}
-                                        </span>
-                                    </td>
-                                </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </TableScroller>
-            </details>
-            {topic.unresolvedReferences.length > 0 && (
-                <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
-                    另有 {topic.unresolvedReferences.length}{" "}
-                    筆來源連結尚未完成對應。
-                </p>
-            )}
-        </>
-    );
-}
 export async function ReportPage({
     route,
     search,
@@ -166,8 +83,8 @@ export async function ReportPage({
 }) {
     search = { ...search, ...route.query };
     if (route.kind === "video-analytics") return <VideoAnalytics apiPath={route.apiPath} search={search} path={path} />;
-    if (route.kind === "prompt-preview") return <PromptPreview apiPath={route.apiPath} search={search} path={path} />;
-    if (route.kind === "live-wall") return <LiveWall apiPath={route.apiPath} search={search} path={path} />;
+    if (route.kind === "prompt-preview") return path.startsWith("/ai/days")?<AiDayPromptBoard apiPath={route.apiPath} search={search} path={path} />:<PromptPreview apiPath={route.apiPath} search={search} path={path} />;
+    if (route.kind === "live-wall") return /^\/ai\/events\/\d+\/wall$/.test(path)?<AiEventWallBoard apiPath={route.apiPath} search={search} path={path} />:<LiveWall apiPath={route.apiPath} search={search} path={path} />;
     if (route.kind === "vocabulary")
         return <VocabularyReport search={search} path={path} />;
     if (route.kind === "keyword-ranking") {
@@ -301,23 +218,7 @@ export async function ReportPage({
         );
     }
     if (route.kind === "ai-event") {
-        const result = await api<AiEventData>(route.apiPath, search);
-        if (!result.ok)
-            return <Failure status={result.status} title={route.title} />;
-        const { data, meta } = result.response;
-        const topics=data.topics?.length?data.topics:data.topic?[data.topic]:[],cover=data.videos.find(v=>/^[A-Za-z0-9_-]{11}$/.test(v.id));
-        return <div className="space-y-8">
-            <EventHeader title={data.title||route.title} breadcrumb={<><Link href="/ai/days" className="hover:underline">AI 議題</Link> / {data.idKind==='daily'?'每日彙整':'儲存分析'} #{data.id}</>} description={`分析日期：${data.date||"未記錄"}`} updatedAt={meta.updatedAt}
-                cover={cover?{videoId:cover.id,title:cover.title,channelTitle:cover.channelTitle,channel:{channelId:cover.channelId,channelTitle:cover.channelTitle,channelAvatar:cover.channelAvatar??null}}:null}
-                tags={[...new Set(topics.flatMap(t=>t.keywords))].slice(0,12)}
-                stats={[{label:'本地來源影片',value:count(data.videos.length)},{label:'來源分組',value:count(topics.length)},{label:'可呈現分析',value:count(data.analyses.length)}]}
-                jumps={[["source-evidence","分組依據"],["source-videos","來源影片"],["stored-analysis","儲存分析"]]}/>
-            <DataNotice meta={meta}/><Tabs items={eventTabs(path,search)} active={eventTabs(path,search)[0]?.href||path}/>
-            <section id="source-evidence" className="scroll-mt-20 space-y-3"><SectionHeading title="分組依據"/>{topics.length>1&&<aside className="rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">同一名稱對應 {topics.length} 個來源分組，以下分開保留各組的比對依據。</aside>}{topics.map((topic,index)=><section className="rounded-xl border border-zinc-300 bg-white p-4 text-sm dark:border-zinc-800 dark:bg-zinc-900" key={`${topic.id}-${index}`}>{topics.length>1&&<h3 className="mb-2 text-sm font-semibold">來源分組 {index+1}</h3>}<TopicEvidence topic={topic}/></section>)}{!topics.length&&<Empty title="尚無可呈現的分組依據" description="儲存分析與本地來源影片仍分別列示，未推定它們屬於相同分組。"/>}</section>
-            <section id="source-videos" className="scroll-mt-20 space-y-3"><SectionHeading title="目前本地影片資料"/><VideoTable rows={data.videos}/></section>
-            <section id="stored-analysis" className="scroll-mt-20"><SectionHeading title="儲存的事件分析"/><EventAnalysis data={data}/></section>
-            <ReportMethod path={path} description={route.description} meta={meta} notes={eventAnalysisNotes(data)}/>
-        </div>;
+        return <AiEventBoard apiPath={route.apiPath} title={route.title} description={route.description} path={path} search={search} />;
     }
     if (route.kind === "channel") {
         const result = await api<ChannelData>(route.apiPath, search);
@@ -454,6 +355,9 @@ export async function ReportPage({
         );
     }
 
+    // /ai pages restored to their Laravel content and layout (see components/ai).
+    const AiBoard = path === "/ai/hours" ? AiHoursBoard : path === "/ai/periods" ? AiPeriodsBoard : path === "/ai/aspects" ? AiAspectsBoard : /^\/ai\/events\/\d+\/people$/.test(path) ? AiEventPeopleBoard : null;
+    if (AiBoard) return <AiBoard apiPath={route.apiPath} path={path} search={search} title={route.title} family={route.family} filterPath={reportFilterPath(path,route)} />;
     return (
         <ExpandedReport
             apiPath={route.apiPath}
