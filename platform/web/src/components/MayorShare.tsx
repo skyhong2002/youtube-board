@@ -3,7 +3,7 @@ import Link from 'next/link';
 import {useEffect,useRef,useState} from 'react';
 import {cities} from '../../../shared/city-definitions';
 import {chartTimeLabel} from '@/lib/chart-window';
-import {count} from '@/lib/format';
+import {compact,count} from '@/lib/format';
 import {reportStyle as ui} from '@/lib/report-styles';
 import type {ChartPoint} from './Charts';
 import {CoverageDisclosure} from './CoverageDisclosure';
@@ -41,31 +41,33 @@ export function MayorShare({part,city,series,search,rows}:{part:'chart'|'candida
  const lastIndex=(()=>{for(let i=dates.length-1;i>=0;i--)if(shares.some(s=>s.points[i]?.value!==null))return i;return -1;})();
  const last=lastIndex<0?undefined:{index:lastIndex},one=(key:string)=>{const value=search[key];return Array.isArray(value)?value[0]:value;};
  const lastCoverage=last?coverage[last.index]:undefined,incomplete=coverage.filter(c=>c.status!=='complete');
- const ref=useRef<HTMLDivElement>(null),[failed,setFailed]=useState(false);
+ const ref=useRef<HTMLDivElement>(null),[failed,setFailed]=useState(false),[view,setView]=useState<'share'|'raw'>('share');
+ const unit=series[0]?.unit??'',raw=view==='raw',plotted=raw?series:shares;
  useEffect(()=>{if(part!=='chart'||!dates.length)return;let disposed=false,chart:import('echarts').ECharts|undefined,resize:ResizeObserver|undefined,observer:MutationObserver|undefined;
   async function load(){const echarts=await import('echarts');if(disposed||!ref.current)return;chart=echarts.init(ref.current,undefined,{renderer:'svg'});
    const render=()=>{const style=getComputedStyle(document.documentElement),muted=style.getPropertyValue('--muted').trim(),line=style.getPropertyValue('--line').trim(),panel=style.getPropertyValue('--panel').trim(),fg=style.getPropertyValue('--foreground').trim();
-    chart?.setOption({animation:false,aria:{enabled:true,label:{description:`候選人媒體聲量占比趨勢，${dates[0]}～${dates[dates.length-1]}`}},textStyle:{fontFamily:style.fontFamily,color:muted,fontSize:12},
+    chart?.setOption({animation:false,aria:{enabled:true,label:{description:`候選人${raw?unit+'七日合計':'媒體聲量占比'}趨勢，${dates[0]}～${dates[dates.length-1]}`}},textStyle:{fontFamily:style.fontFamily,color:muted,fontSize:12},
      legend:{type:'scroll',left:0,right:0,top:0,textStyle:{color:muted,fontSize:12}},grid:{left:56,right:24,top:40,bottom:32},
-     // Plain-text tooltip: the date's coverage first, then every candidate's share once (both line parts share one name).
+     // Plain-text tooltip: the date's coverage first, then every candidate's share or raw value once (both line parts share one name).
      tooltip:{trigger:'axis',renderMode:'richText',confine:true,backgroundColor:panel,borderColor:line,textStyle:{color:fg,fontSize:12},
-      formatter:(params:unknown)=>{const index=(Array.isArray(params)?params[0]:params as {dataIndex?:number})?.dataIndex??0;return [`${dates[index]??''}　${coverageLabel(coverage[index])}`,...shares.map(s=>`${s.name}：${share(s.points[index]?.value)}${coverageTag(coverage[index])}`)].join('\n');}},
+      formatter:(params:unknown)=>{const index=(Array.isArray(params)?params[0]:params as {dataIndex?:number})?.dataIndex??0;return [`${dates[index]??''}　${coverageLabel(coverage[index])}`,...plotted.map(s=>`${s.name}：${raw?count(s.points[index]?.value):share(s.points[index]?.value)}${coverageTag(coverage[index])}`)].join('\n');}},
      xAxis:{type:'category',data:dates.map(chartTimeLabel),axisLabel:{hideOverlap:true,color:muted},axisLine:{lineStyle:{color:line}}},
-     yAxis:{type:'value',min:0,max:100,axisLabel:{color:muted,formatter:(v:number)=>v.toFixed(1)+'%'},splitLine:{lineStyle:{color:line}}},
-     series:shares.flatMap((s,i)=>coverageSeries(s.name,s.points.map(p=>p.value),coverage,color(s.name,i)))},true);};
+     yAxis:raw?{type:'value',min:0,axisLabel:{color:muted,formatter:(v:number)=>compact(v)},splitLine:{lineStyle:{color:line}}}:{type:'value',min:0,max:100,axisLabel:{color:muted,formatter:(v:number)=>v.toFixed(1)+'%'},splitLine:{lineStyle:{color:line}}},
+     series:plotted.flatMap((s,i)=>coverageSeries(s.name,s.points.map(p=>p.value),coverage,color(s.name,i)))},true);};
    render();resize=new ResizeObserver(()=>chart?.resize());resize.observe(ref.current);observer=new MutationObserver(render);observer.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
   }
   void load().catch(()=>{if(!disposed)setFailed(true);});return()=>{disposed=true;resize?.disconnect();observer?.disconnect();chart?.dispose();};
- },[part,JSON.stringify(series),JSON.stringify(coverage),city]);
+ },[part,view,JSON.stringify(series),JSON.stringify(coverage),city]);
  if(!dates.length)return null;
  const partialNote=incomplete.length?incompleteCoverageNote(coverage):null;
  const period=`${dates[0]}～${dates[dates.length-1]}`;
  if(part==='chart')return <figure className={ui.panel+' mx-0 mt-0 mb-5'} aria-label="候選人媒體聲量占比趨勢">
-   <figcaption className="space-y-1"><h2 className="text-base font-semibold">媒體聲量占比趨勢 <span className="text-sm font-normal text-zinc-500">{period}</span></h2>
+   <figcaption className="space-y-1"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-semibold">{raw?`${unit}趨勢（七日合計）`:'媒體聲量占比趨勢'} <span className="text-sm font-normal text-zinc-500">{period}</span></h2>
+    <div className="inline-flex rounded-md bg-zinc-100 p-0.5 text-sm dark:bg-zinc-800" role="group" aria-label="縱軸">{([['share','占比'],['raw','原始量']] as const).map(([key,label])=><button type="button" key={key} aria-pressed={view===key} onClick={()=>setView(key)} className={'rounded px-2.5 py-1 '+(view===key?'bg-white font-medium shadow-sm dark:bg-zinc-700':'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100')}>{label}</button>)}</div></div>
     {partialNote?<CoverageDisclosure coverage={coverage}/>
      :<p className="text-xs text-zinc-500">圖中每個日期的七日範圍皆涵蓋 {MAYOR_EXPECTED_BUCKETS}/{MAYOR_EXPECTED_BUCKETS} 個分類日桶。</p>}
    </figcaption>
-   {failed?<p className="py-8 text-center text-sm text-zinc-500">圖表載入失敗，請參考下方數值表格。</p>:<div ref={ref} role="img" aria-label={`候選人媒體聲量占比趨勢，${period}。${partialNote??'各日期涵蓋完整。'}`} className="h-80 w-full lg:h-[28rem]"/>}
+   {failed?<p className="py-8 text-center text-sm text-zinc-500">圖表載入失敗，請參考下方數值表格。</p>:<div ref={ref} role="img" aria-label={`候選人${raw?unit+'七日合計':'媒體聲量占比'}趨勢，${period}。${partialNote??'各日期涵蓋完整。'}`} className="h-80 w-full lg:h-[28rem]"/>}
   </figure>;
  return <section className="space-y-3" aria-label="候選人媒體聲量占比">
   <p role="status" className={`inline-flex rounded-full px-2.5 py-0.5 text-xs ${lastCoverage?.status==='complete'?'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300':'bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-200'}`}>{last?dates[last.index]:''} {coverageLabel(lastCoverage)}</p>
