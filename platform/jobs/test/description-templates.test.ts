@@ -91,5 +91,7 @@ it('supplements qualified pool refill with exact general context and reusable ci
  for(const term of ['報導','回應','討論','專訪','風險','質疑','表態'])expect(tagDisplayExclusion(term)).toBe('youtube-generic-two-character');
  for(const term of ['主持人','議員','政府'])expect(tagDisplayExclusion(term)).toBe('youtube-generic-context');
  for(const term of ['桃園','桃園市','台南','臺南市','台東','臺東縣','伊朗','民眾黨','台灣民眾黨','臺灣民眾黨'])expect(tagDisplayExclusion(term)).toBe('youtube-country-city-party');
- for(const term of ['沈伯洋','川普','台積電','國慶演說','假民主真獨裁','青年','理財','手機','台北市長','桃園機場','巨大','巨大機械','聯合國','三立電視'])expect(tagDisplayExclusion(term)).toBeNull();
+ for(const term of ['沈伯洋','川普','台積電','國慶演說','假民主真獨裁','青年節','理財','手機殼','台北市長','桃園機場','巨大','巨大機械','聯合國','三立電視','立委選舉'])expect(tagDisplayExclusion(term)).toBeNull();
+ // 2026-10-17 full-coverage audit, approved by the user: exact whole labels only.
+ for(const term of ['青年','手機','技術','美食','立委','律師'])expect(tagDisplayExclusion(term)).toBe('youtube-generic-two-character');expect(tagDisplayExclusion('分析師')).toBe('youtube-generic-context');
 });

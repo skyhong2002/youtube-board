@@ -1,5 +1,5 @@
 {
-  "version": "youtube-topic-exclusions-2026-10-15",
+  "version": "youtube-topic-exclusions-2026-10-17",
   "scope": "whole-term ranking display only; preserve vocabulary and matching evidence",
   "source": {
     "kind": "operator-production-acceptance-audit",
@@ -75,7 +75,34 @@
     "表態",
     "成長",
     "演出",
-    "亮點"
+    "亮點",
+    "中央",
+    "技術",
+    "遊戲",
+    "壓力",
+    "發展",
+    "研究",
+    "核心",
+    "千萬",
+    "手機",
+    "美食",
+    "系統",
+    "家人",
+    "孩子",
+    "能力",
+    "能源",
+    "失控",
+    "街頭",
+    "交易",
+    "年前",
+    "青年",
+    "品牌",
+    "資金",
+    "調查",
+    "社區",
+    "立委",
+    "律師",
+    "長者"
   ],
   "countryCityPartyTerms": [
     "中共",
@@ -117,6 +144,42 @@
     "老闆",
     "居民",
     "首都",
-    "城市"
-  ]
+    "城市",
+    "分析師"
+  ],
+  "fullCoverageAudit": {
+    "observedAtUTC": "2026-10-17T13:40Z",
+    "scope": "quality candidate youtube-quality-20261017-a at 99% seven-day coverage; qualified rolling24h/seven-date cohorts",
+    "note": "Full coverage across all channels raised description-dominant general words spread over 100+ channels into the top 40. The user approved these 28 exact whole labels on 2026-10-17. Named subjects containing them stay eligible.",
+    "terms": [
+      "中央",
+      "技術",
+      "遊戲",
+      "壓力",
+      "發展",
+      "研究",
+      "核心",
+      "千萬",
+      "手機",
+      "美食",
+      "系統",
+      "家人",
+      "孩子",
+      "能力",
+      "能源",
+      "失控",
+      "街頭",
+      "交易",
+      "年前",
+      "青年",
+      "品牌",
+      "資金",
+      "調查",
+      "社區",
+      "立委",
+      "律師",
+      "長者",
+      "分析師"
+    ]
+  }
 }

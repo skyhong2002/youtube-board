@@ -10,7 +10,7 @@ export const MATCH_RULE='youtube-quality-v2' as const;
 export const MATCH_FIELD_WEIGHTS={title:3,description:1} as const;
 export const TAG_POLICY_SOURCE={repository:'tag-visuals',commit:'748978854035050c4de56e365ab94c178f4ddbe0',files:['app/src/tag-noise.ts','app/data/no-equal-tags.json','app/src/v1/media-keywords.ts']} as const;
 const excluded=new Set<string>([...noEqual.tags,'國際','生活','政治','財經','兩岸','社會','地方','體育','娛樂','科技','新聞']);
-export const YOUTUBE_DISPLAY_POLICY_VERSION='youtube-platform-display-v4' as const;
+export const YOUTUBE_DISPLAY_POLICY_VERSION='youtube-platform-display-v5' as const;
 /** Reviewed operator supplements where the pinned upstream policy has no rule.
  * Match entire NFKC labels only: named subjects containing these words stay eligible. */
 const genericTwoCharacterTerms=new Set(rankingExclusions.genericTwoCharacterTerms);
