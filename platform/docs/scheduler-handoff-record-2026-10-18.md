@@ -38,6 +38,10 @@ Telegram 摘要（第 7 批）仍由 Laravel 發送：`telegram_digest_dispatche
 - 個別項目跳過（例如已刪除頻道）改記為 incomplete，不再整筆失敗（470c1a5）。
 - 每分鐘直播輪詢獨立成 youtube-live 批次，避免排在數分鐘的統計與探索之後（333db97）。
 - 首頁關鍵字每日歷史上限（91463cd）。
+- 影片長度、直播維護、影片統計、留言的 `BINARY col = BINARY x` 一樣用不到索引（影片長度查詢跑了 8 分鐘，卡住整個
+  youtube-source 佇列）；正式環境 ID 欄位本來就是 utf8mb4_bin，改成 `col = BINARY ?` 與 `a = b AND BINARY a = BINARY b`（788550e）。
+- 788550e 同時重啟 8 個服務時，web 新容器在啟動等待期內沒通過健康檢查而自動退回；之後單獨 `docker service update --image`
+  成功。之後換 image 時先換 worker、再單獨換 web。
 - 補跑每小時 AI 2026-10-18 02:00–02:59（交接前備份暫停時漏掉）與 04:00–04:59（換 image 時中斷）。
 
 ## 回復
