@@ -12,8 +12,6 @@ import {MAYOR_EXPECTED_BUCKETS,coverageLabel,coverageSeries,coverageTag,incomple
 /** Bloc colours follow the Laravel mayor page palette (KMT blue, DPP green, TPP cyan, others purple). */
 const BLOC_COLORS:Record<string,string>={blue:'#2563eb',green:'#16a34a',white:'#0891b2',other:'#7c3aed'};
 const FALLBACK=['#2563eb','#16a34a','#64748b','#0891b2','#7c3aed','#be123c'];
-/** Minor-party and independent candidates each get their own hue, kept clear of the party blues and greens. */
-const OTHER_COLORS=['#7c3aed','#be123c','#b45309','#db2777','#64748b','#0d9488','#a16207'];
 const MAYOR_TAGIDS='3,4,5,6';
 type Series={name:string;unit:string;points:ChartPoint[]};
 
@@ -34,7 +32,7 @@ const share=(value:number|null|undefined)=>value===null||value===undefined?'n/a'
 export {MAYOR_EXPECTED_BUCKETS,coverageLabel,coverageSegments,mayorCoverage,type BucketCoverage} from '@/lib/bucket-coverage';
 
 export function MayorShare({city,series,search,rows}:{city:string;series:Series[];search:Record<string,string|string[]|undefined>;rows?:readonly Record<string,unknown>[]}){
- const blocs=cities[city]?.candidates??{},others=Object.keys(blocs).filter(name=>blocs[name]==='other'),color=(name:string,index:number)=>blocs[name]==='other'?OTHER_COLORS[others.indexOf(name)%OTHER_COLORS.length]!:BLOC_COLORS[blocs[name]??'']??FALLBACK[index%FALLBACK.length];
+ const blocs=cities[city]?.candidates??{},color=(name:string,index:number)=>BLOC_COLORS[blocs[name]??'']??FALLBACK[index%FALLBACK.length];
  const shares=mayorShares(series),dates=shares[0]?.points.map(p=>p.time)??[],coverage=mayorCoverage(rows,dates);
  // Latest date on which any candidate has a share; a missing candidate there stays n/a.
  const lastIndex=(()=>{for(let i=dates.length-1;i>=0;i--)if(shares.some(s=>s.points[i]?.value!==null))return i;return -1;})();

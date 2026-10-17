@@ -5,7 +5,7 @@ import {ReportReadBound} from './cache-weights.js';
 import {BadQuery,NotFound,bounded,dateFilter,type Query} from './query.js';
 import {text,latest,taipeiDate} from './normalize.js';
 import {table,range,type Register} from './table.js';
-import {cities,candidateAliases,CANDIDATE_LIST_VERSION} from './city-definitions.js';
+import {cities} from './city-definitions.js';
 export const MAYOR_TAGS=['3','4','5','6'] as const;
 const TAGS=MAYOR_TAGS,MAX_BYTES=131072,TOTAL_BYTES=8*1024*1024;
 export const MAYOR_METRICS={tags_views:'觀看引用',tags_video:'影片引用',tags_result:'重要度'} as const;
@@ -35,11 +35,6 @@ export function mayorWeights(payload:unknown){
  for(const[key,raw]of entries){if(typeof raw!=='number'&&!(typeof raw==='string'&&/^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(raw.trim())))continue;const n=Number(raw);if(!Number.isFinite(n)||Math.abs(n)>Number.MAX_SAFE_INTEGER)throw new ReportReadBound('Mayor weight exceeds numeric precision.');if(key.length>1000)throw new ReportReadBound('Mayor term exceeds read budget.');numeric++;if(n>0)words.set(key,n);}
  return entries.length&&!numeric?null:words;
 }
-/** Adds press spellings to the registered name so one person is never split across two keys. */
-export function foldCandidateAliases(words:Map<string,number>){
- for(const[name,aliases]of Object.entries(candidateAliases))for(const alias of aliases){const n=words.get(alias);if(n===undefined)continue;words.delete(alias);words.set(name,(words.get(name)??0)+n);}
- return words;
-}
 const lineageIdentity=(row:Row)=>JSON.stringify([row._cacheLineage??null,row._cacheWindow??null]);
 export const mayorReadBudget=()=>({remaining:TOTAL_BYTES});
 /** Shared city/person reader: exact date interval, newest revision and bounded verified bodies. */
@@ -59,7 +54,7 @@ export async function readMayorBuckets(reader:Reader,from:string,to:string,metri
  const published=(await Promise.all(TAGS.map(tagid=>publishedTagCache(reader,bodies.filter(r=>text(r.tagid)===tagid),{tagid})))).flat();
  const before=new Map(accepted.map(r=>[String(r.pk),lineageIdentity(r)])),stable=published.filter(r=>before.get(String(r.pk))===lineageIdentity(r));
  const records:Row[]=[],byDate=new Map<string,Map<string,Map<string,number>>>();let malformed=0;
- for(const r of stable){const decoded=mayorWeights(r.payload);if(decoded===null){malformed++;continue;}const date=text(r.the_date).slice(0,10),tags=byDate.get(date)??new Map();tags.set(text(r.tagid),foldCandidateAliases(decoded));byDate.set(date,tags);records.push(r);}
+ for(const r of stable){const decoded=mayorWeights(r.payload);if(decoded===null){malformed++;continue;}const date=text(r.the_date).slice(0,10),tags=byDate.get(date)??new Map();tags.set(text(r.tagid),decoded);byDate.set(date,tags);records.push(r);}
  return{records,byDate,coverage:{expectedBuckets:allDates.length*4,observedBuckets:records.length,missingBuckets:visible.filter(r=>r.pk===undefined).length,withheldBuckets:withheld+bodies.length-published.length,oversizedBuckets:visible.filter(r=>Number(r.payload_bytes)>MAX_BYTES).length,emptyPayloadBuckets:visible.filter(r=>r.pk!==undefined&&!Number(r.payload_bytes)).length,malformedBuckets:malformed,changedBuckets:accepted.length-bodies.length+published.length-stable.length}};
 }
 export type MayorBuckets=Awaited<ReturnType<typeof readMayorBuckets>>;
@@ -81,7 +76,7 @@ export function registerMayor(register:Register,reader:Reader,clock:()=>Date){
  return{...table(city.label+'人物提及觀測',[{key:'date',label:'日期',kind:'date'},...candidates.flatMap(c=>[{key:c,label:c,kind:'number' as const},{key:`${c}：占比`,label:`${c} 占比 %`,kind:'number' as const}]),{key:'observedBuckets',label:'已觀測分類日桶',kind:'number'}],rows,q,{
  updatedAt:latest(...source.records.flatMap(r=>[r.mtime,r.ctime])),series:candidates.map(c=>({name:c,unit:METRICS[metric],points:rows.map(r=>({time:String(r.date),value:r[c] as number|null}))})),
  filters:[{key:'type',label:'觀測度量',type:'select',value:metric,options:Object.entries(METRICS).map(([value,label])=>({value,label}))},{key:'from',label:'開始日期',type:'date',value:period.from},{key:'to',label:'結束日期',type:'date',value:period.to},{key:'days',label:'預設天數',type:'number',value:String(period.days)},{key:'today',label:'回溯天數',type:'number',value:q.today===undefined?'':String(period.today)}],
- notes:[cacheLineageNote,...cacheWindowNotes(source.records),`人物名單為中選會 ${CANDIDATE_LIST_VERSION} 審定的縣市長候選人；同名者的提及無法區分，二字姓名也可能命中其他詞。`,'顯示四類頻道的七日原始提及量，分類可重疊；這不是支持度、民調或不重複觀眾。占比為該人物的原始量除以名單中所有人物的原始量；沿用目前 Laravel 計算，不套用政治立場權重。',`觀測期間 ${period.from}～${period.to}；${incomplete} 個日期未具備完整 28 個分類日桶。快取缺值、無效或發布暫停均保留空缺。`,...(fallbackDate?[`預設期間無人物提及，改用最新快取日期 ${fallbackDate}。`]:[]),...(metric!==requestedMetric?['觀看引用缺少人物提及，依原報表改用影片引用；度量已同步更新。']:[])]
+ notes:[cacheLineageNote,...cacheWindowNotes(source.records),'人物名單沿用 2026-05-28 維護版本，不代表最新提名狀態。','顯示四類頻道的七日原始提及量，分類可重疊；這不是支持度、民調或不重複觀眾。占比為該人物的原始量除以名單中所有人物的原始量；沿用目前 Laravel 計算，不套用政治立場權重。',`觀測期間 ${period.from}～${period.to}；${incomplete} 個日期未具備完整 28 個分類日桶。快取缺值、無效或發布暫停均保留空缺。`,...(fallbackDate?[`預設期間無人物提及，改用最新快取日期 ${fallbackDate}。`]:[]),...(metric!==requestedMetric?['觀看引用缺少人物提及，依原報表改用影片引用；度量已同步更新。']:[])]
  }),evidenceCoverage:{...source.coverage,from:period.from,to:period.to,metric,requestedMetric,fallbackDate,partialWindowDates:incomplete,dataAvailable:hasData()}};
  };
  register('/mayor',(_p,q)=>report(text(q.city)||'taipei',q));register('/mayor/cities/:city',(p,q)=>report(p.city,q));

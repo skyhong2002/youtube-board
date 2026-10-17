@@ -2,7 +2,6 @@ import Link from 'next/link';
 import {DESCRIPTION_TEMPLATE_NOTE,DISPLAY_EXCLUSION_NOTE,INSUFFICIENT,MATCH_CAVEAT,NO_VIEWS,TAG_SOURCE_ATTRIBUTION} from '@/lib/keyword-ranking';
 import {MASTHEAD_WORDS} from '@/lib/masthead-cloud';
 import {inlineLink,methodHeading,methodList,methodTerm} from './method/styles';
-import {CANDIDATE_LIST_VERSION} from '../../../shared/city-definitions';
 
 // 資料來源與計算方式, one block per part of the site, as tag.observe.tw MethodNotes.
 // /about shows them all; PageMethod under each page shows only the blocks for that
@@ -192,7 +191,7 @@ export function GroupMethod(){
 export function MayorMethod(){
  return <>
   <h3 className={methodHeading}>地方選戰觀測</h3>
-  <p>人物名單為中選會 {CANDIDATE_LIST_VERSION} 審定的縣市長候選人，同名者的提及無法區分。聲量是四類頻道的七日原始提及量，分類可重疊；不是支持度、民調或不重複觀眾，也不套用政治立場權重。</p>
+  <p>人物名單沿用 2026-05-28 的維護版本，不代表最新提名狀態。聲量是四類頻道的七日原始提及量，分類可重疊；不是支持度、民調或不重複觀眾，也不套用政治立場權重。</p>
   <MethodTerms rows={[
    ['聲量占比','每個日期彙整當日及前 6 日。只有當日所有候選人都有數值、且合計大於 0 時，同日占比合計才是 100%；任一候選人缺值時該日顯示 n/a，不以其餘候選人換算；全部為 0 時占比為 0%。卡片顯示期間內最新一天的占比與原始量。'],
    ['分類日桶','每個日期的七日範圍應有 28 個分類日桶（4 個分類 × 7 日）。未滿 28 或涵蓋未知的日期在圖上以虛線與空心點標示並註明涵蓋數；缺少的桶不補零，也不代表聲量下降。'],

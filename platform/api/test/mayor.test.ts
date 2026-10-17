@@ -1,8 +1,7 @@
 import {it,expect} from 'vitest';
 import {MySqlDialect} from 'drizzle-orm/mysql-core';
 import {buildApp} from '../src/app.js';
-import {foldCandidateAliases,mayorMetric,mayorPeriod,mayorWeights} from '../src/reports/mayor.js';
-import {cities} from '../src/reports/city-definitions.js';
+import {mayorMetric,mayorPeriod,mayorWeights} from '../src/reports/mayor.js';
 const clock=()=>new Date('2026-10-12T17:00:00Z'),dialect=new MySqlDialect();
 const metadata={pk:1,tagid:'3',the_date:'2026-10-01',ctime:'2026-10-01 12:00:00',mtime:'2026-10-01 12:00:00',payload_bytes:40,payload_hash:'fixture'};
 async function request(path:string,respond:(sql:string,params:unknown[])=>any[]){const app=buildApp({clock,reader:{rows:async q=>{const compiled=dialect.sqlToQuery(q);return respond(compiled.sql,compiled.params);},close:async()=>{}}});try{return await app.inject('/api/v1'+path);}finally{await app.close();}}
@@ -58,10 +57,4 @@ it('lineage republished during body read cannot attribute old bytes to new prove
 it('explicit dates still allow omitted-type fallback and expose positive-data status',async()=>{
  const r=await request('/mayor?from=2026-10-01&to=2026-10-01',sql=>sql.includes('AS payload_bytes')?[metadata]:sql.includes('AS payload')?[{...metadata,payload:sql.includes('`tags_video`')?'{"蔣萬安":2}':'{}'}]:[]);
  expect(r.statusCode).toBe(200);expect(r.json().meta.coverage).toMatchObject({fallbackDate:null,metric:'tags_video',dataAvailable:true});
-});
-it('mayor counts press spellings under the registered name and keeps the CEC roster',()=>{
- expect(Object.fromEntries(foldCandidateAliases(new Map([['溫世政',5],['温世政',2],['許淑華',9]])))).toEqual({温世政:7,許淑華:9});
- expect(Object.fromEntries(foldCandidateAliases(new Map([['溫世政',3]])))).toEqual({温世政:3});
- expect(Object.values(cities).reduce((n,c)=>n+Object.keys(c.candidates).length,0)).toBe(81);
- expect(Object.keys(cities.nantou!.candidates)).toEqual(['許淑華','温世政']);
 });
