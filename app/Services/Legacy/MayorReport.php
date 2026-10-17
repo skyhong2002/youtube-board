@@ -187,9 +187,13 @@ class MayorReport
             '民主進步黨' => '#16a34a',
             '台灣民眾黨' => '#0891b2',
             '無黨籍' => '#64748b',
-            '麻將黨' => '#7c3aed',
-            '司改黨' => '#b45309',
-            '台聯黨' => '#ca8a04',
+            '台灣麻將最大黨' => '#7c3aed',
+            '司法改革黨' => '#b45309',
+            '台灣團結聯盟' => '#ca8a04',
+            '台灣SoR無法黨' => '#be123c',
+            '三勢團結促進聯盟' => '#db2777',
+            '司法正義黨' => '#a16207',
+            '台灣工黨' => '#0d9488',
         ];
     }
 
@@ -230,6 +234,18 @@ class MayorReport
     }
 
     /**
+     * Press spellings that cache builds count alongside the registered name.
+     *
+     * @return array<string, list<string>>
+     */
+    public function candidateKeywordAliases(): array
+    {
+        return [
+            '温世政' => ['溫世政'],
+        ];
+    }
+
+    /**
      * @return array<string, string>
      */
     private function knownCandidateParties(): array
@@ -237,55 +253,85 @@ class MayorReport
         return [
             '蔣萬安' => '中國國民黨',
             '沈伯洋' => '民主進步黨',
-            '郭璽' => '麻將黨',
+            '郭璽' => '台灣麻將最大黨',
+            '蕭文乾' => '台灣SoR無法黨',
+            '唐新民' => '三勢團結促進聯盟',
+            '林志成' => '無黨籍',
             '李四川' => '中國國民黨',
             '蘇巧慧' => '民主進步黨',
+            '蘇輝湟' => '無黨籍',
             '張善政' => '中國國民黨',
             '黃世杰' => '民主進步黨',
             '江啟臣' => '中國國民黨',
             '何欣純' => '民主進步黨',
+            '洪麗華' => '司法正義黨',
             '謝龍介' => '中國國民黨',
             '陳亭妃' => '民主進步黨',
+            '蕭燐洪' => '台灣SoR無法黨',
+            '葉人文' => '無黨籍',
             '柯志恩' => '中國國民黨',
             '賴瑞隆' => '民主進步黨',
-            '張靜' => '司改黨',
+            '張靜' => '司法改革黨',
+            '王肇民' => '無黨籍',
+            '洪方隆' => '無黨籍',
             '謝國樑' => '中國國民黨',
             '童子瑋' => '民主進步黨',
-            '高虹安' => '台灣民眾黨',
+            '魏造文' => '無黨籍',
+            '高虹安' => '無黨籍',
             '莊競程' => '民主進步黨',
+            '何志勇' => '無黨籍',
             '徐欣瑩' => '中國國民黨',
+            '鄭朝方' => '民主進步黨',
+            '朱定瑀' => '無黨籍',
             '鍾東錦' => '中國國民黨',
             '陳品安' => '民主進步黨',
             '魏平政' => '中國國民黨',
             '陳素月' => '民主進步黨',
-            '蔡壁如' => '台灣民眾黨',
+            '陳重嘉' => '無黨籍',
+            '邱建富' => '無黨籍',
             '許淑華' => '中國國民黨',
-            '溫世政' => '民主進步黨',
+            '温世政' => '民主進步黨',
             '張嘉郡' => '中國國民黨',
             '劉建國' => '民主進步黨',
+            '吳炳輝' => '無黨籍',
+            '林佳瑜' => '無黨籍',
             '蔡易餘' => '民主進步黨',
+            '吳品叡' => '無黨籍',
             '張啓楷' => '台灣民眾黨',
             '王美惠' => '民主進步黨',
             '黃宏成台灣阿成世界偉人財神總統' => '無黨籍',
+            '陳愷璜' => '無黨籍',
+            '王義成' => '無黨籍',
             '周春米' => '民主進步黨',
             '蘇清泉' => '中國國民黨',
             '吳宗憲' => '中國國民黨',
             '林國漳' => '民主進步黨',
-            '陳琬惠' => '台灣民眾黨',
+            '陳宏毅' => '無黨籍',
+            '劉燦輝' => '無黨籍',
+            '楊鉯婷' => '無黨籍',
             '游淑貞' => '中國國民黨',
             '張峻' => '無黨籍',
             '魏嘉賢' => '無黨籍',
+            '羅佩秦' => '台灣工黨',
             '吳秀華' => '中國國民黨',
             '陳瑩' => '民主進步黨',
-            '陳光復' => '民主進步黨',
+            '李吳穎智' => '無黨籍',
+            '王志偉' => '無黨籍',
             '陳振中' => '中國國民黨',
-            '葉竹林' => '無黨籍',
-            '陳盡川' => '無黨籍',
+            '吳淑瑾' => '民主進步黨',
+            '周倪安' => '台灣團結聯盟',
             '許智富' => '無黨籍',
+            '陳盡川' => '無黨籍',
+            '葉竹林' => '無黨籍',
             '陳玉珍' => '中國國民黨',
-            '楊鎮浯' => '中國國民黨',
             '李文良' => '無黨籍',
+            '洪和成' => '無黨籍',
+            '黃世團' => '無黨籍',
+            '張國威' => '無黨籍',
+            '梁文韜' => '無黨籍',
+            '張火木' => '無黨籍',
             '王忠銘' => '中國國民黨',
+            '曹爾元' => '無黨籍',
         ];
     }
 
@@ -614,10 +660,14 @@ class MayorReport
                 '蔣萬安' => 'blue',
                 '沈伯洋' => 'green',
                 '郭璽' => 'other',
+                '蕭文乾' => 'other',
+                '唐新民' => 'other',
+                '林志成' => 'other',
             ]),
             $this->fallbackCity('newtaipei', '新北市', [
                 '李四川' => 'blue',
                 '蘇巧慧' => 'green',
+                '蘇輝湟' => 'other',
             ]),
             $this->fallbackCity('taoyuan', '桃園市', [
                 '張善政' => 'blue',
@@ -626,26 +676,35 @@ class MayorReport
             $this->fallbackCity('taichung', '台中市', [
                 '江啟臣' => 'blue',
                 '何欣純' => 'green',
+                '洪麗華' => 'other',
             ]),
             $this->fallbackCity('tainan', '台南市', [
                 '謝龍介' => 'blue',
                 '陳亭妃' => 'green',
+                '蕭燐洪' => 'other',
+                '葉人文' => 'other',
             ]),
             $this->fallbackCity('kaohsiung', '高雄市', [
                 '柯志恩' => 'blue',
                 '賴瑞隆' => 'green',
                 '張靜' => 'other',
+                '王肇民' => 'other',
+                '洪方隆' => 'other',
             ]),
             $this->fallbackCity('keelung', '基隆市', [
                 '謝國樑' => 'blue',
                 '童子瑋' => 'green',
+                '魏造文' => 'other',
             ]),
             $this->fallbackCity('hsinchu', '新竹市', [
-                '高虹安' => 'white',
+                '高虹安' => 'other',
                 '莊競程' => 'green',
+                '何志勇' => 'other',
             ]),
             $this->fallbackCity('hsinchucounty', '新竹縣', [
                 '徐欣瑩' => 'blue',
+                '鄭朝方' => 'green',
+                '朱定瑀' => 'other',
             ]),
             $this->fallbackCity('miaoli', '苗栗縣', [
                 '鍾東錦' => 'blue',
@@ -654,23 +713,29 @@ class MayorReport
             $this->fallbackCity('changhua', '彰化縣', [
                 '魏平政' => 'blue',
                 '陳素月' => 'green',
-                '蔡壁如' => 'white',
+                '陳重嘉' => 'other',
+                '邱建富' => 'other',
             ]),
             $this->fallbackCity('nantou', '南投縣', [
                 '許淑華' => 'blue',
-                '溫世政' => 'green',
+                '温世政' => 'green',
             ]),
             $this->fallbackCity('yunlin', '雲林縣', [
                 '張嘉郡' => 'blue',
                 '劉建國' => 'green',
+                '吳炳輝' => 'other',
+                '林佳瑜' => 'other',
             ]),
             $this->fallbackCity('chiayi', '嘉義縣', [
                 '蔡易餘' => 'green',
+                '吳品叡' => 'other',
             ]),
             $this->fallbackCity('chiayicity', '嘉義市', [
                 '張啓楷' => 'white',
                 '王美惠' => 'green',
                 '黃宏成台灣阿成世界偉人財神總統' => 'other',
+                '陳愷璜' => 'other',
+                '王義成' => 'other',
             ]),
             $this->fallbackCity('pingtung', '屏東縣', [
                 '周春米' => 'green',
@@ -679,31 +744,42 @@ class MayorReport
             $this->fallbackCity('yilan', '宜蘭縣', [
                 '吳宗憲' => 'blue',
                 '林國漳' => 'green',
-                '陳琬惠' => 'white',
+                '陳宏毅' => 'other',
+                '劉燦輝' => 'other',
+                '楊鉯婷' => 'other',
             ]),
             $this->fallbackCity('hualien', '花蓮縣', [
                 '游淑貞' => 'blue',
                 '張峻' => 'other',
                 '魏嘉賢' => 'other',
+                '羅佩秦' => 'other',
             ]),
             $this->fallbackCity('taitung', '台東縣', [
                 '吳秀華' => 'blue',
                 '陳瑩' => 'green',
+                '李吳穎智' => 'other',
+                '王志偉' => 'other',
             ]),
             $this->fallbackCity('penghu', '澎湖縣', [
-                '陳光復' => 'green',
                 '陳振中' => 'blue',
-                '葉竹林' => 'other',
-                '陳盡川' => 'other',
+                '吳淑瑾' => 'green',
+                '周倪安' => 'other',
                 '許智富' => 'other',
+                '陳盡川' => 'other',
+                '葉竹林' => 'other',
             ]),
             $this->fallbackCity('kinmen', '金門縣', [
                 '陳玉珍' => 'blue',
-                '楊鎮浯' => 'blue',
                 '李文良' => 'other',
+                '洪和成' => 'other',
+                '黃世團' => 'other',
+                '張國威' => 'other',
+                '梁文韜' => 'other',
+                '張火木' => 'other',
             ]),
             $this->fallbackCity('lienchiang', '連江縣', [
                 '王忠銘' => 'blue',
+                '曹爾元' => 'other',
             ]),
         ])
             ->keyBy('key')
@@ -724,7 +800,7 @@ class MayorReport
             'factors' => collect($candidateBlocs)
                 ->map(fn (string $bloc): array => $this->factorTemplate($bloc))
                 ->all(),
-            'source' => 'curated: 2026 county/city head election public nomination and declaration list, updated 2026-05-28',
+            'source' => 'curated: 2026 county/city head election public nomination and declaration list, approved by the Central Election Commission 2026-10-16',
         ];
     }
 

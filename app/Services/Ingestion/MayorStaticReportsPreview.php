@@ -109,6 +109,7 @@ class MayorStaticReportsPreview
         foreach ($targetReports as [, $report]) {
             foreach ($report['city']['candidates'] ?? [] as $candidate) {
                 $targetKeywords[] = $candidate;
+                array_push($targetKeywords, ...($this->mayorReport->candidateKeywordAliases()[$candidate] ?? []));
             }
         }
 

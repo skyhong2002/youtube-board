@@ -17,7 +17,7 @@ made and no campaign advice is generated.
 - The largest observed categories retain ties. All-zero observations have no
   largest category. These are descriptive category counts, not political scores.
 - Seven-day raw value and percentage use the same `mayorObservations()` helper as
-  the city report, including its maintained historical candidate list and zero
+  the city report, including its candidate list (CEC-approved 2026-10-16) and zero
   denominator convention. Partial coverage remains visible as `N/28` buckets;
   missing buckets are never synthesized as zero. Partial observed percentages
   are labeled as such. This is media-reference share, not public support.

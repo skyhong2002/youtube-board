@@ -33,7 +33,7 @@ class MayorReportRouteTest extends TestCase
         $response->assertSee('郭璽');
         $response->assertSee('蔣萬安<small>（中國國民黨）</small>', false);
         $response->assertSee('沈伯洋<small>（民主進步黨）</small>', false);
-        $response->assertSee('郭璽<small>（麻將黨）</small>', false);
+        $response->assertSee('郭璽<small>（台灣麻將最大黨）</small>', false);
         $response->assertSee('background: #2563eb', false);
         $response->assertSee('background: #16a34a', false);
         $response->assertSee('background: #7c3aed', false);
@@ -178,7 +178,8 @@ class MayorReportRouteTest extends TestCase
         $response->assertSee('嘉義市');
         $response->assertSee('金門縣候選人媒體聲量趨勢');
         $response->assertSee('陳玉珍');
-        $response->assertSee('楊鎮浯');
+        $response->assertSee('張火木');
+        $response->assertDontSee('楊鎮浯');
         $response->assertSee('李文良');
     }
 
