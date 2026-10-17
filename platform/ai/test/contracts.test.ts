@@ -21,5 +21,17 @@ describe('AI contracts',()=>{
 
  it('discards invalid output rows only and then checks valid minimum',()=>{const p=plan();expect(validateResult(JSON.stringify({events:[null,event(['UNKNOWN_ID0']),event()]}),p)).toHaveLength(1);p.bounds.min=2;expect(()=>validateResult(JSON.stringify({events:[event(),null]}),p)).toThrow('valid event count');});
  it('bounded transient retries honor capped Retry-After and strip unsupported schema constraints',async()=>{let attempts=0;const delays:number[]=[];let payload:any;const provider=new GatewayProvider({OPENAI_API_KEY:'test'},async(_url,init)=>{payload=JSON.parse(String(init!.body));attempts++;return attempts<3?new Response('withheld',{status:attempts===1?429:503,headers:{'Retry-After':'999'}}):Response.json({model:'fake',choices:[{finish_reason:'stop',message:{content:'{}'}}]});},async ms=>{delays.push(ms);});expect((await provider.complete(plan())).attempts).toBe(3);expect(delays).toEqual([2000,2000]);expect(JSON.stringify(payload.response_format.json_schema.schema)).not.toMatch(/minLength|maxLength|pattern/);});
- it('exhausts transient retries but does not retry 401 or ambiguous network failures',async()=>{let calls=0;await expect(new GatewayProvider({OPENAI_API_KEY:'test'},async()=>{calls++;return new Response('',{status:504});},async()=>{}).complete(plan())).rejects.toThrow('transient');expect(calls).toBe(3);calls=0;await expect(new GatewayProvider({OPENAI_API_KEY:'test'},async()=>{calls++;throw Error('secret');},async()=>{}).complete(plan())).rejects.toThrow('outcome unknown');expect(calls).toBe(1);});
+ it('falls back to the next gateway only when one is unreachable or stays transient',async()=>{
+  const env={OPENAI_API_KEY:'test',OPENAI_BASE_URL:'http://primary.test/v1',OPENAI_GATEWAY_FALLBACK_BASE_URLS:'http://sm.test:8317/v1, http://mini.test:8318/v1'};
+  const ok=()=>Response.json({model:'fake',choices:[{finish_reason:'stop',message:{content:'{}'}}]});
+  const refused=()=>{throw Object.assign(new TypeError('fetch failed'),{cause:{code:'ECONNREFUSED'}});};
+  let hosts:string[]=[];
+  const result=await new GatewayProvider(env,async url=>{const host=new URL(String(url)).host;hosts.push(host);if(host==='primary.test')refused();if(host==='sm.test:8317')return new Response('',{status:503});return ok();},async()=>{}).complete(plan());
+  expect(result.gateway).toBe('mini.test:8318');expect(hosts).toEqual(['primary.test','sm.test:8317','sm.test:8317','sm.test:8317','mini.test:8318']);
+  hosts=[];await expect(new GatewayProvider(env,async url=>{hosts.push(new URL(String(url)).host);throw Error('reset');},async()=>{}).complete(plan())).rejects.toThrow('outcome unknown');expect(hosts).toEqual(['primary.test']);
+  hosts=[];await expect(new GatewayProvider(env,async url=>{hosts.push(new URL(String(url)).host);return new Response('',{status:401});},async()=>{}).complete(plan())).rejects.toThrow('HTTP 401');expect(hosts).toEqual(['primary.test']);
+  await expect(new GatewayProvider(env,async()=>refused(),async()=>{}).complete(plan())).rejects.toThrow('unreachable');
+  expect(()=>new GatewayProvider({...env,OPENAI_GATEWAY_FALLBACK_BASE_URLS:'http://user:pw@x.test/v1'})).toThrow('Invalid AI gateway URL');
+ });
+ it('exhausts transient retries but does not retry 401 or ambiguous network failures',async()=>{let calls=0;await expect(new GatewayProvider({OPENAI_API_KEY:'test',OPENAI_GATEWAY_FALLBACK_BASE_URLS:''},async()=>{calls++;return new Response('',{status:504});},async()=>{}).complete(plan())).rejects.toThrow('transient');expect(calls).toBe(3);calls=0;await expect(new GatewayProvider({OPENAI_API_KEY:'test'},async()=>{calls++;throw Error('secret');},async()=>{}).complete(plan())).rejects.toThrow('outcome unknown');expect(calls).toBe(1);});
 });

@@ -21,7 +21,7 @@ export async function refreshDays(db:Connection,raw:RefreshInput,options:DailyOp
  const ready=new Set<string>();
  for(const date of dates){
   try{
-   if(!input.skipDaily){const result=await runDailyPipeline(db,{kind:'daily',from:date+' 00:00:00',to:date+' 23:59:59',...source},{...options,callLimit:options.callLimit-calls,reserveCall,assertAuthorized:authorize});rows.push({workflow:'ai.daily',date,...result});const dayReady=result.rows.some((r)=>{const row=r as Record<string,unknown>;return row.workflow==='ai.daily'&&row.condition===input.condition&&['published','unchanged'].includes(String(row.status));});if(options.execute&&!dayReady&&result.reason!=='all_daily_rows_complete')continue;}
+   if(!input.skipDaily){const result=await runDailyPipeline(db,{kind:'daily',from:date+' 00:00:00',to:date+' 23:59:59',...source},{...options,callLimit:options.callLimit-calls,reserveCall,assertAuthorized:authorize});rows.push({workflow:'ai.daily',date,...result});const dayReady=result.rows.some((r)=>{const row=r as Record<string,unknown>;return row.workflow==='ai.daily'&&row.condition===input.condition&&['published','unchanged'].includes(String(row.status));});if(options.execute&&!dayReady&&(result as {reason?:string}).reason!=='all_daily_rows_complete')continue;}
    // Dry run reports current-state availability; it cannot promise outputs from future completions.
    const daily=await loadDailySource(db,date,input.condition,input.userToken);if(daily.topics.length>input.topicLimit)throw new Error('topic_source_cap_exceeded');ready.add(date);
    if(!input.skipCache){try{rows.push({workflow:'reports.ai_topic.build',date,...await buildTopicCache(db,{date,...source},runOptions('reports.ai_topic.build'))});}catch(error){fail('reports.ai_topic.build',date,error);}}
