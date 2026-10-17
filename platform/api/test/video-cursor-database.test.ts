@@ -88,9 +88,11 @@ describe.skipIf(!url)('video keyset pagination on connection-private MariaDB fix
   await db.query('UPDATE urt_video SET viewCount=1 WHERE pk=?',[pks[0]]);
   const result=await service.videos({min:'100',channelIds:'1',cursor:changed});expect(result.rows.some(r=>r.id===ids[0])).toBe(false);expect(result.rows.every(r=>r.channelId===1)).toBe(true);
  });
- it('cursor predicate remains parameterized and eligible for the existing publication index',async()=>{
+ it('cursor predicate remains parameterized and bounds the full-width read through the publication index',async()=>{
   const first=await service.videos({limit:'1'});queries.length=0;await service.videos({limit:'1',cursor:first.nextCursor!});
-  const query=queries.find(q=>q.sql.includes('v.pk<'))!;expect(query.sql).not.toContain('9007199254740992');
-  const[plan]=await db.query<RowDataPacket[]>('EXPLAIN '+query.sql,query.params);expect(String(plan.find(r=>r.table==='v')?.possible_keys)).toContain('publishedAt');expect(queries.some(q=>q.sql.includes('MIN(boundary.'))).toBe(false);
+  // An unbounded continuation filesorts every full-width row; the index-only boundary comes first.
+  const boundary=queries.find(q=>q.sql.includes('MIN(boundary.')&&q.sql.includes('v.pk<'))!,read=queries.find(q=>q.sql.includes('LEFT(v.title')&&q.sql.includes('v.pk<'))!;
+  expect(queries.indexOf(boundary)).toBeLessThan(queries.indexOf(read));expect(read.sql).toMatch(/`?v`?\.`?publishedAt`?>=/);
+  for(const query of [boundary,read]){expect(query.sql).not.toContain('9007199254740992');const[plan]=await db.query<RowDataPacket[]>('EXPLAIN '+query.sql,query.params);expect(String(plan.find(r=>r.table==='v')?.possible_keys)).toContain('publishedAt');}
  });
 });

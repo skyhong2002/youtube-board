@@ -123,17 +123,17 @@ export function reports(reader: Reader, clock: () => Date = () => new Date(), di
         const order=sql`${sql.identifier('v')}.${sql.identifier(column)} DESC,v.pk DESC`;
         const source=keyword ? keywordCandidateSource(version!, keywordKey!, keyword,identities) : sql`FROM urt_video v LEFT JOIN urt_count n ON n.u_id=v.u_id`;
         const selection=async():Promise<{rows:Row[];hasNext:boolean}>=>{
-            if(cursor){
-                // Keyset continuation: DESC publishedAt then pk, NULL publication last.
-                const after=cursor.publishedAt===null?sql`v.publishedAt IS NULL AND v.pk<${cursor.pk}`:sql`(v.publishedAt<${cursor.publishedAt} OR (v.publishedAt=${cursor.publishedAt} AND v.pk<${cursor.pk}) OR v.publishedAt IS NULL)`;
-                const rows=await reader.rows(sql`SELECT ${fields} ${source} WHERE ${where} AND (${after}) ORDER BY ${order} LIMIT ${limit+1}`);
-                return {rows:rows.slice(0,limit),hasNext:rows.length>limit};
-            }
+            // Keyset continuation: DESC publishedAt then pk, NULL publication last.
+            // It takes the same boundary path as offset pages: on its own the
+            // predicate matches nearly the whole archive, and the publishedAt,pk
+            // order then filesorts every full-width row (~2 s in Production).
+            const after=!cursor?null:cursor.publishedAt===null?sql`v.publishedAt IS NULL AND v.pk<${cursor.pk}`:sql`(v.publishedAt<${cursor.publishedAt} OR (v.publishedAt=${cursor.publishedAt} AND v.pk<${cursor.pk}) OR v.publishedAt IS NULL)`;
+            const filter=after?sql`${where} AND (${after})`:where;
             // The single-column metric index can stop at the requested boundary.
             // Include every tie at that boundary before applying the original pk
             // tie-break; sorting only the first N metric rows would lose ties.
             const metric=sql`${sql.identifier('v')}.${sql.identifier(column)}`;
-            const boundary=(await reader.rows(sql`SELECT MIN(boundary.sort_value) AS cutoff,COUNT(*) AS selected,COALESCE(SUM(boundary.sort_value IS NULL),0) AS nulls FROM (SELECT STRAIGHT_JOIN ${metric} AS sort_value ${source} WHERE ${where} ORDER BY ${metric} DESC LIMIT ${offset+limit+1}) boundary`))[0];
+            const boundary=(await reader.rows(sql`SELECT MIN(boundary.sort_value) AS cutoff,COUNT(*) AS selected,COALESCE(SUM(boundary.sort_value IS NULL),0) AS nulls FROM (SELECT STRAIGHT_JOIN ${metric} AS sort_value ${source} WHERE ${filter} ORDER BY ${metric} DESC LIMIT ${offset+limit+1}) boundary`))[0];
             const selected=integer(boundary?.selected),nulls=integer(boundary?.nulls);
             if(selected===null||nulls===null||selected<0||selected>offset+limit+1||nulls<0||nulls>selected)throw new DataQueryFailed('INVALID_VIDEO_BOUNDARY');
             if(selected<=offset)return {rows:[],hasNext:false};
@@ -144,7 +144,7 @@ export function reports(reader: Reader, clock: () => Date = () => new Date(), di
             const range=cutoff===null?sql`${metric} IS NULL`:nulls?sql`(${metric}>=${cutoff} OR ${metric} IS NULL)`:sql`${metric}>=${cutoff}`;
             // Recheck source text/taxonomy/evidence: Laravel may update between
             // statements. No cross-statement source snapshot is claimed.
-            const rows=await reader.rows(sql`SELECT ${fields} ${source} WHERE ${where} AND ${range} ORDER BY ${order} LIMIT ${limit+1} OFFSET ${offset}`);
+            const rows=await reader.rows(sql`SELECT ${fields} ${source} WHERE ${filter} AND ${range} ORDER BY ${order} LIMIT ${limit+1} OFFSET ${offset}`);
             return {rows:rows.slice(0,limit),hasNext:rows.length>limit};
         };
         const count=async():Promise<{total:number|null;totalStatus:VideoCollection['totalStatus']}>=>{
