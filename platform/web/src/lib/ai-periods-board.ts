@@ -15,12 +15,14 @@ export function recentMonths(now=new Date()):[string,string]{
  const d=new Date(+now+8*3600000),current=d.toISOString().slice(0,7);
  d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()-1);return [current,d.toISOString().slice(0,7)];
 }
+/** The API's 期間表 (legacy*) fields carry the numbers Laravel's period table showed for every event,
+ * including events that only have raw daily topics. */
 export function periodTopics(rows:Cells[]):PeriodTopic[]{
  return rows.flatMap(row=>{
   const event=cellText(row.event);if(!event)return [];
   const cell=row.event!==null&&typeof row.event==='object'?row.event:null;
-  return [{date:cellText(row.date),event,href:cell?.href?.startsWith('/')?cell.href:null,channels:cellNumber(row.channels),videos:cellNumber(row.videos),keywordCount:cellNumber(row.keywordCount),
-   topPerson:cellText(row.topPerson),topPersonCount:cellNumber(row.topPersonCount),topKeyword:cellText(row.topKeyword),topKeywordCount:cellNumber(row.topKeywordCount),stored:cellText(row.metricSource)==='已儲存彙整統計'}];
+  return [{date:cellText(row.date),event,href:cell?.href?.startsWith('/')?cell.href:null,channels:cellNumber(row.legacyMediaCount),videos:cellNumber(row.legacyVideoCount),keywordCount:cellNumber(row.legacyKeywordCount),
+   topPerson:cellText(row.legacyTopPerson),topPersonCount:cellNumber(row.legacyTopPersonCount),topKeyword:cellText(row.legacyTopKeyword),topKeywordCount:cellNumber(row.legacyTopKeywordCount),stored:cellText(row.metricSource)==='已儲存彙整統計'}];
  });
 }
 export const rangeDays=(from:string,to:string)=>{const d=(Date.parse(to)-Date.parse(from))/86400000;return Number.isFinite(d)&&d>=0?Math.round(d)+1:0;};

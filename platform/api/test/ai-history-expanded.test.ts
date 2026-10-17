@@ -1,7 +1,7 @@
 import {MySqlDialect} from 'drizzle-orm/mysql-core';
 import {describe,it,expect} from 'vitest';
 import {buildApp} from '../src/app.js';
-import {hourlyTopics,periodTopics} from '../src/reports/ai-history.js';
+import {hourlyTopics,periodTopics,legacyPeriodStats} from '../src/reports/ai-history.js';
 import {periodPairs,periodSourceIds,tracePeriodChain} from '../src/reports/ai-event-history.js';
 const daily=(pk:number,date:string,names:string[],extra={})=>({pk,date_from:date+' 00:00:00',date_to:date+' 23:59:59',condition_type:'all',user_token:'fixture',result_json:JSON.stringify(names.map(title=>({title}))),...extra});
 const one=daily(1,'2038-05-10',['Start']),two=daily(2,'2038-05-11',['Middle']),three=daily(3,'2038-05-12',['Current']);
@@ -10,6 +10,14 @@ const periods=[pair(12,'2038-05-11','2038-05-12','Middle','Current',[2,3]),pair(
 describe('AI hourly / period / history source interpretation',()=>{
  it('retains hourly wrappers, categories and exact video source fields',()=>{const event={事件:'原始議題',分類:'交通',video_ids:['AbC_123xYz9']};for(const wrapper of ['hourly_events','主要事件','results'])expect(hourlyTopics(JSON.stringify({[wrapper]:[event]}))).toEqual([event]);expect(hourlyTopics('```json\n'+JSON.stringify({hourly_events:[event]})+'\n```')).toEqual([event]);});
  it('reads cached metrics without manufacturing missing counts or conflating people and keywords',()=>{const r=periodTopics({...one,data_json:JSON.stringify({Start:{媒體數:3,影片數:8,人物:{無:100,甲:4,乙:-1},關鍵字:{甲:8,道路:5},關鍵字次數:{道路:2,橋:3}}})})[0]!;expect(r).toMatchObject({channels:3,videos:8,keywordCount:5,topPerson:'甲',topPersonCount:4,topKeyword:'道路',topKeywordCount:5});expect(r.event).toEqual({value:'Start',href:'/ai/days/1/events?event=Start'});expect(periodTopics(one)[0]).toMatchObject({channels:null,videos:null,keywordCount:null,topPerson:null});});
+ it('adds the Laravel period-table values beside the strict metrics',()=>{
+  const raw=periodTopics({...one,result_json:JSON.stringify([{title:'Start',媒體事件:{甲台:['一','二'],乙台:['三'],丙台:[]}},{title:'Bare'}])});
+  expect(raw[0]).toMatchObject({channels:3,videos:null,keywordCount:null,legacyMediaCount:3,legacyVideoCount:3,legacyKeywordCount:0,legacyTopPerson:'',legacyTopPersonCount:0,legacyTopKeyword:'',legacyTopKeywordCount:0});
+  expect(raw[1]).toMatchObject({channels:null,legacyMediaCount:0,legacyVideoCount:0});
+  const stored=periodTopics({...one,data_json:JSON.stringify({Start:{媒體數:'4',人物:{無:100,甲:4,乙:-1},關鍵字:{甲:8,無:2,道路:'5.9'},關鍵字次數:{道路:2,橋:3,'2024':7,壞:'x'}}})})[0]!;
+  expect(stored).toMatchObject({videos:null,legacyMediaCount:4,legacyVideoCount:0,legacyKeywordCount:5,legacyTopPerson:'甲',legacyTopPersonCount:4,legacyTopKeyword:'道路',legacyTopKeywordCount:5});
+  expect(legacyPeriodStats({人物:{乙:-1,丙:-1}})).toMatchObject({legacyTopPerson:'乙',legacyTopPersonCount:-1,legacyTopKeyword:'',legacyTopKeywordCount:0,legacyMediaCount:0});
+ });
  it('follows only stored pairs with exact source IDs and source titles',()=>{const chain=tracePeriodChain(three,'Current',periods,[one,two,three]);expect(chain.rows.map(r=>r.dailyId)).toEqual([3,2,1]);expect(chain.rows.map(r=>r.periodId)).toEqual([null,12,11]);expect(chain.stop).toBe('no-period');expect(tracePeriodChain(three,'current',periods,[one,two,three]).rows).toHaveLength(1);});
  it('stops on mismatched lineage, ambiguous titles and altered source conditions',()=>{expect(tracePeriodChain(three,'Current',[{...periods[0],data_json:'[1,2]'}],[one,two,three]).stop).toBe('source-mismatch');for(const changed of [{...two,user_token:'other'},{...two,condition_type:'world'}])expect(tracePeriodChain(three,'Current',periods,[one,changed,three]).stop).toBe('source-mismatch');expect(tracePeriodChain(three,'Current',periods,[one,daily(2,'2038-05-11',['Middle','Middle']),three]).stop).toBe('ambiguous-source');expect(tracePeriodChain(three,'Current',periods,[one,daily(2,'2038-05-11',['renamed']),three]).stop).toBe('ambiguous-source');});
  it('keeps stable equal-count order and canonical daily title when older aliases coexist',()=>{expect(periodTopics({...one,data_json:JSON.stringify({Start:{人物:{乙:3,甲:3}}})})[0]?.topPerson).toBe('乙');expect(periodTopics({...one,result_json:JSON.stringify([{標題:'canonical',事件:'secondary'}])})[0]?.event).toMatchObject({value:'canonical'});});

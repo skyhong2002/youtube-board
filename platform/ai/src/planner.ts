@@ -1,5 +1,5 @@
 import type { Connection, RowDataPacket } from 'mysql2/promise';
-import { normalizeInput,eventSchema,type Input,type Plan,type Video,type ChannelSource,type ChannelEvent } from './contracts.js';
+import { normalizeInput,eventSchema,type NormalizeOptions,type Input,type Plan,type Video,type ChannelSource,type ChannelEvent } from './contracts.js';
 /** Preserve channel taxonomy semantics. These tags are not the shared content vocabulary. */
 export function conditionSql(input: Plan['input'], alias='v'): {sql:string;params:unknown[]} {
   let all:number[]=[], any:number[]=[], not:number[]=[];
@@ -17,8 +17,8 @@ export function conditionSql(input: Plan['input'], alias='v'): {sql:string;param
   if(any.length){clauses.push('('+any.map(()=> 'ct.tags LIKE ?').join(' OR ')+')');params.push(...any.map(id=>`%[${id}]%`));}
   return {sql:clauses.length?` AND EXISTS (SELECT 1 FROM urt_count ct WHERE ct.u_id=${alias}.u_id AND ${clauses.join(' AND ')})`:'',params};
 }
-export async function planAi(db:Pick<Connection,'query'>,raw:Input):Promise<Plan>{
-  const input=normalizeInput(raw),daily=input.kind==='daily';
+export async function planAi(db:Pick<Connection,'query'>,raw:Input,options:NormalizeOptions={}):Promise<Plan>{
+  const input=normalizeInput(raw,options),daily=input.kind==='daily';
   const table=daily?'urt_ai_date':input.kind==='channel'?'urt_channel_ai':'urt_ai_hour';
   const key:Record<string,string|number>={date_from:input.from,date_to:input.to,data_type:input.dataType,user_token:input.userToken};
   if(input.kind==='channel')key.u_id=input.channelId!;else key.condition_type=input.condition??'all';

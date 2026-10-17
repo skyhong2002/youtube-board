@@ -66,3 +66,11 @@ export interface ReportData {
         observedBuckets: number;
     }[];
 }
+/** /ai/aspects additions (Laravel AiAspectReport): a tag is LegacyTagFilter's {id, name}. */
+export interface AspectTag {id:number;name:string}
+export interface AspectReportData extends ReportData {
+    /** Keyed by local channel ID, for the channels in rows only: their visible tags (1,2,3,4,5,6,60,43,48,49,81) in the channel's own tag order. */
+    channelTags: Record<string, AspectTag[]>;
+    /** The effective tagid, or and not IDs (after condition), each once, with names. */
+    filterTags: AspectTag[];
+}

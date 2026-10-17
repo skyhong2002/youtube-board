@@ -1,15 +1,17 @@
 import {strict as assert} from 'node:assert';
 import {test} from 'node:test';
 import {aiPeriodsTitle,periodStats,periodTopics,rangeDays,recentMonths} from './ai-periods-board';
-test('period rows keep the Laravel columns and leave missing stored statistics empty',()=>{
+test('period rows show the Laravel period-table values, also for raw-only daily topics',()=>{
  const topics=periodTopics([
-  {date:'2026-10-15',event:{value:'甲',href:'/ai/days/5551/events?event=%E7%94%B2'},channels:6,videos:122,keywordCount:944,topPerson:'沈伯洋',topPersonCount:6,topKeyword:'士林夜市',topKeywordCount:6,metricSource:'已儲存彙整統計',sourceId:5551,dataType:'oneday'},
-  {date:'2026-10-17',event:{value:'乙',href:'https://example.com/'},channels:6,videos:null,keywordCount:null,topPerson:null,topPersonCount:null,topKeyword:null,topKeywordCount:null,metricSource:'原始每日議題；未取得彙整統計',sourceId:5563,dataType:'oneday'},
+  {date:'2026-10-15',event:{value:'甲',href:'/ai/days/5551/events?event=%E7%94%B2'},channels:6,videos:122,keywordCount:944,topPerson:'沈伯洋',topPersonCount:6,topKeyword:'士林夜市',topKeywordCount:6,metricSource:'已儲存彙整統計',sourceId:5551,dataType:'oneday',
+   legacyMediaCount:6,legacyVideoCount:122,legacyKeywordCount:944,legacyTopPerson:'沈伯洋',legacyTopPersonCount:6,legacyTopKeyword:'士林夜市',legacyTopKeywordCount:6},
+  {date:'2026-10-17',event:{value:'乙',href:'https://example.com/'},channels:6,videos:null,keywordCount:null,topPerson:null,topPersonCount:null,topKeyword:null,topKeywordCount:null,metricSource:'原始每日議題；未取得彙整統計',sourceId:5563,dataType:'oneday',
+   legacyMediaCount:6,legacyVideoCount:14,legacyKeywordCount:0,legacyTopPerson:'',legacyTopPersonCount:0,legacyTopKeyword:'',legacyTopKeywordCount:0},
   {date:'2026-10-17',event:'',channels:1},
  ]);
  assert.deepEqual(topics,[
   {date:'2026-10-15',event:'甲',href:'/ai/days/5551/events?event=%E7%94%B2',channels:6,videos:122,keywordCount:944,topPerson:'沈伯洋',topPersonCount:6,topKeyword:'士林夜市',topKeywordCount:6,stored:true},
-  {date:'2026-10-17',event:'乙',href:null,channels:6,videos:null,keywordCount:null,topPerson:'',topPersonCount:null,topKeyword:'',topKeywordCount:null,stored:false},
+  {date:'2026-10-17',event:'乙',href:null,channels:6,videos:14,keywordCount:0,topPerson:'',topPersonCount:0,topKeyword:'',topKeywordCount:0,stored:false},
  ]);
  assert.deepEqual(periodStats(topics),{dates:2,stored:1});
 });

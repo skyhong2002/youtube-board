@@ -20,6 +20,7 @@ import {aiPeriodsTitle,periodStats,periodTopics,rangeDays,recentMonths,type Peri
 const conditionLabel=(key:string)=>AI_DAILY_CONDITIONS.find(([k])=>k===key)?.[1]??key;
 const COLUMNS=["編號","事件","日期","媒體事件數","影片數","關鍵字數","最重要人","次數","最重要事","次數"];
 const NUMERIC=new Set([0,3,4,5,7,9]);
+const none=<span className="text-zinc-400">-</span>;
 function Row({topic,index}:{topic:PeriodTopic;index:number}){
     return <tr className={cell.row+" align-top"}>
         <td className={cell.num+" text-zinc-500"}>{index+1}</td>
@@ -28,9 +29,9 @@ function Row({topic,index}:{topic:PeriodTopic;index:number}){
         <td className={cell.num}>{count(topic.channels)}</td>
         <td className={cell.num}>{count(topic.videos)}</td>
         <td className={cell.num}>{count(topic.keywordCount)}</td>
-        <td className={cell.cell+" whitespace-nowrap"}>{topic.topPerson||"—"}</td>
+        <td className={cell.cell+" whitespace-nowrap"}>{topic.topPerson||none}</td>
         <td className={cell.num}>{count(topic.topPersonCount)}</td>
-        <td className={cell.cell+" whitespace-nowrap"}>{topic.topKeyword||"—"}</td>
+        <td className={cell.cell+" whitespace-nowrap"}>{topic.topKeyword||none}</td>
         <td className={cell.num}>{count(topic.topKeywordCount)}</td>
     </tr>;
 }
@@ -80,7 +81,7 @@ export async function AiPeriodsBoard({apiPath,path,search,title,filterPath}:{api
         <Pagination collection={data} search={search} path={path}/>
         <ReportMethod path={path} meta={meta} notes={[
             "事件依日期由新到舊、同日依每日議題順序排列；事件連到該日的議題分析。",
-            "媒體事件數是議題涵蓋的頻道數。影片數、關鍵字數、最重要人與最重要事來自已儲存的彙整統計；只有原始每日議題時顯示「—」，不以零代替。",
+            "有彙整統計的事件，媒體事件數、影片數、關鍵字數、最重要人與最重要事取自彙整統計。只有原始每日議題的事件，媒體事件數是議題列出的頻道數，影片數是各頻道媒體事件筆數的加總（事件引用數，不是不重複影片數），關鍵字數與次數為 0、人物與關鍵字顯示「-」，與舊版期間報表相同。",
             "最重要人排除「無」；最重要事是排除人物名稱後被提及最多的關鍵字，次數為該詞的記錄數。",
             ...(data.notes??[]),
         ]}/>

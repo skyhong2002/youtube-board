@@ -1,5 +1,5 @@
-import type {ReportCell,ReportData,ReportValue} from '../../../api/src/report-contracts';
-import type {ChannelTag} from '../../../api/src/contracts';
+import type {AspectReportData,AspectTag,ReportCell,ReportValue} from '../../../api/src/report-contracts';
+export type {AspectReportData};
 import type {ChannelAvatar} from '../../../shared/media-assets';
 
 type Search=Record<string,string|string[]|undefined>;
@@ -8,8 +8,6 @@ export const AI_ASPECT_CONDITIONS=[['all','全部'],['blue','泛藍'],['green','
 /** Laravel's columns: the score key and its header. */
 export const AI_ASPECT_COLUMNS=[['台灣','台灣立場'],['泛綠','泛綠度'],['泛白','泛白度'],['泛藍','泛藍度'],['泛紅','泛紅度'],['中國','中國立場']] as const;
 export type AspectName=typeof AI_ASPECT_COLUMNS[number][0];
-/** LegacyTagFilter::visibleTags: the only channel tags Laravel printed under a channel. */
-export const AI_ASPECT_VISIBLE_TAGS=[1,2,3,4,5,6,60,43,48,49,81] as const;
 
 export interface AspectFilters {condition:string|null;tagid:number[];or:number[];not:number[];limit:number|null}
 const one=(value:string|string[]|undefined)=>typeof value==='string'?value:'';
@@ -24,6 +22,8 @@ export function aspectFilters(search:Search):AspectFilters{
  return f;
 }
 const tagName=(names:ReadonlyMap<number,string>,id:number)=>names.get(id)??String(id);
+/** Tag names the API resolved for the active tagid/or/not selection. */
+export const aspectTagNames=(data:Partial<Pick<AspectReportData,'filterTags'>>)=>new Map((Array.isArray(data.filterTags)?data.filterTags:[]).map(t=>[t.id,t.name]));
 /** AiAspectReport::title. */
 export function aspectTitle(f:AspectFilters,names:ReadonlyMap<number,string>){
  const tags=[...f.tagid,...f.or].map(id=>tagName(names,id)).join(' ');
@@ -52,7 +52,7 @@ export function aspectConditionHref(path:string,search:Search,condition:string){
 
 export interface AspectScore {value:number|null;detail:string}
 export interface AspectRow {
- channelId:number|null;title:string;href:string|null;avatar:ChannelAvatar|null;
+ channelId:number|null;title:string;href:string|null;avatar:ChannelAvatar|null;tags:AspectTag[];
  scores:Record<AspectName,AspectScore>;balance:number|null;partial:boolean;source:{label:string;href:string}|null;
 }
 const cell=(v:ReportValue|ReportCell|undefined):ReportCell|null=>v!==null&&typeof v==='object'&&!Array.isArray(v)&&'value' in v?v as ReportCell:null;
@@ -60,30 +60,16 @@ const score=(v:ReportValue|ReportCell|undefined):AspectScore=>{
  const c=cell(v),raw=c?c.value:v;
  return {value:typeof raw==='number'&&Number.isFinite(raw)?raw:null,detail:typeof c?.detail==='string'?c.detail:''};
 };
-/** 傾向 as AiAspectReport computed it: 泛綠＋泛白－泛藍－泛紅＋台灣－中國, missing scores counted as 0
- * (partial marks that). No score at all leaves it empty instead of 0. */
-export function aspectBalance(scores:Record<AspectName,AspectScore>){
- const v=(n:AspectName)=>scores[n].value??0,known=AI_ASPECT_COLUMNS.filter(([n])=>scores[n].value!==null).length;
- return {balance:known?v('泛綠')+v('泛白')-v('泛藍')-v('泛紅')+v('台灣')-v('中國'):null,partial:known>0&&known<AI_ASPECT_COLUMNS.length};
-}
-/** The /ai/aspects rows (already sorted by the API) as the Laravel table needs them. */
-export function aspectRows(data:Pick<ReportData,'rows'>):AspectRow[]{
+/** The /ai/aspects rows (already sorted by the API) as the Laravel table needs them. 傾向 comes from the
+ * API (missing scores counted as 0); partial marks a row where some but not all six scores exist. */
+export function aspectRows(data:Pick<AspectReportData,'rows'>&Partial<Pick<AspectReportData,'channelTags'>>):AspectRow[]{
+ const channelTags=data.channelTags&&typeof data.channelTags==='object'?data.channelTags:{};
  return data.rows.map(row=>{
   const channel=cell(row.channel),source=cell(row.source),media=channel?.media?.kind==='channel'?channel.media:null;
-  const href=channel?.href??null,id=media?.channelId??Number(href?.match(/^\/channels\/(\d+)$/)?.[1]??NaN);
+  const href=channel?.href??null,id=media?.channelId??Number(href?.match(/^\/channels\/(\d+)$/)?.[1]??NaN),channelId=Number.isSafeInteger(id)&&id>0?id:null;
   const scores=Object.fromEntries(AI_ASPECT_COLUMNS.map(([n])=>[n,score(row[n])])) as Record<AspectName,AspectScore>;
-  return {channelId:Number.isSafeInteger(id)&&id>0?id:null,title:String(channel?.value??row.channel??''),href,avatar:media?.avatar??null,scores,...aspectBalance(scores),
-   source:source?.href?{label:String(source.value??''),href:source.href}:null};
+  const known=AI_ASPECT_COLUMNS.filter(([n])=>scores[n].value!==null).length,tags=channelId===null?[]:channelTags[String(channelId)];
+  return {channelId,title:String(channel?.value??row.channel??''),href,avatar:media?.avatar??null,tags:Array.isArray(tags)?tags:[],scores,
+   balance:score(row.balance).value,partial:known>0&&known<AI_ASPECT_COLUMNS.length,source:source?.href?{label:String(source.value??''),href:source.href}:null};
  });
-}
-/** The visible tags of each channel, in the channel's own tag order. */
-export function visibleChannelTags(rows:readonly {id:number;tags:readonly ChannelTag[]}[]){
- const visible=new Set<number>(AI_ASPECT_VISIBLE_TAGS),out=new Map<number,ChannelTag[]>();
- for(const row of rows)out.set(row.id,row.tags.filter(t=>visible.has(t.id)));
- return out;
-}
-/** /channels query that lists every channel that can carry a visible tag on this page:
- * any visible tag, narrowed by the page's tagid/not (the page's own `or` is dropped, which only widens it). */
-export function tagLookupSearch(f:AspectFilters):Record<string,string>{
- return {or:AI_ASPECT_VISIBLE_TAGS.join(','),...(f.tagid.length?{tagid:f.tagid.join(',')}:{}),...(f.not.length?{not:f.not.join(',')}:{}),limit:'200'};
 }

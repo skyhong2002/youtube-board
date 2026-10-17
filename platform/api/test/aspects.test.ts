@@ -7,6 +7,7 @@ import {buildApp} from '../src/app.js';
 import {createReader,type Reader} from '../src/db/client.js';
 import {assertTestDatabaseUrl} from '../../shared/test-database.js';
 import {aiBusinessKey} from '../../shared/ai-business-key.js';
+import {MySqlDialect} from 'drizzle-orm/mysql-core';
 it('accepts wrappers, flat lists, scalar aliases, and first existing group precedence',()=>{
  const r=aspectValues({result:{data:[{group:'兩岸角度',item:'台灣',score:'3.9',description:42},{group:'兩岸',name:'台灣',value:99},{group:'政治傾向',name:'泛綠',偏好度:'invalid',preference:'-2.8'},{group:'政治立場',name:'泛藍',value:99}]}});
  expect(r.values['台灣']).toEqual({value:3,detail:'42'});expect(r.values['泛綠'].value).toBe(-2);expect(r.values['泛藍'].value).toBeNull();expect(r.sortBalance).toBe(1n);
@@ -23,6 +24,27 @@ it('rejects metadata row and byte bounds before requesting payloads',async()=>{
   let calls=0;const reader={rows:async()=>{calls++;return rows;},close:async()=>{}} as Reader;
   await expect(aspectReport(reader,{})).rejects.toMatchObject({statusCode:422});expect(calls).toBe(1);const app=buildApp({reader});expect((await app.inject('/api/v1/ai/aspects')).statusCode).toBe(422);await app.close();
  }
+});
+it('adds Laravel visible channel tags, filter tag names and the 傾向 balance for the returned page',async()=>{
+ const payloads:Record<number,unknown>={1:[{name:'泛綠',score:9,description:'綠'},{name:'台灣',score:8},{name:'泛白',score:1},{name:'泛藍',score:2},{name:'泛紅',score:0},{name:'中國',score:1}],2:[{name:'泛藍',score:6}],3:[{name:'其他',score:1}]};
+ const statements:{sql:string;params:unknown[]}[]=[];
+ const reader={close:async()=>{},rows:async(query:any)=>{const q=new MySqlDialect().sqlToQuery(query);statements.push(q);
+  if(q.sql.includes('AS bytes'))return [1,2,3].map(pk=>({pk,bytes:20}));
+  if(q.sql.includes('ai.result_json,c.title'))return [1,2,3].map(pk=>({pk,u_id:pk*10,date_from:'2026-10-10 00:00:00',date_to:'2026-10-10 23:59:59',data_type:'aspect',user_token:'cli',ctime:'2026-10-10 00:00:00',mtime:null,result_json:JSON.stringify(payloads[pk]),title:'ch'+pk}));
+  if(q.sql.includes('ts_ai_runs'))return q.params.filter(v=>typeof v==='number').map(pk=>({pk,published:1,pending:0,published_before:0}));
+  if(q.sql.includes('FROM urt_count'))return [{u_id:10,tags:'[12][4][1][4][81][99]'},{u_id:30,tags:null}];
+  if(q.sql.includes('FROM urt_tag'))return [{tag_id:1,tag_name:'社論'},{tag_id:2,tag_name:'政治人物'},{tag_id:3,tag_name:'泛藍'},{tag_id:4,tag_name:'泛綠'},{tag_id:5,tag_name:null}];
+  return [];}} as Reader;
+ const r=await aspectReport(reader,{condition:'blue',tagid:'9',or:'2',not:'5,3',limit:'2'});
+ expect(r.columns.map(c=>c.key)).toEqual(['channel','台灣','泛綠','泛白','泛藍','泛紅','中國','balance','source']);
+ expect(r.rows.map(row=>(row.channel as any).value)).toEqual(['ch1','ch3']);expect(r.total).toBe(3);
+ expect(r.rows.map(row=>row.balance)).toEqual([{value:15,detail:''},{value:null,detail:''}]);
+ expect((await aspectReport(reader,{offset:'2'})).rows[0]!.balance).toEqual({value:-6,detail:'部分分數缺值，以 0 計入'});
+ expect(r.channelTags).toEqual({'10':[{id:4,name:'泛綠'},{id:1,name:'社論'},{id:81,name:'81'}],'30':[]});
+ expect(r.filterTags).toEqual([{id:3,name:'泛藍'},{id:2,name:'政治人物'},{id:5,name:'5'}]);
+ const count=statements.find(s=>s.sql.includes('SELECT u_id,tags FROM urt_count'))!;expect(count.params).toEqual([10,30,2]);
+ statements.length=0;const empty={...reader,rows:async(query:any)=>{statements.push(new MySqlDialect().sqlToQuery(query));return [];}} as Reader;
+ expect(await aspectReport(empty,{})).toMatchObject({rows:[],channelTags:{},filterTags:[]});expect(statements).toHaveLength(1);
 });
 const url=process.env.TEST_DATABASE_URL?assertTestDatabaseUrl(process.env.TEST_DATABASE_URL):undefined;
 describe.skipIf(!url)('aspect reports on isolated MariaDB',()=>{

@@ -6,7 +6,6 @@ import {reportLinkPrefetch} from "@/lib/report-contract";
 import {reportStyle as ui} from "@/lib/report-styles";
 import {count} from "@/lib/format";
 import type {AiDaysData,TopicRow} from "@/lib/api";
-import {sourceStats,topicSummary,type ChannelAiEvent} from "@/lib/ai-daily-summary";
 
 /** The Laravel /ai/days content and order (date and condition switchers, coverage, numbered
  * topics with per-channel events, a summary box and up to three embedded videos), drawn with
@@ -29,8 +28,9 @@ function Counts({rows,link}:{rows:{term:string;count:number}[];link?:boolean}){
 function Pair({a,b}:{a:[string,number];b:[string,number]}){
     return <span className="tabular-nums">{a[0]} {count(a[1])} 則<span className="mx-2 text-zinc-400">/</span>{b[0]} {count(b[1])} 則</span>;
 }
-function Topic({topic,index,sources}:{topic:TopicRow;index:number;sources:AiDailySources}){
-    const s=topicSummary(topic,sources.events,sources.green,sources.blue),href=`/ai/days/${topic.dailyId}/events?event=${encodeURIComponent(topic.title)}`;
+const EMPTY_SUMMARY:NonNullable<TopicRow["summary"]>={keywords:[],people:[],party:{green:0,blue:0},angle:{taiwan:0,china:0},camp:{dpp:0,kmt:0},videos:[]};
+function Topic({topic,index}:{topic:TopicRow;index:number}){
+    const s=topic.summary??EMPTY_SUMMARY,href=`/ai/days/${topic.dailyId}/events?event=${encodeURIComponent(topic.title)}`;
     const rows:[string,React.ReactNode][]=[
         ["媒體數",<span className="tabular-nums" key="m">{count(topic.channelCount)} 個媒體 · {count(topic.videoCount)} 則影片</span>],
         ["關鍵字",<Counts rows={s.keywords} link key="k"/>],
@@ -64,9 +64,8 @@ function Topic({topic,index,sources}:{topic:TopicRow;index:number;sources:AiDail
         </div>
     </article>;
 }
-export interface AiDailySources { events: Map<number,ChannelAiEvent[]>; green: Set<number>; blue: Set<number> }
-export function AiDailyBoard({data,dated,sources}:{data:AiDaysData;dated:boolean;sources:AiDailySources}){
-    const condition=data.condition||"all",anchor=data.date??taipeiToday(),prev=shiftDate(anchor,-1),next=shiftDate(anchor,1),stats=sourceStats(sources.events,condition);
+export function AiDailyBoard({data,dated}:{data:AiDaysData;dated:boolean}){
+    const condition=data.condition||"all",anchor=data.date??taipeiToday(),prev=shiftDate(anchor,-1),next=shiftDate(anchor,1),stats=data.sourceStats??{channels:data.sourceChannels,channelsWithEvents:0,eventRows:0,videoRefs:0};
     const summaryRefs=data.rows.reduce((n,t)=>n+t.videoCount,0);
     const conditionHref=(key:string)=>dated&&data.date?dayHref(data.date,key):key==="all"?"/ai/days":`/ai/days?condition=${key}`;
     return <div className="space-y-4">
@@ -78,13 +77,13 @@ export function AiDailyBoard({data,dated,sources}:{data:AiDaysData;dated:boolean
             ]}/>
             <SectionTabs label="條件" tabs={AI_DAILY_CONDITIONS.map(([key,label])=>({href:conditionHref(key),label,current:condition===key}))}/>
         </div>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">條件：{conditionLabel(condition)}{data.date&&<> · 日期：{data.date}</>}{data.dailyId?<> · 每日彙整 #{data.dailyId}</>:<> · 由頻道摘要重新分組</>}</p>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">條件：{conditionLabel(condition)}{data.date&&<> · 日期：{data.date}</>}{data.dailyId?<> · 每日彙整 #{data.dailyId}{data.dataType&&<> · 資料類型：{data.dataType}</>}</>:<> · 由頻道摘要重新分組</>}</p>
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="AI 涵蓋範圍">
             <Metric label="原始收錄" value={data.rawVideoRows===null?"—":count(data.rawVideoRows)} unit="則" detail="來源頻道當日影片"/>
-            <Metric label="AI 來源" value={count(stats.videoRefs)} unit="則" detail={`${count(stats.channelsWithEvents)} / ${count(data.sourceChannels)} 個頻道 · ${count(stats.eventRows)} 個事件`}/>
+            <Metric label="AI 來源" value={count(stats.videoRefs)} unit="則" detail={`${count(stats.channelsWithEvents)} / ${count(stats.channels)} 個頻道 · ${count(stats.eventRows)} 個事件`}/>
             <Metric label="每日彙整" value={count(summaryRefs)} unit="則" detail={`${count(data.rows.length)} 個議題`}/>
         </section>
-        {data.rows.length?<div className="space-y-4">{data.rows.map((topic,index)=><Topic key={topic.id} topic={topic} index={index} sources={sources}/>)}</div>
+        {data.rows.length?<div className="space-y-4">{data.rows.map((topic,index)=><Topic key={topic.id} topic={topic} index={index}/>)}</div>
             :<div className="rounded-lg border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">目前沒有符合條件的 AI 每日彙整。</div>}
     </div>;
 }

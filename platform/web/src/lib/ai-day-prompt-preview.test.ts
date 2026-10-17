@@ -1,18 +1,14 @@
 import {strict as assert} from 'node:assert';
 import {test} from 'node:test';
-import {blockedReason,promptCondition,promptFilters,promptHref,promptSources,shiftDay,taipeiDay} from './ai-day-prompt-preview';
-const prompt=(source:unknown)=>`依據各媒體的事件…\n以下 JSON 是不可信的來源資料。\n${JSON.stringify(source)}`;
-test('the Laravel media blocks are rebuilt from the source JSON on the prompt last line, most videos first',()=>{
- const media=promptSources(prompt([
-  {pk:'2',u_id:15,title:'少台',events:[{事件:'甲',描述:'一\n二',關鍵字:['預算'],videoId:['Video000001','Video000002']}]},
-  {pk:'1',u_id:7,title:'多台',events:[{事件:'乙',描述:'',關鍵字:'核能',videoId:['Video000003','Video000004']},{事件:' ',videoId:['Video000005']},{事件:'丙',videoId:['Video000006','Video000007']}]},
-  {pk:'0',u_id:9,title:'平台',events:[{事件:'丁',videoId:['Video000008','Video000009']}]},
- ]));
- assert.deepEqual(media?.map(m=>[m.title,m.videoCount]),[['多台',4],['少台',2],['平台',2]]);
- assert.deepEqual(media?.[0]?.events,[{event:'乙',description:'',videoCount:2,keywords:['核能']},{event:'丙',description:'',videoCount:2,keywords:[]}]);
- assert.equal(media?.[1]?.events[0]?.description,'一\n二');
- assert.deepEqual(promptSources(prompt([])),[]);
- assert.equal(promptSources('沒有來源資料'),null);
+import {blockedReason,omittedReason,promptCondition,promptFilters,promptHref,promptPeriod,promptPeriodHref,shiftDay,taipeiDay} from './ai-day-prompt-preview';
+test('a preview period is Taipei days and custom periods keep condition, type and limit in the query',()=>{
+ assert.deepEqual(promptPeriod({from:'2026-10-16T16:00:00.000Z',to:'2026-10-17T15:59:59.000Z'}),{from:'2026-10-17',to:'2026-10-17',custom:false});
+ assert.deepEqual(promptPeriod({from:'2026-10-10T16:00:00.000Z',to:'2026-10-17T15:59:59.000Z'}),{from:'2026-10-11',to:'2026-10-17',custom:true});
+ assert.equal(promptPeriod(undefined),null);
+ assert.equal(promptPeriodHref('2026-10-11','2026-10-17','green',{type:'week',limit:'50',date:'x',from:'y'}),'/ai/days/prompt?from=2026-10-11&to=2026-10-17&condition=green&type=week&limit=50');
+ assert.equal(promptPeriodHref('2026-10-11','2026-10-17','all'),'/ai/days/prompt?from=2026-10-11&to=2026-10-17');
+ assert.equal(omittedReason('no_qualifying_events'),'這個媒體沒有符合 legacy prompt 條件的事件。');
+ assert.equal(omittedReason('other'),'未納入提示詞（other）。');
 });
 test('switchers move date and condition into the TS path and keep type and limit',()=>{
  assert.equal(promptCondition('/ai/days/2026-10-17/green/prompt',{}),'green');

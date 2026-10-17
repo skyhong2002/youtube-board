@@ -14,7 +14,6 @@ import { VideoAnalytics } from '@/components/VideoAnalytics';
 import { PromptPreview } from '@/components/PromptPreview';
 import { LiveWall } from '@/components/LiveWall';
 import { AiDailyBoard, aiDailyTitle } from '@/components/AiDailyBoard';
-import { aiDailySources } from './ai-daily-sources';
 import { AiHoursBoard } from '@/components/ai/AiHoursBoard';
 import { AiPeriodsBoard } from '@/components/ai/AiPeriodsBoard';
 import { AiAspectsBoard } from '@/components/ai/AiAspectsBoard';
@@ -212,7 +211,7 @@ export async function ReportPage({
                 />
                 <DataNotice meta={meta} />
                 <Tabs items={familyTabs(path,search,meta.coverage)} active={path} />
-                <AiDailyBoard data={data} dated={Boolean(route.id)} sources={await aiDailySources(data)} />
+                <AiDailyBoard data={data} dated={Boolean(route.id)} />
                 <ReportMethod path={path} description={route.description} meta={meta}/>
             </>
         );

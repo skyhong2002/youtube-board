@@ -20,13 +20,32 @@ function ranked(value:unknown,exclude:Set<string>=new Set()){return Object.entri
 export function hourlyTopics(value:unknown):Row[]{
  return decodeHourlyTopics(value,true).topics;
 }
+// Laravel AiPeriodReport (tag pre-ts-cutover-2026-10-11) values for its 期間事件 table: PHP (int)
+// casts, numericMap() keeps is_numeric values under string keys (PHP turns "123" keys into ints),
+// arsort() is stable, missing statistics become 0 / ''.
+const phpInt=(v:unknown):number=>{const n=typeof v==='boolean'?+v:typeof v==='number'?v:typeof v==='string'?Number(/^\s*[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/.exec(v)?.[0]??0):v&&typeof v==='object'?+(Object.keys(v).length>0):0,t=Math.trunc(n);return Number.isSafeInteger(t)?t:0;};
+const phpNumeric=(v:unknown)=>typeof v==='number'?Number.isFinite(v):typeof v==='string'&&/^\s*[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?\s*$/.test(v);
+const phpIntKey=(k:string)=>/^(?:0|-?[1-9]\d{0,18})$/.test(k)&&BigInt(k)<=9223372036854775807n&&BigInt(k)>=-9223372036854775808n;
+const numericMap=(v:unknown)=>new Map(v&&typeof v==='object'&&!Array.isArray(v)?Object.entries(v).filter(([k,n])=>!phpIntKey(k)&&phpNumeric(n)).map(([k,n])=>[k,phpInt(n)] as const):[]);
+const top=(m:Map<string,number>)=>[...m].sort((a,b)=>b[1]-a[1])[0];
+const sum=(values:Iterable<number>)=>{let n=0;for(const v of values)n+=v;return Number.isSafeInteger(n)?n:0;};
+export function legacyPeriodStats(s:Row){
+ const people=numericMap(s['人物']);people.delete('無');const keywords=numericMap(s['關鍵字']);for(const name of people.keys())keywords.delete(name);
+ const person=top(people),keyword=top(keywords);
+ return {legacyMediaCount:phpInt(s['媒體數']),legacyVideoCount:phpInt(s['影片數']),legacyKeywordCount:sum(numericMap(s['關鍵字次數']).values()),legacyTopPerson:person?.[0]??'',legacyTopPersonCount:person?.[1]??0,legacyTopKeyword:keyword?.[0]??'',legacyTopKeywordCount:keyword?.[1]??0};
+}
+/** Raw daily topic without a summary: Laravel counted the 媒體事件 channel entries and summed their event lists as 影片數. */
+export function legacyRawStats(t:Row){
+ const media=t['媒體事件']??t.media_events??t.mediaEvents,lists=media&&typeof media==='object'?Object.values(media):[];
+ return {legacyMediaCount:lists.length,legacyVideoCount:sum(lists.map(v=>v&&typeof v==='object'?Object.keys(v).length:0)),legacyKeywordCount:0,legacyTopPerson:'',legacyTopPersonCount:0,legacyTopKeyword:'',legacyTopKeywordCount:0};
+}
 export function periodTopics(record:Row):Cells[]{
  const cached=object(record.data_json),date=text(record.date_from).slice(0,10),sourceId=integer(record.pk);
  const values=Object.keys(cached).length?Object.entries(cached).slice(0,TOPICS).map(([name,raw])=>{
   const s=object(raw),people=ranked(s['人物'],new Set(['無'])),keywords=ranked(s['關鍵字'],new Set(people.map(([name])=>name))),counts=ranked(s['關鍵字次數']);
   const sum=counts.reduce((n,[,v])=>n+v,0);
-  return {name,channels:count(s['媒體數']),videos:count(s['影片數']),keywordCount:counts.length&&Number.isSafeInteger(sum)?sum:null,topPerson:people[0]?.[0]??null,topPersonCount:people[0]?.[1]??null,topKeyword:keywords[0]?.[0]??null,topKeywordCount:keywords[0]?.[1]??null,metricSource:'已儲存彙整統計'};
- }):aiItems(record.result_json).slice(0,TOPICS).map(object).map(t=>({name:dailyTopicTitle(t),channels:mediaCount(t['媒體事件']??t.media_events??t.mediaEvents),videos:null,keywordCount:null,topPerson:null,topPersonCount:null,topKeyword:null,topKeywordCount:null,metricSource:'原始每日議題；未取得彙整統計'}));
+  return {name,channels:count(s['媒體數']),videos:count(s['影片數']),keywordCount:counts.length&&Number.isSafeInteger(sum)?sum:null,topPerson:people[0]?.[0]??null,topPersonCount:people[0]?.[1]??null,topKeyword:keywords[0]?.[0]??null,topKeywordCount:keywords[0]?.[1]??null,metricSource:'已儲存彙整統計',...legacyPeriodStats(s)};
+ }):aiItems(record.result_json).slice(0,TOPICS).map(object).map(t=>({name:dailyTopicTitle(t),channels:mediaCount(t['媒體事件']??t.media_events??t.mediaEvents),videos:null,keywordCount:null,topPerson:null,topPersonCount:null,topKeyword:null,topKeywordCount:null,metricSource:'原始每日議題；未取得彙整統計',...legacyRawStats(t)}));
  return values.filter(v=>v.name.trim()).map(({name,...v})=>({date,event:sourceId?link(name,`/ai/days/${sourceId}/events?event=${encodeURIComponent(name)}`):name,...v,sourceId,dataType:text(record.data_type)}));
 }
 export function registerAiHistory(register:Register,reader:Reader,clock:()=>Date){
@@ -62,7 +81,7 @@ export function registerAiHistory(register:Register,reader:Reader,clock:()=>Date
   for(const r of records)checks.push(await aiPublication(reader,'ai.daily',r,budget));
   for(const [index,r] of records.entries()){const check=checks[index]!;if(!publicationVisible(check))continue;const cache=await topicPublication(reader,r,check,budget);cacheChecks.push(cache);visible.push(publicationVisible(cache)?r:{...r,data_json:null});}
   const rows=visible.flatMap(periodTopics);
-  const result=table('AI 議題期間彙整',[{key:'date',label:'日期',kind:'date'},{key:'event',label:'議題'},{key:'channels',label:'頻道數',kind:'number'},{key:'videos',label:'來源彙整影片數',kind:'number'},{key:'keywordCount',label:'關鍵字次數',kind:'number'},{key:'topPerson',label:'最多提及人物'},{key:'topPersonCount',label:'人物記錄數',kind:'number'},{key:'topKeyword',label:'最多提及關鍵字'},{key:'topKeywordCount',label:'關鍵字記錄數',kind:'number'},{key:'metricSource',label:'數據來源'},{key:'sourceId',label:'每日資料編號',kind:'number'},{key:'dataType',label:'資料類型'}],rows,q,{updatedAt:latest(...visible.flatMap(r=>[r.mtime,r.ctime])),filters:[{key:'from',label:'起日',type:'date',value:period.from},{key:'to',label:'迄日',type:'date',value:period.to},{key:'month',label:'整月（YYYY-MM，優先於日期）',type:'text',value:text(month)},...baseFilters(c,type)],notes:[publicationNote,'快照總讀取預算為 16 MiB，彙整只核對最近 8 次發布；超出時無法判定現有內容是否匹配更早修訂或已經被改寫。讀取上限與預算不足另列 coverage。','每日議題與彙整統計分別核對發布紀錄；彙整尚未發布或不符來源時，保留原始議題並將缺漏統計留空。','每一天保留篩選條件下最新的有效彙整；跨日同名事件不推定為相同事件。','人物與關鍵字統計只讀取已儲存的彙整結果；沒有來源統計時留空，不推算成零。','影片數是當時彙整所記錄的數值，來源事件引用數不冒充不重複影片數。原始議題的頻道數計算來源列出的頻道項目，可能包含尚無事件內容的項目。',`日期範圍 ${period.from} 至 ${period.to}，最多 62 天，每日最多 ${TOPICS} 個議題。`]});
+  const result=table('AI 議題期間彙整',[{key:'date',label:'日期',kind:'date'},{key:'event',label:'議題'},{key:'channels',label:'頻道數',kind:'number'},{key:'videos',label:'來源彙整影片數',kind:'number'},{key:'keywordCount',label:'關鍵字次數',kind:'number'},{key:'topPerson',label:'最多提及人物'},{key:'topPersonCount',label:'人物記錄數',kind:'number'},{key:'topKeyword',label:'最多提及關鍵字'},{key:'topKeywordCount',label:'關鍵字記錄數',kind:'number'},{key:'metricSource',label:'數據來源'},{key:'sourceId',label:'每日資料編號',kind:'number'},{key:'dataType',label:'資料類型'},{key:'legacyMediaCount',label:'期間表媒體事件數',kind:'number'},{key:'legacyVideoCount',label:'期間表影片數',kind:'number'},{key:'legacyKeywordCount',label:'期間表關鍵字數',kind:'number'},{key:'legacyTopPerson',label:'期間表最重要人'},{key:'legacyTopPersonCount',label:'期間表最重要人次數',kind:'number'},{key:'legacyTopKeyword',label:'期間表最重要事'},{key:'legacyTopKeywordCount',label:'期間表最重要事次數',kind:'number'}],rows,q,{updatedAt:latest(...visible.flatMap(r=>[r.mtime,r.ctime])),filters:[{key:'from',label:'起日',type:'date',value:period.from},{key:'to',label:'迄日',type:'date',value:period.to},{key:'month',label:'整月（YYYY-MM，優先於日期）',type:'text',value:text(month)},...baseFilters(c,type)],notes:[publicationNote,'快照總讀取預算為 16 MiB，彙整只核對最近 8 次發布；超出時無法判定現有內容是否匹配更早修訂或已經被改寫。讀取上限與預算不足另列 coverage。','每日議題與彙整統計分別核對發布紀錄；彙整尚未發布或不符來源時，保留原始議題並將缺漏統計留空。','每一天保留篩選條件下最新的有效彙整；跨日同名事件不推定為相同事件。','最多提及人物與關鍵字等統計欄只讀取已儲存的彙整結果；沒有來源統計時留空，不推算成零（「期間表」欄位例外，見下）。','來源彙整影片數是當時彙整所記錄的數值，來源事件引用數不冒充不重複影片數。原始議題的頻道數計算來源列出的頻道項目，可能包含尚無事件內容的項目。','「期間表」欄位重現舊版期間報表的顯示值：有彙整統計時取彙整數值，缺值記 0；只有原始每日議題時，媒體事件數是列出的頻道項目數，影片數是各頻道媒體事件筆數的加總（事件引用數，不是不重複影片數），關鍵字數與次數記 0、人物與關鍵字名稱留空。',`日期範圍 ${period.from} 至 ${period.to}，最多 62 天，每日最多 ${TOPICS} 個議題。`]});
   return {...result,evidenceCoverage:{...publicationCoverage(checks),topicCache:publicationCoverage(cacheChecks)}};
  });
 }

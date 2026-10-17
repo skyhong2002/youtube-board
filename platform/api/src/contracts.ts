@@ -137,6 +137,15 @@ export interface EventEvidence {
         snapshotRunId?: string;
     };
 }
+/** Counts behind the Laravel /ai/days summary box; video counts sum the cited references. */
+export interface TopicSummary {
+    keywords: { term: string; count: number }[];
+    people: { term: string; count: number }[];
+    party: { green: number; blue: number };
+    angle: { taiwan: number; china: number };
+    camp: { dpp: number; kmt: number };
+    videos: { videoId: string; channelId: number; channelTitle: string; event: string }[];
+}
 export interface TopicRow {
     grouping?: 'source-signals';
     detailUrl?: string;
@@ -153,12 +162,14 @@ export interface TopicRow {
         channelTitle: string;
         event: string;
     }[];
+    summary?: TopicSummary;
 }
 export interface AiDaysData {
     date: string | null;
     dateFrom: string | null;
     dateTo: string | null;
     dailyId: number | null;
+    dataType?: string | null;
     condition: string;
     rows: TopicRow[];
     channels: number;
@@ -167,6 +178,7 @@ export interface AiDaysData {
     updatedAt: string | null;
     rawVideoRows: number | null;
     sourceChannels: number;
+    sourceStats?: { channels: number; channelsWithEvents: number; eventRows: number; videoRefs: number };
     lineage?: { state:'immutable-snapshot'|'snapshot-unavailable';runId:string|null };
 }
 export interface EventCitation {
@@ -188,6 +200,16 @@ export interface AiEventData {
     resolution:{requestedTitle:string;canonicalTitle:string;kind:'exact'|'same-day-source-alias';sourceDailyId:number;topicIds:string[]};
     presentation:EventPresentation;
     evidenceCoverage:ReportMeta['coverage'];
+}
+/** Additive /ai/events/:id/people fields: Laravel event-people's header (event, date, daily id)
+ * and its people/media blocks (main subject, AI-category groups, listed media) as stored. */
+export interface AiEventPeopleFields { event:string;date:string|null;dailyId:number;people:EventPresentation['people'];media:EventPresentation['media'] }
+export interface AiEventWallVideo { videoId:string;label:string;media:string;kind:'fact'|'opinion'|'supporting'|'opposing'|'other'|'source';title:string|null;source:ChannelSource|null }
+/** /ai/events/:id/wall. title..evidenceCoverage keep the live-wall shape; the rest is additive:
+ * citedVideos is Laravel's wall, sourceVideos the uncited local source videos (newest first, at most 48). */
+export interface AiEventWallData {
+    title:string;tabs:{label:string;type:number}[];streams:{id:string;label:string;slot:number}[];total:number;updatedAt:string|null;notes:string[];variant:'event';evidenceCoverage:ReportMeta['coverage'];
+    event:string;date:string|null;dailyId:number;resolution:AiEventData['resolution'];citedVideos:AiEventWallVideo[];sourceVideos:AiEventWallVideo[];sourceVideosTotal:number;
 }
 /** Fresh YouTube title/description evidence, ranked by video count; at most 40 cloud terms. */
 export type HomeKeywordSummary = {

@@ -12,13 +12,15 @@ export function timestamp(value: string): string {
   if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value) || new Date(value.replace(' ','T')+'Z').toISOString().slice(0,19).replace('T',' ') !== value) throw new Error('Invalid Taipei SQL timestamp');
   return value;
 }
-export function normalizeInput(input: Input): Plan['input'] {
+/** Preview-only: Laravel AiDailyPromptReport::period() read a from/to range of complete Taipei days; generation never sets this and stays one day. */
+export interface NormalizeOptions { dailyDays?: boolean }
+export function normalizeInput(input: Input, options: NormalizeOptions = {}): Plan['input'] {
   if (!['channel','daily','hourly'].includes(input.kind)) throw new Error('Unsupported AI workflow');
   timestamp(input.from); timestamp(input.to);
   const span = Date.parse(input.to.replace(' ','T')+'Z')-Date.parse(input.from.replace(' ','T')+'Z');
   if (span < 0 || span > 31*86400000) throw new Error('AI period must be ordered and at most 31 days');
   if(input.kind==='hourly'&&span>=48*3600000)throw new Error('Hourly period must not exceed 48 hours');
-  if (input.kind==='daily' && (input.from.slice(0,10)!==input.to.slice(0,10) || !input.from.endsWith('00:00:00') || !input.to.endsWith('23:59:59'))) throw new Error('Daily AI requires a complete Taipei day');
+  if (input.kind==='daily' && ((!options.dailyDays&&input.from.slice(0,10)!==input.to.slice(0,10)) || !input.from.endsWith('00:00:00') || !input.to.endsWith('23:59:59'))) throw new Error('Daily AI requires a complete Taipei day');
   if (input.kind==='channel' && (!Number.isSafeInteger(input.channelId)||Number(input.channelId)<1)) throw new Error('Channel id required');
   if(input.kind==='channel'&&input.condition!==undefined)throw new Error('Channel workflow does not accept condition');
   if (input.condition && !['all','green','blue','neutral','finance','world',...(input.kind==='hourly'?['news']:[])].includes(input.condition)) throw new Error('Invalid AI condition');
