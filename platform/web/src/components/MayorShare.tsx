@@ -9,7 +9,7 @@ import {compact,count} from '@/lib/format';
 import {reportStyle as ui} from '@/lib/report-styles';
 import type {ChartPoint} from './Charts';
 import {CoverageDisclosure} from './CoverageDisclosure';
-import {MAYOR_EXPECTED_BUCKETS,coverageLabel,coverageSeries,coverageTag,incompleteCoverageNote,mayorCoverage} from '@/lib/bucket-coverage';
+import {coverageLabel,coverageSeries,coverageTag,incompleteCoverageNote,mayorCoverage} from '@/lib/bucket-coverage';
 
 /** Bloc colours follow the Laravel mayor page palette (KMT blue, DPP green, TPP cyan, others purple). */
 const BLOC_COLORS:Record<string,string>={blue:'#2563eb',green:'#16a34a',white:'#0891b2',other:'#7c3aed'};
@@ -57,7 +57,7 @@ export function MayorShare({part,city,series,search,rows,view}:ShareProps&{view:
  useEffect(()=>{if(part!=='chart'||!dates.length)return;let disposed=false,chart:import('echarts').ECharts|undefined,resize:ResizeObserver|undefined,observer:MutationObserver|undefined;
   async function load(){const echarts=await import('echarts');if(disposed||!ref.current)return;chart=echarts.init(ref.current,undefined,{renderer:'svg'});
    const render=()=>{const style=getComputedStyle(document.documentElement),muted=style.getPropertyValue('--muted').trim(),line=style.getPropertyValue('--line').trim(),panel=style.getPropertyValue('--panel').trim(),fg=style.getPropertyValue('--foreground').trim();
-    chart?.setOption({animation:false,aria:{enabled:true,label:{description:`候選人${raw?unit+'七日合計':'媒體聲量占比'}趨勢，${dates[0]}～${dates[dates.length-1]}`}},textStyle:{fontFamily:style.fontFamily,color:muted,fontSize:12},
+    chart?.setOption({animation:false,aria:{enabled:true,label:{description:`候選人${raw?unit:'媒體聲量占比'}趨勢，${dates[0]}～${dates[dates.length-1]}`}},textStyle:{fontFamily:style.fontFamily,color:muted,fontSize:12},
      legend:{type:'scroll',left:0,right:0,top:0,textStyle:{color:muted,fontSize:12}},grid:{left:56,right:24,top:40,bottom:32},
      // Plain-text tooltip: the date's coverage first, then every candidate's share or raw value once (both line parts share one name).
      tooltip:{trigger:'axis',renderMode:'richText',confine:true,backgroundColor:panel,borderColor:line,textStyle:{color:fg,fontSize:12},
@@ -73,12 +73,12 @@ export function MayorShare({part,city,series,search,rows,view}:ShareProps&{view:
  const partialNote=incomplete.length?incompleteCoverageNote(coverage):null;
  const period=`${dates[0]}～${dates[dates.length-1]}`;
  if(part==='chart')return <figure className={ui.panel+' mx-0 mt-4 mb-5'} aria-label="候選人媒體聲量占比趨勢">
-   <figcaption className="space-y-1"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-semibold">{raw?`${unit}趨勢（七日合計）`:'媒體聲量占比趨勢'} <span className="text-sm font-normal text-zinc-500">{period}</span></h2>
+   <figcaption className="space-y-1"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-semibold">{raw?`${unit}趨勢`:'媒體聲量占比趨勢'} <span className="text-sm font-normal text-zinc-500">{period}</span></h2>
     <div className="inline-flex rounded-md bg-zinc-100 p-0.5 text-sm dark:bg-zinc-800" role="group" aria-label="縱軸">{([['raw','原始量'],['share','占比']] as const).map(([key,label])=><button type="button" key={key} aria-pressed={view===key} onClick={()=>pickView(key)} className={'rounded px-2.5 py-1 '+(view===key?'bg-white font-medium shadow-sm dark:bg-zinc-700':'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100')}>{label}</button>)}</div></div>
-    {partialNote?<CoverageDisclosure coverage={coverage}/>
-     :<p className="text-xs text-zinc-500">圖中每個日期的七日範圍皆涵蓋 {MAYOR_EXPECTED_BUCKETS}/{MAYOR_EXPECTED_BUCKETS} 個分類日桶。</p>}
+    {/* Only gaps are flagged here; full coverage and the seven-day window are explained in the method block. */}
+    {partialNote?<CoverageDisclosure coverage={coverage}/>:null}
    </figcaption>
-   {failed?<p className="py-8 text-center text-sm text-zinc-500">圖表載入失敗，請參考下方數值表格。</p>:<div ref={ref} role="img" aria-label={`候選人${raw?unit+'七日合計':'媒體聲量占比'}趨勢，${period}。${partialNote??'各日期涵蓋完整。'}`} className="h-80 w-full lg:h-[28rem]"/>}
+   {failed?<p className="py-8 text-center text-sm text-zinc-500">圖表載入失敗，請參考下方數值表格。</p>:<div ref={ref} role="img" aria-label={`候選人${raw?unit:'媒體聲量占比'}趨勢，${period}。${partialNote??'各日期涵蓋完整。'}`} className="h-80 w-full lg:h-[28rem]"/>}
   </figure>;
  return <section className="space-y-3" aria-label="候選人媒體聲量占比">
   <p role="status" className={`inline-flex rounded-full px-2.5 py-0.5 text-xs ${lastCoverage?.status==='complete'?'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300':'bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-200'}`}>{last?dates[last.index]:''} {coverageLabel(lastCoverage)}</p>
