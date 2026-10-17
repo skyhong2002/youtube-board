@@ -18,6 +18,7 @@ import { TagFilters } from '@/components/TagFilters';
 import { VideoAnalytics } from '@/components/VideoAnalytics';
 import { PromptPreview } from '@/components/PromptPreview';
 import { LiveWall } from '@/components/LiveWall';
+import { AiDailyBoard, aiDailyTitle } from '@/components/AiDailyBoard';
 import Link from "next/link";
 import { Fragment } from "react";
 import { notFound } from "next/navigation";
@@ -287,62 +288,13 @@ export async function ReportPage({
         return (
             <>
                 <Heading
-                    title={route.title}
+                    title={aiDailyTitle(data.date,data.condition)}
+                    lead={`${count(data.rows.length)} 個議題 · ${count(data.channels)} 個頻道`}
                     meta={meta}
                 />
                 <DataNotice meta={meta} />
                 <Tabs items={familyTabs(path,search,meta.coverage)} active={path} />
-                <ReportFilters
-                    mode="ai"
-                    search={{
-                        ...search,
-                        date: first(search.date) || data.date || "",
-                    }}
-                    path="/ai/days"
-                />
-                <div className="metrics">
-                    <Metric label="分析日期" value={data.date || "—"} />
-                    <Metric
-                        label="已整理議題"
-                        value={count(data.rows.length)}
-                        unit="個"
-                    />
-                    <Metric
-                        label="來源頻道"
-                        value={count(data.channels)}
-                        unit="個"
-                    />
-                </div>
-                {data.rows.length ? (
-                    <div className="board-list">
-                        {data.rows.map((topic, index) => (
-                            <article
-                                className="panel"
-                                id={`topic-${topic.id}`}
-                                key={topic.id}
-                            >
-                                <span className="card-number">
-                                    TOPIC {String(index + 1).padStart(2, "0")}
-                                </span>
-                                <h2>
-                                    {topic.grouping?topic.title:<Link href={`/ai/days/${topic.dailyId}/events?event=${encodeURIComponent(topic.title)}`} prefetch={reportLinkPrefetch(`/ai/days/${topic.dailyId}/events?event=${encodeURIComponent(topic.title)}`)}>{topic.title}</Link>}
-                                </h2>
-                                <div className="card-meta">
-                                    <span>
-                                        {count(topic.channelCount)} 個頻道
-                                    </span>
-                                    <span>
-                                        {count(topic.videoCount)} {topic.grouping?'支引用影片（去重）':'筆影片引用'}
-                                    </span>
-                                    <span>分組分數 {count(topic.score)}</span>
-                                </div>
-                                <TopicEvidence topic={topic} />
-                            </article>
-                        ))}
-                    </div>
-                ) : (
-                    <Empty title="這一天尚無已整理的議題" />
-                )}
+                <AiDailyBoard data={data} dated={Boolean(route.id)} />
                 <ReportMethod path={path} description={route.description} meta={meta}/>
             </>
         );

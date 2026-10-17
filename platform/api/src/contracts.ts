@@ -137,6 +137,15 @@ export interface EventEvidence {
         snapshotRunId?: string;
     };
 }
+/** Counts behind the Laravel /ai/days summary box; video counts sum the cited references. */
+export interface TopicSummary {
+    keywords: { term: string; count: number }[];
+    people: { term: string; count: number }[];
+    party: { green: number; blue: number };
+    angle: { taiwan: number; china: number };
+    camp: { dpp: number; kmt: number };
+    videos: { videoId: string; channelId: number; channelTitle: string; event: string }[];
+}
 export interface TopicRow {
     grouping?: 'source-signals';
     detailUrl?: string;
@@ -153,12 +162,14 @@ export interface TopicRow {
         channelTitle: string;
         event: string;
     }[];
+    summary?: TopicSummary;
 }
 export interface AiDaysData {
     date: string | null;
     dateFrom: string | null;
     dateTo: string | null;
     dailyId: number | null;
+    dataType?: string | null;
     condition: string;
     rows: TopicRow[];
     channels: number;
@@ -167,6 +178,7 @@ export interface AiDaysData {
     updatedAt: string | null;
     rawVideoRows: number | null;
     sourceChannels: number;
+    sourceStats?: { channels: number; channelsWithEvents: number; eventRows: number; videoRefs: number };
     lineage?: { state:'immutable-snapshot'|'snapshot-unavailable';runId:string|null };
 }
 export interface EventCitation {

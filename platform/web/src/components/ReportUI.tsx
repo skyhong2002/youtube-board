@@ -9,8 +9,8 @@ import MethodLink from './MethodLink';
 import {reportStyle as ui} from '@/lib/report-styles';
 /** tag.observe.tw page head: the title, then one line with the update time and the link
  * to 本頁的資料來源與計算方式; descriptions and method notes live in that block (ReportMethod). */
-export function Heading({title,eyebrow,meta,method=true}:{title:string;eyebrow?:string;meta?:ReportMeta;method?:boolean}){
- return <header className="mb-5 flex flex-wrap items-end justify-between gap-3"><div className="min-w-0 space-y-1">{eyebrow&&<p className="text-xs text-zinc-500">{eyebrow}</p>}<h1 className="text-2xl font-semibold tracking-tight">{title}</h1>{(meta||method)&&<p className="text-sm text-zinc-600 dark:text-zinc-400">{meta&&<>更新於 {dateTime(meta.updatedAt)} · 台北時間</>}{meta&&method&&' · '}{method&&<MethodLink/>}</p>}</div></header>;
+export function Heading({title,eyebrow,meta,method=true,lead}:{title:string;eyebrow?:string;meta?:ReportMeta;method?:boolean;lead?:React.ReactNode}){
+ return <header className="mb-5 flex flex-wrap items-end justify-between gap-3"><div className="min-w-0 space-y-1">{eyebrow&&<p className="text-xs text-zinc-500">{eyebrow}</p>}<h1 className="text-2xl font-semibold tracking-tight">{title}</h1>{(meta||method)&&<p className="text-sm text-zinc-600 dark:text-zinc-400">{lead&&<>{lead} · </>}{meta&&<>更新於 {dateTime(meta.updatedAt)} · 台北時間</>}{meta&&method&&' · '}{method&&<MethodLink/>}</p>}</div></header>;
 }
 /** States the reader must see before the data: an archived channel and development data.
  * The envelope's scope warnings are method notes (ReportMethod metaNotes). */
