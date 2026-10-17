@@ -81,11 +81,11 @@ export async function commentQueueJob(ctx: SourceJobContext, input: { uId?: numb
   // An explicit TS-only --videoId without taxonomy filters targets that video directly.
   const filtered = !input.videoId || [input.tagIds, input.orTagIds, input.notTagIds].some(list => list?.length);
   const channels = filtered ? commentQueueChannelFilter(input) : { sql: '1=1', params: [] };
-  const clauses = [input.videoId ? 'BINARY v.videoId = BINARY ?' : 'v.publishedAt >= ? AND v.viewCount >= ? AND v.commentCount >= ?', channels.sql];
+  const clauses = [input.videoId ? 'v.videoId = BINARY ?' : 'v.publishedAt >= ? AND v.viewCount >= ? AND v.commentCount >= ?', channels.sql];
   const params: (string | number)[] = input.videoId ? [key(input.videoId, 32)] : [taipeiSql(new Date(ctx.now.getTime() - input.hours * 3600000)), input.min, input.min];
   params.push(...channels.params);
   if (input.uId) { clauses.push('v.u_id = ?'); params.push(input.uId); }
-  clauses.push('NOT EXISTS (SELECT 1 FROM urt_comment_queue q WHERE BINARY q.videoId=BINARY v.videoId)', 'NOT EXISTS (SELECT 1 FROM urt_comment_queue_done d WHERE BINARY d.videoId=BINARY v.videoId)');
+  clauses.push('NOT EXISTS (SELECT 1 FROM urt_comment_queue q WHERE q.videoId=v.videoId AND BINARY q.videoId=BINARY v.videoId)', 'NOT EXISTS (SELECT 1 FROM urt_comment_queue_done d WHERE d.videoId=v.videoId AND BINARY d.videoId=BINARY v.videoId)');
   // Laravel CommentQueuePreview orders candidates by publishedAt DESC, videoId.
   const [rows] = await ctx.db.query<RowDataPacket[]>(`SELECT v.videoId FROM urt_video v WHERE ${clauses.join(' AND ')} ORDER BY v.publishedAt DESC,v.videoId LIMIT ?`, [...params, input.limit + 1]);
   const applied: string[] = [], skipped: { videoId: string; reason: string }[] = [];
@@ -95,18 +95,18 @@ export async function commentQueueJob(ctx: SourceJobContext, input: { uId?: numb
   }
   return { mode: ctx.execute ? 'execute' : 'dry-run', selected: Math.min(input.limit, rows.length), truncated: rows.length > input.limit, apiAttempts: 0, applied, skipped };
 }
-async function commentAuthor(ctx: SourceJobContext,id:string) { const[rows]=await ctx.db.query<RowDataPacket[]>('SELECT * FROM urt_comment_author WHERE BINARY ChannelId=BINARY ? ORDER BY author_id LIMIT 1',[id]);return rows[0]; }
+async function commentAuthor(ctx: SourceJobContext,id:string) { const[rows]=await ctx.db.query<RowDataPacket[]>('SELECT * FROM urt_comment_author WHERE ChannelId=BINARY ? ORDER BY author_id LIMIT 1',[id]);return rows[0]; }
 /** Laravel finishQueueRow(): copy the queue row into done once, then delete it. */
 async function finishQueue(ctx: SourceJobContext, queue: RowDataPacket, at: string) {
   const done = await selectOne(ctx.db,'urt_comment_queue_done',{pk:queue.pk});
   if (done && done.videoId !== queue.videoId) throw new Error('Queue completion identity collision');
   if (!done) await upsert(ctx.db, 'urt_comment_queue_done', { pk: queue.pk }, { ctime: queue.ctime, stime: queue.stime, ftime: at, videoId: queue.videoId });
-  await ctx.db.execute('DELETE FROM urt_comment_queue WHERE pk = ? AND BINARY videoId = BINARY ?', [queue.pk, queue.videoId]);
+  await ctx.db.execute('DELETE FROM urt_comment_queue WHERE pk = ? AND videoId = BINARY ?', [queue.pk, queue.videoId]);
 }
 /** Laravel hasRecentPublishedComment(): a complete urt_comment (empty pageToken, stime==mtime or a done row)
  * refreshed within three hours finishes the queue row without YouTube calls. */
 async function recentlyPublished(ctx: SourceJobContext, videoId: string, at: Date) {
-  const [rows] = await ctx.db.query<RowDataPacket[]>("SELECT c.mtime,c.stime,EXISTS(SELECT 1 FROM urt_comment_queue_done d WHERE BINARY d.videoId=BINARY c.videoId) done FROM urt_comment c WHERE BINARY c.videoId=BINARY ? AND (c.pageToken IS NULL OR c.pageToken='') AND c.mtime > ? LIMIT 1", [videoId, taipeiSql(new Date(at.getTime() - 3 * 3600000))]);
+  const [rows] = await ctx.db.query<RowDataPacket[]>("SELECT c.mtime,c.stime,EXISTS(SELECT 1 FROM urt_comment_queue_done d WHERE d.videoId=c.videoId AND BINARY d.videoId=BINARY c.videoId) done FROM urt_comment c WHERE c.videoId=BINARY ? AND (c.pageToken IS NULL OR c.pageToken='') AND c.mtime > ? LIMIT 1", [videoId, taipeiSql(new Date(at.getTime() - 3 * 3600000))]);
   const row = rows[0]; return !!row && ((row.stime !== null && String(row.stime) === String(row.mtime)) || Number(row.done) === 1);
 }
 async function publish(ctx: SourceJobContext, queue: RowDataPacket, state: State) {
@@ -146,21 +146,21 @@ async function publish(ctx: SourceJobContext, queue: RowDataPacket, state: State
   // Laravel takes channelId from the returned threads (else the stored row) and resolves u_id via urt_channel.youtube_id,
   // so a video without comment threads keeps NULL channel fields unless an earlier row named them.
   const sourceChannel: string | null = Object.keys(state.comments).length ? state.channelId : typeof existing?.channelId === 'string' && existing.channelId ? existing.channelId : null;
-  const [owners] = sourceChannel ? await ctx.db.query<RowDataPacket[]>('SELECT u_id FROM urt_channel WHERE BINARY youtube_id=BINARY ? LIMIT 1', [sourceChannel]) : [[] as RowDataPacket[]];
+  const [owners] = sourceChannel ? await ctx.db.query<RowDataPacket[]>('SELECT u_id FROM urt_channel WHERE youtube_id=BINARY ? LIMIT 1', [sourceChannel]) : [[] as RowDataPacket[]];
   await upsert(ctx.db, 'urt_comment', { videoId: state.videoId }, { ...(existing ? {} : { ctime: at }), mtime: at, stime: at, comments_count: Object.keys(state.comments).length + replies, threads_count: Object.keys(state.comments).length, replies_count: replies, likes_count: likes, authors_count: authors.length, latest_time: latest ? taipeiSql(new Date(latest)) : null, pageToken: '', channelId: sourceChannel, u_id: owners[0] ? Number(owners[0].u_id) : null, comments_json: JSON.stringify(state.comments), authors_json: JSON.stringify(state.authors) });
   // Laravel finishQueueRow() inserts the done row once and never rewrites an existing one.
   if (!done) await upsert(ctx.db, 'urt_comment_queue_done', { pk: queue.pk }, { ctime: queue.ctime, stime: queue.stime, ftime: at, videoId: state.videoId });
   await save(ctx, queue.pk, state, 'published');
-  await ctx.db.execute('DELETE FROM urt_comment_queue WHERE pk = ? AND BINARY videoId = BINARY ?', [queue.pk, state.videoId]);
-  await ctx.db.execute('DELETE FROM ts_comment_stages WHERE BINARY video_id = BINARY ? AND queue_pk = ?', [state.videoId, queue.pk]);
+  await ctx.db.execute('DELETE FROM urt_comment_queue WHERE pk = ? AND videoId = BINARY ?', [queue.pk, state.videoId]);
+  await ctx.db.execute('DELETE FROM ts_comment_stages WHERE video_id = BINARY ? AND queue_pk = ?', [state.videoId, queue.pk]);
   await clearItemBackoff(ctx.db, 'youtube.comments.fetch', state.videoId);
 }
 async function fetchOne(ctx: SourceJobContext, queue: RowDataPacket, input: { maxPages: number; maxReplyPages: number }) {
-  const [stages] = await ctx.db.query<RowDataPacket[]>('SELECT * FROM ts_comment_stages WHERE BINARY video_id=BINARY ?', [queue.videoId]);
+  const [stages] = await ctx.db.query<RowDataPacket[]>('SELECT * FROM ts_comment_stages WHERE video_id=BINARY ?', [queue.videoId]);
   const started = ctx.clock?.() ?? ctx.now;
   if ((!stages[0] || stages[0].status === 'published') && await recentlyPublished(ctx, queue.videoId, started)) {
     await ctx.assertOwnership(); await finishQueue(ctx, queue, taipeiSql(started));
-    if (stages[0]) await ctx.db.execute("DELETE FROM ts_comment_stages WHERE BINARY video_id = BINARY ? AND status='published'", [queue.videoId]);
+    if (stages[0]) await ctx.db.execute("DELETE FROM ts_comment_stages WHERE video_id = BINARY ? AND status='published'", [queue.videoId]);
     await clearItemBackoff(ctx.db, 'youtube.comments.fetch', queue.videoId);
     return { videoId: queue.videoId, complete: true, pages: 0, replyPages: 0, recentCache: true };
   }
@@ -207,7 +207,7 @@ async function fetchOne(ctx: SourceJobContext, queue: RowDataPacket, input: { ma
 export async function commentFetchJob(ctx: SourceJobContext, input: { videoId?: string; limit: number; maxPages: number; maxReplyPages: number; maxStateMiB?: number }) {
   cap(input.limit, 10); cap(input.maxPages, 3); cap(input.maxReplyPages, 100); const maxStateMiB=cap(input.maxStateMiB ?? 12,64);
   const clock=ctx.clock ?? (()=>ctx.now), expired=taipeiSql(new Date(clock().getTime()-30*60000));
-  const [rows] = await ctx.db.query<RowDataPacket[]>(`SELECT q.* FROM urt_comment_queue q LEFT JOIN ts_youtube_item_backoff b ON b.workflow = 'youtube.comments.fetch' AND BINARY b.video_id=BINARY q.videoId WHERE q.ftime IS NULL AND (q.stime IS NULL OR q.stime <= ?) AND ${input.videoId ? 'BINARY q.videoId=BINARY ?' : '(b.retry_after IS NULL OR b.retry_after <= ?)'} ORDER BY q.pk LIMIT ?`, [expired, ...(input.videoId ? [key(input.videoId, 32)] : [taipeiSql(ctx.now)]), input.limit]);
+  const [rows] = await ctx.db.query<RowDataPacket[]>(`SELECT q.* FROM urt_comment_queue q LEFT JOIN ts_youtube_item_backoff b ON b.workflow = 'youtube.comments.fetch' AND b.video_id=q.videoId AND BINARY b.video_id=BINARY q.videoId WHERE q.ftime IS NULL AND (q.stime IS NULL OR q.stime <= ?) AND ${input.videoId ? 'q.videoId=BINARY ?' : '(b.retry_after IS NULL OR b.retry_after <= ?)'} ORDER BY q.pk LIMIT ?`, [expired, ...(input.videoId ? [key(input.videoId, 32)] : [taipeiSql(ctx.now)]), input.limit]);
   const applied: { videoId: string; complete: boolean; pages: number; replyPages: number; recentCache?: boolean }[] = [], skipped: { videoId: string; reason: string }[] = [], checkpointed: string[] = [];
   if (!ctx.execute) return { mode: 'dry-run', selected: rows.length, apiAttempts: 0, applied, skipped, checkpointed };
   const [packet] = await ctx.db.query<RowDataPacket[]>('SELECT @@max_allowed_packet AS bytes');
@@ -253,8 +253,8 @@ export async function commentResetJob(ctx: SourceJobContext, videoId: string) {
     const cutoff=taipeiSql(new Date((ctx.clock?.() ?? ctx.now).getTime()-30*60000));
     if(queue?.ftime || (queue?.stime && String(queue.stime)>cutoff)) throw new Error('Cannot reset an active or finished queue claim');
     await ctx.assertOwnership();
-    await ctx.db.execute('INSERT INTO ts_comment_stage_archive (id,video_id,queue_pk,state_json,status,archived_at) SELECT ?,video_id,queue_pk,state_json,status,? FROM ts_comment_stages WHERE BINARY video_id=BINARY ?', [randomUUID(),taipeiSql(ctx.now),videoId]);
-    await ctx.db.execute('DELETE FROM ts_comment_stages WHERE BINARY video_id=BINARY ?', [videoId]);
+    await ctx.db.execute('INSERT INTO ts_comment_stage_archive (id,video_id,queue_pk,state_json,status,archived_at) SELECT ?,video_id,queue_pk,state_json,status,? FROM ts_comment_stages WHERE video_id=BINARY ?', [randomUUID(),taipeiSql(ctx.now),videoId]);
+    await ctx.db.execute('DELETE FROM ts_comment_stages WHERE video_id=BINARY ?', [videoId]);
     if(!queue) await upsert(ctx.db,'urt_comment_queue',{videoId},{ctime:taipeiSql(ctx.now),stime:null,ftime:null});
     await clearItemBackoff(ctx.db,'youtube.comments.fetch',videoId); applied.push(videoId);
   }
