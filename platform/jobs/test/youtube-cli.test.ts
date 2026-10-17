@@ -30,7 +30,7 @@ it('normal bounded continuation differs from errors and handler ignores prototyp
   expect(youtubeResultState({skipped:[],checkpointed:['video'],stoppedReason:'quota-exhausted'})).toBe('incomplete');
   expect(youtubeResultState({skipped:[],capacityBlocked:'stage-size'})).toBe('incomplete');
   expect(youtubeResultState({skipped:[{reason:'invalid-source'}],capacityBlocked:'stage-size'})).toBe('incomplete');
-  expect(youtubeResultState({skipped:[{reason:'invalid-source'}]})).toBe('failed');
+  expect(youtubeResultState({skipped:[{reason:'invalid-source'}]})).toBe('incomplete');
   expect(youtubeResultState({skipped:[]})).toBe('completed');
   expect(await handleYoutubeCli(['toString'],{})).toBe(false);
 });
