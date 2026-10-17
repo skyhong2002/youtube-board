@@ -734,3 +734,12 @@ select:not([multiple]):not([size]) {
     animation: none;
   }
 }
+
+/* 本頁的資料來源與計算方式 (PageMethod): a page's own block ends <main> and replaces the
+ * footer's fallback copy. The page's block then sits where tag.observe.tw's footer puts
+ * it, 40px above the footer band. */
+body:has(main [data-page-method]) [data-footer-method] { display: none; }
+main:has([data-page-method]) { padding-bottom: 0; }
+body:has(main [data-page-method]) [data-site-footer] { margin-top: 0; }
+/* The full write-up (/about) has no 本頁 block, as tag.observe.tw hides FooterMethod on /method/. */
+body:has(main [data-method-page]) [data-footer-method] { display: none; }

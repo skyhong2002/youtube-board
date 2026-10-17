@@ -5,7 +5,8 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import {ImageConfigContext} from 'next/dist/shared/lib/image-config-context.shared-runtime';
 import {imageConfigDefault} from 'next/dist/shared/lib/image-config';
 import config from '../../next.config';
-import {KeywordProfile,KeywordVideoList,MATCH_CAVEAT} from '../components/KeywordProfile';
+import {KeywordProfile,KeywordVideoList} from '../components/KeywordProfile';
+import {MATCH_CAVEAT} from './keyword-ranking';
 import type {VideoRow,ReportMeta} from '../../../api/src/contracts';
 const row=(id:string,title:string,views:number|null):VideoRow=>({id,title,views,channelId:42,channelTitle:'來源頻道',youtubeChannelId:'',description:'<script>escaped description</script>',thumbnail:null,publishedAt:'2026-10-12T00:00:00Z',likes:null,comments:0,updatedAt:null,youtubeUrl:''});
 test('keyword article rows preserve API rank order, exact IDs, null metrics and escaped source text',()=>{
@@ -37,8 +38,8 @@ test('a long promotional prefix never pushes the match out of the narrow one-lin
 test('the keyword page keeps a compact coverage summary and moves methodology into the disclosure',()=>{
  const meta:ReportMeta={schemaVersion:1,requestedAt:'2026-10-12T00:00:00Z',updatedAt:null,timezone:'Asia/Taipei',source:'mariadb',dataset:'live',warnings:[],coverage:{status:'synchronized',vocabularyVersion:'v2',sourceVideos:10,freshVideos:4,staleVideos:null,unprocessedVideos:6,keywordMatchedVideos:2}};
  const html=renderToStaticMarkup(createElement(KeywordProfile,{keyword:'交通',description:'範圍說明',data:{rows:[],total:2,limit:50,offset:0,hasNext:false,totalStatus:'exact'},meta,notice:null,tabs:null,filters:null,pagination:null,period:{from:null,to:null,days:'7'}}));
- const body=html.split('本頁資料來源與計算方式')[0]!,disclosure=html.slice(body.length);
- assert.ok(body.includes(MATCH_CAVEAT));assert.ok(body.indexOf('符合共同標籤的影片')<body.indexOf(MATCH_CAVEAT));assert.doesNotMatch(body,/品質規則 v2|已過濾/);
+ const body=html.split('data-page-method')[0]!,disclosure=html.slice(body.length);
+ assert.ok(!body.includes(MATCH_CAVEAT)&&disclosure.includes(MATCH_CAVEAT));assert.doesNotMatch(body,/品質規則 v2|已過濾/);
  for(const label of ['尚未比對','6 部','來源文字已變動</dt><dd>未提供','結果可能不完整','版本：v2','含今天共 8 個台北日曆日'])assert.ok(body.includes(label),label);
  for(const moved of ['僅列出目前詞彙版本','往前 7 日為 8 個日曆日','不能用來推算整體比例'])assert.ok(!body.includes(moved)&&disclosure.includes(moved),moved);
 });

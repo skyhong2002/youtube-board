@@ -11,8 +11,8 @@ import {VideoThumbnail} from '@/components/VideoThumbnail';
 import {table as tableStyle} from '@/lib/table-styles';
 import SaveButton from '@/components/reader/SaveButton';
 import {familyTabs,eventTabs} from '@/lib/report-navigation';
-import {EventAnalysis} from '@/components/EventAnalysis';
-import {LiveCoverageNotice} from '@/components/LiveCoverageNotice';
+import {EventAnalysis,eventAnalysisNotes} from '@/components/EventAnalysis';
+import {liveCoverageNotes} from '@/components/LiveCoverageNotice';
 import { VideoCommentSummary } from '@/components/VideoCommentSummary';
 import { TagFilters } from '@/components/TagFilters';
 import { VideoAnalytics } from '@/components/VideoAnalytics';
@@ -65,6 +65,7 @@ import {
     VideoTagEvidence,
 } from "@/components/VocabularyReport";
 import { RefreshControl } from "@/components/RefreshControl";
+import { ReportMethod } from "@/components/ReportMethod";
 import { TimeChart } from "@/components/Charts";
 function Failure({ status, title }: { status: number; title: string }) {
     if (status === 404) notFound();
@@ -187,16 +188,14 @@ export async function ReportPage({
             <>
                 <Heading
                     title={route.title}
-                    description={route.description}
                     meta={meta}
                 />
                 <DataNotice meta={meta} />
                 <Tabs items={familyTabs(path,search,meta.coverage)} active={path} />
                 <ReportFilters mode="channels" search={search} path={path} channelRanking={data.ranking} />
-                <p className="my-3 text-sm text-zinc-600 dark:text-zinc-400">頁首更新時間為本頁最新資料記錄，不代表所有頻道的統計都已同時更新。</p>
-                <p className="muted">近七日／近月增量取既有期間內可用觀測，並非日曆週月。估計值來自歷史觀測模型，差距為近月估計減去近月觀測增量；缺值顯示「—」。{data.ranking.min!==null?`目前門檻：${data.ranking.minMetric==='views'?'累計觀看':'訂閱人數'}至少 ${count(data.ranking.min)}。`:''}{data.ranking.scope==='tag'?' 分類排名清空門檻時使用 0，未記錄門檻數值的頻道不列入。':''}{data.ranking.minMetric==='views'?' OR 分類條件的門檻依累計觀看篩選。':''}</p>
                 <ChannelTable rows={data.rows} offset={data.offset} ranking={data.ranking} responsive/>
                 <Pagination collection={data} search={search} path={path} />
+                <ReportMethod path={path} description={route.description} meta={meta} notes={data.ranking.min!==null?[`目前門檻：${data.ranking.minMetric==='views'?'累計觀看':'訂閱人數'}至少 ${count(data.ranking.min)}。`]:[]}/>
             </>
         );
     }
@@ -225,16 +224,14 @@ export async function ReportPage({
             <>
                 <Heading
                     title={categoryId?`${categoryName||`分類 #${categoryId}`}的影片`:route.title}
-                    description={route.description}
                     meta={meta}
                 />
                 <DataNotice meta={meta} />
                 <Tabs items={familyTabs(path,search,meta.coverage)} active={path} />
                 <ReportFilters mode="videos" search={search} path={path} />
-                {route.kind==='channel-videos'&&<p className="muted">完整收錄時顯示本機留言數，否則顯示 YouTube 留言觀測；排序仍依 YouTube 原始統計。喜歡占互動＝喜歡 ÷（喜歡＋不喜歡＋顯示留言），任一來源缺值時不估算。作者、回覆與留言獲讚僅呈現完整批次。</p>}
-                <p className="my-3 text-sm text-zinc-600 dark:text-zinc-400">以下為已收錄影片；各影片記錄時間與各項統計觀測時間可能不同，並非即時數值。「—」表示尚未取得，不代表 0。</p>
                 <VideoTable rows={data.rows} responsive/>
                 <Pagination collection={data} search={search} path={path} />
+                <ReportMethod path={path} description={route.description} meta={meta}/>
             </>
         );
     }
@@ -247,11 +244,9 @@ export async function ReportPage({
             <>
                 <Heading
                     title={route.title}
-                    description={route.description}
                     meta={meta}
                 />
                 <DataNotice meta={meta} />
-                <LiveCoverageNotice coverage={meta.coverage}/>
                 <Tabs items={familyTabs(path,search,meta.coverage)} active={path} />
                 <RefreshControl />
                 <ReportFilters mode="live" search={search} path={path} />
@@ -260,7 +255,6 @@ export async function ReportPage({
                         label="符合篩選的直播"
                         value={count(data.total)}
                         unit="場"
-                        detail="名單持續更新，分頁總數可能短暫不同步"
                     />
                     <Metric
                         label="本頁同時在線加總"
@@ -271,11 +265,12 @@ export async function ReportPage({
                             ),
                         )}
                         unit="人"
-                        detail="不同直播的觀眾可能重複"
+                        detail="未去重"
                     />
                 </div>
                 <LiveTable rows={data.rows} offset={data.offset} />
                 <Pagination collection={data} search={search} path={path} />
+                <ReportMethod path={path} description={route.description} meta={meta} notes={liveCoverageNotes(meta.coverage)}/>
             </>
         );
     }
@@ -293,7 +288,6 @@ export async function ReportPage({
             <>
                 <Heading
                     title={route.title}
-                    description={route.description}
                     meta={meta}
                 />
                 <DataNotice meta={meta} />
@@ -319,11 +313,6 @@ export async function ReportPage({
                         unit="個"
                     />
                 </div>
-                <aside className="notice">
-                    <p>
-                        排序採影片數與來源頻道數的組合分數；分組依據可展開查閱，並非新聞熱度或民意比例。
-                    </p>
-                </aside>
                 {data.rows.length ? (
                     <div className="board-list">
                         {data.rows.map((topic, index) => (
@@ -354,6 +343,7 @@ export async function ReportPage({
                 ) : (
                     <Empty title="這一天尚無已整理的議題" />
                 )}
+                <ReportMethod path={path} description={route.description} meta={meta}/>
             </>
         );
     }
@@ -364,15 +354,16 @@ export async function ReportPage({
         const { data, meta } = result.response;
         const topics=data.topics?.length?data.topics:data.topic?[data.topic]:[],cover=data.videos.find(v=>/^[A-Za-z0-9_-]{11}$/.test(v.id));
         return <div className="space-y-8">
-            <EventHeader title={data.title||route.title} breadcrumb={<><Link href="/ai/days" className="hover:underline">AI 議題</Link> / {data.idKind==='daily'?'每日彙整':'儲存分析'} #{data.id}</>} description={`分析日期：${data.date||"未記錄"}。請搭配來源影片閱讀 AI 整理結果；來源分組不代表已證實為同一事件。`} updatedAt={meta.updatedAt}
+            <EventHeader title={data.title||route.title} breadcrumb={<><Link href="/ai/days" className="hover:underline">AI 議題</Link> / {data.idKind==='daily'?'每日彙整':'儲存分析'} #{data.id}</>} description={`分析日期：${data.date||"未記錄"}`} updatedAt={meta.updatedAt}
                 cover={cover?{videoId:cover.id,title:cover.title,channelTitle:cover.channelTitle,channel:{channelId:cover.channelId,channelTitle:cover.channelTitle,channelAvatar:cover.channelAvatar??null}}:null}
                 tags={[...new Set(topics.flatMap(t=>t.keywords))].slice(0,12)}
                 stats={[{label:'本地來源影片',value:count(data.videos.length)},{label:'來源分組',value:count(topics.length)},{label:'可呈現分析',value:count(data.analyses.length)}]}
                 jumps={[["source-evidence","分組依據"],["source-videos","來源影片"],["stored-analysis","儲存分析"]]}/>
             <DataNotice meta={meta}/><Tabs items={eventTabs(path,search)} active={eventTabs(path,search)[0]?.href||path}/>
             <section id="source-evidence" className="scroll-mt-20 space-y-3"><SectionHeading title="分組依據"/>{topics.length>1&&<aside className="rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">同一名稱對應 {topics.length} 個來源分組，以下分開保留各組的比對依據。</aside>}{topics.map((topic,index)=><section className="rounded-xl border border-zinc-300 bg-white p-4 text-sm dark:border-zinc-800 dark:bg-zinc-900" key={`${topic.id}-${index}`}>{topics.length>1&&<h3 className="mb-2 text-sm font-semibold">來源分組 {index+1}</h3>}<TopicEvidence topic={topic}/></section>)}{!topics.length&&<Empty title="尚無可呈現的分組依據" description="儲存分析與本地來源影片仍分別列示，未推定它們屬於相同分組。"/>}</section>
-            <section id="source-videos" className="scroll-mt-20 space-y-3"><SectionHeading title="目前本地影片資料"/><p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">以下為目前本地儲存的影片資料；生成時的來源標題另保留在分析來源快照。</p><VideoTable rows={data.videos}/></section>
+            <section id="source-videos" className="scroll-mt-20 space-y-3"><SectionHeading title="目前本地影片資料"/><VideoTable rows={data.videos}/></section>
             <section id="stored-analysis" className="scroll-mt-20"><SectionHeading title="儲存的事件分析"/><EventAnalysis data={data}/></section>
+            <ReportMethod path={path} description={route.description} meta={meta} notes={eventAnalysisNotes(data)}/>
         </div>;
     }
     if (route.kind === "channel") {
@@ -395,10 +386,9 @@ export async function ReportPage({
             <>
                 <Heading
                     title={v.title || "影片標題尚未取得"}
-                    description={route.description}
                     meta={meta}
                 />
-                <p className="my-3 text-sm text-zinc-600 dark:text-zinc-400">資料最後記錄：{dateTime(v.updatedAt)}。這是影片資料的記錄時間，不代表觀看、喜歡或留言已同時重新觀測；「—」表示尚未取得，不代表 0。</p>
+                <p className="my-3 text-sm text-zinc-600 dark:text-zinc-400">資料最後記錄：{dateTime(v.updatedAt)}</p>
                 <div className="my-3"><SaveButton kind="video" target={v.id}/></div>
                 <DataNotice meta={meta} />
                 <Tabs items={[{href:`/videos/${encodeURIComponent(v.id)}`,label:'影片概覽'},{href:`/videos/${encodeURIComponent(v.id)}/analytics`,label:'觀測分析'}]} active={path}/>
@@ -419,7 +409,7 @@ export async function ReportPage({
                 <div className="metrics">
                     <Metric label="觀看數" value={compact(v.views)} unit="次" />
                     <Metric label="喜歡" value={count(v.likes)} unit="次" />
-                    <Metric label="YouTube 留言總數" value={count(v.comments)} unit="則" detail="來源公開統計，不等同本站收錄數" />
+                    <Metric label="YouTube 留言總數" value={count(v.comments)} unit="則" />
                     <Metric
                         label="長度"
                         value={
@@ -429,7 +419,7 @@ export async function ReportPage({
                         }
                         detail={
                             data.captionAvailable
-                                ? "來源提供字幕（尚未擷取逐字稿）"
+                                ? "來源提供字幕"
                                 : "字幕狀態未確認"
                         }
                     />
@@ -447,12 +437,9 @@ export async function ReportPage({
                             label="影片累計觀看數觀測"
                             unit="觀看數"
                         />
-                        <p style={{ marginTop: 15, marginBottom: 0 }}>
-                            每個點代表實際儲存的觀測；連線僅方便閱讀，不代表中間時間的測量值。
-                        </p>
                     </section>
                 ) : (
-                    <Empty title="尚無歷史觀測" description="本站尚未儲存這部影片的歷史觀測。上方僅列出已儲存的公開統計；缺值表示尚未取得，無法據以建立歷史時間序列。" />
+                    <Empty title="尚無歷史觀測" description="本站尚未儲存這部影片的歷史觀測，無法據以建立歷史時間序列。" />
                 )}
                 {data.liveHistory.length > 0 && (
                     <>
@@ -490,6 +477,7 @@ export async function ReportPage({
                         {v.description || "來源尚未提供影片說明。"}
                     </p>
                 </section>
+                <ReportMethod path={path} description={route.description} meta={meta}/>
             </>
         );
     }
@@ -502,14 +490,13 @@ export async function ReportPage({
             <>
                 <Heading
                     title={route.title}
-                    description={route.description}
                     meta={meta}
                 />
                 <DataNotice meta={meta} />
                 <TagFilters search={search} path={path} />
-                <p className="muted">各分類可包含相同頻道；觀看增量不宜跨分類相加。</p>
                 <TagCards rows={data.rows} />
                 <Pagination collection={data} search={search} path={path} />
+                <ReportMethod path={path} description={route.description} meta={meta}/>
             </>
         );
     }

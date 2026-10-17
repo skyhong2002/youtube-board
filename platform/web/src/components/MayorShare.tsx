@@ -70,7 +70,7 @@ export function MayorShare({city,series,search,rows}:{city:string;series:Series[
    </article>;})}</div>
   <figure className={ui.panel+' m-0'}>
    <figcaption className="space-y-1"><h2 className="text-base font-semibold">近 7 日媒體聲量占比趨勢</h2>
-    {partialNote?<><CoverageDisclosure coverage={coverage}/><p className="text-xs text-zinc-500 dark:text-zinc-400">占比只在當日所有候選人都有數值時計算，否則顯示 n/a。</p></>
+    {partialNote?<CoverageDisclosure coverage={coverage}/>
      :<p className="text-xs text-zinc-500">圖中每個日期的七日範圍皆涵蓋 {MAYOR_EXPECTED_BUCKETS}/{MAYOR_EXPECTED_BUCKETS} 個分類日桶。</p>}
    </figcaption>
    {failed?<p className="py-8 text-center text-sm text-zinc-500">圖表載入失敗，請參考下方數值表格。</p>:<div ref={ref} role="img" aria-label={`候選人近 7 日媒體聲量占比趨勢。${partialNote??'各日期涵蓋完整。'}`} className="h-80 w-full"/>}

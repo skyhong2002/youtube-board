@@ -227,7 +227,6 @@
 .pairNames { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; }
 .pairNames > span[aria-hidden] { color: var(--muted); font-size: 11px; }
 .pairCount { font-size: 11px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.panelFoot { grid-column: 1 / -1; padding-top: 10px; border-top: 1px solid var(--soft-line); font-size: 11px; line-height: 1.7; color: var(--muted); }
 .topicList { list-style: none; padding: 0; margin: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--panel); }
 .topicList li { display: flex; gap: 12px; padding: 12px 14px; }
 .topicList li + li { border-top: 1px solid var(--soft-line); }
@@ -309,11 +308,7 @@
 .photo { width: 100%; height: 100%; object-fit: cover; }
 .channelAvatar { width: 20px; height: 20px; border-radius: 4px; object-fit: cover; }
 .topicDescription { font-size: 13px; line-height: 1.8; color: var(--muted); margin: 10px 0; }
-.method { margin-top: 28px; border-top: 1px solid var(--line); padding: 16px 0; font-size: 12px; line-height: 1.8; color: var(--muted); }
-.method summary { cursor: pointer; font-weight: 600; color: var(--ink); }
-.method p { margin-top: 10px; }
 .number { font-variant-numeric: tabular-nums; }
-.sourceLinks { display: flex; flex-wrap: wrap; gap: 5px 12px; }
 .summaryValues { display: flex; flex-wrap: wrap; gap: 12px 20px; flex: 1; font-size: 12px; color: var(--muted); }
 .summaryValues strong { color: var(--ink); font-size: 14px; font-weight: 500; }
 

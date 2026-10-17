@@ -4,7 +4,8 @@ import {familyTabs} from '@/lib/report-navigation';
 import {ObservationValue} from './ObservationValue';
 import {ReportTable} from './ReportTable';
 import {reportStyle as ui} from '@/lib/report-styles';
-import {LiveCoverageNotice} from './LiveCoverageNotice';
+import {liveCoverageNotes} from './LiveCoverageNotice';
+import {ReportMethod} from './ReportMethod';
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api, rejectMalformedPayload, type Search } from "@/lib/api";
@@ -28,7 +29,6 @@ import { TimeChart } from "./Charts";
 import { MayorShare, MayorSwitcher } from "./MayorShare";
 import { mayorCoverage } from "@/lib/bucket-coverage";
 import { cities } from "../../../shared/city-definitions";
-const MAYOR_SHARE_NOTE='近 7 日媒體聲量占比：每個日期彙整當日及前 6 日。只有當日所有候選人都有數值、且合計大於 0 時，同日占比合計才是 100%；任一候選人缺值時該日占比顯示 n/a，不以其餘候選人換算；全部為 0 時占比為 0%。卡片顯示期間內最新一天的占比與原始量。每個日期的七日範圍應有 28 個分類日桶（4 個分類 × 7 日）；占比圖與各候選人原始量圖中，未滿 28 或涵蓋未知的日期以虛線與空心點標示並註明涵蓋數，缺少的桶不補零，也不代表聲量下降。';
 export async function ExpandedReport({
     apiPath,
     path,
@@ -61,11 +61,9 @@ export async function ExpandedReport({
         <>
             <Heading
                 title={data.title || title}
-                description={data.description}
                 meta={meta}
             />
             <DataNotice meta={meta} />
-            {family==='live'&&<LiveCoverageNotice coverage={meta.coverage}/> }
             <Tabs items={familyTabs(path,search,meta.coverage)} active={path} />
             {path==='/tags/compare'&&<ComparisonControls search={search} points={data.series?.[0]?.points}/> }
             {mayorCity && cities[mayorCity] ? <MayorSwitcher city={mayorCity} search={search} /> : null}
@@ -73,13 +71,6 @@ export async function ExpandedReport({
                 const href = safeReportHref(item.href);
                 return href ? [{ href, label: item.label, active: item.active === true }] : [];
             })} /> : null}
-            {!mayorCity && data.notes?.length ? (
-                <aside className={ui.note}>
-                    {data.notes.map((note, index) => (
-                        <p key={index}>{note}</p>
-                    ))}
-                </aside>
-            ) : null}
             {filters.length > 0 && (
                 <form key={JSON.stringify([filterPath||path,search,filters])} className={ui.form} action={filterPath || path}>
                     {Object.entries(search)
@@ -250,12 +241,7 @@ export async function ExpandedReport({
                 <Empty />
             ) : null}
             <Pagination collection={data} search={search} path={path} />
-            {mayorCity ? (
-                <section aria-label="本頁資料來源與計算方式" className="mt-10 border-t border-zinc-200 pt-6 text-xs leading-6 text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">
-                    <h2 className="mb-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">本頁資料來源與計算方式</h2>
-                    {[MAYOR_SHARE_NOTE, ...(data.notes ?? [])].map((note, index) => <p key={index}>{note}</p>)}
-                </section>
-            ) : null}
+            <ReportMethod path={path} description={data.description} meta={meta} notes={[...(data.notes ?? []), ...(family === 'live' ? liveCoverageNotes(meta.coverage) : [])]} />
         </>
     );
 }

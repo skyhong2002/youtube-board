@@ -8,6 +8,8 @@ export const TAG_SOURCE_ATTRIBUTION='標籤來源：新文易數（tag.observe.t
 export const INSUFFICIENT='資料不足';
 /** A null view count is unknown: never 0 and never the lowest value in a views ordering. */
 export const NO_VIEWS='無觀看值';
+/** Text match only; no claim that quality filtering removed promotional or copyright passages. */
+export const MATCH_CAVEAT='標題或說明出現標籤，不代表影片主題；可能來自固定宣傳或版權文字。';
 export const viewsText=(views:number|null|undefined)=>typeof views==='number'&&Number.isFinite(views)?compact(views):NO_VIEWS;
 /** Matched share of collected videos: how far matching has run, not a distortion rate. */
 export function matchCoveragePercent(summary:Pick<HomeKeywordSummary,'freshVideos'|'sourceVideos'>){

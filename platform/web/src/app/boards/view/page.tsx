@@ -6,6 +6,8 @@ import { Heading, Unavailable, DataNotice, Pagination } from "@/components/Repor
 import { VideoTable } from "@/components/DataViews";
 import { KeywordEvidenceNotice } from "@/components/KeywordEvidenceNotice";
 import { privateMetadata } from "@/lib/seo";
+import { ReportMethod } from "@/components/ReportMethod";
+import { BoardsMethod, KeywordMethod } from "@/components/MethodNotes";
 export const dynamic = "force-dynamic";
 export const metadata = privateMetadata("自訂觀測看板");
 export default async function Board({ searchParams }: { searchParams: Promise<Search> }) {
@@ -28,13 +30,14 @@ export default async function Board({ searchParams }: { searchParams: Promise<Se
     const search = boardSearch(board);
     return (
         <>
-            <div style={{ overflowWrap: "anywhere" }}><Heading title={name} description={`${description}。可複製目前網址分享此設定。`} meta={meta} /></div>
+            <div style={{ overflowWrap: "anywhere" }}><Heading title={name} meta={meta} /><p className="-mt-3 mb-4 text-sm text-zinc-600 dark:text-zinc-400">{description}</p></div>
             <DataNotice meta={meta} />
-            {board.keyword && <KeywordEvidenceNotice coverage={meta.coverage} subject={board.keyword} scopeLabel="本看板範圍" />}
+            {board.keyword && <KeywordEvidenceNotice coverage={meta.coverage} subject={board.keyword} scopeLabel="本看板範圍" compact />}
             <p><a className="button" href={boardFeedUrl(board)}>訂閱這個看板的 RSS</a>{" "}<Link className="button" href={`/boards?${new URLSearchParams(search)}`}>收藏或調整這個看板</Link></p>
             <VideoTable rows={data.rows} />
             <Pagination collection={data} search={search} path="/boards/view" />
             <p style={{ marginTop: 20 }}><Link className="button" href="/boards">管理我的看板</Link></p>
+            <ReportMethod path="/boards/view" meta={meta}><BoardsMethod />{board.keyword && <KeywordMethod />}</ReportMethod>
         </>
     );
 }

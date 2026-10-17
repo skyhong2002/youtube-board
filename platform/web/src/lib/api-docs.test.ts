@@ -127,6 +127,7 @@ test('attribution and navigation link follow the tag-style development group',()
  assert.match(footer,/label: '開發與來源', links: \[\n\s+\{ href: '\/api', label: 'API 文件與狀態' \}/);
  // API docs live in the footer only; the header lists public reports.
  assert.doesNotMatch(file('src/lib/site-nav.ts'),/href: '\/api'/);
- for(const name of ['src/components/SiteFooter.tsx','src/app/api/page.tsx']){const source=file(name);assert.match(source,/標籤來源：新文易數（tag\.observe\.tw）/,name);assert.doesNotMatch(source,/新文易數 tag\.observe\.tw|記者/,name);}
+ // The footer's 資料來源 fallback is SourceMethod (MethodNotes).
+ for(const name of ['src/components/MethodNotes.tsx','src/app/api/page.tsx']){const source=file(name);assert.match(source,/標籤來源：新文易數（tag\.observe\.tw）/,name);assert.doesNotMatch(source,/新文易數 tag\.observe\.tw|記者/,name);}
  for(const name of ['src/components/SiteFooter.tsx','src/lib/site-nav.ts','src/components/ApiTabs.tsx'])assert.doesNotMatch(file(name),/href: '\/api\/'/,name);
 });

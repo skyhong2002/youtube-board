@@ -12,6 +12,8 @@ import { first, dateTime } from "@/lib/format";
 import { compareTitles, type TitlePiece } from "@/lib/headline";
 import { Heading, DataNotice, Unavailable } from "@/components/ReportUI";
 import { pageMetadata } from "@/lib/seo";
+import { ReportMethod } from "@/components/ReportMethod";
+import { CompareTitlesMethod } from "@/components/MethodNotes";
 export const dynamic = "force-dynamic";
 export const metadata = pageMetadata({ title: "影片標題用語比較", description: "並排比較兩支 YouTube 影片標題的用語與寫法差異，回到各自的影片觀測與原始來源。", path: "/compare/titles" });
 export default async function Compare({
@@ -49,7 +51,7 @@ export default async function Compare({
         <>
             <Heading
                 title="影片標題用語比較"
-                description="並排閱讀不同影片的標題，觀察共有文字與各自使用的措辭。"
+                meta={list.response.meta}
             />
             <DataNotice meta={list.response.meta} />
             <form className="filters" action="/compare/titles">
@@ -77,11 +79,6 @@ export default async function Compare({
                 </label>
                 <button className="button button-primary">比較</button>
             </form>
-            <aside className="notice">
-                <p>
-                    標記顯示字元順序的共有部分；未標記部分是各標題的措辭。文字相同不等於報導同一事件，也不能據此推論抄襲、協同行動或因果關係。
-                </p>
-            </aside>
             {(left && !left.ok) || (right && !right.ok) ? (
                 <p role="alert">部分影片無法取得，請重新選擇。</p>
             ) : null}
@@ -113,6 +110,7 @@ export default async function Compare({
                     )}
                 </>
             )}
+            <ReportMethod path="/compare/titles" meta={list.response.meta}><CompareTitlesMethod /></ReportMethod>
         </>
     );
 }

@@ -342,11 +342,11 @@ test('keyword profile keeps its SSR controls, counts, null-vs-zero and evidence 
  const evidence=[{term:'交通',field:'title' as const,snippet:'前文交通後文',start:2,end:4,snippetStart:0}];
  const markup=html(createElement(KeywordProfile,{keyword:'a/b%41',description:'範圍說明',data:{rows:[video('AbCdEfGh123',null,{keywordEvidence:evidence}),video('BbCdEfGh123',0)],total:120,limit:50,offset:0,hasNext:true,totalStatus:'exact'},meta,
   notice:createElement('p',null,'合成資料提醒'),tabs:createElement('nav',null,'報表分頁'),filters:createElement('input',{name:'q',defaultValue:'保留條件'}),pagination:createElement('a',{href:'?offset=50'},'下一頁'),period:{from:'2026-10-06',to:'2026-10-12',days:null}}));
- for(const label of ['合成資料提醒','報表分頁','保留條件','下一頁','120 部</span></h2>','目前條件共 120 部符合・本頁顯示 2 部。','<dt>累計觀看</dt><dd>無觀看值</dd>','<dt>累計觀看</dt><dd>0</dd>','href="/videos/AbCdEfGh123#keyword-evidence"','發布日期 2026-10-06 至 2026-10-12（台北時間）','本頁資料來源與計算方式'])assert.ok(markup.includes(label),label);
+ for(const label of ['合成資料提醒','報表分頁','保留條件','下一頁','120 部</span></h2>','目前條件共 120 部符合・本頁顯示 2 部。','<dt>累計觀看</dt><dd>無觀看值</dd>','<dt>累計觀看</dt><dd>0</dd>','href="/videos/AbCdEfGh123#keyword-evidence"','發布日期 2026-10-06 至 2026-10-12（台北時間）','data-page-method'])assert.ok(markup.includes(label),label);
  assert.match(markup,/<span class="text-zinc-500">#<\/span>a\/b%41<\/h1>/);
  assert.equal(markup.match(/data-relations-state=/g)?.length,1);assert.match(markup,/data-relations-state="idle"/);
  // Both widths: the metadata panel is above the video list and pagination.
- assert.ok(markup.indexOf('data-relations-state')<markup.indexOf('符合共同標籤的影片'));assert.ok(markup.indexOf('data-relations-state')<markup.indexOf('本頁資料來源與計算方式'));
+ assert.ok(markup.indexOf('data-relations-state')<markup.indexOf('符合共同標籤的影片'));assert.ok(markup.indexOf('data-relations-state')<markup.indexOf('data-page-method'));
  assert.match(markup,/lg:grid-cols-\[minmax\(0,1fr\)_18rem\]/);assert.match(markup,/<div class="min-w-0 space-y-4">/);assert.match(markup,/aria-label="標籤圖片與關聯"/);
  // The server component itself still has no client fetch, effect or Suspense; it only mounts the island.
  const profile=readFileSync(join(components(),'KeywordProfile.tsx'),'utf8');

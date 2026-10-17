@@ -1,15 +1,19 @@
 import Link from 'next/link';
 import BackToTop from './BackToTop';
+import PageMethod,{METHOD_HREF} from './PageMethod';
+import {SourceMethod} from './MethodNotes';
 import Wordmark from './Wordmark';
 
-// Shared family footer with YouTube provenance and supported product links.
+// The one footer for every page, as tag.observe.tw SiteFooter: 本頁的資料來源與計算方式
+// (a page's own PageMethod replaces this 資料來源 fallback), then the full-width band
+// with the brand, channels and link columns, then the rights line.
 
 type FooterLink = { href: string; label: string; external?: boolean };
 // Only what the header does not already link: its sections stay up there, and
 // search has the header's box. Channels are the buttons under the brand.
 const COLUMNS: Array<{ label: string; links: FooterLink[] }> = [
   { label: '資料與透明度', links: [
-    { href: '/about', label: '資料來源與計算方式' },
+    { href: METHOD_HREF, label: '資料來源與計算方式' },
     { href: '/vocabulary', label: '共同標籤詞彙' },
     { href: '/compare/titles', label: '影片標題用語比較' },
     { href: '/events', label: '事件時間軸' },
@@ -53,15 +57,13 @@ const ICONS = {
 
 export default function SiteFooter() {
   return (
-    <footer className="mt-14 text-sm text-zinc-600 dark:text-zinc-400">
-      <section aria-label="資料來源與計算方式" className="border-t border-zinc-200 pt-6 text-xs leading-6 dark:border-zinc-800">
-        <h2 className="mb-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">資料來源與計算方式</h2>
-        <p>影片、頻道與直播觀測來自 YouTube；共同標籤詞彙的標籤來源：新文易數（tag.observe.tw），保留來源、版本與比對依據。</p>
-        <p>影片數、觀看數與直播同時在線人數分別計算，不代表 YouTube 全站流量或因果關係。更新時間與資料涵蓋範圍以各報表標示為準。</p>
-      </section>
+    <footer data-site-footer="" className="mt-14 text-sm text-zinc-600 dark:text-zinc-400">
+      <PageMethod fallback>
+        <SourceMethod />
+      </PageMethod>
 
       <div className={`${band} mt-10 pt-12 pb-6`}>
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-20">
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-20">
           <div className="space-y-5">
             <Link href="/" aria-label="有影儀表板 首頁" className="inline-block text-zinc-900 dark:text-zinc-100">
               <Wordmark className="h-9 w-auto" />

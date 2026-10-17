@@ -9,8 +9,8 @@ const candidates = [
 ];
 export default function BrandPage() {
   return <>
-    <Heading title="標誌與品牌" description="有影儀表板，延續 youtube.board.tw 的名字與觀測工作。三款標誌使用相同的 YouTube 紅，這裡可以預覽與下載。" />
-    <p className="mb-8 text-sm leading-7 text-zinc-600 dark:text-zinc-400">網站目前採用「新文易數同家族・舊站印記」。下方並排展示新版大圖與 16／32／48px 實際尺寸。所有 SVG 的中文字都已轉成向量輪廓，不依賴裝置字型；深淺色版本與應用程式圖示都已備妥。</p>
+    <Heading title="標誌與品牌" method={false} />
+    <p className="mb-8 text-sm leading-7 text-zinc-600 dark:text-zinc-400">有影儀表板延續 youtube.board.tw 的名字與觀測工作；三款標誌使用相同的 YouTube 紅，這裡可以預覽與下載。網站目前採用「新文易數同家族・舊站印記」。下方並排展示新版大圖與 16／32／48px 實際尺寸。所有 SVG 的中文字都已轉成向量輪廓，不依賴裝置字型；深淺色版本與應用程式圖示都已備妥。</p>
     <div className="space-y-12">
       {candidates.map(candidate => <section key={candidate.key} aria-labelledby={`brand-${candidate.key}`}>
         <div className="mb-4 flex flex-wrap items-center gap-3"><h2 id={`brand-${candidate.key}`} className="text-xl font-semibold">{candidate.title}</h2><span className="rounded-full border border-zinc-300 px-2.5 py-1 text-xs dark:border-zinc-700">{candidate.label}</span></div>

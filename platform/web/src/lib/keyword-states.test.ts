@@ -84,7 +84,7 @@ test('/keywords loaded: API order, selected-period links, partial views show the
  assert.match(markup,/data-keyword-window-pane="week"/);assert.doesNotMatch(markup,/data-keyword-window-pane="today"/);
  assert.match(markup,/列出 2 個標籤/);
  // Method/provenance disclosure and vocabulary link stay.
- assert.match(markup,/本頁資料來源與計算方式/);assert.match(markup,/href="\/vocabulary"/);
+ assert.match(markup,/data-page-method/);assert.match(markup,/href="\/vocabulary"/);
 });
 
 test('/keywords today states: empty, unknown, unavailable, not synchronized and not computed are each labelled and never a table',()=>{
@@ -125,7 +125,7 @@ const video=(id:string,title:string,views:number|null,patch:object={})=>({id,tit
 const PATH='/keywords/a%2Fb%2541/videos',SEARCH={from:'2026-10-06',to:'2026-10-12'};
 const profile=(data:{rows:VideoRow[];total:number|null;limit:number;offset:number;hasNext:boolean;totalStatus:'exact'|'not-computed'|'unavailable'},coverage:ReportMeta['coverage']={})=>html(createElement(KeywordProfile,{keyword:'a/b%41',description:'範圍說明',data,meta:meta(coverage),notice:null,tabs:null,filters:null,
  pagination:createElement(Pagination,{collection:data,search:{...SEARCH,offset:String(data.offset)},path:PATH}),period:{...SEARCH,days:null}}));
-const bodyOf=(markup:string)=>markup.split('本頁資料來源與計算方式')[0]!;
+const bodyOf=(markup:string)=>markup.split('data-page-method')[0]!;
 
 test('keyword profile loaded: exact keyword, period, real counts, pagination links keep the date scope; null views never 0',()=>{
  const evidence=[{term:'交通',field:'description',snippet:'',start:0,end:0,snippetStart:0},{term:'交通',field:'caption',snippet:'',start:0,end:0,snippetStart:0},{term:'交通',field:'title',snippet:'前文交通後文',start:2,end:4,snippetStart:0}];

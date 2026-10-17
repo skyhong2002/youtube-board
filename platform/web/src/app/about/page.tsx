@@ -1,49 +1,86 @@
-import { Heading } from "@/components/ReportUI";
+import Link from "next/link";
+import {
+    AiMethod,
+    BoardsMethod,
+    ChannelMethod,
+    CloudMethod,
+    CommentMethod,
+    CompareTitlesMethod,
+    EventsMethod,
+    GroupMethod,
+    HomeMethod,
+    KeywordMethod,
+    KeywordRankingMethod,
+    LiveMethod,
+    MayorMethod,
+    SourceMethod,
+    TagMethod,
+    VideoMethod,
+    VocabularyMethod,
+} from "@/components/MethodNotes";
+import { inlineLink } from "@/components/method/styles";
 import { pageMetadata } from "@/lib/seo";
-export const metadata = pageMetadata({ title: "資料與方法", description: "有影儀表板的資料來源、觀測範圍、計算方式與限制：讓每一個數字有清楚的範圍、來源與限制。", path: "/about" });
+export const metadata = pageMetadata({ title: "資料來源與計算方式", description: "有影儀表板的資料來源、觀測範圍與計算方式：頻道、影片、直播、AI 議題、頻道分類與共同標籤的每個數字怎麼來、有哪些限制。", path: "/about" });
+
+// Every method block in one place, grouped by the page it explains (tag.observe.tw
+// /method/); each page's 本頁的資料來源與計算方式 shows only its own blocks.
+const GROUPS: Array<{ id: string; title: string; pages?: Array<[string, string]>; body: React.ReactNode }> = [
+    { id: "source", title: "資料來源（全站）", pages: [["/channels", "頻道觀測"]], body: <SourceMethod /> },
+    { id: "home", title: "首頁", pages: [["/", "首頁"]], body: <HomeMethod /> },
+    { id: "keywords", title: "熱門標籤與共同標籤", pages: [["/keywords", "熱門標籤排行"], ["/vocabulary", "共同標籤詞彙"]], body: <><KeywordRankingMethod /><KeywordMethod /><VocabularyMethod /></> },
+    { id: "channels", title: "頻道", pages: [["/channels", "頻道觀測"]], body: <ChannelMethod /> },
+    { id: "videos", title: "影片", pages: [["/videos", "影片觀測"], ["/compare/titles", "標題用語比較"]], body: <><VideoMethod /><CompareTitlesMethod /></> },
+    { id: "live", title: "直播", pages: [["/live/current", "即時直播"], ["/live/walls/news", "四窗直播"]], body: <LiveMethod /> },
+    { id: "ai", title: "AI 議題", pages: [["/ai/days", "每日公共議題"]], body: <AiMethod /> },
+    { id: "tags", title: "頻道分類", pages: [["/tags", "頻道分類"]], body: <><TagMethod /><CloudMethod /></> },
+    { id: "groups", title: "頻道群組", pages: [["/groups", "頻道群組"]], body: <GroupMethod /> },
+    { id: "mayor", title: "地方選戰", pages: [["/mayor", "選戰"]], body: <MayorMethod /> },
+    { id: "comments", title: "留言", body: <CommentMethod /> },
+    { id: "events", title: "事件時間軸", pages: [["/events", "事件時間軸"]], body: <EventsMethod /> },
+    { id: "boards", title: "自訂看板", pages: [["/boards", "我的看板"]], body: <BoardsMethod /> },
+    {
+        id: "about",
+        title: "關於有影儀表板",
+        pages: [["/about/brand", "標誌"]],
+        body: <p>本站延續 youtube.board.tw 的「有影儀表板」，以 YouTube 影片與頻道為觀測來源。操作與版面沿用<a href="https://tag.observe.tw" className={inlineLink}>新文易數</a>，標誌保留舊站播放箭頭穿過橢圓環的意象。</p>,
+    },
+];
+
+const link = "text-brand-700 hover:underline dark:text-brand-400";
+
 export default function About() {
     return (
-        <>
-            <Heading
-                title="資料與方法"
-                description="讓每一個數字有清楚的範圍、來源與限制。"
-            />
-            <article className="prose">
-                <h2>延續有影儀表板</h2>
-                <p>本站延續 youtube.board.tw 的「有影儀表板」，以 YouTube 影片與頻道為觀測來源。操作與版面沿用新文易數，標誌保留舊站播放箭頭穿過橢圓環的意象。<a href="/about/brand">查看標誌候選與下載</a>。</p>
-                <h2>觀測的範圍</h2>
-                <p>
-                    本網站以納入名單的 YouTube
-                    頻道與影片為範圍。數據來自公開來源及定時觀測，不涵蓋全
-                    YouTube。缺漏、尚未收錄與資料服務中斷均不等於數值為零。
-                </p>
-                <h2>觀看數與直播人數</h2>
-                <p>
-                    影片觀看數是取得當時的累計數。觀看增量由不同時間的觀測相減，可能受
-                    YouTube
-                    數值修正或影片下架影響。直播同時在線人數是不同時間取得的快照；多個直播相加沒有進行觀眾去重。圖表不將缺值補成零。
-                </p>
-                <h2>共同標籤與頻道分類</h2>
-                <p>
-                    共同內容詞彙以
-                    <a href="https://tag.observe.tw">新文易數 tag.observe.tw</a>
-                    為來源。來源系統包含媒體原生標籤與規則補標，因此不能把每一個詞都視為記者親自標註。同步範圍、版本與比對證據應隨資料顯示。頻道分類沿用
-                    有影儀表板的來源組織方式，與內容標籤是不同維度。
-                </p>
-                <h2>AI 輔助議題</h2>
-                <p>
-                    AI
-                    輸出用於整理資料，不代表事實查核或編輯結論。每日議題需搭配來源頻道與影片理解，同名關鍵字不一定屬於同一個事件。議題排序分數不能直接與新聞網站的熱度分數比較。
-                </p>
-                <h2>時間與資料更新</h2>
-                <p>
-                    頁面使用台北時間（UTC+8）。「資料更新」顯示來源已記錄的觀測時間；來源未記錄時間時顯示「未記錄」，不使用開啟網頁的時間替代。
-                </p>
-                <h2>自訂看板</h2>
-                <p>
-                    自訂看板儲存在目前瀏覽器，網址可以分享篩選設定。清除瀏覽器儲存空間會移除本機收藏。分享網址會包含你所選的篩選條件。
-                </p>
+        <div data-method-page="" className="lg:grid lg:grid-cols-[minmax(0,48rem)_13rem] lg:justify-between lg:gap-12">
+            <article className="min-w-0">
+                <h1 className="text-2xl font-semibold tracking-tight">資料來源與計算方式</h1>
+                {/* Narrow screens: the groups up top. Wide screens use the side outline instead. */}
+                <nav aria-label="目錄" className="mt-5 rounded-lg border border-zinc-200 p-4 text-sm lg:hidden dark:border-zinc-800">
+                    <h2 className="text-xs font-medium text-zinc-500 dark:text-zinc-400">目錄</h2>
+                    <ol className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2">
+                        {GROUPS.map((group) => <li key={group.id}><a href={`#${group.id}`} className={link}>{group.title}</a></li>)}
+                    </ol>
+                </nav>
+                {GROUPS.map((group) => (
+                    <section key={group.id} aria-labelledby={group.id} className="mt-10">
+                        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-zinc-200 pb-2 dark:border-zinc-800">
+                            <h2 id={group.id} className="scroll-mt-24 text-lg font-semibold tracking-tight">{group.title}</h2>
+                            {group.pages && (
+                                <p className="flex flex-wrap gap-x-3 text-xs">
+                                    {group.pages.map(([href, label]) => <Link key={href} href={href} className={link}>{label} →</Link>)}
+                                </p>
+                            )}
+                        </div>
+                        <div className="mt-4 space-y-3 text-sm leading-[1.9] text-zinc-700 dark:text-zinc-300 [&_h3]:scroll-mt-24 [&_h3]:pt-4 [&_h3]:text-[15px] [&_h3]:first:pt-0">
+                            {group.body}
+                        </div>
+                    </section>
+                ))}
             </article>
-        </>
+            <nav aria-label="本頁大綱" className="hidden lg:block">
+                <ol className="sticky top-24 space-y-1.5 border-l border-zinc-200 pl-4 text-sm dark:border-zinc-800">
+                    {GROUPS.map((group) => <li key={group.id}><a href={`#${group.id}`} className="text-zinc-600 hover:text-brand-700 dark:text-zinc-400 dark:hover:text-brand-400">{group.title}</a></li>)}
+                </ol>
+            </nav>
+        </div>
     );
 }

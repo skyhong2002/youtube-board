@@ -20,8 +20,10 @@ import {
     Tabs,
 } from "./ReportUI";
 import { splitEvidence, tagEvidenceRenderable } from "@/lib/evidence";
-import { DESCRIPTION_TEMPLATE_NOTE, TAG_SOURCE_ATTRIBUTION, displayExclusionLabel } from "@/lib/keyword-ranking";
-import MethodDisclosure from "./MethodDisclosure";
+import { displayExclusionLabel } from "@/lib/keyword-ranking";
+import PageMethod from "./PageMethod";
+import { PageNotes, SourceMethod, VocabularyMethod } from "./MethodNotes";
+import { metaNotes } from "./ReportMethod";
 /** Shared by /keywords (ranking) and /vocabulary (complete original pool). */
 export const keywordTabs = [
     { href: "/keywords", label: "熱門標籤排行" },
@@ -43,23 +45,10 @@ export async function VocabularyReport({
         <>
             <Heading
                 title="共同標籤詞彙"
-                description="沿用新文易數持續維護的新聞標籤，作為跨平台探索的共同詞彙。"
                 meta={meta}
             />
             <DataNotice meta={meta} />
             <Tabs active={path} items={keywordTabs} />
-            <aside className={ui.note}>
-                <p>
-                    <a className={ui.link} href="https://tag.observe.tw">{TAG_SOURCE_ATTRIBUTION}</a>
-                    。詞彙為已觀測文章的標籤；來源系統可能使用媒體原生標籤或規則補標，無法逐詞確認是否由記者標註。
-                    這裡列出完整的原始詞彙池，包含不列入熱門標籤排行的詞；排除只影響排行顯示，詞彙與比對證據不會刪除。
-                    {data.coverage === "all-current-indexed-article-tags"
-                        ? "本次涵蓋上游目前已索引文章的標籤，不代表全部可能詞彙或完整人工分類詞典。"
-                        : "目前是指定文章時間窗的觀測詞彙，並非完整詞庫。"}
-                    {!data.upstreamSnapshotConsistent &&
-                        "同步期間的上游資料可能更新。"}
-                </p>
-            </aside>
             <div className="metrics">
                 <Metric label="觀測詞彙" value={count(data.total)} unit="個" />
                 {data.window ? (
@@ -188,16 +177,20 @@ export async function VocabularyReport({
                 />
             )}
             <Pagination collection={data} search={search} path={path} />
-            <MethodDisclosure>
-                <p>{TAG_SOURCE_ATTRIBUTION}。{data.coverage === "all-current-indexed-article-tags"
-                    ? "範圍為上游目前已索引文章的標籤。"
-                    : `範圍為上游文章時間窗${data.window ? `（${dateTime(data.window.since)} 至 ${dateTime(data.window.until)}）` : ""}內已觀測到的標籤，不是新文易數全部歷史文章的完整標籤庫。`}
-                    {data.upstreamSnapshotConsistent ? "上游提供版本固定的快照。" : "上游讀取不保證同一時間的完整快照。"}</p>
-                <p>「排行顯示」說明這個詞能否列入熱門標籤排行。不列入的原因包括：新聞分類詞或上游排除詞、上游判定的雜訊標籤、純數字或日期、長度不在 2–30 字、不含文字或數字，以及 YouTube 平台或宣傳用語。這些規則沿用 tag.observe.tw 的標籤顯示規則；被排除的詞仍完整保留在這份詞彙池，比對證據也不刪除。</p>
-                <p>{DESCRIPTION_TEMPLATE_NOTE}</p>
-                {data.sourceQuality && <p>上游標籤正規化：保留 {count(data.sourceQuality.normalizedTags)} 個、捨棄 {count(data.sourceQuality.rejectedTags)} 個格式不符的標籤（涉及 {count(data.sourceQuality.articlesWithRejectedTags)} 篇文章）。</p>}
-                <p style={{ overflowWrap: "anywhere" }}>同步版本：{data.version || "尚未同步"}</p>
-            </MethodDisclosure>
+            <PageMethod>
+                <VocabularyMethod />
+                <PageNotes notes={[
+                    "沿用新文易數持續維護的新聞標籤，作為跨平台探索的共同詞彙；這裡列出完整的原始詞彙池，包含不列入熱門標籤排行的詞，排除只影響排行顯示，詞彙與比對證據不會刪除。",
+                    data.coverage === "all-current-indexed-article-tags"
+                        ? "範圍：上游目前已索引文章的標籤，不代表全部可能詞彙或完整人工分類詞典。"
+                        : `範圍：上游文章時間窗${data.window ? `（${dateTime(data.window.since)} 至 ${dateTime(data.window.until)}）` : ""}內已觀測到的標籤，不是新文易數全部歷史文章的完整標籤庫。`,
+                    data.upstreamSnapshotConsistent ? "上游提供版本固定的快照。" : "上游讀取不保證同一時間的完整快照，同步期間的上游資料可能更新。",
+                    ...(data.sourceQuality ? [`上游標籤正規化：保留 ${count(data.sourceQuality.normalizedTags)} 個、捨棄 ${count(data.sourceQuality.rejectedTags)} 個格式不符的標籤（涉及 ${count(data.sourceQuality.articlesWithRejectedTags)} 篇文章）。`] : []),
+                    `同步版本：${data.version || "尚未同步"}`,
+                    ...metaNotes(meta),
+                ]} />
+                <SourceMethod />
+            </PageMethod>
         </>
     );
 }
@@ -228,8 +221,6 @@ export async function VideoTagEvidence({ videoId }: { videoId: string }) {
             <p>
                 {statuses[data.status] ?? "比對狀態尚未確認"}。
                 {data.matchedAt && `比對時間：${dateTime(data.matchedAt)}。`}
-                詞彙來源為 <Link href="/vocabulary">新文易數共同詞彙</Link>
-                ；文字命中不代表事件歸屬或立場。
             </p>
             {data.rows.length ? (
                 <div className="board-list">
@@ -277,7 +268,7 @@ export async function VideoTagEvidence({ videoId }: { videoId: string }) {
                 </div>
             ) : (
                 data.status === "matched" && (
-                    <p>本次沒有精確文字命中；這不表示影片沒有相關主題。</p>
+                    <p>本次沒有精確文字命中。</p>
                 )
             )}
             <details>
@@ -285,8 +276,7 @@ export async function VideoTagEvidence({ videoId }: { videoId: string }) {
                     比對版本
                 </summary>
                 <p style={{ fontSize: 12, overflowWrap: "anywhere" }}>
-                    {data.version || "尚無版本"} ·
-                    以標題與說明的原始文字位置保留證據。
+                    {data.version || "尚無版本"}
                 </p>
             </details>
         </section>

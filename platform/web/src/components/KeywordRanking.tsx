@@ -5,13 +5,16 @@ import {count,dateTime} from '@/lib/format';
 import {table} from '@/lib/table-styles';
 import {reportStyle as ui} from '@/lib/report-styles';
 import {KEYWORD_WINDOWS,homeKeywordState,homeKeywordSummary,keywordRangeLabel,keywordUpdatedLabel,keywordVideosHref,type KeywordWindow} from '@/lib/home-presentation';
-import {INSUFFICIENT,TAG_SOURCE_ATTRIBUTION,heatLabel,keywordCoverageLabel,keywordMethodNotes,rankingBasis,riseLabel,trendLabel,trendValues,viewsCell,type RankingRow} from '@/lib/keyword-ranking';
+import {INSUFFICIENT,heatLabel,keywordCoverageLabel,keywordMethodNotes,rankingBasis,riseLabel,trendLabel,trendValues,viewsCell,type RankingRow} from '@/lib/keyword-ranking';
 import {KeywordWindowPane,KeywordWindowProvider,KeywordWindowSwitch} from '@/app/_home/KeywordWindow';
 import TableScroller from './TableScroller';
 import Sparkline from './Sparkline';
 import {VideoThumbnail} from './VideoThumbnail';
 import {ChannelAvatar} from './ChannelAvatar';
-import MethodDisclosure from './MethodDisclosure';
+import MethodLink from './MethodLink';
+import PageMethod from './PageMethod';
+import {PageNotes,SourceMethod} from './MethodNotes';
+import {metaNotes} from './ReportMethod';
 import LinkPending from './LinkPending';
 
 const REGION='keyword-ranking-table';
@@ -31,10 +34,8 @@ export function KeywordRankingView({exploration,meta,notice,tabs,initial='week'}
   <header className="flex flex-wrap items-end justify-between gap-3">
    <div className="min-w-0 space-y-1">
     <h1 className="text-2xl font-semibold tracking-tight">熱門標籤排行</h1>
-    <p className="max-w-4xl text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">YouTube 影片標題與說明中出現的新聞標籤，依頻道加權熱度排序。{TAG_SOURCE_ATTRIBUTION}。</p>
-    <p className="text-sm text-zinc-600 dark:text-zinc-400">更新於 {dateTime(meta.updatedAt)} · 台北時間</p>
+    <p className="text-sm text-zinc-600 dark:text-zinc-400">更新於 {dateTime(meta.updatedAt)} · 台北時間 · <MethodLink/></p>
    </div>
-   <a href="#method" className="text-sm text-brand-700 hover:underline dark:text-brand-400">怎麼算 ⓘ</a>
   </header>
   {notice}
   {tabs}
@@ -42,7 +43,12 @@ export function KeywordRankingView({exploration,meta,notice,tabs,initial='week'}
    <KeywordWindowSwitch name="keyword-ranking-window" className="" controls={REGION} legend="排行期間"/>
    <div id={REGION}>{views.map(v=><KeywordWindowPane key={v.window} window={v.window} region className="space-y-3"><RankingPane view={v} priority={v.window===initial}/></KeywordWindowPane>)}</div>
    <p className="text-sm"><Link className={ui.link} href="/vocabulary">原始詞彙池（含不列入排行的詞與原因）→</Link></p>
-   <MethodDisclosure>{views.map(v=><KeywordWindowPane key={v.window} window={v.window}>{keywordMethodNotes(v.summary,v.basis).map((note,i)=><p key={i}>{note}</p>)}</KeywordWindowPane>)}</MethodDisclosure>
+   <PageMethod>
+    <p>YouTube 影片標題與說明中出現的新聞標籤，依頻道加權熱度排序。</p>
+    {views.map(v=><KeywordWindowPane key={v.window} window={v.window}><PageNotes title={`${v.label}熱門標籤`} notes={keywordMethodNotes(v.summary,v.basis)}/></KeywordWindowPane>)}
+    <PageNotes notes={metaNotes(meta)}/>
+    <SourceMethod/>
+   </PageMethod>
   </KeywordWindowProvider>
  </div>;
 }
@@ -50,8 +56,6 @@ function RankingPane({view:v,priority}:{view:View;priority:boolean}){
  const s=v.summary;
  return <>
   {s&&<p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">{keywordRangeLabel(s,v.window)} · {keywordCoverageLabel(s)} · {keywordUpdatedLabel(s)}{v.rows.length>0&&` · 列出 ${count(v.rows.length)} 個標籤`}</p>}
-  {s&&v.rows.length>0&&v.basis!=='heat'&&<aside className={ui.note}><p>這個期間的資料服務尚未提供加權熱度，以下依已比對影片數排序；熱度、升溫與走勢顯示「{INSUFFICIENT}」。</p></aside>}
-  {s?.comparison&&!s.comparison.complete&&v.rows.length>0&&<aside className={ui.note}><p>前一段等長期間的比對涵蓋不完整，升溫顯示「{INSUFFICIENT}」，不以 0 代替。</p></aside>}
   {s&&v.rows.length?<KeywordRankingTable rows={v.rows} summary={s} window={v.window} basis={v.basis} priority={priority}/>:<p role="status" className="rounded-xl border border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400" data-keyword-state={v.kind}>{v.message??`${v.label}範圍與比對狀態未知。`}</p>}
  </>;
 }

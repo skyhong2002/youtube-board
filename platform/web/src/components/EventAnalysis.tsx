@@ -11,13 +11,19 @@ function Citation({citation:c}:{citation:EventCitation}){const href=safeReportHr
 function LineageVideo({video:v}:{video:{id:string;title:string;channelId:number;media:string}}){const source:ChannelSource={channelId:v.channelId,channelTitle:v.media,channelAvatar:null};return <span className="inline-flex flex-wrap items-center gap-x-1.5">{hasSource(source)&&<><ChannelSourceLabel source={source}/><span aria-hidden="true">·</span></>}<a href={`https://www.youtube.com/watch?v=${v.id}`} target="_blank" rel="noopener noreferrer">{v.title||v.id}<span className="sr-only">（另開視窗）</span> ↗</a><small>· {v.id}</small></span>;}
 /** Older responses carry only names; those stay unresolved labels. */
 const mediaSources=(names:string[],sources?:ChannelSource[])=>sources??names.map(unresolvedSource);
+/** The analysis states that change how this page reads; shown with its method notes. */
+export function eventAnalysisNotes(data:AiEventData):string[]{
+ const c=data.evidenceCoverage,hidden=['unpublishedAnalyses','divergedAnalyses','snapshotUnavailableAnalyses','malformedAnalyses','incompatibleSources'].reduce((n,k)=>n+Number(c[k]??0),0);
+ return [
+  ...(data.resolution.kind==='same-day-source-alias'?[`「${data.resolution.requestedTitle}」是每日來源 #${data.dailyId} 中的明確來源事件名稱，對應到「${data.title}」。此對應僅適用於這筆每日資料。`]:[]),
+  ...(c.sourceScopeMismatch===true?['指定分析的來源範圍與目前每日紀錄不同；同頁僅保留相同分析範圍的紀錄，未套用目前每日分組。']:[]),
+  ...(c.sourceChanged===true?['每日來源已有變動。以下保留生成時的分析與影片快照，未套用新的每日分組；不同來源版本的分析分開處理。']:[]),
+  ...(hidden>0?[`${hidden} 筆分析因尚未發布、來源版本不符或格式無法解析而暫不呈現。${c.pinnedUnavailable===true?'指定的分析紀錄目前不可呈現，未以較新的修訂替代。':''}`]:[]),
+ ];
+}
 export function EventAnalysis({data}:{data:AiEventData}){
- const p=data.presentation,c=data.evidenceCoverage,hidden=['unpublishedAnalyses','divergedAnalyses','snapshotUnavailableAnalyses','malformedAnalyses','incompatibleSources'].reduce((n,k)=>n+Number(c[k]??0),0);
- return <section aria-label="儲存的事件分析" className="space-y-6"><p className="muted">以下為已儲存的 AI 分析，瀏覽不會生成新內容。「事實」與立場分類是模型的分類，仍需回到影片查證。</p>
- {data.resolution.kind==='same-day-source-alias'&&<aside className={ui.note}>「{data.resolution.requestedTitle}」是每日來源 #{data.dailyId} 中的明確來源事件名稱，對應到「{data.title}」。此對應僅適用於這筆每日資料。</aside>}
- {c.sourceScopeMismatch===true&&<aside className={ui.note}>指定分析的來源範圍與目前每日紀錄不同；同頁僅保留相同分析範圍的紀錄，未套用目前每日分組。</aside>}
- {c.sourceChanged===true&&<aside className={ui.note}>每日來源已有變動。以下保留生成時的分析與影片快照，未套用新的每日分組；不同來源版本的分析分開處理。</aside>}
- {hidden>0&&<aside className={ui.note}>{hidden} 筆分析因尚未發布、來源版本不符或格式無法解析而暫不呈現。{c.pinnedUnavailable===true?'指定的分析紀錄目前不可呈現，未以較新的修訂替代。':''}</aside>}
+ const p=data.presentation;
+ return <section aria-label="儲存的事件分析" className="space-y-6">
  {!data.analyses.length&&<p className="muted">尚無可呈現的儲存分析。</p>}
  {p.summaries.map((s,i)=><article className={ui.panel} key={`${s.analysisId}-${i}`} style={{padding:20,marginBottom:16}}><h2 className="mb-2 text-base font-semibold">{s.title}</h2><p>{s.description}</p><p className="muted">分析 #{s.analysisId}{s.keywords.length>0&&` · ${s.keywords.join('、')}`}{s.media.length>0&&<> · 媒體：<ChannelSourceList sources={mediaSources(s.media,s.sourceChannels)}/></>}</p><h3 className="mb-2 mt-4 text-sm font-semibold">AI 歸類為事實的描述</h3>{s.facts.length?<ul>{s.facts.map((r,i)=><li key={i}><p>{r.headline}</p><Citation citation={r.citation}/></li>)}</ul>:<p className="muted">未記錄。</p>}<h3 className="mb-2 mt-4 text-sm font-semibold">觀點</h3>{s.opinions.length?<ul>{s.opinions.map((r,i)=><li key={i}><p>{r.content}</p><p className="muted">角度：{r.stance||'未記錄'} · 強度：{r.intensity||'未記錄'}</p><Citation citation={r.citation}/></li>)}</ul>:<p className="muted">未記錄。</p>}</article>)}
  {p.people&&<section><h2 className="mb-2 text-base font-semibold">人物觀點</h2><p className="muted">主體：{p.people.mainSubject||'未記錄'} · 分析 #{p.people.analysisId}</p>{p.people.groups.filter(g=>g.rows.length).map(g=><section key={g.kind}><h3 className="mb-2 mt-4 text-sm font-semibold">{labels[g.kind]}（AI 分類）</h3><div className="grid gap-3 md:grid-cols-2">{g.rows.map((r,i)=><article className={ui.panel} key={i} style={{padding:16}}><h4 className="text-sm font-semibold">{r.person}</h4><p className="muted">{[r.role,r.stance,r.strength].filter(Boolean).join(' · ')}</p><p>{r.description}</p><ul>{r.citations.map((c,i)=><li key={i}><Citation citation={c}/></li>)}</ul></article>)}</div></section>)}</section>}
