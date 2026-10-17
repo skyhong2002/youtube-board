@@ -27,7 +27,6 @@ import {
 } from "./ReportUI";
 import { TimeChart } from "./Charts";
 import { MayorShare, MayorSwitcher } from "./MayorShare";
-import { mayorCoverage } from "@/lib/bucket-coverage";
 import { cities } from "../../../shared/city-definitions";
 export async function ExpandedReport({
     apiPath,
@@ -66,6 +65,7 @@ export async function ExpandedReport({
             <DataNotice meta={meta} />
             <Tabs items={familyTabs(path,search,meta.coverage)} active={path} />
             {path==='/tags/compare'&&<ComparisonControls search={search} points={data.series?.[0]?.points}/> }
+            {mayorCity && data.series?.length ? <MayorShare part="chart" city={mayorCity} series={data.series} search={search} rows={data.rows} /> : null}
             {mayorCity && cities[mayorCity] ? <MayorSwitcher city={mayorCity} search={search} /> : null}
             {data.navigation?.length ? <Tabs label="報表切換" active={path} items={data.navigation.flatMap(item => {
                 const href = safeReportHref(item.href);
@@ -206,8 +206,9 @@ export async function ExpandedReport({
                     </section>
                 </>
             ) : null}
-            {mayorCity && data.series?.length ? <MayorShare city={mayorCity} series={data.series} search={search} rows={data.rows} /> : null}
-            {data.series?.map((series, index) => (
+            {mayorCity && data.series?.length ? <MayorShare part="candidates" city={mayorCity} series={data.series} search={search} rows={data.rows} /> : null}
+            {/* Mayor pages show every candidate in the one share chart above, so no per-person raw charts. */}
+            {mayorCity ? null : data.series?.map((series, index) => (
                 <section key={`${series.name}-${index}`}>
                     <SectionHeading title={series.name} />
                     <div className={ui.panel}>
@@ -216,7 +217,6 @@ export async function ExpandedReport({
                                 points={series.points}
                                 label={series.name}
                                 unit={series.unit}
-                                coverage={mayorCity ? mayorCoverage(data.rows, series.points.map((point) => point.time)) : undefined}
                             />
                         ) : (
                             <Empty title="這個期間尚無觀測點" />
