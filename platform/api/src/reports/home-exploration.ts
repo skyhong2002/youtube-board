@@ -132,8 +132,9 @@ export async function homeExploration(reader:Reader,now:Date,diagnostic?:HomeDia
   keywordStage='daily-history';
   const daily=selectedKeys.length&&completeDays.length?await reader.rows(sql`SELECT ${cohorts?sql`CONCAT(matched.window_key,':',DATE(matched.publishedAt))`:sql`DATE(matched.publishedAt)`} AS window_key,matched.group_key AS g,matched.u_id AS c,COUNT(*) AS n,SUM(matched.has_title) AS t,COUNT(matched.viewCount) AS m,COALESCE(SUM(matched.viewCount),0) AS v
     FROM (${deduplicated(freshSourceRows(from),sql`AND ${termKeyIn(selectedKeys)} AND DATE(fv.publishedAt) IN (${sql.join(completeDays.map(d=>sql`${d}`),sql`,`)})`,true)}) matched
-    ${cohorts?sql`WHERE matched.window_key IN ('week','today')`:sql``} GROUP BY ${cohorts?sql`CONCAT(matched.window_key,':',DATE(matched.publishedAt))`:sql`window_key`},g,c LIMIT 20001`,KEYWORD_QUERY):[];
-  if(daily.length>20000||Buffer.byteLength(JSON.stringify(daily))>4*1024*1024)throw new HomeSectionUnavailable('source-cap');
+    ${cohorts?sql`WHERE matched.window_key IN ('week','today')`:sql``} GROUP BY ${cohorts?sql`CONCAT(matched.window_key,':',DATE(matched.publishedAt))`:sql`window_key`},g,c LIMIT 100001`,KEYWORD_QUERY):[];
+  // Per-day channel rows for the selected terms; the 14-day comparison window outgrew 20k rows / 4 MiB on 2026-10-18.
+  if(daily.length>100000||Buffer.byteLength(JSON.stringify(daily))>16*1024*1024)throw new HomeSectionUnavailable('source-cap');
   const ranking=rankKeywordWindows([...records,...daily],display,days,comparable,cohorts);
   // At most one title-leading representative per displayed term/window. Raw
   // provider image URLs never leave this query; the shared media hook supplies
