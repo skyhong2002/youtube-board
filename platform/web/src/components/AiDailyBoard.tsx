@@ -2,6 +2,7 @@ import Link from "next/link";
 import {reportLinkPrefetch} from "@/lib/report-contract";
 import {count} from "@/lib/format";
 import type {AiDaysData,TopicRow} from "@/lib/api";
+import {sourceStats,topicSummary,type ChannelAiEvent} from "@/lib/ai-daily-summary";
 
 /** The Laravel /ai/days layout: date and condition switchers, coverage cards, numbered topics
  * with per-channel events, a summary box and up to three embedded representative videos. */
@@ -21,15 +22,15 @@ const counts=(rows:{term:string;count:number}[])=>rows.length?rows.map(r=>`${r.t
 function Coverage({label,value,detail}:{label:string;value:string;detail:string}){
     return <div className="min-w-0 border border-zinc-300 bg-white px-2.5 py-2 dark:border-zinc-800 dark:bg-zinc-900"><div className="text-xs text-zinc-600 dark:text-zinc-400">{label}</div><div className="mt-0.5 text-lg font-bold leading-tight tabular-nums">{value}</div><div className="mt-0.5 text-xs leading-snug text-zinc-600 dark:text-zinc-400">{detail}</div></div>;
 }
-function Topic({topic,index}:{topic:TopicRow;index:number}){
-    const s=topic.summary,href=`/ai/days/${topic.dailyId}/events?event=${encodeURIComponent(topic.title)}`;
+function Topic({topic,index,sources}:{topic:TopicRow;index:number;sources:AiDailySources}){
+    const s=topicSummary(topic,sources.events,sources.green,sources.blue),href=`/ai/days/${topic.dailyId}/events?event=${encodeURIComponent(topic.title)}`;
     return <article className="mb-6 pb-1.5" id={`topic-${topic.id}`}>
         <h2 className="mb-3 text-xl font-semibold leading-snug sm:text-[23px]">{index+1}. {topic.grouping?topic.title:<Link className="text-brand-700 hover:underline dark:text-brand-400" href={href} prefetch={reportLinkPrefetch(href)}>{topic.title}</Link>}</h2>
         <ul className="mb-2.5 list-disc pl-5 leading-relaxed sm:ml-6">
             {topic.evidence.map((e,i)=>{const videos=e.videoIds.length||e.withheldVideoReferenceCount||0;return <li className="my-px" key={`${e.source.id}-${i}`}><Link className="font-bold text-brand-700 hover:underline dark:text-brand-400" href={`/channels/${e.channelId}`}>{e.channelTitle}</Link> =&gt; {e.event}{videos>1&&<span className="whitespace-nowrap text-zinc-500"> ({count(videos)} 則)</span>}</li>;})}
             {topic.unresolvedReferences.map((r,i)=><li className="my-px" key={`u-${i}`}><strong>{r.channelTitle}</strong> =&gt; {r.event}</li>)}
         </ul>
-        {s&&<div className="mt-2.5 border border-zinc-400 bg-white px-3 pb-3 pt-2 sm:ml-6 dark:border-zinc-700 dark:bg-zinc-900">
+        <div className="mt-2.5 border border-zinc-400 bg-white px-3 pb-3 pt-2 sm:ml-6 dark:border-zinc-700 dark:bg-zinc-900">
             <ul className="mb-2.5 ml-4 list-disc leading-relaxed">
                 <li>媒體數：{count(topic.channelCount)} 個 / 影片數：{count(topic.videoCount)} 則</li>
                 <li>關鍵字：{counts(s.keywords)}</li>
@@ -44,11 +45,12 @@ function Topic({topic,index}:{topic:TopicRow;index:number}){
                     <a className="mt-1 block truncate text-xs text-zinc-700 hover:underline dark:text-zinc-300" href={`https://www.youtube.com/watch?v=${v.videoId}`} target="_blank" rel="noopener noreferrer">{v.channelTitle} · {v.event}</a>
                 </div>)}
             </div>}
-        </div>}
+        </div>
     </article>;
 }
-export function AiDailyBoard({data,dated}:{data:AiDaysData;dated:boolean}){
-    const condition=data.condition||"all",anchor=data.date??taipeiToday(),prev=shiftDate(anchor,-1),next=shiftDate(anchor,1),stats=data.sourceStats;
+export interface AiDailySources { events: Map<number,ChannelAiEvent[]>; green: Set<number>; blue: Set<number> }
+export function AiDailyBoard({data,dated,sources}:{data:AiDaysData;dated:boolean;sources:AiDailySources}){
+    const condition=data.condition||"all",anchor=data.date??taipeiToday(),prev=shiftDate(anchor,-1),next=shiftDate(anchor,1),stats=sourceStats(sources.events,condition);
     const summaryRefs=data.rows.reduce((n,t)=>n+t.videoCount,0);
     return <div className="max-w-[980px]">
         <nav className="mb-3 flex flex-wrap gap-2" aria-label="日期">
@@ -60,14 +62,14 @@ export function AiDailyBoard({data,dated}:{data:AiDaysData;dated:boolean}){
             {AI_DAILY_CONDITIONS.map(([key,label])=>{const href=dated&&data.date?dayHref(data.date,key):key==="all"?"/ai/days":`/ai/days?condition=${key}`;return <Link key={key} className={condition===key?current:idle} aria-current={condition===key?"page":undefined} href={href}>{label}</Link>;})}
         </nav>
         <div className="mb-5 flex flex-wrap gap-2" aria-label="目前條件">
-            {[`condition=${condition}`,...(data.date?[`date=${data.date}`]:[]),...(data.dailyId?[`pk=${data.dailyId}`,`type=${data.dataType??""}`]:[])].map(label=><span key={label} className={chip+" border-zinc-300 bg-white text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400"}>{label}</span>)}
+            {[`condition=${condition}`,...(data.date?[`date=${data.date}`]:[]),...(data.dailyId?[`pk=${data.dailyId}`]:[])].map(label=><span key={label} className={chip+" border-zinc-300 bg-white text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400"}>{label}</span>)}
         </div>
         <section className="mb-5 grid grid-cols-1 gap-2.5 sm:grid-cols-3" aria-label="AI 涵蓋範圍">
             <Coverage label="Raw 收錄" value={data.rawVideoRows===null?"n/a":count(data.rawVideoRows)} detail="urt_video rows"/>
-            <Coverage label="AI source" value={count(stats?.videoRefs??0)} detail={`${count(stats?.channelsWithEvents??0)} / ${count(stats?.channels??data.sourceChannels)} channels · ${count(stats?.eventRows??0)} events`}/>
+            <Coverage label="AI source" value={count(stats.videoRefs)} detail={`${count(stats.channelsWithEvents)} / ${count(data.sourceChannels)} channels · ${count(stats.eventRows)} events`}/>
             <Coverage label="Daily summary" value={count(summaryRefs)} detail={`${count(data.rows.length)} topics`}/>
         </section>
-        {data.rows.length?data.rows.map((topic,index)=><Topic key={topic.id} topic={topic} index={index}/>)
+        {data.rows.length?data.rows.map((topic,index)=><Topic key={topic.id} topic={topic} index={index} sources={sources}/>)
             :<div className="border border-zinc-300 bg-white p-7 text-center text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">目前沒有符合條件的 AI daily summary。</div>}
     </div>;
 }
