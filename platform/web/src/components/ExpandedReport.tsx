@@ -65,14 +65,14 @@ export async function ExpandedReport({
             <DataNotice meta={meta} />
             <Tabs items={familyTabs(path,search,meta.coverage)} active={path} />
             {path==='/tags/compare'&&<ComparisonControls search={search} points={data.series?.[0]?.points}/> }
-            {mayorCity && cities[mayorCity] ? <MayorSwitcher city={mayorCity} search={search} /> : null}
+            {mayorCity && cities[mayorCity] ? <MayorSwitcher city={mayorCity} search={search} from={filters.find((filter) => filter.key === 'from')?.value} to={filters.find((filter) => filter.key === 'to')?.value} /> : null}
             {data.navigation?.length ? <Tabs label="報表切換" active={path} items={data.navigation.flatMap(item => {
                 const href = safeReportHref(item.href);
                 return href ? [{ href, label: item.label, active: item.active === true }] : [];
             })} /> : null}
-            {filters.length > 0 && (
-                // Mayor filters sit straight on the page background, without the panel border and fill.
-                <form key={JSON.stringify([filterPath||path,search,filters])} className={mayorCity ? ui.bareForm : ui.form} action={filterPath || path}>
+            {/* Mayor pages put their filters in MayorSwitcher's single row: period and metric chips plus a custom date range. */}
+            {filters.length > 0 && !mayorCity && (
+                <form key={JSON.stringify([filterPath||path,search,filters])} className={ui.form} action={filterPath || path}>
                     {Object.entries(search)
                         .filter(([key]) => !known.has(key) && key !== "offset")
                         .flatMap(([key, value]) =>

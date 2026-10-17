@@ -61,7 +61,7 @@ export function MayorShare({part,city,series,search,rows}:{part:'chart'|'candida
  if(!dates.length)return null;
  const partialNote=incomplete.length?incompleteCoverageNote(coverage):null;
  const period=`${dates[0]}～${dates[dates.length-1]}`;
- if(part==='chart')return <figure className={ui.panel+' mx-0 mt-0 mb-5'} aria-label="候選人媒體聲量占比趨勢">
+ if(part==='chart')return <figure className={ui.panel+' mx-0 mt-4 mb-5'} aria-label="候選人媒體聲量占比趨勢">
    <figcaption className="space-y-1"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-semibold">{raw?`${unit}趨勢（七日合計）`:'媒體聲量占比趨勢'} <span className="text-sm font-normal text-zinc-500">{period}</span></h2>
     <div className="inline-flex rounded-md bg-zinc-100 p-0.5 text-sm dark:bg-zinc-800" role="group" aria-label="縱軸">{([['share','占比'],['raw','原始量']] as const).map(([key,label])=><button type="button" key={key} aria-pressed={view===key} onClick={()=>setView(key)} className={'rounded px-2.5 py-1 '+(view===key?'bg-white font-medium shadow-sm dark:bg-zinc-700':'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100')}>{label}</button>)}</div></div>
     {partialNote?<CoverageDisclosure coverage={coverage}/>
@@ -88,8 +88,9 @@ export function MayorShare({part,city,series,search,rows}:{part:'chart'|'candida
 const REGIONS:[string,string[]][]=[['北部',['taipei','newtaipei','taoyuan','keelung','hsinchu','hsinchucounty','yilan']],['中部',['taichung','miaoli','changhua','nantou','yunlin']],['南部',['tainan','kaohsiung','chiayi','chiayicity','pingtung']],['東部',['hualien','taitung']],['離島',['penghu','kinmen','lienchiang']]];
 const PERIODS:[number,string][]=[[7,'一週'],[10,'十天'],[30,'一個月'],[60,'兩個月'],[90,'一季']];
 const METRICS:[string,string][]=[['tags_views','觀看引用'],['tags_video','影片引用'],['tags_result','重要度']];
+const dateInput='rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm text-zinc-900 focus:border-brand-600 focus:outline-2 focus:outline-offset-2 focus:outline-brand-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100';
 
-export function MayorSwitcher({city,search}:{city:string;search:Record<string,string|string[]|undefined>}){
+export function MayorSwitcher({city,search,from,to}:{city:string;search:Record<string,string|string[]|undefined>;from?:string;to?:string}){
  const one=(key:string)=>{const value=search[key];return Array.isArray(value)?value[0]:value;};
  const href=(key:string,params:Record<string,string|undefined>)=>{const query=new URLSearchParams();for(const [k,v] of Object.entries(params))if(v)query.set(k,v);const text=query.toString();return `/mayor/cities/${encodeURIComponent(key)}${text?'?'+text:''}`;};
  const type=one('type'),days=one('days'),explicit=Boolean(one('from')||one('to')||one('today'));
@@ -101,6 +102,15 @@ export function MayorSwitcher({city,search}:{city:string;search:Record<string,st
    <nav aria-label="日期範圍" className="flex flex-wrap gap-1">{PERIODS.map(([value,label])=>chip(!explicit&&Number(days||30)===value,label,href(city,{type,days:String(value)})))}</nav>
    <nav aria-label="指標" className="flex flex-wrap items-center gap-1 border-zinc-300 sm:border-l sm:pl-4 dark:border-zinc-700">{METRICS.map(([value,label])=>chip((type||'tags_views')===value,label,href(city,{type:value,days,from:one('from'),to:one('to'),today:one('today')})))}
     <a href="#mayor-metrics" className="ml-1 whitespace-nowrap text-sm text-brand-700 hover:underline dark:text-brand-400">指標說明 ⓘ</a></nav>
+   {/* The custom range replaces the generic filter form, whose metric and day-count fields repeated the chips. */}
+   <form key={`${type}|${from}|${to}`} action={`/mayor/cities/${encodeURIComponent(city)}`} aria-label="自訂日期範圍" className="flex flex-wrap items-center gap-2 border-zinc-300 text-sm sm:border-l sm:pl-4 dark:border-zinc-700">
+    {type&&<input type="hidden" name="type" value={type}/>}
+    <span className="text-zinc-500">自訂</span>
+    <input type="date" name="from" defaultValue={from} aria-label="開始日期" className={dateInput}/>
+    <span className="text-zinc-500" aria-hidden="true">–</span>
+    <input type="date" name="to" defaultValue={to} aria-label="結束日期" className={dateInput}/>
+    <button className="rounded-md bg-brand-700 px-3 py-1 font-medium text-white hover:bg-brand-800 dark:bg-brand-600 dark:hover:bg-brand-700">套用</button>
+   </form>
   </div>
  </div>;
 }
