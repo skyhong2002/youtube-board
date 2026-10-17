@@ -20,13 +20,13 @@ it('bounds CLI candidate selection while queue ownership retains its narrow opti
   expect(() => validateWorkflowInput(VIDEO_EVIDENCE_JOB, { options: { limit: 501 } })).toThrow();
   expect(() => validateWorkflowInput(RECENT_VIDEO_EVIDENCE_JOB, { options: { version: 'old' } })).toThrow();
 });
-it('pins a Taipei seven-day window, resumes it, and resets only for new vocabulary or refresh trigger', () => {
+it('pins a Taipei fifteen-day window, resumes it, and resets only for new vocabulary or refresh trigger', () => {
   const first = planRecentWindow(null, 'v1', now);
-  expect(first.checkpoint).toMatchObject({ windowFrom: '2090-01-03 12:00:00', windowUntil: '2090-01-10 12:00:00', cursor: null });
+  expect(first.checkpoint).toMatchObject({ schemaVersion: 3, windowFrom: '2089-12-26 12:00:00', windowUntil: '2090-01-10 12:00:00', cursor: null });
   expect(planRecentWindow(first.checkpoint, 'v1', new Date(+now + 3_600_000))).toEqual({ checkpoint: first.checkpoint, action: 'resume' });
   const complete = { ...first.checkpoint, completedAt: now.toISOString() };
-  expect(planRecentWindow(complete, 'v1', new Date(+now + 6 * 3_600_000 - 1)).action).toBe('up-to-date');
-  expect(planRecentWindow(complete, 'v1', new Date(+now + 6 * 3_600_000)).action).toBe('new-window');
+  expect(planRecentWindow(complete, 'v1', new Date(+now + 10 * 60_000 - 1)).action).toBe('up-to-date');
+  expect(planRecentWindow(complete, 'v1', new Date(+now + 10 * 60_000)).action).toBe('new-window');
   expect(planRecentWindow(complete, 'v2', new Date(+now + 1)).action).toBe('new-vocabulary');
   const nearMidnight = planRecentWindow(null, 'v1', new Date('2090-01-10T15:59:00.000Z')).checkpoint;
   nearMidnight.completedAt = nearMidnight.startedAt;
@@ -38,6 +38,10 @@ it('pins a Taipei seven-day window, resumes it, and resets only for new vocabula
 it('rejects corrupt or widened durable checkpoint bounds', () => {
   const state = planRecentWindow(null, 'v1', now).checkpoint;
   expect(parseRecentCheckpoint(JSON.stringify(state))).toEqual(state);
+  const sevenDay = { ...state, schemaVersion: 2, windowFrom: '2090-01-03 12:00:00' };
+  sevenDay.generation = createHash('sha256').update(JSON.stringify([sevenDay.vocabularyVersion, sevenDay.windowFrom, sevenDay.windowUntil, sevenDay.ruleVersion])).digest('hex');
+  expect(parseRecentCheckpoint(JSON.stringify(sevenDay))).toEqual(sevenDay);
+  expect(() => parseRecentCheckpoint(JSON.stringify({ ...sevenDay, schemaVersion: 3 }))).toThrow();
   for (const patch of [{ windowFrom: '2080-01-01 00:00:00' }, { processed: 1 }, { cursor: { publishedAt: '2090-01-10 12:00:00', pk: 3 } }, { completedAt: '2000-01-01T00:00:00.000Z' }, { generation: 'bad' }]) expect(() => parseRecentCheckpoint(JSON.stringify({ ...state, ...patch }))).toThrow();
 });
 it('schedules the continuation without stale static date or pk parameters', () => {
@@ -81,14 +85,14 @@ const dbIt = it.skipIf(process.env.JOBS_DB_TEST !== '1');
 dbIt('rule upgrade restarts old continuation without resetting its consumed daily budget',async()=>fixture(async({db,add,run,version,base})=>{
  await add(1,'2090-01-09 10:00:00');await add(2,'2090-01-09 11:00:00');
  const first=await run({limit:1});expect(first.budget?.reserved).toBe(1);
- const state={...first.checkpoint!,schemaVersion:1,ruleVersion:undefined};state.generation=createHash('sha256').update(JSON.stringify([state.vocabularyVersion,state.windowFrom,state.windowUntil])).digest('hex');
+ const state={...first.checkpoint!,schemaVersion:1,ruleVersion:undefined,windowFrom:'2090-01-03 12:00:00'};state.generation=createHash('sha256').update(JSON.stringify([state.vocabularyVersion,state.windowFrom,state.windowUntil])).digest('hex');
  await db.execute('UPDATE ts_job_runs SET result=? WHERE job_key=? AND execution_key=?',[JSON.stringify(state),RECENT_VIDEO_EVIDENCE_JOB,RECENT_CHECKPOINT]);
  await db.execute("UPDATE ts_video_tag_matches SET rule_version='exact-text-v1' WHERE vocabulary_version=?",[version]);
  const second=await run({limit:1});expect(second.action).toBe('new-rule');expect(second.results).toMatchObject([{pk:base+2,status:'written'}]);expect(second.budget?.reserved).toBe(2);expect(second.checkpoint?.processed).toBe(1);
 }));
 dbIt('persists publication/tie cursors across batches, bounds Taipei timestamps and ignores old mtime', async () => fixture(async ({ db, add, run, base }) => {
-  await add(1, '2090-01-03 12:00:00'); await add(2, '2090-01-09 10:00:00'); await add(3, '2090-01-09 10:00:00');
-  await add(4, '2090-01-03 11:59:59'); await add(5, '2090-01-10 12:00:00');
+  await add(1, '2089-12-26 12:00:00'); await add(2, '2090-01-09 10:00:00'); await add(3, '2090-01-09 10:00:00');
+  await add(4, '2089-12-26 11:59:59'); await add(5, '2090-01-10 12:00:00');
   const preview = await run({ execute: false });
   expect(preview.results?.map(r => r.pk)).toEqual([base + 3, base + 2]);
   const [journals] = await db.query<RowDataPacket[]>('SELECT * FROM ts_job_runs WHERE job_key=?', [RECENT_VIDEO_EVIDENCE_JOB]); expect(journals).toHaveLength(0);
@@ -138,6 +142,18 @@ dbIt('records empty-window completion and refreshes only at a later eligible swe
   await add(1, '2090-01-10 12:01:00');
   expect((await run({}, new Date(+now + 60000))).status).toBe('up-to-date');
   const refreshed = await run({}, new Date(+now + 6 * 3600000)); expect(refreshed.action).toBe('new-window'); expect(refreshed.processed).toBe(1);
+}));
+dbIt('refreshed windows skip current markers and charge only new or edited videos', async () => fixture(async ({ db, add, run, base }) => {
+  await add(1, '2090-01-09 10:00:00'); await add(2, '2090-01-09 11:00:00');
+  expect((await run({ limit: 10 })).status).toBe('complete');
+  await add(3, '2090-01-10 11:00:00');
+  await db.execute('UPDATE urt_video SET title=? WHERE pk=?', ['台灣新聞更新', base + 1]);
+  const refreshed = await run({ limit: 10 }, new Date(+now + 10 * 60_000));
+  expect(refreshed.action).toBe('new-window'); expect(refreshed.status).toBe('complete');
+  expect(refreshed.results?.map(r => [r.pk, r.status])).toEqual([[base + 3, 'written'], [base + 1, 'written']]);
+  expect(refreshed.budget?.reserved).toBe(4);
+  const idle = await run({ limit: 10 }, new Date(+now + 20 * 60_000));
+  expect(idle.action).toBe('new-window'); expect(idle.processed).toBe(0); expect(idle.budget?.reserved).toBe(4);
 }));
 dbIt('fails closed on corrupt journals without changing evidence or the daily reservation', async () => fixture(async ({ db, add, run }) => {
   await add(1, '2090-01-09 10:00:00'); await run();

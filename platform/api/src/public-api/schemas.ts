@@ -27,7 +27,7 @@ Object.assign(keywordSummary.properties as Record<string,Schema>,{
  rankingPool:{...object({status:enumString('available','unavailable')},['status']),description:'Exact publication-window tag news pool, early gate (two media each two articles). Available includes immutable provenance/checksum; unavailable includes reason/windows. Short window is rolling 24h, week is seven Taipei calendar dates. Rise/history reuse current qualified cohort.'},
  rankingMethod:{const:'youtube-channel-weighted-decay-v1',description:'Title weight 3, description-only weight 1; per-channel geometric decay 1, 0.5, 0.25…, with title matches first.'},
  riseMethod:{const:'equal-duration-heat-delta'},ruleVersion:enumString('exact-text-v1','youtube-quality-v2'),
- comparison:{anyOf:[object({from:time,to:time,complete:bool,sourceVideos:count,freshVideos:count,staleVideos:count,unprocessedVideos:count}),{type:'null'}]},
+ comparison:{anyOf:[object({from:time,to:time,complete:bool,minCoverage:{type:'number',minimum:0,maximum:1},sourceVideos:count,freshVideos:count,staleVideos:count,unprocessedVideos:count},['from','to','complete','sourceVideos','freshVideos','staleVideos','unprocessedVideos']),{type:'null'}]},
  exclusions:{anyOf:[object({scope:{const:'fresh-window-matched-terms'},terms:count,reasons:{type:'object',additionalProperties:count},policyCommit:str,youtubePolicyVersion:str}),{type:'null'}]},
 });
 const keywordRow=((keywordSummary.properties as Record<string,Schema>).rows.items as Schema).properties as Record<string,Schema>;

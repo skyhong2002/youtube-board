@@ -9,7 +9,7 @@ import {integer,tagIds,text,object,taipeiDate,taipeiSql,timestamp,timestampWindo
 import {vocabularySourceQuality} from './vocabulary-quality.js';
 import {videoTextDigest} from './video-digest.js';
 import {MATCH_RULE,matchingRuleForSnapshot} from '../../../shared/youtube-match-policy.js';
-import {HomeSectionUnavailable,measuredCount,keywordDisplayMap,rankKeywordWindows,KEYWORD_RANKING_METHOD,KEYWORD_RISE_METHOD} from './home-keyword-ranking.js';
+import {HomeSectionUnavailable,measuredCount,keywordDisplayMap,rankKeywordWindows,KEYWORD_RANKING_METHOD,KEYWORD_RISE_METHOD,KEYWORD_COMPARISON_MIN_COVERAGE,coverageSufficient} from './home-keyword-ranking.js';
 /** Laravel homepage's top-eight category scope. Membership sums deliberately overlap.
  * updatedAt describes the complete category source scan used to determine the top eight. */
 export function homeCategories(records:Row[],names:Map<number,string>){
@@ -64,9 +64,9 @@ export async function homeExploration(reader:Reader,now:Date,diagnostic?:HomeDia
   const counts=new Map(coverage.map(c=>[text(c.window_key),c]));
   const coverageFor=(key:string)=>{const c=counts.get(key);if(!c)return {sourceVideos:0,freshVideos:0,staleVideos:0,unprocessedVideos:0};const result={sourceVideos:measuredCount(c.source_videos),freshVideos:measuredCount(c.fresh),staleVideos:measuredCount(c.stale),unprocessedVideos:measuredCount(c.unprocessed)};if(result.sourceVideos>100000)throw new HomeSectionUnavailable('source-cap');if(result.sourceVideos!==result.freshVideos+result.staleVideos+result.unprocessedVideos)throw new HomeSectionUnavailable('precision');return result;};
   for(const w of windows)coverageFor(w.key);
-  const complete=(key:string)=>{const c=coverageFor(key);return c.sourceVideos===c.freshVideos;};
+  const complete=(key:string)=>{const c=coverageFor(key);return coverageSufficient(c.freshVideos,c.sourceVideos);};
   const comparable={week:complete('week')&&complete('prior-week'),today:complete('today')&&complete('prior-today')};
-  // Incomplete comparison coverage is unknown, never a synthetic zero baseline.
+  // Insufficient comparison coverage is unknown, never a synthetic zero baseline.
   // Avoid spending evidence work on a comparison that cannot be displayed.
   const activeWindows=windows.filter(w=>w.key!=='prior-week'&&w.key!=='prior-today'||w.key==='prior-week'&&comparable.week||w.key==='prior-today'&&comparable.today);
   const evidenceFrom=activeWindows.reduce((lo,w)=>w.from<lo?w.from:lo,from);
@@ -150,7 +150,7 @@ export async function homeExploration(reader:Reader,now:Date,diagnostic?:HomeDia
   const summary=(window:'week'|'today'):HomeKeywordSummary=>{
    const matchedAt=counts.get(window)?.latest_match,prior=windows.find(w=>w.key==='prior-'+window)!;
    return {...base,from:window==='today'?todayBase.from:base.from,status:'synchronized',rows:ranking[window],exclusions:cohorts?keywordDisplayMap(terms,cohorts[window]).exclusions:display.exclusions,...(pools?{rankingPool:{status:'available' as const,provenance:pools[window].provenance,comparisonBasis:'current-eligible-terms' as const}}:{}),
-    comparison:{from:timestamp(prior.from)!,to:timestamp(prior.to)!,complete:comparable[window],...coverageFor(prior.key)},
+    comparison:{from:timestamp(prior.from)!,to:timestamp(prior.to)!,complete:comparable[window],minCoverage:KEYWORD_COMPARISON_MIN_COVERAGE,...coverageFor(prior.key)},
     updatedAt:matchedAt!==null&&matchedAt!==undefined&&Number.isFinite(Number(matchedAt))?new Date(Number(matchedAt)).toISOString():null,...coverageFor(window)};
   };
   return {keywords:summary('week'),keywordToday:summary('today')};

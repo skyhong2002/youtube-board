@@ -13,10 +13,13 @@ export const RECENT_VIDEO_EVIDENCE_JOB = 'tags.videos.match.recent';
 export const RECENT_VIDEO_EVIDENCE_COMMAND = 'videos:match:recent';
 export const RECENT_CHECKPOINT = 'recent-window-v1';
 export const recentCheckpointKey=(version?:string)=>version===undefined?RECENT_CHECKPOINT:'recent-candidate-'+createHash('sha256').update(version).digest('hex');
-const DAY = 86_400_000, REFRESH_MS = 6 * 3_600_000;
+const DAY = 86_400_000, REFRESH_MS = 10 * 60_000;
+/** Schema 3 windows span 15 Taipei days so the prior seven-day comparison period stays
+ * matched too; schema 1/2 checkpoints keep their recorded seven-day bounds. */
+const WINDOW_DAYS = 15, windowDays = (schemaVersion: 1|2|3) => schemaVersion === 3 ? WINDOW_DAYS : 7;
 interface Cursor { publishedAt: string; pk: number }
 export interface RecentCheckpoint {
-  schemaVersion: 1|2; ruleVersion?:string; generation: string; vocabularyVersion: string;
+  schemaVersion: 1|2|3; ruleVersion?:string; generation: string; vocabularyVersion: string;
   windowFrom: string; windowUntil: string; startedAt: string;
   cursor: Cursor | null; processed: number; written: number; unchanged: number; invalid: number;
   completedAt: string | null;
@@ -50,9 +53,9 @@ export function validateRecentArguments(args: string[]): RecentMatchInput {
 }
 export function parseRecentCheckpoint(raw: string): RecentCheckpoint {
   let value: unknown; try { value = JSON.parse(raw); } catch { throw new Error('Invalid recent matching checkpoint'); }
-  if (!record(value) || (value.schemaVersion!==1&&value.schemaVersion!==2) || (value.schemaVersion===1?value.ruleVersion!==undefined:typeof value.ruleVersion!=='string'||!/^[a-z0-9-]{1,40}$/.test(value.ruleVersion)) || typeof value.vocabularyVersion !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(value.vocabularyVersion)
+  if (!record(value) || (value.schemaVersion!==1&&value.schemaVersion!==2&&value.schemaVersion!==3) || (value.schemaVersion===1?value.ruleVersion!==undefined:typeof value.ruleVersion!=='string'||!/^[a-z0-9-]{1,40}$/.test(value.ruleVersion)) || typeof value.vocabularyVersion !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(value.vocabularyVersion)
     || !sqlTime(value.windowFrom) || !sqlTime(value.windowUntil) || !iso(value.startedAt)
-    || value.windowFrom !== taipeiSql(new Date(Date.parse(value.startedAt) - 7 * DAY)) || value.windowUntil !== taipeiSql(new Date(value.startedAt))
+    || value.windowFrom !== taipeiSql(new Date(Date.parse(value.startedAt) - windowDays(value.schemaVersion) * DAY)) || value.windowUntil !== taipeiSql(new Date(value.startedAt))
     || value.generation !== generation(value.vocabularyVersion, value.windowFrom, value.windowUntil,value.ruleVersion as string|undefined)
     || !['processed', 'written', 'unchanged', 'invalid'].every(key => integer(value[key], 0, Number.MAX_SAFE_INTEGER))
     || Number(value.processed) !== Number(value.written) + Number(value.unchanged) + Number(value.invalid)
@@ -70,12 +73,12 @@ function parseBudget(raw: string, date: string): Budget {
 export function planRecentWindow(previous: RecentCheckpoint | null, version: string, now: Date) {
   if (!Number.isFinite(+now) || !/^[A-Za-z0-9_-]{1,100}$/.test(version)) throw new Error('Invalid recent matching anchor');
   if (previous && +now < Date.parse(previous.completedAt ?? previous.startedAt)) throw new Error('Recent matching clock moved backwards');
-  const sameVocabulary=previous?.vocabularyVersion===version,sameRule=previous?.schemaVersion===2&&previous.ruleVersion===MATCH_RULE;
+  const sameVocabulary=previous?.vocabularyVersion===version,sameRule=(previous?.schemaVersion===2||previous?.schemaVersion===3)&&previous.ruleVersion===MATCH_RULE;
   const sameVersion = sameVocabulary&&sameRule;
   if (sameVersion && previous.completedAt === null) return { checkpoint: previous, action: 'resume' as const };
   if (sameVersion && previous.completedAt && +now - Date.parse(previous.completedAt) < REFRESH_MS && taipeiSql(now).slice(0, 10) === taipeiSql(new Date(previous.completedAt)).slice(0, 10)) return { checkpoint: previous, action: 'up-to-date' as const };
-  const from = taipeiSql(new Date(+now - 7 * DAY)), until = taipeiSql(now);
-  const checkpoint: RecentCheckpoint = { schemaVersion: 2,ruleVersion:MATCH_RULE, generation: generation(version, from, until,MATCH_RULE), vocabularyVersion: version, windowFrom: from, windowUntil: until, startedAt: now.toISOString(), cursor: null, processed: 0, written: 0, unchanged: 0, invalid: 0, completedAt: null };
+  const from = taipeiSql(new Date(+now - WINDOW_DAYS * DAY)), until = taipeiSql(now);
+  const checkpoint: RecentCheckpoint = { schemaVersion: 3,ruleVersion:MATCH_RULE, generation: generation(version, from, until,MATCH_RULE), vocabularyVersion: version, windowFrom: from, windowUntil: until, startedAt: now.toISOString(), cursor: null, processed: 0, written: 0, unchanged: 0, invalid: 0, completedAt: null };
   return { checkpoint, action: previous && !sameVocabulary ? 'new-vocabulary' as const : previous&&!sameRule?'new-rule' as const:'new-window' as const };
 }
 async function journal(db: Connection, key: string) {
@@ -101,7 +104,7 @@ export async function continueRecentMatching(db: Connection, input: RecentMatchI
   if (!Number.isFinite(+now)) throw new Error('Invalid recent matching clock');
   const day = taipeiSql(now).slice(0, 10), budgetKey = `recent-budget-${day}`;
   const [current] = input.version?[[{run_id:input.version}]]:await db.query<RowDataPacket[]>('SELECT c.run_id FROM ts_vocabulary_current c JOIN ts_vocabulary_runs r ON r.id=c.run_id WHERE c.source=? AND r.status=?', [SOURCE, 'published']);
-  if (!current.length) return { mode: input.execute ? 'execute' : 'dry-run', status: 'awaiting-vocabulary', action: 'awaiting-vocabulary', processed: 0, results: [] as Array<{pk:number;status:string;count:number}>, checkpoint: null, budget: null, vocabularyVersion: null, window: null, generation: null, refreshHours: 6, externalCalls: 0, sourceWrites: 0 };
+  if (!current.length) return { mode: input.execute ? 'execute' : 'dry-run', status: 'awaiting-vocabulary', action: 'awaiting-vocabulary', processed: 0, results: [] as Array<{pk:number;status:string;count:number}>, checkpoint: null, budget: null, vocabularyVersion: null, window: null, generation: null, refreshMinutes: REFRESH_MS / 60_000, externalCalls: 0, sourceWrites: 0 };
   if (current.length !== 1 || typeof current[0]!.run_id !== 'string') throw new Error('Invalid current vocabulary identity');
   const checkpointKey=recentCheckpointKey(input.version);
   const saved = await journal(db, checkpointKey), prior = saved ? parseRecentCheckpoint(saved.result) : null;
@@ -112,9 +115,9 @@ export async function continueRecentMatching(db: Connection, input: RecentMatchI
   const cap = Math.min(input.dailyLimit, budget.limit), available = Math.max(0, cap - budget.reserved);
   const summary = (status: string, processed = 0, results: Array<{ pk: number; status: string; count: number }> = []) => ({
     mode: input.execute ? 'execute' : 'dry-run', status, action: plan.action, vocabularyVersion: state.vocabularyVersion,
-    window: { from: state.windowFrom, until: state.windowUntil, timezone: 'Asia/Taipei', days: 7 }, generation: state.generation,
+    window: { from: state.windowFrom, until: state.windowUntil, timezone: 'Asia/Taipei', days: windowDays(state.schemaVersion) }, generation: state.generation,
     processed, results, checkpoint: state, budget: { date: day, limit: cap, reserved: budget.reserved, remaining: Math.max(0, cap - budget.reserved) },
-    externalCalls: 0, sourceWrites: 0, refreshHours: 6,
+    externalCalls: 0, sourceWrites: 0, refreshMinutes: REFRESH_MS / 60_000,
   });
   const snapshot = await loadVocabularySnapshot(db, state.vocabularyVersion);
   if(snapshot.matchingRule!==MATCH_RULE)return summary('awaiting-quality-vocabulary');
@@ -127,10 +130,15 @@ export async function continueRecentMatching(db: Connection, input: RecentMatchI
   const take = Math.min(input.limit, available), cursor = state.cursor;
   // Use the publication index and exact source identity. Duplicate older source
   // rows must not overwrite evidence for a newer copy of the same video ID.
+  // Videos whose current text already has a marker under this version and rule are
+  // skipped, so a refreshed window charges only new, edited or unavailable videos.
+  // Their evidence keeps the channel template profile from when they were matched.
   const [rows] = await db.query<RowDataPacket[]>(`SET STATEMENT max_statement_time=5 FOR SELECT v.pk,v.u_id,v.videoId,v.title,v.description,v.mtime,v.publishedAt FROM urt_video v
     WHERE v.publishedAt>=? AND v.publishedAt<? ${cursor ? 'AND (v.publishedAt<? OR (v.publishedAt=? AND v.pk<?))' : ''}
     AND NOT EXISTS (SELECT 1 FROM urt_video newer WHERE newer.videoId=v.videoId AND BINARY newer.videoId=BINARY v.videoId AND newer.pk>v.pk)
-    ORDER BY v.publishedAt DESC,v.pk DESC LIMIT ?`, [state.windowFrom, state.windowUntil, ...(cursor ? [cursor.publishedAt, cursor.publishedAt, cursor.pk] : []), take + 1]);
+    AND NOT EXISTS (SELECT 1 FROM ts_video_tag_matches m WHERE m.video_id=CONVERT(v.videoId USING ascii) AND BINARY m.video_id=BINARY v.videoId AND m.vocabulary_version=?
+     AND BINARY m.rule_version=BINARY ? AND BINARY m.source_text_sha256=BINARY SHA2(CONCAT('[',JSON_QUOTE(COALESCE(v.title,'')),',',JSON_QUOTE(COALESCE(v.description,'')),']'),256))
+    ORDER BY v.publishedAt DESC,v.pk DESC LIMIT ?`, [state.windowFrom, state.windowUntil, ...(cursor ? [cursor.publishedAt, cursor.publishedAt, cursor.pk] : []), state.vocabularyVersion, MATCH_RULE, take + 1]);
   const selected = rows.slice(0, take), more = rows.length > take;
   const profiles=await loadDescriptionTemplateProfiles(db,selected.map(row=>Number(row.u_id)).filter(id=>Number.isSafeInteger(id)&&id>0),state.windowUntil);
   if (input.execute) {

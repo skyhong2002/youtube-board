@@ -41,6 +41,12 @@ test('partial measured views show a lower bound while all-missing and measured z
  assert.equal(viewsCell(row({views:0,unknownViewVideos:0,measuredViewVideos:4,knownViews:0})).value,'0 次');
  assert.equal(viewsText(null),NO_VIEWS);assert.equal(viewsText(0),'0');
 });
+test('rise notes publish the API coverage threshold and the prior share',()=>{
+ const met=keywordMethodNotes(summary({comparison:{from:'2026-10-03T16:00:00.000Z',to:'2026-10-10T15:59:59.000Z',complete:true,minCoverage:0.95,sourceVideos:1000,freshVideos:960,staleVideos:10,unprocessedVideos:30}}),'heat').join('\n');
+ assert.match(met,/有效比對都達 95% 以上時才計算/);assert.match(met,/有效比對 960／1,000 支（96\.00%），兩段期間都達門檻/);assert.match(met,/有效比對未達 95% 的日期留白/);
+ const legacy=keywordMethodNotes(summary({comparison:{from:'a',to:'b',complete:false,sourceVideos:2,freshVideos:1,staleVideos:0,unprocessedVideos:1}}),'heat').join('\n');
+ assert.match(legacy,/有效比對都完整時才計算/);assert.match(legacy,/未達門檻/);assert.match(legacy,/比對未完成的日期留白/);
+});
 test('method notes state coverage, weights, sampling limits and keep contextual promotion rules',()=>{
  const text=keywordMethodNotes(summary(),'heat').join('\n');
  assert.ok(text.startsWith(TAG_SOURCE_ATTRIBUTION));

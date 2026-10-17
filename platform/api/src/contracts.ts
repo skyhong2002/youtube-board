@@ -196,7 +196,8 @@ export type HomeKeywordSummary = {
  rows:{key:string;term:string;sourceTerms:{key:string;term:string}[];videoCount:number;views:number|null;unknownViewVideos:number;knownViews:number;measuredViewVideos:number;heatScore:number;channelCount:number;titleVideos:number;descriptionOnlyVideos:number;rise:number|null;trend:{date:string;heat:number|null}[];representativeVideoId:string|null;thumbnail:string|null;channel:{id:number;name:string;title:string;youtubeId:string;youtubeUrl:string;thumbnail:string|null;avatar:ChannelAvatar|null}|null}[];
  sourceVideos:number|null;freshVideos:number|null;staleVideos:number|null;unprocessedVideos:number|null;metric:'current-cumulative-views-of-window-published-videos';
  rankingMethod:'youtube-channel-weighted-decay-v1';riseMethod:'equal-duration-heat-delta';ruleVersion:'exact-text-v1'|'youtube-quality-v2';
- comparison:{from:string;to:string;complete:boolean;sourceVideos:number|null;freshVideos:number|null;staleVideos:number|null;unprocessedVideos:number|null}|null;
+ /** complete: both windows reach minCoverage matched share (not literal 100%). */
+ comparison:{from:string;to:string;complete:boolean;minCoverage?:number;sourceVideos:number|null;freshVideos:number|null;staleVideos:number|null;unprocessedVideos:number|null}|null;
  exclusions:{scope:'fresh-window-matched-terms';terms:number;reasons:Record<string,number>;policyCommit:string;youtubePolicyVersion:string}|null;
 };
 export interface HomeExploration {

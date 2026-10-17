@@ -54,9 +54,9 @@ it('batches channels once withlatest20 ordering, cappedfields andtimeouts; isola
 });
 it('validates legacy checkpoint before rulechange resets cursor without pretending raw evidence isnewquality',()=>{
  const now=new Date('2036-05-12T04:00:00Z'),current=planRecentWindow(null,'same-vocab',now).checkpoint;
- const legacy={...current,schemaVersion:1,ruleVersion:undefined,generation:createHash('sha256').update(JSON.stringify([current.vocabularyVersion,current.windowFrom,current.windowUntil])).digest('hex'),processed:1,written:1,cursor:{publishedAt:'2036-05-12 11:00:00',pk:7}};
+ const legacy={...current,schemaVersion:1,ruleVersion:undefined,windowFrom:'2036-05-05 12:00:00',generation:createHash('sha256').update(JSON.stringify([current.vocabularyVersion,'2036-05-05 12:00:00',current.windowUntil])).digest('hex'),processed:1,written:1,cursor:{publishedAt:'2036-05-12 11:00:00',pk:7}};
  const parsed=parseRecentCheckpoint(JSON.stringify(legacy)),next=planRecentWindow(parsed,'same-vocab',new Date(+now+1));
- expect(next.action).toBe('new-rule');expect(next.checkpoint).toMatchObject({schemaVersion:2,ruleVersion:MATCH_RULE,cursor:null,processed:0});expect(next.checkpoint.generation).not.toBe(parsed.generation);
+ expect(next.action).toBe('new-rule');expect(next.checkpoint).toMatchObject({schemaVersion:3,ruleVersion:MATCH_RULE,cursor:null,processed:0});expect(next.checkpoint.generation).not.toBe(parsed.generation);
  expect(()=>parseRecentCheckpoint(JSON.stringify({...legacy,schemaVersion:'1'}))).toThrow();
 });
 it('keeps legitimate 24小時 title tags while excluding repeated channel-description use',()=>{

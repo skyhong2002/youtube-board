@@ -7,6 +7,11 @@ export class HomeSectionUnavailable extends Error {constructor(public reason:'so
 export function measuredCount(value:unknown){const n=integer(value);if(n===null||n<0)throw new HomeSectionUnavailable('precision');return n;}
 export const KEYWORD_RANKING_METHOD='youtube-channel-weighted-decay-v1' as const;
 export const KEYWORD_RISE_METHOD='equal-duration-heat-delta' as const;
+/** Rise and daily trend need this matched share of every window involved. New uploads
+ * and edited titles keep a live source just short of 100%, so exact completeness would
+ * withhold them permanently; the share is published with each comparison. */
+export const KEYWORD_COMPARISON_MIN_COVERAGE=0.95 as const;
+export const coverageSufficient=(fresh:number,source:number)=>fresh>=source*KEYWORD_COMPARISON_MIN_COVERAGE;
 /** Titles lead each channel's geometric sequence. Distinct source videos only. */
 export function channelHeat(titles:number,descriptions:number){return MATCH_FIELD_WEIGHTS.title*2*(1-0.5**titles)+MATCH_FIELD_WEIGHTS.description*0.5**titles*2*(1-0.5**descriptions);}
 export function keywordDisplayMap(terms:Row[],eligible?:Set<string>){

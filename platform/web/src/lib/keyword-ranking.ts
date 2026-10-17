@@ -24,13 +24,13 @@ export function rankingBasis(summary:Partial<Pick<HomeKeywordSummary,'rankingMet
  return summary?.rankingMethod==='youtube-channel-weighted-decay-v1'&&rows.every(r=>finite(r.heatScore))?'heat':'video-count';
 }
 export function heatLabel(row:Partial<RankingRow>){return finite(row.heatScore)?oneDecimal.format(row.heatScore):INSUFFICIENT;}
-/** Equal-duration heat delta, only when both periods are completely covered; never a zero stand-in. */
+/** Equal-duration heat delta, only when both periods reach the API's minimum matched share; never a zero stand-in. */
 export function riseLabel(row:Partial<RankingRow>,summary:Partial<Pick<HomeKeywordSummary,'comparison'>>|null):{text:string;tone:'up'|'down'|'flat'|'missing'}{
  if(!summary?.comparison?.complete||!finite(row.rise))return {text:INSUFFICIENT,tone:'missing'};
  const rise=Math.round(row.rise*10)/10;
  return rise>0?{text:`+${oneDecimal.format(rise)}`,tone:'up'}:rise<0?{text:`−${oneDecimal.format(-rise)}`,tone:'down'}:{text:'±0',tone:'flat'};
 }
-/** Daily heat; incomplete days stay null so the line breaks instead of dropping to zero. */
+/** Daily heat; days below the matched-share threshold stay null so the line breaks instead of dropping to zero. */
 export function trendValues(trend:unknown):(number|null)[]{
  return Array.isArray(trend)?trend.map(p=>p&&typeof p==='object'&&finite((p as {heat?:unknown}).heat)?(p as {heat:number}).heat:null):[];
 }
@@ -101,6 +101,7 @@ export function displayExclusionLabel(exclusion:string|null|undefined){return ex
 export function keywordMethodNotes(summary:HomeKeywordSummary|null,basis:RankingBasis):string[]{
  if(!summary)return [`${TAG_SOURCE_ATTRIBUTION}。這個期間的排行摘要目前未提供，狀態未知，不代表沒有相關影片。`];
  const exclusions=summary.exclusions,comparison=summary.comparison;
+ const minimum=typeof comparison?.minCoverage==='number'?`${Math.round(comparison.minCoverage*100)}%`:null;
  return [
   `${TAG_SOURCE_ATTRIBUTION}。${vocabularyPoolLabel(summary)}`,
   `範圍：${dateTime(summary.from)} 至 ${dateTime(summary.to)} 發布的已收錄影片；${keywordCoverageLabel(summary)}。${matchCoveragePercent(summary)?`有效比對占 ${matchCoveragePercent(summary)}，這只是比對完成的影片比例，不是內容失真、無用詞或樣板的比例。`:''}尚未收錄或尚未比對的影片不在排行內。`,
@@ -109,7 +110,7 @@ export function keywordMethodNotes(summary:HomeKeywordSummary|null,basis:Ranking
   basis==='heat'
    ?'熱度：標題命中的影片計 3、僅說明命中的影片計 1；同一頻道的影片依序乘以 1、0.5、0.25……遞減（標題命中的影片先計），再加總各頻道。單一頻道大量上片不會無限推高熱度。'
    :'此期間資料服務尚未提供加權熱度，排行依已比對影片數排序；熱度與升溫顯示「資料不足」，不以影片數冒充熱度。',
-  `升溫：本期熱度減去前一段等長期間的熱度，只有兩段期間的比對涵蓋都完整時才計算，否則顯示「${INSUFFICIENT}」，不以 0 代替。${comparison?`前期 ${dateTime(comparison.from)} 至 ${dateTime(comparison.to)}，${comparison.complete?'涵蓋完整':'涵蓋不完整'}（有效比對 ${count(comparison.freshVideos)}／${count(comparison.sourceVideos)} 支）。`:'這個期間沒有前期比較資料。'}走勢為每日熱度，比對未完成的日期留白。`,
+  `升溫：本期熱度減去前一段等長期間的熱度，只有兩段期間的有效比對都${minimum?`達 ${minimum} 以上`:'完整'}時才計算，否則顯示「${INSUFFICIENT}」，不以 0 代替；未比對或文字已變動的影片不計入。${comparison?`前期 ${dateTime(comparison.from)} 至 ${dateTime(comparison.to)}，有效比對 ${count(comparison.freshVideos)}／${count(comparison.sourceVideos)} 支${matchCoveragePercent(comparison)?`（${matchCoveragePercent(comparison)}）`:''}，${comparison.complete?'兩段期間都達門檻':'未達門檻'}。`:'這個期間沒有前期比較資料。'}走勢為每日熱度，${minimum?`有效比對未達 ${minimum} `:'比對未完成'}的日期留白。`,
   `觀看：影片目前的累計觀看合計，不是期間增量。有已測觀看但仍有影片缺值時，顯示「≥已知小計」和缺值支數，這是合計下界；下界縮寫向下取整，已知小計不是完整合計。全部缺值或沒有可用小計時才顯示「${NO_VIEWS}」，缺值不補 0，也不排在觀看最低。`,
   '示例：代表影片、頻道與命中片段只是說明用的例子，不是隨機抽樣，不能用來推算整體比例或全站失真程度。',
   ...(summary?.rankingPool?.status==='available'?[`新聞詞池：先選取新文易數同一期間、至少兩家媒體各兩篇不同文章的合格詞，再依 YouTube 頻道加權熱度排序；新聞文章數不充當影片數。詞池共 ${count(summary.rankingPool.provenance.eligibleTotal)} 詞，截止 ${dateTime(summary.rankingPool.provenance.window.until)}。快照 ${summary.rankingPool.provenance.snapshotId}。升溫與每日走勢沿用本期合格詞的固定集合，非每天重新挑詞。`]:[]),

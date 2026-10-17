@@ -1,5 +1,9 @@
 import {expect,it} from 'vitest';
-import {channelHeat,keywordDisplayMap,rankKeywordWindows} from '../src/reports/home-keyword-ranking.js';
+import {channelHeat,coverageSufficient,keywordDisplayMap,rankKeywordWindows} from '../src/reports/home-keyword-ranking.js';
+it('rise and trend need 95% matched coverage, not a literal 100%',()=>{
+ expect(coverageSufficient(0,0)).toBe(true);expect(coverageSufficient(95,100)).toBe(true);expect(coverageSufficient(94,100)).toBe(false);
+ expect(coverageSufficient(27182,28612)).toBe(true);expect(coverageSufficient(5482,28612)).toBe(false);expect(coverageSufficient(0,1)).toBe(false);
+});
 it('weights titles three to one and geometrically limits a single channel',()=>{
  expect(channelHeat(0,1)).toBe(1);expect(channelHeat(1,0)).toBe(3);expect(channelHeat(2,0)).toBe(4.5);expect(channelHeat(1,2)).toBe(3.75);expect(channelHeat(0,1000)).toBe(2);expect(channelHeat(1000,0)).toBe(6);
 });

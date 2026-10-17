@@ -84,12 +84,18 @@ writes no evidence or journal state. Add `--execute` only with ownership of
 exact workflow in both ownership and write allowlists; the one-off
 `tags.videos.match` permission does not authorize it.
 
-The first invocation pins a seven-day Taipei `publishedAt` window ending at its
-start time, the vocabulary version and descending `(publishedAt, pk)` cursor.
-Later invocations resume that window. A newly published vocabulary restarts from
+The first invocation pins a fifteen-day Taipei `publishedAt` window ending at its
+start time (so the homepage's prior seven-day comparison period stays matched),
+the vocabulary version and descending `(publishedAt, pk)` cursor. Checkpoints
+written before this change keep their recorded seven-day bounds. Later
+invocations resume that window. A newly published vocabulary restarts from
 the newest videos even if the old sweep was incomplete. Completed same-version
-sweeps wait six hours or the next Taipei date after completion before opening a
-new window. This is a rolling publication window, not an `mtime` correction scan
+sweeps wait ten minutes or the next Taipei date after completion before opening
+a new window. Videos whose current title/description already has a marker under
+the same vocabulary version and rule are skipped without charging the budget, so
+a refreshed window costs only new, edited or previously unavailable videos. Their
+evidence keeps the channel description-template profile from when they were
+matched. This is a rolling publication window, not an `mtime` correction scan
 or proof of historical coverage. Missing publication timestamps and older videos
 need separately authorized backfills. Only the newest exact, case-sensitive
 source copy of a video is eligible.
