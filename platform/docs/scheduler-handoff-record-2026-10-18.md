@@ -1,0 +1,46 @@
+# Laravel 排程交接紀錄（2026-10-18 台北）
+
+計畫見 [laravel-scheduler-handoff-2026-10-18.md](laravel-scheduler-handoff-2026-10-18.md)。
+
+## 結果
+
+台北 05:52 起，Laravel 排程器不再寫入任何資料（`INGESTION_SCHEDULED_WRITE_ALLOWLIST=off`）。寫入工作由 TS 接手：
+
+| 批次 | 工作 | TS 接手時間（台北） |
+| --- | --- | --- |
+| cache | counts、people、tag_cloud、tag_date、keywords.cache、schedule、live.build、live.clean | 04:38 |
+| youtube-live | live.poll、tvbs.live.poll | 05:03（05:27 起獨立 worker） |
+| youtube-source | channels.stats、videos.general/live/live_group、tvbs.videos、videos.stats、videos.duration、live.cleanup、tag_videos.backfill | 05:03 |
+| ai-daily | ai.daily、ai.daily.catchup（含彙整統計） | 05:03 |
+| ai-hourly | ai.hourly | 05:03 |
+| ai-mayor | ai.mayor_person | 05:52（Laravel 05:45 那次跑完後） |
+
+停用、不需 TS 版：reports.keywords.build、reports.live.show、reports.live.static、reports.mayor.static、reports.groups.build、
+reports.channel_cloud.build。留言（youtube.comments.queue／fetch）在正式環境本來就不在 Laravel 寫入白名單，維持停用。
+Telegram 摘要（第 7 批）仍由 Laravel 發送：`telegram_digest_dispatches` 有 2 筆 2026-09-09 的 pending，需先在頻道核實是否送出，
+才能依交接清單切換。
+
+## 正式環境配置
+
+- TS compose `youtube-board-ts-6oukfq`：redis（AOF、noeviction、密碼）、scheduler、worker-cache、worker-youtube-live、
+  worker-youtube-source、worker-ai-daily、worker-ai-hourly、worker-ai-mayor，與 web 同一個 image。
+  由 `platform/.local/dokploy/handoff-runtime.py` 產生；換 image 用 `release-all.py`。
+- 每批一個 facade schema（`youtube_board_ts_worker_<batch>`）與帳號（`youtube_ts_w_<batch>`，限 10.0.1.0/24），
+  用 `tools/worker-schema.mjs`（`WORKER_BATCH`）在線上 image 內建立，只有 view 與資料表層級權限。
+- 密碼與金鑰放在 swarm secret（`yb_ts_worker_<batch>_env_v1`、`yb_ts_scheduler_env_v1`、`yb_ts_redis_conf_v1`），
+  root 專用副本在 skyhong-blog `/etc/youtube-board-ts/`。排程設定為 swarm config `yb_ts_schedules_v4`（24 筆，Laravel 同一時間）。
+- 關鍵字比對與頭像仍由原本的 systemd timer（ts-worker.py）執行。
+
+## 過程中的修正
+
+- `whereKeys` 的 `BINARY col <=> BINARY ?` 用不到索引，影片統計每支影片掃整張 `urt_video_log_history`（DB 90% CPU）；
+  改成 `col = ? AND BINARY col = BINARY ?`（9cf0414）。
+- 個別項目跳過（例如已刪除頻道）改記為 incomplete，不再整筆失敗（470c1a5）。
+- 每分鐘直播輪詢獨立成 youtube-live 批次，避免排在數分鐘的統計與探索之後（333db97）。
+- 首頁關鍵字每日歷史上限（91463cd）。
+- 補跑每小時 AI 2026-10-18 02:00–02:59（交接前備份暫停時漏掉）與 04:00–04:59（換 image 時中斷）。
+
+## 回復
+
+依批次反向：關掉 TS 該批（從 `handoff-runtime.py --batches` 移除並換回前一個排程 config），把 Laravel 白名單恢復為
+`/etc/youtube-board-ts/laravel-allowlist-before-batch*.txt` 的值後 `docker service update --env-add`。不可兩邊同時寫同一個工作。
