@@ -26,7 +26,9 @@ import {
     Tabs,
 } from "./ReportUI";
 import { TimeChart } from "./Charts";
-import { MayorShare, MayorSwitcher } from "./MayorShare";
+import { Suspense } from "react";
+import { MayorShare, MayorShareLive, MayorSwitcher, MayorSwitcherLive } from "./MayorShare";
+import { searchView } from "@/lib/mayor-view";
 import { cities } from "../../../shared/city-definitions";
 export async function ExpandedReport({
     apiPath,
@@ -65,7 +67,8 @@ export async function ExpandedReport({
             <DataNotice meta={meta} />
             <Tabs items={familyTabs(path,search,meta.coverage)} active={path} />
             {path==='/tags/compare'&&<ComparisonControls search={search} points={data.series?.[0]?.points}/> }
-            {mayorCity && cities[mayorCity] ? <MayorSwitcher city={mayorCity} search={search} from={filters.find((filter) => filter.key === 'from')?.value} to={filters.find((filter) => filter.key === 'to')?.value} /> : null}
+            {/* Live parts read view from the URL; the fallbacks render the same markup from this request's search (ISR pages need the boundary). */}
+            {mayorCity && cities[mayorCity] ? (() => { const props = { city: mayorCity, search, from: filters.find((filter) => filter.key === 'from')?.value, to: filters.find((filter) => filter.key === 'to')?.value }; return <Suspense fallback={<MayorSwitcher {...props} view={searchView(search)} />}><MayorSwitcherLive {...props} /></Suspense>; })() : null}
             {data.navigation?.length ? <Tabs label="報表切換" active={path} items={data.navigation.flatMap(item => {
                 const href = safeReportHref(item.href);
                 return href ? [{ href, label: item.label, active: item.active === true }] : [];
@@ -133,7 +136,7 @@ export async function ExpandedReport({
                     </Link>
                 </form>
             )}
-            {mayorCity && data.series?.length ? <MayorShare part="chart" city={mayorCity} series={data.series} search={search} rows={data.bucketCoverage ?? data.rows} /> : null}
+            {mayorCity && data.series?.length ? <Suspense fallback={<MayorShare part="chart" city={mayorCity} series={data.series} search={search} rows={data.bucketCoverage ?? data.rows} view={searchView(search)} />}><MayorShareLive part="chart" city={mayorCity} series={data.series} search={search} rows={data.bucketCoverage ?? data.rows} /></Suspense> : null}
             {data.metrics?.length ? (
                 <div className="metrics">
                     {data.metrics.map((metric, index) => (
@@ -207,7 +210,7 @@ export async function ExpandedReport({
                     </section>
                 </>
             ) : null}
-            {mayorCity && data.series?.length ? <MayorShare part="candidates" city={mayorCity} series={data.series} search={search} rows={data.bucketCoverage ?? data.rows} /> : null}
+            {mayorCity && data.series?.length ? <MayorShare part="candidates" city={mayorCity} series={data.series} search={search} rows={data.bucketCoverage ?? data.rows} view={searchView(search)} /> : null}
             {/* Mayor pages show every candidate in the one share chart above, so no per-person raw charts. */}
             {mayorCity ? null : data.series?.map((series, index) => (
                 <section key={`${series.name}-${index}`}>

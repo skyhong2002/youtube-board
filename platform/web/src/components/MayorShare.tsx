@@ -1,7 +1,8 @@
 'use client';
 import Link from 'next/link';
-import {usePathname,useRouter} from 'next/navigation';
+import {useSearchParams} from 'next/navigation';
 import {useEffect,useRef,useState} from 'react';
+import {mayorView,type View} from '@/lib/mayor-view';
 import {cities} from '../../../shared/city-definitions';
 import {chartTimeLabel} from '@/lib/chart-window';
 import {compact,count} from '@/lib/format';
@@ -32,12 +33,15 @@ export function mayorShares(series:Series[]){
  })}));
 }
 /** The trend chart's y-axis: raw volume unless the URL asks for share. */
-export const mayorView=(search:Record<string,string|string[]|undefined>):'share'|'raw'=>{const v=search.view;return (Array.isArray(v)?v[0]:v)==='share'?'share':'raw';};
+type Search=Record<string,string|string[]|undefined>;
 const share=(value:number|null|undefined)=>value===null||value===undefined?'n/a':value.toFixed(1)+'%';
 export {MAYOR_EXPECTED_BUCKETS,coverageLabel,coverageSegments,mayorCoverage,type BucketCoverage} from '@/lib/bucket-coverage';
 
 /** Mayor pages render this twice: the share chart right after the filters, and the candidate cards below it. */
-export function MayorShare({part,city,series,search,rows}:{part:'chart'|'candidates';city:string;series:Series[];search:Record<string,string|string[]|undefined>;rows?:readonly Record<string,unknown>[]}){
+type ShareProps={part:'chart'|'candidates';city:string;series:Series[];search:Search;rows?:readonly Record<string,unknown>[]};
+/** Reads the live URL, so the chart redraws as soon as replaceState changes view; needs a Suspense boundary. */
+export function MayorShareLive(props:ShareProps){return <MayorShare {...props} view={mayorView(useSearchParams())}/>;}
+export function MayorShare({part,city,series,search,rows,view}:ShareProps&{view:View}){
  const blocs=cities[city]?.candidates??{},others=Object.keys(blocs).filter(name=>blocs[name]==='other'),color=(name:string,index:number)=>blocs[name]==='other'?OTHER_COLORS[others.indexOf(name)%OTHER_COLORS.length]!:BLOC_COLORS[blocs[name]??'']??FALLBACK[index%FALLBACK.length];
  const shares=mayorShares(series),dates=shares[0]?.points.map(p=>p.time)??[],coverage=mayorCoverage(rows,dates);
  // Latest date on which any candidate has a share; a missing candidate there stays n/a.
@@ -45,10 +49,10 @@ export function MayorShare({part,city,series,search,rows}:{part:'chart'|'candida
  const last=lastIndex<0?undefined:{index:lastIndex},one=(key:string)=>{const value=search[key];return Array.isArray(value)?value[0]:value;};
  const lastCoverage=last?coverage[last.index]:undefined,incomplete=coverage.filter(c=>c.status!=='complete');
  // 原始量 is the default; 占比 is kept in the URL (view=share) so city, period and metric links carry it.
- const router=useRouter(),pathname=usePathname(),[view,setView]=useState<'share'|'raw'>(()=>mayorView(search));
- const urlView=mayorView(search);useEffect(()=>setView(urlView),[urlView]);// back/forward and links change the URL view
+ // The choice lives in the URL; replaceState updates it (and useSearchParams) at once, without a server round trip,
+ // so the city, period and metric links carry it before the user can click them.
  const ref=useRef<HTMLDivElement>(null),[failed,setFailed]=useState(false);
- const pickView=(next:'share'|'raw')=>{setView(next);const query=new URLSearchParams();for(const [k,v] of Object.entries(search))for(const item of Array.isArray(v)?v:v===undefined?[]:[v])if(k!=='view')query.append(k,item);if(next==='share')query.set('view','share');const text=query.toString();router.replace(`${pathname}${text?'?'+text:''}`,{scroll:false});};
+ const pickView=(next:'share'|'raw')=>{const query=new URLSearchParams(window.location.search);if(next==='share')query.set('view','share');else query.delete('view');const text=query.toString();window.history.replaceState(null,'',`${window.location.pathname}${text?'?'+text:''}`);};
  const unit=series[0]?.unit??'',raw=view==='raw',plotted=raw?series:shares;
  useEffect(()=>{if(part!=='chart'||!dates.length)return;let disposed=false,chart:import('echarts').ECharts|undefined,resize:ResizeObserver|undefined,observer:MutationObserver|undefined;
   async function load(){const echarts=await import('echarts');if(disposed||!ref.current)return;chart=echarts.init(ref.current,undefined,{renderer:'svg'});
@@ -97,9 +101,11 @@ const PERIODS:[number,string][]=[[7,'一週'],[10,'十天'],[30,'一個月'],[60
 const METRICS:[string,string][]=[['tags_views','觀看引用'],['tags_video','影片引用'],['tags_result','重要度']];
 const dateInput='rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm text-zinc-900 focus:border-brand-600 focus:outline-2 focus:outline-offset-2 focus:outline-brand-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100';
 
-export function MayorSwitcher({city,search,from,to}:{city:string;search:Record<string,string|string[]|undefined>;from?:string;to?:string}){
- const one=(key:string)=>{const value=search[key];return Array.isArray(value)?value[0]:value;};
- const href=(key:string,params:Record<string,string|undefined>)=>{const query=new URLSearchParams();if(mayorView(search)==='share')params={...params,view:'share'};for(const [k,v] of Object.entries(params))if(v)query.set(k,v);const text=query.toString();return `/mayor/cities/${encodeURIComponent(key)}${text?'?'+text:''}`;};
+type SwitcherProps={city:string;search:Search;from?:string;to?:string};
+export function MayorSwitcherLive(props:SwitcherProps){return <MayorSwitcher {...props} view={mayorView(useSearchParams())}/>;}
+export function MayorSwitcher({city,search,from,to,view}:SwitcherProps&{view:View}){
+ const one=(key:string)=>{const value=search[key];return Array.isArray(value)?value[0]:value;},shareView=view==='share';
+ const href=(key:string,params:Record<string,string|undefined>)=>{const query=new URLSearchParams();if(shareView)params={...params,view:'share'};for(const [k,v] of Object.entries(params))if(v)query.set(k,v);const text=query.toString();return `/mayor/cities/${encodeURIComponent(key)}${text?'?'+text:''}`;};
  const type=one('type'),days=one('days'),explicit=Boolean(one('from')||one('to')||one('today'));
  const base='rounded-md px-2.5 py-1 text-sm',idle=base+' text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800',active=base+' bg-zinc-900 font-medium text-white dark:bg-zinc-100 dark:text-zinc-900';
  const chip=(on:boolean,label:string,to:string)=><Link key={to+label} href={to} aria-current={on?'page':undefined} className={on?active:idle}>{label}</Link>;
@@ -112,7 +118,7 @@ export function MayorSwitcher({city,search,from,to}:{city:string;search:Record<s
    {/* The custom range replaces the generic filter form, whose metric and day-count fields repeated the chips. */}
    <form key={`${type}|${from}|${to}`} action={`/mayor/cities/${encodeURIComponent(city)}`} aria-label="自訂日期範圍" className="flex flex-wrap items-center gap-2 border-zinc-300 text-sm sm:border-l sm:pl-4 dark:border-zinc-700">
     {type&&<input type="hidden" name="type" value={type}/>}
-    {mayorView(search)==='share'&&<input type="hidden" name="view" value="share"/>}
+    {shareView&&<input type="hidden" name="view" value="share"/>}
     <span className="text-zinc-500">自訂</span>
     <input type="date" name="from" defaultValue={from} aria-label="開始日期" className={dateInput}/>
     <span className="text-zinc-500" aria-hidden="true">–</span>
