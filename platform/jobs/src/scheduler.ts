@@ -1,5 +1,6 @@
 import {VOCABULARY_JOB} from './vocabulary.js';
-import {schedulerNamespace,partitionedQueues} from './queue-scope.js';
+import {schedulerNamespace,partitionedQueues,queueMode,workflowQueueName} from './queue-scope.js';
+import {workflowBatch} from '../../shared/worker-batches.js';
 import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { validateWorkflowInput, type WorkflowInput } from './workflow-registry.js';
@@ -102,26 +103,31 @@ export function planSchedules(config: ScheduleConfig, now: Date, lookbackMinutes
 }
 export async function tickSchedules(config: ScheduleConfig, env: NodeJS.ProcessEnv, now = new Date(), lookbackMinutes = 2, enqueue = enqueueWorkflow) {
   const validated = validateScheduleConfig(config);
-  // Validate every configured owner before making any queue mutation.
+  // Validate every configured owner and queue route before making any queue mutation.
+  const queues = new Map<string, string>();
   for (const schedule of validated.schedules) {
     if(partitionedQueues(env)&&env.TS_WORKER_WORKFLOW&&schedule.workflow!==env.TS_WORKER_WORKFLOW)throw new Error('Schedule does not match declared worker workflow');
+    // Batch mode: each entry goes to the serial queue of the batch owning its workflow; unassigned workflows fail closed.
+    if(queueMode(env)==='batch'&&env.TS_WORKER_BATCH&&workflowBatch(schedule.workflow)!==env.TS_WORKER_BATCH)throw new Error('Schedule does not match declared worker batch');
+    queues.set(schedule.id, workflowQueueName(schedule.workflow, env));
     assertExecute(schedule.workflow, executionPolicy(env, 'execute', true));
     if (schedule.workflow === 'ai.daily') assertExecute('ai.channel', executionPolicy(env, 'execute', true));
   }
-  const output: Array<{ schedule: string; scheduledAt: string; workflow: string; runId: string; queueId?: string; state: string }> = [];
+  const output: Array<{ schedule: string; scheduledAt: string; workflow: string; queue: string; runId: string; queueId?: string; state: string }> = [];
   for (const run of planSchedules(validated, now, lookbackMinutes)) {
+    const queue = queues.get(run.schedule)!;
     if (workflowShutdownSignal().aborted) {
-      output.push({ schedule: run.schedule, scheduledAt: run.scheduledAt, workflow: run.workflow, runId: run.runId, state: 'SHUTDOWN_ABORTED' });
+      output.push({ schedule: run.schedule, scheduledAt: run.scheduledAt, workflow: run.workflow, queue, runId: run.runId, state: 'SHUTDOWN_ABORTED' });
       continue;
     }
     try {
       const job = await enqueue(run.workflow, run.runId, run.input, env);
-      output.push({ schedule: run.schedule, scheduledAt: run.scheduledAt, workflow: run.workflow, runId: run.runId, queueId: job.id, state: job.state });
+      output.push({ schedule: run.schedule, scheduledAt: run.scheduledAt, workflow: run.workflow, queue, runId: run.runId, queueId: job.id, state: job.state });
     } catch (error) {
       // A retained failed or ambiguous run is never silently re-added; later
       // configured catch-up slots get new IDs and consult durable source state.
       const queueId = error instanceof QueueInputConflict ? error.queueId : undefined;
-      output.push({ schedule: run.schedule, scheduledAt: run.scheduledAt, workflow: run.workflow, runId: run.runId, ...(queueId ? { queueId } : {}), state: error instanceof QueueInputConflict ? error.code : 'ENQUEUE_ERROR' });
+      output.push({ schedule: run.schedule, scheduledAt: run.scheduledAt, workflow: run.workflow, queue, runId: run.runId, ...(queueId ? { queueId } : {}), state: error instanceof QueueInputConflict ? error.code : 'ENQUEUE_ERROR' });
     }
   }
   return output;

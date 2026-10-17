@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 export type Period='daily'|'hourly';
 export interface Video {videoId:string;title:string;uId:number;channel:string;tags:string[];group:string;views:number|null;publishedAt:string;url:string;position:number}
 export interface MediaReport {uId:number;channel:string;event:string;description:string;category:string;angle:string;camp:string;keywords:string[];people:string[];places:string[];videoIds:string[];tags:string[];group:string}
-export interface Event {title:string;description:string;category:string;angle:string;camp:string;keywords:string[];people:string[];places:string[];videoIds:string[];videoCount:number;mediaCount:number;position:number;videos:Video[];mediaReports:MediaReport[]}
+export interface Event {title:string;description:string;category:string;angle:string;camp:string;keywords:string[];people:string[];places:string[];media:string[];videoIds:string[];videoCount:number;mediaCount:number;position:number;videos:Video[];mediaReports:MediaReport[]}
 export interface Context {period:Period;key:string;label:string;url:string;dateFrom:string;dateTo:string;sourceTable:'urt_ai_hour'|'urt_ai_date';sourcePk:string;sourceHash:string;snapshotHash:string;aiRunId:string|null;events:Event[]}
 export interface Observation {context_key:string;observed_at:string;video_count:number;media_count:number}
 export interface Fingerprint {title:string;title_grams:string[];keywords:string[];people:string[];places:string[];category:string}

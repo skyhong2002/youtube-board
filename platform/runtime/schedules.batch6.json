@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "timezone": "Asia/Taipei",
+  "schedules": [
+    { "id": "batch6-ai-mayor-person-v1", "workflow": "ai.mayor_person", "cron": "45 5,20 * * *", "options": { "city": "taipei", "limit": 10, "call-limit": 10 } }
+  ]
+}

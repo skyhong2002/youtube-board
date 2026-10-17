@@ -12,17 +12,23 @@ export async function topicDataCapacity(db:Connection){
 export async function projectTopics(db:Connection,source:DailySource,dataCapacity=65535){
  const ids=[...new Set(source.topics.flatMap(t=>t.media.flatMap(m=>m.event.videoId)))].sort();if(!ids.length||ids.length>5000)throw new Error('topic_video_cap_exceeded');
  const [rows]=await db.query<RowDataPacket[]>(`SELECT videoId,title,u_id,publishedAt,thumbnails,viewCount,likeCount,commentCount FROM urt_video WHERE BINARY videoId IN (${ids.map(()=>'?').join(',')}) ORDER BY BINARY videoId`,ids);
- if(rows.length!==ids.length||new Set(rows.map(r=>String(r.videoId))).size!==ids.length)throw new Error('topic_video_source_incomplete');
+ if(new Set(rows.map(r=>String(r.videoId))).size!==rows.length)throw new Error('topic_video_source_incomplete');
  const [durations]=await db.query<RowDataPacket[]>(`SELECT videoId,duration FROM urt_video_duration WHERE BINARY videoId IN (${ids.map(()=>'?').join(',')}) ORDER BY pk_video DESC`,ids);
  const uids=source.channels.map(c=>c.u_id),[tags]=await db.query<RowDataPacket[]>(`SELECT u_id,tags FROM urt_count WHERE u_id IN (${uids.map(()=>'?').join(',')})`,uids);
  if(tags.length!==uids.length||new Set(tags.map(r=>Number(r.u_id))).size!==uids.length)throw new Error('topic_channel_tags_incomplete');
- const videos:Record<string,unknown>=Object.create(null);for(const row of rows){const {videoId,...data}=row;videos[String(videoId)]={...data,duration:durations.find(d=>d.videoId===videoId)?.duration??null};}
+ // Laravel AiTopicProjector::videos(): integer counts (NULL kept), u_id integer, duration from the newest row, default 0.
+ const int=(v:unknown)=>v===null||v===undefined?null:Number(v);
+ const videos:Record<string,unknown>=Object.create(null);for(const row of rows){const duration=durations.find(d=>d.videoId===row.videoId)?.duration;videos[String(row.videoId)]={title:String(row.title??''),u_id:Number(row.u_id??0),publishedAt:String(row.publishedAt??''),thumbnails:String(row.thumbnails??''),viewCount:int(row.viewCount),likeCount:int(row.likeCount),commentCount:int(row.commentCount),duration:Math.max(0,Number(duration??0)||0)};}
  const topics:Record<string,unknown>=Object.create(null);
- for(const topic of source.topics){
+ // Laravel drops a topic whose videos are missing or belong to another channel instead of failing the whole day.
+ const usable=source.topics.filter(topic=>topic.media.every(m=>m.event.videoId.every(id=>rows.some(r=>r.videoId===id&&Number(r.u_id)===m.u_id))));
+ if(!usable.length)throw new Error('topic_video_source_incomplete');
+ for(const id of Object.keys(videos))if(!usable.some(t=>t.media.some(m=>m.event.videoId.includes(id))))delete videos[id];
+ for(const topic of usable){
   const videoMap:Record<string,string[]>=Object.create(null),angle:Record<string,number>=Object.create(null),camp:Record<string,number>=Object.create(null),keywords:Record<string,number>=Object.create(null),keywordCount:Record<string,number>=Object.create(null),people:Record<string,number>=Object.create(null),places:Record<string,number>=Object.create(null),taxonomy:Record<string,number>=Object.create(null);
   const add=(target:Record<string,number>,s:string,n=1)=>{target[s]=(target[s]??0)+n;};
   for(const m of topic.media){
-   const e=m.event,n=e.videoId.length;for(const id of e.videoId)if(!rows.some(r=>r.videoId===id&&Number(r.u_id)===m.u_id))throw new Error('topic_video_channel_mismatch');
+   const e=m.event,n=e.videoId.length;
    videoMap[String(m.u_id)]=[...new Set([...(videoMap[String(m.u_id)]??[]),...e.videoId])];
    for(const k of ['台灣','中國'])if(e.角度.includes(k))add(angle,k,n);
    for(const k of ['民進黨','國民黨'])if(e.陣營.includes(k))add(camp,k,n);

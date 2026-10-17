@@ -4,7 +4,7 @@ import type { Reader } from '../db/client.js';
 import { BadQuery, NotFound, type Query } from './query.js';
 import { latest, text } from './normalize.js';
 import { cacheFilters, range, table, weights, type Register } from './table.js';
-import { cacheLineageNote, publishedTagCache } from './cache-lineage.js';
+import { cacheLineageNote, publishedTagCache, unknownViewVideos, unknownViewNotes } from './cache-lineage.js';
 import { groupDefinitions } from './group-definitions.js';
 
 export function registerComparisons(register: Register, reader: Reader, clock: () => Date) {
@@ -14,9 +14,9 @@ export function registerComparisons(register: Register, reader: Reader, clock: (
         if (!['tags_views','tags_video','tags_result'].includes(type)) throw new BadQuery('Unknown comparison metric.');
         const sources = await Promise.all(groups.map(async g => {
             const records = await publishedTagCache(reader, await reader.rows(sql`SELECT pk,ctime,mtime,the_date,tags_views,tags_video,tags_result FROM urt_show_tag_date WHERE ${cacheFilters(g.filters)} AND the_date BETWEEN ${from} AND ${period.to} ORDER BY pk DESC`),g.filters);
-            const days = new Map<string, Map<string,number>>(), seen = new Set<string>();
-            for (const r of records) { const date = text(r.the_date).slice(0,10); if (!seen.has(date)) { seen.add(date); if (!sourceMap(r[type])) continue; const map = weights(sourceAliases(sourceMap(r[type])!)); days.set(date,map); } }
-            return {...g,records,days};
+            const days = new Map<string, Map<string,number>>(), seen = new Set<string>(), used: typeof records = [];
+            for (const r of records) { const date = text(r.the_date).slice(0,10); if (!seen.has(date)) { seen.add(date); used.push(r); if (!sourceMap(r[type])) continue; const map = weights(sourceAliases(sourceMap(r[type])!)); days.set(date,map); } }
+            return {...g,records,days,unknownViews:unknownViewVideos(used)};
         }));
         const rows: Record<string,string|number|null>[]=[];
         for (const date of period.dates) {
@@ -29,7 +29,8 @@ export function registerComparisons(register: Register, reader: Reader, clock: (
             rows.push(row);
         }
         const keys=sources.flatMap((s,i)=>terms.map((term,j)=>({key:`series_${i}_${j}`,label:groups.length>1?`${s.name}／${term}`:term})));
-        return table(title,[{key:'date',label:'日期',kind:'date'},...keys.flatMap(({key,label})=>[{key,label,kind:'number' as const},{key:`${key}：日數`,label:`${label} 覆蓋日`,kind:'number' as const}])],rows,q,{updatedAt:latest(...sources.flatMap(s=>s.records.flatMap(r=>[r.mtime,r.ctime]))),series:keys.map(({key,label})=>({name:label,unit:type==='tags_video'?'影片引用':type==='tags_views'?'觀看引用':'重要度',points:rows.map(r=>({time:String(r.date),value:r[key] as number|null}))})),notes:[cacheLineageNote,'使用精確分類條件的日快取，累加當日與前六日。分類可以重疊；不合併不同條件的單分類快取來冒充交集。','重要度沿用舊版 ×100 量尺；詞彙屬於快取產生當時的來源，新聞文章數不參與觀看計算。']});
+        const unknownViews=sources.reduce((n,s)=>n+s.unknownViews,0);
+        return {...table(title,[{key:'date',label:'日期',kind:'date'},...keys.flatMap(({key,label})=>[{key,label,kind:'number' as const},{key:`${key}：日數`,label:`${label} 覆蓋日`,kind:'number' as const}])],rows,q,{updatedAt:latest(...sources.flatMap(s=>s.records.flatMap(r=>[r.mtime,r.ctime]))),series:keys.map(({key,label})=>({name:label,unit:type==='tags_video'?'影片引用':type==='tags_views'?'觀看引用':'重要度',points:rows.map(r=>({time:String(r.date),value:r[key] as number|null}))})),notes:[cacheLineageNote,'使用精確分類條件的日快取，累加當日與前六日。分類可以重疊；不合併不同條件的單分類快取來冒充交集。','重要度沿用舊版 ×100 量尺；詞彙屬於快取產生當時的來源，新聞文章數不參與觀看計算。',...unknownViewNotes(unknownViews,groups.length>1?'各分類採用的日快取（分類可重疊，合計可能重複）':'採用的日快取')]}),evidenceCoverage:{unknownViewVideos:unknownViews}};
     };
     register('/tags/compare',(_p,q)=>{
         if(q.tags!==undefined&&(typeof q.tags!=='string'||q.tags.length>2048))throw new BadQuery('Invalid comparison terms.');

@@ -1,6 +1,6 @@
 import { MysqlQuotaLedger } from '../src/quota.js';
 import { withWriterLock } from '../../jobs/src/database.js';
-import { it, expect } from 'vitest';
+import { it, expect, afterAll } from 'vitest';
 import mysql, { type Connection, type RowDataPacket, type ResultSetHeader } from 'mysql2/promise';
 import { randomUUID } from 'node:crypto';
 import { isolatedTestEnv } from '../../shared/test-database.js';
@@ -12,6 +12,17 @@ import { videoStatisticsJob, type SourceJobContext } from '../src/video-statisti
 const enabled = process.env.INGESTION_DB_TEST === '1', now = new Date('2026-10-12T02:00:00Z');
 const uid = () => 'T' + randomUUID().replaceAll('-', '').slice(0, 10);
 async function connect() { const env = isolatedTestEnv(); return mysql.createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT), database: env.DB_DATABASE, user: env.DB_USERNAME, password: env.DB_PASSWORD, timezone: 'Z', dateStrings: true, supportBigNumbers: true, bigNumberStrings: true }); }
+
+// Remove this file's synthetic channels so later DB suites (media sweep, evidence batches) see a clean source.
+afterAll(async () => {
+  if (process.env.INGESTION_DB_TEST !== '1') return;
+  const db = await connect();
+  try {
+    const ids = `SELECT u_id FROM urt_channel WHERE title='source test'`;
+    for (const table of ['urt_count', 'urt_video', 'urt_video_schedule', 'urt_video_live']) await db.query(`DELETE FROM ${table} WHERE u_id IN (SELECT u_id FROM (${ids}) t)`).catch(() => undefined);
+    await db.query(`DELETE FROM urt_channel WHERE title='source test'`);
+  } finally { await db.end(); }
+});
 function context(db: Connection, handler: (url: URL) => unknown): SourceJobContext {
   return { db, now, execute: true, assertOwnership: async () => {}, youtube: new YoutubeDataApiClient({ keys: ['fake-key'], ledger: { precharge: async () => '2026-10-11', markDailyExhausted: async () => {} }, now: () => now, fetcher: async url => new Response(JSON.stringify(handler(new URL(String(url))))) }) };
 }
@@ -29,7 +40,8 @@ async function clean(db: Connection, uId: number, ids: string[], authors: string
   for (const table of ['urt_log','urt_count','urt_channel']) await db.execute(`DELETE FROM ${table} WHERE u_id=?`, [uId]);
 }
 it('uploads cadence preserves minimum interval and Taipei morning rule', () => {
-  expect(nextUploadsCheck(new Date('2026-10-11T15:00:00Z'), 1000)).toBe('2026-10-12 08:00:00');
+  // Laravel estimateNextVtime checks 08:00 on the raw (sub-two-hour) interval before applying the two-hour floor.
+  expect(nextUploadsCheck(new Date('2026-10-11T15:00:00Z'), 1000)).toBe('2026-10-12 01:00:00');
   expect(nextUploadsCheck(now, 1000)).toBe('2026-10-12 12:00:00');
   expect(nextUploadsCheck(new Date('2026-10-11T22:00:00Z'), 0)).toBe('2026-10-19 08:00:00');
 });
@@ -153,7 +165,8 @@ it.skipIf(!enabled)('resource-specific HTTP errors backoff queue items while glo
     const[backoff]=await db.query<RowDataPacket[]>('SELECT failures FROM ts_youtube_item_backoff WHERE workflow=? AND video_id=?',['youtube.comments.fetch',vid]);expect(backoff[0]?.failures).toBe(1);
     expect((await commentFetchJob({...ctx,youtube:failing(403,'quotaExceeded')},{videoId:vid,limit:1,maxPages:1,maxReplyPages:1})).stoppedReason).toBe('quota-daily');
     expect((await channelUploadsJob({...ctx,youtube:failing(404,'playlistNotFound')},{uId,limit:1,maxPages:1,days:7})).skipped).toHaveLength(1);
-    const[deferred]=await db.query<RowDataPacket[]>('SELECT retry_after FROM ts_youtube_item_backoff WHERE workflow=? AND video_id=?',['youtube.channels.videos.general',String(uId)]);expect(deferred).toHaveLength(1);
+    // Laravel playlist_api_error: the channel's vtime moves one hour ahead (no TS-only backoff row).
+    const[deferred]=await db.query<RowDataPacket[]>('SELECT vtime FROM urt_channel WHERE u_id=?',[uId]);expect(deferred[0]?.vtime).toBe('2026-10-12 11:00:00');
   }finally{await clean(db,uId,[vid]);await db.end();}
 });
 it.skipIf(!enabled)('batch item rejection defers statistics and duration without fabricated freshness and quota stops preserve enqueue provenance',async()=>{
@@ -171,16 +184,23 @@ it.skipIf(!enabled)('batch item rejection defers statistics and duration without
     const[queued]=await db.query<RowDataPacket[]>('SELECT mtime,duration FROM urt_video_duration WHERE BINARY videoId=BINARY ?',[fresh]);expect(queued[0]).toMatchObject({mtime:null,duration:null});
     await db.execute('DELETE FROM urt_video_duration WHERE BINARY videoId=BINARY ?',[fresh]);
     const unexpected=context(db,()=>({items:[]}));unexpected.youtube.videoContentDetails=async()=>{throw new Error('unclassified provider boundary failure');};
-    expect(await videoDurationsJob(unexpected,{videoId:fresh,limit:1,enqueueMissing:true})).toMatchObject({enqueued:[fresh],applied:[],stoppedReason:'source-request-failed'});
+    // Laravel api_batch_failed: an unclassified request failure gives the batch the five-minute retry cooldown.
+    expect(await videoDurationsJob(unexpected,{videoId:fresh,limit:1,enqueueMissing:true})).toMatchObject({enqueued:[fresh],applied:[],skipped:[{videoId:fresh,reason:'api-batch-item-rejected'}]});
+    const[cooled]=await db.query<RowDataPacket[]>('SELECT stime,mtime FROM urt_video_duration WHERE BINARY videoId=BINARY ?',[fresh]);expect(cooled[0]).toMatchObject({stime:'2026-10-12 10:05:00',mtime:null});
   }finally{await clean(db,uId,[vid,fresh]);await db.end();}
 });
-it.skipIf(!enabled)('uploads failures retain source rows already published without claiming complete coverage',async()=>{
-  const db=await connect(),id=uid(),uId=await channel(db,id),a=uid(),b=uid();let checks=0;
+it.skipIf(!enabled)('uploads write failures retain source rows already published, take the Laravel five-minute cooldown and reassign owners like Laravel',async()=>{
+  const db=await connect(),id=uid(),uId=await channel(db,id),a=uid(),b=uid();
   try {
-    await video(db,b,uId,id);
+    await video(db,b,uId+999,id);
     const item=(videoId:string)=>({id:'PI'+videoId,snippet:{resourceId:{videoId},publishedAt:'2026-10-11T02:00:00Z',channelId:id,title:'title',description:'description',thumbnails:{default:{url:'https://i.ytimg.com/default.jpg'}},channelTitle:'channel',playlistId:'UU'+id,position:0}});
-    const ctx={...context(db,()=>({items:[item(a),item(b)]})),assertOwnership:async()=>{if(++checks===4)await db.execute('UPDATE urt_video SET u_id=? WHERE BINARY videoId=BINARY ?',[uId+999,b]);}};
-    expect(await channelUploadsJob(ctx,{uId,limit:1,maxPages:1,days:7})).toMatchObject({applied:[],skipped:[{uId,reason:'incomplete-channel-crawl',partialVideos:[a]}]});
+    // An out-of-range position makes the second item's MyISAM write fail after the first item was published.
+    const huge=(videoId:string)=>({...item(videoId),snippet:{...item(videoId).snippet,position:99999999999}});
+    expect(await channelUploadsJob(context(db,()=>({items:[item(a),huge(b)]})),{uId,limit:1,maxPages:1,days:7})).toMatchObject({applied:[],skipped:[{uId,reason:'item-processing-failed',partialVideos:[a]}]});
+    const[cooldown]=await db.query<RowDataPacket[]>('SELECT vtime FROM urt_channel WHERE u_id=?',[uId]);expect(cooldown[0]?.vtime).toBe('2026-10-12 10:05:00');
+    expect((await channelUploadsJob(context(db,()=>({items:[item(a),item(b)]})),{uId,limit:1,maxPages:1,days:7})).skipped).toEqual([]);
+    const[owners]=await db.query<RowDataPacket[]>('SELECT videoId,u_id,ctime FROM urt_video WHERE BINARY videoId IN (BINARY ?,BINARY ?)',[a,b]);
+    expect(owners.map(r=>[Number(r.u_id),r.ctime])).toEqual([[uId,'2026-10-12 10:00:00'],[uId,'2026-10-12 10:00:00']]);
   }finally{await clean(db,uId,[a,b]);await db.end();}
 });
 it.skipIf(!enabled)('publication interruption keeps staged evidence and public cache untouched, then replays and permits a new queue generation',async()=>{
@@ -238,7 +258,7 @@ it.skipIf(!enabled)('non-positive and missing channel statistics record only the
     }
   }finally{await clean(db,uId,[]);await db.end();}
 });
-it.skipIf(!enabled)('live-group discovery ignores future vtime, handles premiere chronology and refreshes old metadata with five-item cadence',async()=>{
+it.skipIf(!enabled)('tag-52 live discovery (--live=1) ignores future vtime, handles premiere chronology and refreshes old metadata with five-item cadence',async()=>{
   const db=await connect(),id=uid(),uId=await channel(db,id),a=uid(),b=uid();
   try{
     await db.execute('UPDATE urt_channel SET vtime=? WHERE u_id=?',['2099-01-01 00:00:00',uId]);

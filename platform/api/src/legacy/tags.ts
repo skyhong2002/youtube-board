@@ -1,4 +1,4 @@
-import { publishedReportRow } from '../reports/cache-lineage.js';
+import { publishedReportRow, unknownViewMeta } from '../reports/cache-lineage.js';
 import { BadQuery } from '../reports/query.js';
 import { sql } from 'drizzle-orm';
 import type { Reader, Row } from '../db/client.js';
@@ -21,7 +21,7 @@ export async function tagReport(db: Reader, name: string, q: Q, now: Date): Prom
     }
     if (name === 'tags_all') {
         const r = await publishedReportRow(db,'urt_show_data',{data_name:'tags_all'},(await db.rows(sql `SELECT * FROM urt_show_data WHERE data_name='tags_all' LIMIT 1`))[0]), result = remap(r?.the_result, ['result', 'tags_all', 'data'], ['tag', 'keyword', 'name']);
-        return payload(result, 'urt_show_data.tags_all', { mtime: r?.mtime ?? null, cache_window:r?._cacheWindow??null, blocked_reason: nonempty(result) ? null : 'local tags_all cache is empty; legacy force mode is intentionally not run' });
+        return payload(result, 'urt_show_data.tags_all', { mtime: r?.mtime ?? null, cache_window:r?._cacheWindow??null, ...unknownViewMeta([r]), blocked_reason: nonempty(result) ? null : 'local tags_all cache is empty; legacy force mode is intentionally not run' });
     }
     if (name === 'video_tags' || name === 'video_tags_title') {
         const titleOnly = name === 'video_tags_title', table = titleOnly ? 'urt_show_video_tag_title' : 'urt_show_video_tag', pk = Math.max(0, int(q.pk, 17)), vid = txt(q, 'videoId'), v = (await db.rows(sql `SELECT * FROM urt_video WHERE ${vid ? sql `BINARY videoId=BINARY ${vid}` : sql `pk=${pk}`} LIMIT 1`))[0], c = v ? (await db.rows(sql `SELECT tags_json FROM ${sql.identifier(table)} WHERE pk_video=${v.pk} LIMIT 1`))[0] : undefined, cached = decode(c?.tags_json), info = { pk: int(v?.pk, pk), videoId: str(v?.videoId, vid) };
@@ -90,7 +90,7 @@ export async function tagReport(db: Reader, name: string, q: Q, now: Date): Prom
     const f = filters(q, true), cw = cacheWhere(q);
     if (name === 'tags_day' || name === 'tags_video') {
         const days = bound(q, 'days', 3, 365), r = await publishedReportRow(db,'urt_show_tag_cloud',{...selectionKeys(f),days},(await db.rows(sql `SELECT * FROM urt_show_tag_cloud WHERE days=${days} AND tags_count>0 AND ${cw} ORDER BY pk DESC LIMIT 1`))[0]);
-        return cachePayload(weighted(r?.tags_result), 'urt_show_tag_cloud', { filters: f, days, counts: { channels: int(r?.count_channels), videos: int(r?.count_videos), tags: int(r?.count_tags), tags_count: int(r?.tags_count) }, mtime: r?.mtime ?? null, cache_window:r?._cacheWindow??null });
+        return cachePayload(weighted(r?.tags_result), 'urt_show_tag_cloud', { filters: f, days, counts: { channels: int(r?.count_channels), videos: int(r?.count_videos), tags: int(r?.count_tags), tags_count: int(r?.tags_count) }, mtime: r?.mtime ?? null, cache_window:r?._cacheWindow??null, ...unknownViewMeta([r]) });
     }
     if (name === 'tags_relation_date') {
         const tag = txt(q, 'tag', '蔡英文'), d = dateQuery(q, 'date', date(now, -1)), r = await publishedReportRow(db,'urt_show_video_tag_date',{the_date:d,tag},(await db.rows(sql `SELECT * FROM urt_show_video_tag_date WHERE the_date=${d} AND BINARY tag=BINARY ${tag} LIMIT 1`))[0]);
@@ -98,7 +98,7 @@ export async function tagReport(db: Reader, name: string, q: Q, now: Date): Prom
     }
     if (name === 'tag_tags_days') {
         const tag = txt(q, 'tag', '柯文哲'), days = bound(q, 'days', 3, 365), r = await publishedReportRow(db,'urt_show_tag_cloud_tag',{...selectionKeys(f),tag,days},(await db.rows(sql `SELECT * FROM urt_show_tag_cloud_tag WHERE BINARY tag=BINARY ${tag} AND days=${days} AND ${cw} LIMIT 1`))[0]), result = wrapped(r?.tags_result, ['tags_result', 'tags', 'result', 'data']);
-        return { result, time: r?.mtime ?? null, ...counts(r, ['count_channels', 'count_videos', 'count_tags', 'tags_count']), videos: php(wrapped(r?.videos_json, ['videos_json', 'videos', 'result', 'data'])), meta: meta('urt_show_tag_cloud_tag', !!r && nonempty(result), { filters: f, tag, days }) };
+        return { result, time: r?.mtime ?? null, ...counts(r, ['count_channels', 'count_videos', 'count_tags', 'tags_count']), videos: php(wrapped(r?.videos_json, ['videos_json', 'videos', 'result', 'data'])), meta: meta('urt_show_tag_cloud_tag', !!r && nonempty(result), { filters: f, tag, days, ...unknownViewMeta([r]) }) };
     }
     const tag = txt(q, 'tag', '蔡英文'), days = bound(q, 'days', 60, 1095), month = /^\d{4}-\d{2}-01$/.test(str(q.month)) && str(q.month) >= '2010-01-01' ? str(q.month) : date(now).slice(0, 7) + '-01', from = date(now, -days).slice(0, 7) + '-01', to = date(now).slice(0, 7) + '-01', sourceRows = await db.rows(sql `SELECT * FROM urt_show_tag_month WHERE BINARY tag=BINARY ${tag} AND ${cw} AND ${name === 'tag_month' ? sql `the_month=${month}` : sql `the_month BETWEEN ${from} AND ${to}`} ${name === 'tag_month' ? sql `LIMIT 1` : sql `ORDER BY the_month`}`), rows=(await Promise.all(sourceRows.map(row=>publishedReportRow(db,'urt_show_tag_month',{...selectionKeys(f),the_month:str(row.the_month).slice(0,10),tag},row)))).filter((row):row is Row=>!!row), result = dict<unknown>();
     for (const r of rows)

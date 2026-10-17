@@ -3,7 +3,7 @@ import {workflowShutdownSignal} from '../../shared/shutdown.js';
 import type { Connection, RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { aiBusinessKey, canonicalHash as hash,laravelAiLock } from '../../shared/ai-business-key.js';
 import {RetryableProviderError,type ProviderRequest } from './provider.js';
-import {canRecoverScheduled,generationAttempts,type RunOptions} from './runner.js';
+import {canRecoverScheduled,generationAttempts,provenanceModel,type RunOptions} from './runner.js';
 export interface DerivedPlan extends ProviderRequest {
  workflow:'ai.event'|'ai.period'|'ai.mayor_person'; table:'urt_ai_event'|'urt_ai_period'|'urt_mayor_person_ai'; key:Record<string,string|number>;
  columns:Record<string,string|number>; source:unknown; locks:string[]; sourceCount:number;
@@ -39,7 +39,9 @@ export async function runDerived(db:Connection,planner:(phase?:'preview'|'locked
   if(derivedHash(await planner('verify'))!==inputHash)throw new Error('AI source changed during generation');
   const keys=Object.keys(plan.key),params=Object.values(plan.key);
   const [rows]=await db.query<RowDataPacket[]>(`SELECT * FROM ${plan.table} WHERE ${keys.map(k=>`BINARY ${k}=BINARY ?`).join(' AND ')} AND del_flag IS NULL ORDER BY pk DESC LIMIT 1`,params);
-  const projection={...plan.key,...plan.columns,ai_type:'sky-quality',result_json:result};
+  // Laravel writes the gateway's resolved model as ai_type (provenance_model); replays read it from the journal.
+  const [meta]=await db.query<RowDataPacket[]>('SELECT provider_json FROM ts_ai_runs WHERE run_id=?',[runId]);
+  const projection={...plan.key,...plan.columns,ai_type:provenanceModel(meta[0]?.provider_json==null?null:String(meta[0].provider_json),'sky-quality'),result_json:result};
   let pk=rows[0]?.pk;
   if(prior?.status==='published'&&rows[0]&&Object.entries(projection).every(([k,v])=>String(rows[0]![k])===String(v)))return {status:'unchanged',runId,targetPk:String(pk),sourceCount:plan.sourceCount};
   if(pk){await db.execute('UPDATE ts_ai_runs SET target_pk=? WHERE run_id=?',[pk,runId]);const [written]=await db.execute<ResultSetHeader>(`UPDATE ${plan.table} SET ${Object.keys(projection).map(k=>`${k}=?`).join(',')},mtime=? WHERE pk=? AND del_flag IS NULL`,[...Object.values(projection),now(),pk]);if(written.affectedRows!==1)throw new Error('AI projection target changed');}

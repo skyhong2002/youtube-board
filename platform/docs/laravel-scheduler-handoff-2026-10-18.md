@@ -11,8 +11,9 @@ tag.observe.tw 是一個常駐 TS worker（BullMQ + Redis）加上定時批次�
 
 - `redis`：私有、AOF 持久化、noeviction。
 - `worker-*`：每個交接批次一個 worker 程序（快取、YouTube 來源、留言、AI 每日、AI 每小時、AI 人物、Telegram，共 7 個），
-  `TS_QUEUE_MODE=workflow`，每個工作一條佇列，長工作（每日 AI 約 40 分鐘）不會卡住每分鐘的直播輪詢。
-  每個 worker 用自己的資料庫帳號，權限是該批工作在 `shared/worker-permissions.json` 的聯集（`tools/worker-principal.mjs`），
+  `TS_WORKER_BATCH=<批次>`，每批一條序列佇列（`TS_QUEUE_MODE=batch`，一次一個工作、依到達順序，和 Laravel 一樣），
+  長工作（每日 AI 約 40 分鐘）只卡住自己那一批，不會卡住每分鐘的直播輪詢。批次與工作的對應在 `shared/worker-batches.ts`。
+  每個 worker 用自己的 facade schema 與資料庫帳號，權限是該批工作在 `shared/worker-permissions.json` 的聯集（`tools/worker-schema.mjs` 的 `WORKER_BATCH`），
   只有資料表層級權限、沒有 DDL。主機 12GB（2026-10-18 可用約 4.7GB）、2 核心：每個 worker 約 150–250MB，合計約 1.5GB；
   每個工作一個 facade 程序（約 29 個、4–5GB）會吃光剩餘記憶體，所以按批分組。
 - `scheduler`：依 `jobs/src/scheduler.ts` 的排程設定（Asia/Taipei、五欄 cron）產生工作；與 worker 分開。排程時間沿用 Laravel

@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "timezone": "Asia/Taipei",
+  "schedules": [
+    { "id": "batch7-telegram-hourly-v1", "workflow": "notify.telegram.hourly", "cron": "*/10 * * * *", "options": {} },
+    { "id": "batch7-telegram-daily-v1", "workflow": "notify.telegram.daily", "cron": "0,30 9-20 * * *", "options": {} }
+  ]
+}

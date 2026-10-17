@@ -7,6 +7,13 @@ import { assertExecute, executionPolicy } from './policy.js';
 import { loadVocabularySnapshot } from './load-vocabulary.js';
 import { matchVocabulary } from './match.js';
 export const youtubeCommands = { 'youtube:tvbs:videos': 'youtube.tvbs.videos', 'youtube:tvbs:live:poll': 'youtube.tvbs.live.poll', 'youtube:channels:stats': 'youtube.channels.stats', 'youtube:channels:retire': 'youtube.channels.retire', 'youtube:channels:videos': 'youtube.channels.videos.general', 'youtube:channels:videos:live-group': 'youtube.channels.videos.live_group', 'youtube:channels:videos:live': 'youtube.channels.videos.live', 'youtube:videos:duration': 'youtube.videos.duration', 'youtube:comments:queue': 'youtube.comments.queue', 'youtube:comments:fetch': 'youtube.comments.fetch', 'youtube:comments:reset': 'youtube.comments.reset', 'youtube:videos:stats': 'youtube.videos.stats', 'youtube:live:poll': 'youtube.live.poll', 'youtube:tag-videos:backfill': 'youtube.tag_videos.backfill' } as const;
+/** Laravel `--live=1` is tag 52 (youtube.channels.videos.live) and `--live=2` tag 89 (youtube.channels.videos.live_group). */
+export const uploadsLiveMode = (job: string) => job === 'youtube.channels.videos.live' ? { live: 1 as const } : job === 'youtube.channels.videos.live_group' ? { live: 2 as const } : {};
+/** Laravel services.youtube transient_retries (0–3, default 1) and retry_delay_ms (0–5000, default 250). */
+export function youtubeRetryOptions(env: NodeJS.ProcessEnv) {
+  const bounded = (value: string | undefined, fallback: number, max: number) => { const n = Number.parseInt(value ?? '', 10); return Number.isFinite(n) ? Math.max(0, Math.min(max, n)) : fallback; };
+  return { transientRetries: bounded(env.YOUTUBE_API_TRANSIENT_RETRIES, 1, 3), retryDelayMs: bounded(env.YOUTUBE_API_RETRY_DELAY_MS, 250, 5000) };
+}
 export function youtubeResultState(result: { skipped: unknown[]; applied?:unknown[]; enqueued?:unknown[]; truncated?: boolean; checkpointed?: unknown[]; stoppedReason?: string; capacityBlocked?: string }): 'failed' | 'incomplete' | 'completed' | 'skipped' {
   if(result.skipped.length)return 'failed';
   if(result.stoppedReason==='quota-exhausted')return result.applied?.length || result.enqueued?.length || result.checkpointed?.length ? 'incomplete' : 'skipped';
@@ -20,9 +27,10 @@ export function validateYoutubeArguments(args: string[]) {
   const command = args[0] as keyof typeof youtubeCommands, job = youtubeCommands[command];
   const options = job === 'youtube.channels.stats' ? ['u_id','channel','hours']
     : job === 'youtube.channels.retire' ? ['u_id','channel','stale-days','restore']
-    : (job.startsWith('youtube.channels.videos.') || job === 'youtube.tvbs.videos') ? ['u_id','channel','days','max-pages','max-results']
+    : job === 'youtube.tvbs.videos' ? ['u_id','channel','days','max-pages','max-results','offset']
+    : job.startsWith('youtube.channels.videos.') ? ['u_id','channel','days','max-pages','max-results']
     : job === 'youtube.videos.duration' ? ['videoId','enqueue-missing']
-    : job === 'youtube.comments.queue' ? ['u_id','channel','videoId','hours','min','tagid']
+    : job === 'youtube.comments.queue' ? ['u_id','channel','videoId','hours','min','tagid','or','not']
     : job === 'youtube.comments.fetch' ? ['videoId','max-pages','max-reply-pages','max-state-mib']
     : job === 'youtube.comments.reset' ? ['videoId']
     : job === 'youtube.videos.stats' ? ['videoId','today']
@@ -43,6 +51,7 @@ export function validateYoutubeArguments(args: string[]) {
     if (['tagid','or','not'].includes(name) && (!/^\d+(,\d+)*$/.test(value) || value.split(',').length > 20 || value.split(',').some(v => Number(v) < 1 || Number(v) > 2147483647))) throw new Error('Invalid taxonomy IDs');
     if (['from','to'].includes(name) && (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString().slice(0,10) !== value)) throw new Error('Invalid source date');
     if (name === 'vocabulary-version' && !/^[A-Za-z0-9_-]{1,100}$/.test(value)) throw new Error('Invalid vocabulary version');
+    if (name === 'offset' && value !== 'auto' && (!/^\d{1,9}$/.test(value))) throw new Error('Invalid offset');
   }
   if (job === 'youtube.comments.reset' && !parsed.has('videoId')) throw new Error('Reset requires explicit video identity');
   if (parsed.has('restore') && !parsed.has('u_id') && !parsed.has('channel')) throw new Error('Restore requires explicit channel');
@@ -60,7 +69,7 @@ export async function executeYoutubeWorkflow(args: string[], env: NodeJS.Process
   const maxAttempts = integer('max-api-attempts', 200, 1000);
   const db = await connectDatabase(env);
   try {
-    const youtube = new YoutubeDataApiClient({ keys: [env.YOUTUBE_API_KEY ?? '', ...(env.YOUTUBE_API_KEYS ?? '').split(',')], ledger: new MysqlQuotaLedger(db, Number(env.INGESTION_YOUTUBE_DAILY_QUOTA_BUDGET ?? 9000)), maxAttempts });
+    const youtube = new YoutubeDataApiClient({ ...youtubeRetryOptions(env), keys: [env.YOUTUBE_API_KEY ?? '', ...(env.YOUTUBE_API_KEYS ?? '').split(',')], ledger: new MysqlQuotaLedger(db, Number(env.INGESTION_YOUTUBE_DAILY_QUOTA_BUDGET ?? 9000)), maxAttempts });
     const work = async (assertOwnership: () => Promise<void>) => {
       const now = new Date(), ctx = { db, youtube, now, clock:()=>new Date(), execute, assertOwnership };
       const videoId = option('videoId');
@@ -69,16 +78,16 @@ export async function executeYoutubeWorkflow(args: string[], env: NodeJS.Process
       const channel = uId === undefined ? {} : { uId: Number(uId) };
       if (job === 'youtube.channels.stats') return channelStatisticsJob(ctx, { ...channel, limit: integer('limit', 25, 50), hours: integer('hours', 22, 168) });
       if (job === 'youtube.channels.retire') return channelRetirementJob(ctx, { ...channel, limit: integer('limit', 25, 50), staleDays: integer('stale-days', 14, 365), restore: args.includes('--restore') });
-      if ((job.startsWith('youtube.channels.videos.') || job === 'youtube.tvbs.videos')) return channelUploadsJob(ctx, { ...channel, limit: integer('limit', 20, 100), tvbs: job === 'youtube.tvbs.videos', maxPages: integer('max-pages', 1, 200), maxResults:integer('max-results',5,50), days: integer('days', 7, 365), ...(job.endsWith('live_group') ? { live: 1 as const } : job.endsWith('.live') ? { live: 2 as const } : {}) });
+      if ((job.startsWith('youtube.channels.videos.') || job === 'youtube.tvbs.videos')) return channelUploadsJob(ctx, { ...channel, limit: integer('limit', 20, 100), tvbs: job === 'youtube.tvbs.videos', maxPages: integer('max-pages', 1, 200), maxResults:integer('max-results',5,50), days: integer('days', 7, 365), ...uploadsLiveMode(job), ...(job === 'youtube.tvbs.videos' ? { offset: option('offset') === 'auto' ? 'auto' as const : Number(option('offset') ?? 0) } : {}) });
       if (job === 'youtube.videos.duration') return videoDurationsJob(ctx, { ...specific, limit: integer('limit', 50, 50), enqueueMissing: args.includes('--enqueue-missing') });
-      if (job === 'youtube.comments.queue') return commentQueueJob(ctx, { ...specific, ...channel, limit: integer('limit', 20, 20), hours: integer('hours', 24, 720), min: Number(option('min') ?? 500), tagIds: list('tagid') });
+      if (job === 'youtube.comments.queue') return commentQueueJob(ctx, { ...specific, ...channel, limit: integer('limit', 20, 20), hours: integer('hours', 24, 720), min: Number(option('min') ?? 500), tagIds: list('tagid'), orTagIds: list('or'), notTagIds: list('not') });
       if (job === 'youtube.comments.reset') return commentResetJob(ctx, videoId!);
       if (job === 'youtube.comments.fetch') return commentFetchJob(ctx, { ...specific, limit: integer('limit', 1, 10), maxPages: integer('max-pages', 1, 3), maxReplyPages: integer('max-reply-pages', 20, 100), maxStateMiB:integer('max-state-mib',12,64) });
       if (job === 'youtube.videos.stats') return videoStatisticsJob(ctx, { ...specific, limit: integer('limit', 50, 50), today: args.includes('--today') });
       if (job === 'youtube.live.poll' || job === 'youtube.tvbs.live.poll') return livePollingJob(ctx, { ...specific, tvbs: job === 'youtube.tvbs.live.poll', staleSeconds: integer('stale-seconds', 40, 3600), limit: integer('limit', 50, 50), intervalMinutes: integer('interval', 11, 240) });
       const to = option('to') ?? taipeiSql(now).slice(0, 10), days = integer('days', 2, 31);
       const from = option('from') ?? new Date(Date.parse(to + 'T00:00:00Z') - (days - 1) * 86400000).toISOString().slice(0, 10);
-      const input: BackfillInput = { tagIds: list('tagid'), orTagIds: list('or'), notTagIds: list('not'), from, to, channelLimit: integer('limit', 100, 500), maxPages: integer('max-pages', 20, 200), maxResults: integer('max-results', 50, 50), videoLimit: integer('video-limit', 20000, 20000), rebuildCache: !args.includes('--no-cache') };
+      const input: BackfillInput = { tagIds: list('tagid'), orTagIds: list('or'), notTagIds: list('not'), from, to, channelLimit: integer('limit', 100, 500), maxPages: integer('max-pages', 20, 200), maxResults: integer('max-results', 50, 50), videoLimit: integer('video-limit', 10000, 20000), rebuildCache: !args.includes('--no-cache') };
       let dictionary: TagDictionary | undefined;
       if (input.rebuildCache) {
         const snapshot = await loadVocabularySnapshot(db, option('vocabulary-version'));
@@ -88,7 +97,7 @@ export async function executeYoutubeWorkflow(args: string[], env: NodeJS.Process
     };
     // Shared lock serializes overlapping source/cache writes among the reviewed TS YouTube jobs.
     if (!execute) return await work(async () => {});
-    return await withWriterLock(db, 'youtube.source-and-caches', async assertTsOwnership => withLaravelSourceLock(db,job==='youtube.comments.reset'?'youtube.comments.fetch':job,env,async assertLaravelOwnership => {
+    return await withWriterLock(db, job==='youtube.comments.reset'?'youtube.comments.fetch':job, async assertTsOwnership => withLaravelSourceLock(db,job==='youtube.comments.reset'?'youtube.comments.fetch':job,env,async assertLaravelOwnership => {
       const assertOwnership=async()=>{workflowShutdownSignal().throwIfAborted();await assertTsOwnership();await assertLaravelOwnership();};
       const execution = randomUUID();
       await db.execute('INSERT INTO ts_job_runs (job_key,execution_key,status) VALUES (?,?,?)', [job, execution, 'running']);

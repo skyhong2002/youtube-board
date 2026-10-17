@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { selectPhotoTerms, photosCacheJob, predictionsCacheJob, cloudCacheJob, countsCacheJob, keywordsCacheJob, keywordRelationCacheJob, liveCacheCleanJob, liveCleanupJob, liveDisplayCacheJob, liveTagDateCacheJob, scheduleCacheJob, tagDateCacheJob, tagMonthCacheJob, taipeiSql, validateCacheInput, type CacheInput, type TagDictionary } from '@youtube-board/ingestion';
+import { selectPhotoTerms, photosCacheJob, predictionsCacheJob, cloudCacheJob, countsCacheJob, keywordsCacheJob, peopleCacheJob, tagCloudCacheJob, STREAM_VIDEO_LIMIT, keywordRelationCacheJob, liveCacheCleanJob, liveCleanupJob, liveDisplayCacheJob, liveTagDateCacheJob, scheduleCacheJob, tagDateCacheJob, tagMonthCacheJob, taipeiSql, validateCacheInput, type CacheInput, type TagDictionary } from '@youtube-board/ingestion';
 import { assertExecute, executionPolicy } from './policy.js';
 import { connectDatabase, withWriterLock } from './database.js';
 import { loadVocabularySnapshot } from './load-vocabulary.js';
@@ -10,21 +10,28 @@ export const cacheCommands = {
  'reports:tag-date:build':'reports.tag_date.build', 'reports:people:build':'reports.people.build', 'reports:channel-cloud:build':'reports.channel_cloud.build', 'reports:tag-cloud:build':'reports.tag_cloud.build', 'reports:keyword-cloud:build':'reports.keyword_cloud.build', 'reports:keyword-relations:build':'reports.keyword_relations.build', 'reports:tag-month:build':'reports.tag_month.build', 'reports:keywords:cache':'reports.keywords.cache', 'reports:live-tag-date:build':'reports.live_tag_date.build',
 } as const;
 const base=['tagid','or','not','channel-limit','video-limit','vocabulary-version'];
-export const cacheFields: Record<string,{values:string[];flags:string[]}> = Object.fromEntries(Object.values(cacheCommands).map(job=>[job,{flags:job==='reports.photos.build'?['refresh']:[],values: job==='reports.photos.build'?['terms','limit','vocabulary-version']:job==='reports.channel_predictions.build'?['u_id','limit','after-id']:job==='reports.counts.build'?['u_id','limit']:job==='reports.schedule.build'?['videoId','limit']:job==='youtube.live.cleanup'||job==='reports.live.clean'?['limit']:job==='reports.live.build'?['hours','limit']:job==='reports.channel_cloud.build'?['u_id','days','channel-limit','video-limit','vocabulary-version']:job==='reports.keyword_relations.build'?['subject','from','to','days','channel-limit','video-limit','vocabulary-version']:job==='reports.tag_month.build'?[...base,'subject','month']:job==='reports.keyword_cloud.build'?[...base,'subject','days']:job==='reports.tag_cloud.build'||job==='reports.keywords.cache'?[...base,'days']:[...base,'from','to','days']} ]));
+export const cacheFields: Record<string,{values:string[];flags:string[]}> = Object.fromEntries(Object.values(cacheCommands).map(job=>[job,{flags:job==='reports.photos.build'?['refresh']:[],values: job==='reports.photos.build'?['terms','limit','vocabulary-version']:job==='reports.channel_predictions.build'?['u_id','limit','after-id']:job==='reports.counts.build'?['u_id','limit']:job==='reports.schedule.build'?['videoId','limit','hours']:job==='youtube.live.cleanup'||job==='reports.live.clean'?['limit']:job==='reports.live.build'?['hours','limit']:job==='reports.channel_cloud.build'?['u_id','days','channel-limit','video-limit','vocabulary-version']:job==='reports.keyword_relations.build'?['subject','from','to','days','channel-limit','video-limit','vocabulary-version']:job==='reports.tag_month.build'?[...base,'subject','month']:job==='reports.keyword_cloud.build'?[...base,'subject','days']:job==='reports.tag_cloud.build'?[...base,'days']:job==='reports.keywords.cache'?[...base,'days','recent-days']:job==='reports.people.build'?['tagid','days','limit','offset','group','keyword-limit','channel-limit','video-limit']:job==='reports.tag_date.build'?[...base,'from','to','days','date-limit']:[...base,'from','to','days']} ]));
+/** Laravel clamps these limits instead of rejecting them (e.g. scheduled `reports:counts:build --limit=500` runs 100). */
+const laravelLimitClamp:Record<string,number>={'reports.counts.build':100,'reports.live.build':100,'reports.live.clean':200,'reports.schedule.build':200,'reports.people.build':200};
+/** Builders that stream one day of rows at a time may scan the long tag-cloud/tags_all windows. */
+const streamedVideoJobs=['reports.tag_cloud.build','reports.keywords.cache'];
 /** Validates queue and CLI inputs before connection, with the same bounds as the direct builders. */
 export function validateCacheArguments(args:string[],now=new Date()) {
  if(!Array.isArray(args)||args.length>24||args.some(a=>typeof a!=='string'||a.length>512)||!args[0]||!Object.hasOwn(cacheCommands,args[0]))throw new Error('Unknown cache workflow');
  const command=args[0] as keyof typeof cacheCommands,job=cacheCommands[command],schema=cacheFields[job]!,options=new Map<string,string>();
  for(const arg of args.slice(1)){const m=/^--([a-zA-Z_-]+)(?:=(.*))?$/.exec(arg);if(!m||options.has(m[1]!)||!['execute','dry-run',...schema.values,...schema.flags].includes(m[1]!)||(['execute','dry-run',...schema.flags].includes(m[1]!)?m[2]!==undefined:!m[2]))throw new Error('Unknown, duplicate or malformed cache argument');options.set(m[1]!,m[2]??'');}
  if(options.has('execute')&&options.has('dry-run'))throw new Error('Conflicting cache modes');
- const maxima:Record<string,number>={'after-id':2147483647,limit:['reports.counts.build','reports.photos.build','reports.channel_predictions.build'].includes(job)?100:job==='reports.live.build'?500:200,u_id:2147483647,days:366,hours:720,'channel-limit':5000,'video-limit':100000};
- for(const [key,value]of options){if(key in maxima&&(!/^\d+$/.test(value)||!Number.isSafeInteger(Number(value))||Number(value)<(key==='after-id'?0:1)||Number(value)>maxima[key]!))throw new Error('Invalid cache numeric bound');if(['tagid','or','not'].includes(key)&&(!/^\d+(,\d+)*$/.test(value)||value.split(',').length>20))throw new Error('Invalid taxonomy selection');if(key==='videoId'&&!/^[A-Za-z0-9_-]{1,32}$/.test(value))throw new Error('Invalid video identity');if(key==='vocabulary-version'&&!/^[A-Za-z0-9_-]{1,100}$/.test(value))throw new Error('Invalid vocabulary version');}
+ const maxima:Record<string,number>={'after-id':2147483647,limit:Object.hasOwn(laravelLimitClamp,job)?2147483647:['reports.photos.build','reports.channel_predictions.build'].includes(job)?100:200,u_id:2147483647,...(job==='reports.tag_cloud.build'?{}:{days:job==='reports.keywords.cache'?90:job==='reports.people.build'?365:366}),'recent-days':2147483647,hours:job==='reports.schedule.build'?2147483647:720,'channel-limit':5000,'video-limit':streamedVideoJobs.includes(job)?STREAM_VIDEO_LIMIT:100000,'keyword-limit':20000,'date-limit':400};
+ for(const [key,value]of options){if(key in maxima&&(!/^\d+$/.test(value)||!Number.isSafeInteger(Number(value))||Number(value)<(key==='after-id'?0:1)||Number(value)>maxima[key]!))throw new Error('Invalid cache numeric bound');if(['tagid','or','not'].includes(key)&&(!/^\d+(,\d+)*$/.test(value)||value.split(',').length>20))throw new Error('Invalid taxonomy selection');if(key==='videoId'&&!/^[A-Za-z0-9_-]{1,32}$/.test(value))throw new Error('Invalid video identity');if(key==='vocabulary-version'&&!/^[A-Za-z0-9_-]{1,100}$/.test(value))throw new Error('Invalid vocabulary version');if(key==='offset'&&value!=='auto'&&(!/^\d+$/.test(value)||!Number.isSafeInteger(Number(value))||Number(value)>2147483647))throw new Error('Invalid people offset');if(key==='group'&&(!value.trim()||[...value].length>64||/[\u0000-\u001f\u007f]/.test(value)))throw new Error('Invalid people group');}
+ // Laravel tag cloud takes a comma list of periods (default 1,3,7,30,90), each 1..365, at most 10, in one run.
+ const daysList=job==='reports.tag_cloud.build'?[...new Set((options.get('days')??'1,3,7,30,90').split(',').map(d=>{if(!/^\d+$/.test(d)||Number(d)<1||Number(d)>365)throw new Error('Invalid tag cloud period');return Number(d);}))]:[];
+ if(daysList.length>10)throw new Error('Invalid tag cloud period');
  const number=(key:string,otherwise:number)=>Number(options.get(key)??otherwise), list=(key:string)=>[...new Set(options.get(key)?.split(',').map(Number)??[])].sort((a,b)=>a-b);
- const to=options.get('to')??taipeiSql(now).slice(0,10),days=number('days',job==='reports.people.build'?37:job==='reports.keywords.cache'?7:1),from=options.get('from')??new Date(Date.parse(to)-(days-1)*86400000).toISOString().slice(0,10);
- const input:CacheInput={tagIds:list('tagid'),orTagIds:list('or'),notTagIds:list('not'),from,to,days,channelLimit:number('channel-limit',5000),videoLimit:number('video-limit',20000),...(options.has('u_id')?{uId:number('u_id',1)}:{}),...(options.has('subject')?{subject:options.get('subject')!}:{})};
+ const to=options.get('to')??taipeiSql(now).slice(0,10),days=job==='reports.tag_cloud.build'?Math.max(...daysList):number('days',job==='reports.people.build'?37:job==='reports.keywords.cache'?31:1),from=options.get('from')??new Date(Date.parse(to)-(days-1)*86400000).toISOString().slice(0,10);
+ const input:CacheInput={tagIds:list('tagid'),orTagIds:list('or'),notTagIds:list('not'),from,to,days,channelLimit:number('channel-limit',['reports.tag_cloud.build','reports.tag_date.build','reports.people.build'].includes(job)?1000:5000),videoLimit:number('video-limit',job==='reports.tag_cloud.build'||job==='reports.keywords.cache'?50000:job==='reports.tag_date.build'||job==='reports.people.build'?10000:20000),...(options.has('u_id')?{uId:number('u_id',1)}:{}),...(options.has('subject')?{subject:options.get('subject')!}:{})};
  if(options.has('terms')&&(options.get('terms')!.split(',').some(t=>!t||[...t].length>32||/[\uD800-\uDFFF]/u.test(t))||options.get('terms')!.split(',').length>number('limit',20)))throw new Error('Invalid explicit photo terms');
- if(job==='reports.people.build'&&!options.has('tagid')&&!options.has('or'))input.tagIds=[13];
- if(job==='reports.keywords.cache'&&input.days!==7)throw new Error('tags_all uses a fixed seven-day window');
+ if(job==='reports.people.build'&&!options.has('tagid'))input.tagIds=[13];
+ if(job==='reports.people.build'&&input.tagIds.length!==1)throw new Error('People cache takes one tagid');
  if(job==='reports.keywords.cache'&&!options.has('or'))input.orTagIds=[1,2,13,14];
  if(job==='reports.tag_month.build'){
    const month=options.get('month');if(!month||!/^\d{4}-\d{2}$/.test(month)||Number(month.slice(-2))<1||Number(month.slice(-2))>12)throw new Error('Explicit YYYY-MM month required');
@@ -33,7 +40,11 @@ export function validateCacheArguments(args:string[],now=new Date()) {
  validateCacheInput(input);if(input.to>taipeiSql(now).slice(0,10))throw new Error('Future cache dates are forbidden');
  if(['reports.keyword_cloud.build','reports.keyword_relations.build','reports.tag_month.build'].includes(job)&&!input.subject)throw new Error('Explicit subject required');
  if(job==='reports.keyword_relations.build'&&(input.tagIds.length||input.orTagIds!.length||input.notTagIds!.length))throw new Error('Relations cache has global coverage');
- return {command,job,options,input,execute:options.has('execute'),number};
+ const limit=Math.min(number('limit',job==='reports.people.build'?5:20),laravelLimitClamp[job]??Number.MAX_SAFE_INTEGER);
+ const recentDays=Math.min(number('recent-days',7),input.days),hours=job==='reports.schedule.build'?Math.min(number('hours',1),168):number('hours',2);
+ // The Laravel scheduler passes --limit=5 --offset=auto for people; those are the defaults here so the schedule entry needs no extra options.
+ const offset:number|'auto'=job==='reports.people.build'&&(options.get('offset')??'auto')==='auto'?'auto':number('offset',0);
+ return {command,job,options,input,execute:options.has('execute'),number,limit,daysList,recentDays,hours,offset};
 }
 export async function executeCacheWorkflow(args:string[],env:NodeJS.ProcessEnv,scheduled=false) {
  const now=new Date(),v=validateCacheArguments(args,now),{job,execute,input,options}=v;
@@ -44,24 +55,27 @@ export async function executeCacheWorkflow(args:string[],env:NodeJS.ProcessEnv,s
    const ctx={db,now,execute,assertOwnership};
    if(job==='reports.channel_predictions.build')return predictionsCacheJob(ctx,{...(input.uId?{uId:input.uId}:{}),limit:v.number('limit',20),...(options.has('after-id')?{afterId:v.number('after-id',0)}:{})});
    if(job==='reports.photos.build'){let terms=options.get('terms')?.split(',');if(!terms){const snapshot=await loadVocabularySnapshot(db,options.get('vocabulary-version'));terms=await selectPhotoTerms(ctx,snapshot.terms.map(t=>t.term),v.number('limit',20),options.has('refresh'));}return photosCacheJob(ctx,{terms,limit:v.number('limit',20),refresh:options.has('refresh')});}
-   if(job==='reports.counts.build')return countsCacheJob(ctx,{...(input.uId?{uId:input.uId}:{}),limit:v.number('limit',20)});
-   if(job==='reports.schedule.build')return scheduleCacheJob(ctx,{...(options.has('videoId')?{videoId:options.get('videoId')!}:{}),limit:v.number('limit',20)});
+   if(job==='reports.counts.build')return countsCacheJob(ctx,{...(input.uId?{uId:input.uId}:{}),limit:v.limit});
+   if(job==='reports.schedule.build')return scheduleCacheJob(ctx,{...(options.has('videoId')?{videoId:options.get('videoId')!}:{}),limit:v.limit,hours:v.hours});
    if(job==='youtube.live.cleanup')return liveCleanupJob(ctx,v.number('limit',20));
-   if(job==='reports.live.clean')return liveCacheCleanJob(ctx,v.number('limit',20));
-   if(job==='reports.live.build')return liveDisplayCacheJob(ctx,{hours:v.number('hours',2),limit:v.number('limit',20)});
+   if(job==='reports.live.clean')return liveCacheCleanJob(ctx,v.limit);
+   if(job==='reports.live.build')return liveDisplayCacheJob(ctx,{hours:v.hours,limit:v.limit});
+   if(job==='reports.people.build')return peopleCacheJob(ctx,{group:options.get('group')?.trim()||'政治人物',tagId:input.tagIds[0]!,days:input.days,limit:v.limit,offset:v.offset,keywordLimit:v.number('keyword-limit',5000),channelLimit:input.channelLimit,videoLimit:input.videoLimit});
    const snapshot=await loadVocabularySnapshot(db,options.get('vocabulary-version'));
    const dictionary:TagDictionary={version:snapshot.id,coverage:snapshot.coverage,rule:'youtube-tag-exact-v1-title2-length',match:(title,description)=>matchVocabulary({title,description},snapshot)};
-   if(job==='reports.tag_date.build'||job==='reports.people.build')return tagDateCacheJob(ctx,input,dictionary);
+   if(job==='reports.tag_date.build')return tagDateCacheJob(ctx,{...input,...(options.has('date-limit')?{dateLimit:v.number('date-limit',400)}:{})},dictionary);
+   if(job==='reports.tag_cloud.build')return tagCloudCacheJob(ctx,input,v.daysList,dictionary);
    if(job==='reports.live_tag_date.build')return liveTagDateCacheJob(ctx,input,dictionary);
    if(job==='reports.tag_month.build')return tagMonthCacheJob(ctx,input,dictionary);
    if(job==='reports.keyword_relations.build')return keywordRelationCacheJob(ctx,input,dictionary);
-   if(job==='reports.keywords.cache')return keywordsCacheJob(ctx,input,dictionary);
-   return cloudCacheJob(ctx,input,dictionary,job==='reports.channel_cloud.build'?'channel':job==='reports.keyword_cloud.build'?'keyword':'tag');
+   if(job==='reports.keywords.cache')return keywordsCacheJob(ctx,{...input,recentDays:v.recentDays},dictionary);
+   return cloudCacheJob(ctx,input,dictionary,job==='reports.channel_cloud.build'?'channel':'keyword');
   };
   if(!execute)return await work(async()=>{});
-  return await withWriterLock(db,job==='reports.photos.build'?'reports.photos.build':'youtube.source-and-caches',async assertOwnership=>{
+  // One lock per workflow like Laravel's per-job ingestion lock; a batch worker's serial queue orders same-batch jobs.
+  return await withWriterLock(db,job,async assertOwnership=>{
    const executionKey=randomUUID();await db.execute('INSERT INTO ts_job_runs(job_key,execution_key,status) VALUES(?,?,?)',[job,executionKey,'running']);
-   try {const result={...await work(assertOwnership),executionKey};await db.execute('UPDATE ts_job_runs SET status=?,result=? WHERE job_key=? AND execution_key=?',[result.skipped.length?'failed':(('truncated' in result&&result.truncated)||('unavailable' in result&&result.unavailable.length))?'incomplete':'completed',JSON.stringify(result),job,executionKey]);return result;}
+   try {const result={...await work(assertOwnership),executionKey};await db.execute('UPDATE ts_job_runs SET status=?,result=? WHERE job_key=? AND execution_key=?',[result.skipped.length?'failed':(('truncated' in result&&result.truncated)||('unavailable' in result&&Array.isArray(result.unavailable)&&result.unavailable.length>0))?'incomplete':'completed',JSON.stringify(result),job,executionKey]);return result;}
    catch(error){const [pending]=await db.query<import('mysql2/promise').RowDataPacket[]>('SELECT cache_table,cache_key FROM ts_report_cache_lineage WHERE status=? AND generated_at=? LIMIT 100',['pending',taipeiSql(now)]).catch(()=>[[]]);await db.execute('UPDATE ts_job_runs SET status=?,result=? WHERE job_key=? AND execution_key=?',['failed',JSON.stringify({error:'cache-build-failed',publication:'inspect pending lineage; replay repairs MyISAM writes',pending,specificPending:await db.query<import('mysql2/promise').RowDataPacket[]>("SELECT 'ts_tag_cache_lineage' AS source,selection_key,the_date FROM ts_tag_cache_lineage WHERE status='pending' AND generated_at=? UNION ALL SELECT 'ts_live_tag_cache_lineage' AS source,selection_key,the_date FROM ts_live_tag_cache_lineage WHERE status='pending' AND generated_at=? LIMIT 100",[taipeiSql(now),taipeiSql(now)]).then(([r])=>r).catch(()=>[])}),job,executionKey]).catch(()=>undefined);throw error;}
   });
  } finally {await db.end();}

@@ -911,6 +911,12 @@
         ],
         "ts_live_tag_cache_lineage": [
           "SELECT"
+        ],
+        "tag_group": [
+          "SELECT"
+        ],
+        "tags": [
+          "SELECT"
         ]
       },
       "dependencies": []

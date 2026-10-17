@@ -1,4 +1,4 @@
-import {keywordCloudFromEvidence,keywordDayFromEvidence} from '../../shared/cache-metrics.js';
+import {keywordCloudFromEvidence,keywordDayFromEvidence,tagMetricsAccumulator} from '../../shared/cache-metrics.js';
 import { reportCacheKey } from '../../shared/report-cache-key.js';
 import type { Connection, RowDataPacket } from 'mysql2/promise';
 import { cap, activeChannel } from './channel-jobs.js';
@@ -10,8 +10,10 @@ export interface CacheInput extends TagSelection { from: string; to: string; day
 export const dateKeys = (input: TagSelection) => ({ tagid: input.tagIds.length ? input.tagIds.join(',') : null, tag_or: input.orTagIds?.length ? input.orTagIds.join(',') : null, tag_not: input.notTagIds?.length ? input.notTagIds.join(',') : null });
 export const selectionKey = (input: TagSelection) => JSON.stringify([input.tagIds,input.orTagIds ?? [],input.notTagIds ?? []]);
 export function daysBetween(from: string, to: string) { const output: string[] = []; for (const d of [from,to]) if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !Number.isFinite(Date.parse(d)) || new Date(d).toISOString().slice(0,10) !== d) throw new Error('Invalid cache date'); const count = (Date.parse(to)-Date.parse(from))/86400000+1; cap(count,366); for(let i=0;i<count;i++) output.push(new Date(Date.parse(from)+i*86400000).toISOString().slice(0,10)); return output; }
+/** Streamed builders (tag cloud, tags_all, tag date) hold one day of rows at a time, so the scan cap can cover 90-day production windows. */
+export const STREAM_VIDEO_LIMIT = 1000000;
 export function validateCacheInput(input: CacheInput) {
-  daysBetween(input.from,input.to); cap(input.days,366); cap(input.channelLimit,5000); cap(input.videoLimit,100000);
+  daysBetween(input.from,input.to); cap(input.days,366); cap(input.channelLimit,5000); cap(input.videoLimit,STREAM_VIDEO_LIMIT);
   if (input.uId !== undefined) cap(input.uId,2147483647);
   for(const values of [input.tagIds,input.orTagIds ?? [],input.notTagIds ?? []]) if(values.length>20 || values.some(v=>!Number.isSafeInteger(v)||v<1||v>2147483647) || values.join(',').length>64 || [...new Set(values)].sort((a,b)=>a-b).join(',')!==values.join(',')) throw new Error('Cache taxonomy must be sorted unique bounded IDs');
   if(input.subject !== undefined && (!input.subject || [...input.subject].length>32 || /[\uD800-\uDFFF]/u.test(input.subject))) throw new Error('Invalid cache subject');
@@ -26,6 +28,32 @@ export async function cacheChannels(ctx:CacheContext,input:CacheInput) {
   if(rows.length>input.channelLimit) throw new Error('Cache channel cap reached; prior publication retained');
   return rows.map(r=>Number(r.u_id));
 }
+/** Laravel TagDate/TagCloud/TagsAll builders pick channels from urt_count tag markers only (no urt_channel join, NULL tags never match NOT LIKE). */
+export async function legacyTagChannels(ctx:CacheContext,input:TagSelection,limit:number) {
+  cap(limit,5000);const clauses:string[]=[],params:unknown[]=[];
+  if(input.orTagIds?.length){clauses.push('('+input.orTagIds.map(()=>'tags LIKE ?').join(' OR ')+')');params.push(...input.orTagIds.map(id=>`%[${id}]%`));}
+  for(const id of input.tagIds){clauses.push('tags LIKE ?');params.push(`%[${id}]%`);}
+  for(const id of input.notTagIds??[]){clauses.push('tags NOT LIKE ?');params.push(`%[${id}]%`);}
+  const [rows]=await ctx.db.query<RowDataPacket[]>(`SELECT u_id FROM urt_count${clauses.length?' WHERE '+clauses.join(' AND '):''} ORDER BY u_id LIMIT ?`,[...params,limit+1]);
+  return {channels:rows.slice(0,limit).map(r=>Number(r.u_id)),truncated:rows.length>limit};
+}
+/** Laravel semantics: count the whole inclusive window first and block (no write) above the cap; otherwise visit every row.
+ * Rows are read in one-day publishedAt slices so a 90-day window never sits in memory at once. */
+export async function scanVideos(ctx:CacheContext,channels:number[],from:string,to:string,limit:number,visit:(row:RowDataPacket)=>void) {
+  cap(limit,STREAM_VIDEO_LIMIT);if(!channels.length)return {count:0,truncated:false};
+  const ids=channels.map(()=>'?').join(',');
+  const [sizes]=await ctx.db.query<RowDataPacket[]>(`SELECT COUNT(*) AS n FROM urt_video WHERE u_id IN (${ids}) AND publishedAt>=? AND publishedAt<=?`,[...channels,from,to]);
+  const count=Number(sizes[0]?.n??0);if(count>limit)return {count,truncated:true};
+  let seen=0;
+  for(let start=from;start<=to;){
+    const next=taipeiSql(new Date(legacyInstant(start)!.getTime()+86400000)),last=next>to;
+    const [rows]=await ctx.db.query<RowDataPacket[]>(`SELECT pk,videoId,u_id,title,description,viewCount,publishedAt FROM urt_video WHERE u_id IN (${ids}) AND publishedAt>=? AND publishedAt${last?'<=':'<'}? ORDER BY publishedAt,pk`,[...channels,start,last?to:next]);
+    seen+=rows.length;if(seen>limit)throw new Error('Cache video cap reached during scan; prior publication retained');
+    for(const row of rows)visit(row);
+    if(last)break;start=next;
+  }
+  return {count:seen,truncated:false};
+}
 export async function cacheVideos(ctx:CacheContext,input:CacheInput,channels:number[],from=input.from,to=input.to) {
   if(!channels.length) return [];
   const [sizes]=await ctx.db.query<RowDataPacket[]>(`SELECT COUNT(*) AS n,COALESCE(SUM(OCTET_LENGTH(title)+OCTET_LENGTH(COALESCE(description,''))),0) AS bytes FROM (SELECT title,description FROM urt_video WHERE u_id IN (${channels.map(()=>'?').join(',')}) AND publishedAt>=? AND publishedAt<=? ORDER BY publishedAt,pk LIMIT ?) bounded`,[...channels,from+' 00:00:00',to+' 23:59:59',input.videoLimit+1]);
@@ -37,32 +65,63 @@ export async function cacheVideos(ctx:CacheContext,input:CacheInput,channels:num
 }
 export function checkedSum(a:number,b:number) { const sum=a+b;if(!Number.isSafeInteger(sum))throw new Error('Cache count exceeds safe integer range');return sum; }
 const metrics=(rows:RowDataPacket[],dictionary:TagDictionary)=>tagMetrics(rows.map(v=>({title:String(v.title??''),description:String(v.description??''),viewCount:v.viewCount})),dictionary);
-export async function publishCache(ctx:CacheContext,table:string,keys:Record<string,unknown>,values:Record<string,unknown>,dictionary:TagDictionary,unknown=0) {
+export async function publishCache(ctx:CacheContext,table:string,keys:Record<string,unknown>,values:Record<string,unknown>,dictionary:TagDictionary,unknown=0,window?:{from:string;to:string}) {
   if(Buffer.byteLength(JSON.stringify(values))>8*1024*1024)throw new Error('Cache payload exceeds publication cap');
   if(!ctx.execute) return;
+  await withReportLineage(ctx,table,keys,dictionary,unknown,window,async at=>{
+    const existing=await selectOne(ctx.db,table,keys);
+    await upsert(ctx.db,table,keys,{...(existing?{}:{ctime:at}),mtime:at,...values});
+  });
+}
+/** Marks the generic sidecar pending, runs the MyISAM write, then publishes; an interrupted write stays visibly pending. */
+export async function withReportLineage(ctx:CacheContext,table:string,keys:Record<string,unknown>,dictionary:Pick<TagDictionary,'version'|'coverage'|'rule'>,unknown:number,window:{from:string;to:string}|undefined,write:(at:string)=>Promise<void>) {
   await ctx.assertOwnership();const at=taipeiSql(ctx.now),key=reportCacheKey(keys);
   await ctx.db.execute('INSERT INTO ts_report_cache_lineage(cache_table,cache_key,vocabulary_version,coverage,rule_version,status,generated_at,unknown_view_videos) VALUES(?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE vocabulary_version=VALUES(vocabulary_version),coverage=VALUES(coverage),rule_version=VALUES(rule_version),status=VALUES(status),generated_at=VALUES(generated_at),unknown_view_videos=VALUES(unknown_view_videos)',[table,key,dictionary.version,dictionary.coverage,dictionary.rule,'pending',at,unknown]);
-  const windowTo=typeof keys.the_month==='string'?new Date(Date.UTC(Number(keys.the_month.slice(0,4)),Number(keys.the_month.slice(5,7)),0)).toISOString().slice(0,10):typeof keys.the_date==='string'?keys.the_date:at.slice(0,10),windowFrom=typeof keys.the_month==='string'?keys.the_month:typeof keys.the_date==='string'?keys.the_date:new Date(Date.parse(windowTo)-((typeof keys.days==='number'?keys.days:7)-1)*86400000).toISOString().slice(0,10);
+  const windowTo=window?window.to:typeof keys.the_month==='string'?new Date(Date.UTC(Number(keys.the_month.slice(0,4)),Number(keys.the_month.slice(5,7)),0)).toISOString().slice(0,10):typeof keys.the_date==='string'?keys.the_date:at.slice(0,10),windowFrom=window?window.from:typeof keys.the_month==='string'?keys.the_month:typeof keys.the_date==='string'?keys.the_date:new Date(Date.parse(windowTo)-((typeof keys.days==='number'?keys.days:7)-1)*86400000).toISOString().slice(0,10);
   await ctx.db.execute('UPDATE ts_report_cache_lineage SET window_from=?,window_to=?,window_closed=? WHERE cache_table=? AND cache_key=?',[windowFrom,windowTo,windowTo<at.slice(0,10),table,key]);
-  const existing=await selectOne(ctx.db,table,keys);
-  await upsert(ctx.db,table,keys,{...(existing?{}:{ctime:at}),mtime:at,...values});
+  await write(at);
   await ctx.db.execute('UPDATE ts_report_cache_lineage SET status=? WHERE cache_table=? AND cache_key=?',['published',table,key]);
 }
-export async function tagDateCacheJob(ctx:CacheContext,input:CacheInput,dictionary:TagDictionary) {
+const streamMetrics=(dictionary:TagDictionary)=>{const acc=tagMetricsAccumulator();return {acc,visit:(v:RowDataPacket)=>acc.add({viewCount:v.viewCount,matches:dictionary.match(String(v.title??''),String(v.description??''))})};};
+/** Laravel TagDateCacheBuilder: urt_count channel markers, one row per calendar date, and a date over the per-date
+ * video cap (or a channel cap overflow) is blocked on its own while the other dates still publish. */
+export async function tagDateCacheJob(ctx:CacheContext,input:CacheInput&{dateLimit?:number},dictionary:TagDictionary) {
   if(input.to>taipeiSql(ctx.now).slice(0,10))throw new Error('Future cache dates are forbidden');
-  const channels=await cacheChannels(ctx,input), prepared=[];
-  let preparedBytes=0;for(const day of daysBetween(input.from,input.to)){const m=metrics(await cacheVideos(ctx,input,channels,day,day),dictionary);preparedBytes+=Buffer.byteLength(JSON.stringify(m));if(preparedBytes>16*1024*1024)throw new Error('Cache date batch exceeds payload cap');prepared.push({day,m});}
+  validateCacheInput(input);const dates=daysBetween(input.from,input.to);if(input.dateLimit!==undefined&&dates.length>cap(input.dateLimit,400))throw new Error('Tag date range exceeds date limit');
+  const {channels,truncated}=await legacyTagChannels(ctx,input,input.channelLimit),prepared:{day:string;m:ReturnType<typeof metrics>}[]=[],skipped:{date:string;reason:string}[]=[];
+  let preparedBytes=0;for(const day of dates){
+    if(truncated){skipped.push({date:day,reason:'channel_scan_limit_exceeded'});continue;}
+    const {acc,visit}=streamMetrics(dictionary);if((await scanVideos(ctx,channels,day+' 00:00:00',day+' 23:59:59',input.videoLimit,visit)).truncated){skipped.push({date:day,reason:'video_scan_limit_exceeded'});continue;}
+    const m=acc.result();preparedBytes+=Buffer.byteLength(JSON.stringify(m));if(preparedBytes>16*1024*1024)throw new Error('Cache date batch exceeds payload cap');prepared.push({day,m});
+  }
   for(const {day,m} of prepared) if(ctx.execute) {
     await ctx.assertOwnership(); const at=taipeiSql(ctx.now),key=selectionKey(input);
     await ctx.db.execute('INSERT INTO ts_tag_cache_lineage(selection_key,the_date,vocabulary_version,coverage,rule_version,status,generated_at,unknown_view_videos) VALUES(?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE vocabulary_version=VALUES(vocabulary_version),coverage=VALUES(coverage),rule_version=VALUES(rule_version),status=VALUES(status),generated_at=VALUES(generated_at),unknown_view_videos=VALUES(unknown_view_videos)',[key,day,dictionary.version,dictionary.coverage,dictionary.rule,'pending',at,m.unknown_view_videos]);
     await ctx.db.execute('UPDATE ts_tag_cache_lineage SET window_from=?,window_to=?,window_closed=? WHERE selection_key=? AND the_date=?',[day,day,day<at.slice(0,10),key,day]);
     const {unknown_view_videos:_,...rest}=m;
-    await publishCache(ctx,'urt_show_tag_date',{...dateKeys(input),the_date:day},{...rest,count_channels:channels.length,tags_result:JSON.stringify(m.tags_result),tags_video:JSON.stringify(m.tags_video),tags_views:JSON.stringify(m.tags_views)},dictionary,m.unknown_view_videos);
+    await publishCache(ctx,'urt_show_tag_date',{...dateKeys(input),the_date:day},{...rest,stime:at,count_channels:channels.length,tags_result:JSON.stringify(m.tags_result),tags_video:JSON.stringify(m.tags_video),tags_views:JSON.stringify(m.tags_views)},dictionary,m.unknown_view_videos);
     await ctx.db.execute('UPDATE ts_tag_cache_lineage SET status=? WHERE selection_key=? AND the_date=?',['published',key,day]);
   }
-  return {mode:ctx.execute?'execute':'dry-run',selected:prepared.length,applied:ctx.execute?prepared.map(p=>p.day):[],skipped:[],channels:channels.length};
+  return {mode:ctx.execute?'execute':'dry-run',selected:prepared.length,applied:ctx.execute?prepared.map(p=>p.day):[],skipped,channels:channels.length};
 }
-export async function cloudCacheJob(ctx:CacheContext,input:CacheInput,dictionary:TagDictionary,kind:'tag'|'channel'|'keyword') {
+/** Laravel TagCloudCacheBuilder::buildMany: every period is the rolling window [now - days, now] in one run;
+ * each period is blocked independently (no write) when its window exceeds the per-period video cap. */
+export async function tagCloudCacheJob(ctx:CacheContext,input:CacheInput,daysList:number[],dictionary:TagDictionary) {
+  validateCacheInput(input);
+  if(!daysList.length||daysList.length>10||new Set(daysList).size!==daysList.length||daysList.some(d=>!Number.isSafeInteger(d)||d<1||d>365))throw new Error('Tag cloud periods must be 1-10 unique day counts up to 365');
+  const {channels,truncated}=await legacyTagChannels(ctx,input,input.channelLimit),applied:number[]=[],skipped:{days:number;reason:string}[]=[],periods:{days:number;videos:number;terms:number}[]=[];
+  for(const days of daysList){
+    if(truncated){skipped.push({days,reason:'channel_scan_limit_exceeded'});continue;}
+    const {acc,visit}=streamMetrics(dictionary);
+    if((await scanVideos(ctx,channels,taipeiSql(new Date(ctx.now.getTime()-days*86400000)),taipeiSql(ctx.now),input.videoLimit,visit)).truncated){skipped.push({days,reason:'video_scan_limit_exceeded'});continue;}
+    const m=acc.result();
+    await publishCache(ctx,'urt_show_tag_cloud',{...dateKeys(input),days},{count_channels:channels.length,count_videos:m.count_videos,count_tags:m.count_tags,tags_count:m.tags_count,tags_result:JSON.stringify(m.tags_result)},dictionary,m.unknown_view_videos);
+    periods.push({days,videos:m.count_videos,terms:m.tags_count});if(ctx.execute)applied.push(days);
+  }
+  return {mode:ctx.execute?'execute':'dry-run',selected:daysList.length,applied,skipped,channels:channels.length,periods};
+}
+/** Channel and keyword clouds; the category tag cloud (urt_show_tag_cloud) is tagCloudCacheJob with Laravel rolling windows. */
+export async function cloudCacheJob(ctx:CacheContext,input:CacheInput,dictionary:TagDictionary,kind:'channel'|'keyword') {
   if(input.to!==taipeiSql(ctx.now).slice(0,10)||daysBetween(input.from,input.to).length!==input.days)throw new Error('Cloud identity requires the current canonical calendar window');
   const channels=await cacheChannels(ctx,input),rows=await cacheVideos(ctx,input,channels); const batches=kind==='channel'?channels.map(uId=>({uId,rows:rows.filter(r=>Number(r.u_id)===uId)})):[{uId:0,rows}];
   if(kind==='keyword'&&!input.subject)throw new Error('Keyword cloud requires subject');
@@ -70,7 +129,6 @@ export async function cloudCacheJob(ctx:CacheContext,input:CacheInput,dictionary
     const filtered=kind==='keyword'?batch.rows.filter(r=>dictionary.match(r.title??'',r.description??'').some(m=>m.term===input.subject)):batch.rows;
     const m=metrics(filtered,dictionary);
     if(kind==='channel') await publishCache(ctx,'urt_show_cloud',{u_id:batch.uId,days:input.days},{keywords_json:JSON.stringify(m.tags_result)},dictionary,m.unknown_view_videos);
-    else if(kind==='tag') await publishCache(ctx,'urt_show_tag_cloud',{...dateKeys(input),days:input.days},{count_channels:channels.length,count_videos:m.count_videos,count_tags:m.count_tags,tags_count:m.tags_count,tags_result:JSON.stringify(m.tags_result)},dictionary,m.unknown_view_videos);
     else {
       const derived=keywordCloudFromEvidence(filtered.map(v=>({videoId:v.videoId,uId:Number(v.u_id),publishedAt:v.publishedAt,viewCount:v.viewCount,matches:dictionary.match(v.title??'',v.description??'')})),input.subject!);
       const {unknown_view_videos,...values}=derived;
@@ -108,11 +166,26 @@ export async function tagMonthCacheJob(ctx:CacheContext,input:CacheInput,diction
   await publishCache(ctx,'urt_show_tag_month',{...dateKeys(input),the_month:month,tag:input.subject},{count_videos:videos,total_views:views,tags_result:JSON.stringify(daily)},dictionary);
   return {mode:ctx.execute?'execute':'dry-run',selected:rows.length,applied:ctx.execute?[month]:[],skipped:[]};
 }
-export async function keywordsCacheJob(ctx:CacheContext,input:CacheInput,dictionary:TagDictionary) {
-  // Fixed legacy tags_all coverage; caller cannot silently reuse its identity for a subset.
-  if(input.days!==7||daysBetween(input.from,input.to).length!==7||input.to!==taipeiSql(ctx.now).slice(0,10)||input.uId||input.tagIds.length||input.notTagIds?.length||input.orTagIds?.join(',')!=='1,2,13,14')throw new Error('tags_all requires or=1,2,13,14');
-  const channels=await cacheChannels(ctx,input),rows=await cacheVideos(ctx,input,channels),recent=taipeiSql(new Date(ctx.now.getTime()-86400000));
-  const all=metrics(rows,dictionary),last=metrics(rows.filter(r=>r.publishedAt>=recent),dictionary),data=Object.fromEntries(Object.keys(all.tags_video).map(term=>[term,{video:last.tags_video[term]??0,video_all:all.tags_video[term],views:last.tags_views[term]??0,views_all:all.tags_views[term]}]));
-  await publishCache(ctx,'urt_show_data',{data_name:'tags_all'},{api:'api/tags_all.php',para:'or=1,2,13,14',the_result:JSON.stringify(data)},dictionary,all.unknown_view_videos);
-  return {mode:ctx.execute?'execute':'dry-run',selected:rows.length,applied:ctx.execute?['tags_all']:[],skipped:[]};
+/** Laravel TagsAllCacheBuilder (`--days=31 --recent-days=7`): calendar window [today-(days-1), today], channels with any
+ * category marker 1,2,13,14 in urt_count, and "recent" = published on or after the start of (today - recentDays), i.e. today
+ * plus recentDays previous days. Entries are ordered by recent views desc (ties: first seen in pk order). Over the video cap
+ * the run is blocked and the previous row is kept. */
+export async function keywordsCacheJob(ctx:CacheContext,input:CacheInput&{recentDays?:number},dictionary:TagDictionary) {
+  validateCacheInput(input);cap(input.days,90);const recentDays=Math.min(cap(input.recentDays??7,2147483647),input.days);
+  if(daysBetween(input.from,input.to).length!==input.days||input.to!==taipeiSql(ctx.now).slice(0,10)||input.uId||input.tagIds.length||input.notTagIds?.length||input.orTagIds?.join(',')!=='1,2,13,14')throw new Error('tags_all requires or=1,2,13,14 and the current calendar window');
+  const mode=ctx.execute?'execute':'dry-run',{channels,truncated}=await legacyTagChannels(ctx,{tagIds:[],orTagIds:[1,2,13,14]},input.channelLimit);
+  if(truncated)return {mode,selected:0,applied:[],skipped:[{reason:'channel_scan_limit_exceeded'}]};
+  const recentFrom=taipeiSql(new Date(ctx.now.getTime()-recentDays*86400000)).slice(0,10)+' 00:00:00',data=new Map<string,{video:number;video_all:number;views:number;views_all:number;pk:number}>();let unknown=0;
+  const scan=await scanVideos(ctx,channels,input.from+' 00:00:00',input.to+' 23:59:59',input.videoLimit,v=>{
+    if(v.viewCount===null||v.viewCount===undefined)unknown++;
+    const views=Number(v.viewCount??0),recent=String(v.publishedAt)>=recentFrom;if(!Number.isSafeInteger(views)||views<0)throw new Error('Invalid video view count in cache source');
+    for(const term of new Set(dictionary.match(String(v.title??''),String(v.description??'')).map(m=>m.term))){
+      let m=data.get(term);if(!m)data.set(term,m={video:0,video_all:0,views:0,views_all:0,pk:Number(v.pk)});else m.pk=Math.min(m.pk,Number(v.pk));
+      m.video_all++;m.views_all=checkedSum(m.views_all,views);if(recent){m.video++;m.views=checkedSum(m.views,views);}
+    }
+  });
+  if(scan.truncated)return {mode,selected:scan.count,applied:[],skipped:[{reason:'video_scan_limit_exceeded'}]};
+  const result=Object.fromEntries([...data].sort((a,b)=>b[1].views-a[1].views||a[1].pk-b[1].pk).map(([term,m])=>[term,{video:m.video,video_all:m.video_all,views:m.views,views_all:m.views_all}]));
+  await publishCache(ctx,'urt_show_data',{data_name:'tags_all'},{api:'api/tags_all.php',para:'or=1,2,13,14',the_result:JSON.stringify(result)},dictionary,unknown,{from:input.from,to:input.to});
+  return {mode,selected:scan.count,applied:ctx.execute?['tags_all']:[],skipped:[],channels:channels.length,terms:data.size,recentFrom};
 }

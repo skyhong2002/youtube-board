@@ -43,9 +43,15 @@ export async function runAi(db:Connection,input:Input,options:RunOptions){
       if(!prior[0])await db.execute('INSERT INTO ts_ai_runs(run_id,workflow,business_key_sha256,input_sha256,input_json,status,created_at,updated_at) VALUES(?,?,?,?,?,\'running\',?,?)',[runId,`ai.${input.kind}`,businessKey,sourceHash,inputJson,now(),now()]);
       await db.execute("UPDATE ts_ai_runs SET status='running',failure_code=NULL,provider_json=?,updated_at=? WHERE run_id=?",[JSON.stringify({generationAttempts:generationAttempts(prior[0])+1}),now(),runId]);
       attemptStarted=true;
-      const completion=await options.provider.complete(plan);
-      if(completion.requestedModel!==options.modelAlias)throw new Error('Provider alias differs from immutable request');
-      const validated=validateResult(completion.content,plan);result=JSON.stringify(validated);
+      // Laravel completeValidated() asks the same provider once more when a completed response fails validation.
+      let completion:Awaited<ReturnType<Provider['complete']>>,validated:ReturnType<typeof validateResult>;
+      for(let attempt=1;;attempt++){
+        workflowShutdownSignal().throwIfAborted();
+        completion=await options.provider.complete(plan);
+        if(completion.requestedModel!==options.modelAlias)throw new Error('Provider alias differs from immutable request');
+        try{validated=validateResult(completion.content,plan);break;}catch(error){if(attempt>=VALIDATION_ATTEMPTS)throw error;}
+      }
+      result=JSON.stringify(validated);
       if(Buffer.byteLength(result)>60000)throw new Error('AI projection exceeds TEXT capacity');
       providerMeta=JSON.stringify({requestedModel:completion.requestedModel,model:completion.model,usage:usageSummary(completion.usage),attempts:completion.attempts??1,generationAttempts:generationAttempts(prior[0])+1});
       await db.execute("UPDATE ts_ai_runs SET status='validated',result_json=?,provider_json=?,updated_at=? WHERE run_id=?",[result,providerMeta,now(),runId]);
@@ -55,10 +61,11 @@ export async function runAi(db:Connection,input:Input,options:RunOptions){
     const fresh=await verifySelectedSource(db,plan);if(sourceIdentity(fresh,options.modelAlias)!==sourceHash)throw new Error('AI source changed during generation');
     const keys=Object.keys(plan.key),values=Object.values(plan.key);
     const [existing]=await db.query<RowDataPacket[]>(`SELECT pk,result_json,ai_type FROM ${plan.table} WHERE ${legacyKeyPredicate(plan.key)} AND del_flag IS NULL ORDER BY pk DESC LIMIT 1`,values);
-    const projection:Record<string,string|number>={...plan.key,mtime:now(),ai_type:options.modelAlias,result_json:result};
+    const aiType=provenanceModel(providerMeta,options.modelAlias);
+    const projection:Record<string,string|number>={...plan.key,mtime:now(),ai_type:aiType,result_json:result};
     if(plan.table==='urt_ai_date')projection.channel_id=JSON.stringify(Object.fromEntries((plan.source as {title:string;u_id:number}[]).map(s=>[String(s.u_id),s.title])));
     let targetPk=existing[0]?.pk;
-    if(prior[0]?.status==='published'&&existing[0]?.result_json===result&&existing[0]?.ai_type===options.modelAlias)return {status:'unchanged',runId,targetPk:String(targetPk),sourceCount:plan.sourceCount,omitted:plan.omitted};
+    if(prior[0]?.status==='published'&&existing[0]?.result_json===result&&existing[0]?.ai_type===aiType)return {status:'unchanged',runId,targetPk:String(targetPk),sourceCount:plan.sourceCount,omitted:plan.omitted};
     if(targetPk)await db.execute("UPDATE ts_ai_runs SET target_pk=? WHERE run_id=?",[targetPk,runId]);
     if(targetPk){const [written]=await db.execute<ResultSetHeader>(`UPDATE ${plan.table} SET ${Object.keys(projection).map(k=>`${k}=?`).join(',')} WHERE pk=? AND del_flag IS NULL`,[...Object.values(projection),targetPk]);if(written.affectedRows!==1)throw new Error('AI projection target changed');}
     else{projection.ctime=now();const [insert]=await db.execute<ResultSetHeader>(`INSERT INTO ${plan.table}(${Object.keys(projection).join(',')}) VALUES(${Object.keys(projection).map(()=>'?').join(',')})`,Object.values(projection));targetPk=insert.insertId;}
@@ -70,6 +77,12 @@ export async function runAi(db:Connection,input:Input,options:RunOptions){
   }finally{await db.query('SELECT RELEASE_LOCK(?)',[lock]).catch(()=>undefined);}
 }
 
+/** Laravel OpenCodeChatClient provenance_model: the gateway's resolved model when it fits ai_type (16 chars), else the alias. */
+export function provenanceModel(providerMeta:string|null,alias:string):string{
+ try{const model=JSON.parse(providerMeta??'null')?.model;if(typeof model==='string'&&model.trim()&&[...model].length<=16)return model;}catch{/* fall back to the alias */}
+ return alias;
+}
+const VALIDATION_ATTEMPTS=2;
 function usageSummary(raw:unknown){if(!raw||typeof raw!=='object')return null;const value=raw as Record<string,unknown>;return Object.fromEntries(['prompt_tokens','completion_tokens','total_tokens'].filter(k=>Number.isSafeInteger(value[k])&&Number(value[k])>=0).map(k=>[k,value[k]]));}
 
 /** Scheduled catch-up may retry failed requests. A crashed in-flight request gets a five-minute cooldown. */
@@ -92,6 +105,7 @@ export async function existingAi(db:Connection,plan:Plan):Promise<RowDataPacket|
   if(!snapshot){
    // Missing-only must not silently adopt and rewrite historical output under a newer contract.
    const legacy=JSON.parse(String(row.result_json)),items=Array.isArray(legacy)?legacy:legacy?.events;
+   if(plan.input.kind!=='hourly')return laravelRowValid(plan.input.kind,plan.input.condition??'all',legacy)?{...row,legacyUnvalidated:true} as RowDataPacket:null;
    if(Array.isArray(items)&&items.length>0&&items.every(v=>v&&typeof v==='object'&&!Array.isArray(v)))return {...row,legacyUnvalidated:true} as RowDataPacket;
    return null;
   }
@@ -103,6 +117,30 @@ export async function existingAi(db:Connection,plan:Plan):Promise<RowDataPacket|
  }catch{return null;}
 }
 
+const record=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
+const filled=(v:unknown)=>(typeof v==='string'||typeof v==='number'||typeof v==='boolean')&&String(v).trim()!=='';
+/** Laravel AiDailyIngestion::validDailyRow()/validChannelRow() (AiJsonPayloadValidator::validateEventList) for rows
+ * without a TS journal: missing-only regenerates exactly the legacy rows Laravel would regenerate. */
+const TITLE_KEYS=['事件','議題','標題','event','topic','title'];
+const titled=(item:unknown):item is Record<string,unknown>=>record(item)&&TITLE_KEYS.some(k=>filled(item[k]));
+function legacyItems(decoded:unknown):unknown[]{
+ if(Array.isArray(decoded))return decoded;if(!record(decoded))return [];
+ for(const key of ['events','事件','事件列表']){const value=decoded[key];if(Array.isArray(value))return value;if(record(value))return Object.values(value);}
+ return titled(decoded)?[decoded]:[];
+}
+export function laravelRowValid(kind:'channel'|'daily',condition:string,decoded:unknown):boolean{
+ const items=legacyItems(decoded);
+ if(kind==='channel')return items.length>0&&items.every(item=>{if(!titled(item))return false;const key=['videoId','video_id','video_ids','videos'].find(k=>item[k]!==undefined);if(!key)return false;const ids=([item[key]] as unknown[]).flat(Infinity);return ids.some(filled);});
+ const validDaily=(item:unknown)=>{
+  if(!titled(item))return false;
+  const key=['媒體事件','media_events','mediaEvents'].find(k=>record(item[k]));if(!key)return false;
+  const media=Object.entries(item[key] as Record<string,unknown>);
+  if(media.length>6||media.filter(([name,events])=>name.trim()&&Array.isArray(events)&&events.some(filled)).length<2)return false;
+  return media.every(([name,events])=>name.trim()!==''&&Array.isArray(events)&&events.length===1&&typeof events[0]==='string'&&events[0].trim()!=='');
+ };
+ const [min,max]=condition==='all'?[5,40]:[3,25],count=items.filter(validDaily).length;
+ return count>=min&&count<=max;
+}
 /** Legacy NULL all rows are adopted on update; user tokens retain exact separation. */
 export function legacyKeyPredicate(key:Record<string,string|number>){return Object.keys(key).map(k=>k==='condition_type'&&key[k]==='all'?"(condition_type=? OR condition_type IS NULL)":k==='user_token'?"BINARY user_token=BINARY ?":`${k}=?`).join(' AND ');}
 /** Recheck the actual selected video text, not a changing view-ranked top-N window. */

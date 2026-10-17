@@ -9,14 +9,16 @@ function context(row: object): SourceJobContext {
   const youtube = new YoutubeDataApiClient({ keys: [], ledger: { precharge: async () => { throw new Error('dry-run must not charge'); }, markDailyExhausted: async () => {} } });
   return { db, youtube, execute: false, now: new Date('2026-10-12T02:00:00Z'), assertOwnership: async () => {} };
 }
-it('aged small statistics batches and never-observed rows do not starve below the batching threshold', async () => {
-  expect((await videoStatisticsJob(context({ videoId: 'Test1234567', mtime: '2026-10-12 07:00:00' }), { limit: 50 })).wouldCallApi).toBe(true);
-  expect((await videoStatisticsJob(context({ videoId: 'Test1234567', mtime: null }), { limit: 50 })).wouldCallApi).toBe(true);
+// Laravel parity (batch 2 handoff): production Laravel keeps the legacy batching thresholds, so a single
+// aged or never-observed row waits for a full batch instead of spending a dedicated API call.
+it('small statistics batches wait for the Laravel 80% batching threshold even when rows are aged or never observed', async () => {
+  expect((await videoStatisticsJob(context({ videoId: 'Test1234567', mtime: '2026-10-12 07:00:00' }), { limit: 50 })).wouldCallApi).toBe(false);
+  expect((await videoStatisticsJob(context({ videoId: 'Test1234567', mtime: null }), { limit: 50 })).wouldCallApi).toBe(false);
   expect((await videoStatisticsJob(context({ videoId: 'Test1234567', mtime: '2026-10-12 09:00:00' }), { limit: 50 })).wouldCallApi).toBe(false);
 });
-it('one old live stream is polled even when the 10-stream batch threshold is not met', async () => {
-  expect((await livePollingJob(context({ videoId: 'Test1234567', mtime: '2026-10-12 09:30:00' }), { limit: 50, intervalMinutes: 11 })).wouldCallApi).toBe(true);
-  expect((await livePollingJob(context({ videoId: 'Test1234567', mtime: null }), { limit: 50, intervalMinutes: 11 })).wouldCallApi).toBe(true);
+it('one old live stream waits for the Laravel ten-stream batch threshold', async () => {
+  expect((await livePollingJob(context({ videoId: 'Test1234567', mtime: '2026-10-12 09:30:00' }), { limit: 50, intervalMinutes: 11 })).wouldCallApi).toBe(false);
+  expect((await livePollingJob(context({ videoId: 'Test1234567', mtime: null }), { limit: 50, intervalMinutes: 11 })).wouldCallApi).toBe(false);
 });
 it('legacy wall times resolve independently of host timezone and reject ambiguous Date inputs', () => {
   expect(legacyInstant('2026-10-12 10:00:00')?.toISOString()).toBe('2026-10-12T02:00:00.000Z');

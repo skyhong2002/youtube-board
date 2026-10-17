@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "timezone": "Asia/Taipei",
+  "schedules": [
+    { "id": "batch3-comments-queue-v1", "workflow": "youtube.comments.queue", "cron": "23 4,10,16 * * *", "options": { "or": "1,2,3,4,5,6,13,14,81", "hours": 72, "min": 500, "limit": 5 } },
+    { "id": "batch3-comments-fetch-v1", "workflow": "youtube.comments.fetch", "cron": "5 * * * *", "options": { "limit": 5, "max-pages": 1, "max-reply-pages": 20 } }
+  ]
+}

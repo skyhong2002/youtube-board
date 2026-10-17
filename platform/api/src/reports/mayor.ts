@@ -1,6 +1,6 @@
 import {sql} from 'drizzle-orm';
 import type {Reader,Row} from '../db/client.js';
-import {publishedTagCache,cacheLineageNote,cacheWindowNotes} from './cache-lineage.js';
+import {publishedTagCache,cacheLineageNote,cacheWindowNotes,unknownViewVideos,unknownViewNotes} from './cache-lineage.js';
 import {ReportReadBound} from './cache-weights.js';
 import {BadQuery,NotFound,bounded,dateFilter,type Query} from './query.js';
 import {text,latest,taipeiDate} from './normalize.js';
@@ -60,7 +60,7 @@ export async function readMayorBuckets(reader:Reader,from:string,to:string,metri
  const before=new Map(accepted.map(r=>[String(r.pk),lineageIdentity(r)])),stable=published.filter(r=>before.get(String(r.pk))===lineageIdentity(r));
  const records:Row[]=[],byDate=new Map<string,Map<string,Map<string,number>>>();let malformed=0;
  for(const r of stable){const decoded=mayorWeights(r.payload);if(decoded===null){malformed++;continue;}const date=text(r.the_date).slice(0,10),tags=byDate.get(date)??new Map();tags.set(text(r.tagid),foldCandidateAliases(decoded));byDate.set(date,tags);records.push(r);}
- return{records,byDate,coverage:{expectedBuckets:allDates.length*4,observedBuckets:records.length,missingBuckets:visible.filter(r=>r.pk===undefined).length,withheldBuckets:withheld+bodies.length-published.length,oversizedBuckets:visible.filter(r=>Number(r.payload_bytes)>MAX_BYTES).length,emptyPayloadBuckets:visible.filter(r=>r.pk!==undefined&&!Number(r.payload_bytes)).length,malformedBuckets:malformed,changedBuckets:accepted.length-bodies.length+published.length-stable.length}};
+ return{records,byDate,coverage:{expectedBuckets:allDates.length*4,observedBuckets:records.length,missingBuckets:visible.filter(r=>r.pk===undefined).length,withheldBuckets:withheld+bodies.length-published.length,oversizedBuckets:visible.filter(r=>Number(r.payload_bytes)>MAX_BYTES).length,emptyPayloadBuckets:visible.filter(r=>r.pk!==undefined&&!Number(r.payload_bytes)).length,malformedBuckets:malformed,changedBuckets:accepted.length-bodies.length+published.length-stable.length,unknownViewVideos:unknownViewVideos(records)}};
 }
 export type MayorBuckets=Awaited<ReturnType<typeof readMayorBuckets>>;
 const readBuckets=(reader:Reader,period:ReturnType<typeof mayorPeriod>,metric:Metric)=>readMayorBuckets(reader,shift(period.from,-6),period.to,metric);
@@ -81,7 +81,7 @@ export function registerMayor(register:Register,reader:Reader,clock:()=>Date){
  return{...table(city.label+'人物提及觀測',[{key:'date',label:'日期',kind:'date'},...candidates.flatMap(c=>[{key:c,label:c,kind:'number' as const},{key:`${c}：占比`,label:`${c} 占比 %`,kind:'number' as const}]),{key:'observedBuckets',label:'已觀測分類日桶',kind:'number'}],rows,q,{
  updatedAt:latest(...source.records.flatMap(r=>[r.mtime,r.ctime])),bucketCoverage:rows.map(r=>({date:String(r.date),observedBuckets:Number(r.observedBuckets)})),series:candidates.map(c=>({name:c,unit:METRICS[metric],points:rows.map(r=>({time:String(r.date),value:r[c] as number|null}))})),
  filters:[{key:'type',label:'觀測度量',type:'select',value:metric,options:Object.entries(METRICS).map(([value,label])=>({value,label}))},{key:'from',label:'開始日期',type:'date',value:period.from},{key:'to',label:'結束日期',type:'date',value:period.to},{key:'days',label:'預設天數',type:'number',value:String(period.days)},{key:'today',label:'回溯天數',type:'number',value:q.today===undefined?'':String(period.today)}],
- notes:[cacheLineageNote,...cacheWindowNotes(source.records),`人物名單為中選會 ${CANDIDATE_LIST_VERSION} 審定的縣市長候選人；同名者的提及無法區分，二字姓名也可能命中其他詞。`,'顯示四類頻道的七日原始提及量，分類可重疊；這不是支持度、民調或不重複觀眾。占比為該人物的原始量除以名單中所有人物的原始量；沿用目前 Laravel 計算，不套用政治立場權重。',`觀測期間 ${period.from}～${period.to}；${incomplete} 個日期未具備完整 28 個分類日桶。快取缺值、無效或發布暫停均保留空缺。`,...(fallbackDate?[`預設期間無人物提及，改用最新快取日期 ${fallbackDate}。`]:[]),...(metric!==requestedMetric?['觀看引用缺少人物提及，依原報表改用影片引用；度量已同步更新。']:[])]
+ notes:[cacheLineageNote,...cacheWindowNotes(source.records),...(metric==='tags_views'?unknownViewNotes(source.coverage.unknownViewVideos,'各分類採用的日快取（分類可重疊，合計可能重複）'):[]),`人物名單為中選會 ${CANDIDATE_LIST_VERSION} 審定的縣市長候選人；同名者的提及無法區分，二字姓名也可能命中其他詞。`,'顯示四類頻道的七日原始提及量，分類可重疊；這不是支持度、民調或不重複觀眾。占比為該人物的原始量除以名單中所有人物的原始量；沿用目前 Laravel 計算，不套用政治立場權重。',`觀測期間 ${period.from}～${period.to}；${incomplete} 個日期未具備完整 28 個分類日桶。快取缺值、無效或發布暫停均保留空缺。`,...(fallbackDate?[`預設期間無人物提及，改用最新快取日期 ${fallbackDate}。`]:[]),...(metric!==requestedMetric?['觀看引用缺少人物提及，依原報表改用影片引用；度量已同步更新。']:[])]
  }),evidenceCoverage:{...source.coverage,from:period.from,to:period.to,metric,requestedMetric,fallbackDate,partialWindowDates:incomplete,dataAvailable:hasData()}};
  };
  register('/mayor',(_p,q)=>report(text(q.city)||'taipei',q));register('/mayor/cities/:city',(p,q)=>report(p.city,q));

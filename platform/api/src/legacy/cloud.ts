@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Reader, Row } from '../db/client.js';
-import { publishedTagCache, publishedReportRow } from '../reports/cache-lineage.js';
+import { publishedTagCache, publishedReportRow, unknownViewMeta } from '../reports/cache-lineage.js';
 import { legacyViews, legacyTagSets } from './group-config.js';
 import { addDay, bound, cacheWhere, counts, date, dateQuery, decode, dict, filters, int, meta, nonempty, obj, payload, php, str, txt, weighted, wrapped, type Q } from './common.js';
 /** Group projector uses numeric, trimmed maps rather than the list-aware cloud decoder. */
@@ -17,10 +17,10 @@ function groupWeights(value: unknown): Record<string, number> {
 export async function cloudReport(db: Reader, name: string, q: Q, now: Date): Promise<unknown> {
     if (name === 'cloud') {
         const uid = Math.max(1, int(q.uid ?? q.u_id, 2)), days = bound(q, 'days', 30, 3650), r = await publishedReportRow(db,'urt_show_cloud',{u_id:uid,days},(await db.rows(sql `SELECT * FROM urt_show_cloud WHERE u_id=${uid} AND days=${days} ORDER BY pk DESC LIMIT 1`))[0]), result = weighted(r?.keywords_json, true);
-        return payload(result, 'urt_show_cloud.keywords_json', { u_id: uid, days, mtime: r?.mtime ?? null, cache_window:r?._cacheWindow??null, blocked_reason: nonempty(result) ? null : 'local channel cloud cache is empty; run reports:channel-cloud:build to rebuild urt_show_cloud' });
+        return payload(result, 'urt_show_cloud.keywords_json', { u_id: uid, days, mtime: r?.mtime ?? null, cache_window:r?._cacheWindow??null, ...unknownViewMeta([r]), blocked_reason: nonempty(result) ? null : 'local channel cloud cache is empty; run reports:channel-cloud:build to rebuild urt_show_cloud' });
     }
     if (name !== 'group_view') {
-        const noapi = name === 'cloud_tag_date_noapi', d = dateQuery(q, 'date', date(now)), type = noapi ? 'tags_result' : ['tags_result', 'tags_video', 'tags_views', 'all'].includes(str(q.type)) ? str(q.type) : 'tags_result', rows = await db.rows(sql `SELECT * FROM urt_show_tag_date WHERE the_date=${d} AND ${cacheWhere(q)} ${noapi ? sql `AND tags_count>0` : sql ``} ORDER BY pk DESC LIMIT 1`), f = filters(q, true), r = (await publishedTagCache(db, rows, { tagid: f.tagid.join(','), or: f.or.join(','), not: f.not.join(',') }))[0], result = weighted(r?.[type === 'all' ? 'tags_result' : type], true), out: Row = { ...payload(result, noapi ? 'urt_show_tag_date.noapi' : 'urt_show_tag_date', { filters: f, date: d, type, mtime: r?.mtime ?? null, cache_window:r?._cacheWindow??null, blocked_reason: nonempty(result) ? null : 'local tag-date cache is empty; legacy generation is intentionally not run' }), ...counts(r, ['total_views', 'count_channels', 'count_videos', 'count_tags']) };
+        const noapi = name === 'cloud_tag_date_noapi', d = dateQuery(q, 'date', date(now)), type = noapi ? 'tags_result' : ['tags_result', 'tags_video', 'tags_views', 'all'].includes(str(q.type)) ? str(q.type) : 'tags_result', rows = await db.rows(sql `SELECT * FROM urt_show_tag_date WHERE the_date=${d} AND ${cacheWhere(q)} ${noapi ? sql `AND tags_count>0` : sql ``} ORDER BY pk DESC LIMIT 1`), f = filters(q, true), r = (await publishedTagCache(db, rows, { tagid: f.tagid.join(','), or: f.or.join(','), not: f.not.join(',') }))[0], result = weighted(r?.[type === 'all' ? 'tags_result' : type], true), out: Row = { ...payload(result, noapi ? 'urt_show_tag_date.noapi' : 'urt_show_tag_date', { filters: f, date: d, type, mtime: r?.mtime ?? null, cache_window:r?._cacheWindow??null, ...unknownViewMeta([r]), blocked_reason: nonempty(result) ? null : 'local tag-date cache is empty; legacy generation is intentionally not run' }), ...counts(r, ['total_views', 'count_channels', 'count_videos', 'count_tags']) };
         if (type === 'all')
             for (const k of ['tags_result', 'tags_video', 'tags_views'])
                 out[k] = php(weighted(r?.[k], true));
@@ -30,7 +30,7 @@ export async function cloudReport(db: Reader, name: string, q: Q, now: Date): Pr
     let tags = txt(q, 'tags').split(',').map(t => t.trim()).filter(t => t && t !== '0');
     if (!tags.length)
         tags = group.startsWith('tags_') ? Object.hasOwn(legacyTagSets, group) ? legacyTagSets[group]! : [] : (await db.rows(sql `SELECT tag FROM tag_group WHERE group_name=${group} AND (del_flag IS NULL OR del_flag<'1') ORDER BY latest_time DESC,tag`)).map(r => str(r.tag)).filter(t => t && t !== '0');
-    const views = Object.hasOwn(legacyViews, view) ? legacyViews[view]! : legacyViews.politician!, dates = Array.from({ length: days + 8 }, (_, i) => date(now, -i)), groupData: Row[] = [], data = dict<Record<string, Record<string, Row>>>();
+    const views = Object.hasOwn(legacyViews, view) ? legacyViews[view]! : legacyViews.politician!, dates = Array.from({ length: days + 8 }, (_, i) => date(now, -i)), groupData: Row[] = [], data = dict<Record<string, Record<string, Row>>>(), usedRows: Row[] = [];
     let source = 0, blocked = !Object.hasOwn(legacyViews, view) ? 'unknown_view' : !tags.length ? 'missing_group_tags' : tags.length > 600 ? 'tag_list_limit_exceeded' : null;
     if (!blocked)
         for (let g = 0; g < views.length; g++) {
@@ -41,6 +41,7 @@ export async function cloudReport(db: Reader, name: string, q: Q, now: Date): Pr
                     map.set(d, r);
             }
             source += map.size;
+            for (let i = 0; i <= days; i++) { const used = map.get(dates[i]!); if (used) usedRows.push(used); }
             const totals: Row = { total_views: 0, count_videos: 0 };
             for (let i = 0; i <= days; i++) {
                 const d = dates[i]!, r = map.get(d), views = int(r?.total_views), videos = int(r?.count_videos);
@@ -76,5 +77,5 @@ export async function cloudReport(db: Reader, name: string, q: Q, now: Date): Pr
     const packed = (x: Record<string, unknown>): unknown => { const entries = Object.entries(x); return entries.every(([k], i) => k === String(i)) ? entries.map(([, v]) => v) : x; };
     for (const k of Object.keys(data))
         data[k] = packed(data[k]!) as Record<string, Record<string, Row>>;
-    return { result: { tag_array: tags, group_array: views, group_data: groupData, data_array: packed(data) }, meta: meta('urt_show_tag_date derived real-time YouTube dashboard', true, { group, view, days, cache_available: false, cache_strategy: 'dynamic-tag-date-projection' }) };
+    return { result: { tag_array: tags, group_array: views, group_data: groupData, data_array: packed(data) }, meta: meta('urt_show_tag_date derived real-time YouTube dashboard', true, { group, view, days, cache_available: false, cache_strategy: 'dynamic-tag-date-projection', ...unknownViewMeta(usedRows) }) };
 }

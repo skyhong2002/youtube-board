@@ -80,5 +80,5 @@ export async function derivedDayGuard(reader:Reader,q:Query,dates:string[],keywo
  if(present.has('ts_report_cache_lineage')){const keys=dates.map(date=>reportCacheKey(keyword?{the_date:date,tag:keyword}:{...reportSelectionKeys(q),the_date:date}));append(await reader.rows(sql`SELECT * FROM ts_report_cache_lineage WHERE cache_table=${keyword?'urt_show_video_tag_date':'urt_show_tag_date'} AND cache_key IN (${sql.join(keys.map(k=>sql`${k}`),sql`,`)}) ORDER BY cache_key LIMIT 401`));}
  if(!keyword&&present.has('ts_tag_cache_lineage')){const key=JSON.stringify([idList(q.tagid).sort((a,b)=>a-b),idList(q.or).sort((a,b)=>a-b),idList(q.not).sort((a,b)=>a-b)]);append(await reader.rows(sql`SELECT * FROM ts_tag_cache_lineage WHERE selection_key=${key} AND the_date BETWEEN ${dates[0]} AND ${dates.at(-1)} ORDER BY the_date LIMIT 401`));}
  if(rows.length>800)throw new ReportReadBound('Derived publication guard exceeds read budget');
- return {blocked:rows.some(r=>r.status!=='published'||integer(r.unknown_view_videos)!==0),signature:JSON.stringify(rows)};
+ return {blocked:rows.some(r=>r.status!=='published'),signature:JSON.stringify(rows)};
 }

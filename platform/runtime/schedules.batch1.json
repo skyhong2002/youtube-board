@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "timezone": "Asia/Taipei",
+  "schedules": [
+    {
+      "id": "batch1-reports-counts-v1",
+      "workflow": "reports.counts.build",
+      "cron": "27 3,8,11,13,18,23 * * *",
+      "options": {
+        "limit": 100
+      }
+    },
+    {
+      "id": "batch1-reports-people-v1",
+      "workflow": "reports.people.build",
+      "cron": "27 3,8,11,13,18,23 * * *",
+      "options": {
+        "tagid": 13,
+        "days": 37,
+        "channel-limit": 1000,
+        "video-limit": 10000
+      }
+    },
+    {
+      "id": "batch1-reports-tag-cloud-v1",
+      "workflow": "reports.tag_cloud.build",
+      "cron": "27 3,8,11,13,18,23 * * *",
+      "options": {
+        "tagid": 1,
+        "days": "1,3,7,30,90",
+        "channel-limit": 1000,
+        "video-limit": 600000
+      }
+    },
+    {
+      "id": "batch1-reports-tag-date-v1",
+      "workflow": "reports.tag_date.build",
+      "cron": "27 3,8,11,13,18,23 * * *",
+      "options": {
+        "tagid": 1,
+        "days": 2,
+        "channel-limit": 1000,
+        "video-limit": 10000
+      }
+    },
+    {
+      "id": "batch1-reports-keywords-cache-v1",
+      "workflow": "reports.keywords.cache",
+      "cron": "27 3,8,11,13,18,23 * * *",
+      "options": {
+        "days": 31,
+        "recent-days": 7,
+        "video-limit": 100000
+      }
+    },
+    {
+      "id": "batch1-reports-schedule-v1",
+      "workflow": "reports.schedule.build",
+      "cron": "29,47 * * * *",
+      "options": {
+        "limit": 100
+      }
+    },
+    {
+      "id": "batch1-reports-live-build-v1",
+      "workflow": "reports.live.build",
+      "cron": "*/9 0-9,15,23 * * *",
+      "options": {
+        "hours": 24,
+        "limit": 100
+      }
+    },
+    {
+      "id": "batch1-reports-live-build-midday-v1",
+      "workflow": "reports.live.build",
+      "cron": "*/19 10-14 * * *",
+      "options": {
+        "hours": 24,
+        "limit": 100
+      }
+    },
+    {
+      "id": "batch1-reports-live-clean-v1",
+      "workflow": "reports.live.clean",
+      "cron": "33 3,13,23 * * *",
+      "options": {
+        "limit": 200
+      }
+    }
+  ]
+}

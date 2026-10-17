@@ -3,11 +3,16 @@ import {createHash} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
 import {workerSchema,workerTableNames} from '../shared/worker-schema.ts';
 import {verifyFacadeTable} from '../shared/physical-tables.ts';
+import {batchFacadeSchema,batchPrincipal,isWorkerBatch} from '../shared/worker-batches.ts';
 import {settings,verifyGrants} from './frontend-schema.mjs';
 const id=v=>{if(!/^[a-z][a-z0-9_]{0,63}$/.test(v))throw Error('INVALID_IDENTIFIER');return '`'+v+'`';};
 export function planWorker(env={}){
- const schema=workerSchema({...env,TS_WORKER_SCHEMA_MODE:'facade',DB_DATABASE:env.WORKER_TARGET_SCHEMA??'youtube_board_ts_worker',TS_SOURCE_SCHEMA:env.WORKER_SOURCE_SCHEMA??'youtube_board',TS_STATE_SCHEMA:env.WORKER_STATE_SCHEMA??'youtube_board_ts',TS_WORKER_WORKFLOW:env.WORKER_WORKFLOW});
- const account=settings({...env,FRONTEND_SOURCE_SCHEMA:schema.source,FRONTEND_TARGET_SCHEMA:schema.state,FRONTEND_REPORT_USER:env.WORKER_USER??'youtube_ts_worker',FRONTEND_STATE_USER:'unused_state_validation',FRONTEND_ACCOUNT_HOST:env.WORKER_ACCOUNT_HOST});
+ // WORKER_BATCH plans one facade + principal holding the union of a handoff batch's profiles
+ // (shared/worker-batches.ts); WORKER_WORKFLOW keeps the single-workflow facades used by ts-worker.py.
+ const batch=env.WORKER_BATCH;if(batch!==undefined&&env.WORKER_WORKFLOW!==undefined)throw Error('WORKER_SCOPE_AMBIGUOUS');
+ if(batch!==undefined&&!isWorkerBatch(batch))throw Error('UNKNOWN_WORKER_BATCH');
+ const schema=workerSchema({...env,TS_WORKER_SCHEMA_MODE:'facade',DB_DATABASE:env.WORKER_TARGET_SCHEMA??(batch?batchFacadeSchema(batch):'youtube_board_ts_worker'),TS_SOURCE_SCHEMA:env.WORKER_SOURCE_SCHEMA??'youtube_board',TS_STATE_SCHEMA:env.WORKER_STATE_SCHEMA??'youtube_board_ts',TS_WORKER_WORKFLOW:batch?undefined:env.WORKER_WORKFLOW,TS_WORKER_BATCH:batch});
+ const account=settings({...env,FRONTEND_SOURCE_SCHEMA:schema.source,FRONTEND_TARGET_SCHEMA:schema.state,FRONTEND_REPORT_USER:env.WORKER_USER??(batch?batchPrincipal(batch):'youtube_ts_worker'),FRONTEND_STATE_USER:'unused_state_validation',FRONTEND_ACCOUNT_HOST:env.WORKER_ACCOUNT_HOST});
  const user=account.reportUser,host=account.accountHost,principal=`'${user}'@'${host}'`,grants=[],views=[];
  for(const [table,rights]of Object.entries(schema.tables).sort(([a],[b])=>a.localeCompare(b))){const target=schema.mapping[table];views.push(`CREATE ALGORITHM=MERGE SQL SECURITY INVOKER VIEW ${id(schema.facade)}.${id(table)} AS SELECT * FROM ${id(target.schema)}.${id(table)}`);grants.push(`GRANT ${rights.join(',')} ON ${id(target.schema)}.${id(table)} TO ${principal}`);grants.push(`GRANT ${[...rights,'SHOW VIEW'].join(',')} ON ${id(schema.facade)}.${id(table)} TO ${principal}`);}
  const plan={...schema,user,host,grants,views};return {...plan,sha256:createHash('sha256').update(JSON.stringify(plan)).digest('hex')};
@@ -31,11 +36,11 @@ export async function executeWorker(plan,env,connect=mysql.createConnection){
   for(const[table,target]of Object.entries(plan.mapping))await verifyFacadeTable(db,plan.facade,table,target);
   await db.query(`CREATE USER '${plan.user}'@'${plan.host}' IDENTIFIED BY ?`,[env.WORKER_PASSWORD]);for(const grant of plan.grants)await db.query(grant);
   await verifyGrants(db,{reportUser:plan.user,stateUser:plan.user,accountHost:plan.host,grants:plan.grants});
-  return {workflow:plan.workflow,facade:plan.facade,views:Object.keys(plan.tables).length,sourceDdl:0,sourceWrites:0,planSha256:plan.sha256};
+  return {...(plan.batch?{batch:plan.batch,workflows:plan.workflows}:{workflow:plan.workflow}),facade:plan.facade,views:Object.keys(plan.tables).length,sourceDdl:0,sourceWrites:0,planSha256:plan.sha256};
  }catch(error){const failure=new Error(error instanceof Error&&/^[A-Z0-9_]{1,80}$/.test(error.message)?error.message:'WORKER_BOOTSTRAP_FAILED');failure.partial=mutationStarted;throw failure;}finally{await db.end();}
 }
 export async function assertFacadeHasNoExecutableObjects(db,facade){
  for(const [table,column]of [['ROUTINES','ROUTINE_SCHEMA'],['TRIGGERS','TRIGGER_SCHEMA'],['EVENTS','EVENT_SCHEMA']]){const[rows]=await db.execute(`SELECT COUNT(*) n FROM information_schema.${table} WHERE ${column}=?`,[facade]);if(Number(rows[0]?.n)!==0)throw Error('WORKER_FACADE_EXECUTABLE_OBJECTS_FORBIDDEN');}
 }
-async function main(){const args=process.argv.slice(2);if(args.length>1||args.some(a=>!['--execute','--dry-run'].includes(a)))throw Error('INVALID_ARGUMENTS');const plan=planWorker(process.env);if(args.includes('--execute'))console.log(JSON.stringify(await executeWorker(plan,process.env)));else console.log(JSON.stringify({mode:'dry-run',workflow:plan.workflow,facade:plan.facade,source:plan.source,state:plan.state,user:plan.user,host:plan.host,permissions:plan.tables,dependencies:plan.dependencies,sourceDdl:0,sourceWrites:0,sha256:plan.sha256}));}
+async function main(){const args=process.argv.slice(2);if(args.length>1||args.some(a=>!['--execute','--dry-run'].includes(a)))throw Error('INVALID_ARGUMENTS');const plan=planWorker(process.env);if(args.includes('--execute'))console.log(JSON.stringify(await executeWorker(plan,process.env)));else console.log(JSON.stringify({mode:'dry-run',...(plan.batch?{batch:plan.batch,workflows:plan.workflows}:{workflow:plan.workflow}),facade:plan.facade,source:plan.source,state:plan.state,user:plan.user,host:plan.host,permissions:plan.tables,dependencies:plan.dependencies,sourceDdl:0,sourceWrites:0,sha256:plan.sha256}));}
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)main().catch(e=>{console.error(JSON.stringify({error:e instanceof Error&&/^[A-Z0-9_]{1,80}$/.test(e.message)?e.message:'WORKER_BOOTSTRAP_FAILED',partial:!!e.partial}));process.exitCode=1;});

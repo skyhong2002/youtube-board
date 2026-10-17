@@ -8,18 +8,26 @@ import mysql,{type RowDataPacket} from 'mysql2/promise';
 import { isolatedTestEnv } from '../../shared/test-database.js';
 import { reportCacheKey } from '../../shared/report-cache-key.js';
 import { channelDeltas, countsCacheJob, liveCacheCleanJob, liveDayMetrics, liveDisplayCacheJob, liveTagDateCacheJob, scheduleCacheJob } from '../src/maintenance-caches.js';
-import { keywordRelationCacheJob,keywordsCacheJob,cloudCacheJob, tagDateCacheJob, tagMonthCacheJob, type CacheContext, type CacheInput } from '../src/report-caches.js';
+import { keywordRelationCacheJob,keywordsCacheJob,cloudCacheJob, tagCloudCacheJob, tagDateCacheJob, tagMonthCacheJob, type CacheContext, type CacheInput } from '../src/report-caches.js';
 import { livePollingJob } from '../src/live-polling.js';
 import { YoutubeDataApiClient } from '../src/youtube.js';
 const enabled=process.env.INGESTION_DB_TEST==='1';
 const now=new Date('2090-02-03T02:00:00Z');
 const dictionary={version:'cache-fixture',coverage:'observed-article-window',rule:'youtube-tag-exact-v1-title2-length',match:(title:string,description:string)=>[...title.includes('台灣')?[{term:'台灣',field:'title' as const}]:[],...description.includes('AI')?[{term:'AI',field:'description' as const}]:[]]};
-it('counts preserve hidden/unknown subscriber deltas and measured zeros',()=>{
+it('counts follow Laravel computeDeltas: zero for one point, kept subscriber deltas, older months override, i=30 still observed',()=>{
  const result=channelDeltas([JSON.stringify({'2090-02-03':{view:100,video:5,hidden:true},'2090-01-27':{view:80,video:5,subscriber:30},'2090-01-05':{view:50,video:3,subscriber:10}})],'2090-02-03');
- expect(result).toEqual({view_week:20,video_week:0,view_month:50,video_month:2,sub_week:null,sub_month:null});
- expect(channelDeltas([JSON.stringify({'2090-02-03':{view:100,video:5,subscriber:10}})],'2090-02-03')).toEqual({view_week:null,video_week:null,view_month:null,video_month:null,sub_week:null,sub_month:null});
- expect(channelDeltas([JSON.stringify({'2090-02-03':{view:100,video:5,subscriber:40},'2090-01-27':{view:80,video:5,subscriber:30},'2090-01-05':{view:50,video:3,hidden:true}})],'2090-02-03')).toMatchObject({sub_week:10,sub_month:null});
- expect(()=>channelDeltas(['{"2090-02-30":{"view":1,"video":1,"subscriber":1}}'],'2090-02-03')).toThrow();
+ // Latest point hides subscribers: Laravel omits sub_* so the stored values are kept.
+ expect(result).toEqual({view_week:20,video_week:0,view_month:50,video_month:2});
+ expect(channelDeltas([JSON.stringify({'2090-02-03':{view:100,video:5,subscriber:10}})],'2090-02-03')).toEqual({view_week:0,video_week:0,view_month:0,video_month:0});
+ // A farther point without a subscriber count keeps the nearer subscriber delta (sub_month 10, not NULL).
+ expect(channelDeltas([JSON.stringify({'2090-02-03':{view:100,video:5,subscriber:40},'2090-01-27':{view:80,video:5,subscriber:30},'2090-01-05':{view:50,video:3,hidden:true}})],'2090-02-03')).toEqual({view_week:20,sub_week:10,video_week:0,view_month:50,sub_month:10,video_month:2});
+ expect(channelDeltas([JSON.stringify({'2090-01-04':{view:7,video:1,subscriber:1}})],'2090-02-03')).toEqual({view_week:0,video_week:0,view_month:0,video_month:0});
+ expect(channelDeltas([JSON.stringify({'2090-01-03':{view:7,video:1,subscriber:1}})],'2090-02-03')).toBeNull();
+ expect(channelDeltas(['{"2090-02-30":{"view":1,"video":1,"subscriber":1}}'],'2090-02-03')).toBeNull();
+ // urt_log rows arrive newest pk first; array_replace lets the older row win for the same date.
+ expect(channelDeltas([JSON.stringify({'2090-02-03':{view:100,video:5,subscriber:1}}),JSON.stringify({'2090-02-03':{view:90,video:4,subscriber:1},'2090-02-01':{view:80,video:4,subscriber:1}})],'2090-02-03')).toMatchObject({view_week:10});
+ for(const bad of ['','null','5','{"2090-02-03":{"view":1,"video":1}}','{"2090-02-03":{"view":1,"video":1,"hidden":"yes"}}','{"2090-02-03":[1]}','{"2090-02-03":{"view":-1,"video":1,"subscriber":1}}','[{"view":1}]'])expect(channelDeltas([bad],'2090-02-03')).toBeNull();
+ expect(channelDeltas(['[]','{"2090-02-03":{"view":"12.7","video":" 3","hidden":true}}'],'2090-02-03')).toEqual({view_week:0,video_week:0,view_month:0,video_month:0});
 });
 it('live hourly maxima retain measured zero, exact minute boundaries and title-only vocabulary',()=>{
  const result=liveDayMetrics([{videoId:'x',u_id:1,title:'台灣',log_json:'{"09:01":0,"09:59":20,"10:00":10}',max_current:999} as RowDataPacket],dictionary);
@@ -48,7 +56,7 @@ it.skipIf(!enabled)('MariaDB tag/cloud rebuilds publish provenance, replay idemp
  const preview=await tagDateCacheJob({...f.ctx,execute:false},f.input,dictionary);expect(preview.applied).toEqual([]);
  await tagDateCacheJob(f.ctx,f.input,dictionary);await tagDateCacheJob(f.ctx,f.input,dictionary);
  const [rows]=await f.db.query<RowDataPacket[]>('SELECT * FROM urt_show_tag_date WHERE tagid=?',[String(f.tag)]);expect(rows).toHaveLength(1);expect(JSON.parse(rows[0]!.tags_video)).toEqual({'台灣':1,AI:1});expect(Number(rows[0]!.total_views)).toBe(10);
- await cloudCacheJob(f.ctx,{...f.input,uId:f.uid},dictionary,'channel');await cloudCacheJob(f.ctx,f.input,dictionary,'tag');await cloudCacheJob(f.ctx,{...f.input,subject:'台灣'},dictionary,'keyword');
+ await cloudCacheJob(f.ctx,{...f.input,uId:f.uid},dictionary,'channel');await tagCloudCacheJob(f.ctx,f.input,[1],dictionary);await cloudCacheJob(f.ctx,{...f.input,subject:'台灣'},dictionary,'keyword');
  const [lineage]=await f.db.query<RowDataPacket[]>('SELECT * FROM ts_report_cache_lineage WHERE cache_table=? AND cache_key=?',['urt_show_cloud',reportCacheKey({u_id:f.uid,days:1})]);expect(lineage[0]!.status).toBe('published');
  await f.db.execute('UPDATE urt_video SET viewCount=NULL WHERE BINARY videoId=BINARY ?',[f.id]);await tagDateCacheJob(f.ctx,f.input,dictionary);
  const [unknown]=await f.db.query<RowDataPacket[]>('SELECT * FROM ts_tag_cache_lineage WHERE selection_key=?',[JSON.stringify([[f.tag],[],[]])]);expect(unknown[0]!.unknown_view_videos).toBe(1);
@@ -56,7 +64,7 @@ it.skipIf(!enabled)('MariaDB tag/cloud rebuilds publish provenance, replay idemp
  await f.db.execute('UPDATE urt_video SET viewCount=10 WHERE BINARY videoId=BINARY ?',[f.id]);await tagDateCacheJob(f.ctx,f.input,dictionary);
  const month={...f.input,from:'2090-01-01',to:'2090-01-31',days:31,subject:'台灣'};await tagDateCacheJob(f.ctx,month,dictionary);await tagDateCacheJob({...f.ctx,now:new Date('2090-01-31T02:00:00Z')},{...month,from:'2090-01-31'},dictionary);await expect(tagMonthCacheJob(f.ctx,month,dictionary)).rejects.toThrow('complete same-version');await tagDateCacheJob(f.ctx,month,dictionary);await tagMonthCacheJob(f.ctx,month,dictionary);
  await f.db.execute('DELETE FROM urt_show_tag_date WHERE tagid=? AND the_date=?',[String(f.tag),'2090-01-02']);await expect(tagMonthCacheJob(f.ctx,month,dictionary)).rejects.toThrow('missing dates');
- const extra=f.id+'x';try{await f.db.execute('INSERT INTO urt_video(ctime,u_id,id,publishedAt,channelId,title,thumbnails,channelTitle,playlistId,position,videoId,description,viewCount) SELECT ctime,u_id,id,publishedAt,channelId,title,thumbnails,channelTitle,playlistId,position,?,description,viewCount FROM urt_video WHERE BINARY videoId=BINARY ?',[extra,f.id]);await expect(tagDateCacheJob(f.ctx,{...f.input,videoLimit:1},dictionary)).rejects.toThrow('source cap');const [kept]=await f.db.query<RowDataPacket[]>('SELECT status FROM ts_tag_cache_lineage WHERE selection_key=? AND the_date=?',[JSON.stringify([[f.tag],[],[]]),f.input.to]);expect(kept[0]!.status).toBe('published');}finally{await f.db.execute('DELETE FROM urt_video WHERE BINARY videoId=BINARY ?',[extra]);}
+ const extra=f.id+'x';try{await f.db.execute('INSERT INTO urt_video(ctime,u_id,id,publishedAt,channelId,title,thumbnails,channelTitle,playlistId,position,videoId,description,viewCount) SELECT ctime,u_id,id,publishedAt,channelId,title,thumbnails,channelTitle,playlistId,position,?,description,viewCount FROM urt_video WHERE BINARY videoId=BINARY ?',[extra,f.id]);expect((await tagDateCacheJob(f.ctx,{...f.input,videoLimit:1},dictionary)).skipped).toEqual([{date:f.input.to,reason:'video_scan_limit_exceeded'}]);const [kept]=await f.db.query<RowDataPacket[]>('SELECT status FROM ts_tag_cache_lineage WHERE selection_key=? AND the_date=?',[JSON.stringify([[f.tag],[],[]]),f.input.to]);expect(kept[0]!.status).toBe('published');}finally{await f.db.execute('DELETE FROM urt_video WHERE BINARY videoId=BINARY ?',[extra]);}
  const [dupe]=await f.db.execute<mysql.ResultSetHeader>('INSERT INTO urt_show_tag_date(ctime,the_date,tagid) VALUES(?,?,?)',[f.at,f.input.to,String(f.tag)]);try{await expect(tagDateCacheJob(f.ctx,f.input,dictionary)).rejects.toThrow('Duplicate logical');const [pending]=await f.db.query<RowDataPacket[]>('SELECT status FROM ts_tag_cache_lineage WHERE selection_key=? AND the_date=?',[JSON.stringify([[f.tag],[],[]]),f.input.to]);expect(pending[0]!.status).toBe('pending');}finally{await f.db.execute('DELETE FROM urt_show_tag_date WHERE pk=?',[dupe.insertId]);}await tagDateCacheJob(f.ctx,f.input,dictionary);
  }finally{await f.cleanup();}
 });
@@ -64,7 +72,7 @@ it.skipIf(!enabled)('MariaDB live cache builds title terms/hourly peaks, exclude
  const f=await fixture();try{
  await f.db.execute('INSERT INTO urt_video_live(ctime,publishedAt,videoId,u_id) VALUES(?,?,?,?)',[f.at,f.at,f.id,f.uid]);
  await f.db.execute('INSERT INTO urt_video_live_log(ctime,the_date,videoId,u_id,max_current,log_json) VALUES(?,?,?,?,?,?)',[f.at,'2090-02-03',f.id,f.uid,30,'{"09:00":0,"09:10":30}']);
- await liveDisplayCacheJob(f.ctx,{hours:2,limit:500});await liveTagDateCacheJob(f.ctx,f.input,dictionary);
+ await liveDisplayCacheJob(f.ctx,{hours:2,limit:100});await liveTagDateCacheJob(f.ctx,f.input,dictionary);
  const [rows]=await f.db.query<RowDataPacket[]>('SELECT * FROM urt_show_live_tag_date WHERE tagid=?',[String(f.tag)]);expect(JSON.parse(rows[0]!.tags_views)).toEqual({'台灣':{'09':30}});
  const clean=await liveCacheCleanJob(f.ctx,200);expect(clean.applied).not.toContain(rows[0]!.pk);
  await f.db.execute('UPDATE urt_video_live_log SET log_json=? WHERE BINARY videoId=BINARY ?',['{"09:00":null}',f.id]);await expect(liveTagDateCacheJob(f.ctx,f.input,dictionary)).rejects.toThrow('Invalid live');
@@ -79,7 +87,7 @@ it.skipIf(!enabled)('MariaDB count/schedule builds derive history without manufa
  await expect(countsCacheJob({...f.ctx,assertOwnership:async()=>{throw new Error('ownership lost');}},{uId:f.uid,limit:1})).rejects.toThrow('ownership lost');
  await f.db.execute('INSERT INTO urt_video_schedule(ctime,mtime,publishedAt,videoId) VALUES(?,?,?,?)',[f.at,f.at,'2090-02-03 07:00:00',f.id]);
  await f.db.execute('INSERT INTO urt_video_log_history(ctime,videoId,viewCount,likeCount,dislikeCount,favoriteCount,commentCount) VALUES(?,?,?,0,0,0,0)',[f.at,f.id,1000]);
- await scheduleCacheJob(f.ctx,{videoId:f.id,limit:1});const [s]=await f.db.query<RowDataPacket[]>('SELECT mtime,stime FROM urt_video_schedule WHERE BINARY videoId=BINARY ?',[f.id]);expect(s[0]!.mtime).toBe(f.at);expect(s[0]!.stime).toBe('2090-02-03 11:00:01');
+ await scheduleCacheJob(f.ctx,{videoId:f.id,limit:1});const [s]=await f.db.query<RowDataPacket[]>('SELECT mtime,stime FROM urt_video_schedule WHERE BINARY videoId=BINARY ?',[f.id]);expect(s[0]!.mtime).toBe('2090-02-03 10:00:00');expect(s[0]!.stime).toBe('2090-02-03 11:00:01');
  await f.db.execute('INSERT INTO urt_video_live_tvbs(ctime,publishedAt,videoId,u_id) VALUES(?,?,?,?)',[f.at,f.at,f.id,f.uid]);
  const youtube=new YoutubeDataApiClient({keys:['fake'],ledger:{precharge:async()=> '2090-02-02',markDailyExhausted:async()=>{}},now:()=>now,fetcher:async()=>new Response(JSON.stringify({items:[{id:f.id,liveStreamingDetails:{concurrentViewers:'3000000000'}}]}))});
  expect((await livePollingJob({...f.ctx,youtube},{tvbs:true,videoId:f.id,limit:1})).applied).toEqual([f.id]);

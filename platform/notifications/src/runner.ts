@@ -9,7 +9,9 @@ import {loadContext} from './source.js';
 import {evaluateStory,markStoryPosted,matches,fingerprint} from './stories.js';
 import {renderPosts} from './render.js';
 export interface NotificationOptions {execute:boolean;scheduled?:boolean;force?:boolean;now?:Date;clock?:()=>Date;config:Config;provider?:Provider;sender?:Sender;assertAuthorized:()=>void;assertOwnership:()=>Promise<void>}
-export function scheduleSlot(period:Period,now:Date){const at=taipeiSql(now),minutes=Number(at.slice(11,13))*60+Number(at.slice(14,16));if(period==='daily'&&(minutes<540||minutes>1260))return null;const slot=legacyScheduleSlot(period,now);return {key:slot.key,expires:notificationSql(new Date(slot.expiration*1000))};}
+/** Laravel daily: ->between('9:00','21:00') compares the schedule:run start instant (with seconds) to 21:00:00, so the
+ * effective window is 09:00:00-20:59:59 Asia/Taipei; hourly runs all day in UTC ten-minute slots. */
+export function scheduleSlot(period:Period,now:Date){const at=taipeiSql(now),minutes=Number(at.slice(11,13))*60+Number(at.slice(14,16));if(period==='daily'&&(minutes<540||minutes>=1260))return null;const slot=legacyScheduleSlot(period,now);return {key:slot.key,expires:notificationSql(new Date(slot.expiration*1000))};}
 export function dispatchKey(period:Period,contextKey:string,storyId:number){return hash(period==='daily'?'daily|'+contextKey:'hourly|'+contextKey+'|'+storyId);}
 async function legacyPosted(db:Connection,context:Context,event:Event,cfg:Config,now:Date,required:boolean){const tables=await physicalTables(db,['cache']);if(!tables.length){if(required)throw new Error('notification_legacy_cache_unavailable');return false;}const key=legacySeenKey(context,event,cfg);const[rows]=await db.query<RowDataPacket[]>('SELECT expiration FROM cache WHERE `key`=? AND expiration>?',[key,Math.floor(now.getTime()/1000)]);return rows.length>0;}
 export async function runNotification(db:Connection,period:Period,options:NotificationOptions){
@@ -61,8 +63,9 @@ export async function runNotification(db:Connection,period:Period,options:Notifi
     else{await db.execute("DELETE FROM telegram_digest_dispatches WHERE dispatch_key=? AND status='pending'",[key]);result.failed++;}
     await db.execute('UPDATE ts_notification_attempts SET status=?,telegram_message_id=?,error_code=?,updated_at=? WHERE attempt_id=?',[sent.sent?'sent':sent.uncertain?'uncertain':'failed',sent.messageId,sent.error,sentAt,attemptId]);await db.commit();
    }catch(error){await db.rollback().catch(()=>undefined);throw error;}
-   // A failed/uncertain outcome stops this batch. Never retry a send in-process.
-   if(!sent.sent)break;
+   // Laravel continues with the next post after a definite rejection; an uncertain outcome stops this batch
+   // (Laravel kept no record and could resend it next slot). Never retry a send in-process.
+   if(!sent.sent&&sent.uncertain)break;
   }
   result.phase='finished';result.status=result.uncertain?'uncertain':result.failed?'failed':result.posted?'completed':result.skippedIncomplete?'incomplete':'nothing-eligible';return await finish();
  }catch(error){if(options.execute)await db.execute("UPDATE ts_notification_runs SET status='failed',result_json=?,updated_at=? WHERE run_id=?",[JSON.stringify({...result,status:'failed',partial:result.posted>0,error:error instanceof Error&&/^notification_[a-z_]+$/.test(error.message)?error.message:'notification-workflow-failed'}),notificationSql(clock()),runId]).catch(()=>undefined);throw error;}

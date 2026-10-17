@@ -1,5 +1,6 @@
 import {tagHttpOptions} from './tag-http.js';
-import {assertQueueJob,consumerQueue,partitionedQueues,workflowQueueName} from './queue-scope.js';
+import {assertQueueJob,consumerQueue,statusQueues,workflowQueueName} from './queue-scope.js';
+import {batchWorkflows} from '../../shared/worker-batches.js';
 import { registeredWorkflows, executeRegisteredWorkflow, validateWorkflowInput, type WorkflowInput } from './workflow-registry.js';
 import { Queue, Worker, type Job } from 'bullmq';
 import { Redis } from 'ioredis';
@@ -34,8 +35,11 @@ export function redisConnection(env: NodeJS.ProcessEnv, blocking = false) {
 /** Starting a worker is explicit. It never schedules jobs on startup. */
 export function startWorker(env: NodeJS.ProcessEnv) {
   const policy = executionPolicy(env, 'execute', true);
-  if (![VOCABULARY_JOB, ...registeredWorkflows].some(name => { try { assertExecute(name, policy); return true; } catch { return false; } })) throw new Error('No authorized scheduled workflow');
-  const scope=consumerQueue(env);if(scope.workflow)assertExecute(scope.workflow,policy);
+  const scope=consumerQueue(env);
+  // A batch worker starts only when at least one of its own workflows is authorized; every dequeued job
+  // still rechecks its exact owner, allowlist, production and scheduler gates before execution.
+  if (!(scope.batch!==undefined?batchWorkflows(scope.batch):[VOCABULARY_JOB, ...registeredWorkflows]).some(name => { try { assertExecute(name, policy); return true; } catch { return false; } })) throw new Error('No authorized scheduled workflow');
+  if(scope.workflow)assertExecute(scope.workflow,policy);
   const redis = redisConnection(env, true);
   const worker = new Worker<VocabularyJobInput>(scope.name, async (job: Job<VocabularyJobInput>) => {
     assertQueueJob(scope,job.name,env);
@@ -122,12 +126,12 @@ export async function enqueueWorkflow(name: string, runId: string, raw: unknown,
 /** Read-only queue status; expiry is reported as unobserved, never success. */
 export async function workflowQueueStatus(id: string, env: NodeJS.ProcessEnv) {
   if (!/^[a-f0-9]{64}$/.test(id)) throw new Error('Invalid queue ID');
-  const workflows=partitionedQueues(env)?(env.TS_WORKER_WORKFLOW?[env.TS_WORKER_WORKFLOW]:[...executionPolicy(env).typescriptOwners]):[''];
-  if(workflows.length>64)throw new Error('Queue status scope exceeds cap');
+  const queues=statusQueues(env,executionPolicy(env).typescriptOwners);
+  if(queues.length>64)throw new Error('Queue status scope exceeds cap');
   const redis=redisConnection(env);try{
-   for(const workflow of workflows){const queue=new Queue(workflowQueueName(workflow,env),{connection:redis});try{
+   for(const scope of queues){const queue=new Queue(scope.name,{connection:redis});try{
     const job=await queue.getJob(id);if(!job)continue;
-    if(workflow&&job.name!==workflow)throw new Error('Queue job profile mismatch');
+    if(!scope.accepts(job.name))throw new Error('Queue job profile mismatch');
     const result=job.returnvalue&&typeof job.returnvalue==='object'?job.returnvalue as Record<string,unknown>:{},state=await job.getState();
     return {id,workflow:job.name,state,enqueuedAt:job.timestamp,startedAt:job.processedOn??null,finishedAt:job.finishedOn??null,attemptsMade:job.attemptsMade,failed:state==='failed',result:Object.fromEntries(Object.entries(result).filter(([key,value])=>['status','mode','executionKey','runId','version','vocabularyVersion','total','processed','nextAfterPk','calls'].includes(key)&&(value===null||typeof value==='string'||typeof value==='number')))};
    }finally{await queue.close().catch(()=>{});}}

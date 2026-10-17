@@ -4,9 +4,10 @@ import type { Connection, RowDataPacket } from 'mysql2/promise';
 import { YoutubeDataApiClient, unsigned, type VideoStatistics } from './youtube.js';
 import { taipeiSql, legacyInstant, jsonMap, selectOne, upsert, update } from './legacy-db.js';
 export interface SourceJobContext { db: Connection; youtube: YoutubeDataApiClient; execute: boolean; now: Date; clock?: () => Date; assertOwnership: () => Promise<void> }
+/** Laravel estimateNextCheck: the prior observation counts only with a past mtime and a known viewCount. */
 export function nextStatisticsCheck(current: number, previous: { viewCount?: unknown; mtime?: unknown } | null, publishedAt: unknown, now: Date): string {
-  let from = legacyInstant(previous?.mtime), previousViews = unsigned(previous?.viewCount) ?? 0;
-  if (!from || from >= now) { from = legacyInstant(publishedAt); previousViews = 0; }
+  let from = legacyInstant(previous?.mtime), previousViews = unsigned(previous?.viewCount);
+  if (!from || from >= now || previousViews === null) { from = legacyInstant(publishedAt); previousViews = 0; }
   if (!from || from >= now) from = new Date(now.getTime() - 2 * 3600000);
   const delta = Math.max(1, current - previousViews), period = Math.max(1, Math.floor((now.getTime() - from.getTime()) / 1000) + 1);
   let hours = 1000 / (delta / (period / 3600)); if (hours > 1000) hours = 3000; hours = Math.max(2, hours);
@@ -21,16 +22,19 @@ export async function publishVideoStatistics(db: Connection, row: RowDataPacket,
   if (!video) throw new Error('Source video row is missing');
   const videoLike = known(stats.likeCount, video?.likeCount, schedule?.likeCount, history?.likeCount), scheduleLike = known(stats.likeCount, schedule?.likeCount, video?.likeCount, history?.likeCount);
   const favorite = known(stats.favoriteCount, video?.favoriteCount, history?.favoriteCount), videoComment = known(stats.commentCount, video?.commentCount, schedule?.commentCount, history?.commentCount), scheduleComment = known(stats.commentCount, schedule?.commentCount, video?.commentCount, history?.commentCount);
-  if (stats.viewCount + (videoLike ?? 0) > 0) data[date] = { view: stats.viewCount, dislike: stats.dislikeCount, ...(videoLike === null ? {} : { like: videoLike }), ...(videoComment === null ? {} : { comment: videoComment }) };
+  // Laravel merges into the existing day point (keeping its other keys and key order).
+  const point = data[date] && typeof data[date] === 'object' ? data[date] as Record<string, unknown> : {};
+  if (stats.viewCount + (videoLike ?? 0) > 0) data[date] = { ...point, view: stats.viewCount, dislike: stats.dislikeCount, ...(videoLike === null ? {} : { like: videoLike }), ...(videoComment === null ? {} : { comment: videoComment }) };
   if (videoLike !== null && favorite !== null && videoComment !== null) await upsert(db, 'urt_video_log_history', { videoId, ctime: at }, { viewCount: stats.viewCount, likeCount: videoLike, dislikeCount: stats.dislikeCount, favoriteCount: favorite, commentCount: videoComment });
   await upsert(db, 'urt_video_log', { videoId, themonth: month }, { ...(log ? {} : { ctime: at }), mtime: at, thedata: JSON.stringify(data) });
-  const previous = schedule && unsigned(schedule.viewCount) !== null && schedule.mtime ? schedule : video;
+  const previous = schedule ?? video;
   const nextCheck = nextStatisticsCheck(stats.viewCount, { viewCount: previous.viewCount, mtime: previous.mtime }, row.publishedAt, now);
   const common = { viewCount: stats.viewCount, publishedAt: taipeiSql(legacyInstant(row.publishedAt) ?? now) };
   const videoValues = { ...common, dislikeCount: stats.dislikeCount, ...(videoLike === null ? {} : { likeCount: videoLike }), ...(favorite === null ? {} : { favoriteCount: favorite }), ...(videoComment === null ? {} : { commentCount: videoComment }) };
   // Source freshness is last; a failed log write leaves the source due on MyISAM.
   await update(db, 'urt_video', { videoId }, videoValues);
-  await upsert(db, 'urt_video_schedule', { videoId }, { ...(schedule ? {} : { ctime: at }), ...common, mtime: at, stime: nextCheck, ...(scheduleLike === null ? {} : { likeCount: scheduleLike }), ...(scheduleComment === null ? {} : { commentCount: scheduleComment }) });
+  // Laravel writes the schedule row's ctime on every statistics refresh, not only on insert.
+  await upsert(db, 'urt_video_schedule', { videoId }, { ctime: at, ...common, mtime: at, stime: nextCheck, ...(scheduleLike === null ? {} : { likeCount: scheduleLike }), ...(scheduleComment === null ? {} : { commentCount: scheduleComment }) });
   if (source === 'urt_video') await update(db, 'urt_video', { videoId }, { mtime: at, stime: nextCheck });
 }
 export async function videoStatisticsJob(ctx: SourceJobContext, input: { videoId?: string; limit: number; today?: boolean }) {
@@ -38,8 +42,8 @@ export async function videoStatisticsJob(ctx: SourceJobContext, input: { videoId
   const at = taipeiSql(ctx.now), from = taipeiSql(new Date(ctx.now.getTime() - (input.today ? 7 : 210) * 86400000)), before = taipeiSql(new Date(ctx.now.getTime() - 2 * 3600000));
   const table = input.videoId || input.today ? 'urt_video' : 'urt_video_schedule';
   const [rows] = await ctx.db.query<RowDataPacket[]>(input.videoId ? 'SELECT * FROM urt_video WHERE BINARY videoId = BINARY ? LIMIT 1' : `SELECT v.* FROM ${table} v LEFT JOIN ts_youtube_item_backoff b ON b.workflow = 'youtube.videos.stats' AND BINARY b.video_id = BINARY v.videoId WHERE (v.stime IS NULL OR v.stime <= ?) AND v.publishedAt >= ? AND v.publishedAt < ?${input.today ? ' AND v.viewCount IS NULL' : ''} AND (b.retry_after IS NULL OR b.retry_after <= ?) ORDER BY v.stime, BINARY v.videoId LIMIT ?`, input.videoId ? [input.videoId] : [at, from, before, at, input.limit]);
-  const aged = rows.some(row => !row.mtime || (legacyInstant(row.mtime)?.getTime() ?? 0) <= ctx.now.getTime() - 2 * 3600000);
-  const wouldCallApi = rows.length > 0 && (!!input.videoId || rows.length > Math.floor(input.limit * 0.8) || aged);
+  // Laravel (legacy get_video_count.php): call only for an explicit video or a first batch above 80% of the cap.
+  const wouldCallApi = rows.length > 0 && (!!input.videoId || rows.length > Math.floor(input.limit * 0.8));
   if (!ctx.execute || !wouldCallApi) return { mode: ctx.execute ? 'execute' : 'dry-run', selected: rows.length, wouldCallApi, apiAttempts: 0, applied: [], skipped: [] };
   await ctx.assertOwnership();
   let response: Map<string,VideoStatistics>;

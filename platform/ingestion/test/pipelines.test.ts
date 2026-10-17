@@ -84,7 +84,7 @@ it.skipIf(!enabled)('tag backfill refuses truncated crawl publication, then fill
     if (channelId) { await db.execute('DELETE FROM urt_count WHERE u_id = ?', [channelId]); await db.execute('DELETE FROM urt_channel WHERE u_id = ?', [channelId]); } await db.end();
   }
 });
-it.skipIf(!enabled)('schedule statistics preserve main-video timestamps and use a paired prior observation', async () => {
+it.skipIf(!enabled)('schedule statistics preserve main-video timestamps and fall back to publishedAt when the schedule has no observed viewCount (Laravel)', async () => {
   const { publishVideoStatistics, nextStatisticsCheck } = await import('../src/video-statistics.js');
   const db = await connect(), id = uid();
   try {
@@ -94,9 +94,9 @@ it.skipIf(!enabled)('schedule statistics preserve main-video timestamps and use 
     await publishVideoStatistics(db, rows[0]!, { viewCount: 100, likeCount: null, favoriteCount: null, commentCount: null, dislikeCount: 0 }, now, 'urt_video_schedule');
     const [source] = await db.query<RowDataPacket[]>('SELECT mtime,stime,viewCount FROM urt_video WHERE BINARY videoId = BINARY ?', [id]);
     expect(source[0]?.mtime).toBe('2026-10-11 10:00:00'); expect(source[0]?.stime).toBeNull(); expect(Number(source[0]?.viewCount)).toBe(100);
-    const [schedule] = await db.query<RowDataPacket[]>('SELECT mtime,stime FROM urt_video_schedule WHERE BINARY videoId = BINARY ?', [id]);
-    expect(schedule[0]?.mtime).toBe('2026-10-12 10:00:00');
-    expect(schedule[0]?.stime).toBe(nextStatisticsCheck(100, { viewCount: 50, mtime: '2026-10-11 10:00:00' }, '2026-10-11 09:00:00', now));
+    const [schedule] = await db.query<RowDataPacket[]>('SELECT ctime,mtime,stime FROM urt_video_schedule WHERE BINARY videoId = BINARY ?', [id]);
+    expect(schedule[0]?.mtime).toBe('2026-10-12 10:00:00'); expect(schedule[0]?.ctime).toBe('2026-10-12 10:00:00');
+    expect(schedule[0]?.stime).toBe(nextStatisticsCheck(100, null, '2026-10-11 09:00:00', now));
   } finally { await cleanVideo(db, id); await db.end(); }
 });
 it.skipIf(!enabled)('orphan schedules never claim a source publication, and item backoff does not fake source freshness', async () => {

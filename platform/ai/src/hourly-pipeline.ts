@@ -3,6 +3,7 @@ import {workflowShutdownSignal} from '../../shared/shutdown.js';
 import {normalizeInput,type Input} from './contracts.js';
 import {planAi} from './planner.js';
 import {runAi,existingAi,type RunOptions} from './runner.js';
+const HOURLY_SKIP_REASONS=['no_source_videos','insufficient_source_for_contract'];
 export interface HourlyPipelineInput {from?:string;to?:string;hour?:number;period?:number;condition?:Input['condition'];userToken?:string;promptVideoLimit?:number}
 export function normalizeHourlyPipeline(raw:HourlyPipelineInput,now=new Date()):Input{
  const hour=raw.hour??1,period=raw.period??1;if(!Number.isInteger(hour)||hour<0||hour>168||!Number.isInteger(period)||period<1||period>48)throw new Error('Hourly offset must be 0–168; period must be 1–48');
@@ -19,5 +20,8 @@ export async function runHourlyPipeline(db:Connection,input:Input,options:Omit<R
  workflowShutdownSignal().throwIfAborted();const source=await options.refreshSource(options.execute,input.from);workflowShutdownSignal().throwIfAborted();
  if(options.execute&&!source.complete)return {status:'blocked',reason:'hourly_source_window_incomplete',source:source.details,calls:0};
  const result=await runAi(db,input,{...options,sourceCapture:source.details,assertAuthorized:()=>options.assertAuthorized('ai.hourly')});
- return {...result,source:source.details,sourceComplete:source.complete,window:{from:input.from,to:input.to}};
+ // Laravel AiHourlyIngestion: an hour without videos is a successful skip (exit 0). A single video cannot meet the
+ // two-event contract; TS skips it the same way instead of asking the model to invent a second event.
+ const insufficient='status'in result&&result.status==='blocked'&&HOURLY_SKIP_REASONS.includes(String(result.reason));
+ return {...result,...(insufficient?{status:'skipped_insufficient_evidence'}:{}),source:source.details,sourceComplete:source.complete,window:{from:input.from,to:input.to}};
 }

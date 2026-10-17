@@ -4,20 +4,31 @@ export class CacheMetricBound extends Error {readonly statusCode=422;}
 export interface MetricMatch {term:string;field:'title'|'description'}
 export interface MetricVideo {videoId:string;uId:number;publishedAt:string;viewCount:unknown;matches:MetricMatch[]}
 const safeSum=(a:number,b:number)=>{const n=a+b;if(!Number.isSafeInteger(n))throw new CacheMetricBound('Cache count exceeds safe integer range');return n;};
+/** Streaming form of tagMetricsFromEvidence: long cache windows add videos page by page instead of holding them all. */
+export function tagMetricsAccumulator() {
+  const counts = new Map<string, number>(), videoCounts = new Map<string, number>(), views = new Map<string, number>(); let totalViews = 0, countTags = 0, unknownViews = 0, videos = 0;
+  return {
+    add(video: Pick<MetricVideo, 'viewCount' | 'matches'>) {
+      videos++;
+      if (video.viewCount === null || video.viewCount === undefined) unknownViews++;
+      const count = Number(video.viewCount ?? 0);
+      if (!Number.isSafeInteger(count) || count < 0) throw new CacheMetricBound('Invalid video view count in cache source');
+      totalViews += count;
+      if (!Number.isSafeInteger(totalViews)) throw new CacheMetricBound('View sum exceeds safe integer range');
+      const matched = new Map<string, number>();
+      for (const item of video.matches) matched.set(item.term, (matched.get(item.term) ?? 0) + (item.field === 'title' ? 2 : 1));
+      for (const [term, occurrences] of matched) { counts.set(term, (counts.get(term) ?? 0) + occurrences); videoCounts.set(term, (videoCounts.get(term) ?? 0) + 1); views.set(term, safeSum(views.get(term) ?? 0, count)); countTags += occurrences; }
+    },
+    result() {
+      const score = [...counts].map(([tag, count]) => [tag, count * (Math.log(Array.from(tag).length + 0.5) - 0.5)] as const).filter(([, value]) => value > 0).sort((a, b) => b[1] - a[1]);
+      return { unknown_view_videos: unknownViews, count_videos: videos, count_tags: countTags, total_views: totalViews, tags_count: score.length, tags_result: Object.fromEntries(score.map(([tag, value]) => [tag, value.toFixed(3)])), tags_video: Object.fromEntries([...videoCounts].sort((a, b) => b[1] - a[1])), tags_views: Object.fromEntries([...views].sort((a, b) => b[1] - a[1])) };
+    },
+  };
+}
 export function tagMetricsFromEvidence(videos: MetricVideo[]) {
-  const counts = new Map<string, number>(), videoCounts = new Map<string, number>(), views = new Map<string, number>(); let totalViews = 0, countTags = 0, unknownViews = 0;
-  for (const video of videos) {
-    if (video.viewCount === null || video.viewCount === undefined) unknownViews++;
-    const count = Number(video.viewCount ?? 0);
-    if (!Number.isSafeInteger(count) || count < 0) throw new CacheMetricBound('Invalid video view count in cache source');
-    totalViews += count;
-    if (!Number.isSafeInteger(totalViews)) throw new CacheMetricBound('View sum exceeds safe integer range');
-    const matched = new Map<string, number>();
-    for (const item of video.matches) matched.set(item.term, (matched.get(item.term) ?? 0) + (item.field === 'title' ? 2 : 1));
-    for (const [term, occurrences] of matched) { counts.set(term, (counts.get(term) ?? 0) + occurrences); videoCounts.set(term, (videoCounts.get(term) ?? 0) + 1); views.set(term, (views.get(term) ?? 0) + count); countTags += occurrences; }
-  }
-  const score = [...counts].map(([tag, count]) => [tag, count * (Math.log(Array.from(tag).length + 0.5) - 0.5)] as const).filter(([, value]) => value > 0).sort((a, b) => b[1] - a[1]);
-  return { unknown_view_videos: unknownViews, count_videos: videos.length, count_tags: countTags, total_views: totalViews, tags_count: score.length, tags_result: Object.fromEntries(score.map(([tag, value]) => [tag, value.toFixed(3)])), tags_video: Object.fromEntries([...videoCounts].sort((a, b) => b[1] - a[1])), tags_views: Object.fromEntries([...views].sort((a, b) => b[1] - a[1])) };
+  const accumulator = tagMetricsAccumulator();
+  for (const video of videos) accumulator.add(video);
+  return accumulator.result();
 }
 export function keywordCloudFromEvidence(videos:MetricVideo[],subject:string){
  const folded=asciiCaseFold(subject),selected=videos.filter(v=>v.matches.some(m=>asciiCaseFold(m.term)===folded)),terms=new Map<string,{videos:number;views:number;weight:number}>();let occurrences=0,unknownViews=0;

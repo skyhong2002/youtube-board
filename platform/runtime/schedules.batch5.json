@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "timezone": "Asia/Taipei",
+  "schedules": [
+    { "id": "batch5-ai-hourly-v1", "workflow": "ai.hourly", "cron": "10 * * * *", "options": { "limit": 20, "source-max-results": 50 }, "window": "previous-hour" }
+  ]
+}

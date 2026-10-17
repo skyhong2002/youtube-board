@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "timezone": "Asia/Taipei",
+  "schedules": [
+    { "id": "batch4-ai-daily-v1", "workflow": "ai.daily", "cron": "0 0 * * *", "options": { "channel-limit": 39, "call-limit": 45, "channel-video-limit": 120, "limit": 1000 }, "window": "yesterday-date" },
+    { "id": "batch4-ai-daily-catchup-v1", "workflow": "ai.daily.catchup", "cron": "20 2,4,6 * * *", "options": { "channel-limit": 39, "call-limit": 45, "channel-video-limit": 120, "limit": 1000 }, "window": "yesterday-date" }
+  ]
+}

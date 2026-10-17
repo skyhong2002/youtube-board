@@ -155,14 +155,16 @@ export class YoutubeDataApiClient {
   }
   async playlistItemsPage(playlistId: string, pageToken: string | null = null, maxResults = 50): Promise<Page<PlaylistItem>> {
     if (!playlistId.trim()) return { items: [], nextPageToken: null };
-    const data = await this.get('playlistItems', { part: 'snippet', playlistId, maxResults: String(Math.max(1, Math.min(50, maxResults))), ...(pageToken ? { pageToken } : {}) });
+    const data = await this.get('playlistItems', { part: 'snippet', playlistId: playlistId.trim(), maxResults: String(Math.max(1, Math.min(50, maxResults))), ...(pageToken ? { pageToken } : {}) });
     const items = this.items(data).map(item => {
       if (!record(item) || !record(item.snippet)) throw new YoutubeError('invalid-response');
       const s = item.snippet, thumbnails = record(s.thumbnails) ? s.thumbnails : {}, resource = record(s.resourceId) ? s.resourceId : {};
-      const thumbnail = ['default', 'medium', 'high'].map(size => thumbnails[size]).filter(record).map(t => str(t.url)).find(Boolean) ?? '';
-      const live = s.liveBroadcastContent ?? 'none', position = unsigned(s.position);
-      if (!str(item.id) || !str(resource.videoId) || !rfc3339(s.publishedAt) || !str(s.channelId) || !str(s.title) || !str(s.channelTitle) || str(s.playlistId) !== playlistId || typeof s.description !== 'string' || !thumbnail || position === null || !['none', 'live', 'upcoming'].includes(str(live))) throw new YoutubeError('invalid-response');
-      return { id: str(item.id), videoId: str(resource.videoId), publishedAt: s.publishedAt, channelId: str(s.channelId), title: str(s.title), description: s.description, thumbnails: thumbnail, channelTitle: str(s.channelTitle), playlistId, position, liveBroadcastContent: live as PlaylistItem['liveBroadcastContent'] };
+      // Laravel trims identifiers, dates and titles (never the description) before validating and storing them.
+      const trimmed = (value: unknown) => str(value).trim(), publishedAt = trimmed(s.publishedAt);
+      const thumbnail = ['default', 'medium', 'high'].map(size => thumbnails[size]).filter(record).map(t => str(t.url)).find(url => url.trim() !== '') ?? '';
+      const live = s.liveBroadcastContent === undefined ? 'none' : trimmed(s.liveBroadcastContent), position = unsigned(s.position);
+      if (!trimmed(item.id) || !trimmed(resource.videoId) || !rfc3339(publishedAt) || !trimmed(s.channelId) || !trimmed(s.title) || !trimmed(s.channelTitle) || trimmed(s.playlistId) !== playlistId.trim() || typeof s.description !== 'string' || !thumbnail || position === null || !['none', 'live', 'upcoming'].includes(live)) throw new YoutubeError('invalid-response');
+      return { id: trimmed(item.id), videoId: trimmed(resource.videoId), publishedAt, channelId: trimmed(s.channelId), title: trimmed(s.title), description: s.description, thumbnails: thumbnail, channelTitle: trimmed(s.channelTitle), playlistId: playlistId.trim(), position, liveBroadcastContent: live as PlaylistItem['liveBroadcastContent'] };
     }); return { items, nextPageToken: this.next(data) };
   }
   async playlistItems(playlistId: string, maxResults = 50) { return (await this.playlistItemsPage(playlistId, null, maxResults)).items; }

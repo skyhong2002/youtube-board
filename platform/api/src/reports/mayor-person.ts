@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 import {sql} from 'drizzle-orm';
 import type {Reader,Row} from '../db/client.js';
 import {aiOutputFields,aiPublication,publicationVisible,publicationCoverage,publicationNote} from './ai-publication.js';
-import {inspectReportRows,cacheLineageNote,cacheWindowNotes} from './cache-lineage.js';
+import {inspectReportRows,cacheLineageNote,cacheWindowNotes,unknownViewNotes} from './cache-lineage.js';
 import {BadQuery,NotFound,bounded,dateFilter,page,search,type Query} from './query.js';
 import {integer,latest,list,object,taipeiDate,text,timestamp} from './normalize.js';
 import {link,table,weights,type Register} from './table.js';
@@ -87,7 +87,7 @@ export function registerMayorPerson(register:Register,reader:Reader,clock:()=>Da
   if(!videos.length)videos=await reader.rows(sql`SELECT ${videoFields} FROM urt_video WHERE publishedAt>=${date+' 00:00:00'} AND publishedAt<=${date+' 23:59:59'} AND (title LIKE ${pattern} ESCAPE '=' OR description LIKE ${pattern} ESCAPE '=') ORDER BY viewCount DESC,pk DESC LIMIT 8`);
   const rawAi=(await reader.rows(sql`SELECT pk,city_key,person,the_date,user_token,ai_type,provider,${aiOutputFields},ctime,mtime FROM urt_mayor_person_ai WHERE BINARY city_key=BINARY ${cityKey} AND BINARY person=BINARY ${name} AND the_date=${date} AND del_flag IS NULL ORDER BY pk DESC LIMIT 1`))[0],publication=rawAi?await aiPublication(reader,'ai.mayor_person',rawAi):null,ai=publication&&publicationVisible(publication)?rawAi:undefined,payload=object(ai?.result_json);
   const records=[...sources.values()].flatMap(s=>s.records),unit=MAYOR_METRICS[metric];
-  const notes=[cacheLineageNote,publicationNote,...cacheWindowNotes(records),...mayorPersonNarrative(summary,unit,videos.length),`人物名單為中選會 ${CANDIDATE_LIST_VERSION} 審定版本；新聞曝光和提及不是支持度。每日摘要只陳述觀測量與缺漏，不套用政治係數，也不提供選戰策略。`,`影片來源：${sourceKind}；詞彙日期快取狀態：${references.state}。`,`來源日期：${date}；未指定日期時，訊號／影片最多回看 365 天。所有分類度量與引用快取共用 8 MiB 載入預算，分類每筆上限 128 KiB。`];
+  const notes=[cacheLineageNote,publicationNote,...cacheWindowNotes(records),...unknownViewNotes(sources.get('tags_views')?.coverage.unknownViewVideos??0,'觀看引用採用的分類日快取（分類可重疊，合計可能重複）'),...mayorPersonNarrative(summary,unit,videos.length),`人物名單為中選會 ${CANDIDATE_LIST_VERSION} 審定版本；新聞曝光和提及不是支持度。每日摘要只陳述觀測量與缺漏，不套用政治係數，也不提供選戰策略。`,`影片來源：${sourceKind}；詞彙日期快取狀態：${references.state}。`,`來源日期：${date}；未指定日期時，訊號／影片最多回看 365 天。所有分類度量與引用快取共用 8 MiB 載入預算，分類每筆上限 128 KiB。`];
   if(publication&&!ai)notes.push(`AI 摘要暫不呈現（${publication.state}）；來源訊號與影片仍可查閱。`);
   if(ai){notes.push(`AI 來源紀錄 #${ai.pk}；模型 ${text(ai.ai_type)||'未記錄'}；供應者 ${text(ai.provider)||'未記錄'}。`);if(text(payload.summary))notes.push('AI 摘要：'+text(payload.summary).slice(0,4000));for(const item of list(payload.what_happened??payload.observations).slice(0,20))if(typeof item==='string')notes.push('來源觀察：'+item.slice(0,1000));}
   const rows=[...signals.map(s=>({kind:'分類日觀測',name:s.category,views:s.views,videos:s.videos,importance:s.importance,change:s.change,source:date})),...videos.map(v=>({kind:'來源影片',name:link(text(v.title),`/videos/${encodeURIComponent(text(v.videoId))}`),views:integer(v.viewCount),videos:null,importance:null,change:null,source:timestamp(v.publishedAt)}))];

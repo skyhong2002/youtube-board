@@ -2,8 +2,10 @@ import type {Connection,RowDataPacket,ResultSetHeader} from 'mysql2/promise';
 import {randomUUID} from 'node:crypto';
 import {type Config,type Context,type Decision,type Event,type Fingerprint,type Observation,hash,instant,json,record,strings,notificationSql,unique} from './contracts.js';
 const phpTrim=(s:string)=>s.replace(/^[ \t\r\n\0\v]+|[ \t\r\n\0\v]+$/g,'');
-// PHP PCRE2 /u without UCP keeps CJK punctuation and NBSP; [:punct:] is ASCII.
-export const normalize=(s:string)=>phpTrim(phpTrim(s.toLowerCase()).replace(/[ \t\r\n\v\f　\x21-\x2f\x3a-\x40\x5b-\x60\x7b-\x7e]+/gu,'').replace(/事件|新聞|最新|後續|焦點/g,''));
+// PHP's /u modifier also sets PCRE2_UCP (ext/pcre/php_pcre.c): \s is Unicode white space (\p{Z}, \h, \v) and
+// [:punct:] is \p{P} plus the Latin-1 symbols (code points < 256 with \p{S}), so CJK punctuation and NBSP are removed.
+const pcreUcpSpacePunct=/(?:[\t\n\v\f\r \u0085\u00a0\u1680\u180e\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\p{P}]|(?=\p{S})[\x00-\xff])+/gu;
+export const normalize=(s:string)=>phpTrim(phpTrim(s.toLowerCase()).replace(pcreUcpSpacePunct,'').replace(/事件|新聞|最新|後續|焦點/g,''));
 export function bigrams(s:string){const chars=[...s];return unique(chars.length<2?chars:chars.slice(0,-1).map((c,i)=>c+chars[i+1]));}
 export function fingerprint(e:Event):Fingerprint {return {title:normalize(e.title),title_grams:bigrams(normalize(e.title)),keywords:unique(e.keywords.map(normalize).filter(v=>[...v].length>=2)),people:unique(e.people.map(normalize).filter(v=>[...v].length>=2)),places:unique(e.places.map(normalize).filter(v=>[...v].length>=2)),category:normalize(e.category)};}
 const shared=(a:string[],b:string[])=>a.filter(v=>b.includes(v)).length;
@@ -19,7 +21,8 @@ export function decide(event:Event,context:Context,cfg:Config,story:RowDataPacke
  const currentChannels:Record<string,string>=Object.create(null);for(const video of event.videos){const key=video.uId>0?'u:'+video.uId:video.channel?'c:'+video.channel:'';if(key){videoChannels[video.videoId]=key;currentChannels[video.videoId]=key;}}
  let obs=observations(story?.observations_json);if(context.period==='hourly')obs=[...obs.filter(o=>o.context_key!==context.key),{context_key:context.key,observed_at:context.dateFrom,video_count:event.videoIds.length,media_count:new Set(Object.values(currentChannels)).size}].slice(-24);
  const prior=obs.slice(0,-1).slice(-cfg.burstHours),baseline=prior.length?prior.reduce((n,o)=>n+o.video_count,0)/prior.length:0,ratio=baseline>0?event.videoIds.length/baseline:null;
- const media=new Set(Object.values(currentChannels)).size,isBurst=prior.length===cfg.burstHours&&ratio!==null&&event.videoIds.length>=cfg.burstMinVideos&&media>=cfg.burstMinMedia&&ratio>=cfg.burstRatio;
+ // Laravel computes a burst only for hourly observations; daily posts never carry a burst line.
+ const media=new Set(Object.values(currentChannels)).size,isBurst=context.period==='hourly'&&prior.length===cfg.burstHours&&ratio!==null&&event.videoIds.length>=cfg.burstMinVideos&&media>=cfg.burstMinMedia&&ratio>=cfg.burstRatio;
  const posted=strings(decoded(story?.last_posted_video_ids_json,[])),delta=videoIds.filter(v=>!posted.includes(v)),deltaMedia=new Set(delta.map(v=>videoChannels[v]).filter(Boolean)).size;
  const previous=story?.last_posted_at?String(story.last_posted_at):null,hours=previous?(now.getTime()-instant(previous).getTime())/3600000:null;
  if(hours!==null&&(!Number.isFinite(hours)||hours<0))throw new Error('notification_story_posted_time_invalid');
