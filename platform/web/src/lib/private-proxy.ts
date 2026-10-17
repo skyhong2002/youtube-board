@@ -1,6 +1,6 @@
 /** Fixed same-origin development bridge. Production Fastify owns these routes. */
 export function privateRoute(path:string,method:string){
- if(path==='/auth/google'||path==='/auth/google/callback'||path==='/auth/me'||path==='/auth/users')return method==='GET';
+ if(path==='/auth/google'||path==='/auth/google/callback'||path==='/auth/me'||path==='/auth/users'||path==='/auth/admin/user-activity'||path==='/auth/admin/channels')return method==='GET';
  if(path==='/auth/logout')return method==='POST';
  if(/^\/auth\/users\/[1-9]\d{0,15}\/role$/.test(path))return method==='PUT'&&Number.isSafeInteger(Number(path.split('/')[3]));
  if(/^\/auth\/me\/(follows|saves)$/.test(path))return ['GET','PUT'].includes(method);
