@@ -92,3 +92,36 @@ Telegram 摘要（第 7 批）仍由 Laravel 發送：`telegram_digest_dispatche
   `notifications/src/clients.ts`；layer 前綴、執行設定、檔案 SHA256 已核對）。11:07 UTC `release-all.py` 換全部 TS 服務，全部完成、
   web 沒有自動退回；重啟後第一個首頁請求 503（12 秒），之後 200。回復：`release-all.py --old=<f99823b0…> --new=<47301a99…> --execute`。
   一般重建 image 需要先重做 flat base：`youtube-board-ts:base-release-8388492` 已不在 host 上。
+
+## 全面檢查（2026-10-18 20:57–22:20 UTC，台北 10/19 清晨）
+
+- 服務：Laravel web／scheduler 皆 0/0；TS 10 個服務 1/1。資料持續更新（影片、直播、觀看歷史到台北 05:10；每日 AI 10/19 00:28；人物 AI 10/18 20:45）。
+- `ts_job_runs` 的 `failed`／`incomplete` 大多是標籤：快取工作只要有個別項目跳過就記 failed（`reports.schedule.build` 每次跳過
+  349fCtjgPuE、TpZVYJWcBUM 兩支 `invalid_history_payload`，`reports.counts.build` 的 `invalid_log_payload`），有上限截斷就記 incomplete；
+  YouTube 工作的 incomplete 是個別影片／頻道 API 缺項。行為與 Laravel 相同。
+- **每小時 AI 交接後每個排程時段都失敗**（`urt_ai_hour` 停在 10/18 06:14 台北，Telegram 每小時摘要因此一直停在 `h:2026-10-18 05:00:00`）：
+  ai.hourly 在 :10 先用 `youtube:channels:videos` 逐頻道補來源，但 youtube-source 的 `youtube.channels.videos.general`（每 5 分鐘）同時持有
+  同一把 writer lock，`GET_LOCK(…,0)` 立刻失敗，第一個頻道失敗後整小時 blocked。修正：
+  - 99cd9fb：來源補抓遇到 writer lock 被佔時等 10 秒重試，最多 12 次（拿鎖失敗時尚未呼叫 API 或寫入）。21:07 UTC 上線，21:10 那次排程成功發布。
+  - 8be259a：`youtube:channels:videos --until=<ISO>`，分頁到達時段起點就停；每小時來源補抓帶時段起點。原本會抓滿 `--max-pages`
+    （補跑一個 2 小時前的時段在 `--max-pages=8` 用掉 200 次呼叫並 blocked）；改後每時段 39 次呼叫、約 45 單位。排程時段本來就是 1 頁，不變。
+  - patch image：`release-99cd9fb`（`sha256:9e80ef08…`）= release-b4dc2bc 加一層；`release-8be259a`（`sha256:b847531d…`）= release-99cd9fb 加一層
+    （`ingestion/src/channel-jobs.ts`、`jobs/src/youtube-cli.ts`、`jobs/src/ai-hourly-source.ts`；舊檔 SHA256 與 repo 前一版相同、新檔與 repo 相同）。
+    21:28 UTC 換全部 TS 服務，web 沒有退回、首頁 200。回復：`release-all.py --old=<b847531d…> --new=<f99823b0…> --execute`。
+  - 補跑 10/18 06:00–10/19 03:59 台北共 22 個時段：`/tmp/aihourly-backfill.sh`（ai-hourly facade 的一次性 CLI `/tmp/run-aihourly-cli.sh`，
+    `--missing-only`，配額超過 6,500 即停）。21:21–22:06 UTC 全部 published（03:00 時段用新 image 先試；每時段 39–64 次呼叫，共約 1,150 單位，
+    當日累計 4,539）。Telegram 每小時只看最新時段，補跑的舊時段不會發文。
+- 頻道文字雲：`reports.channel_cloud.build` 在 Laravel 正式環境本來就不在寫入白名單，`urt_show_cloud` 最後寫入 2026-07-14；不是交接造成的缺口。
+- 備份：`/etc/nas-backup/jobs/youtube-board.sh` 的 dump 補上 7 個新 facade schema（cache、youtube_live、youtube_source、ai_daily、ai_hourly、
+  ai_mayor、telegram；只有 view，試 dump 114 個 view 正常；原檔 `.before-worker-facades.<UTC>`）。PATHS 仍含 Laravel app 的 `.env` 與
+  `/etc/dokploy/backups/youtube-board-web-mwafzd`；刪除 Laravel app 後只會記 warning、不會失敗，舊 `.env` 已在既有 snapshot。
+- Traefik：`yt-cutover-public`／`yt-cutover-accounts` 自己有 `certResolver: letsencrypt`，刪除 `yt-cutover-laravel` 與 Dokploy 的 Laravel 路由不影響憑證。
+
+### 刪除 Laravel 的前提
+
+- 服務（`youtube-board-web-mwafzd`、`youtube-board-scheduler`）與兩組 Laravel 路由：沒有執行期依賴，可刪；刪前把
+  `youtube-board-web-mwafzd:latest` 另外打 tag 保留，否則刪除後就沒有回復路徑。
+- 資料表不可刪：TS 直接用 `cache`、`cache_locks`、`telegram_digest_*`、`ingestion_youtube_quota_daily` 等 Laravel 建的表。
+- PHP 程式碼不能直接整批刪：TS 的工具與測試仍讀 `database/schema/legacy-dashboard-baseline.sql`、`app/Support/YoutubeIdentifierSchema.php`
+  （`tools/bootstrap-db.mjs`）、`database/migrations/0001_01_01_000001_create_cache_table.php`、`app/Services/Legacy/GroupDirectoryReport.php`、
+  `routes/web.php`／`config/ingestion.php`（`tools/inventory.mjs`），CI 觸發路徑也指向 Laravel 目錄；需先搬進 `platform/`。
