@@ -61,3 +61,21 @@ Telegram 摘要（第 7 批）仍由 Laravel 發送：`telegram_digest_dispatche
 - 回復：`sudo cp /etc/youtube-board-ts/traefik-cutover-before-ops-20261018T084805Z.yml
   /etc/dokploy/traefik/dynamic/youtube-board-ts-cutover.yml` 並 `docker service scale youtube-board-web-mwafzd=1`。
 - Laravel scheduler 仍在跑（Telegram 摘要），待 Telegram 交接後縮到 0。之後再刪除兩個 Laravel 服務與其路由；資料庫保留。
+
+## Telegram 交接（批次 7，2026-10-18 09:04–09:10 UTC）
+
+- 09:04 UTC `youtube-board-scheduler`（Laravel）縮到 0；停之前只剩 `schedule:run` 迴圈，沒有執行中的 artisan。Laravel 至此全部停用。
+- 備份：skyhong-blog `/home/ubuntu/backups/services/telegram-handoff-20261018T090439Z/`（`telegram_digest_*`、`cache`、`cache_locks`、
+  `ts_notification_*`，含 SHA256SUMS）。
+- 三筆 pending dispatch：使用者在頻道確認都沒有送出（今天的最後一則是 01:12 台北；9/9 的搜尋結果從 9/8 跳到 9/10），用
+  `notify:telegram:resolve --outcome=not-sent` 記錄（`ts_notification_resolutions`）。d:2026-10-17 由 TS 補發；
+  d:2026-08-06、d:2026-09-08 因每日只處理最新一天，不會補發。之後 `notify:telegram:readiness` 為 ready。
+- 通知 store：Laravel 未設定 `TELEGRAM_DEDUP_STORE`（預設 database）、`DB_CACHE_TABLE` 預設 `cache`，前綴 `youtube-board-cache-`（cache 表中的
+  `tg:digest:*` 鍵）。`cache` 為 InnoDB；migration 009 的 `ts_notification_*` 表已存在。
+- facade `youtube_board_ts_worker_telegram`／帳號 `youtube_ts_w_telegram`（16 個 view），secret `yb_ts_worker_telegram_env_v1`
+  （DB 密碼、REDIS_URL，以及從 Laravel scheduler 服務設定複製的 bot token、channel id、AI key），schedules config `yb_ts_schedules_v5`
+  （v4 加 `runtime/schedules.batch7.json`，共 26 筆）。手動維護指令用 host 上的 `/tmp/run-telegram-cli.sh`（同一個 facade；
+  只有它開 `TS_NOTIFICATION_RECONCILE_ENABLED`）。
+- 09:10 UTC 第一次每小時執行回 `notification_legacy_schedule_activity`：Laravel 09:00:58 剛佔過 slot，TS 30 分鐘內不送，屬預期。
+- 回復：停掉 worker-telegram（`handoff-runtime.py` 拿掉 telegram、換回 `yb_ts_schedules_v4`），先跑 readiness 確認沒有 pending，
+  再 `docker service scale youtube-board-scheduler=1`。有 pending 時不可恢復 Laravel（Laravel 每小時不讀 TS 的未確定紀錄）。
