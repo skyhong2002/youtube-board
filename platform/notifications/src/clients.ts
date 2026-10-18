@@ -13,8 +13,12 @@ export class TelegramClient implements Sender {
    const response=await this.fetcher(new URL('/bot'+this.token+'/sendMessage',this.base),{method:'POST',redirect:'error',signal:AbortSignal.any([AbortSignal.timeout(this.timeout*1000),workflowShutdownSignal()]),headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:this.channel,text:html,parse_mode:'HTML',link_preview_options:previewUrl?{is_disabled:false,url:previewUrl,prefer_large_media:true,show_above_text:false}:{is_disabled:true}})});
    let data:unknown;try{data=await bodyJson(response,100000);}catch{return {sent:false,uncertain:true,error:'telegram-invalid-response',messageId:null};}
    if(response.ok&&record(data)&&data.ok===true&&record(data.result)&&Number.isSafeInteger(data.result.message_id))return {sent:true,uncertain:false,error:null,messageId:String(data.result.message_id)};
-   const definite=response.status<500&&record(data)&&data.ok===false&&Number.isInteger(data.error_code);
-   return {sent:false,uncertain:!definite,error:definite?'telegram-rejected':'telegram-outcome-unknown',messageId:null};
+   if(response.status<500&&record(data)&&data.ok===false&&Number.isInteger(data.error_code)){
+    // Only Telegram's numeric code and retry_after are kept; the description text may echo request content.
+    const retry=record(data.parameters)&&Number.isSafeInteger(data.parameters.retry_after)?`:retry-${data.parameters.retry_after}`:'';
+    return {sent:false,uncertain:false,error:`telegram-rejected:${data.error_code}${retry}`,messageId:null};
+   }
+   return {sent:false,uncertain:true,error:'telegram-outcome-unknown',messageId:null};
   }catch{return {sent:false,uncertain:true,error:'telegram-outcome-unknown',messageId:null};}
  }
 }
