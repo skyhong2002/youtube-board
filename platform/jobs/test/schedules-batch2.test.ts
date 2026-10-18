@@ -69,6 +69,9 @@ describe('batch 2 YouTube source schedule file', () => {
     expect(() => validateYoutubeArguments(['youtube:tvbs:videos', '--offset=17'])).not.toThrow();
     expect(() => validateYoutubeArguments(['youtube:tvbs:videos', '--offset=-1'])).toThrow();
     expect(() => validateYoutubeArguments(['youtube:channels:videos', '--offset=auto'])).toThrow();
+    expect(() => validateYoutubeArguments(['youtube:channels:videos', '--u_id=76', '--until=2026-10-18T06:00:00+08:00'])).not.toThrow();
+    for (const until of ['2026-10-18 06:00:00', '2026-10-18T06:00:00', '2026-13-18T06:00:00Z']) expect(() => validateYoutubeArguments(['youtube:channels:videos', `--until=${until}`])).toThrow();
+    expect(() => validateYoutubeArguments(['youtube:tvbs:videos', '--until=2026-10-18T06:00:00Z'])).toThrow();
     expect(youtubeRetryOptions({})).toEqual({ transientRetries: 1, retryDelayMs: 250 });
     expect(youtubeRetryOptions({ YOUTUBE_API_TRANSIENT_RETRIES: '9', YOUTUBE_API_RETRY_DELAY_MS: '0' })).toEqual({ transientRetries: 3, retryDelayMs: 0 });
   });

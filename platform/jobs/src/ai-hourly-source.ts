@@ -17,7 +17,7 @@ export async function refreshHourlySource(from:string,execute:boolean,env:NodeJS
   try{
    let result:unknown;
    for(let wait=0;;wait++){
-    try{result=await dispatch(['youtube:channels:videos',`--u_id=${uId}`,'--limit=1',`--max-results=${caps.maxResults}`,`--max-pages=${caps.maxPages}`,`--max-api-attempts=${Math.max(1,remaining)}`,...(execute?['--execute']:[])],env,scheduled);break;}
+    try{result=await dispatch(['youtube:channels:videos',`--u_id=${uId}`,'--limit=1',`--until=${from.replace(' ','T')}+08:00`,`--max-results=${caps.maxResults}`,`--max-pages=${caps.maxPages}`,`--max-api-attempts=${Math.max(1,remaining)}`,...(execute?['--execute']:[])],env,scheduled);break;}
     catch(error){if(!execute||!(error instanceof Error)||error.message!==WRITER_BUSY||wait>=LOCK_RETRIES)throw error;workflowShutdownSignal().throwIfAborted();await pause(LOCK_PAUSE_MS);}
    }
    const record=result as Record<string,unknown>;attempts+=Number(record.apiAttempts??0);const applied=Array.isArray(record.applied)?record.applied as Record<string,unknown>[]:[];const row=applied.find(r=>Number(r.uId)===uId);const oldest=typeof row?.oldestPublishedAt==='string'?Date.parse(row.oldestPublishedAt):NaN;

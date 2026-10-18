@@ -92,11 +92,12 @@ export function nextUploadsCheck(now: Date, weekCount: number) {
   if (interval < 7200) interval = 7200;
   return taipeiSql(new Date(now.getTime() + Math.trunc(interval) * 1000));
 }
-export type UploadsInput = { uId?: number; limit: number; maxPages: number; days: number; maxResults?: number; live?: 1 | 2; tvbs?: boolean; tagId?: number; offset?: number | 'auto' };
+/** `stopAt` (epoch ms) ends paging once a returned publication reaches it, so a window proof reads only the pages it needs. */
+export type UploadsInput = { uId?: number; limit: number; maxPages: number; days: number; maxResults?: number; stopAt?: number; live?: 1 | 2; tvbs?: boolean; tagId?: number; offset?: number | 'auto' };
 /** `--live=1` is Laravel's tag 52 (youtube.channels.videos.live), `--live=2` tag 89 (youtube.channels.videos.live_group). */
 export const uploadsJobKey = (input: Pick<UploadsInput, 'live' | 'tvbs'>) => input.tvbs ? 'youtube.tvbs.videos' : input.live === 1 ? 'youtube.channels.videos.live' : input.live === 2 ? 'youtube.channels.videos.live_group' : 'youtube.channels.videos.general';
 const later = (now: Date, seconds: number) => taipeiSql(new Date(now.getTime() + seconds * 1000));
-async function crawlUploads(ctx: SourceJobContext, row: RowDataPacket, maxPages: number, maxResults: number) {
+async function crawlUploads(ctx: SourceJobContext, row: RowDataPacket, maxPages: number, maxResults: number, stopAt?: number) {
   const items = new Map<string, PlaylistItem>(), seen = new Set<string>(); let token: string | null = null;
   let weekCount = 0, apiItems = 0, oldestPublishedAt: string | null = null, pageExhausted = false, pages = 0;
   for (let p = 0; p < maxPages; p++) {
@@ -108,7 +109,7 @@ async function crawlUploads(ctx: SourceJobContext, row: RowDataPacket, maxPages:
       if (p === 0 && Date.parse(item.publishedAt) >= ctx.now.getTime() - 604800000) weekCount++;
       items.set(item.videoId, item);
     }
-    if (page.nextPageToken === null) break;
+    if (page.nextPageToken === null || stopAt !== undefined && oldestPublishedAt !== null && Date.parse(oldestPublishedAt) <= stopAt) break;
     if (seen.has(page.nextPageToken) || token === page.nextPageToken) throw new Error('Uploads cursor failed to advance');
     seen.add(page.nextPageToken); token = page.nextPageToken;
   }
@@ -148,7 +149,7 @@ export async function channelUploadsJob(ctx: SourceJobContext, input: UploadsInp
       skipped.push({ uId, reason: 'missing-uploads-playlist', partialVideos }); continue;
     }
     let crawl: Awaited<ReturnType<typeof crawlUploads>>;
-    try { crawl = await crawlUploads(ctx, row, input.maxPages, maxResults); }
+    try { crawl = await crawlUploads(ctx, row, input.maxPages, maxResults, input.stopAt); }
     catch (error) {
       if (isRunStoppingYoutubeError(error)) return stopped(error);
       await ctx.assertOwnership();

@@ -29,7 +29,7 @@ export function validateYoutubeArguments(args: string[]) {
   const options = job === 'youtube.channels.stats' ? ['u_id','channel','hours']
     : job === 'youtube.channels.retire' ? ['u_id','channel','stale-days','restore']
     : job === 'youtube.tvbs.videos' ? ['u_id','channel','days','max-pages','max-results','offset']
-    : job.startsWith('youtube.channels.videos.') ? ['u_id','channel','days','max-pages','max-results']
+    : job.startsWith('youtube.channels.videos.') ? ['u_id','channel','days','max-pages','max-results','until']
     : job === 'youtube.videos.duration' ? ['videoId','enqueue-missing']
     : job === 'youtube.comments.queue' ? ['u_id','channel','videoId','hours','min','tagid','or','not']
     : job === 'youtube.comments.fetch' ? ['videoId','max-pages','max-reply-pages','max-state-mib']
@@ -52,6 +52,7 @@ export function validateYoutubeArguments(args: string[]) {
     if (['tagid','or','not'].includes(name) && (!/^\d+(,\d+)*$/.test(value) || value.split(',').length > 20 || value.split(',').some(v => Number(v) < 1 || Number(v) > 2147483647))) throw new Error('Invalid taxonomy IDs');
     if (['from','to'].includes(name) && (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString().slice(0,10) !== value)) throw new Error('Invalid source date');
     if (name === 'vocabulary-version' && !/^[A-Za-z0-9_-]{1,100}$/.test(value)) throw new Error('Invalid vocabulary version');
+    if (name === 'until' && (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})$/.test(value) || !Number.isFinite(Date.parse(value)))) throw new Error('Invalid until instant');
     if (name === 'offset' && value !== 'auto' && (!/^\d{1,9}$/.test(value))) throw new Error('Invalid offset');
   }
   if (job === 'youtube.comments.reset' && !parsed.has('videoId')) throw new Error('Reset requires explicit video identity');
@@ -79,7 +80,7 @@ export async function executeYoutubeWorkflow(args: string[], env: NodeJS.Process
       const channel = uId === undefined ? {} : { uId: Number(uId) };
       if (job === 'youtube.channels.stats') return channelStatisticsJob(ctx, { ...channel, limit: integer('limit', 25, 50), hours: integer('hours', 22, 168) });
       if (job === 'youtube.channels.retire') return channelRetirementJob(ctx, { ...channel, limit: integer('limit', 25, 50), staleDays: integer('stale-days', 14, 365), restore: args.includes('--restore') });
-      if ((job.startsWith('youtube.channels.videos.') || job === 'youtube.tvbs.videos')) return channelUploadsJob(ctx, { ...channel, limit: integer('limit', 20, 100), tvbs: job === 'youtube.tvbs.videos', maxPages: integer('max-pages', 1, 200), maxResults:integer('max-results',5,50), days: integer('days', 7, 365), ...uploadsLiveMode(job), ...(job === 'youtube.tvbs.videos' ? { offset: option('offset') === 'auto' ? 'auto' as const : Number(option('offset') ?? 0) } : {}) });
+      if ((job.startsWith('youtube.channels.videos.') || job === 'youtube.tvbs.videos')) return channelUploadsJob(ctx, { ...channel, limit: integer('limit', 20, 100), tvbs: job === 'youtube.tvbs.videos', maxPages: integer('max-pages', 1, 200), maxResults:integer('max-results',5,50), ...(option('until') ? { stopAt: Date.parse(option('until')!) } : {}), days: integer('days', 7, 365), ...uploadsLiveMode(job), ...(job === 'youtube.tvbs.videos' ? { offset: option('offset') === 'auto' ? 'auto' as const : Number(option('offset') ?? 0) } : {}) });
       if (job === 'youtube.videos.duration') return videoDurationsJob(ctx, { ...specific, limit: integer('limit', 50, 50), enqueueMissing: args.includes('--enqueue-missing') });
       if (job === 'youtube.comments.queue') return commentQueueJob(ctx, { ...specific, ...channel, limit: integer('limit', 20, 20), hours: integer('hours', 24, 720), min: Number(option('min') ?? 500), tagIds: list('tagid'), orTagIds: list('or'), notTagIds: list('not') });
       if (job === 'youtube.comments.reset') return commentResetJob(ctx, videoId!);

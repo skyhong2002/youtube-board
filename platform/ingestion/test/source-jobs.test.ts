@@ -75,6 +75,7 @@ it.skipIf(!enabled)('uploads discovery publishes a bounded sample and optional s
     const ctx=context(db,url=>url.searchParams.get('pageToken')?{items:[item(other,1)]}:{items:[item(vid,0)],nextPageToken:'next'});
     expect((await channelUploadsJob(ctx,{uId,limit:1,maxPages:1,days:7})).applied[0]).toMatchObject({videos:1,apiItems:1,pages:1,pageExhausted:false,oldestPublishedAt:'2026-10-11T02:00:00.000Z'});
     const [absent]=await db.query<RowDataPacket[]>('SELECT videoId FROM urt_video WHERE u_id=?',[uId]);expect(absent).toHaveLength(1);
+    expect((await channelUploadsJob(ctx,{uId,limit:1,maxPages:2,days:7,stopAt:Date.parse('2026-10-11T02:00:00Z')})).applied[0]).toMatchObject({videos:1,apiItems:1,pages:1,pageExhausted:false});
     expect((await channelUploadsJob(ctx,{uId,limit:1,maxPages:2,days:7})).applied[0]).toMatchObject({videos:2,apiItems:2,pages:2,pageExhausted:true,oldestPublishedAt:'2026-10-11T02:00:00.000Z'});
     const [rows]=await db.query<RowDataPacket[]>('SELECT videoId FROM urt_video WHERE u_id=?',[uId]);expect(new Set(rows.map(r=>r.videoId))).toEqual(new Set([vid,other]));
     await channelUploadsJob(ctx,{uId,limit:1,maxPages:2,days:7});
