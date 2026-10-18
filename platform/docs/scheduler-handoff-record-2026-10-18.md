@@ -48,3 +48,16 @@ Telegram 摘要（第 7 批）仍由 Laravel 發送：`telegram_digest_dispatche
 
 依批次反向：關掉 TS 該批（從 `handoff-runtime.py --batches` 移除並換回前一個排程 config），把 Laravel 白名單恢復為
 `/etc/youtube-board-ts/laravel-allowlist-before-batch*.txt` 的值後 `docker service update --env-add`。不可兩邊同時寫同一個工作。
+
+## Laravel 網站停用（2026-10-18 08:48 UTC）
+
+- Traefik `youtube-board-ts-cutover.yml` 移除 `yt-cutover-ops`（priority 400，`/ops/*` → Laravel），`/ops/ingestion`
+  改由 TS web 的 `yt-cutover-public` 回應；其他舊 `/ops/*` 子路徑在 TS 為 404，見 `operator-surface-disposition.md`。
+- 新增 `yt-cutover-http`（`web` entryPoint，priority 300，`redirect-to-https@file`）。原本 http→https 只靠 Dokploy 產生的
+  `youtube-board-web-mwafzd.yml`，移除 Laravel 後會一起消失。
+- `youtube-board-web-mwafzd` 縮到 0（原 1，image `youtube-board-web-mwafzd:latest`）。沒有其他服務的 env 或 systemd 指向它；
+  Dokploy Auto Deploy 已於 2026-10-12 關閉。`yt-cutover-laravel`（priority 110）與 Dokploy 的 websecure 路由仍在，
+  但優先權低於 `yt-cutover-public`，不會收到請求。
+- 回復：`sudo cp /etc/youtube-board-ts/traefik-cutover-before-ops-20261018T084805Z.yml
+  /etc/dokploy/traefik/dynamic/youtube-board-ts-cutover.yml` 並 `docker service scale youtube-board-web-mwafzd=1`。
+- Laravel scheduler 仍在跑（Telegram 摘要），待 Telegram 交接後縮到 0。之後再刪除兩個 Laravel 服務與其路由；資料庫保留。
