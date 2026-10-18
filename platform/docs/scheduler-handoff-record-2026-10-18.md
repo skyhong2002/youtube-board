@@ -81,6 +81,14 @@ Telegram 摘要（第 7 批）仍由 Laravel 發送：`telegram_digest_dispatche
   再 `docker service scale youtube-board-scheduler=1`。有 pending 時不可恢復 Laravel（Laravel 每小時不讀 TS 的未確定紀錄）。
 - d:2026-10-17 補發：10:00、10:30 UTC 排程與三次手動診斷都被 Telegram 拒絕，回 429 `Too Many Requests: retry after N`
   （N 為 2→30→8，照 retry_after 重送會加長）。bot 仍是頻道管理員、`sendChatAction` 正常、HTML 解析正常、可見長度 4,073；
-  連結減到 42 個仍 429，所以不是內容造成的。Laravel 今早 09:01、09:31 也是同樣的 429。過去 Laravel 的每日摘要也曾延遲數小時
+  連結減到 42 個仍 429。Laravel 今早 09:01、09:31 也是同樣的 429。過去 Laravel 的每日摘要也曾延遲數小時
   （10/10 14:01、10/14 16:31 台北才送出），也有整天沒送的日子（9/16、9/18、9/30、10/3、10/13 沒有 dispatch）。TS 照 Laravel
   的方式每 30 分鐘重試到 20:30 台北；拒絕屬確定未送出，不會留下 pending。b79e99a 讓失敗紀錄保留錯誤碼與 retry_after（尚未上線）。
+- 原因（11:00 UTC 查明）：先送一則靜音的「·」再立刻刪除（message 1886、1887），用編輯測試：全文加 YouTube 預覽 → 429（約 10 秒）；
+  全文不加預覽 → 成功；所以是 Telegram 抓不到 YouTube 預覽時回 429，不是頻道被限、也不是連結數。
+- 修正 b4dc2bc：送出若帶預覽且收到 429，等 retry_after（最多 30 秒）後以同樣內容、不帶預覽重送一次；429 是確定未送出，不會重複。
+  11:03 UTC 以掛載修正檔的一次性 CLI 補發 d:2026-10-17 成功（message 1888，dispatch 84）。
+- 上線：patch image `youtube-board-ts:release-b4dc2bc`（`sha256:f99823b0…`）= release-788550e 加一層（只換
+  `notifications/src/clients.ts`；layer 前綴、執行設定、檔案 SHA256 已核對）。11:07 UTC `release-all.py` 換全部 TS 服務，全部完成、
+  web 沒有自動退回；重啟後第一個首頁請求 503（12 秒），之後 200。回復：`release-all.py --old=<f99823b0…> --new=<47301a99…> --execute`。
+  一般重建 image 需要先重做 flat base：`youtube-board-ts:base-release-8388492` 已不在 host 上。
