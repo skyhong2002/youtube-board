@@ -6,8 +6,17 @@ export interface Sender {send(html:string,previewUrl:string|null):Promise<SendRe
 async function bodyJson(response:Response,max=2_000_000):Promise<unknown>{const reader=response.body?.getReader();if(!reader)throw new Error('empty-response');const chunks:Uint8Array[]=[];let size=0;try{for(;;){const r=await reader.read();if(r.done)break;size+=r.value.length;if(size>max)throw new Error('response-cap');chunks.push(r.value);}}finally{await reader.cancel().catch(()=>undefined);}return JSON.parse(Buffer.concat(chunks).toString('utf8'));}
 export class TelegramClient implements Sender {
  private token:string;private channel:string;private base:URL;private timeout:number;
- constructor(env:NodeJS.ProcessEnv,private fetcher:typeof fetch=fetch){this.token=env.TELEGRAM_BOT_TOKEN??'';this.channel=env.TELEGRAM_CHANNEL_ID??'';this.base=new URL(env.TELEGRAM_API_BASE_URL??'https://api.telegram.org');this.timeout=Number(env.TELEGRAM_TIMEOUT??15);if(!/^\d+:[A-Za-z0-9_-]+$/.test(this.token)||!this.channel||/[\r\n\0]/.test(this.channel)||this.channel.length>200)throw new Error('Telegram credentials unavailable');if(this.base.username||this.base.password||this.base.search||this.base.hash||!['/',''].includes(this.base.pathname)||this.base.protocol!=='https:'&&!(env.APP_ENV==='test'&&this.base.protocol==='http:'&&['localhost','127.0.0.1'].includes(this.base.hostname)))throw new Error('Invalid Telegram API URL');if(!Number.isInteger(this.timeout)||this.timeout<1||this.timeout>30)throw new Error('Invalid Telegram timeout');}
+ constructor(env:NodeJS.ProcessEnv,private fetcher:typeof fetch=fetch,private pause:(ms:number)=>Promise<void>=ms=>new Promise(resolve=>setTimeout(resolve,ms))){this.token=env.TELEGRAM_BOT_TOKEN??'';this.channel=env.TELEGRAM_CHANNEL_ID??'';this.base=new URL(env.TELEGRAM_API_BASE_URL??'https://api.telegram.org');this.timeout=Number(env.TELEGRAM_TIMEOUT??15);if(!/^\d+:[A-Za-z0-9_-]+$/.test(this.token)||!this.channel||/[\r\n\0]/.test(this.channel)||this.channel.length>200)throw new Error('Telegram credentials unavailable');if(this.base.username||this.base.password||this.base.search||this.base.hash||!['/',''].includes(this.base.pathname)||this.base.protocol!=='https:'&&!(env.APP_ENV==='test'&&this.base.protocol==='http:'&&['localhost','127.0.0.1'].includes(this.base.hostname)))throw new Error('Invalid Telegram API URL');if(!Number.isInteger(this.timeout)||this.timeout<1||this.timeout>30)throw new Error('Invalid Telegram timeout');}
+ /** Telegram answers 429 when it cannot build the YouTube link preview (2026-10-18: the same digest posted at once
+  * without it, and kept failing with it while the bot could otherwise post). A 429 is a definite refusal, so one
+  * resend without the preview after retry_after cannot duplicate the message. */
  async send(html:string,previewUrl:string|null):Promise<SendResult>{
+  const first=await this.sendOnce(html,previewUrl);const limited=/^telegram-rejected:429(?::retry-(\d+))?$/.exec(first.error??'');
+  if(previewUrl===null||!limited)return first;
+  await this.pause((Math.min(Number(limited[1]??1),30)+1)*1000);
+  return this.sendOnce(html,null);
+ }
+ private async sendOnce(html:string,previewUrl:string|null):Promise<SendResult>{
   workflowShutdownSignal().throwIfAborted();
   try{
    const response=await this.fetcher(new URL('/bot'+this.token+'/sendMessage',this.base),{method:'POST',redirect:'error',signal:AbortSignal.any([AbortSignal.timeout(this.timeout*1000),workflowShutdownSignal()]),headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:this.channel,text:html,parse_mode:'HTML',link_preview_options:previewUrl?{is_disabled:false,url:previewUrl,prefer_large_media:true,show_above_text:false}:{is_disabled:true}})});
