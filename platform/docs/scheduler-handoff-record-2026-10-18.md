@@ -79,3 +79,8 @@ Telegram 摘要（第 7 批）仍由 Laravel 發送：`telegram_digest_dispatche
 - 09:10 UTC 第一次每小時執行回 `notification_legacy_schedule_activity`：Laravel 09:00:58 剛佔過 slot，TS 30 分鐘內不送，屬預期。
 - 回復：停掉 worker-telegram（`handoff-runtime.py` 拿掉 telegram、換回 `yb_ts_schedules_v4`），先跑 readiness 確認沒有 pending，
   再 `docker service scale youtube-board-scheduler=1`。有 pending 時不可恢復 Laravel（Laravel 每小時不讀 TS 的未確定紀錄）。
+- d:2026-10-17 補發：10:00、10:30 UTC 排程與三次手動診斷都被 Telegram 拒絕，回 429 `Too Many Requests: retry after N`
+  （N 為 2→30→8，照 retry_after 重送會加長）。bot 仍是頻道管理員、`sendChatAction` 正常、HTML 解析正常、可見長度 4,073；
+  連結減到 42 個仍 429，所以不是內容造成的。Laravel 今早 09:01、09:31 也是同樣的 429。過去 Laravel 的每日摘要也曾延遲數小時
+  （10/10 14:01、10/14 16:31 台北才送出），也有整天沒送的日子（9/16、9/18、9/30、10/3、10/13 沒有 dispatch）。TS 照 Laravel
+  的方式每 30 分鐘重試到 20:30 台北；拒絕屬確定未送出，不會留下 pending。b79e99a 讓失敗紀錄保留錯誤碼與 retry_after（尚未上線）。
