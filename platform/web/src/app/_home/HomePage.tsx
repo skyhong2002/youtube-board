@@ -2,6 +2,7 @@ import Link from 'next/link';
 import {api,type HomeData,type TopicRow} from '@/lib/api';
 import {compact,count} from '@/lib/format';
 import {safeReportHref,reportLinkPrefetch} from '@/lib/report-contract';
+import {topicVideoId} from '@/lib/topic-video';
 import {DataNotice,Unavailable} from '@/components/ReportUI';
 import Masthead,{mastheadCanvases} from './Masthead';
 import PageMethod from '@/components/PageMethod';
@@ -42,7 +43,6 @@ function KeywordMethod({view}:{view:KeywordView}){
  return <PageNotes title={`${view.label}熱門標籤`} notes={[...(view.summary&&view.summary.status!=='synchronized'&&view.message?[view.message]:[]),...keywordMethodNotes(view.summary,view.basis)]}/>;
 }
 const topicHref=(topic:TopicRow)=>safeReportHref(topic.detailUrl)??`/ai/days/${topic.dailyId}/events?event=${encodeURIComponent(topic.title)}`;
-function topicVideoId(topic:TopicRow,data:HomeData){const resolved=topic.evidence.flatMap(e=>e.resolvedVideoIds??[]).find(id=>/^[\w-]{11}$/.test(id));if(resolved)return resolved;const ids=new Set(topic.evidence.flatMap(e=>e.videoIds));return data.live.find(v=>ids.has(v.id))?.id??null;}
 function TopicMeta({topic,date}:{topic:TopicRow;date:string|null}){return <p className={styles.source}><span>{date??'日期未記錄'}</span><span>· {topic.grouping?'來源訊號分組':'AI 輔助整理'}</span><span>· {typeof topic.networkCount==='number'?`${count(topic.networkCount)} 個媒體集團`:`${count(topic.channelCount)} 個頻道`}</span></p>;}
 function TopicReferences({topic}:{topic:TopicRow}){return <div className={styles.compactDistribution}><span>{count(topic.videoCount)} {topic.grouping?'支引用影片（去重）':'筆影片引用'}</span>{topic.unresolvedReferences.length>0&&<span>· 另有待確認的來源引用</span>}</div>;}
 /** Shared by the ISR entry (/render-isr/home/current, failures throw) and the dynamic fallback at /. */
