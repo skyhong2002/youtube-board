@@ -125,3 +125,24 @@ Telegram 摘要（第 7 批）仍由 Laravel 發送：`telegram_digest_dispatche
 - PHP 程式碼不能直接整批刪：TS 的工具與測試仍讀 `database/schema/legacy-dashboard-baseline.sql`、`app/Support/YoutubeIdentifierSchema.php`
   （`tools/bootstrap-db.mjs`）、`database/migrations/0001_01_01_000001_create_cache_table.php`、`app/Services/Legacy/GroupDirectoryReport.php`、
   `routes/web.php`／`config/ingestion.php`（`tools/inventory.mjs`），CI 觸發路徑也指向 Laravel 目錄；需先搬進 `platform/`。
+
+## 刪除 Laravel（2026-10-19 02:26–02:40 UTC）
+
+使用者確認後執行。刪除前 Telegram 已驗證：每日 `d:2026-10-18` 01:02 UTC 發出，每小時 `h:2026-10-19 08:00`、`09:00` 兩則發出。
+
+- 備份：`/root/laravel-retired-20261019/`（root 700，檔案 600）有 Dokploy app 目錄（含 code 與 `.env`）、deployment logs、
+  `/etc/dokploy/backups/youtube-board-web-mwafzd` 的 tar、兩個 Traefik 檔原檔、兩個服務的 `docker service inspect`；最後部署的 Laravel
+  commit `08fddece4ea500dbd3f7e28911602338ed3428b4`。`application.one` 的回應另存在本機 `.local/dokploy/laravel-app-before-delete-20261019.private.json`。
+  主機上的 `youtube-board-web-mwafzd:latest` image 早已不存在，回復要從上面的 commit 重新 build。
+- Traefik：`youtube-board-ts-cutover.yml` 移除 `yt-cutover-laravel` router 與 service（priority 110 的 fallback，已無流量）。
+- `docker service rm youtube-board-scheduler`；Dokploy `application.delete`（`YouTube Board Web`）一併刪掉 `youtube-board-web-mwafzd` 服務、
+  它的 Traefik 檔與 app 目錄。主機上已無 Laravel 服務或路由。
+- 驗證：`/`、`/ops/ingestion`、`/api/cloud.php`、`/up` 200，http→https 301，憑證正常。
+- 備份 job：`/etc/nas-backup/jobs/youtube-board.sh` 的 PATHS 把已不存在的 Laravel `.env` 換成 `/root/laravel-retired-20261019`
+  （原檔 `.before-laravel-removal.<UTC>`）。
+- 資料表全部保留。
+- Repo：Laravel 程式碼（app、config、database、resources、routes、tests、Dockerfile 等）刪除。TS 仍需要的輸入搬進 `platform/`：
+  `migrations/000-legacy-dashboard-baseline.sql`（原 `database/schema/`）、`migrations/youtube-identifier-columns.json`（原
+  `YoutubeIdentifierSchema.php`）、`migrations/000-laravel-cache-tables.sql`（正式環境 `cache`／`cache_locks` 的 DDL）；群組詞彙測試改用凍結值；
+  `tools/inventory.mjs` 退役，`inventory/legacy.json` 保留為凍結紀錄；CI 觸發路徑只剩 `platform/**`。本機殘留（vendor、storage、`.env` 等）
+  移到 `/home/deck/backups/youtube-board/laravel-local-leftovers-20261019/`。

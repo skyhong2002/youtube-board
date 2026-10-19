@@ -1,10 +1,10 @@
 name: TypeScript platform
 on:
   pull_request:
-    paths: ['platform/**', 'database/schema/**', 'app/Support/YoutubeIdentifierSchema.php', '.github/workflows/platform.yml']
+    paths: ['platform/**', '.github/workflows/platform.yml']
   push:
     branches: [main]
-    paths: ['platform/**', 'database/schema/**', 'app/Support/YoutubeIdentifierSchema.php', '.github/workflows/platform.yml']
+    paths: ['platform/**', '.github/workflows/platform.yml']
   workflow_dispatch:
 permissions:
   contents: read

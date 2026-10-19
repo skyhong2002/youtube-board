@@ -11,7 +11,7 @@ if (!['127.0.0.1', 'localhost', 'db'].includes(address.hostname)
   throw new Error('Bootstrap is restricted to the isolated local rewrite database.');
 }
 const execute = process.argv.includes('--execute');
-const baseline = await readFile(new URL('../../database/schema/legacy-dashboard-baseline.sql', import.meta.url), 'utf8');
+const baseline = await readFile(new URL('../migrations/000-legacy-dashboard-baseline.sql', import.meta.url), 'utf8');
 const supplements = await readFile(new URL('../migrations/001-local-adoption.sql', import.meta.url), 'utf8');
 const statements = `${baseline}\n${supplements}`.split(';').map(s => s.trim()).filter(Boolean);
 if (!execute) {
@@ -23,14 +23,8 @@ if (!execute) {
     for (const statement of statements) await db.query(statement);
     // Adopt the same byte-exact ID contract as Laravel. Read deployed column
     // lengths/nullability instead of silently narrowing any field.
-    const source = await readFile(new URL('../../app/Support/YoutubeIdentifierSchema.php', import.meta.url), 'utf8');
-    let table;
-    for (const line of source.split('\n')) {
-      const tableMatch = line.match(/^        '(\w+)' => \[/);
-      if (tableMatch) table = tableMatch[1];
-      const columnMatch = line.match(/^            '(\w+)' => \['length'/);
-      if (!columnMatch || !table) continue;
-      const column = columnMatch[1];
+    const { columns } = JSON.parse(await readFile(new URL('../migrations/youtube-identifier-columns.json', import.meta.url), 'utf8'));
+    for (const [table, column] of Object.entries(columns).flatMap(([table, fields]) => Object.keys(fields).map(column => [table, column]))) {
       const [rows] = await db.execute('SELECT DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE, COLLATION_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [table, column]);
       if (rows.length !== 1 || rows[0].DATA_TYPE !== 'varchar') throw new Error(`Unexpected identifier schema: ${table}.${column}`);
       if (rows[0].COLLATION_NAME === 'utf8mb4_bin') continue;

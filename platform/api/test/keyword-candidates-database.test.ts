@@ -31,7 +31,7 @@ describe.skipIf(!url)('candidate-first keyword reports on isolated real MariaDB 
  beforeAll(async()=>{
   db=await mysql.createConnection({uri:url!,dateStrings:true,supportBigNumbers:true,bigNumberStrings:true,timezone:'+08:00'});
   const ddl=(await Promise.all([
-   '../../../database/schema/legacy-dashboard-baseline.sql','../../jobs/migrations/001_vocabulary.sql','../../jobs/migrations/002_video_tag_evidence.sql',
+   '../../migrations/000-legacy-dashboard-baseline.sql','../../jobs/migrations/001_vocabulary.sql','../../jobs/migrations/002_video_tag_evidence.sql',
   ].map(path=>readFile(new URL(path,import.meta.url),'utf8')))).join('\n');
   for(const name of tables){const definition=new RegExp('CREATE TABLE IF NOT EXISTS `?'+name+'`? \\([\\s\\S]*?\\) ENGINE=[^;]+;').exec(ddl)?.[0];if(!definition)throw new Error('Missing test DDL');await db.query(replace(definition));created.push(name);}
   await db.query(replace("INSERT INTO ts_vocabulary_runs(id,window_since,window_until,status,snapshot) VALUES('candidate-v1','','','published',?)"),[JSON.stringify({terms:[{key,term}]})]);

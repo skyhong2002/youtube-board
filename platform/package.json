@@ -18,7 +18,6 @@
     "typecheck": "npm run typecheck --workspaces --if-present && tsc -p runtime/tsconfig.json",
     "test": "node --test tools/*.test.mjs && npm run test --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
-    "inventory": "node tools/inventory.mjs",
     "db:bootstrap": "node --env-file-if-exists=.env tools/bootstrap-db.mjs",
     "review": "python3 tools/opus-review.py",
     "test:integration": "node tools/test-integration.mjs",

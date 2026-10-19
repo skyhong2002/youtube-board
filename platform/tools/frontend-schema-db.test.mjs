@@ -57,7 +57,7 @@ test('isolated MariaDB views preserve cross-schema reads while every runtime leg
   // schema, not a long-lived fixture DB whose CREATE IF NOT EXISTS can drift.
   if(process.env.FRONTEND_CANONICAL_CHECK==='1'){
    await root.query('CREATE DATABASE `'+canonical+'` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');await root.query('USE `'+canonical+'`');
-   const migrationDir=new URL('../jobs/migrations/',import.meta.url),files=[new URL('../../database/schema/legacy-dashboard-baseline.sql',import.meta.url),new URL('../migrations/001-local-adoption.sql',import.meta.url),...(await readdir(migrationDir)).filter(n=>n.endsWith('.sql')).sort().map(n=>new URL(n,migrationDir))];
+   const migrationDir=new URL('../jobs/migrations/',import.meta.url),files=[new URL('../migrations/000-legacy-dashboard-baseline.sql',import.meta.url),new URL('../migrations/001-local-adoption.sql',import.meta.url),...(await readdir(migrationDir)).filter(n=>n.endsWith('.sql')).sort().map(n=>new URL(n,migrationDir))];
    for(const file of files){const sql=await readFile(file,'utf8');for(const statement of sql.replace(/^[ \t]*--.*$/gm,'').split(';').map(s=>s.trim()).filter(Boolean))await root.query(statement);}
    const [canonicalTables]=await root.query("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=? AND LEFT(TABLE_NAME,3)='ts_' ORDER BY TABLE_NAME",[canonical]);assert.deepEqual(canonicalTables.map(t=>t.TABLE_NAME).sort(),[...plan.tables].sort());
    for(const table of plan.tables){

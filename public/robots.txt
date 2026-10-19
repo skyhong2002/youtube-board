@@ -1,8 +1,0 @@
-# Crawlers are welcome. Keep them off the paths that are expensive or not
-# meant for indexing, and ask for a modest pace on a small server.
-User-agent: *
-Disallow: /keywords/*/videos
-Disallow: /api/
-Disallow: /ops/
-Disallow: /dev/
-Crawl-delay: 10

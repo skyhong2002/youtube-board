@@ -16,7 +16,7 @@ test('worker facade proves source publication, quota, cross-schema locks and exa
  const root=await mysql.createConnection({host:'127.0.0.1',port:23306,user:'root',password:'youtube_rewrite_root_local',multipleStatements:false,dateStrings:true});let worker,sourceLock,notification;
  try{
   await root.query('CREATE DATABASE `'+source+'`');await root.query('USE `'+source+'`');
-  for(const file of ['../../database/schema/legacy-dashboard-baseline.sql','../migrations/001-local-adoption.sql']){const text=await readFile(new URL(file,import.meta.url),'utf8');for(const statement of text.split(';').map(s=>s.trim()).filter(Boolean))await root.query(statement);}
+  for(const file of ['../migrations/000-legacy-dashboard-baseline.sql','../migrations/001-local-adoption.sql']){const text=await readFile(new URL(file,import.meta.url),'utf8');for(const statement of text.split(';').map(s=>s.trim()).filter(Boolean))await root.query(statement);}
   await root.query('CREATE DATABASE `'+state+'`');await root.query('USE `'+state+'`');for(const statement of stateStatements(await readFile(new URL('../migrations/002-frontend-state.sql',import.meta.url),'utf8')).statements)await root.query(statement);
   const env={WORKER_WORKFLOW:'youtube.videos.stats',WORKER_SOURCE_SCHEMA:source,WORKER_STATE_SCHEMA:state,WORKER_TARGET_SCHEMA:facade,WORKER_USER:user,WORKER_ACCOUNT_HOST:'%',WORKER_PASSWORD:randomBytes(32).toString('hex'),WORKER_BOOTSTRAP_URL:'mysql://root:youtube_rewrite_root_local@127.0.0.1:23306',WORKER_BACKUP_OFFHOST_VERIFIED:'true',WORKER_RESTORE_VERIFIED:'true'};
   const plan=planWorker(env),result=await executeWorker(plan,env);assert.equal(result.sourceDdl,0);

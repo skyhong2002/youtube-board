@@ -1,5 +1,4 @@
 import {it,expect} from 'vitest';
-import {readFileSync} from 'node:fs';
 import {buildApp} from '../src/app.js';
 import type {Reader,Row} from '../src/db/client.js';
 import {groupDefinitions} from '../src/reports/group-definitions.js';
@@ -7,11 +6,14 @@ import {contentGroups} from '../src/reports/content-groups.js';
 const fixture=(rows:Row[]):Reader=>({rows:async<T extends Row>()=>rows as T[],close:async()=>{}});
 it('configured content groups retain exact Laravel directory terms independently of live-wall definitions',()=>{
  expect(Object.keys(contentGroups).filter(key => Object.hasOwn(groupDefinitions,key))).toEqual([]);
- const php=readFileSync(new URL('../../../app/Services/Legacy/GroupDirectoryReport.php',import.meta.url),'utf8');
- for(const [name,value]of Object.entries(contentGroups)) {
-  const line=php.split('\n').find(line=>line.includes("'"+name+"' =>"))!;
-  expect(line).toBeTruthy();expect(line).toContain("'tags' => ["+value.terms.map(term=>"'"+term+"'").join(', ')+']');
- }
+ // Frozen from Laravel app/Services/Legacy/GroupDirectoryReport.php (removed after d0f2b9c).
+ expect(Object.fromEntries(Object.entries(contentGroups).map(([name,value])=>[name,value.terms]))).toEqual({
+  tags_president2024:['侯友宜','柯文哲','賴清德','趙少康','蕭美琴','吳欣盈'],
+  tags_coldwar:['美國','中國','俄羅斯','烏克蘭','北約'],
+  tags_elect:['總統大選','立委','民調','政見','投票'],
+  tags_straits:['石斑魚','軍演','共軍','航母','解放軍','台海','兩岸','兩岸統一','台獨'],
+  tags_economy:['通膨','景氣','股市','匯率','房價'],
+ });
 });
 it('empty membership still offers all five configured groups and historical terms without claiming an update',async()=>{
  const app=buildApp({reader:fixture([])});

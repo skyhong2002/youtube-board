@@ -1,8 +1,6 @@
 # 有影儀表板 — TypeScript platform
 
-The full replacement is being implemented here alongside the existing production Laravel application. This directory does not yet provide complete feature parity and is not deployed. Do not switch production routing or scheduling merely because its build passes.
-
-Current verified state: [2026-10-12 cutover readiness](docs/cutover-readiness-2026-10-12.md) records the consistent production backup/restore, current-data parity,1,150-test integration lane and built AMD64/ARM64 candidates. Routing and writer ownership still belong to Laravel.
+This is the whole production system for youtube.observe.tw: the public frontend since 2026-10-12 and every background workflow since the 2026-10-18 scheduler handoff ([record](docs/scheduler-handoff-record-2026-10-18.md)). The Laravel application it replaced was deleted from production and removed from the repository on 2026-10-19.
 
 Node 24, Next.js 16 / React 19, Tailwind 4, ECharts, Fastify 5, Drizzle/MariaDB and Redis/BullMQ 6 match the reference platform's architecture. Patch versions may be newer where fixes are available. Packages and exact resolved versions are locked in `package-lock.json`.
 
@@ -27,7 +25,6 @@ Google login, follows, saves, private RSS and per-user editorial administration 
 npm run typecheck
 npm test
 npm run build
-npm run inventory
 node --test tools/legacy-redirects.test.mjs
 ```
 
@@ -35,7 +32,7 @@ See [`jobs/README.md`](jobs/README.md) for the explicitly gated vocabulary synch
 
 ## Migration tracking
 
-[`inventory/legacy.json`](inventory/legacy.json) is generated from Laravel route/job declarations. Regeneration never marks an item complete. [`../docs/ui-rewrite-assessment.md`](../docs/ui-rewrite-assessment.md) records the accepted full TypeScript direction.
+[`inventory/legacy.json`](inventory/legacy.json) was generated from the Laravel route/job declarations, which were removed from the repository on 2026-10-19 after the handoff; it is now a frozen record. [`../docs/ui-rewrite-assessment.md`](../docs/ui-rewrite-assessment.md) records the accepted full TypeScript direction.
 
 Review each slice against its existing report, source tables and fixtures. Verify empty data, missing cache, partial ingestion, case-sensitive IDs, time zones and data freshness. A successful response or matching route count alone does not establish parity. Public request time must never substitute for source observation time.
 

@@ -16,7 +16,7 @@ describe.skipIf(!url)('prepared sitemap snapshots on isolated real MariaDB schem
  const reader:Reader={async rows(statement){const query=dialect.sqlToQuery(statement);queries.push(query);const[rows]=await db.query<RowDataPacket[]>(replace(query.sql),query.params);return rows as never;},async close(){}};
  beforeAll(async()=>{
   db=await mysql.createConnection({uri:url!,dateStrings:true,supportBigNumbers:true,bigNumberStrings:true,timezone:'+08:00'});
-  const ddl=await readFile(new URL('../../../database/schema/legacy-dashboard-baseline.sql',import.meta.url),'utf8');
+  const ddl=await readFile(new URL('../../migrations/000-legacy-dashboard-baseline.sql',import.meta.url),'utf8');
   for(const name of names){const definition=new RegExp('CREATE TABLE IF NOT EXISTS `?'+name+'`? \\([\\s\\S]*?\\) ENGINE=[^;]+;').exec(ddl)?.[0];if(!definition)throw new Error('Missing checked-in sitemap schema');await db.query(replace(definition));created.push(name);}
   await db.query(replace("INSERT INTO urt_channel(u_id,ctime,mtime,stime,flag_del,youtube_id,title) VALUES(1,'2026-10-01','2026-10-11 12:00:00','2027-10-01',0,'UCfixtureA','Active'),(2,'2026-10-01','2026-10-11',NULL,1,'UCfixtureB','Deleted'),(60000001,'2026-10-01','2026-10-11',NULL,NULL,'UCfixtureC','Sparse')"));
   await db.query(replace("INSERT INTO urt_tag(tag_id,ctime,mtime,tag_name,del_flag) VALUES(1,'2026-10-01','2026-10-11 12:00:00','公開分類',0),(2,'2026-10-01','2026-10-11','已刪分類',1)"));
