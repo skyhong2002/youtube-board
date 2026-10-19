@@ -7,7 +7,7 @@ import {dailyLineage} from './ai-lineage.js';
 import {publishedChannelAi} from './channel-ai.js';
 import {channelTopics} from './channel-ai-shapes.js';
 import {buildTopics} from './topics.js';
-import {summarizeTopics,sourceStats,channelTagIds} from './daily-summary.js';
+import {summarizeTopics,sourceStats,channelTagIds,rankByNetworks} from './daily-summary.js';
 import {DailyBoundError,DAILY_BOUNDS,needsDailyRegroup,preferDailyRegroup,regroupDaily} from './daily-grouping.js';
 function bound(message:string):never{throw new DailyBoundError(message);}
 const active=sql`(c.flag_del IS NULL OR c.flag_del<1)`;
@@ -97,7 +97,9 @@ export async function readAiDaily(reader:Reader,q:Query={}):Promise<AiDaysData>{
  }
  const tagged=[...new Set(topics.flatMap(t=>t.evidence.map(e=>e.channelId)))],tagRows=tagged.length?await reader.rows(sql`SELECT u_id,tags FROM urt_count WHERE u_id IN(${sql.join(tagged.map(id=>sql`${id}`),sql`,`)})`):[];
  // Before resolveReferences: it may withhold references past the capacity bound.
- summarizeTopics(topics,sources,new Map(tagRows.map(r=>[Number(r.u_id),channelTagIds(r.tags)])));
+ const channelTags=new Map(tagRows.map(r=>[Number(r.u_id),channelTagIds(r.tags)]));
+ summarizeTopics(topics,sources,channelTags);
+ topics=rankByNetworks(topics,channelTags);
  const refs=await resolveReferences(reader,topics,lineage?.state==='immutable-snapshot');
  const ids=[...channels.keys()],raw=!sourceCapacityExceeded&&lineage?.state!=='immutable-snapshot'&&from&&to&&ids.length?(await reader.rows(sql`SELECT COUNT(*) AS total FROM urt_video WHERE u_id IN(${sql.join(ids.map(id=>sql`${id}`),sql`,`)}) AND publishedAt>=${from} AND publishedAt<=${to}`))[0]:null;
  return {date:row&&text(row.date_from).slice(0,10)!==text(row.date_to).slice(0,10)?null:selectedDate,dateFrom:timestamp(from),dateTo:timestamp(to),dailyId:source==='channel-summaries'?null:integer(row?.pk),dataType:source==='channel-summaries'?null:text(row?.data_type)||null,condition:resolvedCondition,rows:topics,channels:channels.size,source,updatedAt:latest(...(source==='daily-cache'?[row?.mtime,row?.ctime]:[]),...[...sources.values()].flatMap(r=>[r.mtime,r.ctime])),rawVideoRows:lineage?.state==='immutable-snapshot'?null:ids.length?integer(raw?.total):null,sourceChannels:sources.size,sourceStats:sourceStats(sources,resolvedCondition),

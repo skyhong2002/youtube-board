@@ -153,6 +153,9 @@ export interface TopicRow {
     dailyId: number;
     title: string;
     channelCount: number;
+    /** Distinct media networks among the cited channels (shared/channel-networks.ts); set on /ai/days reads. */
+    networkCount?: number;
+    networks?: string[];
     videoCount: number;
     score: number;
     keywords: string[];

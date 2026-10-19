@@ -13,7 +13,7 @@ import { TagFilters } from '@/components/TagFilters';
 import { VideoAnalytics } from '@/components/VideoAnalytics';
 import { PromptPreview } from '@/components/PromptPreview';
 import { LiveWall } from '@/components/LiveWall';
-import { AiDailyBoard, aiDailyTitle } from '@/components/AiDailyBoard';
+import { AiDailyBoard, aiDailyTitle, AI_DAILY_NETWORK_NOTES } from '@/components/AiDailyBoard';
 import { AiHoursBoard } from '@/components/ai/AiHoursBoard';
 import { AiPeriodsBoard } from '@/components/ai/AiPeriodsBoard';
 import { AiAspectsBoard } from '@/components/ai/AiAspectsBoard';
@@ -212,7 +212,7 @@ export async function ReportPage({
                 <DataNotice meta={meta} />
                 <Tabs items={familyTabs(path,search,meta.coverage)} active={path} />
                 <AiDailyBoard data={data} dated={Boolean(route.id)} />
-                <ReportMethod path={path} description={route.description} meta={meta}/>
+                <ReportMethod path={path} description={route.description} meta={meta} notes={AI_DAILY_NETWORK_NOTES}/>
             </>
         );
     }

@@ -10,7 +10,12 @@ import type {AiDaysData,TopicRow} from "@/lib/api";
 /** The Laravel /ai/days content and order (date and condition switchers, coverage, numbered
  * topics with per-channel events, a summary box and up to three embedded videos), drawn with
  * the site's own cards, tabs, tags and avatars. */
-export const AI_DAILY_CONDITIONS = [["all","全部"],["green","泛綠"],["blue","泛藍"],["neutral","較無偏"],["finance","財經"],["world","世界"]] as const;
+/** Method-block notes for /ai/days; the order itself is computed by the API (rankByNetworks). */
+export const AI_DAILY_NETWORK_NOTES = [
+    "排序：同一媒體集團的多個頻道（例如三立的 LIVE 新聞、iNEWS、新聞網）只算一家。至少兩個媒體集團都報導的議題排在前面，再依「影片數 + 3 × 媒體集團數」排序。",
+    "媒體集團：依頻道分類中的集團標籤（旺中、TVBS、三立、中央社⋯）判斷；沒有集團標籤的頻道自成一家。無法對應到頻道的報導不計入集團數。",
+] as const;
+export const AI_DAILY_CONDITIONS =[["all","全部"],["green","泛綠"],["blue","泛藍"],["neutral","較無偏"],["finance","財經"],["world","世界"]] as const;
 export function aiDailyTitle(date:string|null,condition:string){
     if(!date)return "主要事件與各媒體報導";
     return ({green:`泛綠媒體在 ${date} 主要報導`,blue:`泛藍媒體在 ${date} 主要報導`,neutral:`較無偏媒體在 ${date} 主要報導`,world:`${date} 國際新聞報導`,finance:`${date} 財經新聞報導`} as Record<string,string>)[condition]??`${date} 主要事件與各媒體報導`;
@@ -32,7 +37,7 @@ const EMPTY_SUMMARY:NonNullable<TopicRow["summary"]>={keywords:[],people:[],part
 function Topic({topic,index}:{topic:TopicRow;index:number}){
     const s=topic.summary??EMPTY_SUMMARY,href=`/ai/days/${topic.dailyId}/events?event=${encodeURIComponent(topic.title)}`;
     const rows:[string,React.ReactNode][]=[
-        ["媒體數",<span className="tabular-nums" key="m">{count(topic.channelCount)} 個媒體 · {count(topic.videoCount)} 則影片</span>],
+        ["媒體數",<span className="tabular-nums" key="m" title={topic.networks?.join("、")}>{typeof topic.networkCount==="number"&&<>{count(topic.networkCount)} 個媒體集團 · </>}{count(topic.channelCount)} 個頻道 · {count(topic.videoCount)} 則影片</span>],
         ["關鍵字",<Counts rows={s.keywords} link key="k"/>],
         ["人物",<Counts rows={s.people} key="p"/>],
         ["媒體陣營",<Pair a={["泛綠媒體",s.party.green]} b={["泛藍媒體",s.party.blue]} key="g"/>],

@@ -1,6 +1,7 @@
 import type {AiDaysData,TopicRow,TopicSummary} from '../contracts.js';
 import type {Row} from '../db/client.js';
 import {channelTopics,type ChannelTopic} from './channel-ai-shapes.js';
+import {channelNetwork} from '../../../shared/channel-networks.js';
 /** Party tags on urt_count.tags, as the Laravel daily page read them: [4] 泛綠, [3] 泛藍. */
 const GREEN_TAG=4,BLUE_TAG=3;
 /** 24-hour news streams the Laravel page never used as representative videos. */
@@ -10,6 +11,18 @@ function top(counts:Map<string,number>):{term:string;count:number}[]{
  return [...counts].map(([term,count])=>({term,count})).sort((a,b)=>b.count-a.count).slice(0,5);
 }
 export function channelTagIds(tags:unknown):number[]{return typeof tags==='string'?[...tags.matchAll(/\[(\d+)\]/g)].map(m=>Number(m[1])):[];}
+/** Daily order counts media networks, not channels: two 三立 channels citing one story are one
+ * source. Topics confirmed by at least two networks come first, then videos + 3 × networks.
+ * Unresolved references cannot be attributed to a network and are not counted. Stable sort. */
+export function rankByNetworks(topics:TopicRow[],tags:Map<number,number[]>):TopicRow[]{
+ for(const topic of topics){
+  const networks=new Map<string,string>();
+  for(const e of topic.evidence){const n=channelNetwork(e.channelId,tags.get(e.channelId)??[],e.channelTitle);if(!networks.has(n.key))networks.set(n.key,n.name);}
+  topic.networkCount=networks.size;topic.networks=[...networks.values()];topic.score=topic.videoCount+networks.size*3;
+ }
+ const confirmed=(t:TopicRow)=>Number((t.networkCount??0)>=2);
+ return topics.map((t,i)=>({t,i})).sort((a,b)=>confirmed(b.t)-confirmed(a.t)||b.t.score-a.t.score||a.i-b.i).map(x=>x.t);
+}
 /** Per-topic counts shown on the Laravel /ai/days page, computed from the cited channel summaries. */
 export function summarizeTopics(topics:TopicRow[],sources:Map<number,Row>,tags:Map<number,number[]>):void{
  const parsed=new Map<number,ChannelTopic[]>();

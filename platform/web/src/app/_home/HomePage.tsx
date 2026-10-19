@@ -43,7 +43,7 @@ function KeywordMethod({view}:{view:KeywordView}){
 }
 const topicHref=(topic:TopicRow)=>safeReportHref(topic.detailUrl)??`/ai/days/${topic.dailyId}/events?event=${encodeURIComponent(topic.title)}`;
 function topicVideoId(topic:TopicRow,data:HomeData){const resolved=topic.evidence.flatMap(e=>e.resolvedVideoIds??[]).find(id=>/^[\w-]{11}$/.test(id));if(resolved)return resolved;const ids=new Set(topic.evidence.flatMap(e=>e.videoIds));return data.live.find(v=>ids.has(v.id))?.id??null;}
-function TopicMeta({topic,date}:{topic:TopicRow;date:string|null}){return <p className={styles.source}><span>{date??'日期未記錄'}</span><span>· {topic.grouping?'來源訊號分組':'AI 輔助整理'}</span><span>· {count(topic.channelCount)} 個頻道</span></p>;}
+function TopicMeta({topic,date}:{topic:TopicRow;date:string|null}){return <p className={styles.source}><span>{date??'日期未記錄'}</span><span>· {topic.grouping?'來源訊號分組':'AI 輔助整理'}</span><span>· {typeof topic.networkCount==='number'?`${count(topic.networkCount)} 個媒體集團`:`${count(topic.channelCount)} 個頻道`}</span></p>;}
 function TopicReferences({topic}:{topic:TopicRow}){return <div className={styles.compactDistribution}><span>{count(topic.videoCount)} {topic.grouping?'支引用影片（去重）':'筆影片引用'}</span>{topic.unresolvedReferences.length>0&&<span>· 另有待確認的來源引用</span>}</div>;}
 /** Shared by the ISR entry (/render-isr/home/current, failures throw) and the dynamic fallback at /. */
 export default async function HomePage(){
