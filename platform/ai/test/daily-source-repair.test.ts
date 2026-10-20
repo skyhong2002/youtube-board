@@ -19,6 +19,7 @@ describe('legacy daily source repair',()=>{
   },[
    {標題:'議題一',媒體事件:{媒體甲:['甲一','甲二'],媒體乙:['乙一'],媒體丙:['丙一']}},
    {標題:'議題二',媒體事件:{媒體甲:['甲二','甲三']}},
+   {標題:'議題一',媒體事件:{媒體乙:['乙一']}},
   ]);
   const source=await loadDailySource(db,'2026-09-04');
   expect(source.channels.find(c=>c.u_id===1)!.events.map(e=>[e.事件,e.videoId])).toEqual([['甲一',['AAAAAAAAAAA','BBBBBBBBBBB']]]);

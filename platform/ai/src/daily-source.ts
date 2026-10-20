@@ -48,9 +48,10 @@ export async function loadDailySource(db:Connection,date:string,filter='all',use
  const byName=new Map(channels.map(c=>[c.title,c]));if(byName.size!==channels.length||new Set(channels.map(c=>c.u_id)).size!==channels.length)throw new Error('Ambiguous channel source');
  for(const c of channels)if(!Number.isSafeInteger(c.u_id)||c.u_id<1||new Set(c.events.map(e=>e.事件)).size!==c.events.length)throw new Error('Ambiguous channel event');
  const raw=JSON.parse(String(row.result_json));const titles=new Set<string>();
- // Repair (legacy rows only) skips references to media or events that did not survive parsing, and topics left without any.
+ // Repair (legacy rows only) keeps the first topic of a repeated title, skips references to media or events that did not
+ // survive parsing, and topics left without any.
  const topics=list(Array.isArray(raw)?raw:object(raw).events,1,200).flatMap(v=>{
-  const item=object(v),title=text(item.標題,128);if(titles.has(title))throw new Error('Duplicate daily title');titles.add(title);
+  const item=object(v),title=text(item.標題,128);if(titles.has(title)){if(repair)return [];throw new Error('Duplicate daily title');}titles.add(title);
   const references=object(item.媒體事件);if(!Object.keys(references).length){if(repair)return [];throw new Error('Missing daily references');}
   const media=Object.entries(references).flatMap(([name,names])=>{const channel=byName.get(name);if(!channel){if(repair)return [];throw new Error('Unresolved daily media');}
    const refs=repair?(Array.isArray(names)?names.slice(0,100):[]):list(names,1,100);
