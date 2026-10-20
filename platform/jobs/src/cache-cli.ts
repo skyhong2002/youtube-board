@@ -75,7 +75,7 @@ export async function executeCacheWorkflow(args:string[],env:NodeJS.ProcessEnv,s
     const results=[];for(const tagId of await categoryTagIds(db,options.get('exclude-tagid'))){const one={...input,tagIds:[tagId]};results.push({tagId,...(job==='reports.tag_cloud.build'?await tagCloudCacheJob(ctx,one,v.daysList,dictionary):await tagDateCacheJob(ctx,{...one,...(options.has('date-limit')?{dateLimit:v.number('date-limit',400)}:{})},dictionary))});}
     return {mode:execute?'execute':'dry-run',selected:results.length,applied:results.filter(r=>r.applied.length).map(r=>r.tagId),skipped:results.flatMap(r=>r.skipped.map(s=>({tagId:r.tagId,...s}))),channels:results.reduce((n,r)=>n+r.channels,0)};
    }
-   if(options.has('top-subjects'))input.subjects=await rankedSubjects(db,v.number('top-subjects',20),snapshot);
+   if(options.has('top-subjects'))input.subjects=rankedSubjects(v.number('top-subjects',20),snapshot);
    if(job==='reports.tag_date.build')return tagDateCacheJob(ctx,{...input,...(options.has('date-limit')?{dateLimit:v.number('date-limit',400)}:{})},dictionary);
    if(job==='reports.tag_cloud.build')return tagCloudCacheJob(ctx,input,v.daysList,dictionary);
    if(job==='reports.live_tag_date.build')return liveTagDateCacheJob(ctx,input,dictionary);
@@ -101,12 +101,11 @@ export async function categoryTagIds(db:import('mysql2/promise').Connection,excl
  return [...ids].sort((a,b)=>a-b);
 }
 /** The first N terms of the /keywords ranking: the serving vocabulary by article count (the order the page reads),
- * minus the terms the ranking never shows (the YouTube display policy and the operator exclusions in tags.no_tag).
- * View-ranked tags_all is not used: description boilerplate (copyright, community rules) dominates it. */
-export async function rankedSubjects(db:import('mysql2/promise').Connection,count:number,snapshot:{terms:{key:string;term:string;articleCount:number}[]}) {
- const [hidden]=await db.query<import('mysql2/promise').RowDataPacket[]>('SELECT tag FROM tags WHERE no_tag>=1 LIMIT 10001');if(hidden.length>10000)throw new Error('Keyword exclusions exceed read budget');
- const excluded=new Set(hidden.map(r=>String(r.tag).trim()));
- const subjects=[...snapshot.terms].filter(t=>Number.isSafeInteger(t.articleCount)&&t.articleCount>0&&t.term&&[...t.term].length<=32&&!/[\uD800-\uDFFF]/u.test(t.term)&&!excluded.has(t.term.trim())&&!tagDisplayExclusion(t.term))
+ * minus the YouTube display policy the page applies. tags.no_tag is not applied: it only hides words inside the
+ * clouds, and the page still ranks those terms (AI is one). View-ranked tags_all is not used: description
+ * boilerplate (copyright, community rules) dominates it. */
+export function rankedSubjects(count:number,snapshot:{terms:{key:string;term:string;articleCount:number}[]}) {
+ const subjects=[...snapshot.terms].filter(t=>Number.isSafeInteger(t.articleCount)&&t.articleCount>0&&t.term&&[...t.term].length<=32&&!/[\uD800-\uDFFF]/u.test(t.term)&&!tagDisplayExclusion(t.term))
   .sort((a,b)=>b.articleCount-a.articleCount||(a.key<b.key?-1:a.key>b.key?1:0)).slice(0,count).map(t=>t.term);
  if(!subjects.length)throw new Error('No vocabulary terms for top-subjects');
  return subjects;

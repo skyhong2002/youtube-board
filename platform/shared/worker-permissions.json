@@ -1052,9 +1052,6 @@
         ],
         "ts_live_tag_cache_lineage": [
           "SELECT"
-        ],
-        "tags": [
-          "SELECT"
         ]
       },
       "dependencies": []
@@ -1098,9 +1095,6 @@
           "SELECT"
         ],
         "ts_live_tag_cache_lineage": [
-          "SELECT"
-        ],
-        "tags": [
           "SELECT"
         ]
       },
