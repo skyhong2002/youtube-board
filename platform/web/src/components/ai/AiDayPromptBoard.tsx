@@ -9,6 +9,8 @@ import {reportStyle as ui} from "@/lib/report-styles";
 import {count,dateTime} from "@/lib/format";
 import {blockedReason,omittedReason,promptCondition,promptFilters,promptHref,promptPeriod,promptPeriodHref,shiftDay,type OmittedMedia,type PromptMedia} from "@/lib/ai-day-prompt-preview";
 import {taipeiToday} from "@/lib/ai-hours-board";
+/** The site filter box (Filters.tsx), without its outer margin inside this stacked column. */
+const FORM=ui.form.replace("my-4 ","");
 
 interface DayPrompt {title:string;promptVersion:string;prompt:string;schema:unknown;sourceCount:number;sourceLimit:number;omitted:number;bounds?:{min:number;max:number};blocked:string|null;period?:{from:string;to:string};media?:PromptMedia[];omittedMedia?:OmittedMedia[];notes:string[]}
 const conditionLabel=(key:string)=>AI_DAILY_CONDITIONS.find(([k])=>k===key)?.[1]??key;
@@ -65,12 +67,12 @@ export async function AiDayPromptBoard({apiPath,search,path}:{apiPath:string;sea
                     ]}/>
                     <SectionTabs label="條件" tabs={AI_DAILY_CONDITIONS.map(([key,label])=>({href:href(key),label,current:condition===key}))}/>
                 </div>
-                <form className="flex flex-wrap items-end gap-3 text-sm" action="/ai/days/prompt">
+                <form className={FORM} method="get" action="/ai/days/prompt">
                     {condition!=="all"&&<input type="hidden" name="condition" value={condition}/>}
                     {(["type","limit"] as const).map(key=>{const value=[search[key]].flat()[0];return value?<input key={key} type="hidden" name={key} value={value}/>:null;})}
-                    <label className={ui.label}>起日<input className={ui.input} type="date" name="from" required defaultValue={period.from}/></label>
-                    <label className={ui.label}>迄日<input className={ui.input} type="date" name="to" required defaultValue={period.to}/></label>
-                    <button className={ui.button}>套用期間</button>
+                    <label className={ui.label}>開始日期<input className={ui.input} type="date" name="from" required defaultValue={period.from}/></label>
+                    <label className={ui.label}>結束日期<input className={ui.input} type="date" name="to" required defaultValue={period.to}/></label>
+                    <button className={ui.primary} type="submit">套用期間</button>
                 </form>
             </>}
             <ul className="flex flex-wrap gap-1.5" aria-label="來源條件">
@@ -103,7 +105,7 @@ export async function AiDayPromptBoard({apiPath,search,path}:{apiPath:string;sea
             ...data.notes,
             "媒體事件來源是提示詞內附的來源資料：媒體依各事件引用影片數合計由多到少排列，新聞數為該事件引用的影片數，關鍵字最多列 8 個。",
             "「全部」條件只納入引用 2 則以上影片的事件；其他條件納入至少 1 則。沒有符合事件、名稱重複或摘要無法解析的媒體不列入提示詞，列在媒體事件來源最後並註明原因，計入「未納入」；超過來源上限而未讀取的媒體只計數、不列出。",
-            "日期以台北時間計。起日與迄日可預覽自訂期間（最多 31 天），讀取區間正好是起日 00:00:00 至迄日 23:59:59 的頻道摘要（週或累計等資料類型）；前後日切換回到單日並保留目前條件。",
+            "日期以台北時間計。填入開始日期與結束日期可預覽自訂期間（最多 31 天），讀取區間正好是開始日期 00:00:00 至結束日期 23:59:59 的頻道摘要（週或累計等資料類型）；前後日切換回到單日並保留目前條件。",
         ]}/>
     </>;
 }

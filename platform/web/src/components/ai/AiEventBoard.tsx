@@ -42,8 +42,11 @@ function Summary({s}:{s:AiEventData["presentation"]["summaries"][number]}){
     return <article className={ui.panel+" space-y-3"}>
         <h3 className="text-lg font-semibold leading-snug">{s.title}</h3>
         {s.description&&<p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{s.description}</p>}
-        {(s.keywords.length>0||s.media.length>0)&&<div className="flex flex-wrap gap-1.5">
+        {/* Keywords (links) and the reporting media (labels) are two lists, each named, not one row of look-alike chips. */}
+        {s.keywords.length>0&&<div className="flex flex-wrap items-center gap-1.5"><span className="mr-1 text-xs text-zinc-500 dark:text-zinc-400">關鍵字</span>
             {s.keywords.map(k=><Link className={hot} key={`k-${k}`} href={`/keywords/${encodeURIComponent(k)}/videos`}>{k}</Link>)}
+        </div>}
+        {s.media.length>0&&<div className="flex flex-wrap items-center gap-1.5"><span className="mr-1 text-xs text-zinc-500 dark:text-zinc-400">報導媒體</span>
             {s.media.map(m=><span className={ui.tag} key={`m-${m}`}>{m}</span>)}
         </div>}
         {s.facts.length>0&&<section className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950/60"><h4 className={h3}>事實</h4>
@@ -51,7 +54,7 @@ function Summary({s}:{s:AiEventData["presentation"]["summaries"][number]}){
         </section>}
         {s.opinions.length>0&&<section className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950/60"><h4 className={h3}>觀點</h4>
             <ul className="mt-2 space-y-2.5 text-sm leading-relaxed">{s.opinions.map((o,i)=><li key={i}><p>{o.content}</p>
-                <Byline citation={o.citation}>{(o.stance||o.intensity)&&<><span aria-hidden="true">·</span><span>角度：{o.stance||"未記錄"}</span><span aria-hidden="true">·</span><span>強度：{o.intensity||"未記錄"}</span></>}</Byline>
+                <Byline citation={o.citation}>{(o.stance||o.intensity)&&<><span aria-hidden="true">·</span><span>角度：{o.stance||"—"}</span><span aria-hidden="true">·</span><span>強度：{o.intensity||"—"}</span></>}</Byline>
             </li>)}</ul>
         </section>}
     </article>;
@@ -78,19 +81,26 @@ export async function AiEventBoard({apiPath,title,description,path,search}:{apiP
     const history=data.title?await api<ReportData>(`ai/days/${data.dailyId}/events/history`,{event:data.title,limit:"200"},{optional:true}):null;
     const days=history?.ok?historyDays(history.response.data.rows):[],hasAi=p.summaries.length>0||!!p.people||!!p.media;
     const dayHref=data.date?`/ai/days/${data.date}`:"/ai/days";
+    const historyFailed=!!history&&!history.ok&&history.status!==404;
     return <>
         <Heading title={aiEventTitle(data.title||title,data.date)} meta={meta}
             lead={<Link className="hover:underline" href={dayHref}>{data.date?`${data.date} `:""}每日彙整 #{data.dailyId}</Link>}/>
         <DataNotice meta={meta}/>
         <Tabs items={tabs} active={tabs[0]?.href||path}/>
-        <div className="space-y-4">
-            {!hasAi&&<p className={ui.note} role="status">這個議題目前沒有對應的 AI 事件分析；先列出可用的事件入口{days.length>1?"與逐日事件線":""}。</p>}
-            <section aria-label="逐日事件線"><SectionHeading title="逐日事件線"/>{history&&!history.ok&&history.status!==404?<p className={empty}>逐日事件線暫時無法讀取。</p>:<History days={days} href={tabs[1]?.href}/>}</section>
+        {/* Nothing to draw: one empty state with the ways out, instead of a status note and two empty sections. */}
+        {!hasAi&&days.length<2&&!historyFailed?<div className={empty+" space-y-3"} role="status">
+            <p>這個議題還沒有 AI 事件分析，也沒有前一日的跨日對應。</p>
+            <p className="flex flex-wrap justify-center gap-x-4 gap-y-2">
+                <Link className={ui.link} href={dayHref} prefetch={reportLinkPrefetch(dayHref)}>← 回到{data.date?` ${data.date} `:""}每日議題</Link>
+                {tabs.slice(1).filter(t=>!t.href.includes("/people")).map(t=><Link className={ui.link} key={t.href} href={t.href} prefetch={reportLinkPrefetch(t.href)}>{t.label}</Link>)}
+            </p>
+        </div>:<div className="space-y-4">
+            <section aria-label="逐日事件線"><SectionHeading title="逐日事件線"/>{historyFailed?<p className={empty}>逐日事件線暫時無法讀取。</p>:<History days={days} href={tabs[1]?.href}/>}</section>
             <section className="space-y-4" aria-label="事件分析"><SectionHeading title="事件分析"/>
-                {p.summaries.length?p.summaries.map((s,i)=><Summary s={s} key={`${s.analysisId}-${i}`}/>):<p className={empty}>目前沒有事件摘要分析。</p>}
+                {p.summaries.length?p.summaries.map((s,i)=><Summary s={s} key={`${s.analysisId}-${i}`}/>):<p className={empty}>{hasAi?"目前沒有事件摘要分析。":"這個議題還沒有 AI 事件分析。"}</p>}
             </section>
             {p.people&&<People people={p.people}/>}
-        </div>
+        </div>}
         <ReportMethod path={path} description={description} meta={meta} notes={[
             ...eventAnalysisNotes(data),
             "事件摘要、事實與觀點的分類、人物立場與強度都是 AI 對來源影片的歸納，不是編輯查證的結論；事實與觀點後面列出 AI 引用的影片，僅連結本站已核對的影片。",
