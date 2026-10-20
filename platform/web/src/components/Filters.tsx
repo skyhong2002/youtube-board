@@ -100,12 +100,15 @@ export function ReportFilters({
                     value={first(search.condition)}
                 />
             )}
+            {/* Apply and clear stay together when the row wraps on phones. */}
+            <span className="flex gap-3">
             <button className={ui.primary} type="submit">
                 套用篩選
             </button>
             <a className={ui.button} href={path}>
                 清除
             </a>
+            </span>
         </form>
     );
 }
