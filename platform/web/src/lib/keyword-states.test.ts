@@ -134,7 +134,7 @@ test('keyword profile loaded: exact keyword, period, real counts, pagination lin
  assert.match(markup,/發布日期 2026-10-06 至 2026-10-12（台北時間）/);
  assert.match(markup,/120 部<\/span><\/h2>/);assert.match(markup,/目前條件共 120 部符合・本頁顯示 2 部。/);
  assert.ok(markup.indexOf('無觀看列')<markup.indexOf('零觀看列'));
- assert.match(markup,/<dt>累計觀看<\/dt><dd>無觀看值<\/dd>/);assert.match(markup,/<dt>累計觀看<\/dt><dd>0<\/dd>/);
+ assert.match(markup,/<dt>累計觀看<\/dt><dd>—<\/dd>/);assert.match(markup,/<dt>累計觀看<\/dt><dd>0<\/dd>/);
  assert.equal(markup.match(/<dt>累計觀看<\/dt><dd>0<\/dd>/g)?.length,1);
  // Missing source text is said to be missing; the matched span keeps its non-shrinking mark.
  const body=bodyOf(markup);

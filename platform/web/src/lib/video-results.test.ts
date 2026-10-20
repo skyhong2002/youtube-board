@@ -20,9 +20,13 @@ test('missing provider and collection counts remain unknown; pending coverage is
  const row={...video,listing:{...video.listing!,providerComments:null,recordedComments:null,commentStatus:'pending' as const,likeSharePercent:null}};
  const html=render([row]);assert.match(html,/收錄未完成，顯示 YouTube/);assert.match(html,/YouTube 留言<\/dt><dd>—<\/dd>/);assert.match(html,/收錄留言<\/dt><dd[^>]*>—<\/dd>/);
 });
-test('unpublished comments leave only YouTube counts and interaction metrics',{skip:COMMENTS_PUBLISHED},()=>{
- const html=render([video]);assert.match(html,/互動指標/);assert.match(html,/YouTube 留言/);assert.match(html,/喜歡占互動/);
- for(const label of ['完整收錄','收錄留言','收錄作者','收錄回覆','留言獲讚','留言觀測時間'])assert.ok(!html.includes(label),label);
+test('unpublished comments leave one plain metrics line and no per-video disclosure',{skip:COMMENTS_PUBLISHED},()=>{
+ const html=render([video]);assert.match(html,/<dt>留言<\/dt><dd>17<\/dd>/);assert.doesNotMatch(html,/<details|互動指標|YouTube 留言/);
+ for(const label of ['完整收錄','收錄留言','收錄作者','收錄回覆','留言獲讚','留言觀測時間','喜歡占互動'])assert.ok(!html.includes(label),label);
+});
+test('a video with no observed counts says so once instead of three dashes',()=>{
+ const html=render([{...video,views:null,likes:null,comments:null,listing:{...video.listing!,providerComments:null}}]);
+ assert.match(html,/data-video-metrics="none"/);assert.match(html,/尚未取得觀看數據/);assert.doesNotMatch(html,/<dd>—<\/dd>/);
 });
 test('empty source listing explains observation scope',()=>{
  const html=render([]);assert.match(html,/尚未收錄，不代表頻道沒有發布影片/);assert.doesNotMatch(html,/<table|<ul/);

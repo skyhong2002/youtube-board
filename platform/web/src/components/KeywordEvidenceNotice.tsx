@@ -46,11 +46,15 @@ export function KeywordEvidenceNotice({coverage,subject,scopeLabel='目前篩選
  const results=pageEmpty?`這一頁沒有可呈現的影片，但目前條件共 ${count(known!)} 部符合；請改看其他頁碼。`:listed?[known!==null?`目前條件共 ${count(known)} 部符合`:null,shown!==null&&shown>0?`本頁顯示 ${count(shown)} 部`:null].filter(Boolean).join('・')+'。':null;
  const metrics=[['來源影片',source],['有效比對',fresh],['來源文字已變動',stale],['尚未比對',unprocessed],['符合標籤',matched]] as const;
  const status=`詞彙狀態：${synchronized?'已同步':notSynchronized?'尚未同步':'未提供'} · 版本：${version??'未提供'}`;
+ // Compact: the plain-language conclusion first; the raw counts and vocabulary version fold away.
  if(compact)return <aside className={`${ui.note} [overflow-wrap:anywhere]`} aria-label="共同標籤比對範圍">
-  <dl className="flex flex-wrap gap-x-4 gap-y-0.5">{metrics.map(([label,value])=><div className="flex gap-1" key={label}><dt>{label}</dt><dd>{value===null?'未提供':`${count(value)} 部`}</dd></div>)}</dl>
+  <p>{explanation}</p>
   {results&&<p className="mt-1" data-keyword-results={pageEmpty?'page-empty':'listed'}>{results}</p>}
-  <p className="mt-1">{explanation}</p>
-  <p className="mt-1 break-words text-xs">{status}</p>
+  <details className="group mt-2 text-xs">
+   <summary className="flex cursor-pointer list-none items-center gap-1 font-medium [&::-webkit-details-marker]:hidden"><span aria-hidden="true" className="text-[10px] transition-transform group-open:rotate-90">▶</span>比對明細</summary>
+   <dl className="mt-1.5 grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 tabular-nums [&_dd]:text-right">{metrics.map(([label,value])=><div className="contents" key={label}><dt>{label}</dt><dd>{value===null?'未提供':`${count(value)} 部`}</dd></div>)}</dl>
+   <p className="mt-1.5 break-words">{status}</p>
+  </details>
  </aside>;
  return <aside className={`${ui.note} [overflow-wrap:anywhere]`} aria-label="共同標籤比對範圍">
   <p><strong>共同標籤「{subject}」</strong>來自 <Link className={ui.link} href="/vocabulary">新文易數共同詞彙</Link>，與頻道分類分開；文字命中不代表事件歸屬或立場。</p>

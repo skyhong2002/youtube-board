@@ -21,9 +21,9 @@ export function ReportFilters({
     const exactWindow=keywordVideos&&!!first(search.since)&&!!first(search.until);
     const requestedLimit = first(search.limit) || "50";
     const selectedLimit = /^\d+$/.test(requestedLimit) && Number(requestedLimit) >= 1 && Number(requestedLimit) <= maxLimit ? requestedLimit : "50";
-    const advancedOpen=['tagid','or','not','channelId','channelIds','column','min','hours','from','to',...(keywordVideos&&!exactWindow?['days']:[])].some(key=>{
+    const applied=['tagid','or','not','channelId','channelIds','column','min','hours','from','to',...(keywordVideos&&!exactWindow?['days']:[])].filter(key=>{
         const value=search[key];return Array.isArray(value)?value.some(v=>v!==''):value!==undefined&&value!=='';
-    });
+    }).length;
     return (
         <form key={JSON.stringify([path,search])} className={ui.form} action={path} method="get">
             {exactWindow&&['since','until','rankingPool'].filter(key=>first(search[key])!==undefined).map(key=><input key={key} type="hidden" name={key} value={first(search[key])}/>)}
@@ -41,9 +41,9 @@ export function ReportFilters({
                 </label>
             ) : (
                 <>
-                    <label className={ui.label}>
+                    <label className={`${ui.label} w-full sm:w-72`}>
                         搜尋
-                        <input className={ui.input}
+                        <input className={`${ui.input} w-full`}
                             type="search"
                             maxLength={100}
                             name="q"
@@ -67,9 +67,10 @@ export function ReportFilters({
                             {mode==="videos"&&<><option value="500">500 筆</option><option value="1000">1000 筆</option></>}
                         </select>
                     </label>
-                    <details className="w-full rounded-lg border border-zinc-200 px-3 dark:border-zinc-700">
-                    <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-zinc-700 dark:text-zinc-300">進階篩選（分類、日期與門檻）{advancedOpen?' · 已套用條件':''}</summary>
-                    <div className="flex flex-wrap items-end gap-3 pb-3">
+                    {/* Closed, the toggle sits in the row like a button; open, it takes its own row above 套用篩選. */}
+                    <details className="group w-fit open:w-full" open={applied>0||undefined}>
+                    <summary className={`${ui.button} cursor-pointer list-none gap-1.5 border border-zinc-300 bg-white dark:border-zinc-700 dark:bg-zinc-950 [&::-webkit-details-marker]:hidden`}><span aria-hidden="true" className="text-xs transition-transform group-open:rotate-90">▶</span>進階篩選<span className="font-normal text-zinc-500 max-sm:hidden dark:text-zinc-400">分類、期間與門檻</span>{applied>0&&<span className="rounded-full bg-brand-700 px-1.5 text-xs leading-5 text-white dark:bg-brand-600">{applied}<span className="sr-only"> 項條件已套用</span></span>}</summary>
+                    <div className="mt-3 flex flex-wrap items-end gap-3 rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950/60">
                     {mode === "channels" && channelRanking && (<>
                         <label className={ui.label}>排序<select className={ui.input} name="column" defaultValue={channelRanking.column}>{CHANNEL_SORTS.map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
                         <label className={ui.label}>{channelRanking.minMetric==='views'?'至少累計觀看':'至少訂閱人數'}<input className={ui.input} name="min" type="number" min="0" max="9007199254740991" defaultValue={channelRanking.min??''} placeholder={channelRanking.scope==='tag'?'預設 0（排除缺值）':'不限'} /></label>

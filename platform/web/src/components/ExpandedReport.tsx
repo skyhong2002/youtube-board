@@ -3,6 +3,7 @@ import {FilterPicker} from './FilterPicker';
 import {familyTabs} from '@/lib/report-navigation';
 import {ObservationValue} from './ObservationValue';
 import {ReportTable} from './ReportTable';
+import {ReportWordCloud} from './ReportWordCloud';
 import {reportStyle as ui} from '@/lib/report-styles';
 import {liveCoverageNotes} from './LiveCoverageNotice';
 import {ReportMethod} from './ReportMethod';
@@ -30,6 +31,11 @@ import { Suspense } from "react";
 import { MayorShare, MayorShareLive, MayorSwitcher, MayorSwitcherLive } from "./MayorShare";
 import { searchView } from "@/lib/mayor-view";
 import { cities } from "../../../shared/city-definitions";
+// Sections with this many columns or fewer are term/value lists: bounded width and a row preview.
+const NARROW_SECTION_COLUMNS = 3, SECTION_PREVIEW_ROWS = 30;
+// Rows past the preview (n+31 = SECTION_PREVIEW_ROWS + 1) are hidden until the toggle after the table opens; important beats the
+// phone stacking rule (.table-stack tr), which is unlayered CSS.
+const sectionPreview = "[&:not(:has(details[open]))_tbody>tr:nth-child(n+31)]:hidden!";
 export async function ExpandedReport({
     apiPath,
     path,
@@ -156,62 +162,7 @@ export async function ExpandedReport({
             {data.words?.length ? (
                 <>
                     <SectionHeading title="關鍵詞分布" />
-                    <section className={ui.panel} aria-label="關鍵詞分布">
-                        <div
-                            className="tags"
-                            style={{ gap: 14, alignItems: "baseline" }}
-                        >
-                            {data.words.map((word, index) => {
-                                const href = safeReportHref(word.href);
-                                const style = {
-                                    fontSize: Math.min(
-                                        30,
-                                        12 +
-                                            Math.log2(
-                                                Math.max(1, word.weight),
-                                            ) *
-                                                2,
-                                    ),
-                                };
-                                return href ? (
-                                    <Link
-                                        key={`${word.term}-${index}`}
-                                        href={href}
-                                        prefetch={reportLinkPrefetch(href)}
-                                        style={style}
-                                        className="tag"
-                                        title={`${word.term}：${count(word.weight)}`}
-                                    >
-                                        {word.term}
-                                        <small
-                                            style={{
-                                                fontSize: 12,
-                                                marginLeft: 5,
-                                            }}
-                                        >
-                                            {count(word.weight)}
-                                        </small>
-                                    </Link>
-                                ) : (
-                                    <span
-                                        key={`${word.term}-${index}`}
-                                        style={style}
-                                        className="tag"
-                                    >
-                                        {word.term}
-                                        <small
-                                            style={{
-                                                fontSize: 12,
-                                                marginLeft: 5,
-                                            }}
-                                        >
-                                            {count(word.weight)}
-                                        </small>
-                                    </span>
-                                );
-                            })}
-                        </div>
-                    </section>
+                    <ReportWordCloud words={data.words} />
                 </>
             ) : null}
             {mayorCity && data.series?.length ? <MayorShare part="candidates" city={mayorCity} series={data.series} search={search} rows={data.bucketCoverage ?? data.rows} view={searchView(search)} /> : null}
@@ -232,12 +183,23 @@ export async function ExpandedReport({
                     </div>
                 </section>
             ))}
+            {/* Narrow sections (term/weight lists) keep to a readable width, sit side by side on wide
+                screens and show their first rows; the rest stay in the same table behind a native toggle. */}
+            <div className={data.sections && data.sections.length > 1 && data.sections.every((section) => section.columns.length <= NARROW_SECTION_COLUMNS) ? "lg:grid lg:grid-cols-2 lg:gap-x-6" : undefined}>
             {data.sections?.map((section, index) => (
-                <section key={`${section.title}-${index}`}>
+                <section key={`${section.title}-${index}`} className={section.columns.length <= NARROW_SECTION_COLUMNS ? "max-w-xl min-w-0" : undefined}>
                     <SectionHeading title={section.title} />
-                    {section.rows.length ? <ReportTable columns={section.columns} rows={section.rows} label={section.title} showMobileScrollHint={Boolean(mayorCity)}/> : <Empty {...(uncachedKeyword ? keywordEmpty : { title: "這個項目尚無觀測資料" })} />}
+                    {section.rows.length ? section.columns.length <= NARROW_SECTION_COLUMNS && section.rows.length > SECTION_PREVIEW_ROWS ? (
+                        <div className={sectionPreview}>
+                            <ReportTable columns={section.columns} rows={section.rows} label={section.title} showMobileScrollHint={Boolean(mayorCity)}/>
+                            <details className="group">
+                                <summary className={"mt-1 cursor-pointer py-3 text-sm " + ui.link}><span className="group-open:hidden">顯示全部 {count(section.rows.length)} 筆</span><span className="hidden group-open:inline">只顯示前 {SECTION_PREVIEW_ROWS} 筆</span></summary>
+                            </details>
+                        </div>
+                    ) : <ReportTable columns={section.columns} rows={section.rows} label={section.title} showMobileScrollHint={Boolean(mayorCity)}/> : <Empty {...(uncachedKeyword ? keywordEmpty : { title: "這個項目尚無觀測資料" })} />}
                 </section>
             ))}
+            </div>
             {data.rows.length > 0 ? (
                 <>
                     <SectionHeading title="觀測資料" />

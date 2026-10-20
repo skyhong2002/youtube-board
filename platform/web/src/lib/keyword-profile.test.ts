@@ -12,7 +12,7 @@ const row=(id:string,title:string,views:number|null):VideoRow=>({id,title,views,
 test('keyword article rows preserve API rank order, exact IDs, null metrics and escaped source text',()=>{
  const html=renderToStaticMarkup(createElement(ImageConfigContext.Provider,{value:{...imageConfigDefault,...config.images}},createElement(KeywordVideoList,{rows:[row('AbCdEfGh123','高觀看先列',999),row('abCdEfGh123','較新影片後列',null)]})));
  assert.ok(html.indexOf('高觀看先列')<html.indexOf('較新影片後列'));assert.match(html,/href="\/videos\/AbCdEfGh123"/);assert.match(html,/href="\/videos\/abCdEfGh123"/);assert.match(html,/href="\/channels\/42"/);
- assert.match(html,/<dt>累計觀看<\/dt><dd>無觀看值<\/dd>/);assert.match(html,/<dt>喜歡<\/dt><dd>—<\/dd>/);assert.match(html,/<dt>留言<\/dt><dd>0<\/dd>/);assert.doesNotMatch(html,/<dt>累計觀看<\/dt><dd>0<\/dd>/);assert.doesNotMatch(html,/<script>|<table/);
+ assert.match(html,/<dt>累計觀看<\/dt><dd>—<\/dd>/);assert.match(html,/<dt>喜歡<\/dt><dd>—<\/dd>/);assert.match(html,/<dt>留言<\/dt><dd>0<\/dd>/);assert.doesNotMatch(html,/<dt>累計觀看<\/dt><dd>0<\/dd>/);assert.doesNotMatch(html,/<script>|<table/);
  // Without API keywordEvidence nothing is fabricated from the description.
  assert.equal(html.match(/沒有命中片段/g)?.length,2);assert.doesNotMatch(html,/escaped description/);
 });
