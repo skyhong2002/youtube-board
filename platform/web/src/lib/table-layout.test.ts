@@ -133,35 +133,40 @@ test('ranked channel table puts the sorted metric right after the name and keeps
  bodyRows(html).forEach(assertOneLineRow);
 });
 
-test('video row wraps the title below its small phone thumbnail; desktop stays inline, with channel attribution in its own column',()=>{
+test('a channel\'s own video list drops the repeated channel column and gives its width to the titles',()=>{
  const html=render(createElement(VideoTable,{rows:[{...video,listing:{scope:'channel',providerComments:17,recordedComments:null,commentStatus:'pending',commentAuthors:null,commentReplies:null,commentLikes:null,likeSharePercent:null,commentsPerThousandViews:null,commentObservedAt:null,tags:[]}}]}));
- assert.deepEqual(heads(html).slice(0,3),['影片','頻道','發布時間']);
+ assert.deepEqual(heads(html).slice(0,3),['影片','發布時間','觀看數']);
  assert.match(html,thumb48);
- assert.match(html,new RegExp(anchor({class:videoName,title:longTitle,href:'/videos/AbCdEfGh123'})));
- assert.match(html,new RegExp(`<td>${anchor({class:'flex min-w-0 items-center gap-1.5 hover:underline',title:'來源頻道',href:'/channels/8'})}<span class="inline-flex shrink-0[^>]*>[\\s\\S]*?<span class="${clip}">來源頻道</span></a></td>`));
+ assert.match(html,new RegExp(anchor({class:videoName.replace('sm:max-w-xs','sm:max-w-xl'),title:longTitle,href:'/videos/AbCdEfGh123'})));
+ // The channel is named once by the page's breadcrumb, not on every row.
+ assert.doesNotMatch(html,/href="\/channels\/8"/);
  // Collection status follows the counts inline instead of on a second line.
  if(COMMENTS_PUBLISHED)assert.match(html,/— ／ 17<small class="ml-1.5">收錄未完成，顯示 YouTube<\/small>/);
  // Until comments are collected (issue #2) the cell is the plain YouTube count.
  else{assert.match(html,/<td class="number">17<\/td>/);assert.doesNotMatch(html,/收錄/);}
- bodyRows(html).forEach(assertVideoIdentityRow);
+ assert.match(html,new RegExp(`<div class="${escape(videoLead)}">`));
 });
 
-test('live phone title wraps below its thumbnail; rank stays desktop-only and attribution, metrics and source stay in their columns',()=>{
+test('live phone title wraps below its thumbnail; rank stays desktop-only and attribution and metrics stay in their columns',()=>{
  const live:LiveRow={...video,currentViewers:10,todayPeak:20,allTimePeak:null,startedAt:null,trend:[],tags:[tag],partialLogEvidence:true};
  const all=render(createElement(LiveTable,{rows:[live],offset:0}));
  const html=all.slice(all.indexOf('<div class="table-frame'));
  assert.match(all,/aria-label="直播觀測清單"/);
- assert.deepEqual(heads(html),['直播 / 頻道','同時在線','今日高峰','歷史高峰','頻道','頻道分類','更新時間','原始來源']);
+ assert.deepEqual(heads(html),['直播','同時在線','今日高峰','歷史高峰','頻道','頻道分類','更新時間']);
  assert.match(html,new RegExp(`<div class="${escape(videoLead)}"><span class="table-lead-extra max-sm:hidden shrink-0 text-xs tabular-nums text-zinc-400">01</span>`));
  assert.match(html,thumb48);
  // The thumbnail identifies the video; full titles wrap on phones and the tooltip keeps attribution.
  assert.match(html,new RegExp(`${anchor({class:videoName,title:`來源頻道 · ${longTitle}`,href:'/videos/AbCdEfGh123'})}${longTitle}</a>`));
  // The visible channel name lives only in the channel column, always beside its avatar.
  assert.equal(html.match(/>來源頻道</g)?.length,1);
- assert.match(html,new RegExp(`<td>${anchor({class:'flex min-w-0 items-center gap-1.5 hover:underline',title:'來源頻道',href:'/channels/8'})}<span class="inline-flex shrink-0[^>]*>[\\s\\S]*?<span class="${clip}">來源頻道</span></a></td>`));
- assert.match(html,new RegExp(`<span class="${clip} text-xs text-zinc-500" title="新聞">${anchor({href:'/live/current?tagid=3'})}新聞</a></span>`));
+ assert.match(html,new RegExp(`<td>${anchor({class:'flex min-w-0 items-center gap-1.5 hover:underline',title:'來源頻道',href:'/channels/8'})}<span class="inline-flex shrink-0[^>]*>[\\s\\S]*?<span class="${clip.replace('max-w-xs','max-w-40')}">來源頻道</span></a></td>`));
+ assert.match(html,new RegExp(`<span class="${clip.replace('max-w-xs','max-w-36')} text-xs text-zinc-500" title="新聞">${anchor({href:'/live/current?tagid=3'})}新聞</a></span>`));
  assert.match(html,/20<small class="ml-1.5">部分取樣<\/small>/);
- assert.match(html,/href="https:\/\/www.youtube.com\/watch\?v=AbCdEfGh123"/);
+ // The desktop table fits the content column: the YouTube link stays on the phone cards and the video page.
+ assert.doesNotMatch(html,/youtube\.com\/watch|min-width:1280px/);
+ // Dense 24-hour update time with the full time as its tooltip; a missing one stays 「—」.
+ assert.match(html,/<time title="未記錄">—<\/time>/);
+ assert.match(render(createElement(LiveTable,{rows:[{...live,updatedAt:'2026-10-20T21:01:00Z'}]})),/<time dateTime="2026-10-20T21:01:00Z" title="2026\/10\/21[^"]*05:01">10\/21 05:01<\/time>/);
  bodyRows(html).forEach(assertVideoIdentityRow);
 });
 
@@ -204,6 +209,6 @@ test('mobile live cards keep full distinguishing titles, attribution and every o
  for(const row of lives){assert.ok(mobile.includes(row.title));assert.ok(mobile.includes(`/videos/${row.id}`));}
  for(const label of ['同時在線','今日高峰','歷史高峰','更新時間','頻道分類','YouTube 原始來源','部分取樣'])assert.ok(mobile.includes(label),label);
  assert.equal(mobile.match(/>來源頻道</g)?.length,2);
- assert.match(html,/min-width:1280px/);assert.match(html,/hidden sm:block/);
+ assert.doesNotMatch(html,/min-width:1280px/);assert.match(html,/hidden sm:block/);
  assert.match(mobile,/dark:text-zinc-400/);
 });

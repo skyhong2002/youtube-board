@@ -106,18 +106,17 @@
 .muted { font-size: 12px; color: var(--muted); }
 .more { justify-content: center; gap: 6px; padding: 14px; margin-top: 16px; font-size: 13px; }
 .gapIntro { color: var(--muted); font-size: 12px; line-height: 1.8; margin-bottom: 16px; }
-.headlineList { display: flex; flex-direction: column; gap: 16px; }
-.headlineCard { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--panel); }
-.headlineCard h3 { font-size: 13px; font-weight: 600; line-height: 1.8; padding: 12px 14px; border-bottom: 1px solid var(--line); }
-.headlineSource { padding: 14px; }
-.headlineSource + .headlineSource { border-top: 1px solid var(--soft-line); }
-.headlineByline { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; color: var(--muted); font-size: 10px; line-height: 1.7; }
-.headlineByline > span { display: flex; align-items: center; gap: 5px; font-size: 11px; }
-.headlineByline i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-.comparedTitle { font-size: 15px; line-height: 1.9; font-weight: 500; overflow-wrap: anywhere; }
+/* 從分類看頻道: one bordered list; each row is the category link, one meta line and its two links. */
+.categoryList { list-style: none; padding: 0; margin: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--panel); }
+.categoryList li { padding: 10px 14px; }
+.categoryList li + li { border-top: 1px solid var(--soft-line); }
+.categoryList h3 { font-size: 14px; font-weight: 600; line-height: 1.6; }
+.categoryList h3 a { color: var(--accent); overflow-wrap: anywhere; }
+.categoryMeta { margin-top: 2px; font-size: 12px; color: var(--muted); }
+.categoryLinks { display: flex; gap: 14px; margin-top: 4px; font-size: 11px; line-height: 1.6; }
+.categoryLinks > a { color: var(--accent); }
 .differentWords { text-decoration: underline; text-decoration-color: var(--muted); text-decoration-thickness: 1px; text-underline-offset: 4px; }
 .sourceArrow { font-size: 11px; color: var(--muted); white-space: nowrap; }
-.headlineMore { display: flex; justify-content: space-between; gap: 8px; border-top: 1px solid var(--line); padding: 10px 14px; font-size: 11px; color: var(--accent); }
 .notice { padding: 12px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--muted); font-size: 12px; line-height: 1.8; margin-bottom: 18px; }
 .empty { padding: 60px 20px; border: 1px dashed var(--line); border-radius: 12px; background: var(--panel); text-align: center; }
 .empty > span { font-size: 36px; color: var(--accent); }
@@ -196,14 +195,18 @@
 .heroCamp { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 10px; font-size: 12px; color: var(--muted); }
 .storyIndex { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 8px; }
 
-/* 藍綠溫差 */
-.gapList { display: flex; flex-direction: column; gap: 12px; }
-.gapGroup { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); padding: 12px 14px; }
-.gapGroupTitle { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 8px; }
-.gapGroupTitle > i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
-.gapGroup ol { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
-.gapGroup li > a { font-size: 13px; line-height: 1.6; font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.gapGroup li > p { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 4px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* 即時直播: thumbnail beside channel and title, the audience line across the card. */
+.gapList { display: flex; flex-direction: column; gap: 10px; }
+.gapGroup { display: grid; grid-template-columns: 80px minmax(0, 1fr); grid-template-rows: auto 1fr auto; column-gap: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); padding: 10px 12px; }
+.liveCover { position: relative; grid-row: 1 / span 2; align-self: start; width: 80px; aspect-ratio: 16 / 9; border-radius: 6px; overflow: hidden; }
+.liveBadge { position: absolute; left: 4px; bottom: 4px; display: inline-flex; align-items: center; gap: 3px; padding: 0 4px; border-radius: 3px; background: var(--color-red-700); color: #fff; font-size: 10px; font-weight: 600; line-height: 16px; }
+.liveBadge::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.gapGroupTitle { display: flex; align-items: center; gap: 5px; min-width: 0; font-size: 11px; line-height: 1.6; color: var(--muted); }
+.gapGroupTitle > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.liveTitle { font-size: 13px; line-height: 1.5; font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.liveStats { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin-top: 8px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.liveStats > * { white-space: nowrap; }
+.liveStats > strong { font-size: 13px; font-weight: 600; color: var(--ink); }
 
 /* 記者動態 */
 .journalists { list-style: none; padding: 0; margin: 0 0 8px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--panel); }
@@ -253,10 +256,9 @@
   .campOutletGroup:nth-child(2) { order: 3; }
   .campOutletsCollapsed { mask-image: none; -webkit-mask-image: none; }
   .campOutletsCollapsed .campOutletGroup:nth-child(2) { mask-image: linear-gradient(to bottom, #000 45%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent 100%); }
-  /* 關鍵字升溫榜 and 記者動態: one line per row. */
+  /* 關鍵字升溫榜: term, then metrics; 記者動態: one line per row. */
   .ranking a { padding: 10px 12px; }
-  .rankBody { flex: 1; flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
-  .rankBody small { white-space: nowrap; }
+  .rankBody { flex: 1; gap: 2px; }
   .rankTrend { flex-direction: row; align-items: center; gap: 8px; }
   /* The name may take up to ~55% so the category cell keeps room for a one-line ellipsis. */
   .journalists a { grid-template-columns: fit-content(55%) minmax(0, 1fr) auto; grid-template-rows: auto; align-items: center; padding: 10px 12px; }
@@ -350,8 +352,14 @@
  * wrap so the missing-data note cannot hide the supporting video/channel counts. */
 .ranking .rankBody { flex: 1; }
 .ranking .rankBody strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
-.rankMeta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; min-width: 0; }
-.rankMeta small { min-width: 0; white-space: normal; overflow-wrap: anywhere; line-height: 1.6; }
+/* Thumbnail with the 48h trend under it: a fixed 48px column in every row. */
+.rankVisual { display: flex; flex-direction: column; align-items: center; gap: 5px; flex-shrink: 0; width: 48px; }
+/* Each "number + unit" group is unbreakable; lines wrap only between groups. */
+/* The "·" before each group sits in a 12px gutter; the list is shifted left by that gutter and
+ * clipped, so a group that starts a new line never shows a leading separator. */
+.ranking .rankMeta, .categoryMeta { display: flex; flex-wrap: wrap; align-items: baseline; min-width: 0; margin-left: -12px; clip-path: inset(0 0 0 12px); line-height: 1.6; white-space: normal; }
+.rankMeta > span, .categoryMeta > span { position: relative; padding-left: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rankMeta > span::before, .categoryMeta > span::before { content: "·"; position: absolute; left: 0; width: 12px; text-align: center; }
 .journalistOutlets { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--muted); }
 /* Channel activity: the cached avatar shares the name's line centre. */
 .journalistName { display: flex; align-items: center; gap: 6px; min-width: 0; }

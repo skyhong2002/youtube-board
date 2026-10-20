@@ -56,3 +56,11 @@ export function joinSentences(items: readonly string[]) {
 export function first(value: string | string[] | undefined) {
     return Array.isArray(value) ? value[0] : value;
 }
+/** Dense table form, 24-hour Taipei time: 「10/21 05:01」; the caller keeps dateTime() in a title. */
+export function shortDateTime(value: string | null | undefined) {
+    if (!value) return "—";
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return "—";
+    const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Taipei", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(date).map((part) => [part.type, part.value]));
+    return `${parts.month}/${parts.day} ${parts.hour}:${parts.minute}`;
+}

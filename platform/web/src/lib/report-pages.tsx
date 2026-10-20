@@ -68,11 +68,21 @@ import {
 import { RefreshControl } from "@/components/RefreshControl";
 import { ReportMethod } from "@/components/ReportMethod";
 import { TimeChart } from "@/components/Charts";
+import { ChannelContext } from "@/components/ChannelContext";
 function Failure({ status, title }: { status: number; title: string }) {
     if (status === 404) notFound();
     return <Unavailable status={status} title={title} />;
 }
-export async function ReportPage({
+export async function ReportPage(props: {
+    route: ReportRoute;
+    search: Search;
+    path: string;
+}) {
+    // A channel's sub-reports carry generic titles (「頻道影片」), so name the channel above them.
+    const channelId = props.path.match(/^\/channels\/(\d+)\/.+$/)?.[1];
+    return channelId ? <><ChannelContext id={channelId} /><ReportBody {...props} /></> : <ReportBody {...props} />;
+}
+async function ReportBody({
     route,
     search,
     path,

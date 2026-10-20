@@ -12,7 +12,7 @@ import type {
     TopicRow,
     TagRow,
 } from "@/lib/api";
-import { count, compact, dateTime, youtubeUrl } from "@/lib/format";
+import { count, compact, dateTime, shortDateTime, youtubeUrl } from "@/lib/format";
 import { Empty } from "./ReportUI";
 import TableScroller from "./TableScroller";
 import { table } from "@/lib/table-styles";
@@ -20,15 +20,15 @@ import { COMMENTS_PUBLISHED } from "@/lib/comments-launch";
 type Tag = ChannelRow["tags"][number];
 /** Categories on one clipped line; the full list stays in the title. In the
  *  lead it gives way first and hides once the table is scrolled on phones. */
-function TagLine({ tags, href, lead=false }: { tags: Tag[]; href: (tag: Tag) => string; lead?: boolean }) {
-    return <span className={lead ? `${table.leadWide} ${table.leadText} shrink-3 text-xs text-zinc-500 sm:max-w-48` : `${table.clip} text-xs text-zinc-500`} title={tags.map((tag) => tag.name).join("、")}>
+function TagLine({ tags, href, lead=false, narrow=false }: { tags: Tag[]; href: (tag: Tag) => string; lead?: boolean; narrow?: boolean }) {
+    return <span className={lead ? `${table.leadWide} ${table.leadText} shrink-3 text-xs text-zinc-500 sm:max-w-48` : `${narrow?table.clip.replace('max-w-xs','max-w-36'):table.clip} text-xs text-zinc-500`} title={tags.map((tag) => tag.name).join("、")}>
         {tags.map((tag, index) => <Fragment key={tag.id}>{index > 0 && "、"}<Link className="hover:underline" href={href(tag)}>{tag.name}</Link></Fragment>)}
     </span>;
 }
 /** Channel attribution as its own one-line column. */
-function ChannelCell({ id, title, avatar }: { id: number; title: string; avatar?: VideoRow["channelAvatar"] }) {
+function ChannelCell({ id, title, avatar, narrow=false }: { id: number; title: string; avatar?: VideoRow["channelAvatar"]; narrow?: boolean }) {
     return <Link className="flex min-w-0 items-center gap-1.5 hover:underline" href={`/channels/${id}`} title={title || undefined}>
-        <ChannelAvatar avatar={avatar} title={title} size={16}/><span className={table.clip}>{title || "頻道名稱尚未取得"}</span>
+        <ChannelAvatar avatar={avatar} title={title} size={16}/><span className={narrow?table.clip.replace('max-w-xs','max-w-40'):table.clip}>{title || "頻道名稱尚未取得"}</span>
     </Link>;
 }
 const channelColumns = {viewCount:'views',subscriberCount:'subscribers',videoCount:'videoCount',view_week:'weeklyViews',view_month:'monthlyViews',views_pred_week:'estimatedWeeklyViews',views_pred_month:'estimatedMonthlyViews',sub_week:'weeklySubscribers',sub_month:'monthlySubscribers',video_week:'weeklyVideos',video_month:'monthlyVideos'} as const;
@@ -92,6 +92,9 @@ export function VideoTable({ rows, responsive=false }: { rows: VideoRow[]; respo
     // Without comment collection a channel listing shows the YouTube count like any other.
     const channelListing=rows.some(r=>r.listing?.scope==='channel'),channel=COMMENTS_PUBLISHED&&channelListing,taxonomy=rows.some(r=>r.listing?.scope==='taxonomy');
     const ratio=(v:number|null|undefined,suffix:string)=>v===null||v===undefined?'—':v.toFixed(2)+suffix;
+    // A channel's own video list names the channel once in its breadcrumb, not on every row;
+    // the freed width goes to the titles.
+    const oneChannel=channelListing&&rows.every(r=>r.listing?.scope==='channel'&&r.channelId===rows[0]!.channelId);
     return (
         <>
         {responsive&&<div className="sm:hidden"><VideoResults rows={rows} report/></div>}
@@ -101,7 +104,7 @@ export function VideoTable({ rows, responsive=false }: { rows: VideoRow[]; respo
                 <thead>
                     <tr>
                         <th className={table.leadHead}>影片</th>
-                        <th>頻道</th>
+                        {!oneChannel&&<th>頻道</th>}
                         <th>發布時間</th>
                         <th className="number">觀看數</th>
                         <th className="number">喜歡</th>
@@ -116,7 +119,7 @@ export function VideoTable({ rows, responsive=false }: { rows: VideoRow[]; respo
                             <td className={table.lead}>
                               <div className={videoLead}>
                                 <span className={`${table.leadExtra} shrink-0`}><VideoThumbnail videoId={row.id} width={48} height={27}/></span>
-                                <Link className={`${videoName} font-medium hover:underline`}
+                                <Link className={`${oneChannel?videoName.replace('sm:max-w-xs','sm:max-w-xl'):videoName} font-medium hover:underline`}
                                     title={row.title || undefined}
                                     href={`/videos/${encodeURIComponent(row.id)}`}
                                 >
@@ -124,7 +127,7 @@ export function VideoTable({ rows, responsive=false }: { rows: VideoRow[]; respo
                                 </Link>
                               </div>
                             </td>
-                            <td><ChannelCell id={row.channelId} title={row.channelTitle} avatar={row.channelAvatar}/></td>
+                            {!oneChannel&&<td><ChannelCell id={row.channelId} title={row.channelTitle} avatar={row.channelAvatar}/></td>}
                             <td>
                                 <small>{dateTime(row.publishedAt)}</small>
                             </td>
@@ -174,18 +177,19 @@ export function LiveTable({ rows,offset=0 }: { rows: LiveRow[];offset?:number })
             <a className="inline-flex min-h-11 items-center text-sm text-brand-700 underline dark:text-brand-400" href={youtubeUrl(row.youtubeUrl)} target="_blank" rel="noopener noreferrer">YouTube 原始來源 ↗</a>
           </li>)}
         </ul>
+        {/* Sized to fit the 1152px content column, so desktop readers see every column without
+            scrolling; the YouTube link stays on the video page and the phone cards. */}
         <TableScroller card label="直播觀測表，可左右捲動" className="hidden sm:block" showScrollHint>
-            <table className={table.nowrap} style={{minWidth:1280}}>
+            <table className={`${table.nowrap} w-full`}>
                 <thead>
                     <tr>
-                        <th className={table.leadHead}>直播 / 頻道</th>
+                        <th className={table.leadHead}>直播</th>
                         <th className="number">同時在線</th>
                         <th className="number">今日高峰</th>
                         <th className="number">歷史高峰</th>
                         <th>頻道</th>
                         <th>頻道分類</th>
                         <th>更新時間</th>
-                        <th>原始來源</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -209,19 +213,9 @@ export function LiveTable({ rows,offset=0 }: { rows: LiveRow[];offset?:number })
                             </td>
                             <td className="number">{count(row.todayPeak)}{row.partialLogEvidence&&<small className="ml-1.5">部分取樣</small>}</td>
                             <td className="number">{count(row.allTimePeak)}</td>
-                            <td><ChannelCell id={row.channelId} title={row.channelTitle} avatar={row.channelAvatar}/></td>
-                            <td>{row.tags.length > 0 ? <TagLine tags={row.tags} href={(tag) => `/live/current?tagid=${tag.id}`}/> : "—"}</td>
-                            <td><small>{dateTime(row.updatedAt)}</small></td>
-                            <td>
-                                <a
-                                    className="external-link"
-                                    href={youtubeUrl(row.youtubeUrl)}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
-                                    YouTube ↗
-                                </a>
-                            </td>
+                            <td><ChannelCell id={row.channelId} title={row.channelTitle} avatar={row.channelAvatar} narrow/></td>
+                            <td>{row.tags.length > 0 ? <TagLine tags={row.tags} href={(tag) => `/live/current?tagid=${tag.id}`} narrow/> : "—"}</td>
+                            <td><small><time dateTime={row.updatedAt ?? undefined} title={dateTime(row.updatedAt)}>{shortDateTime(row.updatedAt)}</time></small></td>
                         </tr>
                     ))}
                 </tbody>
@@ -287,24 +281,24 @@ export function TopicCards({
 }
 export function TagCards({ rows }: { rows: TagRow[] }) {
     if (!rows.length) return <Empty title="尚無頻道分類" />;
+    // A bar against the largest category on this page lets cards be compared at a glance.
+    const max = Math.max(1, ...rows.map((row) => row.weeklyViews));
     return (
         <div className="card-grid">
             {rows.map((row) => (
                 <Link
-                    className="card"
+                    className="card group block hover:border-brand-600 dark:hover:border-brand-400"
                     key={row.id}
                     href={`/tags/${row.id}/channels`}
                 >
-                    <div className="card-body">
-                        <p className="eyebrow">CHANNEL CATEGORY</p>
-                        <h3>{row.name}</h3>
-                        <div className="card-meta">
-                            <span>{count(row.channels)} 個頻道</span>
-                            <span>
-                                近七日 {compact(row.weeklyViews)} 次觀看增量
-                            </span>
-                            <span>平均 {compact(row.average)} 次 · 中位數 {compact(row.median)} 次</span>
+                    <div className="card-body space-y-2">
+                        <div className="flex items-baseline justify-between gap-3">
+                            <h3 className="m-0 text-lg font-semibold group-hover:text-brand-700 dark:group-hover:text-brand-400">{row.name}</h3>
+                            <span className="shrink-0 text-xs tabular-nums text-zinc-500 dark:text-zinc-400">{count(row.channels)} 個頻道</span>
                         </div>
+                        <p className="m-0 text-xs text-zinc-600 dark:text-zinc-400">近七日觀看增量 <strong className="ml-1 text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{compact(row.weeklyViews)}</strong></p>
+                        <span className="block h-1.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800" aria-hidden="true"><span className="block h-full rounded-full bg-brand-600" style={{ width: `${Math.max(1, Math.min(100, (row.weeklyViews / max) * 100))}%` }} /></span>
+                        <p className="m-0 text-xs tabular-nums text-zinc-500 dark:text-zinc-400">每頻道平均 {compact(row.average)} · 中位數 {compact(row.median)}</p>
                     </div>
                 </Link>
             ))}

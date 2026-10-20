@@ -115,7 +115,8 @@ export function reportTitle(route: ReportRoute, segments: string[], subject: Rep
   return route.title;
 }
 export function reportDescription(route: ReportRoute, title: string, subject: ReportSubject = null): string {
-  if (subject?.kind === 'channel') return clip(`${subject.title} 的 YouTube 頻道觀測：收錄影片、公開統計與歷次觀測。`, 160);
+  // Sub-reports keep their own description; their title already carries the channel's name.
+  if (subject?.kind === 'channel' && route.kind === 'channel') return clip(`${subject.title} 的 YouTube 頻道觀測：收錄影片、公開統計與歷次觀測。`, 160);
   if (subject?.kind === 'video' && subject.video.title) return clip(`${subject.video.channelTitle ? subject.video.channelTitle + '「' : '「'}${subject.video.title}」的觀看數、互動數與歷次公開觀測。`, 160);
   return clip(`${title}。${route.description || SITE_DESCRIPTION}`, 160);
 }

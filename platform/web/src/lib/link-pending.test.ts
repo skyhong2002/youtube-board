@@ -86,7 +86,7 @@ test('keyword profile: the back link to /keywords and each evidence link carry t
  const markup=html(createElement(KeywordProfile,{keyword:'a/b%41',description:'範圍說明',data:{rows:[video('AbCdEfGh123',{keywordEvidence:evidence}),video('BbCdEfGh123')],total:2,limit:50,offset:0,hasNext:false,totalStatus:'exact'},meta:meta(),notice:null,tabs:null,filters:null,
   pagination:createElement(Link,{href:'/keywords/a%2Fb%2541/videos?from=2026-10-06&to=2026-10-12&offset=50'},'下一頁'),period:{from:'2026-10-06',to:'2026-10-12',days:null}}));
  assert.deepEqual(hinted(markup).map(([href])=>href),['/keywords','/videos/AbCdEfGh123#keyword-evidence']);
- assert.match(markup,/>熱門標籤排行 →<span class="[^"]*" data-link-pending="idle">/);assert.match(markup,/>查看影片比對依據 →<span class="[^"]*" data-link-pending="idle">/);
+ assert.match(markup,/>熱門標籤排行 →<span class="[^"]*" data-link-pending="idle">/);assert.match(markup,/>比對依據 →<span class="[^"]*" data-link-pending="idle">/);
  // Page content stays as rendered: exact keyword, period and counts are untouched by the hint.
  assert.match(markup,/<span class="text-zinc-500">#<\/span>a\/b%41<\/h1>/);assert.match(markup,/發布日期 2026-10-06 至 2026-10-12（台北時間）/);assert.match(markup,/2 部<\/span><\/h2>/);
  assert.ok(markup.includes('href="/keywords/a%2Fb%2541/videos?from=2026-10-06&amp;to=2026-10-12&amp;offset=50"'));
