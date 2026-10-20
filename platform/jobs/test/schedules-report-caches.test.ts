@@ -63,11 +63,9 @@ describe('scheduled cache selections', () => {
     expect(await categoryTagIds(fakeDb([{ tags: '[1][13]' }, { tags: '[2][13][102]' }, { tags: 'x[0]' }]), '13')).toEqual([1, 2, 102]);
   });
 
-  it('ranks the published tags_all cache by recent views, without excluded or integer-key-first terms', async () => {
-    // JS objects list integer-like keys first, so the stored key order is not the ranking.
-    const ranking = { 14: { views: 5 }, 2026: { views: 6 }, YouTube: { views: 900 }, 颱風: { views: 300 }, AI: { views: 200 }, 台股: { views: 100 }, 隱藏: { views: 800 }, 冷門: { views: 0 } };
-    const db = { query: async (q: string) => [q.includes('FROM tags') ? [{ tag: '隱藏' }] : [{ the_result: JSON.stringify(ranking) }]] } as never;
-    expect(await rankedSubjects(db, 3)).toEqual(['颱風', 'AI', '台股']);
-    await expect(rankedSubjects(fakeDb([]), 2)).rejects.toThrow('No published keyword ranking');
+  it('follows the /keywords order: vocabulary article count, without excluded terms', async () => {
+    const snapshot = { terms: [{ key: 'a', term: '台股', articleCount: 100 }, { key: 'b', term: 'YouTube', articleCount: 900 }, { key: 'c', term: '颱風', articleCount: 300 }, { key: 'd', term: 'AI', articleCount: 200 }, { key: 'e', term: '隱藏', articleCount: 800 }, { key: 'f', term: '2026', articleCount: 700 }, { key: 'g', term: '冷門', articleCount: 0 }] };
+    expect(await rankedSubjects(fakeDb([{ tag: '隱藏' }]), 3, snapshot)).toEqual(['颱風', 'AI', '台股']);
+    await expect(rankedSubjects(fakeDb([]), 2, { terms: [] })).rejects.toThrow('No vocabulary terms');
   });
 });

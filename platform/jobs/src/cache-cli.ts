@@ -75,7 +75,7 @@ export async function executeCacheWorkflow(args:string[],env:NodeJS.ProcessEnv,s
     const results=[];for(const tagId of await categoryTagIds(db,options.get('exclude-tagid'))){const one={...input,tagIds:[tagId]};results.push({tagId,...(job==='reports.tag_cloud.build'?await tagCloudCacheJob(ctx,one,v.daysList,dictionary):await tagDateCacheJob(ctx,{...one,...(options.has('date-limit')?{dateLimit:v.number('date-limit',400)}:{})},dictionary))});}
     return {mode:execute?'execute':'dry-run',selected:results.length,applied:results.filter(r=>r.applied.length).map(r=>r.tagId),skipped:results.flatMap(r=>r.skipped.map(s=>({tagId:r.tagId,...s}))),channels:results.reduce((n,r)=>n+r.channels,0)};
    }
-   if(options.has('top-subjects'))input.subjects=await rankedSubjects(db,v.number('top-subjects',20));
+   if(options.has('top-subjects'))input.subjects=await rankedSubjects(db,v.number('top-subjects',20),snapshot);
    if(job==='reports.tag_date.build')return tagDateCacheJob(ctx,{...input,...(options.has('date-limit')?{dateLimit:v.number('date-limit',400)}:{})},dictionary);
    if(job==='reports.tag_cloud.build')return tagCloudCacheJob(ctx,input,v.daysList,dictionary);
    if(job==='reports.live_tag_date.build')return liveTagDateCacheJob(ctx,input,dictionary);
@@ -100,17 +100,15 @@ export async function categoryTagIds(db:import('mysql2/promise').Connection,excl
  for(const row of rows)for(const m of String(row.tags).matchAll(/\[(\d+)\]/g)){const id=Number(m[1]);if(Number.isSafeInteger(id)&&id>=1&&id<=2147483647&&!skip.has(id))ids.add(id);}
  return [...ids].sort((a,b)=>a-b);
 }
-/** The N most viewed keywords of the last 7 days in the published tags_all cache (reports.keywords.cache), minus
- * the terms the ranking pages never show: the YouTube display policy and the operator exclusions in tags.no_tag. */
-export async function rankedSubjects(db:import('mysql2/promise').Connection,count:number) {
- const [rows]=await db.query<import('mysql2/promise').RowDataPacket[]>("SELECT the_result FROM urt_show_data WHERE data_name='tags_all' ORDER BY pk DESC LIMIT 1");
- const ranking=rows[0]?.the_result?JSON.parse(String(rows[0].the_result)):null;if(!ranking||typeof ranking!=='object'||Array.isArray(ranking))throw new Error('No published keyword ranking for top-subjects');
+/** The first N terms of the /keywords ranking: the serving vocabulary by article count (the order the page reads),
+ * minus the terms the ranking never shows (the YouTube display policy and the operator exclusions in tags.no_tag).
+ * View-ranked tags_all is not used: description boilerplate (copyright, community rules) dominates it. */
+export async function rankedSubjects(db:import('mysql2/promise').Connection,count:number,snapshot:{terms:{key:string;term:string;articleCount:number}[]}) {
  const [hidden]=await db.query<import('mysql2/promise').RowDataPacket[]>('SELECT tag FROM tags WHERE no_tag>=1 LIMIT 10001');if(hidden.length>10000)throw new Error('Keyword exclusions exceed read budget');
  const excluded=new Set(hidden.map(r=>String(r.tag).trim()));
- // Object key order is not the ranking: integer-like terms ("14", "2026") always come first in JS objects.
- const subjects=Object.entries(ranking as Record<string,{views?:unknown}>).map(([term,m])=>({term,views:Number(m?.views)})).filter(({term,views})=>Number.isSafeInteger(views)&&views>0&&term&&[...term].length<=32&&!/[\uD800-\uDFFF]/u.test(term)&&!excluded.has(term.trim())&&!tagDisplayExclusion(term))
-  .sort((a,b)=>b.views-a.views||(a.term<b.term?-1:a.term>b.term?1:0)).slice(0,count).map(r=>r.term);
- if(!subjects.length)throw new Error('No published keyword ranking for top-subjects');
+ const subjects=[...snapshot.terms].filter(t=>Number.isSafeInteger(t.articleCount)&&t.articleCount>0&&t.term&&[...t.term].length<=32&&!/[\uD800-\uDFFF]/u.test(t.term)&&!excluded.has(t.term.trim())&&!tagDisplayExclusion(t.term))
+  .sort((a,b)=>b.articleCount-a.articleCount||(a.key<b.key?-1:a.key>b.key?1:0)).slice(0,count).map(t=>t.term);
+ if(!subjects.length)throw new Error('No vocabulary terms for top-subjects');
  return subjects;
 }
 export async function handleCacheCli(args:string[],env:NodeJS.ProcessEnv) {if(!args[0]||!Object.hasOwn(cacheCommands,args[0]))return false;const result=await executeCacheWorkflow(args,env);console.log(JSON.stringify(result,null,2));if(result.skipped.length)process.exitCode=2;return true;}
