@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "timezone": "Asia/Taipei",
+  "schedules": [
+    {"id": "mayor-tag-date-3-v1", "workflow": "reports.tag_date.build", "cron": "13 1,6,11,16,21 * * *", "options": {"tagid": 3, "days": 8, "keyword-set": "mayor-candidates", "channel-limit": 1000, "video-limit": 10000}},
+    {"id": "mayor-tag-date-4-v1", "workflow": "reports.tag_date.build", "cron": "15 1,6,11,16,21 * * *", "options": {"tagid": 4, "days": 8, "keyword-set": "mayor-candidates", "channel-limit": 1000, "video-limit": 10000}},
+    {"id": "mayor-tag-date-5-v1", "workflow": "reports.tag_date.build", "cron": "17 1,6,11,16,21 * * *", "options": {"tagid": 5, "days": 8, "keyword-set": "mayor-candidates", "channel-limit": 1000, "video-limit": 10000}},
+    {"id": "mayor-tag-date-6-v1", "workflow": "reports.tag_date.build", "cron": "19 1,6,11,16,21 * * *", "options": {"tagid": 6, "days": 8, "keyword-set": "mayor-candidates", "channel-limit": 1000, "video-limit": 10000}}
+  ]
+}
