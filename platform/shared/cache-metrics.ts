@@ -31,13 +31,25 @@ export function tagMetricsFromEvidence(videos: MetricVideo[]) {
   for (const video of videos) accumulator.add(video);
   return accumulator.result();
 }
+/** Streaming form of keywordCloudFromEvidence: a long all-channel window adds one video at a time, so a run
+ * covering many subjects keeps only per-term totals and the selected video list, never every match list. */
+export function keywordCloudAccumulator(subject:string){
+ const folded=asciiCaseFold(subject),terms=new Map<string,{videos:number;views:number;weight:number}>(),channels=new Set<number>(),videos:[string,{u_id:number;views:number|null;published_at:string}][]=[];let occurrences=0,unknownViews=0;
+ return {
+  add(v:MetricVideo){
+   if(!v.matches.some(m=>asciiCaseFold(m.term)===folded))return;
+   const counts=new Map<string,number>();for(const m of v.matches)counts.set(m.term,(counts.get(m.term)??0)+(m.field==='title'?2:1));
+   const total=[...counts.values()].reduce((a,b)=>a+b,0),subjectCount=[...counts].reduce((sum,[term,count])=>sum+(asciiCaseFold(term)===folded?count:0),0),factor=Math.sqrt(subjectCount/total),view=Number(v.viewCount??0);if(!Number.isSafeInteger(view)||view<0)throw new CacheMetricBound('Invalid video view count in cache source');if(v.viewCount===null||v.viewCount===undefined)unknownViews++;occurrences=safeSum(occurrences,total);
+   for(const term of counts.keys()){const old=terms.get(term)??{videos:0,views:0,weight:0};old.videos++;old.views=safeSum(old.views,view);old.weight+=view*factor;if(!Number.isFinite(old.weight)||old.weight>Number.MAX_SAFE_INTEGER)throw new CacheMetricBound('Cache weight exceeds safe numeric range');terms.set(term,old);}
+   channels.add(v.uId);videos.push([v.videoId,{u_id:v.uId,views:v.viewCount===null?null:Number(v.viewCount),published_at:v.publishedAt}]);
+  },
+  result(){return {unknown_view_videos:unknownViews,count_channels:channels.size,count_videos:videos.length,count_tags:occurrences,tags_count:terms.size,tags_result:Object.fromEntries([...terms].sort((a,b)=>b[1].weight-a[1].weight).map(([term,m])=>[term,{...m,weight:m.weight.toFixed(2)}])),videos_json:Object.fromEntries(videos)};},
+ };
+}
 export function keywordCloudFromEvidence(videos:MetricVideo[],subject:string){
- const folded=asciiCaseFold(subject),selected=videos.filter(v=>v.matches.some(m=>asciiCaseFold(m.term)===folded)),terms=new Map<string,{videos:number;views:number;weight:number}>();let occurrences=0,unknownViews=0;
- for(const v of selected){const counts=new Map<string,number>();for(const m of v.matches)counts.set(m.term,(counts.get(m.term)??0)+(m.field==='title'?2:1));
-  const total=[...counts.values()].reduce((a,b)=>a+b,0),subjectCount=[...counts].reduce((sum,[term,count])=>sum+(asciiCaseFold(term)===folded?count:0),0),factor=Math.sqrt(subjectCount/total),view=Number(v.viewCount??0);if(!Number.isSafeInteger(view)||view<0)throw new CacheMetricBound('Invalid video view count in cache source');if(v.viewCount===null||v.viewCount===undefined)unknownViews++;occurrences=safeSum(occurrences,total);
-  for(const term of counts.keys()){const old=terms.get(term)??{videos:0,views:0,weight:0};old.videos++;old.views=safeSum(old.views,view);old.weight+=view*factor;if(!Number.isFinite(old.weight)||old.weight>Number.MAX_SAFE_INTEGER)throw new CacheMetricBound('Cache weight exceeds safe numeric range');terms.set(term,old);}
- }
- return {unknown_view_videos:unknownViews,count_channels:new Set(selected.map(v=>v.uId)).size,count_videos:selected.length,count_tags:occurrences,tags_count:terms.size,tags_result:Object.fromEntries([...terms].sort((a,b)=>b[1].weight-a[1].weight).map(([term,m])=>[term,{...m,weight:m.weight.toFixed(2)}])),videos_json:Object.fromEntries(selected.map(v=>[v.videoId,{u_id:v.uId,views:v.viewCount===null?null:Number(v.viewCount),published_at:v.publishedAt}]))};
+ const accumulator=keywordCloudAccumulator(subject);
+ for(const video of videos)accumulator.add(video);
+ return accumulator.result();
 }
 export function keywordDayFromEvidence(videos:MetricVideo[],subject:string){
  const folded=asciiCaseFold(subject),selected=videos.map(v=>({v,terms:new Set(v.matches.map(m=>m.term))})).filter(r=>[...r.terms].some(term=>asciiCaseFold(term)===folded)),counts=new Map<string,number>();for(const {terms}of selected)for(const term of terms)counts.set(term,(counts.get(term)??0)+1);
