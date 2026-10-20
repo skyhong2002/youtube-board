@@ -21,7 +21,7 @@ type Tag = ChannelRow["tags"][number];
 /** Categories on one clipped line; the full list stays in the title. In the
  *  lead it gives way first and hides once the table is scrolled on phones. */
 function TagLine({ tags, href, lead=false, narrow=false }: { tags: Tag[]; href: (tag: Tag) => string; lead?: boolean; narrow?: boolean }) {
-    return <span className={lead ? `${table.leadWide} ${table.leadText} shrink-3 text-xs text-zinc-500 sm:max-w-48` : `${narrow?table.clip.replace('max-w-xs','max-w-36'):table.clip} text-xs text-zinc-500`} title={tags.map((tag) => tag.name).join("、")}>
+    return <span className={lead ? `${table.leadWide} ${table.leadText} shrink-3 pl-8 text-xs text-zinc-500 sm:max-w-xs` : `${narrow?table.clip.replace('max-w-xs','max-w-36'):table.clip} text-xs text-zinc-500`} title={tags.map((tag) => tag.name).join("、")}>
         {tags.map((tag, index) => <Fragment key={tag.id}>{index > 0 && "、"}<Link className="hover:underline" href={href(tag)}>{tag.name}</Link></Fragment>)}
     </span>;
 }
@@ -57,7 +57,7 @@ export function ChannelTable({ rows, offset=0, ranking, responsive=false }: { ro
         })}</ol>}
         <div className={responsive?'hidden sm:block':undefined}>
         <TableScroller card label="頻道排行表，可左右捲動" showScrollHint={responsive}>
-            <table className={table.nowrap} style={ranking?{minWidth:1780}:undefined}>
+            <table className={`${table.nowrap} w-full`}>
                 <thead>
                     <tr>
                         <th className={table.leadHead}>頻道</th>
@@ -71,10 +71,13 @@ export function ChannelTable({ rows, offset=0, ranking, responsive=false }: { ro
                               {/* Phones show only the avatar and name (as tag.observe.tw media rows), the name wrapping to two lines; rank and categories appear from sm up. */}
                               <div className={`${table.leadBox} flex items-center gap-2`}>
                                 <span className={`${table.leadWide} shrink-0 text-xs tabular-nums text-zinc-400`}>{String(offset+index+1).padStart(2,'0')}</span>
+                                {/* Categories sit under the name so the sticky lead stays narrow and the scrolled metrics keep the width. */}
+                                <span className="flex min-w-0 flex-col">
                                 <Link className="flex min-w-0 items-center gap-2 font-medium hover:underline" href={`/channels/${row.id}`} title={row.title || undefined}><ChannelAvatar avatar={row.avatar} title={row.title} size={24}/>
                                     <span className={channelName}>{row.title || "頻道名稱尚未取得"}</span>
                                 </Link>
                                 {row.tags.length > 0 && <TagLine lead tags={row.tags} href={(tag) => `/tags/${tag.id}/channels`}/>}
+                                </span>
                               </div>
                             </td>
                             {ranking ? <>{sorts.map(([key])=><td key={key} className="number">{count(row[channelColumns[key]])}</td>)}<td className="number">{count(row.monthlyEstimateGap)}</td></> : <><td className="number">{compact(row.subscribers)}</td><td className="number">{compact(row.weeklyViews)}</td><td className="number">{count(row.videoCount)}</td></>}

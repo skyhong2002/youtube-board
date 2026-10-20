@@ -99,9 +99,9 @@ const assertVideoIdentityRow=(row:string)=>{
 };
 
 const channelName='min-w-0 max-w-full truncate max-sm:line-clamp-2 max-sm:whitespace-normal max-sm:[overflow-wrap:anywhere] sm:max-w-xs';
-test('channel ranking row: rank, avatar, name (the one lead text that wraps on phones) and inline categories that yield on scroll',()=>{
+test('channel ranking row: rank, avatar, name (the one lead text that wraps on phones) and categories under the name that yield on scroll',()=>{
  const html=render(createElement(ChannelTable,{rows:[channel],offset:9}));
- assert.match(html,/<table class="whitespace-nowrap"/);
+ assert.match(html,/<table class="whitespace-nowrap w-full"/);
  assert.match(headClass(html,'頻道'),/table-lead sticky/);
  // Phones keep only avatar + name in the 9.5rem lead: rank and categories are hidden at rest below sm, shown from sm up.
  assert.match(html,/<div class="table-lead-box min-w-0 flex items-center gap-2"><span class="table-lead-extra max-sm:hidden shrink-0 text-xs tabular-nums text-zinc-400">10<\/span>/);
@@ -112,7 +112,7 @@ test('channel ranking row: rank, avatar, name (the one lead text that wraps on p
  assert.deepEqual(html.match(/<td class="number">[^<]*<\/td>/g),['<td class="number">2</td>','<td class="number">4</td>','<td class="number">3</td>']);
  assert.equal(html.match(/whitespace-normal/g)?.length,1);
  assert.deepEqual(heads(html),['頻道','訂閱人數','近七日觀看增量','累計影片']);
- assert.match(html,new RegExp(`<span class="table-lead-extra max-sm:hidden min-w-0 max-w-full truncate shrink-3 text-xs text-zinc-500 sm:max-w-48" title="新聞、政治">${anchor({href:'/tags/3/channels'})}新聞</a>、${anchor({href:'/tags/4/channels'})}政治</a></span>`));
+ assert.match(html,new RegExp(`<span class="table-lead-extra max-sm:hidden min-w-0 max-w-full truncate shrink-3 pl-8 text-xs text-zinc-500 sm:max-w-xs" title="新聞、政治">${anchor({href:'/tags/3/channels'})}新聞</a>、${anchor({href:'/tags/4/channels'})}政治</a></span>`));
  assert.doesNotMatch(html,/class="tags/);
  bodyRows(html).forEach(assertOneLineRow);
 });
