@@ -63,8 +63,11 @@ describe('scheduled cache selections', () => {
     expect(await categoryTagIds(fakeDb([{ tags: '[1][13]' }, { tags: '[2][13][102]' }, { tags: 'x[0]' }]), '13')).toEqual([1, 2, 102]);
   });
 
-  it('takes the ranking order of the published tags_all cache', async () => {
-    expect(await rankedSubjects(fakeDb([{ the_result: JSON.stringify({ 颱風: {}, AI: {}, 台股: {} }) }]), 2)).toEqual(['颱風', 'AI']);
+  it('ranks the published tags_all cache by recent views, without excluded or integer-key-first terms', async () => {
+    // JS objects list integer-like keys first, so the stored key order is not the ranking.
+    const ranking = { 14: { views: 5 }, 2026: { views: 6 }, YouTube: { views: 900 }, 颱風: { views: 300 }, AI: { views: 200 }, 台股: { views: 100 }, 隱藏: { views: 800 }, 冷門: { views: 0 } };
+    const db = { query: async (q: string) => [q.includes('FROM tags') ? [{ tag: '隱藏' }] : [{ the_result: JSON.stringify(ranking) }]] } as never;
+    expect(await rankedSubjects(db, 3)).toEqual(['颱風', 'AI', '台股']);
     await expect(rankedSubjects(fakeDb([]), 2)).rejects.toThrow('No published keyword ranking');
   });
 });

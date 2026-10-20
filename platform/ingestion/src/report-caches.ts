@@ -3,7 +3,7 @@ import { reportCacheKey } from '../../shared/report-cache-key.js';
 import type { Connection, RowDataPacket } from 'mysql2/promise';
 import { cap, activeChannel } from './channel-jobs.js';
 import { jsonMap, legacyInstant, selectOne, taipeiSql, update, upsert, whereKeys } from './legacy-db.js';
-import { tagMetrics, type TagDictionary, type TagSelection } from './tag-backfill.js';
+import type { TagDictionary, TagSelection } from './tag-backfill.js';
 import { unsigned } from './youtube.js';
 export interface CacheContext { db: Connection; now: Date; execute: boolean; assertOwnership(): Promise<void> }
 export interface CacheInput extends TagSelection { from: string; to: string; days: number; channelLimit: number; videoLimit: number; uId?: number; subject?: string; subjects?: string[] }
@@ -67,7 +67,6 @@ export async function cacheVideos(ctx:CacheContext,input:CacheInput,channels:num
   return rows;
 }
 export function checkedSum(a:number,b:number) { const sum=a+b;if(!Number.isSafeInteger(sum))throw new Error('Cache count exceeds safe integer range');return sum; }
-const metrics=(rows:RowDataPacket[],dictionary:TagDictionary)=>tagMetrics(rows.map(v=>({title:String(v.title??''),description:String(v.description??''),viewCount:v.viewCount})),dictionary);
 export async function publishCache(ctx:CacheContext,table:string,keys:Record<string,unknown>,values:Record<string,unknown>,dictionary:TagDictionary,unknown=0,window?:{from:string;to:string}) {
   if(Buffer.byteLength(JSON.stringify(values))>8*1024*1024)throw new Error('Cache payload exceeds publication cap');
   if(!ctx.execute) return;
@@ -91,7 +90,7 @@ const streamMetrics=(dictionary:TagDictionary)=>{const inner=tagMetricsAccumulat
 export async function tagDateCacheJob(ctx:CacheContext,input:CacheInput&{dateLimit?:number},dictionary:TagDictionary) {
   if(input.to>taipeiSql(ctx.now).slice(0,10))throw new Error('Future cache dates are forbidden');
   validateCacheInput(input);const dates=daysBetween(input.from,input.to);if(input.dateLimit!==undefined&&dates.length>cap(input.dateLimit,400))throw new Error('Tag date range exceeds date limit');
-  const {channels,truncated}=await legacyTagChannels(ctx,input,input.channelLimit),prepared:{day:string;m:ReturnType<typeof metrics>}[]=[],skipped:{date:string;reason:string}[]=[];
+  const {channels,truncated}=await legacyTagChannels(ctx,input,input.channelLimit),prepared:{day:string;m:ReturnType<ReturnType<typeof streamMetrics>["acc"]["result"]>}[]=[],skipped:{date:string;reason:string}[]=[];
   let preparedBytes=0;for(const day of dates){
     if(truncated){skipped.push({date:day,reason:'channel_scan_limit_exceeded'});continue;}
     const {acc,visit}=streamMetrics(dictionary);if((await scanVideos(ctx,channels,day+' 00:00:00',day+' 23:59:59',input.videoLimit,visit)).truncated){skipped.push({date:day,reason:'video_scan_limit_exceeded'});continue;}
@@ -127,12 +126,16 @@ export async function tagCloudCacheJob(ctx:CacheContext,input:CacheInput,daysLis
 export async function cloudCacheJob(ctx:CacheContext,input:CacheInput,dictionary:TagDictionary,kind:'channel'|'keyword') {
   if(input.to!==taipeiSql(ctx.now).slice(0,10)||daysBetween(input.from,input.to).length!==input.days)throw new Error('Cloud identity requires the current canonical calendar window');
   if(kind==='keyword')return keywordCloudCacheJob(ctx,input,dictionary);
-  const channels=await cacheChannels(ctx,input),rows=await cacheVideos(ctx,input,channels),batches=channels.map(uId=>({uId,rows:rows.filter(r=>Number(r.u_id)===uId)}));
-  for(const batch of batches) {
-    const m=metrics(batch.rows,dictionary);
-    await publishCache(ctx,'urt_show_cloud',{u_id:batch.uId,days:input.days},{keywords_json:JSON.stringify(m.tags_result)},dictionary,m.unknown_view_videos);
+  // Stream the window one day at a time with one running total per channel: a 7-day all-channel window
+  // (about 30k videos) is over cacheVideos' 16 MB text bound.
+  const channels=await cacheChannels(ctx,input),totals=new Map(channels.map(uId=>[uId,streamMetrics(dictionary)]));
+  const scan=await scanVideos(ctx,channels,input.from+' 00:00:00',input.to+' 23:59:59',input.videoLimit,v=>totals.get(Number(v.u_id))?.visit(v));
+  if(scan.truncated)return {mode:ctx.execute?'execute':'dry-run',selected:0,applied:[],skipped:[{reason:'video_scan_limit_exceeded'}],videos:scan.count};
+  for(const [uId,{acc}] of totals) {
+    const m=acc.result();
+    await publishCache(ctx,'urt_show_cloud',{u_id:uId,days:input.days},{keywords_json:JSON.stringify(m.tags_result)},dictionary,m.unknown_view_videos);
   }
-  return {mode:ctx.execute?'execute':'dry-run',selected:batches.length,applied:ctx.execute?batches.map(b=>b.uId):[],skipped:[],videos:rows.length};
+  return {mode:ctx.execute?'execute':'dry-run',selected:channels.length,applied:ctx.execute?channels:[],skipped:[],videos:scan.count};
 }
 /** Keyword clouds stream the window one day at a time (a 30-day all-channel window is over 100k videos) and
  * match every video once into one running total per subject, so one run fills the cloud of each ranked

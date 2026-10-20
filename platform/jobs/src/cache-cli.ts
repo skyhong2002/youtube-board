@@ -4,6 +4,7 @@ import { assertExecute, executionPolicy } from './policy.js';
 import { connectDatabase, withWriterLock } from './database.js';
 import { loadVocabularySnapshot } from './load-vocabulary.js';
 import { matchVocabulary } from './match.js';
+import { tagDisplayExclusion } from '../../shared/youtube-match-policy.js';
 export const cacheCommands = {
  'reports:photos:build':'reports.photos.build','reports:channel-predictions:build':'reports.channel_predictions.build',
  'reports:counts:build':'reports.counts.build', 'reports:schedule:build':'reports.schedule.build', 'youtube:live:cleanup':'youtube.live.cleanup', 'reports:live:build':'reports.live.build', 'reports:live:clean':'reports.live.clean',
@@ -99,11 +100,17 @@ export async function categoryTagIds(db:import('mysql2/promise').Connection,excl
  for(const row of rows)for(const m of String(row.tags).matchAll(/\[(\d+)\]/g)){const id=Number(m[1]);if(Number.isSafeInteger(id)&&id>=1&&id<=2147483647&&!skip.has(id))ids.add(id);}
  return [...ids].sort((a,b)=>a-b);
 }
-/** The first N keywords of the published tags_all ranking (reports.keywords.cache orders it by recent views). */
+/** The N most viewed keywords of the last 7 days in the published tags_all cache (reports.keywords.cache), minus
+ * the terms the ranking pages never show: the YouTube display policy and the operator exclusions in tags.no_tag. */
 export async function rankedSubjects(db:import('mysql2/promise').Connection,count:number) {
  const [rows]=await db.query<import('mysql2/promise').RowDataPacket[]>("SELECT the_result FROM urt_show_data WHERE data_name='tags_all' ORDER BY pk DESC LIMIT 1");
  const ranking=rows[0]?.the_result?JSON.parse(String(rows[0].the_result)):null;if(!ranking||typeof ranking!=='object'||Array.isArray(ranking))throw new Error('No published keyword ranking for top-subjects');
- const subjects=Object.keys(ranking).filter(term=>term&&[...term].length<=32&&!/[\uD800-\uDFFF]/u.test(term)).slice(0,count);if(!subjects.length)throw new Error('No published keyword ranking for top-subjects');
+ const [hidden]=await db.query<import('mysql2/promise').RowDataPacket[]>('SELECT tag FROM tags WHERE no_tag>=1 LIMIT 10001');if(hidden.length>10000)throw new Error('Keyword exclusions exceed read budget');
+ const excluded=new Set(hidden.map(r=>String(r.tag).trim()));
+ // Object key order is not the ranking: integer-like terms ("14", "2026") always come first in JS objects.
+ const subjects=Object.entries(ranking as Record<string,{views?:unknown}>).map(([term,m])=>({term,views:Number(m?.views)})).filter(({term,views})=>Number.isSafeInteger(views)&&views>0&&term&&[...term].length<=32&&!/[\uD800-\uDFFF]/u.test(term)&&!excluded.has(term.trim())&&!tagDisplayExclusion(term))
+  .sort((a,b)=>b.views-a.views||(a.term<b.term?-1:a.term>b.term?1:0)).slice(0,count).map(r=>r.term);
+ if(!subjects.length)throw new Error('No published keyword ranking for top-subjects');
  return subjects;
 }
 export async function handleCacheCli(args:string[],env:NodeJS.ProcessEnv) {if(!args[0]||!Object.hasOwn(cacheCommands,args[0]))return false;const result=await executeCacheWorkflow(args,env);console.log(JSON.stringify(result,null,2));if(result.skipped.length)process.exitCode=2;return true;}
