@@ -4,7 +4,7 @@ import {api,type Search} from '@/lib/api';
 import {count,dateTime} from '@/lib/format';
 import type {VideoAnalyticsData,AnalyticsPoint} from '../../../api/src/video-analytics-contracts';
 import {Heading,DataNotice,Unavailable,Metric,SectionHeading,Empty,Tabs} from './ReportUI';
-import {TimeChart} from './Charts';
+import {ObservationChart,observedPoints,SINGLE_OBSERVATION_NOTE} from './ObservationChart';
 import {videoCommentStatuses as statuses} from '@/lib/video-comment-status';
 import {COMMENTS_PUBLISHED} from '@/lib/comments-launch';
 import TableScroller from './TableScroller';
@@ -14,21 +14,28 @@ import {reportStyle as ui} from '@/lib/report-styles';
 import {VideoThumbnail} from './VideoThumbnail';
 import {ChannelSourceLabel,hasSource} from './ChannelSource';
 import {ReportMethod} from './ReportMethod';
-function Chart({title,points,unit}:{title:string;points:AnalyticsPoint[];unit:string}){return <section><SectionHeading title={title}/><div className="panel"><TimeChart points={points} label={title} unit={unit}/></div></section>;}
+function Chart({title,points,unit}:{title:string;points:AnalyticsPoint[];unit:string}){return <section><SectionHeading title={title}/><ObservationChart points={points} label={title} unit={unit}/></section>;}
 export async function VideoAnalytics({apiPath,search,path}:{apiPath:string;search:Search;path:string}){
  const result=await api<VideoAnalyticsData>(apiPath,search);if(!result.ok){if(result.status===404)notFound();return <Unavailable title="影片觀測分析" status={result.status}/>;}
  const {data,meta}=result.response,c=data.comments,channel={channelId:data.channelId,channelTitle:data.channelTitle,channelAvatar:data.channelAvatar??null};
+ const views=data.history.map(r=>({time:r.date,value:r.views})),liveSeries=observedPoints(data.live.hourly).length>0||observedPoints(data.live.daily).length>0;
+ const limited=[data.live.hourly,data.live.daily,data.history].some(series=>series.length>=data.limit);
  return <>
-  <Heading title={data.title+' · 觀測分析'} meta={meta}/>
-  {hasSource(channel)&&<p className="-mt-3 mb-4 text-sm text-zinc-600 dark:text-zinc-400"><ChannelSourceLabel source={channel} size={20}/></p>}<DataNotice meta={meta}/>
+  <Heading title={data.title+' · 觀測分析'} meta={meta} lead={hasSource(channel)?<ChannelSourceLabel source={channel} size={20}/>:undefined}/>
+  <DataNotice meta={meta}/>
   <Tabs items={[{href:`/videos/${encodeURIComponent(data.id)}`,label:'影片概覽'},{href:path,label:'觀測分析'}]} active={path}/>
-  <Link href={`/videos/${encodeURIComponent(data.id)}`} aria-label="返回影片概覽"><VideoThumbnail videoId={data.id} title={data.title} width={160} height={90}/></Link>
-  <form key={data.limit} action={path} className={ui.form}><label className={ui.label}>每組顯示筆數<input className={ui.input} name="limit" type="number" min="1" max="200" defaultValue={data.limit}/></label><button className={ui.primary}>套用</button></form>
-  <div className="metrics"><Metric label="所讀直播紀錄最高同時在線" value={count(data.live.maxCurrent)} unit="人"/>{COMMENTS_PUBLISHED&&<><Metric label="已解析留言與回覆" value={c.status==='pending'||c.status==='missing'||c.status==='malformed'||c.status==='oversized'?'—':count(c.decodedCount)} unit="則" detail={`來源批次記錄 ${count(c.recordedCount)} 則`}/><Metric label="已解析留言帳號" value={c.status==='complete'||c.status==='truncated'?count(c.decodedAuthors):'—'} unit="個" detail={`來源批次記錄 ${count(c.recordedAuthors)} 個`}/><Metric label="留言資料狀態" value={statuses[c.status]} detail={c.latestAt?`來源最新留言 ${dateTime(c.latestAt)}`:'尚無最新留言時間'}/></>}</div>
+  <div className="my-4 flex flex-wrap items-center gap-4">
+   <Link href={`/videos/${encodeURIComponent(data.id)}`} aria-label="返回影片概覽"><VideoThumbnail videoId={data.id} title={data.title} width={160} height={90}/></Link>
+   {data.live.maxCurrent!==null&&<div><div className="text-xs text-zinc-600 dark:text-zinc-400">所讀直播紀錄最高同時在線</div><div className="mt-1 text-xl font-semibold tabular-nums leading-tight">{count(data.live.maxCurrent)}<span className="ml-1 text-sm font-normal text-zinc-500">人</span></div></div>}
+   {/* The limit only matters once a series or ranking reaches it. */}
+   {(limited||COMMENTS_PUBLISHED)&&<form key={data.limit} action={path} className="flex items-end gap-2 sm:ml-auto"><label className={ui.label}>每組顯示筆數<input className={ui.input+' w-24'} name="limit" type="number" min="1" max="200" defaultValue={data.limit}/></label><button className={ui.button}>套用</button></form>}
+  </div>
+  {COMMENTS_PUBLISHED&&<div className="metrics"><Metric label="已解析留言與回覆" value={c.status==='pending'||c.status==='missing'||c.status==='malformed'||c.status==='oversized'?'—':count(c.decodedCount)} unit="則" detail={`來源批次記錄 ${count(c.recordedCount)} 則`}/><Metric label="已解析留言帳號" value={c.status==='complete'||c.status==='truncated'?count(c.decodedAuthors):'—'} unit="個" detail={`來源批次記錄 ${count(c.recordedAuthors)} 個`}/><Metric label="留言資料狀態" value={statuses[c.status]} detail={c.latestAt?`來源最新留言 ${dateTime(c.latestAt)}`:'尚無最新留言時間'}/></div>}
   {COMMENTS_PUBLISHED&&(Number(data.evidenceCoverage.invalidComments)>0||Number(data.evidenceCoverage.invalidCommentTimes)>0||data.evidenceCoverage.commentCountMismatch===true||data.evidenceCoverage.malformedAuthorMetadata===true||c.status==='truncated')&&<p className={ui.note}>留言解析範圍不完整，時間分布與排名只涵蓋可解析項目。</p>}
-  <details className="panel"><summary>資料涵蓋範圍與解析限制</summary><dl>{Object.entries(data.evidenceCoverage).filter(([key])=>COMMENTS_PUBLISHED||!commentCoverage.test(key)).map(([key,value])=><div key={key}><dt>{coverageLabels[key]||key}</dt><dd>{typeof value==='boolean'?(value?'是':'否'):value===null?'—':String(value)}</dd></div>)}</dl></details>
-  <div className="analytics-grid"><Chart title="直播逐時最高同時在線" points={data.live.hourly} unit="人"/><Chart title="直播逐日最高同時在線" points={data.live.daily} unit="人"/></div>
-  <Chart title="累計觀看數歷史" points={data.history.map(r=>({time:r.date,value:r.views}))} unit="次"/>
+  {/* A video that was never live has no live section; the zero counts stay in the method block's coverage. */}
+  {liveSeries&&<div className="analytics-grid"><Chart title="直播逐時最高同時在線" points={data.live.hourly} unit="人"/><Chart title="直播逐日最高同時在線" points={data.live.daily} unit="人"/></div>}
+  {/* One stored count is already the table's single row below; a chart needs two. */}
+  {observedPoints(views).length>1&&<Chart title="累計觀看數歷史" points={views} unit="次"/>}
   <SectionHeading title="影片統計歷史"/>
   {data.history.length ? <TableScroller card label="影片統計歷史，可左右捲動">
    <table className={'w-full min-w-[30rem] text-left text-sm '+table.nowrap}>
@@ -65,7 +72,9 @@ export async function VideoAnalytics({apiPath,search,path}:{apiPath:string;searc
    </table>
   </TableScroller> : <Empty title={statuses[c.status]}/>}
   </>}
-  <ReportMethod path={path} meta={meta} notes={data.notes}/>
+  <ReportMethod path={path} meta={meta} notes={[...data.notes,...([data.live.hourly,data.live.daily].some(p=>observedPoints(p).length===1)?[SINGLE_OBSERVATION_NOTE]:[])]}>
+   <details className="my-3 text-sm"><summary className="cursor-pointer">資料涵蓋範圍與解析限制</summary><dl className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 tabular-nums">{Object.entries(data.evidenceCoverage).filter(([key])=>COMMENTS_PUBLISHED||!commentCoverage.test(key)).map(([key,value])=><div className="contents" key={key}><dt>{coverageLabels[key]||key}</dt><dd className="text-right">{typeof value==='boolean'?(value?'是':'否'):value===null?'—':String(value)}</dd></div>)}</dl></details>
+  </ReportMethod>
  </>;
 }
 const commentCoverage=/comment|author/i;

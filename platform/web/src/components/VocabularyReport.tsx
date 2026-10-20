@@ -18,7 +18,9 @@ import {
     Metric,
     Pagination,
     Tabs,
+    SectionHeading,
 } from "./ReportUI";
+import { EvidenceDisclosure } from "./EvidenceDisclosure";
 import { splitEvidence, tagEvidenceRenderable } from "@/lib/evidence";
 import { displayExclusionLabel } from "@/lib/keyword-ranking";
 import PageMethod from "./PageMethod";
@@ -194,6 +196,13 @@ export async function VocabularyReport({
         </>
     );
 }
+// Display only: about 20 characters either side of the match; the full snippet stays in the title.
+const EVIDENCE_CONTEXT = 20;
+const clipStart = (text: string) => { const chars = [...text]; return chars.length > EVIDENCE_CONTEXT ? "…" + chars.slice(-EVIDENCE_CONTEXT).join("") : text; };
+const clipEnd = (text: string) => { const chars = [...text]; return chars.length > EVIDENCE_CONTEXT ? chars.slice(0, EVIDENCE_CONTEXT).join("") + "…" : text; };
+const evidenceFields: Record<string, string> = { title: "影片標題", description: "影片說明", caption: "字幕" };
+/** 共同標籤 on a video page: the matched tags as chips, then where each matched (比對依據)
+ * behind a disclosure. Keyword pages link here with #keyword-evidence, which opens it. */
 export async function VideoTagEvidence({ videoId }: { videoId: string }) {
     // Optional beside the video's own data: a missing or malformed tag payload keeps the
     // note below; transient failures throw in ISR rather than caching this note.
@@ -204,9 +213,10 @@ export async function VideoTagEvidence({ videoId }: { videoId: string }) {
     );
     if (!result.ok || !tagEvidenceRenderable(result.response.data))
         return (
-            <aside id="keyword-evidence" className={ui.note + " scroll-mt-20"}>
-                <p>共同標籤的比對證據暫時無法讀取。</p>
-            </aside>
+            <section id="keyword-evidence" className="scroll-mt-20">
+                <SectionHeading title="共同標籤" />
+                <p className={ui.note}>共同標籤的比對證據暫時無法讀取。</p>
+            </section>
         );
     const { data } = result.response;
     const statuses = {
@@ -215,70 +225,53 @@ export async function VideoTagEvidence({ videoId }: { videoId: string }) {
         matched: "已比對共同詞彙",
         stale: "影片內容或詞彙版本已更新，以下是前次比對結果",
     };
+    // One chip per tag, in first-match order; a tag matched several times is still one tag.
+    const terms = [...new Set(data.rows.map((row) => row.term))];
     return (
-        <section id="keyword-evidence" className={ui.panel + " scroll-mt-20"}>
-            <h2 className="text-base font-semibold">共同標籤與比對依據</h2>
-            <p>
-                {statuses[data.status] ?? "比對狀態尚未確認"}。
-                {data.matchedAt && `比對時間：${dateTime(data.matchedAt)}。`}
-            </p>
-            {data.rows.length ? (
-                <div className="board-list">
-                    {data.rows.map((evidence, index) => {
-                        const parts = splitEvidence(evidence);
-                        return (
-                            <article key={`${evidence.key}-${index}`}>
-                                <div className="card-meta">
-                                    <Link
-                                        className={ui.tag}
-                                        href={`/keywords/${encodeURIComponent(evidence.term)}/videos`}
-                                    >
-                                        {evidence.term}
-                                    </Link>
-                                    <span>
-                                        {evidence.field === "title"
-                                            ? "影片標題"
-                                            : evidence.field === "description"
-                                              ? "影片說明"
-                                              : evidence.field === "caption"
-                                                ? "字幕"
-                                                : "來源文字"}
-                                    </span>
-                                </div>
-                                <p
-                                    style={{
-                                        marginTop: 8,
-                                        overflowWrap: "anywhere",
-                                    }}
-                                >
-                                    {parts.before}
-                                    <mark
-                                        style={{
-                                            background: "var(--tint)",
-                                            color: "var(--accent)",
-                                        }}
-                                    >
-                                        {parts.match}
-                                    </mark>
-                                    {parts.after}
-                                </p>
-                            </article>
-                        );
-                    })}
-                </div>
-            ) : (
-                data.status === "matched" && (
-                    <p>本次沒有精確文字命中。</p>
-                )
-            )}
-            <details>
-                <summary className="muted" style={{ fontSize: 12 }}>
-                    比對版本
-                </summary>
-                <p style={{ fontSize: 12, overflowWrap: "anywhere" }}>
-                    {data.version || "尚無版本"}
+        <section id="keyword-evidence" className="scroll-mt-20">
+            <SectionHeading title="共同標籤" />
+            <div className={ui.panel}>
+                <p className="text-xs text-zinc-600 dark:text-zinc-400">
+                    {statuses[data.status] ?? "比對狀態尚未確認"}
+                    {terms.length > 0 && ` · ${count(terms.length)} 個標籤`}
+                    {data.matchedAt && ` · 比對時間 ${dateTime(data.matchedAt)}`}
                 </p>
-            </details>
+                {terms.length ? (
+                    <ul className="mt-3 flex flex-wrap gap-2" aria-label="共同標籤">
+                        {terms.map((term) => (
+                            <li key={term}>
+                                <Link className={ui.tag + " hover:bg-zinc-200 dark:hover:bg-zinc-700"} href={`/keywords/${encodeURIComponent(term)}/videos`}>{term}</Link>
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                    data.status === "matched" && <p className="mt-2 text-sm">本次沒有精確文字命中。</p>
+                )}
+                {data.rows.length > 0 && (
+                    <EvidenceDisclosure anchor="keyword-evidence" open={data.rows.length <= 5} summary={`比對依據（${count(data.rows.length)} 處）`}>
+                        <ol className="divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
+                            {data.rows.map((evidence, index) => {
+                                const parts = splitEvidence(evidence);
+                                return (
+                                    <li key={`${evidence.key}-${index}`} className="py-2" style={{ overflowWrap: "anywhere" }}>
+                                        <span className="mr-2 font-medium">{evidence.term}</span>
+                                        <span className="mr-2 text-xs text-zinc-500 dark:text-zinc-400">{evidenceFields[evidence.field] ?? "來源文字"}</span>
+                                        <span className="text-zinc-700 dark:text-zinc-300" title={evidence.snippet}>
+                                            {parts.match ? clipStart(parts.before) : parts.before}
+                                            <mark style={{ background: "var(--tint)", color: "var(--accent)" }}>{parts.match}</mark>
+                                            {clipEnd(parts.after)}
+                                        </span>
+                                    </li>
+                                );
+                            })}
+                        </ol>
+                    </EvidenceDisclosure>
+                )}
+                <details className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    <summary className="cursor-pointer py-1">比對版本</summary>
+                    <p style={{ overflowWrap: "anywhere" }}>{data.version || "尚無版本"}</p>
+                </details>
+            </div>
         </section>
     );
 }

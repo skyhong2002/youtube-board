@@ -3,8 +3,9 @@ import {filterOptionsMatch,type FilterOptions} from '../../../shared/filter-opti
 import {ChannelProfile} from '@/components/ChannelProfile';
 import {VideoSearchReadHint} from '@/components/VideoSearchReadHint';
 import {KeywordProfile} from '@/components/KeywordProfile';
-import {ChannelAvatar} from '@/components/ChannelAvatar';
 import {VideoThumbnail} from '@/components/VideoThumbnail';
+import {ObservationChart,observedPoints,SINGLE_OBSERVATION_NOTE} from '@/components/ObservationChart';
+import {ChannelSourceLabel,hasSource} from '@/components/ChannelSource';
 import SaveButton from '@/components/reader/SaveButton';
 import {familyTabs} from '@/lib/report-navigation';
 import {liveCoverageNotes} from '@/components/LiveCoverageNotice';
@@ -67,7 +68,6 @@ import {
 } from "@/components/VocabularyReport";
 import { RefreshControl } from "@/components/RefreshControl";
 import { ReportMethod } from "@/components/ReportMethod";
-import { TimeChart } from "@/components/Charts";
 import { ChannelContext } from "@/components/ChannelContext";
 function Failure({ status, title }: { status: number; title: string }) {
     if (status === 404) notFound();
@@ -194,7 +194,7 @@ async function ReportBody({
                             ),
                         )}
                         unit="人"
-                        detail="未去重"
+                        detail="同一觀眾可能重複計入"
                     />
                 </div>
                 <LiveTable rows={data.rows} offset={data.offset} />
@@ -246,89 +246,51 @@ async function ReportBody({
             return <Failure status={result.status} title={route.title} />;
         const { data, meta } = result.response;
         const v = data.video;
+        const views = data.history.map((item) => ({ time: item.date, value: item.views }));
+        const live = data.liveHistory.map((item) => ({ time: item.time, value: item.viewers }));
+        // The heading's 更新於 is the page's latest record; the video's own record time is named
+        // only when it differs (e.g. a newer comment batch), never as a second identical line.
+        const recorded = dateTime(v.updatedAt), updated = meta.updatedAt ? dateTime(meta.updatedAt) : null;
+        const source = { channelId: v.channelId, channelTitle: v.channelTitle, channelAvatar: v.channelAvatar ?? null };
+        const action = "inline-flex min-h-11 items-center rounded-md border border-zinc-300 px-3 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800";
         return (
             <>
                 <Heading
                     title={v.title || "影片標題尚未取得"}
                     meta={meta}
+                    lead={<>{hasSource(source) ? <ChannelSourceLabel source={source} size={20} /> : "頻道名稱尚未取得"} · 發布於 {dateTime(v.publishedAt)}{v.updatedAt && recorded !== updated && <> · 資料最後記錄 {recorded}</>}</>}
                 />
-                <p className="my-3 text-sm text-zinc-600 dark:text-zinc-400">資料最後記錄：{dateTime(v.updatedAt)}</p>
-                <div className="my-3"><SaveButton kind="video" target={v.id}/></div>
                 <DataNotice meta={meta} />
                 <Tabs items={[{href:`/videos/${encodeURIComponent(v.id)}`,label:'影片概覽'},{href:`/videos/${encodeURIComponent(v.id)}/analytics`,label:'觀測分析'}]} active={path}/>
-                <div className="card-meta">
-                    <Link className="inline-flex items-center gap-2" href={`/channels/${v.channelId}`}>
-                        <ChannelAvatar avatar={v.channelAvatar} title={v.channelTitle} size={24}/>{v.channelTitle || "頻道名稱尚未取得"}
-                    </Link>
-                    <span>發布於 {dateTime(v.publishedAt)}</span>
-                    <a
-                        className="external-link"
-                        href={youtubeUrl(v.youtubeUrl)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                    >
-                        YouTube 原始影片 ↗
-                    </a>
+                <div className="my-4 grid gap-4 sm:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+                    <a className="block aspect-video w-full" href={youtubeUrl(v.youtubeUrl)} target="_blank" rel="noopener noreferrer" aria-label="在 YouTube 開啟原始影片"><VideoThumbnail videoId={v.id} fill priority sizes="(max-width: 640px) 100vw, 320px"/></a>
+                    <div className="flex min-w-0 flex-col gap-3">
+                        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                            <Metric label="觀看數" value={compact(v.views)} unit="次" />
+                            <Metric label="喜歡" value={count(v.likes)} unit="次" />
+                            <Metric label="YouTube 留言總數" value={count(v.comments)} unit="則" />
+                            <Metric label="長度" value={data.durationSeconds === null ? "—" : `${Math.floor(data.durationSeconds / 60)}:${String(data.durationSeconds % 60).padStart(2, "0")}`} detail={data.captionAvailable ? "來源提供字幕" : "字幕狀態未確認"} />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <a className={action} href={youtubeUrl(v.youtubeUrl)} target="_blank" rel="noopener noreferrer">YouTube 原始影片 ↗</a>
+                            <Link className={action} href={`/compare/titles?left=${encodeURIComponent(v.id)}`}>比較影片標題用語</Link>
+                            <SaveButton kind="video" target={v.id}/>
+                        </div>
+                    </div>
                 </div>
-                <div className="metrics">
-                    <Metric label="觀看數" value={compact(v.views)} unit="次" />
-                    <Metric label="喜歡" value={count(v.likes)} unit="次" />
-                    <Metric label="YouTube 留言總數" value={count(v.comments)} unit="則" />
-                    <Metric
-                        label="長度"
-                        value={
-                            data.durationSeconds === null
-                                ? "—"
-                                : `${Math.floor(data.durationSeconds / 60)}:${String(data.durationSeconds % 60).padStart(2, "0")}`
-                        }
-                        detail={
-                            data.captionAvailable
-                                ? "來源提供字幕"
-                                : "字幕狀態未確認"
-                        }
-                    />
-                </div>
-                <a className="my-4 block aspect-video w-full max-w-80" href={youtubeUrl(v.youtubeUrl)} target="_blank" rel="noopener noreferrer" aria-label="在 YouTube 開啟原始影片"><VideoThumbnail videoId={v.id} fill sizes="(max-width: 360px) 100vw, 320px"/></a>
                 {COMMENTS_PUBLISHED && <VideoCommentSummary summary={data.commentSummary} id={v.id} />}
+                {observedPoints(live).length > 0 && (
+                    <>
+                        <SectionHeading title="直播同時在線觀測" />
+                        <ObservationChart points={live} label="直播同時在線觀測" unit="人" />
+                    </>
+                )}
                 <SectionHeading title="觀看數觀測" />
                 {data.history.length ? (
-                    <section className="panel">
-                        <TimeChart
-                            points={data.history.map((item) => ({
-                                time: item.date,
-                                value: item.views,
-                            }))}
-                            label="影片累計觀看數觀測"
-                            unit="觀看數"
-                        />
-                    </section>
+                    <ObservationChart points={views} label="影片累計觀看數觀測" unit="次" />
                 ) : (
                     <Empty title="尚無歷史觀測" description="本站尚未儲存這部影片的歷史觀測，無法據以建立歷史時間序列。" />
                 )}
-                {data.liveHistory.length > 0 && (
-                    <>
-                        <SectionHeading title="直播同時在線觀測" />
-                        <section className="panel">
-                            <TimeChart
-                                points={data.liveHistory.map((item) => ({
-                                    time: item.time,
-                                    value: item.viewers,
-                                }))}
-                                label="直播同時在線觀測"
-                                unit="人"
-                            />
-                        </section>
-                    </>
-                )}
-                <p style={{ marginTop: 20 }}>
-                    <Link
-                        className="button"
-                        href={`/compare/titles?left=${encodeURIComponent(v.id)}`}
-                    >
-                        比較影片標題用語
-                    </Link>
-                </p>
-                <SectionHeading title="共同標籤" />
                 <VideoTagEvidence videoId={v.id} />
                 <SectionHeading title="影片說明" />
                 <section className="panel">
@@ -341,7 +303,7 @@ async function ReportBody({
                         {v.description || "來源尚未提供影片說明。"}
                     </p>
                 </section>
-                <ReportMethod path={path} description={route.description} meta={meta}/>
+                <ReportMethod path={path} description={route.description} meta={meta} notes={observedPoints(views).length === 1 ? [SINGLE_OBSERVATION_NOTE] : []}/>
             </>
         );
     }
