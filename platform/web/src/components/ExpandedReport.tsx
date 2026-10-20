@@ -40,6 +40,9 @@ const NARROW_SECTION_COLUMNS = 3, SECTION_PREVIEW_ROWS = 30;
 const sectionPreview = "[&:not(:has(details[open]))_tbody>tr:nth-child(n+31)]:hidden!";
 // Coverage bookkeeping (cache days per group and date, source coverage) backs the figures above;
 // it opens on request instead of filling the page between the charts and the data.
+// The channel AI report's provenance tables (source records, cited videos) are audit detail:
+// they follow the AI summaries, folded, instead of standing between the reader and them.
+const provenanceSection = (section: { key?: string }) => section.key === "sources" || section.key === "references";
 const coverageSection = (section: { key?: string; title: string }) => section.key === "window-coverage" || section.key === "daily-source-totals" || /涵蓋|覆蓋/.test(section.title);
 export async function ExpandedReport({
     apiPath,
@@ -200,7 +203,7 @@ export async function ExpandedReport({
             {/* Narrow sections (term/weight lists) keep to a readable width, sit side by side on wide
                 screens and show their first rows; the rest stay in the same table behind a native toggle. */}
             <div className={data.sections && data.sections.length > 1 && data.sections.every((section) => section.columns.length <= NARROW_SECTION_COLUMNS) ? "lg:grid lg:grid-cols-2 lg:gap-x-6" : undefined}>
-            {data.sections?.map((section, index) => coverageSection(section) && section.rows.length ? (
+            {data.sections?.filter((section) => !provenanceSection(section)).map((section, index) => coverageSection(section) && section.rows.length ? (
                 <details key={`${section.title}-${index}`} className="group mt-6 min-w-0">
                     <summary className="cursor-pointer py-2 text-base font-semibold">{section.title}<span className="ml-2 text-sm font-normal text-zinc-500">{count(section.rows.length)} 筆</span></summary>
                     <ReportTable columns={section.columns} rows={section.rows} label={section.title} showMobileScrollHint={Boolean(mayorCity)} foldUniform/>
@@ -232,6 +235,12 @@ export async function ExpandedReport({
               !data.series?.some((series) => series.points.length) ? (
                 uncachedKeyword && data.sections?.length ? null : <Empty {...(uncachedKeyword ? keywordEmpty : {})} />
             ) : null}
+            {data.sections?.filter((section) => provenanceSection(section) && section.rows.length).map((section, index) => (
+                <details key={`${section.title}-${index}`} className="group mt-6 min-w-0">
+                    <summary className="cursor-pointer py-2 text-base font-semibold">{section.title}<span className="ml-2 text-sm font-normal text-zinc-500">{count(section.rows.length)} 筆</span></summary>
+                    <ReportTable columns={section.columns} rows={section.rows} label={section.title} foldUniform/>
+                </details>
+            ))}
             {uncachedKeyword && <p className="text-sm"><Link className="text-brand-700 hover:underline dark:text-brand-400" href="/keywords">查看關鍵字排行 →</Link></p>}
             <Pagination collection={data} search={search} path={path} />
             <ReportMethod path={path} description={data.description} meta={meta} notes={[...(data.notes ?? []), ...(family === 'live' ? liveCoverageNotes(meta.coverage) : [])]} />
