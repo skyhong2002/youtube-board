@@ -16,7 +16,9 @@ const batches={
  // multi-minute statistics or discovery run must not delay them.
  'youtube-live':['youtube.live.poll','youtube.tvbs.live.poll'],
  comments:['youtube.comments.queue','youtube.comments.fetch'],
- 'ai-daily':['ai.daily','ai.daily.catchup','ai.channel','reports.ai_topic.build'],
+ // ai.days_refresh only runs its event and period steps here (scheduled with skip-daily/skip-cache): it fills
+ // urt_ai_event/urt_ai_period from the published daily source, which no Laravel schedule ever did.
+ 'ai-daily':['ai.daily','ai.daily.catchup','ai.channel','reports.ai_topic.build','ai.days_refresh'],
  'ai-hourly':['ai.hourly'],
  'ai-mayor':['ai.mayor_person'],
  telegram:['notify.telegram.hourly','notify.telegram.daily'],

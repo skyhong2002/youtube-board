@@ -9,7 +9,7 @@ const expected={
  'youtube-source':['youtube.channels.stats','youtube.channels.videos.general','youtube.channels.videos.live','youtube.channels.videos.live_group','youtube.tvbs.videos','youtube.videos.stats','youtube.videos.duration','youtube.live.cleanup','youtube.tag_videos.backfill'],
  'youtube-live':['youtube.live.poll','youtube.tvbs.live.poll'],
  comments:['youtube.comments.queue','youtube.comments.fetch'],
- 'ai-daily':['ai.daily','ai.daily.catchup','ai.channel','reports.ai_topic.build'],
+ 'ai-daily':['ai.daily','ai.daily.catchup','ai.channel','reports.ai_topic.build','ai.days_refresh'],
  'ai-hourly':['ai.hourly'],
  'ai-mayor':['ai.mayor_person'],
  telegram:['notify.telegram.hourly','notify.telegram.daily'],

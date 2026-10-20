@@ -13,7 +13,8 @@ export interface Schedule {
   workflow: string;
   cron: string;
   options: WorkflowInput['options'];
-  window?: 'previous-hour' | 'previous-day' | 'yesterday-date';
+  /** previous-two-dates: from = the day before yesterday, to = yesterday (Taipei dates), so a missed day is retried once. */
+  window?: 'previous-hour' | 'previous-day' | 'yesterday-date' | 'previous-two-dates';
 }
 export interface ScheduleConfig { version: 1; timezone: 'Asia/Taipei'; schedules: Schedule[] }
 export interface DueRun { schedule: string; workflow: string; runId: string; scheduledAt: string; input: WorkflowInput }
@@ -61,6 +62,7 @@ export function scheduleInput(schedule: Schedule, date: Date): WorkflowInput {
     const start = end - (schedule.window === 'previous-hour' ? 3600000 : 86400000);
     if(schedule.workflow===VOCABULARY_JOB){options.since=new Date(start).toISOString();options.until=new Date(end).toISOString();}
     else if (schedule.window === 'yesterday-date') options.date = sql(new Date(start)).slice(0, 10);
+    else if (schedule.window === 'previous-two-dates') { options.from = sql(new Date(start - 86400000)).slice(0, 10); options.to = sql(new Date(start)).slice(0, 10); }
     else { options.from = sql(new Date(start)); options.to = sql(new Date(end - 1000)); }
   }
   return validateWorkflowInput(schedule.workflow, { options });
@@ -73,7 +75,7 @@ export function validateScheduleConfig(raw: unknown): ScheduleConfig {
     if (!record(value) || Object.keys(value).some(k => !['id', 'workflow', 'cron', 'options', 'window'].includes(k))
         || typeof value.id !== 'string' || !/^[a-zA-Z0-9_-]{1,48}$/.test(value.id) || ids.has(value.id)
         || typeof value.workflow !== 'string' || typeof value.cron !== 'string' || !record(value.options)
-        || value.window !== undefined && !['previous-hour', 'previous-day', 'yesterday-date'].includes(String(value.window))) throw new Error('Invalid schedule entry');
+        || value.window !== undefined && !['previous-hour', 'previous-day', 'yesterday-date', 'previous-two-dates'].includes(String(value.window))) throw new Error('Invalid schedule entry');
     if (['youtube.comments.reset', 'youtube.channels.adopt'].includes(value.workflow) || value.options.restore === true || value.options.force === true) throw new Error('Operator-only workflow cannot recur');
     ids.add(value.id); cronFields(value.cron);
     const entry = value as unknown as Schedule;

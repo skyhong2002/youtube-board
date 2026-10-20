@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "timezone": "Asia/Taipei",
+  "schedules": [
+    { "id": "ai-daily-events-v1", "workflow": "ai.days_refresh", "cron": "40 7,13 * * *", "options": { "skip-daily": true, "skip-cache": true, "call-limit": 100, "topic-limit": 100 }, "window": "previous-two-dates" }
+  ]
+}
