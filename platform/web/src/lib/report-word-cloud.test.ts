@@ -36,5 +36,5 @@ test('narrow report sections preview the first rows and only they get the toggle
  assert.equal(rows,30);
  assert.ok(source.includes(`tbody>tr:nth-child(n+${rows+1})]:hidden!`),'preview class must hide rows after SECTION_PREVIEW_ROWS');
  assert.match(source,/section\.columns\.length <= NARROW_SECTION_COLUMNS && section\.rows\.length > SECTION_PREVIEW_ROWS/);
- assert.match(source,/<ReportTable columns=\{data\.columns\} rows=\{data\.rows\}/,'the main observation table stays unbounded');
+ assert.match(source,/<ReportTable columns=\{data\.columns\} rows=\{data\.rows\}/,'the main observation table keeps one ReportTable (width-bounded only when it has three columns or fewer)');
 });

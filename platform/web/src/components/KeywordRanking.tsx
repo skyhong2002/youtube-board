@@ -72,7 +72,7 @@ export function KeywordRankingTable({rows,summary,window,basis,priority=false}:{
      <th className={table.num}>升溫</th>
      <th className={table.cell}>走勢</th>
      <th className={table.num}>影片</th>
-     <th className={table.num} title="標題命中／僅說明命中的影片數">標題／說明</th>
+     <th className={table.num} title="標題命中／僅說明命中的影片數">標題／僅說明</th>
      <th className={table.num}>頻道</th>
      <th className={table.num}>已測觀看</th>
      <th className={table.cell}>代表頻道</th>

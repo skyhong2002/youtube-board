@@ -27,6 +27,8 @@ import {
     Tabs,
 } from "./ReportUI";
 import { TimeChart } from "./Charts";
+import { SeriesCompareChart } from "./SeriesCompareChart";
+import { compareOnOneAxis } from "@/lib/series-compare";
 import { Suspense } from "react";
 import { MayorShare, MayorShareLive, MayorSwitcher, MayorSwitcherLive } from "./MayorShare";
 import { searchView } from "@/lib/mayor-view";
@@ -36,6 +38,9 @@ const NARROW_SECTION_COLUMNS = 3, SECTION_PREVIEW_ROWS = 30;
 // Rows past the preview (n+31 = SECTION_PREVIEW_ROWS + 1) are hidden until the toggle after the table opens; important beats the
 // phone stacking rule (.table-stack tr), which is unlayered CSS.
 const sectionPreview = "[&:not(:has(details[open]))_tbody>tr:nth-child(n+31)]:hidden!";
+// Coverage bookkeeping (cache days per group and date, source coverage) backs the figures above;
+// it opens on request instead of filling the page between the charts and the data.
+const coverageSection = (section: { key?: string; title: string }) => section.key === "window-coverage" || section.key === "daily-source-totals" || /涵蓋|覆蓋/.test(section.title);
 export async function ExpandedReport({
     apiPath,
     path,
@@ -75,7 +80,8 @@ export async function ExpandedReport({
                 meta={meta}
             />
             <DataNotice meta={meta} />
-            <Tabs items={familyTabs(path,search,meta.coverage)} active={path} />
+            {/* A lone tab (a content group's only report) is not a choice; the page title already names it. */}
+            {(() => { const items = familyTabs(path, search, meta.coverage); return items.length > 1 ? <Tabs items={items} active={path} /> : null; })()}
             {path==='/tags/compare'&&<ComparisonControls search={search} points={data.series?.[0]?.points}/> }
             {/* Live parts read view from the URL; the fallbacks render the same markup from this request's search (ISR pages need the boundary). */}
             {mayorCity && cities[mayorCity] ? (() => { const props = { city: mayorCity, search, from: filters.find((filter) => filter.key === 'from')?.value, to: filters.find((filter) => filter.key === 'to')?.value }; return <Suspense fallback={<MayorSwitcher {...props} view={searchView(search)} />}><MayorSwitcherLive {...props} /></Suspense>; })() : null}
@@ -167,8 +173,15 @@ export async function ExpandedReport({
             ) : null}
             {mayorCity && data.series?.length ? <MayorShare part="candidates" city={mayorCity} series={data.series} search={search} rows={data.bucketCoverage ?? data.rows} view={searchView(search)} /> : null}
             {/* Mayor pages show every candidate in the one share chart above, so no per-person raw charts. */}
-            {mayorCity ? null : data.series?.map((series, index) => (
-                <section key={`${series.name}-${index}`}>
+            {/* A term comparison draws every term on one shared axis. Other reports with several series
+                (one per group or category, on their own scales) sit two to a row as shorter charts. */}
+            {!mayorCity && path === "/tags/compare" && data.series && compareOnOneAxis(data.series) ? (
+                <section>
+                    <SectionHeading title="趨勢比較" />
+                    <div className={ui.panel}><SeriesCompareChart series={data.series} label={data.title || title} /></div>
+                </section>
+            ) : mayorCity ? null : <div className={(data.series?.length ?? 0) > 1 ? "lg:grid lg:grid-cols-2 lg:gap-x-6" : undefined}>{data.series?.map((series, index, all) => (
+                <section key={`${series.name}-${index}`} className="min-w-0">
                     <SectionHeading title={series.name} />
                     <div className={ui.panel}>
                         {series.points.length ? (
@@ -176,17 +189,23 @@ export async function ExpandedReport({
                                 points={series.points}
                                 label={series.name}
                                 unit={series.unit}
+                                compact={all.length > 1}
                             />
                         ) : (
                             <Empty title="這個期間尚無觀測點" />
                         )}
                     </div>
                 </section>
-            ))}
+            ))}</div>}
             {/* Narrow sections (term/weight lists) keep to a readable width, sit side by side on wide
                 screens and show their first rows; the rest stay in the same table behind a native toggle. */}
             <div className={data.sections && data.sections.length > 1 && data.sections.every((section) => section.columns.length <= NARROW_SECTION_COLUMNS) ? "lg:grid lg:grid-cols-2 lg:gap-x-6" : undefined}>
-            {data.sections?.map((section, index) => (
+            {data.sections?.map((section, index) => coverageSection(section) && section.rows.length ? (
+                <details key={`${section.title}-${index}`} className="group mt-6 min-w-0">
+                    <summary className="cursor-pointer py-2 text-base font-semibold">{section.title}<span className="ml-2 text-sm font-normal text-zinc-500">{count(section.rows.length)} 筆</span></summary>
+                    <ReportTable columns={section.columns} rows={section.rows} label={section.title} showMobileScrollHint={Boolean(mayorCity)} foldUniform/>
+                </details>
+            ) : (
                 <section key={`${section.title}-${index}`} className={section.columns.length <= NARROW_SECTION_COLUMNS ? "max-w-xl min-w-0" : undefined}>
                     <SectionHeading title={section.title} />
                     {section.rows.length ? section.columns.length <= NARROW_SECTION_COLUMNS && section.rows.length > SECTION_PREVIEW_ROWS ? (
@@ -196,15 +215,18 @@ export async function ExpandedReport({
                                 <summary className={"mt-1 cursor-pointer py-3 text-sm " + ui.link}><span className="group-open:hidden">顯示全部 {count(section.rows.length)} 筆</span><span className="hidden group-open:inline">只顯示前 {SECTION_PREVIEW_ROWS} 筆</span></summary>
                             </details>
                         </div>
-                    ) : <ReportTable columns={section.columns} rows={section.rows} label={section.title} showMobileScrollHint={Boolean(mayorCity)}/> : <Empty {...(uncachedKeyword ? keywordEmpty : { title: "這個項目尚無觀測資料" })} />}
+                    ) : <ReportTable columns={section.columns} rows={section.rows} label={section.title} showMobileScrollHint={Boolean(mayorCity)} foldUniform/> : <Empty {...(uncachedKeyword ? keywordEmpty : { title: "這個項目尚無觀測資料" })} />}
                 </section>
             ))}
             </div>
             {data.rows.length > 0 ? (
                 <>
                     <SectionHeading title="觀測資料" />
-                    <ReportTable columns={data.columns} rows={data.rows} label={data.title||title} showMobileScrollHint={Boolean(mayorCity)}/>
-                    
+                    {/* A list of three columns or fewer (group, basis, count) keeps to a readable width;
+                        wider tables use the whole column. */}
+                    <div className={data.columns.length <= NARROW_SECTION_COLUMNS ? "max-w-3xl" : undefined}>
+                        <ReportTable columns={data.columns} rows={data.rows} label={data.title||title} showMobileScrollHint={Boolean(mayorCity)} foldUniform/>
+                    </div>
                 </>
             ) : !data.words?.length &&
               !data.series?.some((series) => series.points.length) ? (
