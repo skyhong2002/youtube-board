@@ -1,4 +1,5 @@
 import {strict as assert} from 'node:assert';
+import {COMMENTS_PUBLISHED} from './comments-launch';
 import {test} from 'node:test';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
@@ -6,10 +7,10 @@ import {ChannelArchiveNotice} from '../components/ChannelArchiveNotice';
 import {familyTabs} from './report-navigation';
 const archived={channelId:8,channelTitle:'歷史來源',channelStatus:'archived',channelProfileAvailable:false};
 test('archived channel children retain all historical navigation while unavailable profile links are omitted',()=>{
- const children=['videos','comments','cloud','trends','people','ai','ai/days','prompt'];
+ const children=['videos',...(COMMENTS_PUBLISHED?['comments']:[]),'cloud','trends','people','ai','ai/days','prompt'];
  for(const child of children){
   const path='/channels/8/'+child,tabs=familyTabs(path,{date:'2026-10-11'},archived);
-  assert.equal(tabs.length,8);assert.ok(tabs.every(tab=>new URL(tab.href,'http://local').pathname!=='/channels/8'));
+  assert.equal(tabs.length,children.length);assert.ok(tabs.every(tab=>new URL(tab.href,'http://local').pathname!=='/channels/8'));
   assert.deepEqual(tabs.map(tab=>new URL(tab.href,'http://local').pathname),children.map(suffix=>'/channels/8/'+suffix));
   assert.equal(tabs.find(tab=>tab.label==='提示詞預覽')?.href,'/channels/8/prompt?date=2026-10-11');
  }

@@ -3,6 +3,7 @@ import type {VideoRow} from '@/lib/api';
 import {compact,count,dateTime} from '@/lib/format';
 import {ChannelAvatar} from './ChannelAvatar';
 import {VideoThumbnail} from './VideoThumbnail';
+import {COMMENTS_PUBLISHED} from '@/lib/comments-launch';
 
 /** Mother ArticleResults divided-row layout; YouTube collection metrics stay in
  * an accessible native disclosure instead of squeezing a report table into a rail. */
@@ -24,9 +25,9 @@ export function VideoResults({rows,report=false}:{rows:VideoRow[];report?:boolea
    </div>
    {report&&<p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">資料最後記錄：{dateTime(row.updatedAt)}。各項統計未必在同一時間觀測；「—」表示未取得。</p>}
    {report&&listing?.scope==='taxonomy'&&<dl className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-600 dark:text-zinc-400"><div className="flex gap-1"><dt>每千次觀看留言</dt><dd>{listing.commentsPerThousandViews==null?'—':listing.commentsPerThousandViews.toFixed(2)+'‰'}</dd></div><div className="flex flex-wrap gap-1"><dt>頻道分類</dt><dd>{listing.tags.length?listing.tags.map((tag,i)=><span key={tag.id}>{i>0?'、':''}<Link href={`/tags/${tag.id}/videos`} className="underline">{tag.name}</Link></span>):'尚未收錄'}</dd></div></dl>}
-   {collected&&<details className="mt-2 text-xs text-zinc-500 dark:text-zinc-400"><summary className="w-fit cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-brand-600">留言收錄與互動指標<span className="sr-only">：{title}</span></summary><p className="mt-2">{status}</p><dl className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1.5 sm:max-w-sm">{[
+   {collected&&<details className="mt-2 text-xs text-zinc-500 dark:text-zinc-400"><summary className="w-fit cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-brand-600">{COMMENTS_PUBLISHED?'留言收錄與互動指標':'互動指標'}<span className="sr-only">：{title}</span></summary>{COMMENTS_PUBLISHED&&<p className="mt-2">{status}</p>}<dl className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1.5 sm:max-w-sm">{(COMMENTS_PUBLISHED?[
     ['收錄留言',count(listing.recordedComments)],['YouTube 留言',count(listing.providerComments)],['喜歡占互動',listing.likeSharePercent===null?'—':listing.likeSharePercent.toFixed(2)+'%'],['收錄作者',count(listing.commentAuthors)],['收錄回覆',count(listing.commentReplies)],['留言獲讚',count(listing.commentLikes)],['留言觀測時間',dateTime(listing.commentObservedAt)],['資料更新時間',dateTime(row.updatedAt)]
-   ].map(([label,value])=><div className="contents" key={label}><dt>{label}</dt><dd className="text-right tabular-nums">{value}</dd></div>)}</dl></details>}
+   ]:[['YouTube 留言',count(listing.providerComments)],['喜歡占互動',listing.likeSharePercent===null?'—':listing.likeSharePercent.toFixed(2)+'%'],['資料更新時間',dateTime(row.updatedAt)]]).map(([label,value])=><div className="contents" key={label}><dt>{label}</dt><dd className="text-right tabular-nums">{value}</dd></div>)}</dl></details>}
   </li>;
  })}</ul>;
 }

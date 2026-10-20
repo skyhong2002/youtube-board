@@ -19,6 +19,7 @@ import {
 } from "@/components/MethodNotes";
 import { inlineLink } from "@/components/method/styles";
 import { pageMetadata } from "@/lib/seo";
+import { COMMENTS_PUBLISHED } from "@/lib/comments-launch";
 export const metadata = pageMetadata({ title: "資料來源與計算方式", description: "有影儀表板的資料來源、觀測範圍與計算方式：頻道、影片、直播、AI 議題、頻道分類與共同標籤的每個數字怎麼來、有哪些限制。", path: "/about" });
 
 // Every method block in one place, grouped by the page it explains (tag.observe.tw
@@ -34,7 +35,7 @@ const GROUPS: Array<{ id: string; title: string; pages?: Array<[string, string]>
     { id: "tags", title: "頻道分類", pages: [["/tags", "頻道分類"]], body: <><TagMethod /><CloudMethod /></> },
     { id: "groups", title: "頻道群組", pages: [["/groups", "頻道群組"]], body: <GroupMethod /> },
     { id: "mayor", title: "地方選戰", pages: [["/mayor", "選戰"]], body: <MayorMethod /> },
-    { id: "comments", title: "留言", body: <CommentMethod /> },
+    ...(COMMENTS_PUBLISHED ? [{ id: "comments", title: "留言", body: <CommentMethod /> }] : []),
     { id: "boards", title: "自訂看板", pages: [["/boards", "我的看板"]], body: <BoardsMethod /> },
     {
         id: "about",

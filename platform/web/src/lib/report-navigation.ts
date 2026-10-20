@@ -1,5 +1,6 @@
 import type {ReportMeta,Search} from './api';
 import {groupDefinitions} from '../../../api/src/reports/group-definitions';
+import {COMMENTS_PUBLISHED} from './comments-launch';
 export type ReportTab={href:string;label:string};
 const taxonomy=['tagid','or','not'];
 const period=['from','to'];
@@ -61,8 +62,8 @@ export function familyTabs(path:string,search:Search={},coverage?:ReportMeta['co
  const dated=path.match(/^\/ai\/days\/(\d{4}-\d{2}-\d{2})(?:\/([^/]+))?/);if(dated)search={...search,date:dated[1],...(dated[2]&&dated[2]!=='prompt'?{condition:decodeSegment(dated[2])}:{})};
  const liveDate=path.match(/^\/live\/days\/(\d{4}-\d{2}-\d{2})$/),channelDate=path.match(/^\/channels\/\d+\/ai\/days\/(\d{4}-\d{2}-\d{2})$/);if(liveDate)search={...search,from:liveDate[1],to:liveDate[1]};if(channelDate)search={...search,date:channelDate[1]};
  const [,family,id]=path.split('/');let base='',parts:[string,string][]=[];
- if(family==='channels'&&/^\d+$/.test(id??'')){base=`/channels/${id}`;const hideProfile=coverage?.channelId===Number(id)&&coverage.channelProfileAvailable===false;parts=[...(hideProfile?[]:[['','概覽'] as [string,string]]),['videos','影片'],['comments','留言'],['cloud','關鍵詞'],['trends','趨勢'],['people','人物'],['ai','AI 議題'],['ai/days','每日分析'],['prompt','提示詞預覽']];}
- if(family==='tags'){base=/^\d+$/.test(id??'')?`/tags/${id}`:'/tags';parts=[...(base==='/tags'?[]:[['channels','頻道'] as [string,string]]),['videos','影片'],['comments','留言'],['cloud','關鍵詞'],['days','逐日'],['trends','趨勢']];}
+ if(family==='channels'&&/^\d+$/.test(id??'')){base=`/channels/${id}`;const hideProfile=coverage?.channelId===Number(id)&&coverage.channelProfileAvailable===false;parts=[...(hideProfile?[]:[['','概覽'] as [string,string]]),['videos','影片'],...(COMMENTS_PUBLISHED?[['comments','留言'] as [string,string]]:[]),['cloud','關鍵詞'],['trends','趨勢'],['people','人物'],['ai','AI 議題'],['ai/days','每日分析'],['prompt','提示詞預覽']];}
+ if(family==='tags'){base=/^\d+$/.test(id??'')?`/tags/${id}`:'/tags';parts=[...(base==='/tags'?[]:[['channels','頻道'] as [string,string]]),['videos','影片'],...(COMMENTS_PUBLISHED?[['comments','留言'] as [string,string]]:[]),['cloud','關鍵詞'],['days','逐日'],['trends','趨勢']];}
  if(family==='keywords'&&id){base=`/keywords/${id}`;parts=[['videos','影片'],['cloud','關鍵詞'],['days','逐日'],['groups/trends','群組趨勢'],['live/trends','直播趨勢']];}
  if(family==='groups'&&id){base=`/groups/${id}`;parts=[['','群組內容'],...(Object.hasOwn(groupDefinitions,id)?[['ranking','排行'],['trends','趨勢']] as [string,string][]:[])];}
  if(family==='live'){base='/live';parts=[['current','即時直播'],['days','每日直播'],['periods','期間'],['hours','逐時'],['channels','頻道'],['tags','分類'],['continuous','連續直播'],['trends/daily','每日趨勢'],['walls/news','直播電視牆']];}

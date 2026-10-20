@@ -1,4 +1,5 @@
 import {test} from 'node:test';
+import {COMMENTS_PUBLISHED} from './comments-launch';
 import assert from 'node:assert/strict';
 import {existsSync,readFileSync} from 'node:fs';
 import {join} from 'node:path';
@@ -98,7 +99,7 @@ test('next.config carries exactly the contract rewrites in beforeFiles',async()=
  const rewrites=await config.rewrites!() as {beforeFiles:unknown[];afterFiles:unknown[];fallback:unknown[]};
  assert.deepEqual(rewrites.beforeFiles,internalRenderRewrites());
  assert.deepEqual(rewrites.fallback,[]);
- assert.ok(REPORT_FAMILIES.every(family=>(resolveRoute([family])??resolveRoute([family,'1'])??resolveRoute([family,'x','videos'])??resolveRoute([family,'days'])??resolveRoute([family,'current'])??resolveRoute([family,'authors','x']))!==null),'every contract family resolves a report');
+ assert.ok(REPORT_FAMILIES.filter(family=>COMMENTS_PUBLISHED||family!=='comments').every(family=>(resolveRoute([family])??resolveRoute([family,'1'])??resolveRoute([family,'x','videos'])??resolveRoute([family,'days'])??resolveRoute([family,'current'])??resolveRoute([family,'authors','x']))!==null),'every contract family resolves a report');
 });
 test('next.config caps build workers at 2 and keeps ISR off disk',async()=>{
  const {default:config}=await import('../../next.config');

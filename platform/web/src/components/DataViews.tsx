@@ -16,6 +16,7 @@ import { count, compact, dateTime, youtubeUrl } from "@/lib/format";
 import { Empty } from "./ReportUI";
 import TableScroller from "./TableScroller";
 import { table } from "@/lib/table-styles";
+import { COMMENTS_PUBLISHED } from "@/lib/comments-launch";
 type Tag = ChannelRow["tags"][number];
 /** Categories on one clipped line; the full list stays in the title. In the
  *  lead it gives way first and hides once the table is scrolled on phones. */
@@ -88,7 +89,8 @@ export function ChannelTable({ rows, offset=0, ranking, responsive=false }: { ro
 }
 export function VideoTable({ rows, responsive=false }: { rows: VideoRow[]; responsive?:boolean }) {
     if (!rows.length) return <Empty title="尚無符合條件的影片" />;
-    const channel=rows.some(r=>r.listing?.scope==='channel'),taxonomy=rows.some(r=>r.listing?.scope==='taxonomy');
+    // Without comment collection a channel listing shows the YouTube count like any other.
+    const channelListing=rows.some(r=>r.listing?.scope==='channel'),channel=COMMENTS_PUBLISHED&&channelListing,taxonomy=rows.some(r=>r.listing?.scope==='taxonomy');
     const ratio=(v:number|null|undefined,suffix:string)=>v===null||v===undefined?'—':v.toFixed(2)+suffix;
     return (
         <>
@@ -105,7 +107,7 @@ export function VideoTable({ rows, responsive=false }: { rows: VideoRow[]; respo
                         <th className="number">喜歡</th>
                         <th className="number">{channel?'留言（收錄／YouTube）':'留言'}</th>
                         {taxonomy&&<><th className="number">每千次觀看留言</th><th>頻道分類</th></>}
-                        {channel&&<><th className="number">喜歡占互動</th><th className="number">收錄作者</th><th className="number">收錄回覆</th><th className="number">留言獲讚</th></>}
+                        {channelListing&&<th className="number">喜歡占互動</th>}{channel&&<><th className="number">收錄作者</th><th className="number">收錄回覆</th><th className="number">留言獲讚</th></>}
                     </tr>
                 </thead>
                 <tbody>
@@ -130,7 +132,7 @@ export function VideoTable({ rows, responsive=false }: { rows: VideoRow[]; respo
                             <td className="number">{count(row.likes)}</td>
                             <td className="number">{channel?`${count(row.listing?.recordedComments??null)} ／ ${count(row.listing?.providerComments??null)}`:count(row.comments)}{channel&&<small className="ml-1.5">{row.listing?.commentStatus==='complete'?(row.listing.recordedComments===null?'完整批次無總數，顯示 YouTube':'完整收錄'):row.listing?.commentStatus==='pending'?'收錄未完成，顯示 YouTube':'未收錄，顯示 YouTube'}</small>}</td>
                             {taxonomy&&<><td className="number">{ratio(row.listing?.commentsPerThousandViews,'‰')}</td><td>{row.listing?.tags.map(tag=><Link className="badge" key={tag.id} href={`/tags/${tag.id}/videos`}>{tag.name}</Link>)}</td></>}
-                            {channel&&<><td className="number">{ratio(row.listing?.likeSharePercent,'%')}</td><td className="number">{count(row.listing?.commentAuthors??null)}</td><td className="number">{count(row.listing?.commentReplies??null)}</td><td className="number">{count(row.listing?.commentLikes??null)}</td></>}
+                            {channelListing&&<td className="number">{ratio(row.listing?.likeSharePercent,'%')}</td>}{channel&&<><td className="number">{count(row.listing?.commentAuthors??null)}</td><td className="number">{count(row.listing?.commentReplies??null)}</td><td className="number">{count(row.listing?.commentLikes??null)}</td></>}
                         </tr>
                     ))}
                 </tbody>

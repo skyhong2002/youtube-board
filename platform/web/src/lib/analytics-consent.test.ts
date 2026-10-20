@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {COMMENTS_PUBLISHED,isCommentPage} from './comments-launch';
 import {test} from 'node:test';
 import {existsSync,readFileSync} from 'node:fs';
 import {join} from 'node:path';
@@ -43,7 +44,7 @@ test('private, auth, search, unknown, query and fragment pages are never measure
  for(const [path,search,hash] of [['/videos','?q=%E4%BA%A4%E9%80%9A',''],['/channels','?sort=views',''],['/events','?page=2',''],['/','?utm_source=x',''],['/videos','','#token=abc'],['/about','','#section'],['/api','?token=abc',''],['/api','','#videos']])
   assert.equal(analyticsPage({pathname:path,search,hash}),null,path+search+hash);
  const types:Array<[string,string]>=[['/','home'],['/videos','videos'],['/videos/dQw4w9WgXcQ','video'],['/videos/dQw4w9WgXcQ/analytics','video'],['/channels','channels'],['/channels/12/comments','channel'],['/keywords','keywords'],['/vocabulary','keywords'],['/tags','tags'],['/tags/compare','tags'],['/tags/3/videos','tag'],['/events','events'],['/events/9b2e3c1a-0000-4000-8000-000000000001','event'],['/ai/days','ai'],['/live/current','live'],['/groups','groups'],['/mayor','mayor'],['/compare/titles','compare'],['/about/brand','about'],['/api','api']];
- for(const [path,type] of types)assert.equal(analyticsPageType(path),type,path);
+ for(const [path,type] of types.filter(([path])=>COMMENTS_PUBLISHED||!isCommentPage(path.slice(1).split('/'))))assert.equal(analyticsPageType(path),type,path);
 });
 test('routes with any free-text segment are not measured at all, since gtag reports the raw URL',()=>{
  for(const path of ['/keywords/%E7%A7%98%E5%AF%86/videos','/keywords/secret/videos','/keywords/secret/cloud','/keywords/secret/groups/trends','/groups/secret','/groups/secret/ranking','/mayor/cities/%E5%8F%B0%E5%8C%97','/mayor/cities/%E5%8F%B0%E5%8C%97/people/%E7%8E%8B/days/2026-10-01','/ai/days/2026-10-01/secret','/live/groups/secret/hours','/videos/secret','/videos/notavideo-id-x','/live/videos/secret/trend','/%76ideos'])

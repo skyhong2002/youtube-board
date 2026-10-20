@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {COMMENTS_PUBLISHED,isCommentPage} from './comments-launch';
 import {test} from 'node:test';
 import {existsSync,readFileSync} from 'node:fs';
 import {join} from 'node:path';
@@ -47,7 +48,7 @@ test('/api and /api/status each carry their own canonical; status stays out of t
 });
 test('report titles are descriptive and unique per public path; names come only from subject data',()=>{
  const paths=['/videos','/channels','/channels/12','/channels/12/videos','/channels/12/comments','/channels/12/ai/days/2026-10-01','/videos/dQw4w9WgXcQ','/videos/dQw4w9WgXcQ/analytics','/keywords','/keywords/%E4%BA%A4%E9%80%9A/videos','/keywords/%E4%BA%A4%E9%80%9A/cloud','/tags','/tags/3/videos','/tags/3/channels','/tags/compare','/live/current','/live/hours','/live/days/2026-10-01','/live/walls/news','/ai/days','/ai/days/2026-10-01','/ai/hours','/ai/events/77','/ai/events/77/wall','/groups','/mayor'];
- const titles=paths.map(path=>{const {route:value,segments}=route(path);return reportTitle(value,segments);});
+ const titles=paths.filter(path=>COMMENTS_PUBLISHED||!isCommentPage(path.slice(1).split('/'))).map(path=>{const {route:value,segments}=route(path);return reportTitle(value,segments);});
  assert.equal(new Set(titles).size,titles.length,titles.join('\n'));
  const channel=route('/channels/12');assert.equal(reportTitle(channel.route,channel.segments,{kind:'channel',title:'某新聞台'}),'某新聞台｜頻道觀測');
  const watch=route('/videos/dQw4w9WgXcQ');assert.equal(reportTitle(watch.route,watch.segments,{kind:'video',video,durationSeconds:null}),'影片標題｜影片觀測');
@@ -59,7 +60,7 @@ test('report metadata canonicalizes aliases and keeps prompt and comment-author 
  const vocabCrumbs=reportBreadcrumbs(vocab.route,vocab.segments);assert.deepEqual(vocabCrumbs.map(c=>c.path),['/','/vocabulary']);assert.equal(vocabCrumbs[1]!.name,'詞彙觀測');assert.ok(vocabCrumbs.every(c=>c.path!=='/keywords'));
  assert.deepEqual(reportBreadcrumbs(ranking.route,ranking.segments).map(c=>c.path),['/','/keywords']);
  const encoded=route('/keywords/%E4%BA%A4%E9%80%9A/videos');assert.equal(reportMetadata(encoded.route,encoded.segments).alternates?.canonical,'https://youtube.observe.tw/keywords/%E4%BA%A4%E9%80%9A/videos');
- for(const path of ['/channels/12/prompt','/comments/authors/someone']){const {route:value,segments}=route(path);const metadata=reportMetadata(value,segments);assert.deepEqual(metadata.robots,{index:false,follow:true},path);assert.equal(metadata.alternates?.canonical,absoluteUrl(path),path);}
+ for(const path of ['/channels/12/prompt',...(COMMENTS_PUBLISHED?['/comments/authors/someone']:[])]){const {route:value,segments}=route(path);const metadata=reportMetadata(value,segments);assert.deepEqual(metadata.robots,{index:false,follow:true},path);assert.equal(metadata.alternates?.canonical,absoluteUrl(path),path);}
  const crumbs=reportBreadcrumbs(route('/channels/12/videos').route,route('/channels/12/videos').segments,{kind:'channel',title:'某新聞台'});
  assert.deepEqual(crumbs.map(c=>c.path),['/','/channels','/channels/12','/channels/12/videos']);assert.equal(crumbs[2]!.name,'某新聞台｜頻道觀測');
  assert.deepEqual(reportBreadcrumbs(route('/channels').route,['channels']).map(c=>c.path),['/','/channels']);

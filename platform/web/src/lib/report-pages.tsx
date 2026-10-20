@@ -9,6 +9,7 @@ import SaveButton from '@/components/reader/SaveButton';
 import {familyTabs} from '@/lib/report-navigation';
 import {liveCoverageNotes} from '@/components/LiveCoverageNotice';
 import { VideoCommentSummary } from '@/components/VideoCommentSummary';
+import { COMMENTS_PUBLISHED } from '@/lib/comments-launch';
 import { TagFilters } from '@/components/TagFilters';
 import { VideoAnalytics } from '@/components/VideoAnalytics';
 import { PromptPreview } from '@/components/PromptPreview';
@@ -278,7 +279,7 @@ export async function ReportPage({
                     />
                 </div>
                 <a className="my-4 block aspect-video w-full max-w-80" href={youtubeUrl(v.youtubeUrl)} target="_blank" rel="noopener noreferrer" aria-label="在 YouTube 開啟原始影片"><VideoThumbnail videoId={v.id} fill sizes="(max-width: 360px) 100vw, 320px"/></a>
-                <VideoCommentSummary summary={data.commentSummary} id={v.id} />
+                {COMMENTS_PUBLISHED && <VideoCommentSummary summary={data.commentSummary} id={v.id} />}
                 <SectionHeading title="觀看數觀測" />
                 {data.history.length ? (
                     <section className="panel">
