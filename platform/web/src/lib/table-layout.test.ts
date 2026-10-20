@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {COMMENTS_PUBLISHED} from './comments-launch';
 import {test} from 'node:test';
 import {createElement,type ReactElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
@@ -139,7 +140,9 @@ test('video row wraps the title below its small phone thumbnail; desktop stays i
  assert.match(html,new RegExp(anchor({class:videoName,title:longTitle,href:'/videos/AbCdEfGh123'})));
  assert.match(html,new RegExp(`<td>${anchor({class:'flex min-w-0 items-center gap-1.5 hover:underline',title:'來源頻道',href:'/channels/8'})}<span class="inline-flex shrink-0[^>]*>[\\s\\S]*?<span class="${clip}">來源頻道</span></a></td>`));
  // Collection status follows the counts inline instead of on a second line.
- assert.match(html,/— ／ 17<small class="ml-1.5">收錄未完成，顯示 YouTube<\/small>/);
+ if(COMMENTS_PUBLISHED)assert.match(html,/— ／ 17<small class="ml-1.5">收錄未完成，顯示 YouTube<\/small>/);
+ // Until comments are collected (issue #2) the cell is the plain YouTube count.
+ else{assert.match(html,/<td class="number">17<\/td>/);assert.doesNotMatch(html,/收錄/);}
  bodyRows(html).forEach(assertVideoIdentityRow);
 });
 

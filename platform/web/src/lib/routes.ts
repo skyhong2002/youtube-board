@@ -1,3 +1,4 @@
+import { COMMENTS_PUBLISHED, isCommentPage } from "./comments-launch";
 export interface ReportRoute {
     title: string;
     description: string;
@@ -43,6 +44,7 @@ export function numericAiDailyEventId(pathname: string): string | null {
 
 /** Resolve already-decoded opaque path segments; encode only when building URLs. */
 export function resolveRoute(segments: string[]): ReportRoute | null {
+    if (!COMMENTS_PUBLISHED && isCommentPage(segments)) return null;
     const [family, id, section] = segments;
     const path = segments.map(encodeURIComponent).join("/");
     // Match route structure without treating an encoded slash inside a term as a separator.

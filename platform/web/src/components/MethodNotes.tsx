@@ -3,6 +3,7 @@ import {DESCRIPTION_TEMPLATE_NOTE,DISPLAY_EXCLUSION_NOTE,INSUFFICIENT,MATCH_CAVE
 import {MASTHEAD_WORDS} from '@/lib/masthead-cloud';
 import {inlineLink,methodHeading,methodList,methodTerm} from './method/styles';
 import {CANDIDATE_LIST_VERSION} from '../../../shared/city-definitions';
+import {COMMENTS_PUBLISHED} from '@/lib/comments-launch';
 
 // 資料來源與計算方式, one block per part of the site, as tag.observe.tw MethodNotes.
 // /about shows them all; PageMethod under each page shows only the blocks for that
@@ -60,10 +61,10 @@ export function VideoMethod(){
   <MethodTerms rows={[
    ['公開統計','觀看、喜歡與留言總數是取得當時的 YouTube 公開統計，不是即時數值；各項統計的觀測時間可能不同。「資料最後記錄」是影片資料的記錄時間，不代表觀看、喜歡或留言都在那時重新觀測。'],
    ['觀看歷史','圖上每個點是實際儲存的觀測，連線只為方便閱讀，不代表中間時間的測量值；沒有歷史觀測時不建立時間序列。'],
-   ['留言','「YouTube 留言總數」是來源公開統計；「本站留言收錄」只計本站保存並成功解析的留言與回覆，兩者不相等，也不推算未收錄的留言。頻道影片列表在完整收錄時顯示本機留言數，否則顯示 YouTube 留言觀測，排序仍依 YouTube 原始統計；作者、回覆與留言獲讚只呈現完整批次。'],
+   ...COMMENTS_PUBLISHED?[['留言','「YouTube 留言總數」是來源公開統計；「本站留言收錄」只計本站保存並成功解析的留言與回覆，兩者不相等，也不推算未收錄的留言。頻道影片列表在完整收錄時顯示本機留言數，否則顯示 YouTube 留言觀測，排序仍依 YouTube 原始統計；作者、回覆與留言獲讚只呈現完整批次。'] as [string,string]]:[],
    ['喜歡占互動','喜歡 ÷（喜歡＋不喜歡＋顯示留言），任一來源缺值時不估算。'],
    ['字幕','只記錄來源是否提供字幕，尚未擷取逐字稿，因此字幕不列入標籤比對。'],
-   ['觀測分析','直播逐時／逐日最高同時在線取自所讀直播紀錄；留言時間分布與帳號排名只涵蓋可解析的留言。讀取上限、略過與解析失敗的筆數列在「資料涵蓋範圍與解析限制」。'],
+   ['觀測分析','直播逐時／逐日最高同時在線取自所讀直播紀錄；'+(COMMENTS_PUBLISHED?'留言時間分布與帳號排名只涵蓋可解析的留言。':'')+'讀取上限、略過與解析失敗的筆數列在「資料涵蓋範圍與解析限制」。'],
   ]}/>
  </>;
 }
