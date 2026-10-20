@@ -26,6 +26,9 @@ const config: NextConfig = {
             { source: "/manage/:path*", destination: "/admin/:path*", permanent: true },
             // Event/channel curation is hidden (not used, production writes off); temporary so it can return.
             { source: "/admin/editorial", destination: "/admin", permanent: false },
+            // Editorial events are not curated, so the timeline is always empty; temporary so it can return.
+            { source: "/events", destination: "/ai/days", permanent: false },
+            { source: "/events/:path*", destination: "/ai/days", permanent: false },
         ];
     },
     async rewrites() {

@@ -55,6 +55,10 @@ export async function ExpandedReport({
         rejectMalformedPayload();
         return <Unavailable status={502} title={title} />;
     }
+    // Keyword clouds and day rankings are precomputed only for the top of the /keywords ranking
+    // (runtime/schedules.report-caches.json); say so instead of a generic "no data".
+    const uncachedKeyword = /^\/keywords\/[^/]+\/(cloud|days)$/.test(path) && !data.rows.length && !data.words?.length && !data.sections?.some((section) => section.rows.length);
+    const keywordEmpty = { title: "這個關鍵字沒有預先計算的報表", description: "文字雲與逐日排行只為「標籤與關鍵字」排行前 50 名預先計算，每天更新兩次。這不代表來源沒有相關影片。" };
     const mayorCity = path === "/mayor" ? String((Array.isArray(search.city) ? search.city[0] : search.city) || "taipei").trim().toLowerCase() : path.match(/^\/mayor\/cities\/([^/]+)$/)?.[1]?.toLowerCase();
     const filters = data.filters || [],
         known = new Set(filters.map((filter) => filter.key));
@@ -231,7 +235,7 @@ export async function ExpandedReport({
             {data.sections?.map((section, index) => (
                 <section key={`${section.title}-${index}`}>
                     <SectionHeading title={section.title} />
-                    {section.rows.length ? <ReportTable columns={section.columns} rows={section.rows} label={section.title} showMobileScrollHint={Boolean(mayorCity)}/> : <Empty title="這個項目尚無觀測資料" />}
+                    {section.rows.length ? <ReportTable columns={section.columns} rows={section.rows} label={section.title} showMobileScrollHint={Boolean(mayorCity)}/> : <Empty {...(uncachedKeyword ? keywordEmpty : { title: "這個項目尚無觀測資料" })} />}
                 </section>
             ))}
             {data.rows.length > 0 ? (
@@ -242,8 +246,9 @@ export async function ExpandedReport({
                 </>
             ) : !data.words?.length &&
               !data.series?.some((series) => series.points.length) ? (
-                <Empty />
+                uncachedKeyword && data.sections?.length ? null : <Empty {...(uncachedKeyword ? keywordEmpty : {})} />
             ) : null}
+            {uncachedKeyword && <p className="text-sm"><Link className="text-brand-700 hover:underline dark:text-brand-400" href="/keywords">查看關鍵字排行 →</Link></p>}
             <Pagination collection={data} search={search} path={path} />
             <ReportMethod path={path} description={data.description} meta={meta} notes={[...(data.notes ?? []), ...(family === 'live' ? liveCoverageNotes(meta.coverage) : [])]} />
         </>

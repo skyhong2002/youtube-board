@@ -6,7 +6,6 @@ import {
     CloudMethod,
     CommentMethod,
     CompareTitlesMethod,
-    EventsMethod,
     GroupMethod,
     HomeMethod,
     KeywordMethod,
@@ -36,7 +35,6 @@ const GROUPS: Array<{ id: string; title: string; pages?: Array<[string, string]>
     { id: "groups", title: "頻道群組", pages: [["/groups", "頻道群組"]], body: <GroupMethod /> },
     { id: "mayor", title: "地方選戰", pages: [["/mayor", "選戰"]], body: <MayorMethod /> },
     { id: "comments", title: "留言", body: <CommentMethod /> },
-    { id: "events", title: "事件時間軸", pages: [["/events", "事件時間軸"]], body: <EventsMethod /> },
     { id: "boards", title: "自訂看板", pages: [["/boards", "我的看板"]], body: <BoardsMethod /> },
     {
         id: "about",

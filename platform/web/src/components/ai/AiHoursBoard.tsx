@@ -81,7 +81,7 @@ export async function AiHoursBoard({apiPath,path,search,title}:{apiPath:string;p
                 <SectionTabs label="日期" tabs={[
                     {href:dateHref(prev),label:`← ${prev}`},
                     ...(date?[{href:dateHref(date),label:date,current:true}]:[]),
-                    {href:dateHref(next),label:`${next} →`},
+                    ...(next<=taipeiToday()?[{href:dateHref(next),label:`${next} →`}]:[]),
                 ]}/>
                 <SectionTabs label="條件" tabs={AI_DAILY_CONDITIONS.map(([key,label])=>({href:pageHref(path,search,{condition:key==="all"?null:key}),label,current:condition===key}))}/>
             </div>

@@ -27,8 +27,14 @@ export function registerGroups(register: Register, reader: Reader, clock: () => 
     register('/groups/:name', async (p, q) => {
         p = {...p, name:p.name!.trim()};
         const definition = Object.hasOwn(groupDefinitions, p.name) ? groupDefinitions[p.name] : undefined;
-        if (definition)
-            return table(definition.label, [{ key: 'name', label: '分組' }, { key: 'filter', label: '分類條件' }], definition.groups.map(g => ({ name: link(g.name, `/channels?${new URLSearchParams(g.filters)}`), filter: new URLSearchParams(g.filters).toString() })), q);
+        if (definition) {
+            // Show the category condition by name ("包含任一：社論、泛藍"), not as an encoded query string.
+            const ids = [...new Set(definition.groups.flatMap(g => Object.values(g.filters).flatMap(v => String(v).split(',')).map(Number).filter(n => Number.isSafeInteger(n) && n > 0)))];
+            const names = new Map(ids.length ? (await reader.rows(sql `SELECT tag_id,tag_name FROM urt_tag WHERE tag_id IN (${sql.join(ids.map(id => sql `${id}`), sql `,`)}) ORDER BY tag_id`)).map(r => [integer(r.tag_id) ?? 0, text(r.tag_name)] as const) : []);
+            const label = (value: string) => String(value).split(',').map(id => names.get(Number(id)) || `分類 #${id}`).join('、');
+            const describe = (filters: Record<string, string>) => [['tagid', '全部包含'], ['or', '包含任一'], ['not', '排除']].flatMap(([key, prefix]) => filters[key!] ? [`${prefix}：${label(filters[key!]!)}`] : []).join('；') || '全部頻道';
+            return table(definition.label, [{ key: 'name', label: '分組' }, { key: 'filter', label: '分類條件' }], definition.groups.map(g => ({ name: link(g.name, `/channels?${new URLSearchParams(g.filters)}`), filter: describe(g.filters) })), q);
+        }
         const records = await reader.rows(sql `SELECT tag,latest_time FROM tag_group WHERE group_name=${p.name} AND (del_flag IS NULL OR del_flag<'1') ORDER BY latest_time DESC,tag LIMIT 10001`);
         if (records.length > 10000) throw Object.assign(new Error('Group exceeds 10000 terms.'), {statusCode:422});
         const configured = Object.hasOwn(contentGroups, p.name) ? contentGroups[p.name] : undefined;

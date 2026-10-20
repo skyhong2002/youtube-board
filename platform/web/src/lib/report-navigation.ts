@@ -70,7 +70,6 @@ export function familyTabs(path:string,search:Search={},coverage?:ReportMeta['co
  const tabs=parts.map(([part,label])=>({href:reportHref(base+(part?'/'+part:''),search,path),label}));
  // /groups/:name/live has content tag-set semantics; taxonomy groups link to their hourly live report.
  if(family==='groups'&&id&&Object.hasOwn(groupDefinitions,id))tabs.push({href:reportHref(`/live/groups/${encodeURIComponent(id)}/hours`,search,path),label:'每小時直播'});
- if(family==='ai')tabs.push({href:'/events',label:'事件時間軸'});
  if(family==='keywords'&&id)tabs.push({href:'/compare/titles',label:'標題寫法'});
  if(family==='tags'||family==='keywords'&&id)tabs.push({href:reportHref('/tags/compare',{...search,...(family==='keywords'?{tags:decodeSegment(id!)}:/^\d+$/.test(id??'')?{tagid:[...new Set([id!,...(scalar(search.tagid)||'').split(',').filter(Boolean)])].join(',')}:{})},path),label:'詞彙比較'});
  return tabs;
