@@ -12,20 +12,21 @@ export function compact(value: number | null | undefined) {
         return `${number.format(Math.round(value / 100) / 100)} 萬`;
     return number.format(value);
 }
+/** Taipei date-time as 「2026/10/21 上午05:01」 (date only: 「2026/10/21」). Built from numeric parts:
+ * Node's and browsers' ICU data put different spaces into zh-TW output, which broke hydration. */
 export function dateTime(value: string | null | undefined, dateOnly = false) {
     if (!value) return "未記錄";
     const date = new Date(
         /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00+08:00` : value,
     );
     if (!Number.isFinite(date.getTime())) return "未記錄";
-    return new Intl.DateTimeFormat("zh-TW", {
-        timeZone: "Asia/Taipei",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        ...(dateOnly ? {} : { hour: "2-digit", minute: "2-digit" }),
-    }).format(date);
+    const p = Object.fromEntries(taipeiParts.formatToParts(date).map((part) => [part.type, part.value]));
+    const day = `${p.year}/${p.month}/${p.day}`;
+    if (dateOnly) return day;
+    const hour = Number(p.hour);
+    return `${day} ${hour < 12 ? "上午" : "下午"}${String(hour % 12 || 12).padStart(2, "0")}:${p.minute}`;
 }
+const taipeiParts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 /** Taipei calendar date (YYYY-MM-DD) for a date-only value or an ISO instant such as the API's UTC `...Z` timestamps. */
 export function taipeiCalendarDate(value: string | null | undefined): string {
     if (!value) return "";
