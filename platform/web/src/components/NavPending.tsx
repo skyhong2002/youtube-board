@@ -2,7 +2,7 @@
 
 import { useLinkStatus } from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { createContext, useContext, useEffect, useId } from 'react';
+import { createContext, useContext, useEffect, useId, useState } from 'react';
 
 // Header links report their pending navigation here so one loading bar can run
 // along the header's bottom edge, even when the link sat in the closed mobile menu.
@@ -84,5 +84,26 @@ export function NavProgressBar({ pending }: { pending: boolean }) {
     >
       <span className="nav-progress block h-full w-2/5 bg-brand-600 dark:bg-brand-400" />
     </span>
+  );
+}
+
+// A navigation still running after a few seconds is usually a page computed for the first time
+// (cold cache, up to the 12 s API read). Say so, so the long wait does not read as a broken site.
+const SLOW_NAVIGATION_MS = 3000;
+export function SlowNavigationHint({ pending }: { pending: boolean }) {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!pending) { setSlow(false); return; }
+    const timer = setTimeout(() => setSlow(true), SLOW_NAVIGATION_MS);
+    return () => clearTimeout(timer);
+  }, [pending]);
+  return (
+    <div aria-live="polite" className="pointer-events-none absolute inset-x-0 top-full flex justify-center px-4 pt-2">
+      {slow && (
+        <p className="rounded-full border border-zinc-200 bg-white/95 px-4 py-1.5 text-xs text-zinc-700 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/95 dark:text-zinc-300">
+          這一頁正在計算資料，第一次開啟可能需要十幾秒，請稍候⋯
+        </p>
+      )}
+    </div>
   );
 }
