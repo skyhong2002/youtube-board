@@ -828,6 +828,9 @@
         "urt_channel": [
           "SELECT"
         ],
+        "tags": [
+          "SELECT"
+        ],
         "urt_count": [
           "SELECT"
         ],

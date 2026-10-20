@@ -9,6 +9,7 @@ export * from './video-durations.js';
 export * from './comments.js';
 export * from './report-caches.js';
 export * from './people-cache.js';
+export * from './mayor-candidates.js';
 export * from './maintenance-caches.js';
 export * from './photos-predictions.js';
 export * from './group-status.js';

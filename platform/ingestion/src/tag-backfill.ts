@@ -8,6 +8,8 @@ export interface TagSelection { tagIds: number[]; orTagIds?: number[]; notTagIds
 export interface TagDictionary {
   version: string; coverage: string; rule: string;
   match(title: string, description: string): { term: string; field: 'title' | 'description' }[];
+  /** Score divisor per term; absent means 1 (the vocabulary builders). */
+  divisor?(term: string): number;
 }
 export interface BackfillInput extends TagSelection { from: string; to: string; channelLimit: number; maxPages: number; maxResults: number; videoLimit: number; rebuildCache: boolean }
 function normalized(values: number[] = []): number[] { if (values.length > 20 || values.some(v => !Number.isSafeInteger(v) || v < 1)) throw new Error('Tag IDs require 1–20 positive integers'); const normalized = [...new Set(values)].sort((a, b) => a - b); if (normalized.join(',').length > 64) throw new Error('Tag selection exceeds legacy cache key capacity'); return normalized; }

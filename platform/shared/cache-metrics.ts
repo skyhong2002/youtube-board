@@ -19,8 +19,9 @@ export function tagMetricsAccumulator() {
       for (const item of video.matches) matched.set(item.term, (matched.get(item.term) ?? 0) + (item.field === 'title' ? 2 : 1));
       for (const [term, occurrences] of matched) { counts.set(term, (counts.get(term) ?? 0) + occurrences); videoCounts.set(term, (videoCounts.get(term) ?? 0) + 1); views.set(term, safeSum(views.get(term) ?? 0, count)); countTags += occurrences; }
     },
-    result() {
-      const score = [...counts].map(([tag, count]) => [tag, count * (Math.log(Array.from(tag).length + 0.5) - 0.5)] as const).filter(([, value]) => value > 0).sort((a, b) => b[1] - a[1]);
+    /** `divisor` reproduces Laravel's keyword-subset builds, which divide each score by the term's `tags.max_count + 0.5`. */
+    result(divisor: (term: string) => number = () => 1) {
+      const score = [...counts].map(([tag, count]) => [tag, count * (Math.log(Array.from(tag).length + 0.5) - 0.5) / divisor(tag)] as const).filter(([, value]) => value > 0).sort((a, b) => b[1] - a[1]);
       return { unknown_view_videos: unknownViews, count_videos: videos, count_tags: countTags, total_views: totalViews, tags_count: score.length, tags_result: Object.fromEntries(score.map(([tag, value]) => [tag, value.toFixed(3)])), tags_video: Object.fromEntries([...videoCounts].sort((a, b) => b[1] - a[1])), tags_views: Object.fromEntries([...views].sort((a, b) => b[1] - a[1])) };
     },
   };

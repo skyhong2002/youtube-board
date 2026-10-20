@@ -82,7 +82,7 @@ export async function withReportLineage(ctx:CacheContext,table:string,keys:Recor
   await write(at);
   await ctx.db.execute('UPDATE ts_report_cache_lineage SET status=? WHERE cache_table=? AND cache_key=?',['published',table,key]);
 }
-const streamMetrics=(dictionary:TagDictionary)=>{const acc=tagMetricsAccumulator();return {acc,visit:(v:RowDataPacket)=>acc.add({viewCount:v.viewCount,matches:dictionary.match(String(v.title??''),String(v.description??''))})};};
+const streamMetrics=(dictionary:TagDictionary)=>{const inner=tagMetricsAccumulator(),acc={...inner,result:()=>inner.result(dictionary.divisor?.bind(dictionary))};return {acc,visit:(v:RowDataPacket)=>acc.add({viewCount:v.viewCount,matches:dictionary.match(String(v.title??''),String(v.description??''))})};};
 /** Laravel TagDateCacheBuilder: urt_count channel markers, one row per calendar date, and a date over the per-date
  * video cap (or a channel cap overflow) is blocked on its own while the other dates still publish. */
 export async function tagDateCacheJob(ctx:CacheContext,input:CacheInput&{dateLimit?:number},dictionary:TagDictionary) {

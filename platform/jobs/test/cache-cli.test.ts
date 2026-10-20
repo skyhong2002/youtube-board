@@ -37,6 +37,9 @@ it('Laravel batch-1 command lines validate with Laravel clamps and defaults',()=
  // Tag date keeps Laravel per-date caps and accepts --date-limit.
  expect(validateCacheArguments(['reports:tag-date:build','--tagid=1','--days=2','--date-limit=400','--channel-limit=1000','--video-limit=10000','--execute'],now).input).toMatchObject({from:'2026-10-11',to:'2026-10-12'});
  expect(()=>validateCacheArguments(['reports:tag-date:build','--date-limit=401'],now)).toThrow();
+ expect(validateCacheArguments(['reports:tag-date:build','--tagid=4','--days=8','--keyword-set=mayor-candidates','--execute'],now).options.get('keyword-set')).toBe('mayor-candidates');
+ for(const extra of [['--tagid=3,4'],['--tagid=3','--or=1'],['--tagid=3','--vocabulary-version=v1'],[]])expect(()=>validateCacheArguments(['reports:tag-date:build',...extra,'--keyword-set=mayor-candidates'],now)).toThrow('Mayor candidate');
+ expect(()=>validateCacheArguments(['reports:tag-date:build','--tagid=3','--keyword-set=all'],now)).toThrow('Mayor candidate');
  // People: scheduled Laravel rotation (5 names, offset=auto) is the default.
  expect(validateCacheArguments(['reports:people:build','--execute','--limit=5','--offset=auto','--days=37','--tagid=13','--keyword-limit=5000'],now)).toMatchObject({limit:5,offset:'auto',input:{tagIds:[13],days:37}});
  expect(validateCacheArguments(['reports:people:build','--channel-limit=1000','--days=37','--tagid=13','--video-limit=10000','--execute'],now)).toMatchObject({limit:5,offset:'auto',input:{channelLimit:1000,videoLimit:10000}});
