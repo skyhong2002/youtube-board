@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "timezone": "Asia/Taipei",
+  "schedules": [
+    {
+      "id": "report-caches-tag-cloud-each-v1",
+      "workflow": "reports.tag_cloud.build",
+      "cron": "5 16,20 * * *",
+      "options": {
+        "each-tagid": "all",
+        "exclude-tagid": "1",
+        "days": "1,3,7,30,90",
+        "channel-limit": 1000,
+        "video-limit": 600000
+      }
+    },
+    {
+      "id": "report-caches-tag-cloud-all-channels-v1",
+      "workflow": "reports.tag_cloud.build",
+      "cron": "6 16,20 * * *",
+      "options": {
+        "days": "1,3,7,30,90",
+        "channel-limit": 5000,
+        "video-limit": 1000000
+      }
+    },
+    {
+      "id": "report-caches-tag-date-each-v1",
+      "workflow": "reports.tag_date.build",
+      "cron": "7 16,20 * * *",
+      "options": {
+        "each-tagid": "all",
+        "exclude-tagid": "1,3,4,5,6,13,102",
+        "days": 8,
+        "channel-limit": 1000,
+        "video-limit": 10000
+      }
+    },
+    {
+      "id": "report-caches-tag-date-all-channels-v1",
+      "workflow": "reports.tag_date.build",
+      "cron": "8 16,20 * * *",
+      "options": {
+        "days": 8,
+        "channel-limit": 5000,
+        "video-limit": 20000
+      }
+    },
+    {
+      "id": "report-caches-channel-cloud-3-v1",
+      "workflow": "reports.channel_cloud.build",
+      "cron": "9 16,20 * * *",
+      "options": {
+        "days": 3,
+        "channel-limit": 5000,
+        "video-limit": 100000
+      }
+    },
+    {
+      "id": "report-caches-channel-cloud-7-v1",
+      "workflow": "reports.channel_cloud.build",
+      "cron": "10 16,20 * * *",
+      "options": {
+        "days": 7,
+        "channel-limit": 5000,
+        "video-limit": 100000
+      }
+    },
+    {
+      "id": "report-caches-keyword-cloud-7-v1",
+      "workflow": "reports.keyword_cloud.build",
+      "cron": "11 16,20 * * *",
+      "options": {
+        "top-subjects": 50,
+        "days": 7,
+        "channel-limit": 5000,
+        "video-limit": 1000000
+      }
+    },
+    {
+      "id": "report-caches-keyword-cloud-30-v1",
+      "workflow": "reports.keyword_cloud.build",
+      "cron": "12 16,20 * * *",
+      "options": {
+        "top-subjects": 50,
+        "days": 30,
+        "channel-limit": 5000,
+        "video-limit": 1000000
+      }
+    },
+    {
+      "id": "report-caches-keyword-relations-v1",
+      "workflow": "reports.keyword_relations.build",
+      "cron": "13 16,20 * * *",
+      "options": {
+        "top-subjects": 50,
+        "days": 8,
+        "channel-limit": 5000,
+        "video-limit": 20000
+      }
+    }
+  ]
+}

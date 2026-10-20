@@ -5,7 +5,7 @@ import {batchProfile,workerProfile,workerSchema} from '../../shared/worker-schem
 import {assertQueueJob,consumerQueue,queueMode,schedulerNamespace,statusQueues,workflowQueueName} from '../src/queue-scope.js';
 
 const expected={
- cache:['reports.counts.build','reports.people.build','reports.tag_cloud.build','reports.tag_date.build','reports.keywords.cache','reports.schedule.build','reports.live.build','reports.live.clean','tags.videos.match.recent','channels.avatars.refresh'],
+ cache:['reports.counts.build','reports.people.build','reports.tag_cloud.build','reports.tag_date.build','reports.keywords.cache','reports.schedule.build','reports.live.build','reports.live.clean','reports.channel_cloud.build','reports.keyword_cloud.build','reports.keyword_relations.build','tags.videos.match.recent','channels.avatars.refresh'],
  'youtube-source':['youtube.channels.stats','youtube.channels.videos.general','youtube.channels.videos.live','youtube.channels.videos.live_group','youtube.tvbs.videos','youtube.videos.stats','youtube.videos.duration','youtube.live.cleanup','youtube.tag_videos.backfill'],
  'youtube-live':['youtube.live.poll','youtube.tvbs.live.poll'],
  comments:['youtube.comments.queue','youtube.comments.fetch'],
@@ -23,7 +23,8 @@ describe('worker batch registry',()=>{
   const all=workerBatchIds.flatMap(b=>workerBatches[b]);expect(new Set(all).size).toBe(all.length);
   for(const workflow of all){expect(registeredWorkflows,workflow).toContain(workflow);expect(()=>workerProfile(workflow)).not.toThrow();expect(workflowBatch(workflow)).toBe(workerBatchIds.find(b=>workerBatches[b].includes(workflow)));}
   // Operator-only repairs, vocabulary synchronization and retired Laravel jobs are never batch-routed.
-  for(const workflow of ['youtube.comments.reset','youtube.channels.adopt','youtube.channels.retire','tags.vocabulary.sync','tags.vocabulary.import','reports.groups.build','reports.channel_cloud.build','reports.keywords.build','__proto__'])expect(workflowBatch(workflow),workflow).toBeNull();
+  // reports.channel_cloud.build was retired with Laravel but came back on 2026-10-20 to fill the empty channel clouds.
+  for(const workflow of ['youtube.comments.reset','youtube.channels.adopt','youtube.channels.retire','tags.vocabulary.sync','tags.vocabulary.import','reports.groups.build','reports.keywords.build','__proto__'])expect(workflowBatch(workflow),workflow).toBeNull();
   for(const bad of ['unknown','__proto__','toString','Cache',''])expect(()=>batchWorkflows(bad)).toThrow('Unknown worker batch');
   expect(Object.isFrozen(workerBatches)&&Object.isFrozen(workerBatches.cache)).toBe(true);
  });

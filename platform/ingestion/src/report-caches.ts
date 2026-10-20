@@ -1,4 +1,4 @@
-import {keywordCloudFromEvidence,keywordDayFromEvidence,tagMetricsAccumulator} from '../../shared/cache-metrics.js';
+import {keywordCloudFromEvidence,keywordDayFromEvidence,tagMetricsAccumulator,type MetricVideo} from '../../shared/cache-metrics.js';
 import { reportCacheKey } from '../../shared/report-cache-key.js';
 import type { Connection, RowDataPacket } from 'mysql2/promise';
 import { cap, activeChannel } from './channel-jobs.js';
@@ -6,7 +6,7 @@ import { jsonMap, legacyInstant, selectOne, taipeiSql, update, upsert, whereKeys
 import { tagMetrics, type TagDictionary, type TagSelection } from './tag-backfill.js';
 import { unsigned } from './youtube.js';
 export interface CacheContext { db: Connection; now: Date; execute: boolean; assertOwnership(): Promise<void> }
-export interface CacheInput extends TagSelection { from: string; to: string; days: number; channelLimit: number; videoLimit: number; uId?: number; subject?: string }
+export interface CacheInput extends TagSelection { from: string; to: string; days: number; channelLimit: number; videoLimit: number; uId?: number; subject?: string; subjects?: string[] }
 export const dateKeys = (input: TagSelection) => ({ tagid: input.tagIds.length ? input.tagIds.join(',') : null, tag_or: input.orTagIds?.length ? input.orTagIds.join(',') : null, tag_not: input.notTagIds?.length ? input.notTagIds.join(',') : null });
 export const selectionKey = (input: TagSelection) => JSON.stringify([input.tagIds,input.orTagIds ?? [],input.notTagIds ?? []]);
 export function daysBetween(from: string, to: string) { const output: string[] = []; for (const d of [from,to]) if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !Number.isFinite(Date.parse(d)) || new Date(d).toISOString().slice(0,10) !== d) throw new Error('Invalid cache date'); const count = (Date.parse(to)-Date.parse(from))/86400000+1; cap(count,366); for(let i=0;i<count;i++) output.push(new Date(Date.parse(from)+i*86400000).toISOString().slice(0,10)); return output; }
@@ -16,8 +16,11 @@ export function validateCacheInput(input: CacheInput) {
   daysBetween(input.from,input.to); cap(input.days,366); cap(input.channelLimit,5000); cap(input.videoLimit,STREAM_VIDEO_LIMIT);
   if (input.uId !== undefined) cap(input.uId,2147483647);
   for(const values of [input.tagIds,input.orTagIds ?? [],input.notTagIds ?? []]) if(values.length>20 || values.some(v=>!Number.isSafeInteger(v)||v<1||v>2147483647) || values.join(',').length>64 || [...new Set(values)].sort((a,b)=>a-b).join(',')!==values.join(',')) throw new Error('Cache taxonomy must be sorted unique bounded IDs');
-  if(input.subject !== undefined && (!input.subject || [...input.subject].length>32 || /[\uD800-\uDFFF]/u.test(input.subject))) throw new Error('Invalid cache subject');
+  for(const subject of [...(input.subject!==undefined?[input.subject]:[]),...(input.subjects??[])]) if(!subject || [...subject].length>32 || /[\uD800-\uDFFF]/u.test(subject)) throw new Error('Invalid cache subject');
+  if(input.subjects !== undefined && (input.subject !== undefined || !input.subjects.length || input.subjects.length>100 || new Set(input.subjects).size!==input.subjects.length)) throw new Error('Cache subjects must be 1-100 unique terms without a single subject');
 }
+/** One explicit subject, or the ranked subject list a scheduled run resolved; each one publishes its own cache row. */
+export const cacheSubjects = (input: CacheInput) => input.subjects ?? (input.subject !== undefined ? [input.subject] : []);
 export async function cacheChannels(ctx:CacheContext,input:CacheInput) {
   validateCacheInput(input); const clauses=[activeChannel], params:unknown[]=[];
   if(input.uId) { clauses.push('c.u_id=?');params.push(input.uId); }
@@ -123,32 +126,48 @@ export async function tagCloudCacheJob(ctx:CacheContext,input:CacheInput,daysLis
 /** Channel and keyword clouds; the category tag cloud (urt_show_tag_cloud) is tagCloudCacheJob with Laravel rolling windows. */
 export async function cloudCacheJob(ctx:CacheContext,input:CacheInput,dictionary:TagDictionary,kind:'channel'|'keyword') {
   if(input.to!==taipeiSql(ctx.now).slice(0,10)||daysBetween(input.from,input.to).length!==input.days)throw new Error('Cloud identity requires the current canonical calendar window');
-  const channels=await cacheChannels(ctx,input),rows=await cacheVideos(ctx,input,channels); const batches=kind==='channel'?channels.map(uId=>({uId,rows:rows.filter(r=>Number(r.u_id)===uId)})):[{uId:0,rows}];
-  if(kind==='keyword'&&!input.subject)throw new Error('Keyword cloud requires subject');
+  if(kind==='keyword')return keywordCloudCacheJob(ctx,input,dictionary);
+  const channels=await cacheChannels(ctx,input),rows=await cacheVideos(ctx,input,channels),batches=channels.map(uId=>({uId,rows:rows.filter(r=>Number(r.u_id)===uId)}));
   for(const batch of batches) {
-    const filtered=kind==='keyword'?batch.rows.filter(r=>dictionary.match(r.title??'',r.description??'').some(m=>m.term===input.subject)):batch.rows;
-    const m=metrics(filtered,dictionary);
-    if(kind==='channel') await publishCache(ctx,'urt_show_cloud',{u_id:batch.uId,days:input.days},{keywords_json:JSON.stringify(m.tags_result)},dictionary,m.unknown_view_videos);
-    else {
-      const derived=keywordCloudFromEvidence(filtered.map(v=>({videoId:v.videoId,uId:Number(v.u_id),publishedAt:v.publishedAt,viewCount:v.viewCount,matches:dictionary.match(v.title??'',v.description??'')})),input.subject!);
-      const {unknown_view_videos,...values}=derived;
-      await publishCache(ctx,'urt_show_tag_cloud_tag',{...dateKeys(input),tag:input.subject!,days:input.days},{...values,tags_result:JSON.stringify(values.tags_result),videos_json:JSON.stringify(values.videos_json)},dictionary,unknown_view_videos);
-    }
+    const m=metrics(batch.rows,dictionary);
+    await publishCache(ctx,'urt_show_cloud',{u_id:batch.uId,days:input.days},{keywords_json:JSON.stringify(m.tags_result)},dictionary,m.unknown_view_videos);
   }
   return {mode:ctx.execute?'execute':'dry-run',selected:batches.length,applied:ctx.execute?batches.map(b=>b.uId):[],skipped:[],videos:rows.length};
 }
+/** Keyword clouds stream the window one day at a time (a 30-day all-channel window is over 100k videos) and
+ * match every video once, so one run fills the cloud of each ranked subject. */
+async function keywordCloudCacheJob(ctx:CacheContext,input:CacheInput,dictionary:TagDictionary) {
+  const subjects=cacheSubjects(input);if(!subjects.length)throw new Error('Keyword cloud requires subject');
+  const channels=await cacheChannels(ctx,input),selected=new Map(subjects.map(s=>[s,[] as MetricVideo[]]));
+  const scan=await scanVideos(ctx,channels,input.from+' 00:00:00',input.to+' 23:59:59',input.videoLimit,v=>{
+    const matches=dictionary.match(String(v.title??''),String(v.description??'')),terms=new Set(matches.map(m=>m.term));
+    for(const [subject,videos] of selected) if(terms.has(subject)) videos.push({videoId:String(v.videoId),uId:Number(v.u_id),publishedAt:v.publishedAt,viewCount:v.viewCount,matches});
+  });
+  if(scan.truncated)return {mode:ctx.execute?'execute':'dry-run',selected:0,applied:[],skipped:subjects.map(subject=>({subject,reason:'video_scan_limit_exceeded'})),videos:scan.count};
+  for(const [subject,videos] of selected) {
+    const {unknown_view_videos,...values}=keywordCloudFromEvidence(videos,subject);
+    await publishCache(ctx,'urt_show_tag_cloud_tag',{...dateKeys(input),tag:subject,days:input.days},{...values,tags_result:JSON.stringify(values.tags_result),videos_json:JSON.stringify(values.videos_json)},dictionary,unknown_view_videos);
+  }
+  return {mode:ctx.execute?'execute':'dry-run',selected:subjects.length,applied:ctx.execute?subjects:[],skipped:[],videos:scan.count};
+}
 export async function keywordRelationCacheJob(ctx:CacheContext,input:CacheInput,dictionary:TagDictionary) {
-  if(!input.subject)throw new Error('Relation cache requires explicit subject');
+  const subjects=cacheSubjects(input);if(!subjects.length)throw new Error('Relation cache requires explicit subject');
   // Legacy relation cache identity has no channel selection. Refuse poisoning global cache with a subset.
   if(input.uId||input.tagIds.length||input.orTagIds?.length||input.notTagIds?.length)throw new Error('Keyword relations require all active channels');
-  const channels=await cacheChannels(ctx,input),prepared=[];let preparedBytes=0;
+  const channels=await cacheChannels(ctx,input),days:{day:string;videos:MetricVideo[]}[]=[];
   for(const day of daysBetween(input.from,input.to)) {
-    const rows=await cacheVideos(ctx,input,channels,day,day),values=keywordDayFromEvidence(rows.map(v=>({videoId:v.videoId,uId:Number(v.u_id),publishedAt:v.publishedAt,viewCount:v.viewCount,matches:dictionary.match(v.title??'',v.description??'')})),input.subject);
-    prepared.push({day,values:{...values,videos_json:JSON.stringify(values.videos_json),tags_json:JSON.stringify(values.tags_json)}});
+    const rows=await cacheVideos(ctx,input,channels,day,day);
+    days.push({day,videos:rows.map(v=>({videoId:v.videoId,uId:Number(v.u_id),publishedAt:v.publishedAt,viewCount:v.viewCount,matches:dictionary.match(v.title??'',v.description??'')}))});
   }
-  for(const p of prepared){preparedBytes+=Buffer.byteLength(JSON.stringify(p.values));if(preparedBytes>16*1024*1024)throw new Error('Relation batch exceeds payload cap');}
-  for(const p of prepared)await publishCache(ctx,'urt_show_video_tag_date',{the_date:p.day,tag:input.subject},p.values,dictionary);
-  return {mode:ctx.execute?'execute':'dry-run',selected:prepared.length,applied:ctx.execute?prepared.map(p=>p.day):[],skipped:[]};
+  // The payload cap stays per subject: each subject's dates publish together or not at all. A ranked run
+  // skips an oversized subject and keeps going; an explicit single subject still fails the run.
+  const skipped:{subject:string;reason:string}[]=[];
+  for(const subject of subjects) {
+    const prepared=days.map(({day,videos})=>{const values=keywordDayFromEvidence(videos,subject);return {day,values:{...values,videos_json:JSON.stringify(values.videos_json),tags_json:JSON.stringify(values.tags_json)}};});
+    if(prepared.reduce((n,p)=>n+Buffer.byteLength(JSON.stringify(p.values)),0)>16*1024*1024){if(!input.subjects)throw new Error('Relation batch exceeds payload cap');skipped.push({subject,reason:'payload_cap_exceeded'});continue;}
+    for(const p of prepared)await publishCache(ctx,'urt_show_video_tag_date',{the_date:p.day,tag:subject},p.values,dictionary);
+  }
+  return {mode:ctx.execute?'execute':'dry-run',selected:days.length,applied:ctx.execute?days.map(d=>d.day):[],skipped,...(input.subjects?{subjects:subjects.length}:{})};
 }
 export async function tagMonthCacheJob(ctx:CacheContext,input:CacheInput,dictionary:TagDictionary) {
   validateCacheInput(input);if(!input.subject)throw new Error('Month cache requires subject');
