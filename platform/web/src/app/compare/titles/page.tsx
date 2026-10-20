@@ -9,6 +9,7 @@ import {
     type VideoData,
 } from "@/lib/api";
 import { first, dateTime } from "@/lib/format";
+import { reportStyle as ui } from "@/lib/report-styles";
 import { compareTitles, type TitlePiece } from "@/lib/headline";
 import { Heading, DataNotice, Unavailable } from "@/components/ReportUI";
 import { pageMetadata } from "@/lib/seo";
@@ -54,10 +55,11 @@ export default async function Compare({
                 meta={list.response.meta}
             />
             <DataNotice meta={list.response.meta} />
-            <form className="filters" action="/compare/titles">
-                <label style={{ flex: 1, minWidth: 0 }}>
+            {/* Same controls as the report filters; a long title must not widen the select past the column. */}
+            <form className={ui.form} action="/compare/titles">
+                <label className={`${ui.label} min-w-0 flex-1 basis-64`}>
                     左側影片
-                    <select name="left" required defaultValue={leftId || ""}>
+                    <select className={`${ui.input} w-full min-w-0`} name="left" required defaultValue={leftId || ""}>
                         <option value="">選擇影片</option>
                         {[...options.values()].map((row) => (
                             <option value={row.id} key={row.id}>
@@ -66,9 +68,9 @@ export default async function Compare({
                         ))}
                     </select>
                 </label>
-                <label style={{ flex: 1, minWidth: 0 }}>
+                <label className={`${ui.label} min-w-0 flex-1 basis-64`}>
                     右側影片
-                    <select name="right" required defaultValue={rightId || ""}>
+                    <select className={`${ui.input} w-full min-w-0`} name="right" required defaultValue={rightId || ""}>
                         <option value="">選擇影片</option>
                         {[...options.values()].map((row) => (
                             <option value={row.id} key={row.id}>
@@ -77,7 +79,7 @@ export default async function Compare({
                         ))}
                     </select>
                 </label>
-                <button className="button button-primary">比較</button>
+                <button className={ui.primary}>比較</button>
             </form>
             {(left && !left.ok) || (right && !right.ok) ? (
                 <p role="alert">部分影片無法取得，請重新選擇。</p>
