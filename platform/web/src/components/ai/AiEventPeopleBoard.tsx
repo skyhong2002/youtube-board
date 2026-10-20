@@ -24,7 +24,7 @@ function Person({row}:{row:PersonCard}){
         <Description text={row.description}/>
         {row.videos.length>0&&<ul className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5 text-xs" aria-label="引用影片">{row.videos.map((v,i)=><li className="flex min-w-0 items-center gap-1.5" key={i}>
             <ChannelAvatar avatar={v.source?.channelAvatar} title={v.media} size={16}/>
-            {v.videoId?<a className={ui.link} href={`https://www.youtube.com/watch?v=${v.videoId}`} target="_blank" rel="noopener noreferrer">{v.media||"YouTube"} · {v.videoId}</a>
+            {v.videoId?<a className={ui.link} href={`https://www.youtube.com/watch?v=${v.videoId}`} target="_blank" rel="noopener noreferrer">{v.media||"YouTube"} · <span className="tabular-nums">{v.videoId}</span><span className="sr-only">（另開視窗）</span> ↗</a>
                 :<span className="text-zinc-500 dark:text-zinc-400">{v.media||"YouTube"} · {v.rawId}{v.status&&`（${v.status}）`}</span>}
         </li>)}</ul>}
     </article>;

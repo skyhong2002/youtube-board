@@ -13,23 +13,25 @@ import {eventAnalysisNotes} from "@/components/EventAnalysis";
 
 const TITLE="議題來源影片牆",SOURCE_VIDEO_LIMIT=48;
 const KIND_LABELS:Record<AiEventWallVideo["kind"],string>={fact:"事實",opinion:"觀點",supporting:"支持者",opposing:"反對者",other:"其他觀點",source:"來源分組"};
-function Card({video}:{video:AiEventWallVideo}){
+function Card({video,kind=true}:{video:AiEventWallVideo;kind?:boolean}){
     const href=`https://www.youtube.com/watch?v=${video.videoId}`,id=video.source?.channelId,media=video.media||video.source?.channelTitle||"YouTube";
     return <article className="overflow-hidden rounded-xl border border-zinc-300 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         <a className="relative block aspect-video bg-zinc-100 dark:bg-zinc-800" href={href} target="_blank" rel="noopener noreferrer" tabIndex={-1} aria-hidden="true">
-            <VideoThumbnail videoId={video.videoId} title={video.title??video.label} fill sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw" className="rounded-none"/>
+            <VideoThumbnail videoId={video.videoId} title={video.title??video.label} fill sizes="(min-width: 1024px) 25vw, 50vw" className="rounded-none"/>
         </a>
-        <div className="space-y-2 p-3">
-            <h2 className="text-sm font-semibold leading-snug"><a className="hover:text-brand-700 hover:underline dark:hover:text-brand-400" href={href} target="_blank" rel="noopener noreferrer" title={video.title??undefined}>{video.label}</a></h2>
+        <div className="space-y-2 p-2.5 sm:p-3">
+            <h2 className="line-clamp-4 text-sm font-semibold leading-snug"><a className="hover:text-brand-700 hover:underline dark:hover:text-brand-400" href={href} target="_blank" rel="noopener noreferrer" title={[video.label,video.title].filter(Boolean).join("\n")}>{video.label}<span className="sr-only">（另開視窗）</span></a></h2>
             <div className="flex min-w-0 items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-400">
                 <ChannelAvatar className="shrink-0" avatar={video.source?.channelAvatar} title={media} size={16}/>
                 {id?<Link className="truncate hover:underline" href={`/channels/${id}`}>{media}</Link>:<span className="truncate">{media}</span>}
             </div>
-            <span className={ui.tag}>{KIND_LABELS[video.kind]}</span>
+            {kind&&<span className={ui.tag}>{KIND_LABELS[video.kind]}</span>}
         </div>
     </article>;
 }
-const Grid=({videos,label}:{videos:AiEventWallVideo[];label:string})=><section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label={label}>{videos.map(v=><Card key={v.videoId} video={v}/>)}</section>;
+// Two columns on phones, so a wall of 48+ videos is not one 220px-tall card per screen.
+// Under 「其他來源影片」 every card would repeat 「來源分組」; the heading already says it, so only other kinds keep the tag.
+const Grid=({videos,label,sourceKindShown=true}:{videos:AiEventWallVideo[];label:string;sourceKindShown?:boolean})=><section className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4" aria-label={label}>{videos.map(v=><Card key={v.videoId} video={v} kind={sourceKindShown||v.kind!=="source"}/>)}</section>;
 
 /** The Laravel /ai/events/{id}/wall layout: a thumbnail grid of the videos the event's AI
  * analyses cite, labelled with the cited headline, opinion or person and its source kind,
@@ -50,7 +52,7 @@ export async function AiEventWallBoard({apiPath,search,path}:{apiPath:string;sea
                 :<div className="rounded-lg border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">目前沒有 AI 事件分析引用的影片。</div>}
             {others.length>0&&<div>
                 <SectionHeading title={`其他來源影片（${count(data.sourceVideosTotal)}）`}/>
-                <Grid videos={others} label="其他來源影片"/>
+                <Grid videos={others} label="其他來源影片" sourceKindShown={false}/>
                 {data.sourceVideosTotal>others.length&&<p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">另有 {count(data.sourceVideosTotal-others.length)} 部來源影片未列出，可在議題分析頁的來源影片表查看。</p>}
             </div>}
         </div>
