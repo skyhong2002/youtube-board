@@ -13,7 +13,7 @@ const XML_TAIL = '</urlset>';
 const kinds = ['static','channels','videos','tags'] as const;
 type Kind = typeof kinds[number];
 const staticPaths = [
-    '/', '/videos', '/channels', '/tags', '/keywords', '/events', '/groups', '/mayor',
+    '/', '/videos', '/channels', '/tags', '/keywords', '/groups', '/mayor',
     '/ai/days', '/ai/hours', '/ai/periods', '/ai/aspects', '/live/current', '/live/channels',
     '/live/hours', '/live/tags', '/live/periods', '/live/trends/daily', '/compare/titles', '/about', '/api',
 ] as const;
@@ -162,7 +162,8 @@ export function createSitemaps(reader:Reader,options:SitemapOptions={}){
                 let query:SQL;
                 if(kind==='channels')query=sql`SELECT c.u_id AS cursor_id,c.u_id,c.mtime,c.ctime FROM urt_channel c WHERE c.u_id>${cursor} AND c.u_id<=${high} AND (c.flag_del IS NULL OR c.flag_del<1) ORDER BY c.u_id LIMIT ${batchSize}`;
                 else if(kind==='tags')query=sql`SELECT tag_id AS cursor_id,tag_id,mtime,ctime FROM urt_tag WHERE tag_id>${cursor} AND tag_id<=${high} AND (del_flag IS NULL OR del_flag<1) ORDER BY tag_id LIMIT ${batchSize}`;
-                else query=sql`SELECT v.pk AS cursor_id,v.pk,v.videoId,v.mtime,v.ctime FROM urt_video v WHERE v.pk>${cursor} AND v.pk<=${high} AND (v.title IS NULL OR v.title NOT IN ('Private video','Deleted video')) AND NOT EXISTS (SELECT 1 FROM urt_video newer WHERE newer.videoId=v.videoId AND BINARY newer.videoId=BINARY v.videoId AND newer.pk>v.pk) ORDER BY v.pk LIMIT ${batchSize}`;
+                // Only observed videos: an unobserved page is a noindex placeholder (web/src/lib/seo.ts unobservedVideo).
+                else query=sql`SELECT v.pk AS cursor_id,v.pk,v.videoId,v.mtime,v.ctime FROM urt_video v WHERE v.pk>${cursor} AND v.pk<=${high} AND (v.title IS NULL OR v.title NOT IN ('Private video','Deleted video')) AND v.viewCount IS NOT NULL AND NOT EXISTS (SELECT 1 FROM urt_video newer WHERE newer.videoId=v.videoId AND BINARY newer.videoId=BINARY v.videoId AND newer.pk>v.pk) ORDER BY v.pk LIMIT ${batchSize}`;
                 if(batches++>0&&pauseMs)await delay(pauseMs);
                 const rows=await read(query);
                 if(rows.length>batchSize)throw new DataQueryFailed('INVALID_SITEMAP_BATCH_SIZE');

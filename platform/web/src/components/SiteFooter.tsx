@@ -16,7 +16,6 @@ const COLUMNS: Array<{ label: string; links: FooterLink[] }> = [
     { href: METHOD_HREF, label: '資料來源與計算方式' },
     { href: '/vocabulary', label: '共同標籤詞彙' },
     { href: '/compare/titles', label: '影片標題用語比較' },
-    { href: '/events', label: '事件時間軸' },
     { href: '/live/walls/news', label: '直播電視牆' },
     { href: '/about/brand', label: '有影儀表板識別' },
     { href: '/observe/opt-out', label: '停用網站分析' },

@@ -8,7 +8,6 @@ const links = [
     ["/keywords", "標籤與關鍵字"],
     ["/groups", "頻道群組"],
     ["/boards", "我的看板"],
-    ["/events", "事件時間軸"],
 ];
 export function Navigation() {
     const pathname = usePathname();

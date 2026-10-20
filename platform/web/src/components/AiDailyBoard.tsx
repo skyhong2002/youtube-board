@@ -78,7 +78,7 @@ export function AiDailyBoard({data,dated}:{data:AiDaysData;dated:boolean}){
             <SectionTabs label="日期" tabs={[
                 {href:dayHref(prev,condition),label:`← ${prev}`},
                 ...(data.date?[{href:dayHref(data.date,condition),label:data.date,current:true}]:[]),
-                {href:dayHref(next,condition),label:`${next} →`},
+                ...(next<=taipeiToday()?[{href:dayHref(next,condition),label:`${next} →`}]:[]),
             ]}/>
             <SectionTabs label="條件" tabs={AI_DAILY_CONDITIONS.map(([key,label])=>({href:conditionHref(key),label,current:condition===key}))}/>
         </div>

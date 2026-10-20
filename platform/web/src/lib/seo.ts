@@ -119,9 +119,11 @@ export function reportDescription(route: ReportRoute, title: string, subject: Re
   if (subject?.kind === 'video' && subject.video.title) return clip(`${subject.video.channelTitle ? subject.video.channelTitle + '「' : '「'}${subject.video.title}」的觀看數、互動數與歷次公開觀測。`, 160);
   return clip(`${title}。${route.description || SITE_DESCRIPTION}`, 160);
 }
+/** A video the site never observed (no view count) renders only placeholders; keep it out of search indexes. */
+export const unobservedVideo = (subject: ReportSubject) => subject?.kind === 'video' && subject.video.views === null;
 export function reportMetadata(route: ReportRoute, segments: string[], subject: ReportSubject = null): Metadata {
   const title = reportTitle(route, segments, subject), path = reportCanonicalPath(segments);
-  return reportIndexable(route, segments)
+  return reportIndexable(route, segments) && !unobservedVideo(subject)
     ? pageMetadata({ title, description: reportDescription(route, title, subject), path })
     : filteredMetadata(title, path);
 }

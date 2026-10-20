@@ -8,6 +8,7 @@ import {api,type Search} from "@/lib/api";
 import {reportStyle as ui} from "@/lib/report-styles";
 import {count,dateTime} from "@/lib/format";
 import {blockedReason,omittedReason,promptCondition,promptFilters,promptHref,promptPeriod,promptPeriodHref,shiftDay,type OmittedMedia,type PromptMedia} from "@/lib/ai-day-prompt-preview";
+import {taipeiToday} from "@/lib/ai-hours-board";
 
 interface DayPrompt {title:string;promptVersion:string;prompt:string;schema:unknown;sourceCount:number;sourceLimit:number;omitted:number;bounds?:{min:number;max:number};blocked:string|null;period?:{from:string;to:string};media?:PromptMedia[];omittedMedia?:OmittedMedia[];notes:string[]}
 const conditionLabel=(key:string)=>AI_DAILY_CONDITIONS.find(([k])=>k===key)?.[1]??key;
@@ -60,7 +61,7 @@ export async function AiDayPromptBoard({apiPath,search,path}:{apiPath:string;sea
                     <SectionTabs label="日期" tabs={[
                         {href:promptHref(shiftDay(period.from,-1),condition,search),label:`← ${shiftDay(period.from,-1)}`},
                         {href:href(condition),label:period.custom?`${period.from} – ${period.to}`:period.from,current:true},
-                        {href:promptHref(shiftDay(period.to,1),condition,search),label:`${shiftDay(period.to,1)} →`},
+                        ...(shiftDay(period.to,1)<=taipeiToday()?[{href:promptHref(shiftDay(period.to,1),condition,search),label:`${shiftDay(period.to,1)} →`}]:[]),
                     ]}/>
                     <SectionTabs label="條件" tabs={AI_DAILY_CONDITIONS.map(([key,label])=>({href:href(key),label,current:condition===key}))}/>
                 </div>
