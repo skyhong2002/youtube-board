@@ -13,7 +13,9 @@ test('missing observations remain distinguishable from real zero in accessible c
  assert.match(renderToStaticMarkup(createElement(ObservationValue,{value:null})),/無觀測值/);
  assert.equal(renderToStaticMarkup(createElement(ObservationValue,{value:0})),'0');
  const html=renderToStaticMarkup(createElement(TimeChart,{points:[{time:'2026-10-10',value:null},{time:'2026-10-11',value:0}],label:'觀看觀測',unit:''}));
- assert.match(html,/無觀測值/);assert.match(html,/1 筆有效觀測/);assert.match(html,/scope="row"/);assert.match(html,/>數值<\/th>/);assert.match(html,/role="group" aria-label="圖表顯示範圍"/);
+ assert.match(html,/無觀測值/);assert.match(html,/1 筆有效觀測/);assert.match(html,/scope="row"/);assert.match(html,/>數值<\/th>/);assert.doesNotMatch(html,/圖表顯示範圍/,'a two-point series has no window to choose');
+ const long=renderToStaticMarkup(createElement(TimeChart,{points:Array.from({length:10},(_,i)=>({time:`2026-10-${String(i+1).padStart(2,'0')}`,value:i})),label:'觀看觀測',unit:''}));
+ assert.match(long,/role="group" aria-label="圖表顯示範圍"/);assert.match(long,/最近 7 點/);
 });
 test('merged event history retains the renamed source event and never pairs unrelated entries',()=>{
  const history={before:[{id:'merged',title:'原名'}],after:[{id:'merged',title:'新名'}]};

@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type {Search} from '@/lib/api';
 import {reportStyle as ui} from '@/lib/report-styles';
 import {taipeiCalendarDate} from '@/lib/format';
@@ -15,5 +16,7 @@ export function ComparisonControls({search,points}:{search:Search;points?:{time:
   <label className={ui.label}>結束日期<input className={ui.input} type="date" name="to" defaultValue={to} disabled={!to} required={!!to}/></label>
   <label className={ui.label}>度量<select className={ui.input} name="type" defaultValue={metric}><option value="tags_views">觀看引用</option><option value="tags_video">影片引用</option><option value="tags_result">重要度</option></select></label>
   {hidden(['tagid','or','not'])}<button className={ui.primary}>套用比較</button>
+  {/* Same pair as the other report forms: apply, and a way back to the default comparison. */}
+  <Link className={ui.button} href="/tags/compare">重設</Link>
  </form>;
 }

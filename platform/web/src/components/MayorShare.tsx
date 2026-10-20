@@ -34,7 +34,8 @@ export function mayorShares(series:Series[]){
 }
 /** The trend chart's y-axis: raw volume unless the URL asks for share. */
 type Search=Record<string,string|string[]|undefined>;
-const share=(value:number|null|undefined)=>value===null||value===undefined?'n/a':value.toFixed(1)+'%';
+// Missing values read 「—」 as on every other report page.
+const share=(value:number|null|undefined)=>value===null||value===undefined?'—':value.toFixed(1)+'%';
 export {MAYOR_EXPECTED_BUCKETS,coverageLabel,coverageSegments,mayorCoverage,type BucketCoverage} from '@/lib/bucket-coverage';
 
 /** Mayor pages render this twice: the share chart right after the filters, and the candidate cards below it. */
@@ -44,7 +45,7 @@ export function MayorShareLive(props:ShareProps){return <MayorShare {...props} v
 export function MayorShare({part,city,series,search,rows,view}:ShareProps&{view:View}){
  const blocs=cities[city]?.candidates??{},others=Object.keys(blocs).filter(name=>blocs[name]==='other'),color=(name:string,index:number)=>blocs[name]==='other'?OTHER_COLORS[others.indexOf(name)%OTHER_COLORS.length]!:BLOC_COLORS[blocs[name]??'']??FALLBACK[index%FALLBACK.length];
  const shares=mayorShares(series),dates=shares[0]?.points.map(p=>p.time)??[],coverage=mayorCoverage(rows,dates);
- // Latest date on which any candidate has a share; a missing candidate there stays n/a.
+ // Latest date on which any candidate has a share; a missing candidate there stays —.
  const lastIndex=(()=>{for(let i=dates.length-1;i>=0;i--)if(shares.some(s=>s.points[i]?.value!==null))return i;return -1;})();
  const last=lastIndex<0?undefined:{index:lastIndex},one=(key:string)=>{const value=search[key];return Array.isArray(value)?value[0]:value;};
  const lastCoverage=last?coverage[last.index]:undefined,incomplete=coverage.filter(c=>c.status!=='complete');
@@ -83,14 +84,14 @@ export function MayorShare({part,city,series,search,rows,view}:ShareProps&{view:
  return <section className="space-y-3" aria-label="候選人媒體聲量占比">
   <p role="status" className={`inline-flex rounded-full px-2.5 py-0.5 text-xs ${lastCoverage?.status==='complete'?'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300':'bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-200'}`}>{last?dates[last.index]:''} {coverageLabel(lastCoverage)}</p>
   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{series.map((s,i)=>{
-   const date=last?dates[last.index]:undefined,trend=new URLSearchParams({tagid:MAYOR_TAGIDS,tags:s.name});
+   const trend=new URLSearchParams({tagid:MAYOR_TAGIDS,tags:s.name});
    for(const key of ['type','days','from','to'])if(one(key))trend.set(key,one(key)!);
    return <article key={s.name} className={ui.panel+' space-y-3'}>
     <div className="flex items-center justify-between"><Link className="font-semibold hover:underline" href={`/mayor/cities/${encodeURIComponent(city)}/people/${encodeURIComponent(s.name)}`}>{s.name}</Link><span className="size-2.5 rounded-full" style={{background:color(s.name,i)}} aria-hidden="true"/></div>
-    <div className="grid grid-cols-2 gap-2"><div><strong className="block text-lg tabular-nums">{share(last?shares[i].points[last.index].value:null)}</strong><small className="text-xs text-zinc-500">{date??''} 媒體聲量占比{coverageTag(lastCoverage)}</small></div>
-     <div><strong className="block text-lg tabular-nums">{last&&s.points[last.index]?.value!==null&&s.points[last.index]?.value!==undefined?count(s.points[last.index].value!):'n/a'}</strong><small className="text-xs text-zinc-500">近 7 日{s.unit}</small></div></div>
-    <div className="flex flex-wrap gap-2 text-sm"><Link className="rounded-md border border-zinc-300 px-2.5 py-1 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800" href={`/mayor/cities/${encodeURIComponent(city)}/people/${encodeURIComponent(s.name)}`}>每日 Dashboard</Link>
-     <Link className="rounded-md border border-zinc-300 px-2.5 py-1 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800" href={`/tags/compare?${trend}`}>關鍵字趨勢</Link></div>
+    <div className="grid grid-cols-2 gap-2"><div><strong className="block text-lg tabular-nums">{share(last?shares[i].points[last.index].value:null)}</strong><small className="text-xs text-zinc-500">媒體聲量占比{coverageTag(lastCoverage)}</small></div>
+     <div><strong className="block text-lg tabular-nums">{last&&s.points[last.index]?.value!==null&&s.points[last.index]?.value!==undefined?count(s.points[last.index].value!):'—'}</strong><small className="text-xs text-zinc-500">近 7 日{s.unit}</small></div></div>
+    <div className="flex flex-wrap gap-2 text-sm"><Link className={cardAction} href={`/mayor/cities/${encodeURIComponent(city)}/people/${encodeURIComponent(s.name)}`}>每日儀表板</Link>
+     <Link className={cardAction} href={`/tags/compare?${trend}`}>關鍵字趨勢</Link></div>
    </article>;})}</div>
  </section>;
 }
@@ -99,7 +100,9 @@ export function MayorShare({part,city,series,search,rows,view}:ShareProps&{view:
 const REGIONS:[string,string[]][]=[['北部',['taipei','newtaipei','taoyuan','keelung','hsinchu','hsinchucounty','yilan']],['中部',['taichung','miaoli','changhua','nantou','yunlin']],['南部',['tainan','kaohsiung','chiayi','chiayicity','pingtung']],['東部',['hualien','taitung']],['離島',['penghu','kinmen','lienchiang']]];
 const PERIODS:[number,string][]=[[7,'一週'],[10,'十天'],[30,'一個月'],[60,'兩個月'],[90,'一季']];
 const METRICS:[string,string][]=[['tags_views','觀看引用'],['tags_video','影片引用'],['tags_result','重要度']];
-const dateInput='rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm text-zinc-900 focus:border-brand-600 focus:outline-2 focus:outline-offset-2 focus:outline-brand-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100';
+// Same field and button styles as the other report forms (reportStyle), one touch-target height for every control in the row.
+const dateInput=ui.input.replace('min-h-11','min-h-9')+' px-2';
+const cardAction='inline-flex min-h-9 items-center rounded-md border border-zinc-300 px-2.5 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800';
 
 type SwitcherProps={city:string;search:Search;from?:string;to?:string};
 export function MayorSwitcherLive(props:SwitcherProps){return <MayorSwitcher {...props} view={mayorView(useSearchParams())}/>;}
@@ -107,10 +110,13 @@ export function MayorSwitcher({city,search,from,to,view}:SwitcherProps&{view:Vie
  const one=(key:string)=>{const value=search[key];return Array.isArray(value)?value[0]:value;},shareView=view==='share';
  const href=(key:string,params:Record<string,string|undefined>)=>{const query=new URLSearchParams();if(shareView)params={...params,view:'share'};for(const [k,v] of Object.entries(params))if(v)query.set(k,v);const text=query.toString();return `/mayor/cities/${encodeURIComponent(key)}${text?'?'+text:''}`;};
  const type=one('type'),days=one('days'),explicit=Boolean(one('from')||one('to')||one('today'));
- const base='rounded-md px-2.5 py-1 text-sm',idle=base+' text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800',active=base+' bg-zinc-900 font-medium text-white dark:bg-zinc-100 dark:text-zinc-900';
+ const base='inline-flex min-h-9 items-center rounded-md px-2.5 text-sm',idle=base+' text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800',active=base+' bg-zinc-900 font-medium text-white dark:bg-zinc-100 dark:text-zinc-900';
  const chip=(on:boolean,label:string,to:string)=><Link key={to+label} href={to} aria-current={on?'page':undefined} className={on?active:idle}>{label}</Link>;
+ const cityNav=(className:string)=><nav aria-label="縣市" className={'grid gap-2 sm:grid-cols-2 lg:grid-cols-5 '+className}>{REGIONS.map(([label,keys])=><div key={label} className="px-1 py-1"><p className="mb-1 px-1 text-xs font-semibold text-zinc-500">{label}</p><div className="flex flex-wrap gap-1">{keys.filter(key=>cities[key]).map(key=>chip(key===city,cities[key].label,href(key,{type,days,from:one('from'),to:one('to'),today:one('today')})))}</div></div>)}</nav>;
  return <div className="space-y-3">
-  <nav aria-label="縣市" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">{REGIONS.map(([label,keys])=><div key={label} className="px-1 py-1"><p className="mb-1 px-1 text-xs font-semibold text-zinc-500">{label}</p><div className="flex flex-wrap gap-1">{keys.filter(key=>cities[key]).map(key=>chip(key===city,cities[key].label,href(key,{type,days,from:one('from'),to:one('to'),today:one('today')})))}</div></div>)}</nav>
+  {/* Phones fold the 22 cities behind the current one, so the chart is not pushed below the fold; wider screens list them. */}
+  <details className="group sm:hidden"><summary className={ui.button+' cursor-pointer list-none gap-1.5'}>縣市：{cities[city]?.label??city}<span aria-hidden="true" className="text-zinc-500 group-open:rotate-180">▾</span></summary><div className="mt-2">{cityNav('sm:hidden')}</div></details>
+  {cityNav('max-sm:hidden')}
   <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
    <nav aria-label="日期範圍" className="flex flex-wrap gap-1">{PERIODS.map(([value,label])=>chip(!explicit&&Number(days||30)===value,label,href(city,{type,days:String(value)})))}</nav>
    <nav aria-label="指標" className="flex flex-wrap items-center gap-1 border-zinc-300 sm:border-l sm:pl-4 dark:border-zinc-700">{METRICS.map(([value,label])=>chip((type||'tags_views')===value,label,href(city,{type:value,days,from:one('from'),to:one('to'),today:one('today')})))}
@@ -123,7 +129,7 @@ export function MayorSwitcher({city,search,from,to,view}:SwitcherProps&{view:Vie
     <input type="date" name="from" defaultValue={from} aria-label="開始日期" className={dateInput}/>
     <span className="text-zinc-500" aria-hidden="true">–</span>
     <input type="date" name="to" defaultValue={to} aria-label="結束日期" className={dateInput}/>
-    <button className="rounded-md bg-brand-700 px-3 py-1 font-medium text-white hover:bg-brand-800 dark:bg-brand-600 dark:hover:bg-brand-700">套用</button>
+    <button className={ui.primary.replace('min-h-11','min-h-9').replace('px-4','px-3')}>套用</button>
    </form>
   </div>
  </div>;
