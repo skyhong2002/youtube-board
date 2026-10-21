@@ -85,6 +85,18 @@ export async function withReportLineage(ctx:CacheContext,table:string,keys:Recor
   await ctx.db.execute('UPDATE ts_report_cache_lineage SET status=? WHERE cache_table=? AND cache_key=?',['published',table,key]);
 }
 const streamMetrics=(dictionary:TagDictionary)=>{const inner=tagMetricsAccumulator(),acc={...inner,result:()=>inner.result(dictionary.divisor?.bind(dictionary))};return {acc,visit:(v:RowDataPacket)=>acc.add({viewCount:v.viewCount,matches:dictionary.match(String(v.title??''),String(v.description??''))})};};
+/** A channel's standing footer ("訂閱我們、加入 LINE、追蹤 IG") repeats under every video and would outweigh its topics.
+ * Over a window of at least 10 videos, a term in the description of half of them but in the title of under 5% is
+ * treated as that footer and left out of the channel cloud. */
+export function channelBoilerplate(){
+  const seen=new Map<string,{title:number;description:number}>();let videos=0;
+  return {
+    add(matches:{term:string;field:'title'|'description'}[]){videos++;for(const field of ['title','description'] as const)for(const term of new Set(matches.filter(m=>m.field===field).map(m=>m.term))){const s=seen.get(term)??{title:0,description:0};s[field]++;seen.set(term,s);}},
+    terms(){return videos<10?new Set<string>():new Set([...seen].filter(([,s])=>s.description>=videos/2&&s.title<videos*0.05).map(([term])=>term));},
+  };
+}
+const channelMetrics=(dictionary:TagDictionary)=>{const {acc}=streamMetrics(dictionary),footer=channelBoilerplate();
+  return {acc,footer,visit:(v:RowDataPacket)=>{const matches=dictionary.match(String(v.title??''),String(v.description??''));footer.add(matches);acc.add({viewCount:v.viewCount,matches});}};};
 /** Laravel TagDateCacheBuilder: urt_count channel markers, one row per calendar date, and a date over the per-date
  * video cap (or a channel cap overflow) is blocked on its own while the other dates still publish. */
 export async function tagDateCacheJob(ctx:CacheContext,input:CacheInput&{dateLimit?:number},dictionary:TagDictionary) {
@@ -128,12 +140,12 @@ export async function cloudCacheJob(ctx:CacheContext,input:CacheInput,dictionary
   if(kind==='keyword')return keywordCloudCacheJob(ctx,input,dictionary);
   // Stream the window one day at a time with one running total per channel: a 7-day all-channel window
   // (about 30k videos) is over cacheVideos' 16 MB text bound.
-  const channels=await cacheChannels(ctx,input),totals=new Map(channels.map(uId=>[uId,streamMetrics(dictionary)]));
+  const channels=await cacheChannels(ctx,input),totals=new Map(channels.map(uId=>[uId,channelMetrics(dictionary)]));
   const scan=await scanVideos(ctx,channels,input.from+' 00:00:00',input.to+' 23:59:59',input.videoLimit,v=>totals.get(Number(v.u_id))?.visit(v));
   if(scan.truncated)return {mode:ctx.execute?'execute':'dry-run',selected:0,applied:[],skipped:[{reason:'video_scan_limit_exceeded'}],videos:scan.count};
-  for(const [uId,{acc}] of totals) {
-    const m=acc.result();
-    await publishCache(ctx,'urt_show_cloud',{u_id:uId,days:input.days},{keywords_json:JSON.stringify(m.tags_result)},dictionary,m.unknown_view_videos);
+  for(const [uId,{acc,footer}] of totals) {
+    const m=acc.result(),drop=footer.terms();
+    await publishCache(ctx,'urt_show_cloud',{u_id:uId,days:input.days},{keywords_json:JSON.stringify(Object.fromEntries(Object.entries(m.tags_result).filter(([term])=>!drop.has(term))))},dictionary,m.unknown_view_videos);
   }
   return {mode:ctx.execute?'execute':'dry-run',selected:channels.length,applied:ctx.execute?channels:[],skipped:[],videos:scan.count};
 }
