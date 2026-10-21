@@ -26,6 +26,11 @@ describe('legacy daily source repair',()=>{
   expect(source.channels.find(c=>c.u_id===1)!.events.map(e=>[e.事件,e.videoId])).toEqual([['甲一',['AAAAAAAAAAA','BBBBBBBBBBB']]]);
   expect(source.topics.map(t=>[t.title,t.media.map(m=>m.event.事件)])).toEqual([['議題一',['甲一','乙一']]]);
  });
+ it('resolves legacy 媒體事件 keyed by event name against every channel',async()=>{
+  const db=fakeDb({1:[ev('共同事件',['AAAAAAAAAAA'])],2:[ev('共同事件',['BBBBBBBBBBB']),ev('乙二',['CCCCCCCCCCC'])]},[{標題:'議題一',媒體事件:{共同事件:['共同事件'],媒體乙:['共同事件']}}]);
+  const source=await loadDailySource(db,'2026-09-04');
+  expect(source.topics[0]!.media.map(m=>[m.channel,m.event.事件])).toEqual([['媒體甲','共同事件'],['媒體乙','共同事件']]);
+ });
  it('plans a legacy topic from its ingested videos when some cited IDs were never ingested',async()=>{
   const v=(id:string,u_id:number)=>({videoId:id,u_id,title:'t',publishedAt:'2026-09-04 08:00:00'});
   const db=fakeDb({1:[ev('甲一',['AAAAAAAAAAA','MISSINGVID1'])],2:[ev('乙一',['MISSINGVID2'])]},[{標題:'議題一',媒體事件:{媒體甲:['甲一'],媒體乙:['乙一']}}],[v('AAAAAAAAAAA',1)]);

@@ -48,15 +48,20 @@ export async function loadDailySource(db:Connection,date:string,filter='all',use
  const byName=new Map(channels.map(c=>[c.title,c]));if(byName.size!==channels.length||new Set(channels.map(c=>c.u_id)).size!==channels.length)throw new Error('Ambiguous channel source');
  for(const c of channels)if(!Number.isSafeInteger(c.u_id)||c.u_id<1||new Set(c.events.map(e=>e.事件)).size!==c.events.length)throw new Error('Ambiguous channel event');
  const raw=JSON.parse(String(row.result_json));const titles=new Set<string>();
+ // Some Laravel rows key 媒體事件 by channel event name instead of media name; repair resolves those names against every
+ // channel's events.
+ const byEvent=(names:unknown)=>(Array.isArray(names)?names.slice(0,100):[]).flatMap(name=>typeof name!=='string'?[]:channels.flatMap(c=>c.events.filter(e=>e.事件===name).map(event=>({u_id:c.u_id,channel:c.title,event}))));
  // Repair (legacy rows only) keeps the first topic of a repeated title, skips references to media or events that did not
  // survive parsing, and topics left without any.
  const topics=list(Array.isArray(raw)?raw:object(raw).events,1,200).flatMap(v=>{
   const item=object(v),title=text(item.標題,128);if(titles.has(title)){if(repair)return [];throw new Error('Duplicate daily title');}titles.add(title);
   const references=object(item.媒體事件);if(!Object.keys(references).length){if(repair)return [];throw new Error('Missing daily references');}
-  const media=Object.entries(references).flatMap(([name,names])=>{const channel=byName.get(name);if(!channel){if(repair)return [];throw new Error('Unresolved daily media');}
+  const media=Object.entries(references).flatMap(([name,names])=>{const channel=byName.get(name);if(!channel){if(repair)return byEvent(names);throw new Error('Unresolved daily media');}
    const refs=repair?(Array.isArray(names)?names.slice(0,100):[]):list(names,1,100);
    return refs.flatMap(name=>{const event=repair?(typeof name==='string'?channel.events.find(e=>e.事件===name):undefined):channel.events.find(e=>e.事件===text(name));if(!event){if(repair)return [];throw new Error('Unresolved daily event');}return [{u_id:channel.u_id,channel:channel.title,event}];});});
-  return repair&&!media.length?[]:[{title,media}];
+  // One media/event pair once, even when a legacy row also names it under an event-name key.
+  const seen=new Set<string>(),unique=media.filter(m=>{const k=m.u_id+'\u0000'+m.event.事件;if(seen.has(k))return false;seen.add(k);return true;});
+  return repair&&!unique.length?[]:[{title,media:repair?unique:media}];
  });
  return {pk:String(row.pk),date,from:String(row.date_from),to:String(row.date_to),condition:filter,userToken,dataType:String(row.data_type),runId,result:String(row.result_json),channels,topics};
 }
