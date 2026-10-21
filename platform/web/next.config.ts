@@ -29,6 +29,9 @@ const config: NextConfig = {
             // Editorial events are not curated, so the timeline is always empty; temporary so it can return.
             { source: "/events", destination: "/ai/days", permanent: false },
             { source: "/events/:path*", destination: "/ai/days", permanent: false },
+            // 「現任立委」was a 2016-era list; legislators are grouped by election year since 2026-10-21.
+            // Temporary: 現任 follows the latest election.
+            { source: "/groups/%E7%8F%BE%E4%BB%BB%E7%AB%8B%E5%A7%94", destination: "/groups/2024%20%E7%AB%8B%E5%A7%94", permanent: false },
         ];
     },
     async rewrites() {

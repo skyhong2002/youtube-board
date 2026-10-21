@@ -81,6 +81,8 @@ export async function ExpandedReport({
             <Heading
                 title={data.title || title}
                 meta={meta}
+                // The group directory and a word group's page date the hand-maintained list, not an observation.
+                updatedLabel={/^\/groups(?:\/[^/]+)?$/.test(path) ? "名單最後編修" : undefined}
             />
             <DataNotice meta={meta} />
             {/* A lone tab (a content group's only report) is not a choice; the page title already names it. */}
