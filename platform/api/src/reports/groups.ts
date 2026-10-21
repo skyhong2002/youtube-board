@@ -22,7 +22,7 @@ export function registerGroups(register: Register, reader: Reader, clock: () => 
             if (collision >= 0) rows.splice(collision, 1);
             rows.push({ group: link(value.label, `/groups/${key}`), count: value.groups.length, kind: '頻道分類群組' });
         }
-        return table('觀測群組', [{ key: 'group', label: '群組' }, { key: 'kind', label: '分類依據' }, { key: 'count', label: '項目數', kind: 'number' }], rows, q, { updatedAt: latest(...records.filter(r => !Object.hasOwn(groupDefinitions, text(r.group_name))).map(r => r.latest)), notes: ['內容詞彙群組計算詞彙數；頻道分類群組計算子分類數，不是頻道數。兩種分類分開使用，不合併計數。', '詞彙名單優先採用來源維護的群組，缺少資料的已知群組才使用既有設定。群組名稱沿用來源標記；「現任立委」「現任縣市長」等名稱不代表已查核目前任職，請留意來源更新時間。2024 候選人為歷史名單。'] });
+        return table('觀測群組', [{ key: 'group', label: '群組' }, { key: 'kind', label: '分類依據' }, { key: 'count', label: '項目數', kind: 'number' }], rows, q, { updatedAt: latest(...records.filter(r => !Object.hasOwn(groupDefinitions, text(r.group_name))).map(r => r.latest)), notes: ['內容詞彙群組計算詞彙數；頻道分類群組計算子分類數，不是頻道數。兩種分類分開使用，不合併計數。', '詞彙名單優先採用來源維護的群組，缺少資料的已知群組才使用既有設定。立委名單依選舉年份分組：「2024 立委」「2020 立委」是立法院開放資料的第 11、10 屆委員，含中途遞補與離職者（2026-10-21 整理）。其他群組名稱沿用來源標記，例如「現任縣市長」不代表已查核目前任職，請留意名單最後編修時間。2024 候選人為歷史名單。'] });
     });
     register('/groups/:name', async (p, q) => {
         p = {...p, name:p.name!.trim()};

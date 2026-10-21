@@ -9,10 +9,11 @@ import MethodLink from './MethodLink';
 import {reportStyle as ui} from '@/lib/report-styles';
 /** tag.observe.tw page head: the title, then one line with the update time and the link
  * to 本頁的資料來源與計算方式; descriptions and method notes live in that block (ReportMethod). */
-export function Heading({title,eyebrow,meta,method=true,lead}:{title:string;eyebrow?:string;meta?:ReportMeta;method?:boolean;lead?:React.ReactNode}){
+/** `updatedLabel` names what the time is when it is not an observation, e.g. a hand-maintained list's last edit. */
+export function Heading({title,eyebrow,meta,method=true,lead,updatedLabel='更新於'}:{title:string;eyebrow?:string;meta?:ReportMeta;method?:boolean;lead?:React.ReactNode;updatedLabel?:string}){
  // A report without a recorded update time shows no 「更新於 未記錄」: a missing stamp is not a state.
  const updated=meta?.updatedAt?dateTime(meta.updatedAt):null;
- return <header className="mb-5 flex flex-wrap items-end justify-between gap-3"><div className="min-w-0 space-y-1">{eyebrow&&<p className="text-xs text-zinc-500">{eyebrow}</p>}<h1 className="text-2xl font-semibold tracking-tight">{title}</h1>{(updated||method||lead)&&<p className="text-sm text-zinc-600 dark:text-zinc-400">{lead&&<>{lead}{(updated||method)&&' · '}</>}{updated&&<>更新於 {updated} · 台北時間</>}{updated&&method&&' · '}{method&&<MethodLink/>}</p>}</div></header>;
+ return <header className="mb-5 flex flex-wrap items-end justify-between gap-3"><div className="min-w-0 space-y-1">{eyebrow&&<p className="text-xs text-zinc-500">{eyebrow}</p>}<h1 className="text-2xl font-semibold tracking-tight">{title}</h1>{(updated||method||lead)&&<p className="text-sm text-zinc-600 dark:text-zinc-400">{lead&&<>{lead}{(updated||method)&&' · '}</>}{updated&&<>{updatedLabel} {updated} · 台北時間</>}{updated&&method&&' · '}{method&&<MethodLink/>}</p>}</div></header>;
 }
 /** States the reader must see before the data: an archived channel and development data.
  * The envelope's scope warnings are method notes (ReportMethod metaNotes). */
