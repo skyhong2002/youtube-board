@@ -32,17 +32,18 @@ export async function channelTrends(reader:Reader,id:number,q:Query,clock:()=>Da
   const estimate=prediction!==null&&prediction>0?prediction:null;
   const movingEstimate=moving!==null&&moving>0&&movingDays===7?moving:null;
   const selected=mode==='videos'?videoChange:mode==='pred'?estimate:mode==='moving'?movingEstimate:viewChange;
-  return {date,views:point?.views??null,videos:point?.videos??null,viewChange,videoChange,estimate,movingEstimate,movingDays,value:selected};
+  // One daily column for readers: the measured difference when both days were observed, else the projection, marked.
+  const dailyViews=viewChange!==null?viewChange:estimate!==null?{value:estimate,detail:'估計'}:null;
+  return {date,views:point?.views??null,videos:point?.videos??null,viewChange,videoChange,estimate,movingEstimate,movingDays,value:selected,dailyViews};
  });
  const unit=mode==='videos'?'部':'次';
  return table('頻道歷史趨勢',[
-  {key:'date',label:'日期',kind:'date'},{key:'value',label:modes[mode as Mode],kind:'number',unit},
-  {key:'viewChange',label:'相鄰日實測觀看差',kind:'number'},{key:'estimate',label:'估計每日觀看',kind:'number'},
+  {key:'date',label:'日期',kind:'date'},{key:'dailyViews',label:'每日觀看',kind:'number'},
   {key:'movingEstimate',label:'七日移動估計',kind:'number'},{key:'movingDays',label:'近七日估計可用',kind:'number',unit:'日'},{key:'views',label:'累計實測觀看',kind:'number'},
   {key:'videos',label:'累計實測影片',kind:'number'},{key:'videoChange',label:'相鄰日實測影片差',kind:'number'},
  ],rows,q,{updatedAt:latest(...logs.flatMap(r=>[r.mtime,r.ctime])),
   series:[{name:modes[mode as Mode],unit,points:rows.map(r=>({time:r.date,value:r.value}))}],
   metrics:[{label:'有效累計觀看觀測',value:rows.filter(r=>r.views!==null).length,unit:'日'},{label:'相鄰日實測差',value:rows.filter(r=>r.viewChange!==null).length,unit:'日'},{label:'估計可用',value:rows.filter(r=>r.estimate!==null).length,unit:'日'}],
   filters:[{key:'mode',label:'呈現方式',type:'select',value:mode,options:Object.entries(modes).map(([value,label])=>({value,label}))},{key:'from',label:'開始日期',type:'date',value:period.from},{key:'to',label:'結束日期',type:'date',value:period.to}],
-  notes:['實測欄位缺少任一相鄰日觀測時維持空值；負差保留 YouTube 刪除或統計校正。', '估計以所選結束日期為基準，至少使用前 300 日計算；改變開始日期不會縮短近期估計的計算窗口。結束日期改變時，參考完整週會不同。新版週鍵包含 ISO 年份，避免跨年混算。', '此頁按結束日期重算並使用含年份的週鍵；與頻道摘要快取中的週／月預測值不必相同。', '估計不是實測；舊公式的零代表估計不可用，此處顯示空值。七日內不足七個有效估計日，移動估計也保持空值，原始零差與負差另列。', '日期窗口最多 366 日；每頁最多 200 列，圖表涵蓋整個窗口。資料量超出可處理範圍時會顯示限制，而不截取後冒充完整趨勢。']});
+  notes:['「每日觀看」有相鄰兩日實測時是實測差；缺任一日觀測時改用舊站公式的估計，並標示「估計」。兩者都沒有時維持空值；負差保留 YouTube 刪除或統計校正。圖表依「呈現方式」畫出所選的那一欄。', '估計以所選結束日期為基準，至少使用前 300 日計算；改變開始日期不會縮短近期估計的計算窗口。結束日期改變時，參考完整週會不同。新版週鍵包含 ISO 年份，避免跨年混算。', '此頁按結束日期重算並使用含年份的週鍵；與頻道摘要快取中的週／月預測值不必相同。', '估計不是實測；舊公式的零代表估計不可用，此處顯示空值。七日內不足七個有效估計日，移動估計也保持空值，原始零差與負差另列。', '日期窗口最多 366 日；每頁最多 200 列，圖表涵蓋整個窗口。資料量超出可處理範圍時會顯示限制，而不截取後冒充完整趨勢。']});
 }

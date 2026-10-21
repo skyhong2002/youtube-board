@@ -42,5 +42,15 @@ it('display start does not shorten a fixed endpoint projection and explicit mode
 it('legacy metric aliases fall back consistently after malformed primary values',async()=>{
  const app=buildApp({reader:fixture([{thedata:JSON.stringify({'2032-01-01':{view:'bad',total_views:100},'2032-01-02':{view:false,total_views:200},'2032-01-03':{view:'',total_views:300}})}])});
  const data=(await app.inject('/api/v1/channels/1/trends?from=2032-01-03&to=2032-01-03&mode=pred')).json().data;
- expect(data.rows[0]).toMatchObject({views:300,viewChange:100,estimate:100});await app.close();
+ expect(data.rows[0]).toMatchObject({views:300,viewChange:100,estimate:100,dailyViews:100});
+ // The table shows one daily column; the selected mode is the chart, not a repeated column.
+ expect(data.columns.map((c:{key:string})=>c.key)).toEqual(['date','dailyViews','movingEstimate','movingDays','views','videos','videoChange']);await app.close();
+});
+it('fills a missing measured difference with the projection, marked as an estimate',async()=>{
+ const days=JSON.parse(logs[0]!.thedata);delete days['2032-01-14'];
+ const app=buildApp({reader:fixture([{...logs[0]!,thedata:JSON.stringify(days)}]),clock:()=>new Date('2032-01-15T02:00:00Z')});
+ const rows=(await app.inject('/api/v1/channels/1/trends?from=2032-01-13&to=2032-01-15&mode=pred')).json().data.rows;
+ for(const row of rows)expect(row.dailyViews).toEqual(row.viewChange!==null?row.viewChange:row.estimate!==null?{value:row.estimate,detail:'估計'}:null);
+ expect(rows.filter((row:{dailyViews:unknown})=>typeof row.dailyViews==='object'&&row.dailyViews!==null).map((row:{date:string})=>row.date)).toEqual(['2032-01-14','2032-01-15']);
+ await app.close();
 });
