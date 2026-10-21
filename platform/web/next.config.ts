@@ -29,9 +29,12 @@ const config: NextConfig = {
             // Editorial events are not curated, so the timeline is always empty; temporary so it can return.
             { source: "/events", destination: "/ai/days", permanent: false },
             { source: "/events/:path*", destination: "/ai/days", permanent: false },
-            // 「現任立委」was a 2016-era list; legislators are grouped by election year since 2026-10-21.
-            // Temporary: 現任 follows the latest election.
+            // Dated word groups are named by election (or cabinet) year since 2026-10-21: 「現任立委」was a
+            // 2016-era list and 「現任縣市長」the 2014 cohort. Temporary: 現任 follows the latest election.
             { source: "/groups/%E7%8F%BE%E4%BB%BB%E7%AB%8B%E5%A7%94", destination: "/groups/2024%20%E7%AB%8B%E5%A7%94", permanent: false },
+            { source: "/groups/%E7%8F%BE%E4%BB%BB%E7%B8%A3%E5%B8%82%E9%95%B7", destination: "/groups/2022%20%E7%B8%A3%E5%B8%82%E9%95%B7", permanent: false },
+            { source: "/groups/%E5%85%AD%E9%83%BD%E5%B8%82%E9%95%B7%E5%80%99%E9%81%B8%E4%BA%BA", destination: "/groups/2022%20%E5%85%AD%E9%83%BD%E5%B8%82%E9%95%B7%E5%80%99%E9%81%B8%E4%BA%BA", permanent: false },
+            { source: "/groups/%E5%85%A7%E9%96%A3", destination: "/groups/2016%20%E5%85%A7%E9%96%A3", permanent: false },
         ];
     },
     async rewrites() {
