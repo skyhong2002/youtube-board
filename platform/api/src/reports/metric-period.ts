@@ -24,10 +24,10 @@ export function metricType(value:unknown,kind:'group'|'tag'){
  if(!(kind==='group'?['total_views','count_videos']:['total_views','count_videos','average']).includes(type))throw new BadQuery('Invalid metric type.');return type;
 }
 export function metricFilters(q:Query,p:MetricPeriod,type?:string):NonNullable<ReportData['filters']>{return [
- {key:'days',label:'期間（起訖優先）',type:'select',value:String(p.days),options:[...new Set([1,3,7,10,30,90,366,'year',p.days])].map(v=>({value:String(v),label:v==='year'?'今年起':String(v)+'天'}))},
- {key:'today',label:'結束日往前偏移',type:'number',value:String(p.today)},
- {key:'from',label:p.startBoundary==='exclusive'?'開始邊界（不含）':'開始日期（含）',type:'date',value:q.from==='year'?'':text(q.from)},
+ {key:'days',label:'期間',type:'select',value:String(p.days),options:[...new Set([1,3,7,10,30,90,366,'year',p.days])].map(v=>({value:String(v),label:v==='year'?'今年起':String(v)+'天'}))},
+ {key:'today',label:'結束日往前幾天',type:'number',value:String(p.today)},
+ {key:'from',label:p.startBoundary==='exclusive'?'開始日期（不含當天）':'開始日期（含）',type:'date',value:q.from==='year'?'':text(q.from)},
  {key:'to',label:'結束日期（含）',type:'date',value:text(q.to)},
  ...(type?[{key:'type',label:'度量',type:'select' as const,value:type,options:[{value:'total_views',label:'累計觀看'},{value:'count_videos',label:'影片數'},...(p.startBoundary==='inclusive'?[{value:'average',label:'每影片觀看'}]:[])]}]:[]),
  ];}
-export const metricPeriodNote=(p:MetricPeriod)=>`期間邊界 ${p.from} ～ ${p.to}；${p.startBoundary==='exclusive'?'沿用群組報表排除起點；起訖同日時仍顯示該日。':'分類趨勢包含起訖兩日，預設結束日為昨天。'}實際呈現 ${p.dates.length} 日。${p.startBoundary==='exclusive'?'year 沿用當年一月一日起點，因此群組通常從一月二日顯示。':'year 包含當年一月一日起點。'}`;
+export const metricPeriodNote=(p:MetricPeriod)=>`期間邊界 ${p.from} ～ ${p.to}；填了開始或結束日期時以日期為準，不看「期間」選單；「結束日往前幾天」把預設結束日往前移。${p.startBoundary==='exclusive'?'沿用群組報表排除起點；起訖同日時仍顯示該日。':'分類趨勢包含起訖兩日，預設結束日為昨天。'}實際呈現 ${p.dates.length} 日。${p.startBoundary==='exclusive'?'year 沿用當年一月一日起點，因此群組通常從一月二日顯示。':'year 包含當年一月一日起點。'}`;
