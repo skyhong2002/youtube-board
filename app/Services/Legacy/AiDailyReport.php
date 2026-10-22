@@ -153,6 +153,10 @@ class AiDailyReport
         ];
         $topics = $this->topics($syntheticRow, $channelMap, $channelAi, $channelTags);
 
+        if ($topics === []) {
+            return null;
+        }
+
         return [
             'available' => true,
             'row' => $sourceRow ? [
@@ -250,7 +254,7 @@ class AiDailyReport
         }
 
         return collect($clusters)
-            ->filter(fn (array $cluster): bool => count($cluster['media_events']) >= 2 || $cluster['video_count'] >= 2)
+            ->filter(fn (array $cluster): bool => count($cluster['media_events']) >= 2)
             ->sortByDesc(fn (array $cluster): int => $cluster['video_count'] + count($cluster['media_events']) * 3)
             ->take(AiDailyContract::maxTopics($condition))
             ->map(fn (array $cluster): array => [
@@ -289,7 +293,7 @@ class AiDailyReport
      */
     private function shouldPreferFallback(array $topics, array $fallbackTopics, string $condition): bool
     {
-        if ($fallbackTopics === []) {
+        if (! $this->isCrossMediaTopicSet($fallbackTopics)) {
             return false;
         }
 
@@ -328,18 +332,27 @@ class AiDailyReport
         $multiMediaTopics = collect($topics)
             ->filter(fn (array $topic): bool => (int) ($topic['media_count'] ?? 0) >= 2)
             ->count();
-        $majorityCrossMedia = $multiMediaTopics >= (int) ceil($topicCount / 2);
+        $allTopicsCrossMedia = $topicCount > 0 && $multiMediaTopics === $topicCount;
         $distance = $topicCount < $bounds['min']
             ? $bounds['min'] - $topicCount
             : max(0, $topicCount - $bounds['max']);
 
         return [
-            (int) ($withinBounds && $majorityCrossMedia),
+            (int) ($withinBounds && $allTopicsCrossMedia),
             (int) $withinBounds,
             $multiMediaTopics,
             -$distance,
             $topicCount,
         ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $topics
+     */
+    private function isCrossMediaTopicSet(array $topics): bool
+    {
+        return $topics !== [] && collect($topics)
+            ->every(fn (array $topic): bool => (int) ($topic['media_count'] ?? 0) >= 2);
     }
 
     /**

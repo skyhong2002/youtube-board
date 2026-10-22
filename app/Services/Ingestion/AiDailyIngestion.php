@@ -79,12 +79,22 @@ class AiDailyIngestion
             includePrompts: true,
         );
         $dailyRows = [];
-        $channelBlockers = $channelRows->filter(
+        $channelRefreshBlockers = $channelRows->filter(
             fn (array $row): bool => (bool) ($row['failed'] ?? false)
                 || ((int) ($row['video_rows'] ?? 0) >= 10
                     && (bool) ($row['skipped'] ?? false)
                     && ($row['skip_reason'] ?? null) !== 'fewer_than_10_videos'),
         );
+        $channelCacheBlockers = $this->channelAiCompletenessBlockers(
+            period: $period,
+            now: $now,
+            channelVideoLimit: $channelVideoLimit,
+        );
+        $channelBlockers = $channelRefreshBlockers
+            ->concat($channelCacheBlockers)
+            ->unique(fn (array $row): int => (int) ($row['u_id'] ?? 0))
+            ->values();
+        $eligibleChannelCount = $this->eligibleChannelVideoCounts($period)->count();
 
         foreach ($dailyPlan['condition_rows'] as $row) {
             $prompt = (string) ($row['prompt'] ?? '');
@@ -278,6 +288,10 @@ class AiDailyIngestion
                 'updated' => $channelRows->where('updated', true)->count(),
                 'skipped' => $channelRows->where('skipped', true)->count(),
                 'failed' => $channelFailed,
+                'eligible_channels' => $eligibleChannelCount,
+                'complete_eligible_channels' => max(0, $eligibleChannelCount - $channelCacheBlockers->count()),
+                'incomplete_eligible_channels' => $channelCacheBlockers->count(),
+                'completeness_blockers' => $channelCacheBlockers->values()->all(),
                 'rows' => $channelRows->values()->all(),
             ],
             'daily_ai' => [
@@ -322,7 +336,7 @@ class AiDailyIngestion
         int &$aiCallsUsed,
         int $aiCallLimit,
     ) {
-        $dataType = substr($period['from'], 0, 10) === $now->toDateString() ? 'todate' : 'oneday';
+        $dataType = $this->channelAiDataType($period, $now);
         $rows = collect();
 
         $configuredUIds = AiDailyPreview::channelAiUids();
@@ -582,6 +596,20 @@ class AiDailyIngestion
             return [];
         }
 
+        return $this->eligibleChannelVideoCounts($period)
+            ->keys()
+            ->slice($offset)
+            ->take($limit)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array{from: string, to: string}  $period
+     * @return Collection<int, int>
+     */
+    private function eligibleChannelVideoCounts(array $period): Collection
+    {
         $videoCounts = DB::table('urt_video')
             ->whereIn('u_id', AiDailyPreview::channelAiUids())
             ->where('publishedAt', '>=', $period['from'])
@@ -594,10 +622,79 @@ class AiDailyIngestion
 
         return collect(AiDailyPreview::channelAiUids())
             ->filter(fn (int $uId): bool => ($videoCounts[$uId] ?? 0) >= 10)
-            ->slice($offset)
-            ->take($limit)
-            ->values()
-            ->all();
+            ->mapWithKeys(fn (int $uId): array => [$uId => $videoCounts[$uId]]);
+    }
+
+    /**
+     * Daily aggregation may use a capped refresh only when every omitted eligible
+     * channel already has a valid same-day cache row.
+     *
+     * @param  array{from: string, to: string}  $period
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function channelAiCompletenessBlockers(
+        array $period,
+        CarbonImmutable $now,
+        int $channelVideoLimit,
+    ): Collection {
+        $eligibleChannels = $this->eligibleChannelVideoCounts($period);
+
+        if ($eligibleChannels->isEmpty()) {
+            return collect();
+        }
+
+        $latestRows = DB::table('urt_channel_ai')
+            ->whereIn('u_id', $eligibleChannels->keys()->all())
+            ->where('date_from', $period['from'])
+            ->where('date_to', $period['to'])
+            ->where('data_type', $this->channelAiDataType($period, $now))
+            ->whereNull('del_flag')
+            ->orderByDesc('pk')
+            ->get(['pk', 'u_id', 'result_json'])
+            ->unique(fn (object $row): int => (int) $row->u_id)
+            ->keyBy(fn (object $row): int => (int) $row->u_id);
+
+        return $eligibleChannels
+            ->map(function (int $videoRows, int $uId) use ($latestRows, $channelVideoLimit): ?array {
+                $row = $latestRows->get($uId);
+                $promptVideoRows = min($videoRows, $channelVideoLimit);
+                $bounds = AiChannelContract::boundsForVideoCount($promptVideoRows);
+                $validation = $row === null
+                    ? null
+                    : $this->jsonValidator->validateEventList(
+                        (string) ($row->result_json ?? ''),
+                        'channel',
+                        expectedMinItems: $bounds['min'],
+                        expectedMaxItems: $bounds['max'],
+                    );
+
+                if (is_array($validation) && ($validation['valid'] ?? false)) {
+                    return null;
+                }
+
+                return [
+                    'u_id' => $uId,
+                    'pk' => $row === null ? null : (int) $row->pk,
+                    'video_rows' => $videoRows,
+                    'prompt_video_rows' => $promptVideoRows,
+                    'prompt_bounds' => $bounds,
+                    'failed' => true,
+                    'skip_reason' => $row === null
+                        ? 'missing_channel_ai'
+                        : (string) ($validation['failure_reason'] ?? 'invalid_channel_ai'),
+                    'item_count' => (int) ($validation['item_count'] ?? 0),
+                ];
+            })
+            ->filter()
+            ->values();
+    }
+
+    /**
+     * @param  array{from: string, to: string}  $period
+     */
+    private function channelAiDataType(array $period, CarbonImmutable $now): string
+    {
+        return substr($period['from'], 0, 10) === $now->toDateString() ? 'todate' : 'oneday';
     }
 
     /**

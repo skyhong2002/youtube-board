@@ -181,7 +181,11 @@ class IngestionAiDailyCommandTest extends TestCase
         $this->assertSame(1, $exitCode);
         $this->assertSame(0, $payload['channel_ai']['attempted']);
         $this->assertSame(1, $payload['daily_ai']['failed']);
-        $this->assertSame('no_source_events', $payload['daily_ai']['rows'][0]['skip_reason']);
+        $this->assertSame('channel_ai_incomplete', $payload['daily_ai']['rows'][0]['skip_reason']);
+        $this->assertSame(1, $payload['channel_ai']['eligible_channels']);
+        $this->assertSame(0, $payload['channel_ai']['complete_eligible_channels']);
+        $this->assertSame(1, $payload['channel_ai']['incomplete_eligible_channels']);
+        $this->assertSame('missing_channel_ai', $payload['channel_ai']['completeness_blockers'][0]['skip_reason']);
         $this->assertSame(0, DB::table('urt_channel_ai')->count());
         $this->assertSame(0, DB::table('urt_ai_date')->count());
         Http::assertNothingSent();
@@ -560,7 +564,7 @@ class IngestionAiDailyCommandTest extends TestCase
         $this->assertDatabaseHas('urt_channel_ai', ['u_id' => 404]);
     }
 
-    public function test_ai_daily_execute_channel_offset_batches_eligible_legacy_channels(): void
+    public function test_ai_daily_execute_channel_offset_requires_valid_cache_for_omitted_eligible_channels(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-25 16:15:00', 'Asia/Taipei'));
         $this->createTables();
@@ -600,14 +604,16 @@ class IngestionAiDailyCommandTest extends TestCase
                     'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5],
                 ])
                 ->push([
-                    'choices' => [
-                        [
-                            'message' => [
-                                'content' => $this->dailyCompletion('每日事件'),
-                            ],
-                        ],
-                    ],
-                    'usage' => ['prompt_tokens' => 20, 'completion_tokens' => 6],
+                    'choices' => [[
+                        'message' => ['content' => $this->channelCompletion('第二批頻道事件更新')],
+                    ]],
+                    'usage' => ['prompt_tokens' => 11, 'completion_tokens' => 5],
+                ])
+                ->push([
+                    'choices' => [[
+                        'message' => ['content' => $this->dailyCompletion('每日事件完成')],
+                    ]],
+                    'usage' => ['prompt_tokens' => 21, 'completion_tokens' => 6],
                 ]),
         ]);
 
@@ -621,13 +627,44 @@ class IngestionAiDailyCommandTest extends TestCase
         ]);
         $payload = json_decode(trim(Artisan::output()), true);
 
-        $this->assertSame(0, $exitCode);
+        $this->assertSame(1, $exitCode);
         $this->assertSame(1, $payload['channel_ai']['limit']);
         $this->assertSame(1, $payload['channel_ai']['offset']);
         $this->assertSame(1, $payload['channel_ai']['attempted']);
         $this->assertSame(404, $payload['channel_ai']['rows'][0]['u_id']);
         $this->assertDatabaseMissing('urt_channel_ai', ['u_id' => 76]);
         $this->assertDatabaseHas('urt_channel_ai', ['u_id' => 404]);
+        $this->assertSame(2, $payload['channel_ai']['eligible_channels']);
+        $this->assertSame(1, $payload['channel_ai']['complete_eligible_channels']);
+        $this->assertSame(1, $payload['channel_ai']['incomplete_eligible_channels']);
+        $this->assertSame(76, $payload['channel_ai']['completeness_blockers'][0]['u_id']);
+        $this->assertSame('missing_channel_ai', $payload['channel_ai']['completeness_blockers'][0]['skip_reason']);
+        $this->assertSame('channel_ai_incomplete', $payload['daily_ai']['rows'][0]['skip_reason']);
+        $this->assertSame(0, DB::table('urt_ai_date')->count());
+        Http::assertSentCount(1);
+
+        DB::table('urt_channel_ai')->insert($this->channelAiRow(
+            76,
+            json_decode($this->channelCompletion('第一批既有事件'), true, 512, JSON_THROW_ON_ERROR),
+        ));
+
+        $exitCode = Artisan::call('ai:daily', [
+            '--execute' => true,
+            '--date' => '2026-05-24',
+            '--condition' => 'all',
+            '--channel-limit' => 1,
+            '--channel-offset' => 1,
+            '--json' => true,
+        ]);
+        $payload = json_decode(trim(Artisan::output()), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame(2, $payload['channel_ai']['eligible_channels']);
+        $this->assertSame(2, $payload['channel_ai']['complete_eligible_channels']);
+        $this->assertSame(0, $payload['channel_ai']['incomplete_eligible_channels']);
+        $this->assertSame([], $payload['channel_ai']['completeness_blockers']);
+        $this->assertSame(1, $payload['daily_ai']['inserted']);
+        Http::assertSentCount(3);
     }
 
     public function test_ai_daily_execute_channel_batch_size_fills_multiple_eligible_batches_with_guard(): void

@@ -147,7 +147,75 @@ The current Production-approved AI job keys are `ai.hourly` and `ai.daily`; both
 
 This approval does not cover any additional job key or schedule/allowlist change. Every new Production write/API job still requires exact dry-run evidence, backup and rollback planning, and explicit operator approval.
 
-The AI client tries the primary OpenAI `gpt-5.4-mini` provider first, then the OpenCode Go fallback when configured. GPT-5 requests use `max_completion_tokens`; other chat and Messages providers keep their compatible `max_tokens` field. Each provider retries HTTP 429 and 5xx responses up to `OPENAI_TRANSIENT_RETRIES`; `Retry-After` is honored within `OPENAI_RETRY_AFTER_MAX_MS`, while other 4xx responses are not retried. Token-limit termination, incomplete JSON, and contract-invalid payloads are rejected and advance to the fallback instead of being stored as complete output. `--ai-call-limit` caps logical completion chains; `ai_call_guard` separately reports the configured provider-attempt cap, the resulting whole-run HTTP request limit, and actual provider requests used. The legacy daily AI path used OpenAI `chat/completions`; runtime keys remain in Dokploy rather than git.
+The AI client tries the primary OpenAI `gpt-5.4-mini` provider first, then the OpenCode Go fallback when configured. GPT-5 requests use `max_completion_tokens`; other chat and Messages providers keep their compatible `max_tokens` field. Each AI provider retries its own HTTP 429 and 5xx responses up to `OPENAI_TRANSIENT_RETRIES`; `Retry-After` is honored within `OPENAI_RETRY_AFTER_MAX_MS`, while other 4xx responses are not retried. This AI-provider 429 policy is separate from YouTube quota handling, which never retries an exhausted key in the same run. Token-limit termination, incomplete JSON, and contract-invalid payloads are rejected and advance to the fallback instead of being stored as complete output. `--ai-call-limit` caps logical completion chains; `ai_call_guard` separately reports the configured provider-attempt cap, the resulting whole-run HTTP request limit, and actual provider requests used. With both providers configured and `OPENAI_TRANSIENT_RETRIES=1`, each logical chain permits at most four provider HTTP attempts, so the daily `--ai-call-limit=45` has a worst-case provider request cap of `45 * 4 = 180`. The four-hour ingestion deadline remains the wall-clock backstop. The legacy daily AI path used OpenAI `chat/completions`; runtime keys remain in Dokploy rather than git.
+
+## Daily AI Completeness Release And Historical Repair
+
+This section is a proposed operator runbook, not authorization or evidence that any Production action ran. The locked backup, Dokploy env edits, scheduler pause/resume, web and scheduler deployments, each historical execute run, and any Production restore all require explicit operator approval before they are performed.
+
+The release contract is:
+
+- `all` accepts 15-20 events; each other daily condition accepts 8-12 events.
+- Every event must have at least two media sources. Truncated responses, invalid JSON/shape, out-of-range event counts, and single-media events are rejected.
+- Every configured channel with at least 10 videos on the requested day is eligible. A failed generation or missing/invalid same-day cache for any eligible channel blocks all six aggregate attempts. Fewer than 10 videos remains a valid channel skip.
+- A rejected channel or condition response is never written over its prior valid cache. When the eligible-channel gate fails, all existing daily aggregate rows remain untouched. After that gate passes, conditions are isolated: a failed condition preserves its existing row while another valid condition may update.
+
+### Approval And Backup Gate
+
+Before pushing or deploying the completeness release, obtain explicit approval for the exact release commit and these separately reviewable operations:
+
+1. Pause the Production scheduler after confirming that no `ai.daily` run or job lock is active.
+2. Take a consistent, protected backup of the six pipeline tables: `urt_video`, `urt_video_schedule`, `urt_video_live`, `urt_show_tag_date`, `urt_channel_ai`, and `urt_ai_date`.
+3. Apply the five reviewed non-secret AI runtime values to both web and scheduler service definitions.
+4. Deploy the web and scheduler services to the same exact commit, then resume the scheduler only after parity and health checks pass.
+5. Execute the 2026-07-14 repair, verify it, then separately execute the 2026-07-15 repair.
+
+The pipeline tables may use MyISAM, so `--single-transaction` alone is not a consistent backup. With the scheduler paused and no other writers, use a reviewed `mariadb-dump`/`mysqldump` procedure with `--lock-all-tables --quick` for all six tables in one dump. Prompt for the database password or inject it through the protected runtime; never put it on the command line, in logs, or in chat. Store the dump outside the repository, record its checksum and table row counts, and prove that it restores into a disposable MariaDB before any historical execute. The read lock can delay requests and the dump may be large, so the maintenance window and exact backup command require explicit approval.
+
+Restoring the six-table dump can discard uploads and AI/cache writes made after the backup. A rollback therefore requires a new explicit approval, the scheduler paused, confirmation that no other writer is active, redeployment of the previously healthy web and scheduler commit, and restoration of the complete six-table set rather than hand-edited rows. Verify the restored row counts, `/up`, and both historical report routes before resuming the scheduler. Do not use one-off Production SQL as a substitute for this rollback.
+
+### Coordinated Web And Scheduler Rollout
+
+Stage these non-secret values in both Dokploy service definitions without replacing or exposing either service's existing secrets or unrelated env values:
+
+```env
+OPENAI_MAX_TOKENS=4096
+OPENAI_FALLBACK_MAX_TOKENS=4096
+OPENAI_TRANSIENT_RETRIES=1
+OPENAI_RETRY_DELAY_MS=250
+OPENAI_RETRY_AFTER_MAX_MS=2000
+```
+
+Preserve and verify the presence of the existing database, YouTube, primary AI, fallback AI, application, scheduler gate, and exact allowlist settings; in particular, an env edit must not omit `DB_CONNECTION`, `DB_PORT`, or `DB_PASSWORD`. Do not print their values. Saving env does not prove a running container received it.
+
+After the approved backup and scheduler pause, push the approved release commit to `main`. Web autodeploy may start immediately; deploy the scheduler from the same exact commit before resuming it. Verify both services report that commit/image, both retain the same five non-secret AI values, both are healthy, and `https://youtube.observe.tw/up` returns 200. Do not run a historical execute against a mixed-version web/scheduler pair. If either deployment or parity check fails before a repair run, keep the scheduler paused and redeploy both services to the previously healthy commit; no table restore is needed unless a write-capable pipeline already ran.
+
+### Date-By-Date Repair
+
+Run a preview for each date with the exact execute caps before requesting the corresponding Production write:
+
+```bash
+php artisan ai:daily:pipeline --date=2026-07-14 --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000 --dry-run --json
+php artisan ai:daily:pipeline --date=2026-07-15 --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000 --dry-run --json
+```
+
+These dry-runs verify option normalization, local channel selection, prompt candidates, caps, and intended write targets only. They make no remote YouTube or AI request, report `required_channel_coverage_proven=false`, and cannot prove uploads crawl completeness, credentials, quota availability, provider behavior, or execute success.
+
+After explicit approval for the first date, run only:
+
+```bash
+php artisan ai:daily:pipeline --execute --date=2026-07-14 --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000 --json
+```
+
+Require exit code 0; `source_refresh.succeeded=true`; `source_refresh.crawl_complete=true`; `source_refresh.required_channel_coverage_complete=true`; an empty `source_refresh.missing_required_channel_ids`; zero eligible-channel completeness blockers; and six successful daily condition rows. Confirm `/ai/days/2026-07-14/all` returns 200 and renders 15-20 events, while each other generated condition contains 8-12. Review sanitized provider-attempt and quota telemetry without exposing prompts, response bodies, resource IDs, or credentials.
+
+Only after 2026-07-14 passes those checks and a separate explicit approval covers the second date, run:
+
+```bash
+php artisan ai:daily:pipeline --execute --date=2026-07-15 --channel-limit=39 --channel-batch-size=12 --ai-call-limit=45 --channel-video-limit=120 --limit=1000 --json
+```
+
+Apply the same checks to `/ai/days/2026-07-15/all`. A nonzero result, incomplete crawl, eligible-channel blocker, invalid condition, lock/deadline exit, credential failure, quota refusal, or provider exhaustion stops the runbook: do not continue to the next date and do not delete or manually patch rows. Because valid writes before an isolated later failure may remain, inspect sanitized output and request approval for either an idempotent rerun or the full six-table rollback plan.
 
 For derived report freshness, candidate keys are:
 
