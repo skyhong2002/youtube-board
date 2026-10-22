@@ -99,14 +99,13 @@ change, with every other byte preserved, produces SHA256
 `91b1009539036d228b2278f35619b2f464af629cabf563e4bf4eaa841b0eff77`.
 The scratch repair script checks both hashes, preserves ownership/mode, makes a
 backup and atomically replaces the file so an existing bind mount keeps its old
-inode and only future invocations change. It has **not** been applied by this
-implementation task. The user selected **root coordination with the existing
-session** to adopt this one-query repair. Root owns that follow-up; no additional
-approval request is pending here. The daily-source override, current process and
-retry loop remain untouched by this task. Before adoption, root/the owning session
-should confirm the original hash still matches; after adoption, verify a future
-invocation mounts the repaired hash and uses the indexed plan. The prepared
-script is `youtube-repair-event-overlay.py` in the scratch evidence directory.
+inode and only future invocations change. This implementation task did not apply
+it. The user selected **root coordination with the existing session**; the owner
+subsequently applied it at 15:54:46 and verified natural uptake as recorded below.
+The daily-source override, current process and retry loop were untouched by this
+task. The repair script is `youtube-repair-event-overlay.py` in the scratch evidence
+directory; its original-hash guard correctly prevents blindly reapplying it after
+adoption.
 
 ## Derived-report join defect (#6)
 
@@ -213,3 +212,103 @@ the new successful run did not erase historical attention or failed results.
 
 Focused tests and quota limitations are also documented in
 `issue-repairs-2026-10-22.md`. No PR, GitHub comment or issue closure was created.
+
+
+## External override uptake and continued #6 acceptance
+
+Root coordinated the existing owner session, which reported atomic application
+of the exact previewed query patch at 15:54:46.758–.764 UTC. The mounted source
+changed from `6a51fd5ad43161e7ad061984eacb68f29e1407c600d37532e06ce5c691714ec8`
+to `91b1009539036d228b2278f35619b2f464af629cabf563e4bf4eaa841b0eff77`.
+The old CLI container `21a6189e6aa5` retained its inode and completed naturally at
+15:55:54; successor `bbf8f9f63be7`, created 15:55:54.54, mounted the repaired
+hash/inode 264422. The owner verified an 18-ID plan changed from `ALL / 719200`
+to `range / 18`. This implementation task did not alter or stop the external loop.
+
+Despite that uptake, normal traffic in the same Web process produced reader/request
+statement deadlines at 16:00:55.760, acquisition deadlines at 16:00:59.323, pool
+admission failures at 16:01:09.639, readiness acquisition failure at 16:01:10.566,
+and a homepage `categories / category-source` failure at 16:01:15.816. Later
+reader logs at 16:01:26.332 and 16:01:30.217 retained respectively 34 coalesced
+statement-deadline and 57 acquisition occurrences. Reader/request logs can refer
+to the same failure and must not be summed as independent failed requests.
+The affected category operation does not identify which query occupied the pool.
+
+A bounded 16:02:50–16:03:07 processlist/metrics observation found no active queries,
+unchanged InnoDB physical-read counters and no InnoDB lock waits. Slow-query and
+general logging were already disabled; no settings were changed. That later idle
+snapshot cannot reconstruct the earlier failed statements. Root's separate
+`shared-host-1600.json` covers only 16:01:06–22: MariaDB CPU approximately 88% then
+70.5%, zero physical reads in those two eight-second intervals, CPU PSI some avg10
+34–50% and IO full avg10 declining 10.88% to 2.71%. It must not be extrapolated to
+15:47 or used to assign sole cause to another service.
+
+Two ordinary sequential homepage/API pairs, without cache-bypass headers, passed
+full HTML section checks and API semantics at 16:03:34 (379/407 ms) and 16:08:33
+(420/506 ms). Categories were available; weekly/today keywords were synchronized,
+each with 40 rows, consistent coverage totals and finite nonnegative ranking
+metrics. Both windows ended at 15:59:59, consistent with the existing ten-minute
+ranking cutoff at those times. These checks establish sampled recovery, not
+uninterrupted availability. A further reader statement timeout at 16:08:20.785
+had no report-stage label. Root notified a concurrent Infovore COPY-only build/
+smoke beginning at 16:08; that overlapping observation cannot independently
+isolate the performance effect of either service's change.
+
+No YouTube image, timeout, pool, readiness or workflow policy changed during this
+continuation. The Web remained `c2e5de38929b`, image dba0a00, started at 15:37:34,
+restartCount zero and healthy through the 16:08 capture. Final bounded-window
+observations and the acceptance verdict follow below.
+
+
+Final observation at 16:15:47 retained the same Web container/image, healthy,
+restartCount zero, no OOM and zero current health-check failing streak. There was
+no YouTube build or rollout during the entire acceptance continuation. The final
+ordinary GET pair at 16:15:17–18 returned homepage 200/329 ms and API 200/352 ms,
+with complete HTML and valid category/keyword semantics. HTML was a Cloudflare
+cache HIT; API was EXPIRED. Categories had advanced to updatedAt 16:09:13, but both
+keyword windows still ended at 15:59:59. The finite cache policy allows a prior
+successful result; this sample does not validate a refresh across the 16:10 cutoff
+or prove a freshness defect by itself. Exactly three sequential page/API pairs
+(six requests), without cache bypass, were sent in this continuation.
+
+The final log capture (1286 lines, below the 3000-line cap) also contains reader
+statement deadlines at 16:09:56.414 and 16:10:27.340, pool admission at
+16:10:35.581, and connection acquisition at 16:10:46.831. No later classified
+reader failure appears through 16:15:47; this short quiet interval is not complete
+remediation. These errors overlap Infovore's planned diagnostic rollout: root
+reported source `df4c5a3c68716d8331d2e080b1f3846a201f2f89`, image
+`sha256:c9de5292f457c1ec7887e620f0ef35500120e4c7148ba0c269abb2322b840e41`,
+app StartedAt 16:09:53.217Z and ingest 16:09:53.242Z. The COPY layer took 0.5 s;
+Compose used `up --no-build`. Neither overlap nor the later recovery independently
+attributes the reader failures to that rollout. The earlier 16:00–16:01 failures
+preceded this deployment and remain separate evidence. After root's no-additional-
+DB-probe notice, only normal GETs, existing logs and container metadata were read.
+
+Across 78 scheduler log snapshots, every snapshot remained ready. Deduplicating
+queue IDs yielded 63 observed completed jobs across live polling, source discovery,
+channel/video statistics, `reports.live.build` and existing notification workflows.
+The last scheduler sightings of daily/hourly AI jobs were active and are older
+than the final capture; they are not current completion claims. Separately,
+`worker-ai-hourly` logged **Worker job failed at 16:12:04.116**. The generic worker
+log does not identify its cause or prove an exact queue-ID association, so no
+specific model, DB or input fault is inferred. That failure remains visible and
+was neither replayed nor cleared. There was no new `reports.schedule.build` slot
+inside this window; the earlier 15:29/15:47 acceptance and preserved historical
+failure remain the evidence for #3.
+
+**Acceptance verdict:** both proven query-efficiency repairs are deployed, and
+the external CLI owner has adopted the event-query repair. Homepage/API semantic
+samples recover and containers remain stable, but #6 is **not complete**: reader/
+pool failures continued after adoption, a later keyword cutoff was not verified,
+and an existing hourly-worker failure must remain visible. The failed SQL shapes
+and pool occupancy during the remaining bursts were not captured. A further SQL
+repair or capacity change would be speculation on this evidence; no new fix,
+build, deployment, widened deadline or threshold was introduced. The next useful
+work is correlating an actual recurrence with a fixed operation/query shape and
+pool occupancy, with root coordinating host activity, not replaying jobs or using
+more successful 200s as closure.
+
+Final artifacts: `youtube-home-acceptance-1615.json`,
+`youtube-window-metadata-1615.json`, `youtube-scheduled-log-observe-1615.json`,
+`youtube-scheduled-log-summary-1615.json`. The scratch report also retains the
+16:03 and 16:08 samples, bounded earlier SQL inspection, and shared-host timing.
