@@ -20,17 +20,18 @@ it('worker and reader math keeps title weighting, observed views and per-video c
 });
 /** In-memory reader routed by SQL text; records every statement so tests can prove which reads ran. */
 function scriptedReader(input:{aliases:Row[];evidence?:Row[];evidenceCount?:number}){
- const dialect=new MySqlDialect(),statements:string[]=[],key=(c:string)=>c.repeat(64),source:Row={pk:1,videoId:'abcdefghijk',u_id:9,publishedAt:'2036-10-12 10:00:00',viewCount:100,mtime:'2036-10-12 11:00:00',ctime:'2036-10-12 11:00:00',source_bytes:20,source_hash:'h',source_pk:1,source_text_sha256:'h',rule_version:'youtube-quality-v2',evidence_count:input.evidenceCount??input.evidence?.length??0,match_epoch:Date.parse('2036-10-12T03:00:00Z')};
- const reader={close:async()=>{},rows:async(query:Parameters<ReturnType<typeof createReader>['rows']>[0])=>{const text=dialect.sqlToQuery(query).sql;statements.push(text);
+ const dialect=new MySqlDialect(),statements:string[]=[],operations:(string|undefined)[]=[],key=(c:string)=>c.repeat(64),source:Row={pk:1,videoId:'abcdefghijk',u_id:9,publishedAt:'2036-10-12 10:00:00',viewCount:100,mtime:'2036-10-12 11:00:00',ctime:'2036-10-12 11:00:00',source_bytes:20,source_hash:'h',source_pk:1,source_text_sha256:'h',rule_version:'youtube-quality-v2',evidence_count:input.evidenceCount??input.evidence?.length??0,match_epoch:Date.parse('2036-10-12T03:00:00Z')};
+ const reader={close:async()=>{},rows:async(query:Parameters<ReturnType<typeof createReader>['rows']>[0],options?:Parameters<ReturnType<typeof createReader>['rows']>[1])=>{const text=dialect.sqlToQuery(query).sql;statements.push(text);operations.push(options?.operation);
   if(text.includes('FROM ts_vocabulary_current c'))return [{id:'v-unit',coverage:'"observed-article-window"',matching_rule:'youtube-quality-v2'}];
   if(text.includes('AS alias_snapshot_bytes'))return [{alias_snapshot_bytes:100,separate_terms:null}];
   if(text.includes('JSON_TABLE(r.snapshot'))return input.aliases.map((row,i)=>({term_key:key(String(i)),...row}));
+  if(text.includes('SELECT c.u_id'))return [{u_id:9}];
   if(text.includes('OCTET_LENGTH(COALESCE(title'))return [{n:1,bytes:20}];
   if(text.includes('AS source_hash'))return [source];
   if(text.includes('OCTET_LENGTH(term) AS bytes'))return [{n:input.evidence?.length??0,bytes:10}];
   if(text.includes('SELECT e.video_id,e.term'))return (input.evidence??[]).map(row=>({video_id:'abcdefghijk',source:'https://tag.observe.tw',rule_version:'youtube-quality-v2',field_name:'title',...row}));
   throw new Error('unexpected statement '+text);}};
- return {reader:reader as unknown as ReturnType<typeof createReader>,statements};
+ return {reader:reader as unknown as ReturnType<typeof createReader>,statements,operations};
 }
 const unitNow=new Date('2036-10-12T04:00:00Z');
 it('a keyword outside the maintained vocabulary is no-source before any video or evidence read',async()=>{
@@ -54,6 +55,21 @@ it('ASCII-case aliases recorded on one span count once while every evidence row 
   const invalid=await loadDerivedSource(scriptedReader({aliases:[{term:'AI'}],evidence:[{term:'AI',start_offset:0,end_offset:2,...bad}]}).reader,{},'2036-10-10','2036-10-12',unitNow,'AI');expect(invalid.coverage.status,JSON.stringify(bad)).toBe('invalid-evidence');
  }
  expect(derivedNote(source.coverage)).toContain('英文字母不分大小寫');
+});
+it.each([
+ {keyword:'PRIVATE-fixture-Ai%_',branch:'keyword'},
+ {keyword:undefined,branch:'taxonomy'},
+ {keyword:'',branch:'taxonomy'},
+])('uses fixed $branch operations for size and both source reads',async({keyword,branch})=>{
+ const {reader,statements,operations}=scriptedReader({aliases:[{term:keyword}]});
+ const source=await loadDerivedSource(reader,{tagid:'4'},'2036-10-10','2036-10-12',unitNow,keyword);
+ expect(source.coverage.status).toBe('ready');
+ const sizeIndexes=statements.flatMap((text,i)=>text.includes('OCTET_LENGTH(COALESCE(title')?[i]:[]);
+ const sourceIndexes=statements.flatMap((text,i)=>text.includes('AS source_hash')?[i]:[]);
+ expect(sizeIndexes).toHaveLength(1);expect(sourceIndexes).toHaveLength(2);
+ expect(operations[sizeIndexes[0]!]).toBe(`derived-${branch}-source-size`);
+ expect(sourceIndexes.map(i=>operations[i])).toEqual([`derived-${branch}-source`,`derived-${branch}-source`]);
+ expect(JSON.stringify(operations)).not.toContain('PRIVATE-fixture');
 });
 const url=process.env.TEST_DATABASE_URL?assertTestDatabaseUrl(process.env.TEST_DATABASE_URL):undefined;
 describe.skipIf(!url)('bounded source fallback on isolated MariaDB',()=>{
