@@ -3,6 +3,31 @@
 Production is `youtube.observe.tw`, Dokploy compose `youtube-board-ts-6oukfq` on
 skyhong-blog. Times below are UTC. The legacy deployment was not accessed.
 
+## Current status — 2026-10-22 17:31 UTC
+
+**#6 remains failing.** The deployed observation release captured a real
+`derived-source-size` statement timeout at **17:23:53.039560809Z**: 5013ms,
+acquire0ms, active2/6, queued0/24, expiredQueued0. This is not evidence of pool
+saturation. The operation contains bounded candidate COUNT plus payload-byte SUM;
+its label does not distinguish keyword text-filter and channel-IN branches.
+Preserve both size guards and all source/evidence revision checks during further
+source-only and isolated plan investigation. No additional deployment is planned
+without a demonstrated minimal repair, tests and coordinated host window.
+
+Web is exact release `12b78a9c270bbcbef2a75719df4986ccc1700049`, image
+`sha256:420fd4df86b1b5c37689cdb837305fd4c99c95335d31876ad93b67e72efda47c`,
+container `ab9733370454`, StartedAt **17:06:46.437511022Z**. At17:30:19 it
+remains healthy/restart0/OOMfalse. Exact release CI39817892606 passed all2344
+tests, typechecks, image build and packaged readiness/reports smoke. Main CI has
+a separate pre-existing AI assertion failure being handled by its original owner.
+
+Normal HTML/API pairs at17:08,17:15,17:22,17:30 passed complete section/metric/
+coverage semantics; cutoff advanced to17:19:59. Those successes do not erase the
+17:23:53 failure. Natural17:29 report job completed100applied/0skipped/1deferred,
+with truncated=true (bounded batch, not all backlog cleared). The new17:10 hourly
+job published17:12:02; the older16:12 failed job remains preserved and unexplained.
+All earlier records below are chronological history, not the current image/status.
+
 ## Source and deployed images
 
 The release branch `release/runtime-monitoring-20261022` starts from the actual
@@ -18,9 +43,9 @@ unrelated AI changes `357749c` and `9415779`.
 | #6 competing event lookup | `a996ce3` | AI-daily worker `dce5c87` | Deployed at 15:22:58 after queue active/wait counts were zero; healthy task started 15:23:04. Natural AI-workload acceptance pending. |
 | #6 derived-report marker join | `ba8594d` | Web `dba0a00` | Web-only deployment submitted 15:37:22; task started 15:37:34, sitemap ready 15:38:43, healthy/update completed by 15:38:57. Normal-traffic observation continues. |
 
-Actual image mapping after the final targeted deployment:
+Actual image mapping after the 17:06 Web-only observation deployment:
 
-- Web: `sha256:d83c340590678896480647e80bce3a8bb450897d36010d652e176015db652578` (`dba0a00b72bb04ef875bf0755875826f3935202e`), superseding `aa33175` image `sha256:732494ca2b82561031680750f03d0b020d001bec8b2f2e1e66c9781b2baa63bc`.
+- Web: `sha256:420fd4df86b1b5c37689cdb837305fd4c99c95335d31876ad93b67e72efda47c` (`12b78a9c270bbcbef2a75719df4986ccc1700049`); immediate rollback image `sha256:d83c340590678896480647e80bce3a8bb450897d36010d652e176015db652578` (`dba0a00b72bb04ef875bf0755875826f3935202e`). Older `aa33175` image `sha256:732494ca2b82561031680750f03d0b020d001bec8b2f2e1e66c9781b2baa63bc` remains historical.
 - AI-daily worker: `sha256:a12b06a1b682c325defa1c9ee6d07e038f795dd1849ddab8f8ee2a879a7959ab` (`dce5c87cb5b2249fbeb14d815e8fa38286aabbd6`).
 - Remaining eight TS services: `sha256:65038431f29a06ff1e989a77b777a60e32c65bdafffd51d691a8a04df3f40861` (`c51bebd`).
 - Original rollback image: `sha256:7112ee12168fba952e3d4bcd922d1410e6dd79f63a962bafb0487d0f42f09ec6` (`628d13e`).
@@ -364,3 +389,200 @@ started app16:26:10.931122408Z and ingest16:26:10.930187165Z. Its initial
 636ms. Root is coordinating further diagnosis. YouTube remains dba0a00; no
 candidate build/server or remote rollout is active. Remote build/switch awaits
 the coordinated window. Overlap alone establishes no cause for reader failures.
+
+
+### Candidate review and exact-CI follow-ups
+
+Main diagnostic commit `d2edd2850fdc246e04c2418d31878ae37ce54ff5` was pushed;
+release `ac14ea87a0a0f149c561cd49d3f68d8206f9ed5a` carries the same API change
+on the deployed dba0a00 base. Parent independently reviewed lifecycle, bounded
+fields, privacy and phase semantics and found no deployment blocker. It verified
+all nine API-file patches and final contents match; patch SHA256:
+`efa2eacfb424736e41421853c1264f5bf83efbed7d9e481c16e5ef6b6f21bf42`.
+
+ExactCI39815657678 passed typecheck but failed two sitemap database tests
+(1238 API passes). The pre-existing sitemap excludes unobserved NULL viewCount,
+but its fixture omitted every viewCount. Test-only main2a15945/releasec274839
+sets observed counts0/100, retains non-NULL private/deleted fixtures, adds an
+explicit NULL exclusion and preserves counts in the duplicate-row fixture.
+The original two failures reproduce in isolation; the fixed three tests pass,
+including EXPLAIN. Parent independently reviewed this test-only follow-up.
+
+CI39816706508 then passed all1240 API/346 jobs/117 ingestion tests but failed the
+event-lookup suite setup: it tried to reacquire the runner's integration-lane
+lock on a second connection. Its writes use only a connection-local TEMPORARY
+TABLE, and daily source is mocked. Test-only maindc0966b/release12b78a9 removes
+that redundant test lock, preserves the integration runner's global lock and
+isolated-database guard, and rejects any unreplaced shared-table query in the
+proxy. With an outer lane lock held, before fails setup/3skip and after passes
+all3 EXPLAIN/equivalence/duplicate/missing-ID checks. Parent reviewed this and
+confirmed ac14ea8..12b78a9 changes exactly two test files, no runtime source.
+
+Current release candidate: `12b78a9c270bbcbef2a75719df4986ccc1700049`, exact
+CI39817892606 pending as of16:55UTC. No candidate has been deployed. Parent's
+latest coordination places any build/switch after Infovore's17:00 boundary
+completion and after exact CI passes; no deadline/check will be bypassed.
+
+Two bounded existing-log captures retain further natural statement deadlines
+at16:26:24.275075655Z,16:27:08.466210676Z and16:42:54.495146785Z. Captures at
+16:40:08 and16:50:19 read30 and19lines, both below the3000line cap, with no DB
+queries or public requests. Web remained c2e5de38929b/dba0a00, healthy/restart0,
+started15:37:34.750740061Z. These errors overlap Infovore's planned16:26 and
+16:42:50 startups; operation and occupancy remain unknown on the old Web image.
+The overlap is not causal attribution. #6 remains unresolved.
+
+
+Exact release CI39817892606 is now successful for
+`12b78a9c270bbcbef2a75719df4986ccc1700049` (verified17:00:25 UTC): all
+workspace/runtime typechecks, integration (tools107/API1240/web375/jobs346/
+ingestion117/AI81/notifications78 tests), actual runtime image build and packaged
+readiness/reports checks passed. Earlier failures remain in the history above.
+Supplemental parent review also passed for dc0966b; all runtime source remains
+identical to reviewed ac14ea8. Candidate source context and isolated smoke are
+prepared locally. Planned remote window17:05–17:09 is conditional on completion
+of Infovore's17:00 immutable boundary audit, per root coordination. Nothing on
+the VPS has been built or switched by this task yet.
+
+
+### Deployed reader observation — 17:05–17:08 UTC
+
+After root reported Infovore's boundary audit complete17:01:13.564 (identity
+check17:01:18.751, observer stopped), the coordinated build began17:05:21 and
+ended17:05:22. Image `sha256:420fd4df86b1b5c37689cdb837305fd4c99c95335d31876ad93b67e72efda47c`
+contains exact release `12b78a9c270bbcbef2a75719df4986ccc1700049`, only eight
+API source files copied onto the exactdba0a00 base. Base layers and image config
+are unchanged except revision label. There was no dependency install, compiler
+or Next build on the VPS. The client used nice19/ionice3; build RUN limits were
+1CPU/1536MiB (no RUN instruction exists), isolated smoke1CPU/384MiB, no network
+and no production volumes. These do not globally limit the Docker daemon.
+
+The first smoke lacked the existing mandatory trusted-ingress setting. Repeating
+only smoke with loopback allowlist, on the same image (no rebuild), passed at
+17:05:58: all8 source hashes, readiness operation and failure snapshot. This
+fixture correction did not alter production settings. Owned smoke container and
+remote source staging were removed; images and local evidence remain.
+
+Original Dokploy Web-only deployment requested17:06:44.709108Z. Container
+`ab9733370454` StartedAt **17:06:46.437511022Z**, restart0/OOMfalse. The old Web
+was retained during planned startup and then exited normally. Sitemap prepared
+17:07:33.383797280Z:457871 rows/13pages,37609ms. At17:07:51.634849Z only the new
+Web remained, healthy/restart0/healthFailures0. At17:08:31 all11 project containers
+were healthy/restart0; non-Web StartedAt timestamps preceded this deployment
+(daily15:23, otherTS14:56, RedisOct17). Their compose configuration and environment
+were unchanged. No threshold, timeout, SQL or worker policy was changed.
+
+One normal sequential HTML/API pair at17:08:30–36 passed full semantics, without
+cache bypass: HTML200/5710ms (CF EXPIRED), API200/217ms (CF EXPIRED), categories
+available8rows, week/today keywords synchronized40rows each, valid metrics and
+coverage sums. Both keyword windows end16:59:59, advancing beyond the older
+15:59:59 observation. This verifies sampled recovery after startup, not continuous
+availability or #6 closure. Further natural workload observation is in progress.
+
+Artifacts: `youtube-observation-build-12b78a9.log`,
+`youtube-observation-smoke-12b78a9.log`, `youtube-observation-release-preview.json`,
+`youtube-observation-release.json`, `youtube-operation-startup-1708.json`,
+`youtube-home-acceptance-1708.json`, `youtube-observation-ci-success.json`.
+
+
+At17:11:41 running container source hashes were directly verified (8/8), exact
+revision12b78a9 (`youtube-running-source-proof.json`). At17:12:35.439821Z Web
+remains the same healthy/restart0 container;52existing log lines since17:06:44
+were below cap with no classified reader/home-section failure observed. Scheduler
+capture17:12:36 contains23ready snapshots; deduplicating workflow/queue IDs yields
+24completed jobs and1active hourlyAI job. No new worker failure line was observed;
+active is not completion. Artifacts: `youtube-operation-observe-1712.json`,
+`youtube-scheduled-observe-1712.json`, `youtube-scheduled-summary-1712.json`.
+This short quiet interval does not establish resolution of#6; natural observation
+continues without model calls/replay, DB probes or additional deployment.
+
+
+Second ordinary sequential GET pair17:15:17 passed:HTML200/126ms(CF HIT),
+API200/182ms(CF EXPIRED), all section/coverage/metric semantics valid. Category
+updatedAt advanced17:09:04; week/today windows now end17:09:59 with40rows each,
+so this sample crosses a new cutoff rather than only reusing the16:59:59 window.
+Fresh/stale/unprocessed counts remain explicitly represented; synchronized does
+not mean every source is processed. Artifact:`youtube-home-acceptance-1715.json`.
+No DB probe, cache bypass, workflow replay or extra deployment accompanied it.
+
+
+At17:17:38.603584Z the same Web is healthy/restart0;58lines since deployment,
+no tail cap, no classified reader/home-section failure observed. Scheduler's
+43snapshots are ready;40 distinct queue IDs have observed completed states, while
+the17:10 hourly AI queue ID remains active (not claimed complete). No new worker
+failure line. These are observed states, not independently timestamped completion
+counts. Artifacts:`youtube-operation-observe-1717.json`,
+`youtube-scheduled-observe-1717.json`, `youtube-scheduled-summary-1717.json`.
+Observe unchanged runtime through approximately17:30; no new repair is invented
+from this quiet interval and historical failures remain.
+
+
+Third ordinary sequential GET pair17:22:23–24 passed:HTML200/195ms and
+API200/207ms,bothCF EXPIRED,full section/metric/coverage semantics valid.
+Category timestamp17:18:10; week/today cutoff17:19:59, matched-source timestamps
+advanced17:17:10. At17:22:25.716265Z the same healthy/restart0 Web had63existing
+log lines since deployment,no cap,no classified reader/home-section failure.
+62scheduler snapshots were ready;55 distinct queue IDs were observed completed,
+2active/1waiting; hourlyAI remains active. No new worker failure line. These
+states do not establish the unobserved exact completion time of every job.
+Artifacts:`youtube-home-acceptance-1722.json`,`youtube-operation-observe-1722.json`,
+`youtube-scheduled-observe-1722.json`,`youtube-scheduled-summary-1722.json`.
+#6 remains open pending any recurrence diagnosis; no SQL change inferred from200s.
+
+
+Separate main-branch check: CI39817935674 for maindc0966b failed only the AI
+`derived.test.ts` event pairing/idempotence assertion (81pass/1fail); deployed
+release12b78a9 exact CI39817892606 passed its81AI tests and all remaining checks.
+Read-only comparison finds main's pre-existing people-analysis filtering from
+9415779/357749c, excluded from this release, while that derived fixture still
+expects rejection. Root was notified to coordinate its original owner. This
+runtime task did not change/deploy that behavior or misrepresent main CI as
+passing. Evidence:`youtube-main-dc0966b-ci-failure.log`. The unchanged reader
+release remains under natural acceptance; main CI does not invalidate the exact
+released runtime checks, and its separate failure remains visible.
+
+
+### Natural17:29 slot and newly localized reader failure —17:30–17:31 UTC
+
+The final ordinary GET pair17:30:17.958–18.395 returned HTML200/225ms and
+API200/195ms, both CF EXPIRED, with full section/metric/coverage semantics valid.
+Categories still8rows; keywords/today40rows and cutoff17:19:59. Coverage explicitly
+reports one stale video in each window and20/17unprocessed; synchronized does not
+mean every source is fresh. Artifact:`youtube-home-acceptance-1730.json`.
+
+Existing Web logs captured17:30:19.793834Z (72lines since17:06:44, no tail cap)
+contain a **real reader failure at17:23:53.039560809Z**:
+`statement-deadline / ER_STATEMENT_TIMEOUT`, operation`derived-source-size`,
+phase`statement`, duration/statement5013ms, acquire0ms, suppressed0. Pool has
+active2/6, queued0/24, expiredQueued0; holders are`derived-source-size`1×5016ms
+and`derived-source`1×1218ms. This demonstrates statement failure without observed
+pool saturation. It neither distinguishes keyword versus channel-IN branch nor
+establishes shared-host contention as cause. Source review identifies COUNT and
+SUM of title/description byte lengths over bounded accepted candidates; LIMIT
+need not bound examined rows or text-filter work. MAX_VIDEOS/MAX_BYTES preflight
+and subsequent evidence/source revision checks must remain intact. Root was
+notified; further investigation starts source-only/isolated. No new build,
+restart, timeout adjustment or deployment followed this capture.
+
+The same Web identity remains healthy/restart0/OOMfalse. Scheduler capture has
+94ready snapshots and83distinct observed completed queue IDs, with no new worker
+failure line; none of the bounded role-log captures hit its cap. Historical
+snapshot state for the hourly job was active but old, so it is not asserted as
+current state. A separate bounded read of exactly two known BullMQ records at
+17:31:20.244Z, without SQL/workflow imports/writes, confirms:
+
+- `reports.schedule.build` queue`0ae9b727b037a2218f9f91dadeae9b1c96ca9bcfb4fff90e8662c52cb2e0119c`
+  naturally ran17:29:01.144–17:29:01.804Z, one attempt, queuecompleted,
+  selected100/applied100/skipped0/deferred1, truncated=true. This is a completed
+  bounded queue execution, not a claim that the durable run is complete or the
+  entire backlog is cleared. Earlier #3 failure/history remains preserved.
+- `ai.hourly` queue`b084aeab62f497c2a527fe8832b446ccafdf375dca12f9e0edbbae5fc2f258b7`
+  naturally ran17:10:04.959–17:12:02.522Z, one attempt, queuecompleted and stored
+  statuspublished. This corrects the stale scheduler observation only; it does
+  not resolve or replay the different16:12 failed job.
+
+Artifacts:`youtube-operation-observe-1730.json`,
+`youtube-scheduled-observe-1730.json`,`youtube-scheduled-summary-1730.json`,
+`youtube-natural-exact-1730.py/json`. #6 is not accepted as fixed: diagnostics now
+localize a remaining failure. Repo/index ownership is being released after this
+exact-document commit so the original AI owner can submit its independent main
+repair; runtime investigation remains with this task.
