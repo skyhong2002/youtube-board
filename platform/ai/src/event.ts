@@ -49,11 +49,11 @@ export function validateEventDetail(content:string,plan:DerivedPlan){
   for(const value of list(event.opinion,0,100)){const r=object(value);exactKeys(r,['media','stance','intensity','content','video_id']);ref(r);text(r.stance);text(r.content);if(!['高','中','低'].includes(String(r.intensity)))throw new Error('Invalid intensity');}
  }else{
   const groups=source.promptType==='people'?['supporting_persons','opposing_persons','other_opinions_persons']:['supporting_medias','opposing_medias','other_opinions_medias'];exactKeys(root,['main_subject',...groups,...(source.promptType==='media'?['all_medias']:[])]);title(root.main_subject);const used=new Set<string>();
-  // People mode keeps only videos whose source item names the person (the model tends to attach every topic video to the
-  // main person) and drops a person left without any; the person must still be named by the source.
+  // People mode keeps only persons named by the source (first entry of a repeated one) and only their videos whose source
+  // item names them; the model also adds people from video titles and attaches every topic video to the main person.
   for(const group of groups){const kept:unknown[]=[];for(const value of list(root[group],0,100)){
    const r=object(value);stanceCheck(r,group);
-   if(source.promptType==='people'){exactKeys(r,['person','role','support_or_opposition','strength','description','videos']);const name=text(r.person);if(!persons.has(name)||used.has(name))throw new Error('Unknown or repeated event person');used.add(name);text(r.role);
+   if(source.promptType==='people'){exactKeys(r,['person','role','support_or_opposition','strength','description','videos']);const name=text(r.person);text(r.role);if(!persons.has(name)||used.has(name))continue;used.add(name);
     const videos=list(r.videos,1,500).filter(video=>{const v=object(video);exactKeys(v,['media','video_id']);ref(v);return source.topic.media.some(m=>m.channel===v.media&&m.event.videoId.includes(String(v.video_id))&&m.event.人物.includes(name));});
     if(videos.length)kept.push({...r,videos});}
    else{exactKeys(r,['media','support_or_opposition','strength','description']);const name=media(r.media);if(used.has(name))throw new Error('Repeated media classification');used.add(name);kept.push(r);}
