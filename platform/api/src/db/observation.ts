@@ -5,7 +5,9 @@ export const READER_OPERATIONS = [
   'readiness', 'api-status', 'home-summary', 'home-category-counts', 'home-category-names',
   'home-vocabulary', 'home-video-source', 'home-term-labels', 'home-ranking',
   'home-daily-history', 'home-representatives', 'home-version-check', 'ranking-exclusions',
-  'derived-vocabulary', 'derived-channels', 'derived-source-size', 'derived-source',
+  'derived-vocabulary', 'derived-channels',
+  'derived-keyword-source-size', 'derived-taxonomy-source-size',
+  'derived-keyword-source', 'derived-taxonomy-source',
   'derived-evidence-size', 'derived-evidence',
 ] as const;
 export type ReaderOperation = typeof READER_OPERATIONS[number];

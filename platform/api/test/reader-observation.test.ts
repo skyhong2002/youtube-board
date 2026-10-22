@@ -18,9 +18,9 @@ describe('fixed reader operations and lease observations',()=>{
   expect(readerOperation('anything','home-ranking')).toBe('home-ranking');
  });
  it('distinguishes queued, expired queued and active leases without retaining payloads',()=>{
-  let time=100;const tracker=readerPoolObservation(()=>time),a=tracker.queue('home-ranking'),b=tracker.queue('derived-source');
+  let time=100;const tracker=readerPoolObservation(()=>time),a=tracker.queue('home-ranking'),b=tracker.queue('derived-taxonomy-source');
   time=120;tracker.acquired(a);time=160;tracker.expire(b);
-  expect(tracker.snapshot()).toEqual({active:1,queued:1,expiredQueued:1,connectionLimit:6,queueLimit:24,activeOperations:[{operation:'home-ranking',count:1,oldestMs:40}],queuedOperations:[{operation:'derived-source',count:1,oldestMs:60}]});
+  expect(tracker.snapshot()).toEqual({active:1,queued:1,expiredQueued:1,connectionLimit:6,queueLimit:24,activeOperations:[{operation:'home-ranking',count:1,oldestMs:40}],queuedOperations:[{operation:'derived-taxonomy-source',count:1,oldestMs:60}]});
   tracker.abandon(b);tracker.release(a);expect(tracker.snapshot()).toMatchObject({active:0,queued:0,expiredQueued:0});
  });
  it('captures the failed statement before destroy and removes the released lease afterward',async()=>{
@@ -34,8 +34,8 @@ describe('fixed reader operations and lease observations',()=>{
   expect(output[0]).toMatchObject({operation:'home-ranking',phase:'statement',durationMs:27,statementMs:27,pool:{active:1,queued:0,activeOperations:[{operation:'home-ranking',count:1,oldestMs:27}]}});
   expect(first.destroy).toHaveBeenCalledOnce();expect(first.release).not.toHaveBeenCalled();
   expect(first.execute.mock.calls[0]).toEqual([{sql:'SET STATEMENT max_statement_time=15 FOR SELECT ? AS value',timeout:16000},['private parameter']]);
-  await vi.advanceTimersByTimeAsync(30000);await reader.rows(sql`SELECT 2`,{operation:'derived-source'}).catch(()=>{});
-  expect(output[1]?.pool.activeOperations).toEqual([{operation:'derived-source',count:1,oldestMs:0}]);
+  await vi.advanceTimersByTimeAsync(30000);await reader.rows(sql`SELECT 2`,{operation:'derived-taxonomy-source'}).catch(()=>{});
+  expect(output[1]?.pool.activeOperations).toEqual([{operation:'derived-taxonomy-source',count:1,oldestMs:0}]);
   expect(JSON.stringify(output)).not.toMatch(/private|secret|SELECT/);
  });
  it('identifies the six active holders when admission/acquisition fails and drains late leases',async()=>{
@@ -44,11 +44,11 @@ describe('fixed reader operations and lease observations',()=>{
   let n=0;const getConnection=vi.fn(()=>{const index=n++;return index<6?Promise.resolve(connections[index]):waiting[index-6]!.promise;});
   mocks.createPool.mockReturnValue({getConnection,end:vi.fn()});const reader=createReader('mysql://fixture',{acquireMs:10,statementMs:1000});
   const active=connections.map(()=>reader.rows(sql`SELECT 1`,{operation:'home-ranking'}));await vi.advanceTimersByTimeAsync(1);
-  const pending=waiting.map(()=>reader.rows(sql`SELECT 2`,{operation:'derived-source'}).catch(e=>e));
+  const pending=waiting.map(()=>reader.rows(sql`SELECT 2`,{operation:'derived-taxonomy-source'}).catch(e=>e));
   await expect(reader.rows(sql`SELECT 3`,{operation:'readiness'})).rejects.toMatchObject({category:'pool-admission'});
-  expect(output[0]).toMatchObject({operation:'readiness',phase:'admission',pool:{active:6,queued:24,expiredQueued:0,connectionLimit:6,queueLimit:24,activeOperations:[{operation:'home-ranking',count:6}],queuedOperations:[{operation:'derived-source',count:24}]}});
+  expect(output[0]).toMatchObject({operation:'readiness',phase:'admission',pool:{active:6,queued:24,expiredQueued:0,connectionLimit:6,queueLimit:24,activeOperations:[{operation:'home-ranking',count:6}],queuedOperations:[{operation:'derived-taxonomy-source',count:24}]}});
   await vi.advanceTimersByTimeAsync(10);expect((await Promise.all(pending)).every(e=>e.category==='connection-acquire')).toBe(true);
-  expect(output[1]).toMatchObject({operation:'derived-source',phase:'acquire',durationMs:10,pool:{active:6,queued:24,expiredQueued:1}});
+  expect(output[1]).toMatchObject({operation:'derived-taxonomy-source',phase:'acquire',durationMs:10,pool:{active:6,queued:24,expiredQueued:1}});
   const lateRelease=vi.fn();for(const waiter of waiting)waiter.resolve({release:lateRelease});for(const d of busy)d.resolve([[],[]]);await Promise.all(active);await vi.advanceTimersByTimeAsync(0);
   expect(lateRelease).toHaveBeenCalledTimes(24);expect(connections.every(c=>c.release.mock.calls.length===1)).toBe(true);
   const fail={execute:vi.fn().mockRejectedValue({code:'ECONNRESET'}),destroy:vi.fn(),release:vi.fn()};getConnection.mockResolvedValue(fail);
