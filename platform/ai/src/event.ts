@@ -53,13 +53,16 @@ export function validateEventDetail(content:string,plan:DerivedPlan){
   const groups=source.promptType==='people'?['supporting_persons','opposing_persons','other_opinions_persons']:['supporting_medias','opposing_medias','other_opinions_medias'];exactKeys(root,['main_subject',...groups,...(source.promptType==='media'?['all_medias']:[])]);title(root.main_subject);const used=new Set<string>();
   // People mode keeps only persons named by the source (first entry of a repeated one) and only their videos whose source
   // item names them; the model also adds people from video titles and attaches every topic video to the main person.
-  for(const group of groups){const kept:unknown[]=[];for(const value of list(root[group],0,100)){
+  let returned=0,survived=0;
+  for(const group of groups){const kept:unknown[]=[];for(const value of list(root[group],0,100)){returned++;
    const r=object(value);stanceCheck(r,group);
    if(source.promptType==='people'){exactKeys(r,['person','role','support_or_opposition','strength','description','videos']);const name=text(r.person);text(r.role);if(!persons.has(name)||used.has(name))continue;used.add(name);
     const videos=list(r.videos,1,500).filter(video=>{const v=object(video);exactKeys(v,['media','video_id']);ref(v);return source.topic.media.some(m=>m.channel===v.media&&m.event.videoId.includes(String(v.video_id))&&m.event.人物.includes(name));});
     if(videos.length)kept.push({...r,videos});}
    else{exactKeys(r,['media','support_or_opposition','strength','description']);const name=media(r.media);if(used.has(name))throw new Error('Repeated media classification');used.add(name);kept.push(r);}
-  }root[group]=kept;}
+  }root[group]=kept;survived+=kept.length;}
+  // Filtering must not turn an answer made only of unsupported people into a published empty analysis; fail so it is retried.
+  if(source.promptType==='people'&&returned>0&&survived===0)throw new Error('No sourced event person');
   if(source.promptType==='media'){const all=strings(root.all_medias);all.forEach(media);if(all.length!==medias.size||used.size!==medias.size)throw new Error('Incomplete media coverage');}
  }
  return root;

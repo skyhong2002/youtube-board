@@ -49,6 +49,9 @@ describe('legacy daily source repair',()=>{
   // A person no source item names is dropped, and a repeated person keeps the first entry; a video outside the topic still fails.
   const extra=validateEventDetail(JSON.stringify({main_subject:'議題一',supporting_persons:[person('不存在',[['媒體甲','AAAAAAAAAAA']]),person('王甲',[['媒體甲','AAAAAAAAAAA']]),person('王甲',[['媒體甲','AAAAAAAAAAA']])],opposing_persons:[],other_opinions_persons:[]}),plan) as Record<string,{person:string}[]>;
   expect(extra.supporting_persons!.map(p=>p.person)).toEqual(['王甲']);
+  // An answer whose every person is unsupported fails (and is retried) instead of publishing an empty analysis; an empty answer is valid.
+  expect(()=>validateEventDetail(JSON.stringify({main_subject:'議題一',supporting_persons:[person('不存在',[['媒體甲','AAAAAAAAAAA']]),person('李乙',[['媒體甲','AAAAAAAAAAA']])],opposing_persons:[],other_opinions_persons:[]}),plan)).toThrow('No sourced event person');
+  expect(validateEventDetail(JSON.stringify({main_subject:'議題一',supporting_persons:[],opposing_persons:[],other_opinions_persons:[]}),plan)).toMatchObject({supporting_persons:[]});
   expect(()=>validateEventDetail(JSON.stringify({main_subject:'議題一',supporting_persons:[person('王甲',[['媒體甲','ZZZZZZZZZZZ']])],opposing_persons:[],other_opinions_persons:[]}),plan)).toThrow('pair');
  });
 });
