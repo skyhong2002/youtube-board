@@ -2,6 +2,7 @@ import type { ExecuteValues } from 'mysql2';
 import { MySqlDialect } from 'drizzle-orm/mysql-core';
 import type { SQL } from 'drizzle-orm';
 import mysql from 'mysql2/promise';
+import { dataSourceReporter } from './diagnostics.js';
 export type Row = Record<string, unknown>;
 export interface Reader {
     /** statementMs raises or lowers this query's server-side deadline within the reader bounds. */
@@ -42,8 +43,10 @@ function driverCode(error: unknown): string {
 }
 export function createReader(databaseUrl: string | undefined, limits = { acquireMs: 3000, statementMs: 5000 }): Reader {
     if (![limits.acquireMs, limits.statementMs].every(n => Number.isSafeInteger(n) && n >= 10 && n <= 15000)) throw new Error("Invalid query deadline");
+    // Report before callers translate source errors into section-level failures.
+    const reportFailure = dataSourceReporter();
     if (!databaseUrl)
-        return { rows: async () => { throw new DataSourceUnavailable(undefined, 'configuration'); }, close: async () => { } };
+        return { rows: async () => { const error = new DataSourceUnavailable(undefined, 'configuration'); reportFailure(error, 'reader'); throw error; }, close: async () => { } };
     const pool = mysql.createPool({ uri: databaseUrl, connectionLimit: 6, connectTimeout: 5000, queueLimit: 24, maxPreparedStatements: 200,
         dateStrings: true, supportBigNumbers: true, bigNumberStrings: true, timezone: '+08:00',
         multipleStatements: false });
@@ -79,11 +82,13 @@ export function createReader(databaseUrl: string | undefined, limits = { acquire
                 finally { if (!failed) connection.release(); }
             }
             catch (cause) {
-                if (cause instanceof DataSourceUnavailable) throw cause;
+                if (cause instanceof DataSourceUnavailable) { reportFailure(cause, 'reader'); throw cause; }
                 if (cause instanceof DataQueryFailed) throw cause;
                 const code = driverCode(cause);
                 const category = ['ER_STATEMENT_TIMEOUT', 'ER_QUERY_TIMEOUT', 'ER_QUERY_INTERRUPTED', 'PROTOCOL_SEQUENCE_TIMEOUT'].includes(code) ? 'statement-deadline' : 'driver';
-                throw unavailableCodes.has(code) ? new DataSourceUnavailable(code, category) : new DataQueryFailed(code);
+                const error = unavailableCodes.has(code) ? new DataSourceUnavailable(code, category) : new DataQueryFailed(code);
+                if (error instanceof DataSourceUnavailable) reportFailure(error, 'reader');
+                throw error;
             }
         },
         close: async () => {

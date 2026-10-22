@@ -5,7 +5,7 @@ vi.mock('mysql2/promise', () => ({ default: { createPool: mocks.createPool } }))
 import { createReader, DataQueryFailed, DataSourceUnavailable } from '../src/db/client.js';
 import { dataSourceReporter } from '../src/db/diagnostics.js';
 
-afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); });
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.clearAllMocks(); });
 describe('bounded database failure diagnostics', () => {
   it('distinguishes missing configuration from current transport failures', async () => {
     await expect(createReader('').rows(sql`SELECT 1`)).rejects.toMatchObject({ category: 'configuration', driverCode: 'UNKNOWN' });
@@ -54,5 +54,22 @@ describe('bounded database failure diagnostics', () => {
     now += 30000; report(error, 'readiness');
     expect(JSON.parse(write.mock.calls[1]![0])).toEqual({ event: 'data-source-failure', context: 'readiness', category: 'pool-admission', code: 'UNKNOWN', suppressed: 99 });
     expect(JSON.stringify(write.mock.calls)).not.toContain('private');
+  });
+
+  it('logs the reader category even when a report consumes the error before the HTTP handler', async () => {
+    const write = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    mocks.createPool.mockReturnValue({ getConnection: vi.fn().mockRejectedValue({ code: 'ECONNREFUSED', message: 'private connection data' }), end: vi.fn() });
+    const reader = createReader('mysql://fixture');
+    for (let i = 0; i < 2; i++) await reader.rows(sql`SELECT 1`).catch(() => 'section-unavailable');
+    expect(write).toHaveBeenCalledOnce();
+    expect(JSON.parse(String(write.mock.calls[0]![0]))).toMatchObject({ event: 'data-source-failure', context: 'reader', category: 'connection-acquire', code: 'ECONNREFUSED' });
+    expect(JSON.stringify(write.mock.calls)).not.toContain('private');
+  });
+
+  it('does not replace the source failure when the diagnostic sink fails', () => {
+    const write = vi.fn(() => { throw new Error('sink-failed'); });
+    const report = dataSourceReporter(write);
+    expect(() => { report(new DataSourceUnavailable(), 'reader'); report(new DataSourceUnavailable(), 'reader'); }).not.toThrow();
+    expect(write).toHaveBeenCalledOnce();
   });
 });
