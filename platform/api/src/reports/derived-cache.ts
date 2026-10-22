@@ -20,11 +20,11 @@ export async function loadDerivedSource(reader:Reader,q:Query,from:string,to:str
  const coverage=initialDerivedCoverage(keyword),result:DerivedSource={videos:[],channelCount:0,coverage};
  try {
  if(!keyword&&!idList(q.tagid).length&&!idList(q.or).length){coverage.status='taxonomy-required';return result;}
- const current=()=>reader.rows(sql`SELECT r.id,JSON_EXTRACT(r.snapshot,'$.coverage') AS coverage,JSON_UNQUOTE(JSON_EXTRACT(r.snapshot,'$.matchingRule')) AS matching_rule FROM ts_vocabulary_current c JOIN ts_vocabulary_runs r ON r.id=c.run_id AND r.status='published' WHERE c.source=${SOURCE} LIMIT 1`);
+ const current=()=>reader.rows(sql`SELECT r.id,JSON_EXTRACT(r.snapshot,'$.coverage') AS coverage,JSON_UNQUOTE(JSON_EXTRACT(r.snapshot,'$.matchingRule')) AS matching_rule FROM ts_vocabulary_current c JOIN ts_vocabulary_runs r ON r.id=c.run_id AND r.status='published' WHERE c.source=${SOURCE} LIMIT 1`,{operation:'derived-vocabulary'});
  const pin=(await current())[0];if(!pin)return result;const rule=matchingRuleForSnapshot({matchingRule:pin.matching_rule??undefined});coverage.version=text(pin.id);coverage.coverage=text(pin.coverage).replace(/^"|"$/g,'');if(!['observed-article-window','all-current-indexed-article-tags'].includes(coverage.coverage)){coverage.status='invalid-vocabulary';return result;}
  // A keyword outside the maintained vocabulary has no evidence to verify; skip every source read.
  if(keyword&&!(await maintainedKeywordIdentities(reader,coverage.version,keyword)).length){coverage.status='no-source';coverage.sourceVideos=0;return result;}
- const readChannels=()=>reader.rows(sql`SELECT c.u_id FROM urt_channel c LEFT JOIN urt_count n ON n.u_id=c.u_id WHERE (c.flag_del IS NULL OR c.flag_del<1) AND ${tagFilter(q)} ORDER BY c.u_id LIMIT 5001`);
+ const readChannels=()=>reader.rows(sql`SELECT c.u_id FROM urt_channel c LEFT JOIN urt_count n ON n.u_id=c.u_id WHERE (c.flag_del IS NULL OR c.flag_del<1) AND ${tagFilter(q)} ORDER BY c.u_id LIMIT 5001`,{operation:'derived-channels'});
  // Keyword fallback selects only potential literal matches before any payload/hash
  // budget. Unmatched unrelated videos cannot suppress every keyword on the site.
  const channels=keyword?[]:await readChannels();
@@ -36,11 +36,11 @@ export async function loadDerivedSource(reader:Reader,q:Query,from:string,to:str
  // Final matching still requires fresh maintained-vocabulary evidence.
  const keywordScope=keyword?sql`AND (${keywordTextContains(sql`v.title`,keyword)} OR ${keywordTextContains(sql`v.description`,keyword)})`:sql``;
  const where=sql`${channelScope} AND v.publishedAt>=${from+' 00:00:00'} AND v.publishedAt<=${cutoff} ${keywordScope}`;
- const size=(await reader.rows(sql`SELECT COUNT(*) AS n,COALESCE(SUM(bytes),0) AS bytes FROM (SELECT OCTET_LENGTH(COALESCE(title,''))+OCTET_LENGTH(COALESCE(description,'')) AS bytes FROM urt_video v WHERE ${where} LIMIT ${MAX_VIDEOS+1}) bounded`))[0];
+ const size=(await reader.rows(sql`SELECT COUNT(*) AS n,COALESCE(SUM(bytes),0) AS bytes FROM (SELECT OCTET_LENGTH(COALESCE(title,''))+OCTET_LENGTH(COALESCE(description,'')) AS bytes FROM urt_video v WHERE ${where} LIMIT ${MAX_VIDEOS+1}) bounded`,{operation:'derived-source-size'}))[0];
  if(Number(size?.n)>MAX_VIDEOS||Number(size?.bytes)>MAX_BYTES)throw new ReportReadBound('Derived cache video budget exceeded');
  // Convert the outer UTF-8 identity, preserving the ASCII marker PRIMARY lookup.
  // The binary residual still rejects case collisions or lossy conversion.
- const readSources=()=>reader.rows(sql`SELECT v.pk,v.videoId,v.u_id,v.publishedAt,v.viewCount,v.mtime,v.ctime,OCTET_LENGTH(COALESCE(v.title,''))+OCTET_LENGTH(COALESCE(v.description,'')) AS source_bytes,${videoTextDigest()} AS source_hash,m.source_pk,m.source_text_sha256,m.rule_version,m.evidence_count,UNIX_TIMESTAMP(m.matched_at)*1000 AS match_epoch FROM urt_video v LEFT JOIN ts_video_tag_matches m ON m.video_id=CONVERT(v.videoId USING ascii) AND BINARY m.video_id=BINARY v.videoId AND m.vocabulary_version=${coverage.version} WHERE ${where} ORDER BY v.pk LIMIT ${MAX_VIDEOS+1}`);
+ const readSources=()=>reader.rows(sql`SELECT v.pk,v.videoId,v.u_id,v.publishedAt,v.viewCount,v.mtime,v.ctime,OCTET_LENGTH(COALESCE(v.title,''))+OCTET_LENGTH(COALESCE(v.description,'')) AS source_bytes,${videoTextDigest()} AS source_hash,m.source_pk,m.source_text_sha256,m.rule_version,m.evidence_count,UNIX_TIMESTAMP(m.matched_at)*1000 AS match_epoch FROM urt_video v LEFT JOIN ts_video_tag_matches m ON m.video_id=CONVERT(v.videoId USING ascii) AND BINARY m.video_id=BINARY v.videoId AND m.vocabulary_version=${coverage.version} WHERE ${where} ORDER BY v.pk LIMIT ${MAX_VIDEOS+1}`,{operation:'derived-source'});
  const sources=await readSources();if(sources.length>MAX_VIDEOS||sources.reduce((n,r)=>n+Number(r.source_bytes),0)>MAX_BYTES)throw new ReportReadBound('Derived cache video budget exceeded');coverage.sourceVideos=sources.length;if(keyword)result.channelCount=new Set(sources.map(r=>r.u_id)).size;if(!sources.length){coverage.status='no-source';return result;}
  const ids=new Set<string>();let evidenceCount=0;
  for(const v of sources){const id=text(v.videoId);if(!/^[A-Za-z0-9_-]{11}$/.test(id)||ids.has(id)){coverage.status='invalid-source-identity';return result;}ids.add(id);
@@ -51,9 +51,9 @@ export async function loadDerivedSource(reader:Reader,q:Query,from:string,to:str
  }
  if(coverage.freshVideos!==sources.length){coverage.status=keyword?'unavailable':'incomplete-evidence';coverage.reason='incomplete-evidence';return result;}if(evidenceCount>MAX_EVIDENCE)throw new ReportReadBound('Derived cache evidence cap exceeded');
  const scope=sql`e.vocabulary_version=${coverage.version} AND e.video_id IN (${sql.join([...ids].map(id=>sql`${id}`),sql`,`)})`;
- const evidenceSize=(await reader.rows(sql`SELECT COUNT(*) AS n,COALESCE(SUM(bytes),0) AS bytes FROM (SELECT OCTET_LENGTH(term) AS bytes FROM ts_video_tag_evidence e WHERE ${scope} LIMIT ${MAX_EVIDENCE+1}) bounded`))[0];
+ const evidenceSize=(await reader.rows(sql`SELECT COUNT(*) AS n,COALESCE(SUM(bytes),0) AS bytes FROM (SELECT OCTET_LENGTH(term) AS bytes FROM ts_video_tag_evidence e WHERE ${scope} LIMIT ${MAX_EVIDENCE+1}) bounded`,{operation:'derived-evidence-size'}))[0];
  if(Number(evidenceSize?.n)>MAX_EVIDENCE||Number(evidenceSize?.bytes)>MAX_BYTES)throw new ReportReadBound('Derived cache evidence budget exceeded');
- const evidence=await reader.rows(sql`SELECT e.video_id,e.term,e.field_name,e.start_offset,e.end_offset,e.rule_version,e.source FROM ts_video_tag_evidence e WHERE ${scope} ORDER BY e.video_id,e.field_name,e.start_offset,e.term_key LIMIT ${MAX_EVIDENCE+1}`);
+ const evidence=await reader.rows(sql`SELECT e.video_id,e.term,e.field_name,e.start_offset,e.end_offset,e.rule_version,e.source FROM ts_video_tag_evidence e WHERE ${scope} ORDER BY e.video_id,e.field_name,e.start_offset,e.term_key LIMIT ${MAX_EVIDENCE+1}`,{operation:'derived-evidence'});
  if(evidence.length>MAX_EVIDENCE||evidence.reduce((n,r)=>n+Buffer.byteLength(text(r.term)),0)>MAX_BYTES)throw new ReportReadBound('Derived cache evidence budget exceeded');
  // ASCII-case aliases (AI/ai/Ai) of one maintained tag can each record the same span;
  // the evidence count still checks every row, but metrics count that span once.

@@ -9,7 +9,7 @@ export const ADMIN_RANKING_EXCLUSION='admin-ranking-exclusion' as const;
  * display policy still applies and the ranking stays available. */
 export async function rankingDisplayExclusions(reader:Reader):Promise<Set<string>>{
  let rows;
- try{rows=await reader.rows(sql`SELECT term_key,JSON_UNQUOTE(JSON_EXTRACT(state_json,'$.decision')) AS decision FROM ts_keyword_reviews WHERE context='youtube-ranking-display' AND status='approved' ORDER BY updated_at,created_at,id LIMIT 20001`);}
+ try{rows=await reader.rows(sql`SELECT term_key,JSON_UNQUOTE(JSON_EXTRACT(state_json,'$.decision')) AS decision FROM ts_keyword_reviews WHERE context='youtube-ranking-display' AND status='approved' ORDER BY updated_at,created_at,id LIMIT 20001`,{operation:'ranking-exclusions'});}
  catch(error){
   // Only a missing table or grant means "not provisioned"; outages still fail the section.
   if(error instanceof DataQueryFailed&&error.driverCode==='ER_NO_SUCH_TABLE'||error instanceof DataSourceUnavailable&&error.cause==='ER_TABLEACCESS_DENIED_ERROR')return new Set();
