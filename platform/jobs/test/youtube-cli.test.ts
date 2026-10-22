@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { validateYoutubeArguments, executeYoutubeWorkflow, youtubeResultState, handleYoutubeCli } from '../src/youtube-cli.js';
+import { validateYoutubeArguments, executeYoutubeWorkflow, youtubeResultState, handleYoutubeCli, youtubeQuotaOptions } from '../src/youtube-cli.js';
 import { connectDatabase } from '../src/database.js';
 import { isolatedTestEnv } from '../../shared/test-database.js';
 import type { RowDataPacket } from 'mysql2/promise';
@@ -25,12 +25,23 @@ it('normal bounded continuation differs from errors and handler ignores prototyp
   expect(youtubeResultState({skipped:[],truncated:true})).toBe('incomplete');
   expect(youtubeResultState({skipped:[],stoppedReason:'quota-budget'})).toBe('failed');
   expect(youtubeResultState({skipped:[],stoppedReason:'quota-exhausted'})).toBe('skipped');
+  expect(youtubeResultState({skipped:[],stoppedReason:'quota-comment-budget'})).toBe('skipped');
+  expect(youtubeResultState({skipped:[],checkpointed:['video'],stoppedReason:'quota-comment-budget'})).toBe('incomplete');
   expect(youtubeResultState({skipped:[],applied:['video'],stoppedReason:'quota-exhausted'})).toBe('incomplete');
   expect(youtubeResultState({skipped:[],enqueued:['video'],stoppedReason:'quota-exhausted'})).toBe('incomplete');
   expect(youtubeResultState({skipped:[],checkpointed:['video'],stoppedReason:'quota-exhausted'})).toBe('incomplete');
   expect(youtubeResultState({skipped:[],capacityBlocked:'stage-size'})).toBe('incomplete');
   expect(youtubeResultState({skipped:[{reason:'invalid-source'}],capacityBlocked:'stage-size'})).toBe('incomplete');
   expect(youtubeResultState({skipped:[{reason:'invalid-source'}]})).toBe('incomplete');
+  expect(youtubeResultState({skipped:[{reason:'playlist-api-error'}],applied:[],allSkipped:true,discoveryFailures:1})).toBe('failed');
+  expect(youtubeResultState({skipped:[{reason:'playlist-api-error'}],applied:[],allSkipped:true,discoveryFailures:0})).toBe('incomplete');
+  expect(youtubeResultState({skipped:[{reason:'playlist-api-error'}],applied:[1],allSkipped:false,discoveryFailures:1})).toBe('incomplete');
   expect(youtubeResultState({skipped:[]})).toBe('completed');
   expect(await handleYoutubeCli(['toString'],{})).toBe(false);
+});
+it('limits comments to a separate 600-unit default without changing the shared video budget', () => {
+  expect(youtubeQuotaOptions({}, 'youtube.comments.fetch')).toEqual({ dailyBudget: 9000, commentBudget: 600 });
+  expect(youtubeQuotaOptions({}, 'youtube.videos.stats')).toEqual({ dailyBudget: 9000, commentBudget: undefined });
+  for (const value of ['0', '-1', 'NaN', '9001', '1.5']) expect(() => youtubeQuotaOptions({ INGESTION_YOUTUBE_COMMENT_QUOTA_BUDGET: value }, 'youtube.comments.fetch')).toThrow('comment');
+  expect(youtubeQuotaOptions({ INGESTION_YOUTUBE_COMMENT_QUOTA_BUDGET: '300' }, 'youtube.comments.fetch').commentBudget).toBe(300);
 });

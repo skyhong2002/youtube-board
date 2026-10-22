@@ -14,9 +14,18 @@ export function youtubeRetryOptions(env: NodeJS.ProcessEnv) {
   const bounded = (value: string | undefined, fallback: number, max: number) => { const n = Number.parseInt(value ?? '', 10); return Number.isFinite(n) ? Math.max(0, Math.min(max, n)) : fallback; };
   return { transientRetries: bounded(env.YOUTUBE_API_TRANSIENT_RETRIES, 1, 3), retryDelayMs: bounded(env.YOUTUBE_API_RETRY_DELAY_MS, 250, 5000) };
 }
-export function youtubeResultState(result: { skipped: unknown[]; applied?:unknown[]; enqueued?:unknown[]; truncated?: boolean; checkpointed?: unknown[]; stoppedReason?: string; capacityBlocked?: string }): 'failed' | 'incomplete' | 'completed' | 'skipped' {
-  if(result.stoppedReason==='quota-exhausted')return result.applied?.length || result.enqueued?.length || result.checkpointed?.length ? 'incomplete' : 'skipped';
+/** Comments have a daily sub-budget; all attempts still consume the shared quota. */
+export function youtubeQuotaOptions(env: NodeJS.ProcessEnv, job: string) {
+  const dailyBudget = Number(env.INGESTION_YOUTUBE_DAILY_QUOTA_BUDGET ?? 9000);
+  const commentBudget = job === 'youtube.comments.fetch' ? Number(env.INGESTION_YOUTUBE_COMMENT_QUOTA_BUDGET ?? 600) : undefined;
+  if (!Number.isSafeInteger(dailyBudget) || dailyBudget < 1) throw new Error('Invalid shared YouTube quota budget');
+  if (commentBudget !== undefined && (!Number.isSafeInteger(commentBudget) || commentBudget < 1 || commentBudget > dailyBudget)) throw new Error('Invalid comment YouTube quota budget');
+  return { dailyBudget, commentBudget };
+}
+export function youtubeResultState(result: { skipped: unknown[]; applied?:unknown[]; enqueued?:unknown[]; truncated?: boolean; checkpointed?: unknown[]; stoppedReason?: string; capacityBlocked?: string; allSkipped?: boolean; discoveryFailures?: number }): 'failed' | 'incomplete' | 'completed' | 'skipped' {
+  if(result.stoppedReason==='quota-exhausted'||result.stoppedReason==='quota-comment-budget')return result.applied?.length || result.enqueued?.length || result.checkpointed?.length ? 'incomplete' : 'skipped';
   if (result.stoppedReason) return 'failed';
+  if (result.allSkipped && (result.discoveryFailures ?? 0) > 0) return 'failed';
   // Like Laravel, a per-item skip (e.g. a deleted channel missing from the API) is logged and the run continues.
   if(result.skipped.length)return 'incomplete';
   if(result.capacityBlocked)return 'incomplete';
@@ -69,9 +78,10 @@ export async function executeYoutubeWorkflow(args: string[], env: NodeJS.Process
   const integer = (name: string, fallback: number, max: number) => { const value = Number(option(name) ?? fallback); if (!Number.isInteger(value) || value < 1 || value > max) throw new Error(`Invalid ${name} cap`); return value; };
   const list = (name: string) => option(name)?.split(',').map(Number) ?? [];
   const maxAttempts = integer('max-api-attempts', 200, 1000);
+  const quota = youtubeQuotaOptions(env, job);
   const db = await connectDatabase(env);
   try {
-    const youtube = new YoutubeDataApiClient({ ...youtubeRetryOptions(env), keys: [env.YOUTUBE_API_KEY ?? '', ...(env.YOUTUBE_API_KEYS ?? '').split(',')], ledger: new MysqlQuotaLedger(db, Number(env.INGESTION_YOUTUBE_DAILY_QUOTA_BUDGET ?? 9000)), maxAttempts });
+    const youtube = new YoutubeDataApiClient({ ...youtubeRetryOptions(env), keys: [env.YOUTUBE_API_KEY ?? '', ...(env.YOUTUBE_API_KEYS ?? '').split(',')], ledger: new MysqlQuotaLedger(db, quota.dailyBudget, undefined, quota.commentBudget), maxAttempts });
     const work = async (assertOwnership: () => Promise<void>) => {
       const now = new Date(), ctx = { db, youtube, now, clock:()=>new Date(), execute, assertOwnership };
       const videoId = option('videoId');

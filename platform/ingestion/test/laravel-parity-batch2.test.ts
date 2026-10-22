@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Connection } from 'mysql2/promise';
 import { YoutubeDataApiClient } from '../src/youtube.js';
-import { YoutubeError } from '../src/quota.js';
+import { YoutubeError, youtubeFailureDetail } from '../src/quota.js';
 import { channelStatisticsJob, channelUploadsJob, nextUploadsCheck, uploadsJobKey } from '../src/channel-jobs.js';
 import { videoStatisticsJob, publishVideoStatistics, nextStatisticsCheck, type SourceJobContext } from '../src/video-statistics.js';
 import { livePollingJob, publishLiveDetails } from '../src/live-polling.js';
@@ -33,6 +33,25 @@ const ctx = (db: Connection, client = noApi, execute = true): SourceJobContext =
 const item = (videoId: string, publishedAt: string, extra: Record<string, unknown> = {}) => ({ id: 'PI' + videoId, snippet: { resourceId: { videoId }, publishedAt, channelId: 'UCfixture', title: '  標題  ', description: ' 描述 ', thumbnails: { default: { url: 'https://i.ytimg.com/vi/x/default.jpg' } }, channelTitle: '頻道', playlistId: 'UUfixture', position: 0, ...extra } });
 
 describe('channel discovery (youtube.channels.videos.* / youtube.tvbs.videos)', () => {
+  it.each([
+    { status: 404, reason: 'playlistNotFound', category: 'request-failed', failures: 0 },
+    { status: 403, reason: 'playlistItemsNotAccessible', category: 'request-failed', failures: 0 },
+    { status: 503, reason: 'backendError', category: 'transient', failures: 2 },
+    { status: 400, reason: 'https://private.invalid/?key=private-fixture', category: 'request-failed', failures: 2 },
+  ])('retains bounded failure details for HTTP $status / $category without raw provider content', async ({ status, reason, category, failures }) => {
+    const f = fakeDb(sql => sql.includes('FROM urt_channel c') ? [{ u_id: 1, uploads: 'UUfixture' }, { u_id: 2, uploads: 'UUfixture' }] : []);
+    const client = youtube(() => ({ status, body: { error: { message: 'private-fixture raw provider content', errors: [{ reason }] } } }));
+    const result = await channelUploadsJob(ctx(f.db, client), { limit: 2, maxPages: 1, days: 7 });
+    expect(result).toMatchObject({ selected: 2, applied: [], allSkipped: true, discoveryFailures: failures, skipCounts: { 'playlist-api-error': 2 }, failureCounts: { [category]: 2 } });
+    expect(result.skipped[0]?.failure).toEqual({ category, status, reason: reason.startsWith('https:') ? 'other' : reason });
+    expect(JSON.stringify(result)).not.toContain('private-fixture');
+    expect(f.writes().map(setValues)).toEqual([{ vtime: '2026-10-12 11:00:00' }, { vtime: '2026-10-12 11:00:00' }]);
+  });
+
+  it('does not retain arbitrary thrown messages or error objects in discovery diagnostics', () => {
+    const privateError = Object.assign(new Error('private-fixture with URL and credentials'), { code: 'private-fixture' });
+    expect(youtubeFailureDetail(privateError)).toEqual({ category: 'unknown', status: null, reason: null });
+  });
   it('maps --live=1 to tag 52 (youtube.channels.videos.live) and --live=2 to tag 89 (live_group) like Laravel', async () => {
     expect(uploadsJobKey({ live: 1 })).toBe('youtube.channels.videos.live');
     expect(uploadsJobKey({ live: 2 })).toBe('youtube.channels.videos.live_group');

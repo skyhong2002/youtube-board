@@ -95,7 +95,7 @@ export class YoutubeDataApiClient {
         this.emit({ method: `${path}.list`, attempt: this.attempts, status: response.status, ok: false, failure: lastFailure, units: 1 });
         if (daily || rate || auth) { if (daily) dailyKeys++; break; }
         if (transient && retry < retries) { await sleep(Math.min(5000, this.options.retryDelayMs ?? 250)); continue; }
-        throw new YoutubeError(lastFailure, response.status);
+        throw new YoutubeError(lastFailure, response.status, reason);
       }
     }
     if (dailyKeys === this.keys.length) {
