@@ -16,16 +16,17 @@ unrelated AI changes `357749c` and `9415779`.
 | #3 insufficient report history | `d295b7c` | `c51bebd` | Natural 15:29 run completed: selected/applied 100, skipped 0, deferred 1; original affected item handled and historical failure retained. |
 | #7 discovery failures; #2 dormant comment quota | `f0f2ed5` | `c51bebd` | Natural discovery batches completed. Failure-path visibility has regression coverage; no live all-skipped reproduction claimed. Comment schedules remain zero; collection/UI not enabled. |
 | #6 competing event lookup | `a996ce3` | AI-daily worker `dce5c87` | Deployed at 15:22:58 after queue active/wait counts were zero; healthy task started 15:23:04. Natural AI-workload acceptance pending. |
+| #6 derived-report marker join | `ba8594d` | Web `dba0a00` | Web-only deployment submitted 15:37:22; task started 15:37:34, sitemap ready 15:38:43, healthy/update completed by 15:38:57. Normal-traffic observation continues. |
 
 Actual image mapping after the final targeted deployment:
 
-- Web: `sha256:732494ca2b82561031680750f03d0b020d001bec8b2f2e1e66c9781b2baa63bc` (`aa33175`).
+- Web: `sha256:d83c340590678896480647e80bce3a8bb450897d36010d652e176015db652578` (`dba0a00b72bb04ef875bf0755875826f3935202e`), superseding `aa33175` image `sha256:732494ca2b82561031680750f03d0b020d001bec8b2f2e1e66c9781b2baa63bc`.
 - AI-daily worker: `sha256:a12b06a1b682c325defa1c9ee6d07e038f795dd1849ddab8f8ee2a879a7959ab` (`dce5c87cb5b2249fbeb14d815e8fa38286aabbd6`).
 - Remaining eight TS services: `sha256:65038431f29a06ff1e989a77b777a60e32c65bdafffd51d691a8a04df3f40861` (`c51bebd`).
 - Original rollback image: `sha256:7112ee12168fba952e3d4bcd922d1410e6dd79f63a962bafb0487d0f42f09ec6` (`628d13e`).
 
 This is intentionally a mixed-image compose. Do not use a release helper that
-assumes every service has the same old image. Both targeted releases verified the
+assumes every service has the same old image. The targeted releases verified the
 entire parsed compose except the one image scalar, retained the exact environment,
 and wrote private backups under `platform/.local/dokploy/`. Workers remain one
 replica, stop-first. No queue replay, scheduler changes, row edits or new AI calls
@@ -73,13 +74,74 @@ ranking failures or historical 502s are fixed. Natural refreshes under ordinary
 load and the next existing AI job still need observation; no load test or replay
 was started. #5 AI backfill remains unresolved.
 
-After the idle worker was replaced, an existing connection using the AI-daily
-principal still ran the old lookup through 15:24. Its observed peer
-`10.0.1.117:35198` could not be mapped to a current local container or service VIP;
-ownership remains unconfirmed. No unknown process or connection was terminated.
-The deployed idle worker's code is verified, but the continuing caller needs an
-ownership check before any intervention. By the 15:26 bounded samples this query
-was no longer visible; that does not establish completion or ownership.
+After the idle worker was replaced, old queries continued from successive temporary
+CLI containers. Read-only socket/cgroup inspection at 15:35 mapped DB connection
+18017 (`10.0.1.122:43922`) to network namespace 4026534857, PID 3958062 and container
+`42bc32716d25` (`priceless_lovelace`, old aa33175 image). Docker launcher 3958010
+belonged to login session 240406, under `run-aidaily-eve` and `ai-events-retry`.
+The existing `/tmp/ai-events-retry.sh` calls `/tmp/run-aidaily-events-cli.sh` with
+`days-refresh --execute --retry-failed --skip-daily --skip-cache`. Script-fact
+inspection confirmed the launcher reads the Web service's current image each
+time. No argv containing credentials, SQL literals or environment values was
+recorded. This work neither started, changed nor stopped that external retry
+loop.
+
+Follow-up inspection corrected an initial assumption about automatic uptake:
+container `1b64b665a7aa`, started 15:38:59, already used the new dba0a00 image but
+mounted `/home/ubuntu/event.0-legacy.ts` over `ai/src/event.ts` and
+`/home/ubuntu/daily-source.edd8eb6.ts` over `ai/src/daily-source.ts`, both read-only.
+Its event source SHA256 was `6a51fd5ad43161e7ad061984eacb68f29e1407c600d37532e06ce5c691714ec8`,
+so changing the image alone cannot replace this old query. Live EXPLAIN still
+showed the approximately 719,180-row full scan at 15:43.
+
+A zero-write preview verifies that applying exactly the tested `a996ce3` query
+change, with every other byte preserved, produces SHA256
+`91b1009539036d228b2278f35619b2f464af629cabf563e4bf4eaa841b0eff77`.
+The scratch repair script checks both hashes, preserves ownership/mode, makes a
+backup and atomically replaces the file so an existing bind mount keeps its old
+inode and only future invocations change. It has **not** been applied: ownership
+coordination was requested because this is another session's active CLI source.
+The daily-source override, current process and retry loop remain untouched.
+
+## Derived-report join defect (#6)
+
+Normal Web traffic at 15:32:38 and 15:32:47 exposed another repeated expensive
+SELECT, in `api/src/reports/derived-cache.ts`. Its UTF-8 source identity was
+compared directly with an ASCII match identity. Live EXPLAIN showed approximately
+42,548 source candidates joined to an `ALL` scan of 96,632 marker rows with a
+block nested-loop join, because the cross-charset equality did not use the
+marker PRIMARY index.
+
+The minimal change converts the outer source identity to ASCII for indexed
+candidate selection and preserves the existing binary residual for exact identity
+and lossy-conversion rejection. A bounded production EXPLAIN changed marker access
+from `ALL`/96,632 rows to `eq_ref`/PRIMARY/one row; no index, schema, capacity or
+timeout settings changed. Nineteen isolated MariaDB derived-report tests passed,
+including actual PRIMARY access, exact results before/after and case-distinct
+video identities. API typecheck passed. The deployed file hash is
+`8bdbdb80201bcf4a1e64036a654c4165665de75a380d12f6d69c2a3c3c213be6`.
+
+The `dba0a00` image is a single-file COPY layer onto `dce5c87`; it also carries the
+event identity fix for future CLI invocations using the Web image. The 15:37:22
+rollout was planned, with old/new Web processes overlapping under unchanged
+start-first policy. Root's shared-host sample `shared-host-1538.json` covers this
+rollout: new PIDs 3971589/3971590 belong to the production task `c2e5de38929b`,
+not diagnostic or candidate servers. Sitemap generation finished in 42.115 s.
+
+At 15:39:43, the new process still recorded a ranking statement timeout under
+shared load. A single normal API read at 15:40:38 returned 200 in 1.714 s but
+reported `derived.status=unavailable`, `reason=read-budget` with zero rows; it is
+not complete report acceptance. The unchanged budget and coverage semantics were
+preserved. #6 remains under investigation; neither SQL repair establishes a
+complete historical 502/root-cause resolution.
+
+At 15:44:58, a normal `/api/v1/home` read completed in 354 ms with categories
+`available` and weekly/today keyword sections `synchronized`. Both keyword windows
+advanced to 15:39:59; this proves successful section generation after the failed
+15:39 refresh, not just an HTTP status. Through the 15:45:49 log capture, no new
+reader failure followed 15:39:43 and the Web task stayed unchanged and healthy.
+The still-overridden external CLI query prevents treating this as complete #6
+remediation or sustained capacity acceptance.
 
 Reader deadlines continued through 15:26:32, including pool-admission failures at
 15:25:24. A single full homepage GET at 15:25:54 returned 200 in 538 ms. This is
@@ -95,7 +157,7 @@ The initial full Next build exited 137 inside its 1536 MiB limit after compilati
 it was not deployed. Subsequent runtime images retained unchanged production web
 and dependency artifacts. API/jobs/ingestion/runtime typechecks passed in the
 checked runtime image, and the reader follow-up passed API/runtime checks.
-The final event repair image only copies one source file onto `aa33175`, with no
+The event and derived-join follow-up images each copy one source file, with no
 compiler or dependency installation. Build limits were one CPU / 1536 MiB,
 nice 19 and idle I/O priority. No host-global limits or other services changed.
 Completed owned source staging was removed; recipes, build logs and rollback
