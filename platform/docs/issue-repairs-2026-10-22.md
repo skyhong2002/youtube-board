@@ -4,6 +4,8 @@
 
 A retained `PREVIOUS_RUN_FAILED` or `FAILED_REQUIRES_RESUME` result no longer makes an otherwise functioning scheduler unready. `runScheduleCycle.ready` describes current queue/persistence availability; `healthy`, attention records in Redis, and `schedule-attention` log events continue to describe workflow outcomes and coverage gaps. Missing initial baselines and historical missed windows remain visible without making a functioning scheduler fail its container probe.
 
+Independent review also covers a fast worker failing a newly accepted job before its enqueue snapshot is read (`state=failed`): it follows the same readiness/attention separation. An isolated real scheduler process with a deliberately failing BullMQ worker stayed alive across 80 seconds, retained failed jobs with exactly one attempt each, and kept durable attention visible; this is controlled runtime evidence, not a synthetic production job.
+
 `/ready` still requires a successful readiness observation within 60 seconds. Queue submission uncertainty, enqueue failures, clock skew, persistence failures, shutdown and thrown cycle failures remain unready. The endpoint additionally exposes `workflowStatus` (`unknown`, `ok`, `attention`); readiness must not be interpreted as publication acceptance. No failed job is replayed or removed by this change.
 
 ## Single pre-publication report sample (#3)

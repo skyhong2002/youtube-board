@@ -68,12 +68,14 @@ describe('explicit recurring schedule plans', () => {
     const unpersisted = await runScheduleCycle(both, env, new Date(), connect as unknown as typeof redisConnection, enqueue);
     expect(unpersisted.healthy).toBe(false); expect(unpersisted.ready).toBe(false); expect(unpersisted.persistenceError).toBe(true); expect(unpersisted.runs[0]?.queueId).toBe('a'.repeat(64)); expect(alive.eval).toHaveBeenCalledTimes(3);
   });
-  it.each(['PREVIOUS_RUN_FAILED', 'FAILED_REQUIRES_RESUME'])('keeps the scheduler ready while preserving %s in durable attention', async state => {
+  it.each(['failed', 'PREVIOUS_RUN_FAILED', 'FAILED_REQUIRES_RESUME'])('keeps the scheduler ready while preserving %s in durable attention', async state => {
     const now = new Date('2032-01-01T00:09:00Z');
     const stats = { ...config, schedules: [config.schedules[0]!] };
     const env = { APP_ENV: 'test', TS_INGESTION_ENABLED: 'true', TS_SCHEDULER_ENABLED: 'true', TS_INGESTION_OWNERS: 'youtube.videos.stats' };
     const redis = { ping: async () => 'PONG', get: async () => String(Math.floor(now.getTime() / 60000)), eval: vi.fn().mockResolvedValue(1), xadd: vi.fn(), quit: async () => {}, disconnect() {} };
-    const enqueue = vi.fn().mockRejectedValue(new QueueInputConflict('Retained failure', state, 'retained-failed-job'));
+    const enqueue = state === 'failed'
+      ? vi.fn().mockResolvedValue({ id: 'retained-failed-job', state: 'failed' })
+      : vi.fn().mockRejectedValue(new QueueInputConflict('Retained failure', state, 'retained-failed-job'));
     const failed = await runScheduleCycle(stats, env, now, (() => redis) as unknown as typeof redisConnection, enqueue);
     expect(failed).toMatchObject({ ready: true, healthy: false, attention: [{ state, queueId: 'retained-failed-job' }] });
     expect(JSON.parse(redis.xadd.mock.calls[0]!.at(-1))).toMatchObject({ runs: [{ state, queueId: 'retained-failed-job' }] });

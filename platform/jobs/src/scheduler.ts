@@ -163,10 +163,11 @@ export async function runScheduleCycle(config: ScheduleConfig, env: NodeJS.Proce
       if (!aborted && !clockSkew) await redis.eval("local n=tonumber(ARGV[1]); local p=tonumber(redis.call('GET',KEYS[1]) or '-1'); if n>p then redis.call('SET',KEYS[1],ARGV[1]) end; return 1", 1, namespace, minute);
     } catch { watermarkError = true; }
     const persistenceError = auditError || watermarkError;
-    // Retained workflow failures need operator attention, not scheduler replacement.
+    // Workflow failures need operator attention, not scheduler replacement. A fast
+    // worker can fail a newly accepted job before the enqueue snapshot is read.
     // Keep submission uncertainty and current queue/persistence failures unready.
     const ready = !clockSkew && !persistenceError && !aborted
-      && attention.every(run => ['PREVIOUS_RUN_FAILED', 'FAILED_REQUIRES_RESUME'].includes(run.state));
+      && attention.every(run => ['failed', 'PREVIOUS_RUN_FAILED', 'FAILED_REQUIRES_RESUME'].includes(run.state));
     // Preserve accepted queue IDs even if the audit sink failed after enqueue.
     return { ready, healthy: baseline === 'known' && !clockSkew && !missedWindow && attention.length === 0 && !persistenceError && !aborted, runs, missedWindow, attention, persistenceError, auditError, watermarkError, clockSkew, aborted, baseline };
   } finally { await redis.quit().catch(() => { redis.disconnect(); }); }
