@@ -13,7 +13,7 @@ unrelated AI changes `357749c` and `9415779`.
 | --- | --- | --- | --- |
 | #4 scheduler readiness | `b538a30`, `1e740c6` | `c51bebd` | Healthy scheduler since 14:56:28; historical queue failure retained. Controlled 80-second failing-worker proof retained three failed jobs, one attempt each, with 16/16 ready responses and durable attention. |
 | #6 classified reader/readiness diagnostics | `cdafd7b`, `614f58e` | Web `aa33175` | Web-only deployment at 15:10:54; healthy actual task started 15:10:56. Diagnosed live statement deadlines and connection-acquire timeout; outage remains open. |
-| #3 insufficient report history | `d295b7c` | `c51bebd` | Natural 15:29 run completed: selected/applied 100, skipped 0, deferred 1; original affected item handled and historical failure retained. |
+| #3 insufficient report history | `d295b7c` | `c51bebd` | Natural 15:29 and 15:47 runs completed: each selected/applied 100, skipped 0, deferred 1; original affected item handled and historical failure retained. |
 | #7 discovery failures; #2 dormant comment quota | `f0f2ed5` | `c51bebd` | Natural discovery batches completed. Failure-path visibility has regression coverage; no live all-skipped reproduction claimed. Comment schedules remain zero; collection/UI not enabled. |
 | #6 competing event lookup | `a996ce3` | AI-daily worker `dce5c87` | Deployed at 15:22:58 after queue active/wait counts were zero; healthy task started 15:23:04. Natural AI-workload acceptance pending. |
 | #6 derived-report marker join | `ba8594d` | Web `dba0a00` | Web-only deployment submitted 15:37:22; task started 15:37:34, sitemap ready 15:38:43, healthy/update completed by 15:38:57. Normal-traffic observation continues. |
@@ -99,9 +99,14 @@ change, with every other byte preserved, produces SHA256
 `91b1009539036d228b2278f35619b2f464af629cabf563e4bf4eaa841b0eff77`.
 The scratch repair script checks both hashes, preserves ownership/mode, makes a
 backup and atomically replaces the file so an existing bind mount keeps its old
-inode and only future invocations change. It has **not** been applied: ownership
-coordination was requested because this is another session's active CLI source.
-The daily-source override, current process and retry loop remain untouched.
+inode and only future invocations change. It has **not** been applied by this
+implementation task. The user selected **root coordination with the existing
+session** to adopt this one-query repair. Root owns that follow-up; no additional
+approval request is pending here. The daily-source override, current process and
+retry loop remain untouched by this task. Before adoption, root/the owning session
+should confirm the original hash still matches; after adoption, verify a future
+invocation mounts the repaired hash and uses the indexed plan. The prepared
+script is `youtube-repair-event-overlay.py` in the scratch evidence directory.
 
 ## Derived-report join defect (#6)
 
@@ -138,10 +143,23 @@ complete historical 502/root-cause resolution.
 At 15:44:58, a normal `/api/v1/home` read completed in 354 ms with categories
 `available` and weekly/today keyword sections `synchronized`. Both keyword windows
 advanced to 15:39:59; this proves successful section generation after the failed
-15:39 refresh, not just an HTTP status. Through the 15:45:49 log capture, no new
-reader failure followed 15:39:43 and the Web task stayed unchanged and healthy.
-The still-overridden external CLI query prevents treating this as complete #6
-remediation or sustained capacity acceptance.
+15:39 refresh, not just an HTTP status. Subsequent reader statement deadlines at
+15:46:46.516 and 15:47:39.380 (the latter with two coalesced diagnostics) invalidate
+any sustained-recovery claim. Neither log identifies the failing report stage,
+so these occurrences cannot be attributed to ranking specifically. Web remained
+the same healthy task through the 15:50:36 capture.
+
+Bounded observations at 15:50:37–54 verified the deployed derived-source marker
+join on an actual Web query: `m` used `eq_ref / PRIMARY / rows=1`. The outer video
+scan used the PRIMARY index with an estimate of 719,200 rows at one second elapsed;
+that snapshot alone does not prove another defect or actual rows consumed.
+The external CLI still executed the old `ALL / 719200` event lookup in the final
+sample. CPU PSI some avg10 was 24.75–27.94%, IO full avg10 0.31–1.42%; InnoDB
+physical-read counters stayed unchanged and no InnoDB row-lock waits were seen.
+These interval-specific metrics neither explain all prior outages nor establish
+causality for the latest deadlines. #6 remains open pending external-source
+adoption and subsequent natural workload acceptance; no additional deployment
+was made after dba0a00.
 
 Reader deadlines continued through 15:26:32, including pool-admission failures at
 15:25:24. A single full homepage GET at 15:25:54 returned 200 in 538 ms. This is
@@ -176,6 +194,14 @@ deferred 1, truncated false. The original affected item was applied and deferred
 as `insufficient_history`, retaining its earlier `nextCheckAt=2026-10-22 19:18:28`
 (Taipei). Its scheduling row `mtime` advanced naturally to 23:29:01 Taipei.
 No manual replay or row update occurred.
+
+A second natural run, `9e8a9d1b-c49d-4a53-a9e5-275a3800f37c`, completed at
+15:47:04.199 with the same selected/applied 100, skipped 0, deferred 1 and
+truncated false. The original item again recorded `insufficient_history`,
+preserved `nextCheckAt=2026-10-22 19:18:28` Taipei, and naturally advanced its
+scheduling row `mtime` to 23:47:00 Taipei. The failed result hash remained
+unchanged. This validates repeated scheduling without postponing the earlier due
+time; it does not claim an additional source observation or growth estimate.
 
 The historical report execution
 `61f5121d-21f6-4676-a562-ad0a2c830096` remains failed with result SHA256
