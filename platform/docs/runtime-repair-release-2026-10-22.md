@@ -312,3 +312,55 @@ Final artifacts: `youtube-home-acceptance-1615.json`,
 `youtube-window-metadata-1615.json`, `youtube-scheduled-log-observe-1615.json`,
 `youtube-scheduled-log-summary-1615.json`. The scratch report also retains the
 16:03 and 16:08 samples, bounded earlier SQL inspection, and shared-host timing.
+
+
+## Bounded reader observation candidate — 2026-10-22 16:36 UTC
+
+The next change adds diagnostics only. Earlier logs distinguish statement,
+acquisition and admission failures but lack failed operation and pool holders.
+Fixed allowlisted operation names now cover home ranking, term labels, source
+reads, categories, derived evidence, readiness and summary. Long-tail callers use
+fixed table-family labels. Failure records add phase, total/acquisition/statement
+elapsed milliseconds, active leases, unresolved acquisitions, expired unresolved
+acquisitions, limits and grouped operation counts/oldest ages. `queued` means
+unresolved getConnection calls, including connection establishment and callers
+already timed out; it is not the driver's internal FIFO length. Statement failure
+snapshots precede destroy.
+
+Coalescing remains one event per context/category per 30 seconds, with a bounded
+suppressed-operation histogram. SQL, parameters, row values, URLs, credentials and
+raw error messages are excluded. Nested metadata is rebuilt from allowlisted
+fields. Slow stderr drops diagnostics instead of buffering them. Observation does
+not authorize admission or change release/cancellation behavior. Connection/queue
+limits remain 6/24; SQL, timeouts, request/readiness budgets, cache policy and
+workflows are unchanged. AST comparison of the five changed query-caller files
+found all 145 SQL template literals byte-identical to HEAD.
+
+Validation: API/runtime typechecks passed. Focused isolated MariaDB suites passed
+77/77 across seven files, including real statement cancellation, saturated-pool
+acquisition timeout and late release, home/derived semantics, fixed-name privacy
+and sink failure. An initial mistakenly parallel run collided on shared fixtures;
+a sequential retry exposed a stale synthetic fixture. That exact isolated test
+fixture was backed up and removed under the integration advisory lock, then all
+seven suites passed sequentially. Failed setup runs are not counted as passing.
+Production was not queried for these tests. Independent review, exact release CI
+and coordinated deployment remain pending. Instrumentation does not resolve #6.
+
+The exact 16:12:04 hourly failure was inspected without replay or model calls:
+BullMQ job fdcde850283e368c7918f9c1940c649590bc1487144a11999a779c294f518698
+finished16:12:04.112Z, attemptsMade1, remains failed, and has no stored returnValue.
+Safe reason category: `workflow-incomplete`; reason SHA256:
+`a8e0db49800c7a8270222fe883254d3671c510cba0dd3be58862df40daffcb4a`.
+A bounded read-only journal lookup for normalized business key and exact workflow/
+time interval returned no rows. This does not identify provider, validation or DB
+cause, nor prove zero AI requests. The processor throws a generic incomplete
+error for blocked/partial/failed results; BullMQ does not retain that thrown
+workflow result. The original failure remains untouched.
+
+Root host timeline: Infovore e2134b4/image
+`7913e90b49b927f44a44b3c0796db0ad2fb1e5c87dcf752550c2438ac7f97a1b`
+started app16:26:10.931122408Z and ingest16:26:10.930187165Z. Its initial
+16:26:41–16:27:27 sync still timed out; health_status took17.260s and health_counts
+636ms. Root is coordinating further diagnosis. YouTube remains dba0a00; no
+candidate build/server or remote rollout is active. Remote build/switch awaits
+the coordinated window. Overlap alone establishes no cause for reader failures.

@@ -3,10 +3,11 @@ import { MySqlDialect } from 'drizzle-orm/mysql-core';
 import type { SQL } from 'drizzle-orm';
 import mysql from 'mysql2/promise';
 import { dataSourceReporter } from './diagnostics.js';
+import { readerOperation, readerPoolObservation, observationElapsed, type ReaderOperation, type ReaderFailureObservation } from './observation.js';
 export type Row = Record<string, unknown>;
 export interface Reader {
     /** statementMs raises or lowers this query's server-side deadline within the reader bounds. */
-    rows<T extends Row = Row>(query: SQL, options?: { statementMs?: number }): Promise<T[]>;
+    rows<T extends Row = Row>(query: SQL, options?: { statementMs?: number; operation?: ReaderOperation }): Promise<T[]>;
     close(): Promise<void>;
 }
 export type DataSourceFailureCategory = 'configuration' | 'pool-admission' | 'connection-acquire' | 'statement-deadline' | 'driver';
@@ -52,42 +53,51 @@ export function createReader(databaseUrl: string | undefined, limits = { acquire
         multipleStatements: false });
     const dialect = new MySqlDialect();
     let pending = 0;
-    async function acquire() {
+    const observation = readerPoolObservation();
+    async function acquire(operation: ReaderOperation) {
         if (pending >= 24) throw new DataSourceUnavailable(undefined, 'pool-admission');
         pending++;
-        return await new Promise<mysql.PoolConnection>((resolve, reject) => {
+        const lease = observation.queue(operation);
+        return await new Promise<{connection: mysql.PoolConnection; lease: ReturnType<typeof observation.queue>}>((resolve, reject) => {
                 let settled = false;
-                const timer = setTimeout(() => { settled = true; reject(new DataSourceUnavailable(undefined, 'connection-acquire')); }, limits.acquireMs);
+                const timer = setTimeout(() => { settled = true; observation.expire(lease); reject(new DataSourceUnavailable(undefined, 'connection-acquire')); }, limits.acquireMs);
                 pool.getConnection().then(connection => {
                     pending--;
-                    if (settled) { connection.release(); return; }
-                    settled = true; clearTimeout(timer); resolve(connection);
-                }, error => { pending--; if (!settled) { settled = true; clearTimeout(timer); const code = driverCode(error); reject(unavailableCodes.has(code) ? new DataSourceUnavailable(code, 'connection-acquire') : new DataQueryFailed(code)); } });
+                    if (settled) { observation.abandon(lease); connection.release(); return; }
+                    settled = true; clearTimeout(timer); observation.acquired(lease); resolve({connection, lease});
+                }, error => { pending--; observation.abandon(lease); if (!settled) { settled = true; clearTimeout(timer); const code = driverCode(error); reject(unavailableCodes.has(code) ? new DataSourceUnavailable(code, 'connection-acquire') : new DataQueryFailed(code)); } });
             });
     }
     return {
-        async rows<T extends Row>(query: SQL, options?: { statementMs?: number }): Promise<T[]> {
+        async rows<T extends Row>(query: SQL, options?: { statementMs?: number; operation?: ReaderOperation }): Promise<T[]> {
             const statementMs = options?.statementMs ?? limits.statementMs;
             if (!Number.isSafeInteger(statementMs) || statementMs < 10 || statementMs > 15000) throw new Error("Invalid query deadline");
+            const started = performance.now();
+            let operation = readerOperation('', options?.operation), phase: ReaderFailureObservation['phase'] = 'compile', acquireStarted: number | undefined, acquiredAt: number | undefined, failure: ReaderFailureObservation | undefined;
+            const detail = (): ReaderFailureObservation => ({operation, phase, durationMs: observationElapsed(started, performance.now()), acquireMs: acquireStarted === undefined ? 0 : observationElapsed(acquireStarted, acquiredAt ?? performance.now()), statementMs: acquiredAt === undefined ? 0 : observationElapsed(acquiredAt, performance.now()), pool: observation.snapshot()});
             try {
                 const compiled = dialect.sqlToQuery(query);
-                const connection = await acquire();
+                operation = readerOperation(compiled.sql, options?.operation);
+                acquireStarted = performance.now();
+                phase = pending >= 24 ? 'admission' : 'acquire';
+                const {connection, lease} = await acquire(operation);
+                acquiredAt = performance.now(); phase = 'statement';
                 let failed = false;
                 try {
                     // Server-side cancellation bounds SQL work; socket timeout also
                     // covers transport failure. No background timed-out SELECT remains.
                     const [rows] = await connection.execute({ sql: `SET STATEMENT max_statement_time=${statementMs / 1000} FOR ${compiled.sql}`, timeout: statementMs + 1000 }, compiled.params as ExecuteValues[]);
                     return rows as unknown as T[];
-                } catch (error) { failed = true; connection.destroy(); throw error; }
-                finally { if (!failed) connection.release(); }
+                } catch (error) { failure = detail(); failed = true; connection.destroy(); throw error; }
+                finally { observation.release(lease); if (!failed) connection.release(); }
             }
             catch (cause) {
-                if (cause instanceof DataSourceUnavailable) { reportFailure(cause, 'reader'); throw cause; }
-                if (cause instanceof DataQueryFailed) throw cause;
+                if (cause instanceof DataSourceUnavailable) { reportFailure(cause, 'reader', failure ?? detail()); throw cause; }
+                if (cause instanceof DataQueryFailed) { reportFailure(cause, 'reader', failure ?? detail()); throw cause; }
                 const code = driverCode(cause);
                 const category = ['ER_STATEMENT_TIMEOUT', 'ER_QUERY_TIMEOUT', 'ER_QUERY_INTERRUPTED', 'PROTOCOL_SEQUENCE_TIMEOUT'].includes(code) ? 'statement-deadline' : 'driver';
                 const error = unavailableCodes.has(code) ? new DataSourceUnavailable(code, category) : new DataQueryFailed(code);
-                if (error instanceof DataSourceUnavailable) reportFailure(error, 'reader');
+                reportFailure(error, 'reader', failure ?? detail());
                 throw error;
             }
         },

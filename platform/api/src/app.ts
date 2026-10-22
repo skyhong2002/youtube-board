@@ -91,7 +91,7 @@ export function buildApp(options: AppOptions = {}) {
     app.addHook('onSend', async (_request, reply, payload) => { reply.header('Strict-Transport-Security','max-age=31536000'); return payload; });
     const meta = (data: unknown): ReportMeta => ({ schemaVersion: 1, requestedAt: clock().toISOString(), updatedAt: deepUpdatedAt(data), timezone: 'Asia/Taipei', source: 'mariadb', dataset: options.dataset ?? (process.env.DATASET_KIND === 'fixture' ? 'fixture' : 'unknown'), coverage: {}, warnings: [] });
     registerApiMetadata(app,{meta:()=>meta(null)});
-    const publicStatus=createApiStatus({clock,check:async()=>{await reader.rows(sql`SELECT pk FROM urt_video LIMIT 1`);}});
+    const publicStatus=createApiStatus({clock,check:async()=>{await reader.rows(sql`SELECT pk FROM urt_video LIMIT 1`,{operation:'api-status'});}});
     // Exact HTML/RSC status page remains frontend-owned; JSON never proxies to itself.
     app.addHook('onRequest',async(request,reply)=>{
         const path=request.url.split('?')[0];
@@ -158,7 +158,7 @@ export function buildApp(options: AppOptions = {}) {
         reply.header('Cache-Control', 'no-store');
         if(options.sitemapWarmup&&!sitemaps.ready()){sitemaps.start();return reply.code(503).send({status:'preparing',checks:{sitemaps:'preparing',database:'unchecked'}});}
         try {
-            await reader.rows(sql `SELECT 1 AS available`);
+            await reader.rows(sql `SELECT 1 AS available`,{operation:'readiness'});
             return { status: 'ready', checks: { database: 'ready', sitemaps: options.sitemapWarmup ? 'ready' : 'not-required' } };
         }
         catch (error) {
