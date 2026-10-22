@@ -8,8 +8,14 @@ export interface Reader {
     rows<T extends Row = Row>(query: SQL, options?: { statementMs?: number }): Promise<T[]>;
     close(): Promise<void>;
 }
+export type DataSourceFailureCategory = 'configuration' | 'pool-admission' | 'connection-acquire' | 'statement-deadline' | 'driver';
 export class DataSourceUnavailable extends Error {
-    constructor(cause?: unknown) { super('Dashboard data source is unavailable.', { cause }); }
+    readonly driverCode: string;
+    constructor(cause?: unknown, public readonly category: DataSourceFailureCategory = 'driver') {
+        const code = typeof cause === 'string' && unavailableCodes.has(cause) ? cause : 'UNKNOWN';
+        super('Dashboard data source is unavailable.', { cause: code });
+        this.driverCode = code;
+    }
 }
 const unavailableCodes = new Set(['ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'EHOSTUNREACH', 'ENETUNREACH', 'ECONNRESET', 'EPIPE', 'PROTOCOL_CONNECTION_LOST', 'PROTOCOL_SEQUENCE_TIMEOUT', 'ER_ACCESS_DENIED_ERROR', 'ER_DBACCESS_DENIED_ERROR', 'ER_TABLEACCESS_DENIED_ERROR', 'ER_COLUMNACCESS_DENIED_ERROR', 'ER_CON_COUNT_ERROR', 'ER_TOO_MANY_USER_CONNECTIONS', 'ER_SERVER_SHUTDOWN', 'ER_LOCK_WAIT_TIMEOUT', 'ER_STATEMENT_TIMEOUT', 'ER_QUERY_TIMEOUT', 'ER_QUERY_INTERRUPTED', 'PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR', 'PROTOCOL_ENQUEUE_AFTER_QUIT']);
 export class DataQueryFailed extends Error {
@@ -37,23 +43,23 @@ function driverCode(error: unknown): string {
 export function createReader(databaseUrl: string | undefined, limits = { acquireMs: 3000, statementMs: 5000 }): Reader {
     if (![limits.acquireMs, limits.statementMs].every(n => Number.isSafeInteger(n) && n >= 10 && n <= 15000)) throw new Error("Invalid query deadline");
     if (!databaseUrl)
-        return { rows: async () => { throw new DataSourceUnavailable(); }, close: async () => { } };
+        return { rows: async () => { throw new DataSourceUnavailable(undefined, 'configuration'); }, close: async () => { } };
     const pool = mysql.createPool({ uri: databaseUrl, connectionLimit: 6, connectTimeout: 5000, queueLimit: 24, maxPreparedStatements: 200,
         dateStrings: true, supportBigNumbers: true, bigNumberStrings: true, timezone: '+08:00',
         multipleStatements: false });
     const dialect = new MySqlDialect();
     let pending = 0;
     async function acquire() {
-        if (pending >= 24) throw new DataSourceUnavailable();
+        if (pending >= 24) throw new DataSourceUnavailable(undefined, 'pool-admission');
         pending++;
         return await new Promise<mysql.PoolConnection>((resolve, reject) => {
                 let settled = false;
-                const timer = setTimeout(() => { settled = true; reject(new DataSourceUnavailable()); }, limits.acquireMs);
+                const timer = setTimeout(() => { settled = true; reject(new DataSourceUnavailable(undefined, 'connection-acquire')); }, limits.acquireMs);
                 pool.getConnection().then(connection => {
                     pending--;
                     if (settled) { connection.release(); return; }
                     settled = true; clearTimeout(timer); resolve(connection);
-                }, error => { pending--; if (!settled) { settled = true; clearTimeout(timer); reject(error); } });
+                }, error => { pending--; if (!settled) { settled = true; clearTimeout(timer); const code = driverCode(error); reject(unavailableCodes.has(code) ? new DataSourceUnavailable(code, 'connection-acquire') : new DataQueryFailed(code)); } });
             });
     }
     return {
@@ -74,8 +80,10 @@ export function createReader(databaseUrl: string | undefined, limits = { acquire
             }
             catch (cause) {
                 if (cause instanceof DataSourceUnavailable) throw cause;
+                if (cause instanceof DataQueryFailed) throw cause;
                 const code = driverCode(cause);
-                throw unavailableCodes.has(code) ? new DataSourceUnavailable(code) : new DataQueryFailed(code);
+                const category = ['ER_STATEMENT_TIMEOUT', 'ER_QUERY_TIMEOUT', 'ER_QUERY_INTERRUPTED', 'PROTOCOL_SEQUENCE_TIMEOUT'].includes(code) ? 'statement-deadline' : 'driver';
+                throw unavailableCodes.has(code) ? new DataSourceUnavailable(code, category) : new DataQueryFailed(code);
             }
         },
         close: async () => {
