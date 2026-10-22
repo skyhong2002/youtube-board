@@ -20,7 +20,8 @@ describe.skipIf(!url)('prepared sitemap snapshots on isolated real MariaDB schem
   for(const name of names){const definition=new RegExp('CREATE TABLE IF NOT EXISTS `?'+name+'`? \\([\\s\\S]*?\\) ENGINE=[^;]+;').exec(ddl)?.[0];if(!definition)throw new Error('Missing checked-in sitemap schema');await db.query(replace(definition));created.push(name);}
   await db.query(replace("INSERT INTO urt_channel(u_id,ctime,mtime,stime,flag_del,youtube_id,title) VALUES(1,'2026-10-01','2026-10-11 12:00:00','2027-10-01',0,'UCfixtureA','Active'),(2,'2026-10-01','2026-10-11',NULL,1,'UCfixtureB','Deleted'),(60000001,'2026-10-01','2026-10-11',NULL,NULL,'UCfixtureC','Sparse')"));
   await db.query(replace("INSERT INTO urt_tag(tag_id,ctime,mtime,tag_name,del_flag) VALUES(1,'2026-10-01','2026-10-11 12:00:00','公開分類',0),(2,'2026-10-01','2026-10-11','已刪分類',1)"));
-  for(const[pk,id,title]of[[1,'SitemapAa01','Public A'],[60000001,'Sitemapaa01','Public a'],[60000002,'SitemapPr01','Private video'],[60000003,'SitemapDe01','Deleted video']]as const)await db.query(replace("INSERT INTO urt_video(pk,ctime,mtime,stime,u_id,id,publishedAt,channelId,title,thumbnails,channelTitle,playlistId,position,videoId,description) VALUES(?,'2026-10-01','2026-10-11 12:00:00','2027-10-01',1,?,'2026-10-01','UCfixtureA',?,'','Fixture','fixture',0,?,'')"),[pk,id,title,id]);
+  // Public observed videos include a genuine zero count; NULL remains unobserved.
+  for(const[pk,id,title,views]of[[1,'SitemapAa01','Public A',0],[60000001,'Sitemapaa01','Public a',100],[60000002,'SitemapPr01','Private video',0],[60000003,'SitemapDe01','Deleted video',0],[60000004,'SitemapUn01','Unobserved',null]]as const)await db.query(replace("INSERT INTO urt_video(pk,ctime,mtime,stime,u_id,id,publishedAt,channelId,title,thumbnails,channelTitle,playlistId,position,videoId,description,viewCount) VALUES(?,'2026-10-01','2026-10-11 12:00:00','2027-10-01',1,?,'2026-10-01','UCfixtureA',?,'','Fixture','fixture',0,?,'',?)"),[pk,id,title,id,views]);
  });
  afterAll(async()=>{try{for(const name of [...created].reverse())await db.query('DROP TABLE `'+prefix+name+'`');}finally{await db?.end();}});
  it('prepares only nonempty mandatory families using real source columns, sparse keysets and truthful index dates',async()=>{
@@ -28,7 +29,7 @@ describe.skipIf(!url)('prepared sitemap snapshots on isolated real MariaDB schem
   const index=await maps.read();expect(index.match(/<sitemap>/g)).toHaveLength(4);expect(index.match(/<lastmod>/g)).toHaveLength(4);expect(index).not.toContain('/keywords/');expect(index).not.toContain('/events/');
   const channels=await maps.read('channels','1');expect(channels).toContain('/channels/1<');expect(channels).toContain('/channels/60000001<');expect(channels).not.toContain('/channels/2<');
   const tags=await maps.read('tags','1');expect(tags).toContain('/tags/1/channels<');expect(tags).not.toContain('/tags/2/channels<');expect(tags).toContain('2026-10-11T04:00:00.000Z');
-  const videos=await maps.read('videos','1');expect(videos).toContain('/videos/SitemapAa01<');expect(videos).toContain('/videos/Sitemapaa01<');expect(videos).not.toContain('SitemapPr01');expect(videos).not.toContain('SitemapDe01');expect(videos).not.toContain('2027');
+  const videos=await maps.read('videos','1');expect(videos).toContain('/videos/SitemapAa01<');expect(videos).toContain('/videos/Sitemapaa01<');expect(videos).not.toContain('SitemapPr01');expect(videos).not.toContain('SitemapDe01');expect(videos).not.toContain('SitemapUn01');expect(videos).not.toContain('2027');
   const count=queries.length;await maps.read();await maps.read('videos','1');await expect(maps.read('videos','1201')).rejects.toMatchObject({statusCode:404});expect(queries).toHaveLength(count);
  });
  it('EXPLAIN permits indexed PK ranges with one indexed byte-exact probe per video rather than global sort or OFFSET',async()=>{
@@ -40,7 +41,7 @@ describe.skipIf(!url)('prepared sitemap snapshots on isolated real MariaDB schem
  });
  it('excludes old duplicate records before assigning sequential sitemap pages',async()=>{
   await db.query(replace('ALTER TABLE urt_video DROP INDEX videoId,ADD INDEX videoId(videoId)'));
-  await db.query(replace("INSERT INTO urt_video(ctime,mtime,stime,u_id,id,publishedAt,channelId,title,thumbnails,channelTitle,playlistId,position,videoId,description) SELECT ctime,'2026-10-12 12:00:00',stime,u_id,id,publishedAt,channelId,title,thumbnails,channelTitle,playlistId,position,videoId,description FROM urt_video WHERE pk=1"));
+  await db.query(replace("INSERT INTO urt_video(ctime,mtime,stime,u_id,id,publishedAt,channelId,title,thumbnails,channelTitle,playlistId,position,videoId,description,viewCount) SELECT ctime,'2026-10-12 12:00:00',stime,u_id,id,publishedAt,channelId,title,thumbnails,channelTitle,playlistId,position,videoId,description,viewCount FROM urt_video WHERE pk=1"));
   const maps=createSitemaps(reader,{now:()=>NOW,maxPageUrls:1});await maps.prepare();
   const first=await maps.read('videos','1'),second=await maps.read('videos','2');expect(first).toContain('/videos/Sitemapaa01<');expect(second).toContain('/videos/SitemapAa01<');expect(second).toContain('2026-10-12T04:00:00.000Z');await expect(maps.read('videos','3')).rejects.toMatchObject({statusCode:404});
  });
