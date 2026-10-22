@@ -59,19 +59,27 @@ export async function countsCacheJob(ctx:CacheContext,input:{uId?:number;limit:n
   }
   return {mode:ctx.execute?'execute':'dry-run',selected:Math.min(rows.length,input.limit),truncated:rows.length>input.limit,applied,skipped};
 }
+const INSUFFICIENT_HISTORY_RECHECK_MS = 2 * 3600000;
 /** Laravel ScheduleReportsPreview: rows refreshed (mtime) within the last `hours` (default 1) that have view history, oldest
  * mtime first; the latest two history rows by pk give the next stime from the row mtime, and both stime and mtime=now are
- * written. Invalid history only bumps mtime (cooldown). */
+ * written. A single sample at/before publication cannot establish a growth rate: explicitly defer to a new observation
+ * no later than the existing minimum polling interval, preserving an earlier scheduled check so report ticks cannot
+ * postpone observation indefinitely. Source timestamps stay unchanged. Invalid history
+ * still only bumps mtime (cooldown) and remains a failed item. */
 export async function scheduleCacheJob(ctx:CacheContext,input:{videoId?:string;limit:number;hours?:number}) {
   cap(input.limit,200);const hours=cap(input.hours??1,168),at=taipeiSql(ctx.now);
   const [rows]=await ctx.db.query<RowDataPacket[]>(`SELECT s.pk,s.videoId,s.publishedAt,s.mtime,s.stime FROM urt_video_schedule s WHERE s.mtime>=? ${input.videoId?'AND s.videoId=? AND s.videoId=BINARY ?':''} AND EXISTS (SELECT 1 FROM urt_video_log_history h WHERE h.videoId=s.videoId) ORDER BY s.mtime,s.videoId LIMIT ?`,[taipeiSql(new Date(ctx.now.getTime()-hours*3600000)),...(input.videoId?[input.videoId,input.videoId]:[]),input.limit+1]);
-  const applied:string[]=[],skipped:{videoId:string;reason:string}[]=[];
+  const applied:string[]=[],skipped:{videoId:string;reason:string}[]=[],deferred:{videoId:string;reason:'insufficient_history';nextCheckAt:string}[]=[];
   for(const row of rows.slice(0,input.limit)) {
     const [history]=await ctx.db.query<RowDataPacket[]>('SELECT ctime,viewCount FROM urt_video_log_history WHERE videoId=? AND videoId=BINARY ? ORDER BY pk DESC LIMIT 2',[row.videoId,row.videoId]);
-    const current=history[0],previous=history[1],currentTime=legacyInstant(current?.ctime),previousTime=previous?.ctime?legacyInstant(previous.ctime):row.publishedAt?legacyInstant(row.publishedAt):ctx.now,mtime=legacyInstant(row.mtime);
+    const current=history[0],previous=history[1],currentTime=legacyInstant(current?.ctime),publishedTime=legacyInstant(row.publishedAt),previousTime=previous?.ctime?legacyInstant(previous.ctime):publishedTime,mtime=legacyInstant(row.mtime);
     const elapsed=currentTime&&previousTime?Math.floor(currentTime.getTime()/1000)-Math.floor(previousTime.getTime()/1000)+1:0;
     let stime:string|null=null;
-    if(currentTime&&previousTime&&mtime&&elapsed>0){
+    if(currentTime&&mtime&&!previous&&(!row.publishedAt||publishedTime&&currentTime.getTime()<=publishedTime.getTime())){
+      const existingCheck=legacyInstant(row.stime);
+      stime=taipeiSql(new Date(Math.min(existingCheck?.getTime()??Infinity,ctx.now.getTime()+INSUFFICIENT_HISTORY_RECHECK_MS)));
+      deferred.push({videoId:row.videoId,reason:'insufficient_history',nextCheckAt:stime});
+    }else if(currentTime&&previousTime&&mtime&&elapsed>0){
       const delta=Math.max(1,phpInt(current!.viewCount)-phpInt(previous?.viewCount??0)),perHour=delta/(elapsed/3600);
       let hoursPer1000=perHour>0?1000/perHour:3000;if(hoursPer1000>1000)hoursPer1000=3000;if(hoursPer1000<2)hoursPer1000=2;
       stime=taipeiSql(new Date(mtime.getTime()+Math.round(hoursPer1000*3600)*1000));
@@ -83,7 +91,7 @@ export async function scheduleCacheJob(ctx:CacheContext,input:{videoId?:string;l
     await ctx.db.execute("INSERT INTO ts_cache_item_state(workflow,item_key,source_stamp,processed_at) VALUES('reports.schedule.build',?,?,?) ON DUPLICATE KEY UPDATE source_stamp=VALUES(source_stamp),processed_at=VALUES(processed_at)",[row.videoId,row.mtime,at]);
     if(stime)applied.push(row.videoId);
   }
-  return {mode:ctx.execute?'execute':'dry-run',selected:Math.min(rows.length,input.limit),truncated:rows.length>input.limit,applied,skipped};
+  return {mode:ctx.execute?'execute':'dry-run',selected:Math.min(rows.length,input.limit),truncated:rows.length>input.limit,applied,skipped,deferred};
 }
 export async function liveCleanupJob(ctx:CacheContext,limit:number) {
   cap(limit,200);const stale=taipeiSql(new Date(ctx.now.getTime()-3600000)),scheduled=taipeiSql(new Date(ctx.now.getTime()-7200000)),at=taipeiSql(ctx.now);
