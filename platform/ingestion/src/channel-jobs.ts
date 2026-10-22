@@ -3,7 +3,7 @@ import { clearItemBackoff, recordItemBackoff } from './backoff.js';
 import { jsonMap, selectOne, taipeiSql, update, upsert } from './legacy-db.js';
 import type { SourceJobContext } from './video-statistics.js';
 import type { ChannelStatistics, PlaylistItem } from './youtube.js';
-import { isYoutubeItemFailure, YoutubeError } from './quota.js';
+import { isYoutubeItemFailure, YoutubeError, youtubeFailureDetail } from './quota.js';
 
 export function cap(value: number, max: number, min = 1) { if (!Number.isSafeInteger(value) || value < min || value > max) throw new Error('Invalid source workflow cap'); return value; }
 export function channelId(value?: number) { if (value !== undefined) cap(value, 2147483647); }
@@ -11,7 +11,7 @@ export const activeChannel = '(c.flag_del IS NULL OR c.flag_del < 1)';
 /** Laravel's channel statistics and discovery sources only poll `urt_channel.flag_del IS NULL` (a stored 0 is skipped). */
 const laravelActiveChannel = 'c.flag_del IS NULL';
 /** Errors that make Laravel stop the whole run (all keys exhausted, quota window/budget): no per-channel write. */
-const RUN_STOPPING = new Set(['quota-exhausted', 'quota-budget', 'quota-daily', 'quota-window', 'authentication', 'rate-limit', 'not-configured']);
+const RUN_STOPPING = new Set(['quota-exhausted', 'quota-budget', 'quota-comment-budget', 'quota-daily', 'quota-window', 'authentication', 'rate-limit', 'not-configured']);
 export const isRunStoppingYoutubeError = (error: unknown): error is YoutubeError => error instanceof YoutubeError && RUN_STOPPING.has(error.code);
 const missingLog = 'NOT EXISTS (SELECT 1 FROM urt_log l WHERE l.u_id = c.u_id)';
 export async function publishChannelStatistics(ctx: SourceJobContext, row: RowDataPacket, stats: ChannelStatistics) {
@@ -137,9 +137,13 @@ export async function channelUploadsJob(ctx: SourceJobContext, input: UploadsInp
   else if (input.uId) [rows] = await ctx.db.query<RowDataPacket[]>('SELECT c.* FROM urt_channel c WHERE c.u_id = ? ORDER BY c.u_id LIMIT ?', [input.uId, limit]);
   else if (input.live) [rows] = await ctx.db.query<RowDataPacket[]>(`SELECT c.* FROM urt_channel c WHERE ${laravelActiveChannel} AND EXISTS (SELECT 1 FROM urt_count n WHERE n.u_id = c.u_id AND n.tags LIKE ?) ORDER BY c.vtime, c.u_id LIMIT ?`, [`%[${input.live === 1 ? 52 : 89}]%`, limit]);
   else [rows] = await ctx.db.query<RowDataPacket[]>(`SELECT c.* FROM urt_channel c WHERE ${laravelActiveChannel} AND (c.vtime <= ? OR c.vtime IS NULL) ORDER BY c.vtime, c.u_id LIMIT ?`, [taipeiSql(ctx.now), limit]);
-  const applied: { uId: number; videos: number; apiItems: number; oldestPublishedAt: string | null; pageExhausted: boolean; pages: number }[] = [], skipped: { uId: number; reason: string; partialVideos: string[] }[] = [];
-  if (!ctx.execute) return { mode: 'dry-run', selected: rows.length, apiAttempts: 0, applied, skipped };
-  const stopped = (error: YoutubeError) => ({ mode:'execute', selected:rows.length, apiAttempts:ctx.youtube.attemptsMade, applied, skipped, stoppedReason:error.code, remaining:rows.length-applied.length-skipped.length });
+  const applied: { uId: number; videos: number; apiItems: number; oldestPublishedAt: string | null; pageExhausted: boolean; pages: number }[] = [], skipped: { uId: number; reason: string; partialVideos: string[]; failure?: ReturnType<typeof youtubeFailureDetail> }[] = [];
+  let discoveryFailures = 0;
+  const summary = () => ({ allSkipped: rows.length > 0 && skipped.length === rows.length, discoveryFailures,
+    skipCounts: Object.fromEntries([...new Set(skipped.map(item => item.reason))].map(reason => [reason, skipped.filter(item => item.reason === reason).length])),
+    failureCounts: Object.fromEntries([...new Set(skipped.flatMap(item => item.failure ? [item.failure.category] : []))].map(category => [category, skipped.filter(item => item.failure?.category === category).length])) });
+  if (!ctx.execute) return { mode: 'dry-run', selected: rows.length, apiAttempts: 0, applied, skipped, ...summary() };
+  const stopped = (error: YoutubeError) => ({ mode:'execute', selected:rows.length, apiAttempts:ctx.youtube.attemptsMade, applied, skipped, ...summary(), stoppedReason:error.code, remaining:rows.length-applied.length-skipped.length });
   for (const row of rows) {
     await ctx.assertOwnership();
     const uId = Number(row.u_id), partialVideos: string[] = [];
@@ -154,7 +158,10 @@ export async function channelUploadsJob(ctx: SourceJobContext, input: UploadsInp
       if (isRunStoppingYoutubeError(error)) return stopped(error);
       await ctx.assertOwnership();
       if (!input.tvbs) await update(ctx.db, 'urt_channel', { u_id: uId }, { vtime: later(ctx.now, 3600) });
-      skipped.push({ uId, reason: 'playlist-api-error', partialVideos }); continue;
+      const failure = youtubeFailureDetail(error);
+      // A genuinely missing/inaccessible playlist remains an expected per-item skip.
+      if (!(failure.category === 'request-failed' && ([404, 410].includes(failure.status ?? 0) || failure.reason === 'playlistItemsNotAccessible'))) discoveryFailures++;
+      skipped.push({ uId, reason: 'playlist-api-error', partialVideos, failure }); continue;
     }
     try {
       await publishUploads(ctx, uId, crawl.items.values(), input.tvbs, partialVideos);
@@ -166,7 +173,8 @@ export async function channelUploadsJob(ctx: SourceJobContext, input: UploadsInp
       // Laravel DATABASE_FAILURE_RETRY_MINUTES: a five-minute cooldown so a capped batch rotates and retries idempotently.
       if (!input.tvbs) await update(ctx.db, 'urt_channel', { u_id: uId }, { vtime: later(ctx.now, 300) }).catch(() => undefined);
       skipped.push({ uId, reason: 'item-processing-failed', partialVideos });
+      discoveryFailures++;
     }
   }
-  return { mode: 'execute', selected: rows.length, apiAttempts: ctx.youtube.attemptsMade, applied, skipped };
+  return { mode: 'execute', selected: rows.length, apiAttempts: ctx.youtube.attemptsMade, applied, skipped, ...summary() };
 }
