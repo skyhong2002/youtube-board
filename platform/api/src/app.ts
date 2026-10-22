@@ -37,6 +37,7 @@ import { registerChannelHistory } from './reports/channel-history.js';
 import Fastify from 'fastify';
 import { sql } from 'drizzle-orm';
 import { createReader, DataSourceUnavailable, DataQueryFailed, type Reader } from './db/client.js';
+import { dataSourceReporter } from './db/diagnostics.js';
 import { reports } from './reports/service.js';
 import {registerPublicApiPolicy,type PublicApiPolicyOptions} from './public-api/rate-limit.js';
 import {registerApiMetadata} from './public-api/metadata.js';
@@ -71,6 +72,7 @@ export function buildApp(options: AppOptions = {}) {
     const fixture=(options.dataset??process.env.DATASET_KIND)==='fixture';
     const rankingPools=options.rankingPools===false?undefined:options.rankingPools??(fixture?undefined:createRankedPoolClient({clock:options.clock}));
     const app = Fastify({ logger: false, routerOptions:{maxParamLength:240}, trustProxy: trustedProxies(process.env.AUTH_TRUSTED_PROXY_CIDRS), requestTimeout: 15000, bodyLimit: 16384 }), reader = options.reader ?? createReader(options.databaseUrl ?? process.env.DATABASE_URL), clock = options.clock ?? (() => new Date()), service = reports(reader, clock, homeDiagnosticSink(line=>{writeSync(2,line);}, clock),rankingPools);
+    const reportDataSourceFailure = dataSourceReporter();
     app.decorate('keywordRankingChanged',()=>service.invalidateKeywordRanking());
     if(options.publicApi!==false)registerPublicApiPolicy(app,{clock,...options.publicApi});
     registerPublicV1Cache(app);
@@ -153,14 +155,16 @@ export function buildApp(options: AppOptions = {}) {
     app.get('/up', async () => ({ status: 'ok', service: 'youtube-board-api' }));
     app.get('/healthz', async () => ({ status: 'ok', service: 'youtube-board-api' }));
     app.get('/ready', async (_req, reply) => {
-        if(options.sitemapWarmup&&!sitemaps.ready()){sitemaps.start();return reply.code(503).send({status:'preparing'});}
+        reply.header('Cache-Control', 'no-store');
+        if(options.sitemapWarmup&&!sitemaps.ready()){sitemaps.start();return reply.code(503).send({status:'preparing',checks:{sitemaps:'preparing',database:'unchecked'}});}
         try {
             await reader.rows(sql `SELECT 1 AS available`);
-            return { status: 'ready' };
+            return { status: 'ready', checks: { database: 'ready', sitemaps: options.sitemapWarmup ? 'ready' : 'not-required' } };
         }
-        catch {
+        catch (error) {
+            reportDataSourceFailure(error, 'readiness');
             reply.code(503);
-            return { status: 'unavailable' };
+            return { status: 'unavailable', checks: { database: 'unavailable', sitemaps: options.sitemapWarmup ? 'ready' : 'not-required' } };
         }
     });
     app.get('/api/v1/status', async () => ({ data: { routes: registered, readOnly: true }, meta: meta(null) }));
@@ -229,6 +233,7 @@ export function buildApp(options: AppOptions = {}) {
         const code = error instanceof BadQuery ? 400 : error instanceof NotFound ? 404 : error instanceof DataSourceUnavailable ? 503 : status && status >= 400 && status < 500 ? status : 500;
         const key = code === 400 ? 'INVALID_QUERY' : code === 404 ? 'NOT_FOUND' : code === 503 ? 'DATA_SOURCE_UNAVAILABLE' : code < 500 ? 'INVALID_REQUEST' : 'INTERNAL_ERROR';
         const message = error instanceof BadQuery || error instanceof NotFound ? error.message : code === 503 ? 'Dashboard data source is unavailable. Check the database connection and access permissions.' : 'The request could not be completed.';
+        if (error instanceof DataSourceUnavailable) reportDataSourceFailure(error, 'request');
         if (code === 500)
             process.stderr.write(`youtube-board-api: internal request error${error instanceof DataQueryFailed ? ' [' + error.driverCode + ']' : ''}\n`);
         reply.code(code).header('Cache-Control', 'no-store').send(_request.url.startsWith('/api/v1/') ? { error: message, code: key } : { error: { code: key, message } });

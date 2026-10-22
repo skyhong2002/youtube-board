@@ -37,14 +37,23 @@ const uiOrigin = process.env.UI_ORIGIN ?? 'http://127.0.0.1:3100';
 const assets=await publicScriptManifest(fileURLToPath(new URL('../web/.next/standalone/web/.next/static/',import.meta.url)));
 const unavailable=await loadUnavailableAssets(new URL('../web/.next/standalone/web/public/errors/',import.meta.url));
 await registerUiProxy(app, { origin: uiOrigin,htmlSecurity:{assets,themeScript:THEME_SCRIPT,...unavailable,analytics:analyticsTransportEnabled(process.env)} });
+let readinessChecks = { api: 'unchecked', ui: 'unchecked', security: 'unchecked' };
 const ready = readinessProbe(async () => {
-  const [api, ui] = await Promise.all([
+  const [api, ui] = await Promise.allSettled([
     app.inject({ method: 'GET', url: '/ready' }),
     app.inject({method:'GET',url:'/about'}),
   ]);
-  return api.statusCode === 200 && ui.statusCode===200 && typeof ui.headers['content-security-policy']==='string' && ui.headers['content-security-policy'].includes("'strict-dynamic'");
+  const uiReady = ui.status === 'fulfilled' && ui.value.statusCode === 200;
+  const csp = ui.status === 'fulfilled' ? ui.value.headers['content-security-policy'] : undefined;
+  readinessChecks = { api: api.status === 'fulfilled' && api.value.statusCode === 200 ? 'ready' : 'unavailable',
+    ui: uiReady ? 'ready' : 'unavailable', security: typeof csp === 'string' && csp.includes("'strict-dynamic'") ? 'ready' : 'unavailable' };
+  return Object.values(readinessChecks).every(state => state === 'ready');
 });
-app.get('/runtime/ready', async (_request, reply) => stopping || !await ready() ? reply.code(503).send({ status: 'unavailable' }) : { status: 'ready' });
+app.get('/runtime/ready', async (_request, reply) => {
+  reply.header('Cache-Control', 'no-store');
+  if (stopping) return reply.code(503).send({ status: 'unavailable', checks: { lifecycle: 'stopping' } });
+  return !await ready() ? reply.code(503).send({ status: 'unavailable', checks: readinessChecks }) : { status: 'ready', checks: readinessChecks };
+});
 for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, async () => {
   if (stopping) return;
   stopping = true;
