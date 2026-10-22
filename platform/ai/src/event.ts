@@ -19,7 +19,9 @@ interface EventSource { daily:Pick<DailySource,'pk'|'date'|'from'|'to'|'conditio
 export async function planEvent(db:Connection,raw:EventInput):Promise<DerivedPlan>{
  const input=normalizeEvent(raw),daily=await loadDailySource(db,input.date,input.condition,input.userToken);let topic=daily.topics.find(t=>t.title===input.event);if(!topic)throw new Error('event_source_missing');
  let ids=[...new Set(topic.media.flatMap(m=>m.event.videoId))].sort();if(!ids.length||ids.length>1000)throw new Error('event_video_cap_exceeded');
- let [rows]=await db.query<RowDataPacket[]>(`SELECT videoId,u_id,title,publishedAt FROM urt_video WHERE BINARY videoId IN (${ids.map(()=>'?').join(',')}) ORDER BY BINARY videoId`,ids);
+ // Keep the indexed candidate lookup separate from the exact, case-sensitive
+ // identity check; casting the indexed column alone scans the entire archive.
+ let [rows]=await db.query<RowDataPacket[]>(`SELECT videoId,u_id,title,publishedAt FROM urt_video WHERE videoId IN (${ids.map(()=>'?').join(',')}) AND BINARY videoId IN (${ids.map(()=>'?').join(',')}) ORDER BY BINARY videoId`,[...ids,...ids]);
  // Laravel-written daily sources (no TS snapshot) cite some video IDs that were never ingested; keep the topic's
  // ingested videos of the citing channel instead of rejecting it. TS snapshot sources stay exact.
  if(daily.runId===null){
