@@ -26,6 +26,8 @@ The reader distinguishes missing configuration, pool admission, connection acqui
 
 This establishes diagnostic coverage; a production recurrence or representative workload with categorized evidence is still needed to identify and validate a root-cause repair of the historical Web outage.
 
+Post-release probes caught homepage section failures while `/runtime/ready` remained 200. Report builders can translate reader failures before the HTTP handler sees them, so diagnostics also run at the reader boundary, coalesced per reader/category. A failing log sink cannot replace the original failure. Ranking pools have a separate upstream HTTP failure path; SQL reader categories alone do not identify that cause. This observation reinforces that readiness is not complete homepage acceptance.
+
 ## Dormant comment quota guard (#2, partial)
 
 `youtube.comments.fetch` has a 600-unit daily default sub-budget, configurable only within the shared daily budget. Its fixed `youtube_data_api_v3_comments` ledger row and the existing global row are charged by one conditional join UPDATE. Rejection charges neither row; global outstanding reservations and provider exhaustion still stop requests. Non-comment workflows retain the original single-row precharge path.
