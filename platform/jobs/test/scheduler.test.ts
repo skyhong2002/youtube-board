@@ -63,10 +63,33 @@ describe('explicit recurring schedule plans', () => {
     expect(connect).toHaveBeenCalledTimes(2);
     enqueue.mockRejectedValue(new QueueInputConflict('unknown', 'SUBMISSION_UNOBSERVED', 'a'.repeat(64)));
     const uncertain = await runScheduleCycle(both, env, new Date(), connect as unknown as typeof redisConnection, enqueue);
-    expect(uncertain.healthy).toBe(false); expect(uncertain.attention[0]?.queueId).toBe('a'.repeat(64)); expect(alive.xadd).toHaveBeenCalled();
+    expect(uncertain.healthy).toBe(false); expect(uncertain.ready).toBe(false); expect(uncertain.attention[0]?.queueId).toBe('a'.repeat(64)); expect(alive.xadd).toHaveBeenCalled();
     alive.xadd.mockRejectedValue(new Error('audit sink unavailable'));
     const unpersisted = await runScheduleCycle(both, env, new Date(), connect as unknown as typeof redisConnection, enqueue);
-    expect(unpersisted.healthy).toBe(false); expect(unpersisted.persistenceError).toBe(true); expect(unpersisted.runs[0]?.queueId).toBe('a'.repeat(64)); expect(alive.eval).toHaveBeenCalledTimes(3);
+    expect(unpersisted.healthy).toBe(false); expect(unpersisted.ready).toBe(false); expect(unpersisted.persistenceError).toBe(true); expect(unpersisted.runs[0]?.queueId).toBe('a'.repeat(64)); expect(alive.eval).toHaveBeenCalledTimes(3);
+  });
+  it.each(['PREVIOUS_RUN_FAILED', 'FAILED_REQUIRES_RESUME'])('keeps the scheduler ready while preserving %s in durable attention', async state => {
+    const now = new Date('2032-01-01T00:09:00Z');
+    const stats = { ...config, schedules: [config.schedules[0]!] };
+    const env = { APP_ENV: 'test', TS_INGESTION_ENABLED: 'true', TS_SCHEDULER_ENABLED: 'true', TS_INGESTION_OWNERS: 'youtube.videos.stats' };
+    const redis = { ping: async () => 'PONG', get: async () => String(Math.floor(now.getTime() / 60000)), eval: vi.fn().mockResolvedValue(1), xadd: vi.fn(), quit: async () => {}, disconnect() {} };
+    const enqueue = vi.fn().mockRejectedValue(new QueueInputConflict('Retained failure', state, 'retained-failed-job'));
+    const failed = await runScheduleCycle(stats, env, now, (() => redis) as unknown as typeof redisConnection, enqueue);
+    expect(failed).toMatchObject({ ready: true, healthy: false, attention: [{ state, queueId: 'retained-failed-job' }] });
+    expect(JSON.parse(redis.xadd.mock.calls[0]!.at(-1))).toMatchObject({ runs: [{ state, queueId: 'retained-failed-job' }] });
+    expect(enqueue).toHaveBeenCalledTimes(1); // Inspect the retained slot once, without retrying it.
+    enqueue.mockResolvedValue({ id: 'next-slot', state: 'waiting' });
+    const next = await runScheduleCycle(stats, env, new Date(now.getTime() + 9 * 60000), (() => redis) as unknown as typeof redisConnection, enqueue);
+    expect(next.ready).toBe(true);
+    expect(next.runs[0]?.queueId).toBe('next-slot');
+    expect(next.missedWindow).not.toBeNull(); // Historical coverage gaps stay visible too.
+    enqueue.mockRejectedValue(new Error('Queue transport unavailable'));
+    const transportFailure = await runScheduleCycle(stats, env, now, (() => redis) as unknown as typeof redisConnection, enqueue);
+    expect(transportFailure).toMatchObject({ ready: false, healthy: false, attention: [{ state: 'ENQUEUE_ERROR' }] });
+    redis.xadd.mockRejectedValue(new Error('Audit persistence unavailable'));
+    enqueue.mockRejectedValue(new QueueInputConflict('Retained failure', state, 'retained-failed-job'));
+    const unavailable = await runScheduleCycle(stats, env, now, (() => redis) as unknown as typeof redisConnection, enqueue);
+    expect(unavailable).toMatchObject({ ready: false, healthy: false, persistenceError: true });
   });
 });
 
@@ -105,10 +128,10 @@ it('reports missing baseline and future watermark through attention without hidi
   const redis = { ping: async () => 'PONG', get: vi.fn().mockResolvedValue(null), eval: vi.fn().mockResolvedValue(1), xadd: vi.fn().mockResolvedValue('1-0'), quit: async () => {}, disconnect() {} };
   const enqueue = vi.fn().mockResolvedValue({ id: 'accepted', data: { options: { limit: 25 } }, state: 'waiting' });
   const baseline = await runScheduleCycle(stats, env, now, (() => redis) as unknown as typeof redisConnection, enqueue);
-  expect(baseline).toMatchObject({ healthy: false, baseline: 'unobserved', clockSkew: false });
+  expect(baseline).toMatchObject({ ready: true, healthy: false, baseline: 'unobserved', clockSkew: false });
   expect(redis.xadd).toHaveBeenCalledTimes(1); expect(redis.eval).toHaveBeenCalledTimes(1);
   redis.get.mockResolvedValue(String(Math.floor(now.getTime() / 60000) + 10));
   const future = await runScheduleCycle(stats, env, now, (() => redis) as unknown as typeof redisConnection, enqueue);
-  expect(future).toMatchObject({ healthy: false, baseline: 'known', clockSkew: true });
+  expect(future).toMatchObject({ ready: false, healthy: false, baseline: 'known', clockSkew: true });
   expect(future.runs[0]?.queueId).toBe('accepted'); expect(redis.xadd).toHaveBeenCalledTimes(2); expect(redis.eval).toHaveBeenCalledTimes(1);
 });

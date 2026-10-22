@@ -9,7 +9,7 @@ it('shutdown retains accepted queue IDs and does not advance a partially attempt
   const redis = { ping: async () => 'PONG', get: async () => null, xadd: vi.fn().mockResolvedValue('1-0'), eval: vi.fn(), quit: async () => {}, disconnect() {} };
   const enqueue = vi.fn(async () => { requestWorkflowShutdown(); return { id: 'accepted-before-shutdown', data: { options: { limit: 1 } }, state: 'waiting' }; });
   const cycle = await runScheduleCycle(config, env, new Date('2032-01-01T00:00:00Z'), (() => redis) as unknown as typeof redisConnection, enqueue);
-  expect(cycle.aborted).toBe(true); expect(cycle.healthy).toBe(false);
+  expect(cycle.aborted).toBe(true); expect(cycle.healthy).toBe(false); expect(cycle.ready).toBe(false);
   expect(cycle.runs[0]?.queueId).toBe('accepted-before-shutdown');
   expect(cycle.runs).toHaveLength(6);
   expect(cycle.runs.slice(1).every(run => run.state === 'SHUTDOWN_ABORTED')).toBe(true);
