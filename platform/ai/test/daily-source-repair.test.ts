@@ -1,7 +1,7 @@
 import {describe,it,expect} from 'vitest';
 import type {Connection} from 'mysql2/promise';
 import {loadDailySource} from '../src/daily-source.js';
-import {planEvent} from '../src/event.js';
+import {planEvent,validateEventDetail} from '../src/event.js';
 
 // Laravel-written channel outputs (2026-07/10) carry truncated or hallucinated video IDs and duplicates; one bad
 // ID made the whole day unreadable, so no event analysis could be generated for those days.
@@ -38,5 +38,16 @@ describe('legacy daily source repair',()=>{
   const source=plan.source as {topic:{media:{channel:string;event:{videoId:string[]}}[]};videos:{videoId:string}[]};
   expect(source.topic.media.map(m=>[m.channel,m.event.videoId])).toEqual([['媒體甲',['AAAAAAAAAAA']]]);
   expect(source.videos.map(x=>x.videoId)).toEqual(['AAAAAAAAAAA']);expect(plan.sourceCount).toBe(1);
+ });
+ it('people analysis drops videos whose source item does not name the person, then persons left without any',async()=>{
+  const v=(id:string,u_id:number)=>({videoId:id,u_id,title:'t',publishedAt:'2026-09-04 08:00:00'});
+  const db=fakeDb({1:[ev('甲一',['AAAAAAAAAAA'],{人物:['王甲']})],2:[ev('乙一',['BBBBBBBBBBB'],{人物:['李乙']})]},[{標題:'議題一',媒體事件:{媒體甲:['甲一'],媒體乙:['乙一']}}],[v('AAAAAAAAAAA',1),v('BBBBBBBBBBB',2)]);
+  const plan=await planEvent(db,{date:'2026-09-04',event:'議題一',promptType:'people'});
+  const person=(name:string,videos:[string,string][])=>({person:name,role:'人物',support_or_opposition:'支持',strength:'中',description:'說明',videos:videos.map(([media,video_id])=>({media,video_id}))});
+  const out=validateEventDetail(JSON.stringify({main_subject:'議題一',supporting_persons:[person('王甲',[['媒體甲','AAAAAAAAAAA'],['媒體乙','BBBBBBBBBBB']]),person('李乙',[['媒體甲','AAAAAAAAAAA']])],opposing_persons:[],other_opinions_persons:[]}),plan) as {supporting_persons:{person:string;videos:{video_id:string}[]}[]};
+  expect(out.supporting_persons.map(p=>[p.person,p.videos.map(x=>x.video_id)])).toEqual([['王甲',['AAAAAAAAAAA']]]);
+  // A person no source item names is still rejected, as is a video outside the topic.
+  expect(()=>validateEventDetail(JSON.stringify({main_subject:'議題一',supporting_persons:[person('不存在',[['媒體甲','AAAAAAAAAAA']])],opposing_persons:[],other_opinions_persons:[]}),plan)).toThrow('person');
+  expect(()=>validateEventDetail(JSON.stringify({main_subject:'議題一',supporting_persons:[person('王甲',[['媒體甲','ZZZZZZZZZZZ']])],opposing_persons:[],other_opinions_persons:[]}),plan)).toThrow('pair');
  });
 });

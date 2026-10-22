@@ -51,11 +51,15 @@ export function validateEventDetail(content:string,plan:DerivedPlan){
   for(const value of list(event.opinion,0,100)){const r=object(value);exactKeys(r,['media','stance','intensity','content','video_id']);ref(r);text(r.stance);text(r.content);if(!['高','中','低'].includes(String(r.intensity)))throw new Error('Invalid intensity');}
  }else{
   const groups=source.promptType==='people'?['supporting_persons','opposing_persons','other_opinions_persons']:['supporting_medias','opposing_medias','other_opinions_medias'];exactKeys(root,['main_subject',...groups,...(source.promptType==='media'?['all_medias']:[])]);title(root.main_subject);const used=new Set<string>();
-  for(const group of groups)for(const value of list(root[group],0,100)){
+  // People mode keeps only videos whose source item names the person (the model tends to attach every topic video to the
+  // main person) and drops a person left without any; the person must still be named by the source.
+  for(const group of groups){const kept:unknown[]=[];for(const value of list(root[group],0,100)){
    const r=object(value);stanceCheck(r,group);
-   if(source.promptType==='people'){exactKeys(r,['person','role','support_or_opposition','strength','description','videos']);const name=text(r.person);if(!persons.has(name)||used.has(name))throw new Error('Unknown or repeated event person');used.add(name);text(r.role);for(const video of list(r.videos,1,500)){const v=object(video);exactKeys(v,['media','video_id']);ref(v);if(!source.topic.media.some(m=>m.channel===v.media&&m.event.videoId.includes(String(v.video_id))&&m.event.人物.includes(name)))throw new Error('Person lacks referenced source evidence');}}
-   else{exactKeys(r,['media','support_or_opposition','strength','description']);const name=media(r.media);if(used.has(name))throw new Error('Repeated media classification');used.add(name);}
-  }
+   if(source.promptType==='people'){exactKeys(r,['person','role','support_or_opposition','strength','description','videos']);const name=text(r.person);if(!persons.has(name)||used.has(name))throw new Error('Unknown or repeated event person');used.add(name);text(r.role);
+    const videos=list(r.videos,1,500).filter(video=>{const v=object(video);exactKeys(v,['media','video_id']);ref(v);return source.topic.media.some(m=>m.channel===v.media&&m.event.videoId.includes(String(v.video_id))&&m.event.人物.includes(name));});
+    if(videos.length)kept.push({...r,videos});}
+   else{exactKeys(r,['media','support_or_opposition','strength','description']);const name=media(r.media);if(used.has(name))throw new Error('Repeated media classification');used.add(name);kept.push(r);}
+  }root[group]=kept;}
   if(source.promptType==='media'){const all=strings(root.all_medias);all.forEach(media);if(all.length!==medias.size||used.size!==medias.size)throw new Error('Incomplete media coverage');}
  }
  return root;
