@@ -11,8 +11,8 @@ describe.skipIf(!url)('indexed event video identity lookup with MariaDB',()=>{
  const input={date:'2046-10-10',event:'fixture',promptType:'summary' as const,userToken:'EVENT_LOOKUP_TEST'};
  beforeAll(async()=>{
   db=await mysql.createConnection({uri:url!,dateStrings:true});
-  const [lock]=await db.query<RowDataPacket[]>("SELECT GET_LOCK('youtube-board-test-integration-lane',0) AS acquired");
-  if(Number(lock[0]?.acquired)!==1)throw new Error('Isolated test database lane is busy');
+  // The integration runner owns the lane lock. This connection writes only its
+  // own temporary table, so it must not reacquire that lock on another connection.
   await db.query('CREATE TEMPORARY TABLE event_video_lookup (pk INT AUTO_INCREMENT PRIMARY KEY,videoId VARCHAR(32) COLLATE utf8mb4_general_ci,u_id INT,title VARCHAR(100),publishedAt DATETIME,KEY videoId(videoId))');
   const rows=Array.from({length:1000},(_,i)=>['filler'+String(i).padStart(5,'0'),1,'fixture','2046-10-10 12:00:00']);
   rows.push(['CaseVIDEO01',1,'exact','2046-10-10 12:00:00'],['caseVIDEO01',2,'case collision','2046-10-10 12:00:00']);
@@ -20,11 +20,12 @@ describe.skipIf(!url)('indexed event video identity lookup with MariaDB',()=>{
   vi.mocked(loadDailySource).mockResolvedValue({pk:1,date:input.date,from:input.date+' 00:00:00',to:input.date+' 23:59:59',condition:'all',userToken:input.userToken,runId:'fixture',result:'[]',topics:[{title:'fixture',media:[{u_id:1,channel:'fixture',event:{videoId:['CaseVIDEO01','CaseVIDEO01']}}]}]} as never);
   wrapped=new Proxy(db,{get(target,key){if(key==='query')return async(statement:string,params:unknown[])=>{
    const query=statement.replace('FROM urt_video','FROM event_video_lookup');
+   if(query===statement||/\burt_video\b/.test(query))throw new Error('Lookup test must use only its temporary source table');
    [plan]=await db.query<RowDataPacket[]>('EXPLAIN '+query,params);
    return db.query(query,params);
   };const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;}});
  });
- afterAll(async()=>{if(db){await db.query("SELECT RELEASE_LOCK('youtube-board-test-integration-lane')");await db.end();}});
+ afterAll(async()=>{await db?.end();});
  it('uses the videoId index and preserves exact-case results and request deduplication',async()=>{
   const result=await planEvent(wrapped,input);
   expect(plan[0]).toMatchObject({key:'videoId'});expect(['ref','range']).toContain(plan[0]?.type);
