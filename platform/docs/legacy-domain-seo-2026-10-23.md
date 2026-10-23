@@ -225,9 +225,21 @@ Codex 稍早的快照是 461,084，兩者時間不同，影片數會隨收錄增
   - 參數頁回 `noindex, follow`，canonical 去參數。
   - 乾淨頁可索引，canonical 指向自己。
 
+## Google 側 live 驗證（2026-10-23，Codex，URL Inspection live test）
+
+- **18:06:39，舊網址 `https://youtube.board.tw/ch/3113/videos/&hours=24`**
+  - Google live 測試：抓取成功，允許檢索。
+  - 落地頁是參數變體，照設計回 `noindex`，canonical 指向 `https://youtube.observe.tw/channels/3113/videos`。
+- **18:13，乾淨新網址 `https://youtube.observe.tw/channels/3113/videos`**
+  - Google live 測試：URL is available to Google，可以建立索引。
+  - 偵測到 1 個有效的 Breadcrumb 結構化資料。
+- **這些只代表 live 測試可抓取、可索引，不代表已收錄。**
+  - 舊域 GSC 的總錯誤量還沒重算。
+  - 實際收錄與錯誤數的變化，由 Codex 之後從 GSC 報表追蹤。
+
 ## 未完成
 
-1. **board.tw edge 轉址：已上線**，見上一節。後續由 Codex 在 Google 側追蹤（GSC 重新抓取、驗證修正）。
+1. **board.tw edge 轉址：已上線**，Google live 測試也通過（見前兩節）。後續由 Codex 在 Google 側追蹤（GSC 重新抓取、驗證修正）。
    舊域 GSC 的總錯誤量（404 102,898、duplicate 85,463、redirect error 1,852、5xx 1,796）還沒重算，**不能宣稱已清零或已改善**。
    提交或讀取 sitemap、轉址可被抓取，都不等於已重新索引。
 2. **舊域的 404／duplicate／redirect error／5xx 數字**：白名單內的網址要等 Google 重新抓取後才會反映成轉址。白名單外的路徑仍由舊 origin 回應，數字可能不會變。目前沒有重算結果，也不宣稱改善。
