@@ -105,6 +105,7 @@
   - 其他 10 個服務的映像沒有變（worker-ai-daily `a12b06a1…`，其餘 `65038431…`，redis）。
 - 協調：換映像前和 AI 日報／people-validation thread 約好由我先換 web，完成後才通知對方換 worker-ai-daily，避免 `compose.update` 互相覆蓋。
   換映像是等主機 load 降到 3.9、IO pressure avg60 低於 30% 才做。
+- 後續：AI 日報 thread 在 09:41:39Z 只換了 worker-ai-daily（`a12b06a1…` → `feb3fdf36da7…`，ai/src/event.ts 來自 172f6eb），09:41:56Z 完成。Web 沒有重啟，仍是 `3326d8f1…`（09:38:58Z 啟動的同一個 task，healthy、restart 0），`/ch/3113/videos/&hours=24` 仍回一次 308。
 - 回退：`release-web-legacy-seo.py --old=sha256:3326d8f1… --new=sha256:e5cab99fe82c2485aaf3b543c8b8b002d8ec972cf77546232fbb2e56ada8f6f8 --execute`。
 
 ### 正式網址證據（經 Cloudflare，09:40–09:45 UTC）
