@@ -7,7 +7,7 @@ import {VideoThumbnail} from '@/components/VideoThumbnail';
 import {ObservationChart,observedPoints,SINGLE_OBSERVATION_NOTE} from '@/components/ObservationChart';
 import {ChannelSourceLabel,hasSource} from '@/components/ChannelSource';
 import SaveButton from '@/components/reader/SaveButton';
-import {familyTabs} from '@/lib/report-navigation';
+import {familyTabs,liveScopeLead,liveViewTabs} from '@/lib/report-navigation';
 import {liveCoverageNotes} from '@/components/LiveCoverageNotice';
 import { VideoCommentSummary } from '@/components/VideoCommentSummary';
 import { COMMENTS_PUBLISHED } from '@/lib/comments-launch';
@@ -173,10 +173,12 @@ async function ReportBody({
             <>
                 <Heading
                     title={route.title}
+                    lead={liveScopeLead(search)}
                     meta={meta}
                 />
                 <DataNotice meta={meta} />
                 <Tabs items={familyTabs(path,search,meta.coverage)} active={path} />
+                <Tabs items={liveViewTabs(search)} active={path} label="直播排行範圍" />
                 <RefreshControl />
                 <ReportFilters mode="live" search={search} path={path} />
                 <div className="metrics">

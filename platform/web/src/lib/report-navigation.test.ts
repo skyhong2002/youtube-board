@@ -1,6 +1,7 @@
 import {strict as assert} from 'node:assert';
 import {test} from 'node:test';
-import {eventTabs,familyTabs,reportHref,wallVariantTabs} from './report-navigation';
+import {eventTabs,familyTabs,liveScopeLead,liveViewTabs,reportHref,wallVariantTabs} from './report-navigation';
+import {NAV_GROUPS} from './site-nav';
 const query=(href:string)=>Object.fromEntries(new URL(href,'http://local').searchParams);
 test('report transition matrix preserves only compatible destination scope',()=>{
  const selection={from:'2026-10-01',to:'2026-10-11',tagid:'1',or:'2,3',not:'4',q:'交通',column:'viewCount',type:'tags_video',days:'30',hours:'72',mode:'orig',limit:'1000',offset:'50'};
@@ -98,4 +99,24 @@ test('hourly taxonomy destination carries only a date and drops ranking/trend se
  assert.deepEqual(query(reportHref('/live/groups/media/hours',{date:'2026-10-11',type:'count',days:'7',from:'2026-10-01'})),{date:'2026-10-11',type:'count'});
  assert.deepEqual(query(reportHref('/live/groups/media/hours',{date:'2026-10-11',type:'views'})),{date:'2026-10-11',type:'views'});
  assert.deepEqual(query(reportHref('/live/groups/media/hours',{date:'2026-10-11',type:'tags_video'})),{date:'2026-10-11'});
+});
+
+test('live view tabs follow nav_live.php: the menu opens the news scope, 排除帶狀 keeps it, presets replace it',()=>{
+ assert.ok(NAV_GROUPS[0]!.links.some(link=>link.href==='/live/current?or=1,2,12,13,14,81'));
+ const news=liveViewTabs({or:'1,2,12,13,14,81'});
+ assert.deepEqual(news.map(t=>[t.label,t.href,t.active]),[
+  ['現在正直播排行','/live/current?or=1,2,12,13,14,81',false],
+  ['正直播排行(排除帶狀)','/live/current?or=1,2,12,13,14,81&hours=24',false],
+  ['新聞政治頻道','/live/current?or=1,2,12,13,14,81',true],
+  ['全台灣','/live/current?not=11,33,36,59,99,100',false],
+  ['個人社論','/live/current?tagid=1&not=2,9,10,12,13,33,36,81',false],
+  ['全部頻道','/live/current',false],
+ ]);
+ assert.deepEqual(liveViewTabs({or:'1,2,12,13,14,81',hours:'24'}).filter(t=>t.active).map(t=>t.label),['正直播排行(排除帶狀)']);
+ assert.deepEqual(liveViewTabs({tagid:'5'}).filter(t=>t.active).map(t=>[t.label,t.href]),[['現在正直播排行','/live/current?tagid=5']]);
+ assert.equal(liveViewTabs({tagid:'5'})[1]!.href,'/live/current?tagid=5&hours=24');
+ assert.deepEqual(liveViewTabs({}).filter(t=>t.active).map(t=>t.label),['全部頻道']);
+ assert.equal(liveScopeLead({or:'1,2,12,13,14,81',q:'颱風'}),'社論、政治人物、電視台、新聞、政黨、廣播頻道');
+ assert.equal(liveScopeLead({}),undefined);
+ assert.equal(liveScopeLead({tagid:'5'}),undefined);
 });
