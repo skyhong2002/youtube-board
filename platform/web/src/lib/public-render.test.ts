@@ -179,6 +179,15 @@ test('ISR home cache rejects a 200 home with any unavailable exploration section
  for(const body of [home(complete),home({categories:section('available'),keywords:section('synchronized'),keywordToday:section('synchronized')}),
   home({...complete,keywords:section('not-synchronized'),keywordToday:section('not-synchronized')}),home({categories:section('available')}),home({}),home(null),{data:{summary:{channels:1}},meta},{data:null,meta}])
   assert.equal(requireCompleteHome(body as never),body,JSON.stringify(body));
+ // A keyword window unavailable only because the upstream ranking pool failed renders as an
+ // explicit unavailable section instead of a whole-page 503; categories or other keyword
+ // failures still keep the previous ISR entry.
+ const poolDown={...section('unavailable'),rankingPool:{status:'unavailable',reason:'rate-limited',windows:{}}};
+ for(const body of [home({...complete,keywords:poolDown}),home({...complete,keywords:poolDown,keywordToday:poolDown})])
+  assert.equal(requireCompleteHome(body as never),body,JSON.stringify(body));
+ for(const body of [home({...complete,categories:poolDown}),home({...complete,keywords:poolDown,keywordToday:section('unavailable')}),
+  home({...complete,keywords:{...section('unavailable'),rankingPool:{status:'available'}}}),home({...complete,keywords:{...section('unavailable'),rankingPool:null}})])
+  assert.throws(()=>requireCompleteHome(body as never),(error:unknown)=>error instanceof PublicDataError&&error.code==='HOME_SECTION_UNAVAILABLE',JSON.stringify(body));
  // Wiring: only the exact public home URL built by publicApiUrl is checked, inside the cached read.
  const text=source('src/lib/api.ts');
  assert.match(text,/requireSuccess\(await read<unknown>\(url\)\);\s*return url === publicApiUrl\(apiBase\(\), "home"\) \? requireCompleteHome\(response\) : response;/);

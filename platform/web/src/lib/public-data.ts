@@ -74,14 +74,23 @@ const HOME_SECTIONS = ["categories", "keywords", "keywordToday"] as const;
 /** The public `home` read answers 200 with an exploration section marked `unavailable`
  * when its source read failed. Dynamic renders show that partial state; the shared ISR
  * cache must not keep it, so the cached read throws and Next keeps the previous good
- * entry. Missing sections (older API) and `not-synchronized` or empty results pass. */
+ * entry. Missing sections (older API) and `not-synchronized` or empty results pass.
+ * Exception: a keyword window that is unavailable only because the tag.observe.tw ranking
+ * pool could not be read. The API already keeps a successful keyword ranking for its
+ * stale window, so by then no valid ranking is left. Throwing would turn a third-party
+ * outage into a 503 for the whole page once the in-memory ISR entry is gone. The page
+ * instead states that the window is temporarily unavailable. That state goes through the
+ * same layers as a good page (60 s data cache, 60 s ISR revalidation, edge s-maxage 60 +
+ * stale-while-revalidate 60), so it can outlive an upstream recovery by a few minutes. */
 export function requireCompleteHome<T>(response: ApiResponse<T>): ApiResponse<T> {
     const exploration = (response.data as { exploration?: unknown } | null)?.exploration;
     if (typeof exploration !== "object" || exploration === null) return response;
     for (const key of HOME_SECTIONS) {
         const section = (exploration as Record<string, unknown>)[key];
-        if (typeof section === "object" && section !== null && (section as { status?: unknown }).status === "unavailable")
-            throw new PublicDataError(503, "HOME_SECTION_UNAVAILABLE");
+        if (typeof section !== "object" || section === null || (section as { status?: unknown }).status !== "unavailable") continue;
+        const pool = (section as { rankingPool?: { status?: unknown } }).rankingPool;
+        if (key !== "categories" && typeof pool === "object" && pool !== null && pool.status === "unavailable") continue;
+        throw new PublicDataError(503, "HOME_SECTION_UNAVAILABLE");
     }
     return response;
 }

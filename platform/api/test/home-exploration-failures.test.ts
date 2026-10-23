@@ -1,8 +1,10 @@
 import {describe,it,expect,vi} from 'vitest';
 import {MySqlDialect} from 'drizzle-orm/mysql-core';
 import {DataSourceUnavailable,DataQueryFailed,type Reader,type Row} from '../src/db/client.js';
-import {homeExploration} from '../src/reports/home-exploration.js';
+import {homeExploration,type KeywordWindows} from '../src/reports/home-exploration.js';
+import {keywordWindowCache} from '../src/reports/home-keyword-cache.js';
 import {homeDiagnosticSink,type HomeDiagnostic} from '../src/reports/home-diagnostics.js';
+import {PoolUnavailable} from '../src/reports/tag-ranked-pool.js';
 const now=new Date('2026-10-13T00:00:00Z');
 const version={id:'v1',source_meta:{coverage:'all-current-indexed-article-tags',matchingRule:'exact-text-v1'}};
 const source={pk:1,u_id:1,publishedAt:'2026-10-13 01:00:00',video_id:'abcdefghijk',vocabulary_version:'v1',viewCount:10,unprocessed:1,fresh:0,matched_epoch:null};
@@ -18,6 +20,24 @@ function reader(overrides:Partial<Record<Stage,()=>Row[]>>={}):Reader {
  }};
 }
 describe('DB-free home failures',()=>{
+ it('gives a caller coalesced onto another caller\'s failing keyword load the same pool failure',async()=>{
+  let reject:(e:unknown)=>void=()=>{};const pools={load:vi.fn(()=>new Promise<never>((_,r)=>{reject=r;}))},cache=keywordWindowCache<KeywordWindows>(()=>true);
+  const first=vi.fn(),second=vi.fn(),a=homeExploration(reader(),now,first,pools,cache);await vi.waitFor(()=>expect(pools.load).toHaveBeenCalledTimes(1));
+  const b=homeExploration(reader(),now,second,pools,cache);await new Promise(r=>setTimeout(r,0));reject(new PoolUnavailable('rate-limited'));
+  for(const [result,diagnostic] of [[await a,first],[await b,second]] as const){
+   expect(result.keywords.rankingPool).toMatchObject({status:'unavailable',reason:'rate-limited'});expect(result.keywordToday.rankingPool).toMatchObject({status:'unavailable',reason:'rate-limited'});
+   expect(diagnostic).toHaveBeenCalledExactlyOnceWith({section:'keywords',stage:'ranking-pool',reason:'data-source-unavailable',UTC:now.toISOString()});
+  }
+  expect(pools.load).toHaveBeenCalledTimes(1);
+ });
+ it.each(['rate-limited','unavailable'] as const)('attributes a %s ranking pool to the ranking-pool stage and keeps categories',async reason=>{
+  const diagnostic=vi.fn(),pools={load:vi.fn(async()=>{throw new PoolUnavailable(reason);})};
+  const result=await homeExploration(reader(),now,diagnostic,pools);
+  expect(result.categories.status).toBe('available');
+  for(const key of ['keywords','keywordToday'] as const){expect(result[key].status).toBe('unavailable');expect(result[key].rows).toEqual([]);expect(result[key].rankingPool).toMatchObject({status:'unavailable',reason});}
+  expect(diagnostic).toHaveBeenCalledExactlyOnceWith({section:'keywords',stage:'ranking-pool',reason:'data-source-unavailable',UTC:now.toISOString()});
+  expect(pools.load).toHaveBeenCalledTimes(1);
+ });
  it.each(['categories','sources'] as const)('isolates %s source unavailability with private diagnostics',async stage=>{
   const diagnostic=vi.fn(),error=new DataSourceUnavailable(new Error('SQL private-token params=password'));
   const result=await homeExploration(reader({[stage]:()=>{throw error;}}),now,diagnostic);

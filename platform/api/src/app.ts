@@ -70,7 +70,7 @@ declare module 'fastify' {
 }
 export function buildApp(options: AppOptions = {}) {
     const fixture=(options.dataset??process.env.DATASET_KIND)==='fixture';
-    const rankingPools=options.rankingPools===false?undefined:options.rankingPools??(fixture?undefined:createRankedPoolClient({clock:options.clock}));
+    const rankingPools=options.rankingPools===false?undefined:options.rankingPools??(fixture?undefined:createRankedPoolClient({clock:options.clock,onEvent:event=>{writeSync(2,'TAG_RANKING_POOL_UPSTREAM '+JSON.stringify(event)+'\n');}}));
     const app = Fastify({ logger: false, routerOptions:{maxParamLength:240}, trustProxy: trustedProxies(process.env.AUTH_TRUSTED_PROXY_CIDRS), requestTimeout: 15000, bodyLimit: 16384 }), reader = options.reader ?? createReader(options.databaseUrl ?? process.env.DATABASE_URL), clock = options.clock ?? (() => new Date()), service = reports(reader, clock, homeDiagnosticSink(line=>{writeSync(2,line);}, clock),rankingPools);
     const reportDataSourceFailure = dataSourceReporter();
     app.decorate('keywordRankingChanged',()=>service.invalidateKeywordRanking());

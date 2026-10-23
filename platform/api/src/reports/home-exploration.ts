@@ -48,7 +48,7 @@ export async function homeExploration(reader:Reader,now:Date,diagnostic?:HomeDia
   const base={...keywordBase,...(quality?{sourceQuality:quality}:{}),ruleVersion:rule,vocabularyCoverage,vocabularyWindow:timestampWindow(window),version,reason:null};
   if(!version){emit('keywords','vocabulary','not-synchronized');return {keywords:{...base,status:'not-synchronized'},keywordToday:{...base,from:todayBase.from,status:'not-synchronized'}};}
   let pools:{week:RankedPool;today:RankedPool}|undefined;
-  if(poolClient){try{const todayPool=await poolClient.load(poolWindows.today),weekPool=await poolClient.load(poolWindows.week);pools={today:todayPool,week:weekPool};}catch(error){poolFailure={status:'unavailable',reason:error instanceof PoolUnavailable?error.reason:'unavailable',windows:poolWindows};throw error instanceof PoolUnavailable?error:new PoolUnavailable('unavailable');}}
+  if(poolClient){keywordStage='ranking-pool';try{const todayPool=await poolClient.load(poolWindows.today),weekPool=await poolClient.load(poolWindows.week);pools={today:todayPool,week:weekPool};}catch(error){poolFailure={status:'unavailable',reason:error instanceof PoolUnavailable?error.reason:'unavailable',windows:poolWindows};throw error instanceof PoolUnavailable?error:new PoolUnavailable('unavailable');}}
   const cohorts=pools?{week:new Set(pools.week.entries.map(e=>e.tag)),today:new Set(pools.today.entries.map(e=>e.tag))}:undefined;
   const at=(value:string)=>Date.parse(value.replace(' ','T')+'+08:00'),shift=(value:string,ms:number)=>taipeiSql(new Date(at(value)+ms));
   const windows=[{key:'week',from,to},{key:'today',from:today,to},
@@ -172,6 +172,10 @@ export async function homeExploration(reader:Reader,now:Date,diagnostic?:HomeDia
  };
  const[categories,keywordWindows]=await Promise.all([
   categoryTask().catch(error=>{const reason=unavailable(error);emit('categories','category-source',reason);return {status:'unavailable' as const,reason,rows:[],summary:{visibleCategories:null,channelMemberships:null,uniqueChannels:null,weeklyViews:null,overlapping:true as const},updatedAt:null,minimumWeeklyViews:10 as const};}),
-  (keywordCache?keywordCache(keywordTask):keywordTask()).catch(error=>{const reason=unavailable(error);emit('keywords',keywordStage,keywordDiagnosticReason??reason);return {keywords:{...keywordBase,ruleVersion:activeRule,status:'unavailable' as const,reason,...(poolFailure?{rankingPool:poolFailure}:{})},keywordToday:{...todayBase,ruleVersion:activeRule,status:'unavailable' as const,reason,...(poolFailure?{rankingPool:poolFailure}:{})}};}),
+  (keywordCache?keywordCache(keywordTask):keywordTask()).catch(error=>{const reason=unavailable(error);
+   // A caller coalesced onto another caller's keyword load never ran its own pool block, so
+   // derive the pool failure from the error (only that block throws PoolUnavailable).
+   const pool=poolFailure??(error instanceof PoolUnavailable?{status:'unavailable' as const,reason:error.reason,windows:poolWindows}:undefined);
+   emit('keywords',error instanceof PoolUnavailable?'ranking-pool':keywordStage,keywordDiagnosticReason??reason);return {keywords:{...keywordBase,ruleVersion:activeRule,status:'unavailable' as const,reason,...(pool?{rankingPool:pool}:{})},keywordToday:{...todayBase,ruleVersion:activeRule,status:'unavailable' as const,reason,...(pool?{rankingPool:pool}:{})}};}),
  ]);return {categories,...keywordWindows};
 }
