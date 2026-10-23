@@ -90,13 +90,16 @@ const videoName='min-w-0 max-w-full max-sm:w-full max-sm:whitespace-normal max-s
 const videoLead='table-lead-box min-w-0 flex items-center gap-2 max-sm:flex-col max-sm:items-start';
 /** The phone lead keeps its capped width, but puts the small thumbnail above a full-width
  * wrapping title. No clamp hides a distinguishing suffix; desktop keeps the inline lead. */
-/** The live table's title is 80px narrower on desktop (it also carries 最近趨勢). */
-const liveVideoName=videoName.replace('sm:max-w-xs','sm:max-w-60');
-const assertVideoIdentityRow=(row:string,name=videoName)=>{
+/** Live titles take two lines on desktop (full title in the tooltip), sized to fit beside the pinned lead. */
+const liveVideoName=videoName.replace('sm:truncate sm:max-w-xs','sm:line-clamp-2 sm:w-58 sm:whitespace-normal sm:[overflow-wrap:anywhere] sm:leading-5');
+/** The live thumbnail is two text lines tall (72×40); the stream preview is portalled on hover, so SSR has only the thumbnail. */
+const liveThumb=/<span class="table-lead-extra shrink-0"><span class="relative inline-block"><span (?=[^>]*data-thumbnail-state="(?:pending|missing)")(?=[^>]*style="width:72px;height:40px;min-width:72px")[^>]*>/;
+const assertVideoIdentityRow=(row:string,name=videoName,thumb=thumb48)=>{
  assert.match(row,new RegExp(`<div class="${escape(videoLead)}">`));
- assert.match(row,thumb48);
+ assert.match(row,thumb);
  assert.match(row,new RegExp(anchor({class:name})));
- assert.doesNotMatch(row,/line-clamp|table-stack|data-thumbnail-state="loaded"/);
+ // Only the live desktop title and taxonomy clamp (to two lines); phones never clamp a distinguishing suffix.
+ assert.doesNotMatch(row.replaceAll('sm:line-clamp-2','').replaceAll('line-clamp-2 w-34',''),/line-clamp|table-stack|data-thumbnail-state="loaded"/);
  assert.equal(row.match(/max-sm:whitespace-normal/g)?.length,1);
 };
 
@@ -154,15 +157,20 @@ test('live phone title wraps below its thumbnail; rank stays desktop-only and at
  const all=render(createElement(LiveTable,{rows:[live],offset:0}));
  const html=all.slice(all.indexOf('<div class="table-frame'));
  assert.match(all,/aria-label="直播觀測清單"/);
- assert.deepEqual(heads(html),['直播','同時在線','今日高峰','最近趨勢','歷史高峰','頻道','頻道分類','開播時間']);
+ // Every live column is a sort button (legacy DataTables); none is sorted until the reader picks one.
+ assert.deepEqual([...html.matchAll(/<th[^>]*><button type="button"[^>]*>(?:<!-- -->)?([^<]*)/g)].map(m=>m[1]),['直播','同時在線','今日高峰','今日走勢','歷史高峰','頻道','頻道分類','開播時間']);
+ assert.doesNotMatch(html,/aria-sort=/);
+ // Cells centre vertically, including the clipped one-line taxonomy.
+ assert.match(html,/<table class="[^"]*\[&amp;_td\]:py-1 \[&amp;_td\]:align-middle/);
  assert.match(html,new RegExp(`<div class="${escape(videoLead)}"><span class="table-lead-extra max-sm:hidden shrink-0 text-xs tabular-nums text-zinc-400">01</span>`));
- assert.match(html,thumb48);
+ assert.match(html,liveThumb);
  // The thumbnail identifies the video; full titles wrap on phones and the tooltip keeps attribution.
  assert.match(html,new RegExp(`${anchor({class:liveVideoName,title:`來源頻道 · ${longTitle}`,href:'/videos/AbCdEfGh123'})}${longTitle}</a>`));
  // The visible channel name lives only in the channel column, always beside its avatar.
  assert.equal(html.match(/>來源頻道</g)?.length,1);
  assert.match(html,new RegExp(`<td>${anchor({class:'flex min-w-0 items-center gap-1.5 hover:underline',title:'來源頻道',href:'/channels/8'})}<span class="inline-flex shrink-0[^>]*>[\\s\\S]*?<span class="${clip.replace('max-w-xs','max-w-40')}">來源頻道</span></a></td>`));
- assert.match(html,new RegExp(`<span class="${clip.replace('max-w-xs','max-w-36')} text-xs text-zinc-500" title="新聞">${anchor({href:'/live/current?tagid=3'})}新聞</a></span>`));
+ // Taxonomy takes up to two lines rather than one clipped line.
+ assert.match(html,new RegExp(`<td><span class="${escape('line-clamp-2 w-34 whitespace-normal text-xs leading-5 text-zinc-500 [overflow-wrap:anywhere]')}" title="新聞">${anchor({href:'/live/current?tagid=3'})}新聞</a></span></td>`));
  assert.match(html,/20<small class="ml-1.5">部分取樣<\/small>/);
  // The desktop table fits the content column: the YouTube link stays on the phone cards and the video page.
  assert.doesNotMatch(html,/youtube\.com\/watch|min-width:1280px/);
@@ -170,20 +178,23 @@ test('live phone title wraps below its thumbnail; rank stays desktop-only and at
  assert.match(render(createElement(LiveTable,{rows:[{...live,publishedAt:null}]})),/<time title="更新於 未記錄">—<\/time>/);
  assert.match(render(createElement(LiveTable,{rows:[{...live,publishedAt:'2026-10-20T20:00:00Z',startedAt:'2026-10-20T21:01:00Z'}]})),/<time dateTime="2026-10-20T21:01:00Z" title="更新於 [^"]*">10\/21 05:01<\/time>/);
  assert.match(render(createElement(LiveTable,{rows:[{...live,publishedAt:'2026-10-20T20:00:00Z'}]})),/<time dateTime="2026-10-20T20:00:00Z"[^>]*>10\/21 04:00<\/time>/);
- // 最近趨勢線: a sparkline of today's samples, 「—」 without samples.
- assert.match(render(createElement(LiveTable,{rows:[{...live,trend:[{time:'2026-10-20T21:00:00Z',value:5},{time:'2026-10-20T21:01:00Z',value:9}]}]})),/<polyline points=/);
- bodyRows(html).forEach(row=>assertVideoIdentityRow(row,liveVideoName));
+ // 最近趨勢線 → 今日走勢: a sparkline of today's samples labelled with its Taipei clock span, 「—」 without samples.
+ const trend=render(createElement(LiveTable,{rows:[{...live,trend:[{time:'2026-10-20T21:00:00Z',value:5},{time:'2026-10-20T23:12:00Z',value:9}]}]}));
+ assert.match(trend,/<polyline points=/);
+ assert.match(trend,/title="台北時間 05:00–07:12 共 2 筆取樣：5 → 9 人"/);
+ assert.match(trend,/>05:00–07:12<\/small>/);
+ bodyRows(html).forEach(row=>assertVideoIdentityRow(row,liveVideoName,liveThumb));
 });
 
 test('video and live rows keep distinct common-prefix suffixes, video identities and canonical thumbnail sources',()=>{
  const prefix='【每日直播新聞】日テレNEWS 共用節目名稱與日期時段前綴';
  const rows=[{...video,title:`${prefix} 台灣地震現場`,id:'AbCdEfGh123'},{...video,title:`${prefix} 東京交通速報`,id:'ZyXwVuTs987'}];
  const lives=rows.map(row=>({...row,currentViewers:10,todayPeak:20,allTimePeak:null,startedAt:null,trend:[],tags:[]} satisfies LiveRow));
- for(const [html,name] of [[render(createElement(VideoTable,{rows})),videoName],[render(createElement(LiveTable,{rows:lives})),liveVideoName]] as const){
+ for(const [html,name,thumb] of [[render(createElement(VideoTable,{rows})),videoName,thumb48],[render(createElement(LiveTable,{rows:lives})),liveVideoName,liveThumb]] as const){
   const renderedRows=bodyRows(html);
   assert.equal(renderedRows.length,2);
   renderedRows.forEach((row,index)=>{
-   assertVideoIdentityRow(row,name);
+   assertVideoIdentityRow(row,name,thumb);
    const source=rows[index];
    assert.match(row,new RegExp(`${anchor({href:`/videos/${source.id}`})}${escape(source.title)}</a>`));
    assert.match(row,new RegExp(`data-thumbnail-src="https://i\\.ytimg\\.com/vi/${source.id}/mqdefault\\.jpg"`));
@@ -196,9 +207,9 @@ test('video and live rows keep distinct common-prefix suffixes, video identities
 test('video and live identity fallbacks keep unknown labels and encoded links without inventing a thumbnail source',()=>{
  const row={...video,id:'missing/id%',title:'',channelTitle:'',thumbnail:'https://untrusted.example/fake.jpg'};
  const live={...row,currentViewers:10,todayPeak:20,allTimePeak:null,startedAt:null,trend:[],tags:[]} satisfies LiveRow;
- for(const [element,label] of [[createElement(VideoTable,{rows:[row]}),'影片標題尚未取得'],[createElement(LiveTable,{rows:[live]}),'直播標題尚未取得']] as const){
+ for(const [element,label,thumb] of [[createElement(VideoTable,{rows:[row]}),'影片標題尚未取得',thumb48],[createElement(LiveTable,{rows:[live]}),'直播標題尚未取得',liveThumb]] as const){
   const html=render(element);
-  assert.match(html,thumb48);
+  assert.match(html,thumb);
   assert.match(html,new RegExp(`${anchor({href:'/videos/missing%2Fid%25'})}${label}</a>`));
   assert.match(html,/頻道名稱尚未取得/);
   assert.match(html,/data-thumbnail-state="missing"/);

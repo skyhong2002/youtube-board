@@ -13,7 +13,10 @@ import type {
     TopicRow,
     TagRow,
 } from "@/lib/api";
-import { count, compact, dateTime, shortDateTime, youtubeUrl } from "@/lib/format";
+import { count, compact, clockTime, dateTime, shortDateTime, youtubeUrl } from "@/lib/format";
+import { LiveSortable, type LiveSortColumn } from "./LiveSortable";
+import { LivePreviewThumb } from "./LivePreview";
+import { YouTubeFacade } from "./ai/YouTubeFacade";
 import { Empty } from "./ReportUI";
 import TableScroller from "./TableScroller";
 import { table } from "@/lib/table-styles";
@@ -21,8 +24,8 @@ import { COMMENTS_PUBLISHED } from "@/lib/comments-launch";
 type Tag = ChannelRow["tags"][number];
 /** Categories on one clipped line; the full list stays in the title. In the
  *  lead it gives way first and hides once the table is scrolled on phones. */
-function TagLine({ tags, href, lead=false, narrow=false }: { tags: Tag[]; href: (tag: Tag) => string; lead?: boolean; narrow?: boolean }) {
-    return <span className={lead ? `${table.leadWide} ${table.leadText} shrink-3 pl-8 text-xs text-zinc-500 sm:max-w-xs` : `${narrow?table.clip.replace('max-w-xs','max-w-36'):table.clip} text-xs text-zinc-500`} title={tags.map((tag) => tag.name).join("、")}>
+function TagLine({ tags, href, lead=false, narrow=false, twoLines=false }: { tags: Tag[]; href: (tag: Tag) => string; lead?: boolean; narrow?: boolean; twoLines?: boolean }) {
+    return <span className={lead ? `${table.leadWide} ${table.leadText} shrink-3 pl-8 text-xs text-zinc-500 sm:max-w-xs` : twoLines ? 'line-clamp-2 w-34 whitespace-normal text-xs leading-5 text-zinc-500 [overflow-wrap:anywhere]' : `${narrow?table.clip.replace('max-w-xs','max-w-36'):table.clip} text-xs text-zinc-500`} title={tags.map((tag) => tag.name).join("、")}>
         {tags.map((tag, index) => <Fragment key={tag.id}>{index > 0 && "、"}<Link className="hover:underline" href={href(tag)}>{tag.name}</Link></Fragment>)}
     </span>;
 }
@@ -39,8 +42,9 @@ const channelName = `${table.leadText} max-sm:line-clamp-2 max-sm:whitespace-nor
 /** Give phone video titles the whole lead width and room for distinguishing suffixes.
  * Desktop titles stay clipped; the small thumbnail yields when the phone table scrolls. */
 const videoName = "min-w-0 max-w-full max-sm:w-full max-sm:whitespace-normal max-sm:[overflow-wrap:anywhere] sm:truncate sm:max-w-xs";
-/** The live table also carries live.php 最近趨勢線, so its desktop title gives up 80px to fit the content column. */
-const liveVideoName = videoName.replace("sm:max-w-xs", "sm:max-w-60");
+/** Live titles take up to two lines on desktop (full title in the tooltip), sized so the table fits the
+ * 1152px content column beside the pinned lead. Phones keep the whole title as other video tables do. */
+const liveVideoName = videoName.replace("sm:truncate sm:max-w-xs", "sm:line-clamp-2 sm:w-58 sm:whitespace-normal sm:[overflow-wrap:anywhere] sm:leading-5");
 const videoLead = `${table.leadBox} flex items-center gap-2 max-sm:flex-col max-sm:items-start`;
 export function ChannelTable({ rows, offset=0, ranking, responsive=false }: { rows: ChannelRow[];offset?:number;ranking?:ChannelRanking;responsive?:boolean }) {
     if (!rows.length) return <Empty title="尚無符合條件的頻道" />;
@@ -153,8 +157,28 @@ export function VideoTable({ rows, responsive=false }: { rows: VideoRow[]; respo
 }
 /** live.php 時間 and 最近趨勢線: the start time (publication time until YouTube reports one) and today's last 24 samples. */
 const liveStart=(row:LiveRow)=>row.startedAt??row.publishedAt;
-const LiveTrend=({row}:{row:LiveRow})=>row.trend.length?<span className="inline-block text-brand-600 dark:text-brand-400"><Sparkline values={row.trend.map(p=>p.value)} className="h-6 w-16"/></span>:<span>—</span>;
-export function LiveTable({ rows,offset=0 }: { rows: LiveRow[];offset?:number }) {
+const LiveTrend=({row}:{row:LiveRow})=>{
+    if(!row.trend.length)return <span>—</span>;
+    const start=row.trend[0]!,end=row.trend.at(-1)!;
+    // The window is today's (Taipei) latest samples, roughly every 11 minutes; show its clock span so the unit is plain.
+    return <span className="inline-flex flex-col items-start gap-0.5" title={`台北時間 ${clockTime(start.time)}–${clockTime(end.time)} 共 ${row.trend.length} 筆取樣：${count(start.value)} → ${count(end.value)} 人`}>
+        <span className="text-brand-600 dark:text-brand-400"><Sparkline values={row.trend.map(p=>p.value)} className="h-6 w-16"/></span>
+        <small className="text-[10px] leading-3 tabular-nums text-zinc-500 dark:text-zinc-400">{clockTime(start.time)}–{clockTime(end.time)}</small>
+    </span>;
+};
+/** Relative change across the trend window; sorts rising streams first. */
+const trendChange=(row:LiveRow)=>row.trend.length<2?null:(row.trend.at(-1)!.value-row.trend[0]!.value)/Math.max(row.trend[0]!.value,1);
+const LIVE_COLUMNS:LiveSortColumn[]=[
+    {key:'rank',label:'直播',className:table.leadHead,hint:'依同時在線排名'},
+    {key:'current',label:'同時在線',numeric:true,className:'number'},
+    {key:'todayPeak',label:'今日高峰',numeric:true,className:'number'},
+    {key:'trend',label:'今日走勢',hint:'依走勢起訖的增減比例排序'},
+    {key:'allTimePeak',label:'歷史高峰',numeric:true,className:'number'},
+    {key:'channel',label:'頻道',text:true},
+    {key:'tags',label:'頻道分類',text:true},
+    {key:'start',label:'開播時間'},
+];
+export function LiveTable({ rows,offset=0,complete }: { rows: LiveRow[];offset?:number;complete?:string }) {
     if (!rows.length)
         return (
             <Empty
@@ -162,18 +186,17 @@ export function LiveTable({ rows,offset=0 }: { rows: LiveRow[];offset?:number })
                 description="直播名單依最近取得的資料顯示；沒有觀測結果不代表 YouTube 上沒有直播。"
             />
         );
-    return (
-      <>
-        {/* Long video titles and eight metrics do not fit a phone's sticky lead.
-            Use tag's single-column article/card pattern; keep every metric. */}
-        <ul aria-label="直播觀測清單" className="m-0 list-none space-y-3 p-0 sm:hidden">
-          {rows.map((row,index)=><li key={row.id} className="min-w-0 rounded-xl border border-zinc-300 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="flex items-start gap-3">
-              <span className="shrink-0 pt-1"><VideoThumbnail videoId={row.id} width={48} height={27}/></span>
-              <div className="min-w-0 flex-1">
-                <span className="text-xs tabular-nums text-zinc-600 dark:text-zinc-400">{String(offset+index+1).padStart(2,'0')}</span>
-                <Link className="block whitespace-normal break-words font-medium leading-6 hover:underline [overflow-wrap:anywhere]" href={`/videos/${encodeURIComponent(row.id)}`} prefetch={false}>{row.title||"直播標題尚未取得"}</Link>
-              </div>
+    // Long video titles and eight metrics do not fit a phone's sticky lead, so phones get
+    // tag's single-column cards; the desktop table fits the 1152px content column.
+    return <LiveSortable columns={LIVE_COLUMNS} complete={complete} rowClassName={table.row} tableClassName={`${table.nowrap} w-full [&_td]:py-1 [&_td]:align-middle`} rows={rows.map((row,index)=>({
+        key:row.id,
+        values:{rank:offset+index,current:row.currentViewers,todayPeak:row.todayPeak,trend:trendChange(row),allTimePeak:row.allTimePeak,channel:row.channelTitle||null,tags:row.tags.map(tag=>tag.name).join('、')||null,start:liveStart(row)?Date.parse(liveStart(row)!):null},
+        card:<>
+            {/* Phones have no hover: the card leads with a full-width thumbnail that plays the stream inline when tapped. */}
+            <YouTubeFacade videoId={row.id} title={row.title||row.channelTitle||row.id}/>
+            <div className="mt-3 min-w-0">
+              <span className="text-xs tabular-nums text-zinc-600 dark:text-zinc-400">{String(offset+index+1).padStart(2,'0')}</span>
+              <Link className="block whitespace-normal break-words font-medium leading-6 hover:underline [overflow-wrap:anywhere]" href={`/videos/${encodeURIComponent(row.id)}`} prefetch={false}>{row.title||"直播標題尚未取得"}</Link>
             </div>
             <div className="mt-3 min-w-0"><ChannelCell id={row.channelId} title={row.channelTitle} avatar={row.channelAvatar}/></div>
             <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-3 text-sm">
@@ -182,36 +205,17 @@ export function LiveTable({ rows,offset=0 }: { rows: LiveRow[];offset?:number })
               <div><dt className="text-xs text-zinc-600 dark:text-zinc-400">歷史高峰</dt><dd className="m-0 tabular-nums">{count(row.allTimePeak)}</dd></div>
               <div><dt className="text-xs text-zinc-600 dark:text-zinc-400">開播時間</dt><dd className="m-0 whitespace-normal text-xs">{dateTime(liveStart(row))}</dd></div>
               <div><dt className="text-xs text-zinc-600 dark:text-zinc-400">更新時間</dt><dd className="m-0 whitespace-normal text-xs">{dateTime(row.updatedAt)}</dd></div>
-              <div className="col-span-2"><dt className="text-xs text-zinc-600 dark:text-zinc-400">最近趨勢</dt><dd className="m-0"><LiveTrend row={row}/></dd></div>
+              <div className="col-span-2"><dt className="text-xs text-zinc-600 dark:text-zinc-400">今日走勢</dt><dd className="m-0"><LiveTrend row={row}/></dd></div>
               <div className="col-span-2"><dt className="text-xs text-zinc-600 dark:text-zinc-400">頻道分類</dt><dd className="m-0 flex flex-wrap gap-1">{row.tags.length?row.tags.map(tag=><Link className="inline-flex min-h-11 items-center rounded-full border border-zinc-300 px-3 text-sm hover:underline dark:border-zinc-700" key={tag.id} href={`/live/current?tagid=${tag.id}`} prefetch={false}>{tag.name}</Link>):'—'}</dd></div>
             </dl>
             <a className="inline-flex min-h-11 items-center text-sm text-brand-700 underline dark:text-brand-400" href={youtubeUrl(row.youtubeUrl)} target="_blank" rel="noopener noreferrer">YouTube 原始來源 ↗</a>
-          </li>)}
-        </ul>
-        {/* Sized to fit the 1152px content column, so desktop readers see every column without
-            scrolling; the YouTube link stays on the video page and the phone cards. */}
-        <TableScroller card label="直播觀測表，可左右捲動" className="hidden sm:block" showScrollHint>
-            <table className={`${table.nowrap} w-full`}>
-                <thead>
-                    <tr>
-                        <th className={table.leadHead}>直播</th>
-                        <th className="number">同時在線</th>
-                        <th className="number">今日高峰</th>
-                        <th>最近趨勢</th>
-                        <th className="number">歷史高峰</th>
-                        <th>頻道</th>
-                        <th>頻道分類</th>
-                        <th>開播時間</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {rows.map((row, index) => (
-                        <tr key={row.id} className={table.row}>
+          </>,
+        cells:<>
                             <td className={table.lead}>
                               {/* The live title identifies the video; channel attribution stays in its own column. */}
                               <div className={videoLead}>
                                 <span className={`${table.leadWide} shrink-0 text-xs tabular-nums text-zinc-400`}>{String(offset+index+1).padStart(2,'0')}</span>
-                                <span className={`${table.leadExtra} shrink-0`}><VideoThumbnail videoId={row.id} width={48} height={27}/></span>
+                                <span className={`${table.leadExtra} shrink-0`}><LivePreviewThumb videoId={row.id} title={row.title||row.channelTitle||row.id}/></span>
                                 <Link className={`${liveVideoName} font-medium hover:underline`}
                                     title={[row.channelTitle, row.title].filter(Boolean).join(" · ") || undefined}
                                     href={`/videos/${encodeURIComponent(row.id)}`}
@@ -227,15 +231,10 @@ export function LiveTable({ rows,offset=0 }: { rows: LiveRow[];offset?:number })
                             <td><LiveTrend row={row}/></td>
                             <td className="number">{count(row.allTimePeak)}</td>
                             <td><ChannelCell id={row.channelId} title={row.channelTitle} avatar={row.channelAvatar} narrow/></td>
-                            <td>{row.tags.length > 0 ? <TagLine tags={row.tags} href={(tag) => `/live/current?tagid=${tag.id}`} narrow/> : "—"}</td>
+                            <td>{row.tags.length > 0 ? <TagLine tags={row.tags} href={(tag) => `/live/current?tagid=${tag.id}`} twoLines/> : "—"}</td>
                             <td><small><time dateTime={liveStart(row) ?? undefined} title={`更新於 ${dateTime(row.updatedAt)}`}>{shortDateTime(liveStart(row))}</time></small></td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-      </TableScroller>
-      </>
-    );
+                        </>,
+    }))}/>;
 }
 export function TopicCards({
     rows,

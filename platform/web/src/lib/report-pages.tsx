@@ -67,8 +67,12 @@ import {
     VideoTagEvidence,
 } from "@/components/VocabularyReport";
 import { RefreshControl } from "@/components/RefreshControl";
+import { ScrollMore } from "@/components/ScrollMore";
 import { ReportMethod } from "@/components/ReportMethod";
 import { ChannelContext } from "@/components/ChannelContext";
+import { queryString } from "@/lib/query-string";
+// The live API serves at most 200 rows per page (reports/query.ts).
+const LIVE_SCROLL_STEP = 50, LIVE_SCROLL_MAX = 200;
 function Failure({ status, title }: { status: number; title: string }) {
     if (status === 404) notFound();
     return <Unavailable status={status} title={title} />;
@@ -169,6 +173,12 @@ async function ReportBody({
         if (!result.ok)
             return <Failure status={result.status} title={route.title} />;
         const { data, meta } = result.response;
+        // The live list grows by scrolling up to the API's page cap; offset pages remain for longer lists and old links.
+        const liveScrollNext = data.offset === 0 && data.total !== null && data.rows.length < data.total && data.limit < LIVE_SCROLL_MAX
+            ? `${path}${queryString({ ...search, limit: String(Math.min(data.limit + LIVE_SCROLL_STEP, LIVE_SCROLL_MAX)) })}`.replace(/%2C/gi, ",")
+            : undefined;
+        // Sorting reorders the listed rows in the browser, so it first loads every row the page cap allows.
+        const liveComplete = liveScrollNext && `${path}${queryString({ ...search, limit: String(Math.min(data.total!, LIVE_SCROLL_MAX)) })}`.replace(/%2C/gi, ",");
         return (
             <>
                 <Heading
@@ -179,28 +189,20 @@ async function ReportBody({
                 <DataNotice meta={meta} />
                 <Tabs items={familyTabs(path,search,meta.coverage)} active={path} />
                 <Tabs items={liveViewTabs(search)} active={path} label="直播排行範圍" />
-                <RefreshControl />
                 <ReportFilters mode="live" search={search} path={path} />
-                <div className="metrics">
-                    <Metric
-                        label="符合篩選的直播"
-                        value={count(data.total)}
-                        unit="場"
-                    />
-                    <Metric
-                        label="本頁同時在線加總"
-                        value={compact(
-                            data.rows.reduce(
-                                (sum, row) => sum + row.currentViewers,
-                                0,
-                            ),
-                        )}
-                        unit="人"
-                        detail="同一觀眾可能重複計入"
-                    />
+                {/* One quiet line instead of metric cards: the count, the listed viewers and the refresh control. */}
+                <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+                    <p className="m-0 text-sm text-zinc-600 dark:text-zinc-400">
+                        <strong className="text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{count(data.total)}</strong> 場直播
+                        <span aria-hidden="true" className="mx-2 text-zinc-300 dark:text-zinc-700">·</span>
+                        已列出的同時在線加總 <strong className="text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{compact(data.rows.reduce((sum, row) => sum + row.currentViewers, 0))}</strong> 人
+                        <span className="ml-1 text-xs text-zinc-500">（同一觀眾可能重複計入）</span>
+                    </p>
+                    <RefreshControl />
                 </div>
-                <LiveTable rows={data.rows} offset={data.offset} />
-                <Pagination collection={data} search={search} path={path} />
+                <LiveTable rows={data.rows} offset={data.offset} complete={liveComplete || undefined} />
+                <ScrollMore next={liveScrollNext} shown={data.rows.length} total={data.offset === 0 ? data.total : null} unit="場直播" />
+                {(data.offset > 0 || data.limit >= LIVE_SCROLL_MAX) && <Pagination collection={data} search={search} path={path} />}
                 <ReportMethod path={path} description={route.description} meta={meta} notes={liveCoverageNotes(meta.coverage)}/>
             </>
         );
