@@ -51,3 +51,49 @@ it('honors HTTP-date and arbitrarily long delta Retry-After without shortening t
 });
 it('bounds a noncooperative transport and cancels a late response body',async()=>{let release:(r:Response)=>void=()=>{},cancel=vi.fn();const fetch=vi.fn(()=>new Promise<Response>(r=>{release=r;})),client=createRankedPoolClient({fetch,clock:()=>now,timeoutMs:15});await expect(client.load(window)).rejects.toThrow('deadline');release(new Response(new ReadableStream({cancel}),{headers:{'content-type':'application/json'}}));await new Promise(r=>setTimeout(r,5));expect(cancel).toHaveBeenCalledOnce();});
 it('preserves special Unicode and punctuation whole labels in canonical serialization',()=>{const e={...fixture().entries[0]!,tag:'AI／美中 & <測試> 😀'};expect(JSON.parse(poolEntryLine(e)).tag).toBe(e.tag);expect(poolEntryLine(e)).toContain('"media":{"a":2,"b":2}');});
+it('backs off 5xx and network failures, reports sanitized transitions and recovers',async()=>{
+ let time=now,mode:'503'|'network'|'ok'='503';const ok=transport(),events:unknown[]=[];
+ const fetch=vi.fn(async(url:URL|RequestInfo,options?:RequestInit)=>{if(mode==='network')throw new TypeError('connect ECONNREFUSED 10.0.0.1');return mode==='ok'?ok(url,options):new Response('{"secret":"x"}',{status:503});});
+ const client=createRankedPoolClient({fetch,clock:()=>time,onEvent:e=>events.push(e)});
+ await expect(client.load(window)).rejects.toThrow('unavailable');expect(fetch).toHaveBeenCalledTimes(1);
+ expect(events).toEqual([{event:'failure',reason:'unavailable',status:503,retryAfter:null,cooldownUntil:new Date(+now+30000).toISOString(),UTC:now.toISOString()}]);
+ // Renders during the backoff never reach upstream.
+ for(let i=0;i<5;i++)await expect(client.load(window)).rejects.toThrow('unavailable');expect(fetch).toHaveBeenCalledTimes(1);expect(events).toHaveLength(1);
+ time=new Date(+now+30000);mode='network';await expect(client.load(window)).rejects.toThrow('unavailable');expect(fetch).toHaveBeenCalledTimes(2);
+ expect(events.at(-1)).toEqual({event:'failure',reason:'unavailable',status:null,retryAfter:null,cooldownUntil:new Date(+time+60000).toISOString(),UTC:time.toISOString()});
+ time=new Date(+time+59000);await expect(client.load(window)).rejects.toThrow('unavailable');expect(fetch).toHaveBeenCalledTimes(2);
+ time=new Date(+time+1000);mode='ok';expect((await client.load(window)).entries).toHaveLength(2);
+ expect(events.at(-1)).toEqual({event:'recovered',reason:null,status:200,retryAfter:null,cooldownUntil:null,UTC:time.toISOString()});
+ expect(JSON.stringify(events)).not.toMatch(/secret|ECONNREFUSED|10\.0\.0\.1|tag\.observe|ranking-pools/);
+});
+it('reports Retry-After and the cooldown window of a 429, then resumes after it',async()=>{
+ let time=now,limited=true;const ok=transport(),events:any[]=[];
+ const fetch=vi.fn(async(url:URL|RequestInfo,options?:RequestInit)=>limited?new Response('{}',{status:429,headers:{'retry-after':'120'}}):ok(url,options));
+ const client=createRankedPoolClient({fetch,clock:()=>time,onEvent:e=>events.push(e)});
+ await expect(client.load(window)).rejects.toThrow('rate-limited');
+ expect(events).toEqual([{event:'failure',reason:'rate-limited',status:429,retryAfter:'120',cooldownUntil:new Date(+now+120000).toISOString(),UTC:now.toISOString()}]);
+ time=new Date(+now+119000);await expect(client.load(window)).rejects.toThrow('rate-limited');expect(fetch).toHaveBeenCalledTimes(1);
+ time=new Date(+now+120000);limited=false;expect((await client.load(window)).entries).toHaveLength(2);expect(events.at(-1).event).toBe('recovered');
+ const unbounded=createRankedPoolClient({fetch:vi.fn(async()=>new Response('{}',{status:429,headers:{'retry-after':'9'.repeat(40)}})),clock:()=>now,onEvent:e=>events.push(e)});
+ await expect(unbounded.load(window)).rejects.toThrow('rate-limited');expect(events.at(-1)).toMatchObject({retryAfter:'>9999999999',cooldownUntil:'unbounded'});
+ for(const [raw,label] of [[new Date(+now+600000).toUTCString(),new Date(+now+600000).toUTCString()],['soon','invalid'],['x'.repeat(100),'invalid']] as const){
+  const seen:any[]=[],c=createRankedPoolClient({fetch:vi.fn(async()=>new Response('{}',{status:429,headers:{'retry-after':raw}})),clock:()=>now,onEvent:e=>seen.push(e)});
+  await expect(c.load(window)).rejects.toThrow('rate-limited');expect(seen).toEqual([expect.objectContaining({retryAfter:label})]);
+ }
+});
+it('keeps serving a valid cached pool while another window is cooling down',async()=>{
+ const ok=transport();let fail=false;const today=rankingPoolWindows(now).today;
+ const fetch=vi.fn(async(url:URL|RequestInfo,options?:RequestInit)=>fail?new Response('{}',{status:502}):ok(url,options));
+ const client=createRankedPoolClient({fetch,clock:()=>now});
+ await client.load(window);const calls=fetch.mock.calls.length;fail=true;
+ await expect(client.load(today)).rejects.toThrow('unavailable');expect((await client.load(window)).entries).toHaveLength(2);expect(fetch).toHaveBeenCalledTimes(calls+1);
+});
+it('never lets a later 5xx relabel a longer 429 cooldown, and contains a failing diagnostics clock',async()=>{
+ let time=now,mode=429;const today=rankingPoolWindows(now).today;
+ const fetch=vi.fn(async()=>new Response('{}',mode===429?{status:429,headers:{'retry-after':'3600'}}:{status:503}));
+ const client=createRankedPoolClient({fetch,clock:()=>time});
+ await expect(client.load(window)).rejects.toThrow('rate-limited');mode=503;time=new Date(+now+10000);
+ await expect(client.load(today)).rejects.toThrow('rate-limited');expect(fetch).toHaveBeenCalledTimes(1);
+ let calls=0;const broken=createRankedPoolClient({fetch:vi.fn(async()=>new Response('{}',{status:503})),clock:()=>++calls>2?new Date(NaN):now,onEvent:()=>{throw new Error('sink');}});
+ await expect(broken.load(window)).rejects.toThrow('unavailable');
+});

@@ -25,21 +25,35 @@ function entry(raw:unknown,rank:number,basis:Set<string>):PoolEntry {
  if(count(e.articleCount)!==articles||count(e.mediaCount)!==counts.length||twice<2||Math.abs(score-e.score)>1e-8)throw new PoolUnavailable('contract');
  return {tag,tagId:hash(tag),rank,score:e.score,articleCount:articles,mediaCount:counts.length,media:Object.fromEntries(counts.map(([k,v])=>[k,Number(v)]))};
 }
-export function createRankedPoolClient({fetch:transport=fetch,clock=()=>new Date(),timeoutMs=15000,maxTerms=20000}:{fetch?:typeof fetch;clock?:()=>Date;timeoutMs?:number;maxTerms?:number}={}):RankedPoolClient {
- const pending=new Map<string,Promise<RankedPool>>(),cache=new Map<string,RankedPool>();let cooldownUntil=0;
+/** Sanitized upstream transition: fixed fields only, never URLs, bodies or headers beyond Retry-After. */
+export interface PoolUpstreamEvent {event:'failure'|'recovered';reason:PoolUnavailable['reason']|null;status:number|null;retryAfter:string|null;cooldownUntil:string|null;UTC:string}
+const retryAfterLabel=(raw:string|null):string|null=>raw===null?null:/^\d+$/.test(raw)?(raw.length<=10?raw:'>9999999999'):raw.length<=64&&Number.isFinite(Date.parse(raw))?new Date(Date.parse(raw)).toUTCString():'invalid';
+/** Retry-After can push a cooldown beyond any representable date: label it rather than dropping it. */
+const instant=(ms:number):string=>Number.isFinite(ms)&&Math.abs(ms)<=8.64e15?new Date(ms).toISOString():'unbounded';
+/** One cooldown per client (all windows share the upstream budget). 429 honours Retry-After
+ * (60 s when absent). Any other failed upstream attempt backs off failureBackoffMs, doubling
+ * up to maxFailureBackoffMs, so repeated page renders cannot turn an upstream outage into
+ * a request storm. Valid cached pools are still served during a cooldown. */
+export function createRankedPoolClient({fetch:transport=fetch,clock=()=>new Date(),timeoutMs=15000,maxTerms=20000,failureBackoffMs=30000,maxFailureBackoffMs=300000,onEvent}:{fetch?:typeof fetch;clock?:()=>Date;timeoutMs?:number;maxTerms?:number;failureBackoffMs?:number;maxFailureBackoffMs?:number;onEvent?:(event:PoolUpstreamEvent)=>void}={}):RankedPoolClient {
+ const pending=new Map<string,Promise<RankedPool>>(),cache=new Map<string,RankedPool>();let cooldownUntil=0,cooldownReason:PoolUnavailable['reason']='rate-limited',failures=0;
+ const emit=(event:()=>PoolUpstreamEvent)=>{try{if(onEvent)onEvent(event());}catch{/* Diagnostics (and their clock reads) never change availability. */}};
  const load=async(window:{since:string;until:string}):Promise<RankedPool>=>{
   iso(window.since);iso(window.until);if(Date.parse(window.since)>=Date.parse(window.until)||Date.parse(window.until)>clock().getTime()||Date.parse(window.until)-Date.parse(window.since)>7*86400000)throw new PoolUnavailable('contract');
   const key=JSON.stringify(window),cached=cache.get(key);if(cached&&Date.parse(cached.provenance.expiresAt)>clock().getTime())return structuredClone(cached);
-  if(clock().getTime()<cooldownUntil)throw new PoolUnavailable('rate-limited');
+  if(clock().getTime()<cooldownUntil)throw new PoolUnavailable(cooldownReason);
+  let status:number|null=null,retryAfter:string|null=null;
   let totalBytes=0;const stream:{body:ReadableStream<Uint8Array>|null;reader:ReadableStreamDefaultReader<Uint8Array>|null}={body:null,reader:null};
   const controller=new AbortController();let timedOut=false;const deadline=new Promise<never>((_,reject)=>{controller.signal.addEventListener('abort',()=>reject(new PoolUnavailable('deadline')),{once:true});});
   const timer=setTimeout(()=>{timedOut=true;controller.abort();void stream.reader?.cancel().catch(()=>{});void stream.body?.cancel().catch(()=>{});},timeoutMs);
   const get=async(path:string)=>{
-   const response=await transport(ORIGIN+path,{headers:{accept:'application/json',DNT:'1','Sec-GPC':'1'},credentials:'omit',redirect:'manual',cache:'no-store',signal:controller.signal});stream.body=response.body;
+   let response:Response;
+   try{response=await transport(ORIGIN+path,{headers:{accept:'application/json',DNT:'1','Sec-GPC':'1'},credentials:'omit',redirect:'manual',cache:'no-store',signal:controller.signal});}
+   catch{throw new PoolUnavailable(controller.signal.aborted?'deadline':'unavailable');}
+   stream.body=response.body;status=response.status;
    if(controller.signal.aborted){void stream.body?.cancel().catch(()=>{});throw new PoolUnavailable('deadline');}
-   if(response.status===429){const raw=response.headers.get('retry-after'),now=clock().getTime();
+   if(response.status===429){const raw=response.headers.get('retry-after'),now=clock().getTime();retryAfter=retryAfterLabel(raw);
     const retryAt=raw&&/^\d+$/.test(raw)?now+Math.max(1,Number(raw))*1000:raw&&Number.isFinite(Date.parse(raw))?Math.max(now+1000,Date.parse(raw)):now+60000;
-    cooldownUntil=Math.max(cooldownUntil,retryAt);void stream.body?.cancel().catch(()=>{});throw new PoolUnavailable('rate-limited');}
+    if(retryAt>cooldownUntil){cooldownUntil=retryAt;cooldownReason='rate-limited';}void stream.body?.cancel().catch(()=>{});throw new PoolUnavailable('rate-limited');}
    if(response.status!==200){void stream.body?.cancel().catch(()=>{});throw new PoolUnavailable('unavailable');}
    if(!/^application\/json(?:;|$)/i.test(response.headers.get('content-type')??'')||!stream.body)throw new PoolUnavailable('contract');
    stream.reader=stream.body.getReader();let bytes=0;const chunks:Uint8Array[]=[];
@@ -67,8 +81,18 @@ export function createRankedPoolClient({fetch:transport=fetch,clock=()=>new Date
     const provenance:PoolProvenance={source:ORIGIN,snapshotId,policyVersion:label(m.policyVersion),noiseFilterVersion:label(m.noiseFilterVersion),window:{...window},computedAt:iso(m.computedAt),asOf:iso(m.asOf),expiresAt:iso(m.expiresAt),basisId:label(b.id),basisMedia:[...basis],eligibleTotal,checksum:c.value,gate:'early',qualification:'two-media-with-two-distinct-articles-each'};
     return {provenance,entries};
    };
-   const result=await Promise.race([work(),deadline]);if(cache.size>=4)cache.delete(cache.keys().next().value!);cache.set(key,result);return structuredClone(result);
-  }catch(error){if(error instanceof PoolUnavailable)throw error;throw new PoolUnavailable(timedOut?'deadline':'contract');}
+   const result=await Promise.race([work(),deadline]);if(cache.size>=4)cache.delete(cache.keys().next().value!);cache.set(key,result);
+   // A concurrent success can land inside another window's cooldown; report it rather than clear it.
+   if(failures){failures=0;emit(()=>({event:'recovered',reason:null,status,retryAfter:null,cooldownUntil:clock().getTime()<cooldownUntil?instant(cooldownUntil):null,UTC:clock().toISOString()}));}
+   return structuredClone(result);
+  }catch(error){
+   const failure=error instanceof PoolUnavailable?error:new PoolUnavailable(timedOut?'deadline':'contract');
+   failures++;
+   // Only the failure that sets the longest cooldown names it, so a later 5xx cannot relabel a 429 cooldown.
+   if(failure.reason!=='rate-limited'){const until=clock().getTime()+Math.min(maxFailureBackoffMs,failureBackoffMs*2**Math.min(failures-1,20));if(until>cooldownUntil){cooldownUntil=until;cooldownReason=failure.reason;}}
+   emit(()=>({event:'failure',reason:failure.reason,status,retryAfter,cooldownUntil:instant(cooldownUntil),UTC:clock().toISOString()}));
+   throw failure;
+  }
   finally{clearTimeout(timer);void stream.reader?.cancel().catch(()=>{});try{stream.reader?.releaseLock();}catch{}void stream.body?.cancel().catch(()=>{});}
  };
  return {load(window){const key=JSON.stringify(window);let task=pending.get(key);if(!task){task=load(window).finally(()=>pending.delete(key));pending.set(key,task);}return task.then(result=>structuredClone(result));}};

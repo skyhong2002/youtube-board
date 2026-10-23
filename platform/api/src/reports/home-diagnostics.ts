@@ -1,5 +1,5 @@
 /** Fixed vocabulary prevents query/error payloads from entering operational logs. */
-export const HOME_DIAGNOSTIC_STAGES = ['category-source','vocabulary','video-source','term-labels','ranking','daily-history','representatives','version-check'] as const;
+export const HOME_DIAGNOSTIC_STAGES = ['category-source','vocabulary','ranking-pool','video-source','term-labels','ranking','daily-history','representatives','version-check'] as const;
 export const HOME_DIAGNOSTIC_REASONS = ['data-source-unavailable','source-cap','precision','not-synchronized','version-changed'] as const;
 export type HomeDiagnostic = {section:'categories'|'keywords';stage:typeof HOME_DIAGNOSTIC_STAGES[number];reason:typeof HOME_DIAGNOSTIC_REASONS[number];UTC:string};
 export type HomeDiagnosticCallback = (diagnostic:HomeDiagnostic)=>void;
