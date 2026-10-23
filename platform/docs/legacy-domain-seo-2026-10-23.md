@@ -161,9 +161,46 @@ Index `https://youtube.observe.tw/sitemap.xml`：200，`application/xml; charset
 Codex 稍早的快照是 461,084，兩者時間不同，影片數會隨收錄增加。
 從 static、channels、videos/1、videos/10、tags 各隨機抽一個 URL：全部 200、可索引、canonical 指向自己。
 
+## board.tw edge 轉址白名單（2026-10-23 只讀核對）
+
+**不要用整個 hostname 全部轉址。** 下列路徑必須留在舊站：
+
+| 舊路徑 | 原因 |
+| --- | --- |
+| `/api/*.php`（36 支舊 JSON API） | 跨網域 301 不帶 CORS，瀏覽器 fetch 會失敗；POST 經 301 會變成 GET |
+| `/app/admin.php` | 管理（人工策展）工具 |
+| `/redir/*.php` | 寫入資料、呼叫外部 API 的觸發入口 |
+| `/maint/`、`/correct/`、`/include/`、`/group/*.php`、`nav_*.php`、`stopwords.php`、`cron`、`hyd`、`composer.phar` | 維運腳本或 include 檔，不是頁面 |
+| `/css/`、`/js/`、`/img/`、`head*.html` | 靜態資源；沒被轉址的舊頁面要用 |
+| `/prompt/*.php`、其餘約 40 個 `/html/*.html` 歷史快照 | 新站沒有對應 |
+| `/comments.php`、`/comments_recent.php`、`/author_comments_bak.php`、`/channel_comments.php`、`/ch/{id}/comments…` | 新站留言頁目前刻意下架（release 1faaa0f） |
+
+白名單內容與驗證：
+- 只轉 GET/HEAD，涵蓋 80 個舊頁面，加上 `/ch/`（排除 `/comments`）、`/rank/`、`/day/` 三個前綴。
+- 白名單裡每一項都有 `legacyRedirect` 對應，找不到對應的數量為 0。
+- 2026-10-23 經 Cloudflare 逐一 GET 跟隨轉址，都是一次 308 後 200。例外是：
+  - `/videos.php` 不帶 tagid 回 503，是重查詢逾時；帶 tagid 是 200。
+  - `/video.php`、`/video_data_att.php`、`/live_line.php` 不帶 videoId 時，會套到不存在的預設 ID 而回 404；帶真實 videoId 都是 200。
+
+**比對範圍：** 只比對 `youtube.board.tw`；`youtube2.board.tw` 不比對，保留舊站一個完整入口。`mayor.board.tw` 是另一個 vhost，也不會被比到。
+
+**Cloudflare Single Redirect（zone board.tw）**
+- When：純文字檔 `platform/docs/youtube-board-public-redirect-expression.txt`，1830 字元，無結尾換行。內容與下方相同。
+- Then：Dynamic redirect，`concat("https://youtube.observe.tw", http.request.uri.path)`，狀態 301，Preserve query string 打開。
+
+```
+(http.host eq "youtube.board.tw" and http.request.method in {"GET" "HEAD"} and (http.request.uri.path in {"/" "/ai_channel.php" "/ai_dashboard.php" "/ai_day.php" "/ai_day_prompt.php" "/ai_event_people.php" "/ai_event.php" "/ai_event_wall.php" "/ai_hour.php" "/ai_period.php" "/ai_tag.php" "/channel_cloud.php" "/channel_date.php" "/channel_days.php" "/channel_gpt.php" "/channel_line.php" "/channel.php" "/channel_prompt.php" "/channel_videos.php" "/cloud.php" "/days.php" "/group_chart.php" "/group_line.php" "/group_live.php" "/group_people.php" "/group_tag.php" "/group_two.php" "/group_view.php" "/html/group_chart_30.html" "/html/group_chart_7.html" "/html/group_chart_all.html" "/html/group_chart.html" "/html/group_line_30.html" "/html/group_line.html" "/html/live_social.html" "/index.php" "/line.php" "/live4.php" "/live5.php" "/live_channel.php" "/live_channels.php" "/live_china.php" "/live_cont.php" "/live_day_line.php" "/live_day.php" "/live_hour.php" "/live_index.php" "/live_line.php" "/live_period.php" "/live.php" "/live_rank.php" "/lives_date.php" "/live_tag.php" "/live_videos.php" "/mayor/city.php" "/mayor/hsinchu.php" "/mayor/html_hsinchu.html" "/mayor/html_newtaipei.html" "/mayor/html_taichung.html" "/mayor/html_taipei.html" "/mayor/html_taoyuan.html" "/mayor/kaohsiung.php" "/mayor/keelung.php" "/mayor/newtaipei.php" "/mayor/penghu.php" "/mayor/taichung.php" "/mayor/tainan.php" "/mayor/taipei.php" "/mayor/taoyuan.php" "/mayor/yilan.php" "/rank.php" "/tag_cloud.php" "/tag_days.php" "/tag_group.php" "/tag_live.php" "/tag.php" "/tags.php" "/tag_video.php" "/video_data_att.php" "/video.php" "/videos.php"} or (starts_with(http.request.uri.path, "/ch/") and not http.request.uri.path contains "/comments") or starts_with(http.request.uri.path, "/rank/") or starts_with(http.request.uri.path, "/day/")))
+```
+
+套用後要驗證：
+1. 匿名請求拿到 301，不是 Under Attack 的 403 挑戰。
+2. `/ch/3113/videos/&hours=24`、`/ch/3113/`、`/rank/5/`、`/tag_group.php?&tag=%E6%B8%85…` 都是 board.tw 301 → observe.tw 308 → 200，而且 percent-encoding 原樣保留。
+3. `/api/api_tag.php`、`/app/admin.php`、`/redir/tag.php`、`/comments.php?tagid=1`、`/css/…` 都不會被 301。
+4. `/day/{date}/{中文}` 的 Location 仍是 percent-encoded。
+
 ## 未完成
 
-1. **board.tw zone 的轉址規則**（見上方）：需要 zone 擁有者操作。套用後要驗證匿名請求拿到 301 而不是 403 挑戰，再由 Codex 在 GSC 追蹤舊域。
+1. **board.tw zone 的轉址規則**：照上方白名單設定，不要全 hostname 轉址：需要 zone 擁有者操作。套用後要驗證匿名請求拿到 301 而不是 403 挑戰，再由 Codex 在 GSC 追蹤舊域。
 2. **舊域的 404／duplicate／redirect error／5xx 數字**：這次沒有直接改變它們，因為那是舊 origin 的回應。轉址上線之前不能宣稱改善。
 3. **舊域的回應時間（7242 ms）與 CWV**：屬於舊 origin，轉址後舊頁不再渲染，不另外調整。
    新站目標頁的 TTFB 約 1–1.5 秒；同一時段 `/channels/3113` 曾因 reader statement deadline 回過 503，那是另一個 session 在追的資料庫問題。
