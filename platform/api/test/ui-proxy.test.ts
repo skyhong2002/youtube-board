@@ -148,3 +148,18 @@ it('publishes atomic hash CSP HTML but keeps credentials, Flight, Set-Cookie, er
     expect(burst.every(response=>brotliDecompressSync(response.rawPayload).toString()===publicPage.body)).toBe(true);
   }finally {await app.close();await ui.close();}
 });
+
+it('redirects legacy board.tw URLs at the gateway in one hop without reaching Next',async()=>{
+  const ui=Fastify(),seen:string[]=[];ui.get('/*',request=>{seen.push(request.url);return {forwarded:true};});
+  await ui.listen({port:0,host:'127.0.0.1'});
+  const address=ui.server.address();if(!address||typeof address==='string')throw Error('Missing port');
+  const app=Fastify();await registerUiProxy(app,{origin:`http://127.0.0.1:${address.port}`});
+  try{
+    for(const [path,location] of [['/ch/3113/videos/&hours=24','/channels/3113/videos?hours=24&min=1000&column=viewCount&limit=1000'],['/ch/3113/','/channels/3113'],['/rank/5/','/tags/5/channels?limit=200'],['/tag_live.php?tag=%E6%9F%AF%E6%96%87%E5%93%B2&days=7','/keywords/%E6%9F%AF%E6%96%87%E5%93%B2/live/trends?days=7']] as const)
+      for(const method of ['GET','HEAD'] as const){const r=await app.inject({method,url:path});expect(r.statusCode,path).toBe(308);expect(r.headers.location).toBe(location);expect(r.headers['cache-control']).toBe('public, max-age=3600');}
+    expect(seen).toEqual([]);
+    expect((await app.inject({method:'POST',url:'/ch/3113/'})).statusCode).toBe(405);
+    expect((await app.inject('/channels/3113')).json()).toEqual({forwarded:true});
+    expect((await app.inject('/group/group_media.php')).json()).toEqual({forwarded:true});
+  }finally{await app.close();await ui.close();}
+});

@@ -4,6 +4,7 @@ import {promisify} from 'node:util';
 import {gzip,brotliCompress,constants as zlibConstants} from 'node:zlib';
 import {HtmlRenderSlots} from './html-render-slots.js';
 import { validImageOptimizationQuery } from '../../shared/image-policy.js';
+import { legacyRedirect } from '../../shared/legacy-redirects.js';
 import {securePublicHtml} from './public-html-csp.js';
 import {PRIVATE_CACHE, PUBLIC_RENDER_HEADER, publicMarkerMatches,publicHtmlTtl, publicHtmlVary, publicCacheControl,upstreamPublicPolicy,htmlEncoding} from './public-html.js';
 import {INTERNAL_RENDER_HEADER,isInternalRenderPath} from '../../shared/public-render-contract.js';
@@ -42,6 +43,10 @@ export async function registerUiProxy(app: FastifyInstance, options: { origin: s
       catch { reply.code(400).send({ error: { code: 'INVALID_PATH' } }); return; }
       if (!['GET', 'HEAD'].includes(request.method)) { reply.code(405).header('Allow', 'GET, HEAD').send({ error: { code: 'METHOD_NOT_ALLOWED' } }); return; }
       if (isInternalRenderPath(path)) { reply.code(404).header('Cache-Control','no-store').send({error:{code:'NOT_FOUND'}});return; }
+      // Old youtube.board.tw URLs go to their report in one hop. Next would first strip a
+      // trailing slash (/ch/3113/ → /ch/3113) and only then reach the same mapping in its proxy.
+      const legacy = legacyRedirect(request.url);
+      if (legacy) { reply.code(308).header('Location', legacy).header('Cache-Control', 'public, max-age=3600').send(); return; }
       if (path === '/_next/image' && !validImageOptimizationQuery(new URL(request.url, 'http://gateway.invalid').searchParams)) {
         reply.code(400).header('Cache-Control', 'no-store').send({ error: { code: 'INVALID_IMAGE' } }); return;
       }
