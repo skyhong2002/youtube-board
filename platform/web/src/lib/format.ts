@@ -58,6 +58,14 @@ export function first(value: string | string[] | undefined) {
     return Array.isArray(value) ? value[0] : value;
 }
 /** Dense table form, 24-hour Taipei time: 「10/21 05:01」; the caller keeps dateTime() in a title. */
+/** Taipei wall-clock time (HH:mm) of an instant. */
+export function clockTime(value: string | null | undefined) {
+    if (!value) return "—";
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return "—";
+    const parts = Object.fromEntries(taipeiParts.formatToParts(date).map((part) => [part.type, part.value]));
+    return `${parts.hour}:${parts.minute}`;
+}
 export function shortDateTime(value: string | null | undefined) {
     if (!value) return "—";
     const date = new Date(value);

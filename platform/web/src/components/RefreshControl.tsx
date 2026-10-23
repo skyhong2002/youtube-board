@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+/** Live observations re-read every 60 seconds while the tab is visible; a quiet inline control beside the summary. */
 export function RefreshControl() {
     const router = useRouter();
     const [automatic, setAutomatic] = useState(true);
@@ -14,36 +15,14 @@ export function RefreshControl() {
         return () => clearInterval(interval);
     }, [automatic, router]);
     return (
-        <div
-            className="board-actions"
-            style={{ alignItems: "center", marginBottom: 16 }}
-        >
-            <button
-                type="button"
-                className="button"
-                onClick={() => startTransition(() => router.refresh())}
-                disabled={pending}
-            >
-                {pending ? "更新中…" : "更新觀測"}
-            </button>
-            <label
-                className="muted"
-                style={{
-                    fontSize: 12,
-                    display: "flex",
-                    gap: 6,
-                    alignItems: "center",
-                }}
-            >
-                <input
-                    type="checkbox"
-                    checked={automatic}
-                    onChange={(event) =>
-                        setAutomatic(event.currentTarget.checked)
-                    }
-                />
-                每 60 秒更新（背景分頁暫停）
+        <span className="inline-flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
+            <label className="inline-flex cursor-pointer items-center gap-1.5" title="切到其他分頁時暫停，回來後繼續">
+                <input type="checkbox" className="accent-brand-700" checked={automatic} onChange={(event) => setAutomatic(event.currentTarget.checked)} />
+                每 60 秒自動更新
             </label>
-        </div>
+            <button type="button" className="text-brand-700 underline-offset-2 hover:underline disabled:text-zinc-400 dark:text-brand-400" onClick={() => startTransition(() => router.refresh())} disabled={pending}>
+                {pending ? "更新中…" : "立即更新"}
+            </button>
+        </span>
     );
 }

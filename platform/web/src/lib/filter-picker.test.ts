@@ -15,6 +15,15 @@ test('SSR picker exposes selected names and keeps unavailable IDs removable with
  assert.match(html,/name="tagid" value="1,2,3"/);assert.match(html,/真實分類名/);assert.match(html,/所選分類 #2/);assert.match(html,/名稱暫時無法讀取/);assert.match(html,/aria-label="移除所選分類 #2/);assert.doesNotMatch(html,/type="number"/);
  const invalid=renderToStaticMarkup(createElement(FilterPickerInput,{name:'tagid',label:'分類',kind:'tags',value:'1 2',initial:[]}));assert.match(invalid,/name="tagid" value="1 2"/);assert.match(invalid,/已保留原值/);
 });
+test('one taxonomy pill submits the list of its current match mode and names that mode',()=>{
+ const modes=[{name:'or',label:'符合任一',description:'任一'},{name:'tagid',label:'全部符合',description:'全部'}];
+ const all=renderToStaticMarkup(createElement(FilterPickerInput,{name:'tagid',label:'分類',kind:'tags',value:'1,2',initial:[{id:'1',label:'社論'},{id:'2',label:'新聞'}],layout:'pill',modes}));
+ assert.match(all,/<input type="hidden" name="tagid" value="1,2"\/>/);
+ assert.match(all,/分類<\/span>（全部符合）：社論、新聞/);
+ const any=renderToStaticMarkup(createElement(FilterPickerInput,{name:'or',label:'分類',kind:'tags',value:'',initial:[],layout:'pill',modes}));
+ assert.match(any,/<input type="hidden" name="or" value=""\/>/);
+ assert.doesNotMatch(any,/（符合任一）/);
+});
 test('option requests forward cancellation and distinguish unavailable or malformed results',async()=>{
  const controller=new AbortController();let captured:AbortSignal|null|undefined;
  const fetcher=(async(_url,init)=>{captured=init?.signal;return new Response(JSON.stringify({kind:'tags',rows:[],hasMore:false,missingIds:[]}));}) as typeof fetch;
