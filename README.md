@@ -1,10 +1,12 @@
 # 有影儀表板
 
-有影儀表板 (YouTube Board) is the public YouTube data dashboard at [youtube.observe.tw](https://youtube.observe.tw), the successor of `youtube.board.tw`. It captures YouTube channel, video, live and comment data, rebuilds the dashboard caches, writes daily/hourly AI summaries and posts Telegram digests.
+有影儀表板 (YouTube Board) is the public YouTube data dashboard at [youtube.observe.tw](https://youtube.observe.tw). It captures YouTube channel, video, live and comment data, rebuilds the dashboard caches, writes daily/hourly AI summaries and posts Telegram digests.
 
 Everything runs on the TypeScript platform in [`platform/`](platform/README.md): the Next.js site, the Fastify API, and the BullMQ scheduler and workers that own every background workflow.
 
 ![有影儀表板 tour](docs/assets/youtube-board-tour.gif)
+
+`youtube.observe.tw` and `board.tw` (including `youtube.board.tw` and every other subdomain) are two independent services. board.tw belongs to the project owner's father and has never been in this project's scope. youtube.observe.tw is not a migration or replacement of it. Do not change board.tw's DNS, Cloudflare settings, redirects or origin; see [Service boundary in AGENTS.md](AGENTS.md#service-boundary-boardtw-is-a-separate-service).
 
 ## History
 
