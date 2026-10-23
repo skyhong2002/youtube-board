@@ -1,6 +1,7 @@
 import type {ReportMeta,Search} from './api';
 import {groupDefinitions} from '../../../api/src/reports/group-definitions';
 import {COMMENTS_PUBLISHED} from './comments-launch';
+import {LIVE_NEWS_SCOPE} from './site-nav';
 export type ReportTab={href:string;label:string};
 const taxonomy=['tagid','or','not'];
 const period=['from','to'];
@@ -74,6 +75,27 @@ export function familyTabs(path:string,search:Search={},coverage?:ReportMeta['co
  if(family==='keywords'&&id)tabs.push({href:'/compare/titles',label:'標題寫法'});
  if(family==='tags'||family==='keywords'&&id)tabs.push({href:reportHref('/tags/compare',{...search,...(family==='keywords'?{tags:decodeSegment(id!)}:/^\d+$/.test(id??'')?{tagid:[...new Set([id!,...(scalar(search.tagid)||'').split(',').filter(Boolean)])].join(',')}:{})},path),label:'詞彙比較'});
  return tabs;
+}
+/** Original live.php scopes (nav_live.php): the main menu opens LIVE_NEWS_SCOPE; 全台灣／個人社論 are fixed tag sets. */
+const livePresets:{label:string;scope:string;lead:string}[]=[
+ {label:'新聞政治頻道',scope:LIVE_NEWS_SCOPE,lead:'社論、政治人物、電視台、新聞、政黨、廣播頻道'},
+ {label:'全台灣',scope:'not=11,33,36,59,99,100',lead:'全台灣頻道'},
+ {label:'個人社論',scope:'tagid=1&not=2,9,10,12,13,33,36,81',lead:'個人社論頻道'},
+ {label:'全部頻道',scope:'',lead:''},
+];
+const liveScope=(search:Search)=>{const params=new URLSearchParams();for(const key of taxonomy){const value=scalar(search[key]);if(value)params.set(key,value);}return params;};
+const sameScope=(a:URLSearchParams,b:string)=>{const c=new URLSearchParams(b);return [...new Set([...a.keys(),...c.keys()])].every(key=>a.get(key)===c.get(key));};
+/** Lead text naming the preset tag scope of /live/current, like the original page title. */
+export function liveScopeLead(search:Search):string|undefined{const scope=liveScope(search);return livePresets.find(p=>sameScope(scope,p.scope))?.lead||undefined;}
+/** nav_live.php: 現在正直播排行 and 正直播排行(排除帶狀) keep the selected tags; the presets replace them. */
+export function liveViewTabs(search:Search):(ReportTab&{active:boolean})[]{
+ const scope=liveScope(search),hours=scalar(search.hours),q=[...scope].map(([key,value])=>key+'='+encodeURIComponent(value).replace(/%2C/gi,',')).join('&'),href=(query:string)=>'/live/current'+(query?'?'+query:'');
+ const preset=livePresets.find(p=>sameScope(scope,p.scope));
+ return [
+  {label:'現在正直播排行',href:href(q),active:!hours&&!preset},
+  {label:'正直播排行(排除帶狀)',href:href([q,'hours=24'].filter(Boolean).join('&')),active:hours==='24'},
+  ...livePresets.map(p=>({label:p.label,href:href(p.scope),active:!hours&&p===preset})),
+ ];
 }
 export function wallVariantTabs():ReportTab[]{return [{href:'/live/walls/news',label:'新聞直播'},{href:'/live/walls/china',label:'中國直播'},{href:'/live/walls/alternate',label:'其他直播'}];}
 

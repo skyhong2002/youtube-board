@@ -5,6 +5,7 @@ import { Fragment } from "react";
 import {ChannelAvatar} from "./ChannelAvatar";
 import {VideoThumbnail} from "./VideoThumbnail";
 import {VideoResults} from "./VideoResults";
+import Sparkline from "./Sparkline";
 import type {
     ChannelRow,
     VideoRow,
@@ -38,6 +39,8 @@ const channelName = `${table.leadText} max-sm:line-clamp-2 max-sm:whitespace-nor
 /** Give phone video titles the whole lead width and room for distinguishing suffixes.
  * Desktop titles stay clipped; the small thumbnail yields when the phone table scrolls. */
 const videoName = "min-w-0 max-w-full max-sm:w-full max-sm:whitespace-normal max-sm:[overflow-wrap:anywhere] sm:truncate sm:max-w-xs";
+/** The live table also carries live.php 最近趨勢線, so its desktop title gives up 80px to fit the content column. */
+const liveVideoName = videoName.replace("sm:max-w-xs", "sm:max-w-60");
 const videoLead = `${table.leadBox} flex items-center gap-2 max-sm:flex-col max-sm:items-start`;
 export function ChannelTable({ rows, offset=0, ranking, responsive=false }: { rows: ChannelRow[];offset?:number;ranking?:ChannelRanking;responsive?:boolean }) {
     if (!rows.length) return <Empty title="尚無符合條件的頻道" />;
@@ -148,6 +151,9 @@ export function VideoTable({ rows, responsive=false }: { rows: VideoRow[]; respo
         </>
     );
 }
+/** live.php 時間 and 最近趨勢線: the start time (publication time until YouTube reports one) and today's last 24 samples. */
+const liveStart=(row:LiveRow)=>row.startedAt??row.publishedAt;
+const LiveTrend=({row}:{row:LiveRow})=>row.trend.length?<span className="inline-block text-brand-600 dark:text-brand-400"><Sparkline values={row.trend.map(p=>p.value)} className="h-6 w-16"/></span>:<span>—</span>;
 export function LiveTable({ rows,offset=0 }: { rows: LiveRow[];offset?:number }) {
     if (!rows.length)
         return (
@@ -174,7 +180,9 @@ export function LiveTable({ rows,offset=0 }: { rows: LiveRow[];offset?:number })
               <div><dt className="text-xs text-zinc-600 dark:text-zinc-400">同時在線</dt><dd className="m-0 font-semibold tabular-nums">{count(row.currentViewers)}</dd></div>
               <div><dt className="text-xs text-zinc-600 dark:text-zinc-400">今日高峰</dt><dd className="m-0 tabular-nums">{count(row.todayPeak)}{row.partialLogEvidence&&<span className="ml-1 text-xs text-zinc-600 dark:text-zinc-400">部分取樣</span>}</dd></div>
               <div><dt className="text-xs text-zinc-600 dark:text-zinc-400">歷史高峰</dt><dd className="m-0 tabular-nums">{count(row.allTimePeak)}</dd></div>
+              <div><dt className="text-xs text-zinc-600 dark:text-zinc-400">開播時間</dt><dd className="m-0 whitespace-normal text-xs">{dateTime(liveStart(row))}</dd></div>
               <div><dt className="text-xs text-zinc-600 dark:text-zinc-400">更新時間</dt><dd className="m-0 whitespace-normal text-xs">{dateTime(row.updatedAt)}</dd></div>
+              <div className="col-span-2"><dt className="text-xs text-zinc-600 dark:text-zinc-400">最近趨勢</dt><dd className="m-0"><LiveTrend row={row}/></dd></div>
               <div className="col-span-2"><dt className="text-xs text-zinc-600 dark:text-zinc-400">頻道分類</dt><dd className="m-0 flex flex-wrap gap-1">{row.tags.length?row.tags.map(tag=><Link className="inline-flex min-h-11 items-center rounded-full border border-zinc-300 px-3 text-sm hover:underline dark:border-zinc-700" key={tag.id} href={`/live/current?tagid=${tag.id}`} prefetch={false}>{tag.name}</Link>):'—'}</dd></div>
             </dl>
             <a className="inline-flex min-h-11 items-center text-sm text-brand-700 underline dark:text-brand-400" href={youtubeUrl(row.youtubeUrl)} target="_blank" rel="noopener noreferrer">YouTube 原始來源 ↗</a>
@@ -189,10 +197,11 @@ export function LiveTable({ rows,offset=0 }: { rows: LiveRow[];offset?:number })
                         <th className={table.leadHead}>直播</th>
                         <th className="number">同時在線</th>
                         <th className="number">今日高峰</th>
+                        <th>最近趨勢</th>
                         <th className="number">歷史高峰</th>
                         <th>頻道</th>
                         <th>頻道分類</th>
-                        <th>更新時間</th>
+                        <th>開播時間</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -203,7 +212,7 @@ export function LiveTable({ rows,offset=0 }: { rows: LiveRow[];offset?:number })
                               <div className={videoLead}>
                                 <span className={`${table.leadWide} shrink-0 text-xs tabular-nums text-zinc-400`}>{String(offset+index+1).padStart(2,'0')}</span>
                                 <span className={`${table.leadExtra} shrink-0`}><VideoThumbnail videoId={row.id} width={48} height={27}/></span>
-                                <Link className={`${videoName} font-medium hover:underline`}
+                                <Link className={`${liveVideoName} font-medium hover:underline`}
                                     title={[row.channelTitle, row.title].filter(Boolean).join(" · ") || undefined}
                                     href={`/videos/${encodeURIComponent(row.id)}`}
                                 >
@@ -215,10 +224,11 @@ export function LiveTable({ rows,offset=0 }: { rows: LiveRow[];offset?:number })
                                 <strong>{count(row.currentViewers)}</strong>
                             </td>
                             <td className="number">{count(row.todayPeak)}{row.partialLogEvidence&&<small className="ml-1.5">部分取樣</small>}</td>
+                            <td><LiveTrend row={row}/></td>
                             <td className="number">{count(row.allTimePeak)}</td>
                             <td><ChannelCell id={row.channelId} title={row.channelTitle} avatar={row.channelAvatar} narrow/></td>
                             <td>{row.tags.length > 0 ? <TagLine tags={row.tags} href={(tag) => `/live/current?tagid=${tag.id}`} narrow/> : "—"}</td>
-                            <td><small><time dateTime={row.updatedAt ?? undefined} title={dateTime(row.updatedAt)}>{shortDateTime(row.updatedAt)}</time></small></td>
+                            <td><small><time dateTime={liveStart(row) ?? undefined} title={`更新於 ${dateTime(row.updatedAt)}`}>{shortDateTime(liveStart(row))}</time></small></td>
                         </tr>
                     ))}
                 </tbody>

@@ -74,8 +74,10 @@ export default function SiteNavigation({variant}:{variant:'desktop'|'mobile'}) {
             <p className="w-12 shrink-0 pt-2.5 text-xs leading-5 text-zinc-500 lg:hidden dark:text-zinc-400">{group.label}</p>
             <div className="flex flex-wrap gap-1">
               {group.links.map(({ href, short }) => {
-                const exact = pathname === href || pathname === href+'/';
-                const current = exact || pathname.startsWith(href+'/') || (href === '/keywords' && ['/vocabulary','/compare/titles'].some(p=>pathname.startsWith(p))) || (href === '/live/current' && pathname.startsWith('/live/')) || (href === '/ai/days' && ['/ai/','/events'].some(p=>pathname.startsWith(p)));
+                // A link may carry a default scope (直播: the original menu's news-and-politics tags); match its path.
+                const base = href.split('?')[0]!;
+                const exact = pathname === base || pathname === base+'/';
+                const current = exact || pathname.startsWith(base+'/') || (base === '/keywords' && ['/vocabulary','/compare/titles'].some(p=>pathname.startsWith(p))) || (base === '/live/current' && pathname.startsWith('/live/')) || (base === '/ai/days' && ['/ai/','/events'].some(p=>pathname.startsWith(p)));
                 return (
                   <Link
                     key={href}

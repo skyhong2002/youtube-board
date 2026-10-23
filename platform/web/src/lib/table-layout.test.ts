@@ -90,10 +90,12 @@ const videoName='min-w-0 max-w-full max-sm:w-full max-sm:whitespace-normal max-s
 const videoLead='table-lead-box min-w-0 flex items-center gap-2 max-sm:flex-col max-sm:items-start';
 /** The phone lead keeps its capped width, but puts the small thumbnail above a full-width
  * wrapping title. No clamp hides a distinguishing suffix; desktop keeps the inline lead. */
-const assertVideoIdentityRow=(row:string)=>{
+/** The live table's title is 80px narrower on desktop (it also carries 最近趨勢). */
+const liveVideoName=videoName.replace('sm:max-w-xs','sm:max-w-60');
+const assertVideoIdentityRow=(row:string,name=videoName)=>{
  assert.match(row,new RegExp(`<div class="${escape(videoLead)}">`));
  assert.match(row,thumb48);
- assert.match(row,new RegExp(anchor({class:videoName})));
+ assert.match(row,new RegExp(anchor({class:name})));
  assert.doesNotMatch(row,/line-clamp|table-stack|data-thumbnail-state="loaded"/);
  assert.equal(row.match(/max-sm:whitespace-normal/g)?.length,1);
 };
@@ -152,11 +154,11 @@ test('live phone title wraps below its thumbnail; rank stays desktop-only and at
  const all=render(createElement(LiveTable,{rows:[live],offset:0}));
  const html=all.slice(all.indexOf('<div class="table-frame'));
  assert.match(all,/aria-label="直播觀測清單"/);
- assert.deepEqual(heads(html),['直播','同時在線','今日高峰','歷史高峰','頻道','頻道分類','更新時間']);
+ assert.deepEqual(heads(html),['直播','同時在線','今日高峰','最近趨勢','歷史高峰','頻道','頻道分類','開播時間']);
  assert.match(html,new RegExp(`<div class="${escape(videoLead)}"><span class="table-lead-extra max-sm:hidden shrink-0 text-xs tabular-nums text-zinc-400">01</span>`));
  assert.match(html,thumb48);
  // The thumbnail identifies the video; full titles wrap on phones and the tooltip keeps attribution.
- assert.match(html,new RegExp(`${anchor({class:videoName,title:`來源頻道 · ${longTitle}`,href:'/videos/AbCdEfGh123'})}${longTitle}</a>`));
+ assert.match(html,new RegExp(`${anchor({class:liveVideoName,title:`來源頻道 · ${longTitle}`,href:'/videos/AbCdEfGh123'})}${longTitle}</a>`));
  // The visible channel name lives only in the channel column, always beside its avatar.
  assert.equal(html.match(/>來源頻道</g)?.length,1);
  assert.match(html,new RegExp(`<td>${anchor({class:'flex min-w-0 items-center gap-1.5 hover:underline',title:'來源頻道',href:'/channels/8'})}<span class="inline-flex shrink-0[^>]*>[\\s\\S]*?<span class="${clip.replace('max-w-xs','max-w-40')}">來源頻道</span></a></td>`));
@@ -164,21 +166,24 @@ test('live phone title wraps below its thumbnail; rank stays desktop-only and at
  assert.match(html,/20<small class="ml-1.5">部分取樣<\/small>/);
  // The desktop table fits the content column: the YouTube link stays on the phone cards and the video page.
  assert.doesNotMatch(html,/youtube\.com\/watch|min-width:1280px/);
- // Dense 24-hour update time with the full time as its tooltip; a missing one stays 「—」.
- assert.match(html,/<time title="未記錄">—<\/time>/);
- assert.match(render(createElement(LiveTable,{rows:[{...live,updatedAt:'2026-10-20T21:01:00Z'}]})),/<time dateTime="2026-10-20T21:01:00Z" title="2026\/10\/21[^"]*05:01">10\/21 05:01<\/time>/);
- bodyRows(html).forEach(assertVideoIdentityRow);
+ // live.php 時間: dense start time (publication time until YouTube reports a start), update time in the tooltip.
+ assert.match(render(createElement(LiveTable,{rows:[{...live,publishedAt:null}]})),/<time title="更新於 未記錄">—<\/time>/);
+ assert.match(render(createElement(LiveTable,{rows:[{...live,publishedAt:'2026-10-20T20:00:00Z',startedAt:'2026-10-20T21:01:00Z'}]})),/<time dateTime="2026-10-20T21:01:00Z" title="更新於 [^"]*">10\/21 05:01<\/time>/);
+ assert.match(render(createElement(LiveTable,{rows:[{...live,publishedAt:'2026-10-20T20:00:00Z'}]})),/<time dateTime="2026-10-20T20:00:00Z"[^>]*>10\/21 04:00<\/time>/);
+ // 最近趨勢線: a sparkline of today's samples, 「—」 without samples.
+ assert.match(render(createElement(LiveTable,{rows:[{...live,trend:[{time:'2026-10-20T21:00:00Z',value:5},{time:'2026-10-20T21:01:00Z',value:9}]}]})),/<polyline points=/);
+ bodyRows(html).forEach(row=>assertVideoIdentityRow(row,liveVideoName));
 });
 
 test('video and live rows keep distinct common-prefix suffixes, video identities and canonical thumbnail sources',()=>{
  const prefix='【每日直播新聞】日テレNEWS 共用節目名稱與日期時段前綴';
  const rows=[{...video,title:`${prefix} 台灣地震現場`,id:'AbCdEfGh123'},{...video,title:`${prefix} 東京交通速報`,id:'ZyXwVuTs987'}];
  const lives=rows.map(row=>({...row,currentViewers:10,todayPeak:20,allTimePeak:null,startedAt:null,trend:[],tags:[]} satisfies LiveRow));
- for(const html of [render(createElement(VideoTable,{rows})),render(createElement(LiveTable,{rows:lives}))]){
+ for(const [html,name] of [[render(createElement(VideoTable,{rows})),videoName],[render(createElement(LiveTable,{rows:lives})),liveVideoName]] as const){
   const renderedRows=bodyRows(html);
   assert.equal(renderedRows.length,2);
   renderedRows.forEach((row,index)=>{
-   assertVideoIdentityRow(row);
+   assertVideoIdentityRow(row,name);
    const source=rows[index];
    assert.match(row,new RegExp(`${anchor({href:`/videos/${source.id}`})}${escape(source.title)}</a>`));
    assert.match(row,new RegExp(`data-thumbnail-src="https://i\\.ytimg\\.com/vi/${source.id}/mqdefault\\.jpg"`));
