@@ -1,1 +1,11 @@
-(http.host eq "youtube.board.tw" and http.request.method in {"GET" "HEAD"} and (http.request.uri.path in {"/" "/ai_channel.php" "/ai_dashboard.php" "/ai_day.php" "/ai_day_prompt.php" "/ai_event_people.php" "/ai_event.php" "/ai_event_wall.php" "/ai_hour.php" "/ai_period.php" "/ai_tag.php" "/channel_cloud.php" "/channel_date.php" "/channel_days.php" "/channel_gpt.php" "/channel_line.php" "/channel.php" "/channel_prompt.php" "/channel_videos.php" "/cloud.php" "/days.php" "/group_chart.php" "/group_line.php" "/group_live.php" "/group_people.php" "/group_tag.php" "/group_two.php" "/group_view.php" "/html/group_chart_30.html" "/html/group_chart_7.html" "/html/group_chart_all.html" "/html/group_chart.html" "/html/group_line_30.html" "/html/group_line.html" "/html/live_social.html" "/index.php" "/line.php" "/live4.php" "/live5.php" "/live_channel.php" "/live_channels.php" "/live_china.php" "/live_cont.php" "/live_day_line.php" "/live_day.php" "/live_hour.php" "/live_index.php" "/live_line.php" "/live_period.php" "/live.php" "/live_rank.php" "/lives_date.php" "/live_tag.php" "/live_videos.php" "/mayor/city.php" "/mayor/hsinchu.php" "/mayor/html_hsinchu.html" "/mayor/html_newtaipei.html" "/mayor/html_taichung.html" "/mayor/html_taipei.html" "/mayor/html_taoyuan.html" "/mayor/kaohsiung.php" "/mayor/keelung.php" "/mayor/newtaipei.php" "/mayor/penghu.php" "/mayor/taichung.php" "/mayor/tainan.php" "/mayor/taipei.php" "/mayor/taoyuan.php" "/mayor/yilan.php" "/rank.php" "/tag_cloud.php" "/tag_days.php" "/tag_group.php" "/tag_live.php" "/tag.php" "/tags.php" "/tag_video.php" "/video_data_att.php" "/video.php" "/videos.php"} or (starts_with(http.request.uri.path, "/ch/") and not http.request.uri.path contains "/comments") or starts_with(http.request.uri.path, "/rank/") or starts_with(http.request.uri.path, "/day/")))
+INVALID - DO NOT DEPLOY.
+
+This file used to hold a Cloudflare Single Redirect expression that redirected
+youtube.board.tw to youtube.observe.tw. That cross-service redirect was a mistake.
+board.tw and all of its subdomains are a separate service, outside this project
+and outside its scope. The rule ("YouTube public pages - board to observe -
+GSC 20261023") was disabled on 2026-10-23 at 23:23. It must not be re-enabled or
+re-created, including from earlier versions of this file in git history (commit 4967591).
+
+See AGENTS.md, "Service boundary: board.tw is a separate service", and
+platform/docs/legacy-domain-seo-2026-10-23.md.

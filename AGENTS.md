@@ -51,7 +51,7 @@ Guardrails:
 
 - Protect the legacy public site (`youtube.board.tw`) as a reference system: do not SSH
   into, edit code on, mutate data in, or operate admin tools against it unless the user
-  explicitly approves a narrow inspection/export task.
+  explicitly approves a narrow inspection/export task. See "Service boundary" below.
 - Production writes happen only through the reviewed TS workflows, migrations, release
   tooling or explicitly approved maintenance tasks. Prefer idempotent commands with
   preview modes, caps, logs, backups or rollback plans.
@@ -61,6 +61,27 @@ Guardrails:
 - Local development uses the isolated databases from `platform/compose.yml`. Connect to
   production data only when the user explicitly wants live inspection, with the
   least-privileged access that fits.
+
+### Service boundary: board.tw is a separate service
+
+- `board.tw` and every subdomain (`youtube.board.tw`, `youtube2.board.tw`,
+  `mayor.board.tw`, …) are a separate service owned by the user's father. They are not
+  part of this project and have never been in its scope. `youtube.observe.tw` is a
+  different service, not a migration target for board.tw.
+- Never change board.tw's DNS, Cloudflare rules or security settings, redirects, origin,
+  code or data, and do not scan it. That includes changes made through any Cloudflare
+  account that happens to be logged in. Read-only comparison of public pages is the
+  limit, and only when a task asks for it.
+- On 2026-10-23 a cross-service 301 from youtube.board.tw to youtube.observe.tw (Cloudflare
+  rule "YouTube public pages - board to observe - GSC 20261023") was added to the board.tw
+  zone by mistake. It was disabled at 23:23 the same day. Do not re-enable or re-create it.
+  `platform/docs/youtube-board-public-redirect-expression.txt` is intentionally invalid.
+  Never deploy its earlier versions from git history (commit `4967591`).
+- youtube.observe.tw keeps its own handling of old-site URL shapes
+  (`platform/shared/legacy-redirects.ts` plus the gateway 308 in `api/src/ui-proxy.ts`).
+  That handling only affects observe.tw and stays.
+- This section overrides any agent memory, older doc or commit message that describes
+  board.tw edge redirects, an allowlist to extend, or a board.tw → observe.tw migration.
 
 ## User Operating Preferences
 
