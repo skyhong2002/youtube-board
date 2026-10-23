@@ -26,8 +26,16 @@ function entry(raw:unknown,rank:number,basis:Set<string>):PoolEntry {
  return {tag,tagId:hash(tag),rank,score:e.score,articleCount:articles,mediaCount:counts.length,media:Object.fromEntries(counts.map(([k,v])=>[k,Number(v)]))};
 }
 /** Sanitized upstream transition: fixed fields only, never URLs, bodies or headers beyond Retry-After. */
-export interface PoolUpstreamEvent {event:'failure'|'recovered';reason:PoolUnavailable['reason']|null;status:number|null;retryAfter:string|null;cooldownUntil:string|null;UTC:string}
+export interface PoolUpstreamEvent {event:'failure'|'recovered';reason:PoolUnavailable['reason']|null;status:number|null;retryAfter:string|null;upstreamReason:string|null;cooldownUntil:string|null;UTC:string}
 const retryAfterLabel=(raw:string|null):string|null=>raw===null?null:/^\d+$/.test(raw)?(raw.length<=10?raw:'>9999999999'):raw.length<=64&&Number.isFinite(Date.parse(raw))?new Date(Date.parse(raw)).toUTCString():'invalid';
+/** The upstream's own reason label (`incompleteReason`) from a refusal body, read up to 16 KiB; null when absent or not a plain label. */
+const refusalReason=async(response:Response):Promise<string|null>=>{
+ if(!response.body||!/^application\/json(?:;|$)/i.test(response.headers.get('content-type')??''))return null;
+ const reader=response.body.getReader(),chunks:Uint8Array[]=[];let bytes=0;
+ try{while(bytes<=16384){const r=await reader.read();if(r.done)break;bytes+=r.value.byteLength;chunks.push(r.value);}}catch{return null;}finally{void reader.cancel().catch(()=>{});}
+ if(bytes>16384)return null;
+ try{const v=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(Buffer.concat(chunks,bytes))).incompleteReason;return typeof v==='string'&&/^[a-z][a-z0-9-]{0,47}$/.test(v)?v:null;}catch{return null;}
+};
 /** Retry-After can push a cooldown beyond any representable date: label it rather than dropping it. */
 const instant=(ms:number):string=>Number.isFinite(ms)&&Math.abs(ms)<=8.64e15?new Date(ms).toISOString():'unbounded';
 /** One cooldown per client (all windows share the upstream budget). 429 honours Retry-After
@@ -41,7 +49,7 @@ export function createRankedPoolClient({fetch:transport=fetch,clock=()=>new Date
   iso(window.since);iso(window.until);if(Date.parse(window.since)>=Date.parse(window.until)||Date.parse(window.until)>clock().getTime()||Date.parse(window.until)-Date.parse(window.since)>7*86400000)throw new PoolUnavailable('contract');
   const key=JSON.stringify(window),cached=cache.get(key);if(cached&&Date.parse(cached.provenance.expiresAt)>clock().getTime())return structuredClone(cached);
   if(clock().getTime()<cooldownUntil)throw new PoolUnavailable(cooldownReason);
-  let status:number|null=null,retryAfter:string|null=null;
+  let status:number|null=null,retryAfter:string|null=null,upstreamReason:string|null=null;
   let totalBytes=0;const stream:{body:ReadableStream<Uint8Array>|null;reader:ReadableStreamDefaultReader<Uint8Array>|null}={body:null,reader:null};
   const controller=new AbortController();let timedOut=false;const deadline=new Promise<never>((_,reject)=>{controller.signal.addEventListener('abort',()=>reject(new PoolUnavailable('deadline')),{once:true});});
   const timer=setTimeout(()=>{timedOut=true;controller.abort();void stream.reader?.cancel().catch(()=>{});void stream.body?.cancel().catch(()=>{});},timeoutMs);
@@ -53,8 +61,8 @@ export function createRankedPoolClient({fetch:transport=fetch,clock=()=>new Date
    if(controller.signal.aborted){void stream.body?.cancel().catch(()=>{});throw new PoolUnavailable('deadline');}
    if(response.status===429){const raw=response.headers.get('retry-after'),now=clock().getTime();retryAfter=retryAfterLabel(raw);
     const retryAt=raw&&/^\d+$/.test(raw)?now+Math.max(1,Number(raw))*1000:raw&&Number.isFinite(Date.parse(raw))?Math.max(now+1000,Date.parse(raw)):now+60000;
-    if(retryAt>cooldownUntil){cooldownUntil=retryAt;cooldownReason='rate-limited';}void stream.body?.cancel().catch(()=>{});throw new PoolUnavailable('rate-limited');}
-   if(response.status!==200){void stream.body?.cancel().catch(()=>{});throw new PoolUnavailable('unavailable');}
+    if(retryAt>cooldownUntil){cooldownUntil=retryAt;cooldownReason='rate-limited';}upstreamReason=await refusalReason(response);stream.body=null;throw new PoolUnavailable('rate-limited');}
+   if(response.status!==200){upstreamReason=await refusalReason(response);stream.body=null;throw new PoolUnavailable('unavailable');}
    if(!/^application\/json(?:;|$)/i.test(response.headers.get('content-type')??'')||!stream.body)throw new PoolUnavailable('contract');
    stream.reader=stream.body.getReader();let bytes=0;const chunks:Uint8Array[]=[];
    while(true){const r=await stream.reader.read();if(r.done)break;bytes+=r.value.byteLength;totalBytes+=r.value.byteLength;if(bytes>4*1024**2||totalBytes>16*1024**2)throw new PoolUnavailable('response-cap');chunks.push(r.value);}
@@ -83,14 +91,14 @@ export function createRankedPoolClient({fetch:transport=fetch,clock=()=>new Date
    };
    const result=await Promise.race([work(),deadline]);if(cache.size>=4)cache.delete(cache.keys().next().value!);cache.set(key,result);
    // A concurrent success can land inside another window's cooldown; report it rather than clear it.
-   if(failures){failures=0;emit(()=>({event:'recovered',reason:null,status,retryAfter:null,cooldownUntil:clock().getTime()<cooldownUntil?instant(cooldownUntil):null,UTC:clock().toISOString()}));}
+   if(failures){failures=0;emit(()=>({event:'recovered',reason:null,status,retryAfter:null,upstreamReason:null,cooldownUntil:clock().getTime()<cooldownUntil?instant(cooldownUntil):null,UTC:clock().toISOString()}));}
    return structuredClone(result);
   }catch(error){
    const failure=error instanceof PoolUnavailable?error:new PoolUnavailable(timedOut?'deadline':'contract');
    failures++;
    // Only the failure that sets the longest cooldown names it, so a later 5xx cannot relabel a 429 cooldown.
    if(failure.reason!=='rate-limited'){const until=clock().getTime()+Math.min(maxFailureBackoffMs,failureBackoffMs*2**Math.min(failures-1,20));if(until>cooldownUntil){cooldownUntil=until;cooldownReason=failure.reason;}}
-   emit(()=>({event:'failure',reason:failure.reason,status,retryAfter,cooldownUntil:instant(cooldownUntil),UTC:clock().toISOString()}));
+   emit(()=>({event:'failure',reason:failure.reason,status,retryAfter,upstreamReason,cooldownUntil:instant(cooldownUntil),UTC:clock().toISOString()}));
    throw failure;
   }
   finally{clearTimeout(timer);void stream.reader?.cancel().catch(()=>{});try{stream.reader?.releaseLock();}catch{}void stream.body?.cancel().catch(()=>{});}

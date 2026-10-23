@@ -56,14 +56,14 @@ it('backs off 5xx and network failures, reports sanitized transitions and recove
  const fetch=vi.fn(async(url:URL|RequestInfo,options?:RequestInit)=>{if(mode==='network')throw new TypeError('connect ECONNREFUSED 10.0.0.1');return mode==='ok'?ok(url,options):new Response('{"secret":"x"}',{status:503});});
  const client=createRankedPoolClient({fetch,clock:()=>time,onEvent:e=>events.push(e)});
  await expect(client.load(window)).rejects.toThrow('unavailable');expect(fetch).toHaveBeenCalledTimes(1);
- expect(events).toEqual([{event:'failure',reason:'unavailable',status:503,retryAfter:null,cooldownUntil:new Date(+now+30000).toISOString(),UTC:now.toISOString()}]);
+ expect(events).toEqual([{event:'failure',reason:'unavailable',status:503,retryAfter:null,upstreamReason:null,cooldownUntil:new Date(+now+30000).toISOString(),UTC:now.toISOString()}]);
  // Renders during the backoff never reach upstream.
  for(let i=0;i<5;i++)await expect(client.load(window)).rejects.toThrow('unavailable');expect(fetch).toHaveBeenCalledTimes(1);expect(events).toHaveLength(1);
  time=new Date(+now+30000);mode='network';await expect(client.load(window)).rejects.toThrow('unavailable');expect(fetch).toHaveBeenCalledTimes(2);
- expect(events.at(-1)).toEqual({event:'failure',reason:'unavailable',status:null,retryAfter:null,cooldownUntil:new Date(+time+60000).toISOString(),UTC:time.toISOString()});
+ expect(events.at(-1)).toEqual({event:'failure',reason:'unavailable',status:null,retryAfter:null,upstreamReason:null,cooldownUntil:new Date(+time+60000).toISOString(),UTC:time.toISOString()});
  time=new Date(+time+59000);await expect(client.load(window)).rejects.toThrow('unavailable');expect(fetch).toHaveBeenCalledTimes(2);
  time=new Date(+time+1000);mode='ok';expect((await client.load(window)).entries).toHaveLength(2);
- expect(events.at(-1)).toEqual({event:'recovered',reason:null,status:200,retryAfter:null,cooldownUntil:null,UTC:time.toISOString()});
+ expect(events.at(-1)).toEqual({event:'recovered',reason:null,status:200,retryAfter:null,upstreamReason:null,cooldownUntil:null,UTC:time.toISOString()});
  expect(JSON.stringify(events)).not.toMatch(/secret|ECONNREFUSED|10\.0\.0\.1|tag\.observe|ranking-pools/);
 });
 it('reports Retry-After and the cooldown window of a 429, then resumes after it',async()=>{
@@ -71,7 +71,7 @@ it('reports Retry-After and the cooldown window of a 429, then resumes after it'
  const fetch=vi.fn(async(url:URL|RequestInfo,options?:RequestInit)=>limited?new Response('{}',{status:429,headers:{'retry-after':'120'}}):ok(url,options));
  const client=createRankedPoolClient({fetch,clock:()=>time,onEvent:e=>events.push(e)});
  await expect(client.load(window)).rejects.toThrow('rate-limited');
- expect(events).toEqual([{event:'failure',reason:'rate-limited',status:429,retryAfter:'120',cooldownUntil:new Date(+now+120000).toISOString(),UTC:now.toISOString()}]);
+ expect(events).toEqual([{event:'failure',reason:'rate-limited',status:429,retryAfter:'120',upstreamReason:null,cooldownUntil:new Date(+now+120000).toISOString(),UTC:now.toISOString()}]);
  time=new Date(+now+119000);await expect(client.load(window)).rejects.toThrow('rate-limited');expect(fetch).toHaveBeenCalledTimes(1);
  time=new Date(+now+120000);limited=false;expect((await client.load(window)).entries).toHaveLength(2);expect(events.at(-1).event).toBe('recovered');
  const unbounded=createRankedPoolClient({fetch:vi.fn(async()=>new Response('{}',{status:429,headers:{'retry-after':'9'.repeat(40)}})),clock:()=>now,onEvent:e=>events.push(e)});
@@ -96,4 +96,20 @@ it('never lets a later 5xx relabel a longer 429 cooldown, and contains a failing
  await expect(client.load(today)).rejects.toThrow('rate-limited');expect(fetch).toHaveBeenCalledTimes(1);
  let calls=0;const broken=createRankedPoolClient({fetch:vi.fn(async()=>new Response('{}',{status:503})),clock:()=>++calls>2?new Date(NaN):now,onEvent:()=>{throw new Error('sink');}});
  await expect(broken.load(window)).rejects.toThrow('unavailable');
+});
+it('reports the upstream reason label from a refusal body, never other body fields',async()=>{
+ const json={'content-type':'application/json; charset=utf-8'};
+ const cases:[Response,string|null][]=[
+  [new Response(JSON.stringify({error:'ranking pool unavailable',available:false,incompleteReason:'snapshot-store-cap',window:{since:'x'},basis:{media:['a','b']}}),{status:503,headers:json}),'snapshot-store-cap'],
+  [new Response(JSON.stringify({error:'ranking pool producer busy',available:false,incompleteReason:'producer-busy'}),{status:429,headers:{...json,'retry-after':'30'}}),'producer-busy'],
+  [new Response(JSON.stringify({incompleteReason:'Bad Reason <x>'}),{status:503,headers:json}),null],
+  [new Response(JSON.stringify({incompleteReason:'snapshot-store-cap',pad:'x'.repeat(20000)}),{status:503,headers:json}),null],
+  [new Response('{"incompleteReason":"snapshot-store-cap"}',{status:503,headers:{'content-type':'text/html'}}),null],
+ ];
+ for(const [response,label] of cases){
+  const events:any[]=[],client=createRankedPoolClient({fetch:vi.fn(async()=>response),clock:()=>now,onEvent:e=>events.push(e)});
+  await expect(client.load(window)).rejects.toThrow(response.status===429?'rate-limited':'unavailable');
+  expect(events).toEqual([expect.objectContaining({event:'failure',status:response.status,upstreamReason:label})]);
+  expect(JSON.stringify(events)).not.toMatch(/basis|window|pad|Bad Reason/);
+ }
 });
