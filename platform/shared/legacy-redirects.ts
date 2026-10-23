@@ -72,10 +72,17 @@ function phpQuery(source: URLSearchParams): URLSearchParams {
 export function legacyRedirect(input: string): string | null {
   let url: URL;
   try { url = new URL(input, 'http://local.invalid'); } catch { return null; }
-  const path = url.pathname;
+  // Apache (vh-board.conf) rewrote /ch/{id}/{view}/{rest} to channel_{view}.php?u_id={id}&{rest},
+  // and the old pages linked filters that way (/ch/3113/videos/&hours=24). Read the trailing
+  // "&k=v" segment as query parameters; they win over a real query string as they did in PHP.
+  // A single trailing slash (/ch/3113/, /rank/5/) is the same legacy page.
+  const embedded = url.pathname.match(/^(\/ch\/\d+(?:\/(?:videos|comments|cloud|line|days|date|ai|prompt))?)\/(&[^/]*)?$/);
+  const path = embedded ? embedded[1] : url.pathname.replace(/(.)\/$/, '$1');
+  const source = new URLSearchParams(url.searchParams);
+  if (embedded?.[2]) for (const [key, value] of new URLSearchParams(embedded[2])) source.append(key, value);
   // PHP query parsing keeps the last scalar value. Preserve arbitrary filter
   // keys but never interpret any value as a redirect destination or host.
-  const query = phpQuery(url.searchParams);
+  const query = phpQuery(source);
   const take = (name: string, fallback = '') => {
     const value = query.get(name) ?? fallback;
     query.delete(name);
