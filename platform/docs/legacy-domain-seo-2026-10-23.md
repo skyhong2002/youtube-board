@@ -198,12 +198,45 @@ Codex 稍早的快照是 461,084，兩者時間不同，影片數會隨收錄增
 3. `/api/api_tag.php`、`/app/admin.php`、`/redir/tag.php`、`/comments.php?tagid=1`、`/css/…` 都不會被 301。
 4. `/day/{date}/{中文}` 的 Location 仍是 percent-encoded。
 
+## board.tw edge 轉址上線（2026-10-23，Codex 部署）
+
+- **部署人與方式：** Codex 在 Cloudflare zone board.tw（account `377d5174f46c07957963d25668d22cdb`）建立一條 Single Redirect。
+  - When：直接取自純文字檔 `platform/docs/youtube-board-public-redirect-expression.txt`。1830 字元，sha256 `bcc0fb94c5ad3095da0ddcabf5d1c8bef9e4bb04356b1ed331662ba1617dfc3a`，加入 repo 的 commit 是 `4967591`。
+  - Then：`concat("https://youtube.observe.tw", http.request.uri.path)`，301，保留 query string。
+  - Under Attack Mode 等安全設定都沒有更動。
+- **Codex 的匿名 GET 驗證：**
+  - 首頁 301 到新站。
+  - `/ch/3113/videos/&hours=24?source=gsc20261023`、`/ch/3113/`、`/rank/5/` 都是 301 → 新站 308 → 200。
+  - `tag_group.php` 的 percent-encoded 中文 query 完整保留。
+  - 排除項 `/api/api_tag.php`、`/app/admin.php`、`/comments.php`、`/css/` 仍是 403 挑戰頁，沒有 Location，沒有被轉走。
+- **Claude 只讀抽查（10:06Z，匿名 GET）：**
+
+| board.tw 請求 | edge 回應 | 跟隨到最後 |
+| --- | --- | --- |
+| `/` | 301 → `https://youtube.observe.tw/` | 200，共 1 跳 |
+| `/ch/3113/videos/&hours=24` | 301 → `https://youtube.observe.tw/ch/3113/videos/&hours=24` | 200，共 2 跳 |
+| `/ch/3113/` | 301 → `https://youtube.observe.tw/ch/3113/` | 200，共 2 跳 |
+| `/rank/5/` | 301 → `https://youtube.observe.tw/rank/5/` | 200，共 2 跳 |
+| `/tag_group.php?&tag=%E6%B8%85…&days=7` | 301，Location 的 query 編碼原樣保留 | 200，共 2 跳 |
+| `/day/2026-10-01/%E5%85%A8%E9%83%A8` | 301，Location 的 path 編碼原樣保留 | 503（見下方「未完成」第 6 項） |
+| `/api/api_tag.php`、`/app/admin.php`、`/comments.php?tagid=1`、`/redir/tag.php`、`/css/x.css` | 403，無 Location | 沒有被轉 |
+
+- **整條鏈：** board.tw 301 → observe.tw 舊路徑 308 → 語意報表 200。
+  - 參數頁回 `noindex, follow`，canonical 去參數。
+  - 乾淨頁可索引，canonical 指向自己。
+
 ## 未完成
 
-1. **board.tw zone 的轉址規則**：照上方白名單設定，不要全 hostname 轉址：需要 zone 擁有者操作。套用後要驗證匿名請求拿到 301 而不是 403 挑戰，再由 Codex 在 GSC 追蹤舊域。
-2. **舊域的 404／duplicate／redirect error／5xx 數字**：這次沒有直接改變它們，因為那是舊 origin 的回應。轉址上線之前不能宣稱改善。
+1. **board.tw edge 轉址：已上線**，見上一節。後續由 Codex 在 Google 側追蹤（GSC 重新抓取、驗證修正）。
+   舊域 GSC 的總錯誤量（404 102,898、duplicate 85,463、redirect error 1,852、5xx 1,796）還沒重算，**不能宣稱已清零或已改善**。
+   提交或讀取 sitemap、轉址可被抓取，都不等於已重新索引。
+2. **舊域的 404／duplicate／redirect error／5xx 數字**：白名單內的網址要等 Google 重新抓取後才會反映成轉址。白名單外的路徑仍由舊 origin 回應，數字可能不會變。目前沒有重算結果，也不宣稱改善。
 3. **舊域的回應時間（7242 ms）與 CWV**：屬於舊 origin，轉址後舊頁不再渲染，不另外調整。
    新站目標頁的 TTFB 約 1–1.5 秒；同一時段 `/channels/3113` 曾因 reader statement deadline 回過 503，那是另一個 session 在追的資料庫問題。
-4. **`/html/` 底下 40 個有日期的歷史快照**（如 `group_line_media_2022_half.html`），以及 `/prompt/*.php`、`/redir/*.php`：沒有看到 GSC 證據，沒有加對應，目前回 404。
-   如果 Codex 從 GSC 匯出看到它們有流量或索引，再逐一補上語意對應。
+4. **白名單外的舊路徑**：包括 `/html/` 底下約 40 個有日期的歷史快照（如 `group_line_media_2022_half.html`）、`/prompt/*.php`、留言頁、`/api/*.php`、管理和寫入入口、靜態資源。
+   - 這些路徑不會轉址，留在舊 origin，所以舊站功能和資料都保留；匿名請求目前拿到 Under Attack 挑戰頁。
+   - 如果 Codex 從 GSC 匯出看到其中有流量或索引，再逐一補上語意對應，並把它們加進白名單：先改新站對應，再更新純文字檔和 Cloudflare 規則。
+   - 留言頁要等新站留言功能上線後才加。
 5. **其他 session 要注意**：之後任何換 `web` 的 release，都必須包含 main 的 `7ea09a5`，或覆蓋同樣兩個檔案，否則會退回這次的修正。
+6. **`/ai/days/{date}/{非 ASCII 條件}` 回 503**（例如 `全部`），而未知的 ASCII 條件（`xyz`）回 200。舊站只產生 `all`、`green`、`blue`、`neutral`、`finance`、`world`，都是 200，所以不影響舊網址遷移。
+   正確的回應應該是 404。這次照指示沒有改服務，留給後續修正。
