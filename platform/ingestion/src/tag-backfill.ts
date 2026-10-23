@@ -2,7 +2,7 @@ import {tagMetricsFromEvidence} from '../../shared/cache-metrics.js';
 import type { RowDataPacket } from 'mysql2/promise';
 import type { PlaylistItem } from './youtube.js';
 import { taipeiSql, upsert } from './legacy-db.js';
-import { isRunStoppingYoutubeError } from './channel-jobs.js';
+import { isLiveCandidate, isRunStoppingYoutubeError } from './channel-jobs.js';
 import type { SourceJobContext } from './video-statistics.js';
 export interface TagSelection { tagIds: number[]; orTagIds?: number[]; notTagIds?: number[] }
 export interface TagDictionary {
@@ -58,7 +58,7 @@ async function crawlChannel(ctx: SourceJobContext, channel: RowDataPacket, input
     // Laravel upsertByKeys overwrites ctime on existing rows as well.
     await upsert(ctx.db, 'urt_video', { videoId: item.videoId }, { ctime: at, id: item.id, publishedAt, channelId: item.channelId, title: item.title, thumbnails: item.thumbnails, channelTitle: item.channelTitle, playlistId: item.playlistId, position: item.position, u_id: channel.u_id, description: item.description });
     await upsert(ctx.db, 'urt_video_schedule', { videoId: item.videoId }, { ctime: at, publishedAt });
-    if (item.liveBroadcastContent === 'live' || item.liveBroadcastContent === 'upcoming' || item.thumbnails.includes('default_live.jpg')) {
+    if (isLiveCandidate(item)) {
       await upsert(ctx.db, 'urt_video_live', { videoId: item.videoId }, { ctime: at, publishedAt, u_id: channel.u_id });
     }
   }

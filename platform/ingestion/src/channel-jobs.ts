@@ -83,7 +83,10 @@ export async function publishUploads(ctx: SourceJobContext, uId: number, items: 
     if (isLiveCandidate(item)) await upsert(ctx.db, tvbs ? 'urt_video_live_tvbs' : 'urt_video_live', { videoId: item.videoId }, { ctime: at, publishedAt, u_id: uId });
   }
 }
-export const isLiveCandidate = (item: PlaylistItem) => item.liveBroadcastContent === 'live' || item.liveBroadcastContent === 'upcoming' || item.thumbnails.includes('default_live.jpg');
+/** Laravel/legacy marked live and upcoming uploads by a `default_live.jpg` thumbnail. Since 2026-10-22 04:00 Taipei YouTube
+ * serves those as `default.jpg?v=<hex>` instead; playlistItems never carries liveBroadcastContent, so both forms count. */
+export const isLiveThumbnail = (url: string) => url.includes('default_live.jpg') || /default\.jpg\?v=/.test(url);
+export const isLiveCandidate = (item: PlaylistItem) => item.liveBroadcastContent === 'live' || item.liveBroadcastContent === 'upcoming' || isLiveThumbnail(item.thumbnails);
 /** Laravel estimateNextVtime: the 08:00 Taipei rule is checked on the raw interval, then the two-hour floor applies. */
 export function nextUploadsCheck(now: Date, weekCount: number) {
   let interval = weekCount > 0 ? 604800 / weekCount / 3 : 604800;

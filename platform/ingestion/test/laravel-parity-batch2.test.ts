@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { Connection } from 'mysql2/promise';
 import { YoutubeDataApiClient } from '../src/youtube.js';
 import { YoutubeError, youtubeFailureDetail } from '../src/quota.js';
-import { channelStatisticsJob, channelUploadsJob, nextUploadsCheck, uploadsJobKey } from '../src/channel-jobs.js';
+import { channelStatisticsJob, channelUploadsJob, isLiveThumbnail, nextUploadsCheck, uploadsJobKey } from '../src/channel-jobs.js';
 import { videoStatisticsJob, publishVideoStatistics, nextStatisticsCheck, type SourceJobContext } from '../src/video-statistics.js';
 import { livePollingJob, publishLiveDetails } from '../src/live-polling.js';
 import { videoDurationsJob } from '../src/video-durations.js';
@@ -111,6 +111,20 @@ describe('channel discovery (youtube.channels.videos.* / youtube.tvbs.videos)', 
     expect(wrap.calls[1]!.params).toEqual(['%[29]%', 3, 4]); expect(wrap.calls[2]!.params).toEqual(['%[29]%', 2]);
     expect(result.applied.map(r => r.uId)).toEqual([5, 1, 2]);
     expect(wrap.writes('urt_channel')).toEqual([]); expect(wrap.writes('urt_video_live')).toEqual([]); expect(wrap.writes('urt_video_live_tvbs')).toHaveLength(3);
+  });
+});
+
+describe('live thumbnail marker', () => {
+  it('accepts the legacy default_live.jpg and the versioned default.jpg?v= form YouTube serves since 2026-10-22', () => {
+    expect(isLiveThumbnail('https://i.ytimg.com/vi/kgZ8Es6vM0A/default_live.jpg')).toBe(true);
+    expect(isLiveThumbnail('https://i.ytimg.com/vi/V1RMRVkmdZ0/default.jpg?v=6adaefde')).toBe(true);
+    expect(isLiveThumbnail('https://i.ytimg.com/vi/Sn1eyjgnb0M/default.jpg')).toBe(false);
+  });
+  it('writes a urt_video_live row for a versioned-thumbnail upload in general discovery', async () => {
+    const f = fakeDb(sql => sql.includes('FROM urt_channel c') ? [{ u_id: 8, uploads: 'UUfixture' }] : []);
+    const client = youtube(() => ({ body: { items: [item('Vid0000003', '2026-10-23T06:00:00Z', { thumbnails: { default: { url: 'https://i.ytimg.com/vi/Vid0000003/default.jpg?v=6adaefde' } } })] } }));
+    await channelUploadsJob(ctx(f.db, client), { limit: 1, maxPages: 1, days: 7 });
+    expect(f.writes('urt_video_live')).toHaveLength(1);
   });
 });
 

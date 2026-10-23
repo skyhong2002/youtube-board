@@ -13,9 +13,12 @@ const laravel: [workflow: string, cron: string, command: string][] = [
   ['youtube.live.poll', '* * * * *', 'youtube:live:poll --limit=50 --execute'],
   ['youtube.tvbs.live.poll', '* * * * *', 'youtube:tvbs:live:poll --limit=20 --execute'],
   ['youtube.live.cleanup', '27 */2 * * *', 'youtube:live:cleanup --limit=100 --execute'],
-  ['youtube.channels.videos.live_group', '1,31 0-15 * * *', 'youtube:channels:videos:live-group --limit=3 --max-results=5 --execute'],
-  ['youtube.channels.videos.live', '5 2-16 * * *', 'youtube:channels:videos:live --limit=3 --max-results=5 --execute'],
-  ['youtube.channels.videos.general', '*/5 * * * *', 'youtube:channels:videos --limit=5 --max-results=3 --execute'],
+  // Discovery reads 50 items like the original get_video.php (maxResults=50), not Laravel's 3/5: the next check
+  // is estimated from the first page's week count, so a 3-item page pushed busy channels ~19 hours out and
+  // missed their daily live windows. General discovery runs Laravel's 10-channel execute cap (2026-10-23).
+  ['youtube.channels.videos.live_group', '1,31 0-15 * * *', 'youtube:channels:videos:live-group --limit=3 --max-results=50 --execute'],
+  ['youtube.channels.videos.live', '5 2-16 * * *', 'youtube:channels:videos:live --limit=3 --max-results=50 --execute'],
+  ['youtube.channels.videos.general', '*/5 * * * *', 'youtube:channels:videos --limit=10 --max-results=50 --execute'],
   ['youtube.tvbs.videos', '*/5 * * * *', 'youtube:tvbs:videos --limit=1 --max-results=1 --offset=auto --execute'],
   // Laravel also passes --keyword-limit=100000; TS matches the pinned upstream vocabulary instead of a keyword scan.
   ['youtube.tag_videos.backfill', '17 3,6,9,12,15,18,21 * * *', 'youtube:tag-videos:backfill --days=2 --limit=100 --max-pages=20 --max-results=50 --tagid=102 --execute'],
