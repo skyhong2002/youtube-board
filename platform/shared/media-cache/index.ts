@@ -1,6 +1,6 @@
 import type {ChannelAvatar,ChannelAvatarIdentity} from '../media-assets.js';
 import {channelAvatarUrl,isChannelAssetId} from '../media-assets.js';
-import {readManifest} from './store.js';
+import {listAvatarRevisions,readManifest} from './store.js';
 export async function readCachedChannelIds():Promise<ReadonlySet<number>>{
  const root=process.env.MEDIA_CACHE_ROOT,manifest=root?await readManifest(root):null;
  return new Set(manifest?Object.keys(manifest.entries).map(Number):[]);
@@ -16,4 +16,9 @@ export async function readChannelAvatars(identities:ChannelAvatarIdentity[]):Pro
   const url=channelAvatarUrl(identity.id,item.revision);if(url)out.set(identity.id,{url,revision:item.revision,width:192,height:192,cachedAt:item.cachedAt});
  }
  return out;
+}
+/** Retained logo revisions of one channel (oldest first); empty when the cache is absent or unreadable. */
+export async function readChannelAvatarRevisions(id:number):Promise<ChannelAvatar[]>{
+ const root=process.env.MEDIA_CACHE_ROOT;if(!root)return [];
+ try{return (await listAvatarRevisions(root,id)).flatMap(r=>{const url=channelAvatarUrl(id,r.revision);return url?[{url,revision:r.revision,width:192 as const,height:192 as const,cachedAt:r.cachedAt}]:[];});}catch{return [];}
 }

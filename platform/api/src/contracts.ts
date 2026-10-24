@@ -248,7 +248,15 @@ export interface HomeData {
     events: TopicRow[];
     aiDate: string | null;
 }
+/** One observed channel name: when it was first seen and the logo cached while it was current. */
+export interface ChannelNameVersion {
+    title: string;
+    observedAt: string;
+    avatar: ChannelAvatar | null;
+}
 export interface ChannelData {
+    /** Newest first, empty until a rename is observed; null when name history is not provisioned. */
+    nameHistory: ChannelNameVersion[] | null;
     aiSummary: ReportData;
     dailySummary: ReportData;
     trendAvailable: boolean;

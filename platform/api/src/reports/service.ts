@@ -16,6 +16,7 @@ import { readAiDaily } from './daily-report.js';
 import {loadVideoComments,summarizeVideoComments} from './video-analytics.js';
 import { CHANNEL_SORTS, type ChannelRankingScope, type ChannelSort } from '../../../shared/channel-ranking.js';
 import { optionalChannelAi } from './channel-ai.js';
+import { channelNameHistory } from './channel-title-history.js';
 import { homeExploration, type KeywordWindows } from './home-exploration.js';
 import { keywordWindowCache } from './home-keyword-cache.js';
 import { rankingDisplayExclusions } from './keyword-overlay.js';
@@ -225,8 +226,8 @@ export function reports(reader: Reader, clock: () => Date = () => new Date(), di
             const r = (await reader.rows(sql `SELECT ${channelSelect} FROM urt_channel c LEFT JOIN urt_count n ON n.u_id=c.u_id WHERE c.u_id=${id} AND (c.flag_del IS NULL OR c.flag_del<1) LIMIT 1`))[0];
             if (!r)
                 throw new NotFound();
-            const [aiSummary,dailySummary,trend,videos,tagNames]=await Promise.all([optionalChannelAi(reader,id,'overview'),optionalChannelAi(reader,id,'daily'),reader.rows(sql`SELECT EXISTS(SELECT 1 FROM urt_log WHERE u_id=${id} LIMIT 1) AS present`),videoRows({channelId:String(id),limit:'50'}),names()]);
-            return { channel:channel(r,tagNames),videos:videos.rows,aiSummary,dailySummary,trendAvailable:integer(trend[0]?.present)===1 };
+            const [aiSummary,dailySummary,trend,videos,tagNames,nameHistory]=await Promise.all([optionalChannelAi(reader,id,'overview'),optionalChannelAi(reader,id,'daily'),reader.rows(sql`SELECT EXISTS(SELECT 1 FROM urt_log WHERE u_id=${id} LIMIT 1) AS present`),videoRows({channelId:String(id),limit:'50'}),names(),channelNameHistory(reader,id)]);
+            return { channel:channel(r,tagNames),videos:videos.rows,aiSummary,dailySummary,trendAvailable:integer(trend[0]?.present)===1,nameHistory };
         },
         video: async (id) => {
             const r = (await reader.rows(sql `SELECT * FROM urt_video WHERE videoId=${id} AND BINARY videoId=BINARY ${id} ORDER BY pk DESC LIMIT 1`))[0];
