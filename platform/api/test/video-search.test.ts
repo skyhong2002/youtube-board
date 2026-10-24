@@ -38,3 +38,13 @@ it('unfiltered and channel totals skip the urt_count join, tag-scoped totals kee
  expect(counts[1]).not.toContain('urt_count');
  expect(counts[2]).toContain('LEFT JOIN urt_count n ON n.u_id=v.u_id');
 });
+it('the unfiltered archive total is shared across requests; filtered and failed totals are not',async()=>{
+ const counts:string[]=[];let fail=true;const reader:Reader={rows:async query=>{const q=dialect.sqlToQuery(query);if(q.sql.startsWith('SELECT COUNT(*) AS total')){counts.push(q.sql);if(fail){fail=false;throw new DataSourceUnavailable();}return [{total:counts.length}] as any;}return(q.sql.includes('MIN(boundary.')?[{selected:0,nulls:0,cutoff:null}]:[])as any;},close:async()=>{}};
+ const service=reports(reader);
+ expect(await service.videos({})).toMatchObject({total:null,totalStatus:'unavailable'});
+ const [first,second]=await Promise.all([service.videos({}),service.videos({column:'viewCount',offset:'50'})]);
+ expect(first).toMatchObject({total:2,totalStatus:'exact'});expect(second).toMatchObject({total:2,totalStatus:'exact'});
+ expect(await service.videos({})).toMatchObject({total:2});expect(counts).toHaveLength(2);
+ for(const query of [{channelId:'12'},{channelIds:'3'},{from:'2026-10-01'},{to:'2026-10-01'},{hours:'24'},{min:'100'},{since:'2026-10-01T00:00:00.000Z',until:'2026-10-02T00:00:00.000Z'},{tagid:'3'}])await service.videos(query);
+ expect(counts).toHaveLength(10);
+});
