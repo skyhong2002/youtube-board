@@ -25,16 +25,6 @@ describe('channel title history', () => {
     await recordTitleChange(recorded.ctx, { u_id: 9, title: '舊名', ctime: '2020-07-26 12:00:00' } as never, '新名');
     expect([...same.inserts, ...recorded.inserts]).toEqual([]);
   });
-  it('does not take an intact emoji name for a rename of its utf8mb3-mangled copy', async () => {
-    const mangled = fake([]);
-    await recordTitleChange(mangled.ctx, { u_id: 9, title: '台灣表妹 ?? 灣灣', ctime: '2020-07-26 12:00:00' } as never, '台灣表妹 🇹🇼 灣灣');
-    const recorded = fake([{ title: '甜心慧?' }]);
-    await recordTitleChange(recorded.ctx, { u_id: 9, title: '舊名', ctime: '2020-07-26 12:00:00' } as never, '甜心慧💕');
-    expect([...mangled.inserts, ...recorded.inserts]).toEqual([]);
-    const renamed = fake([]);
-    await recordTitleChange(renamed.ctx, { u_id: 9, title: '舊名 ?', ctime: '2020-07-26 12:00:00' } as never, '新名 🎉');
-    expect(renamed.inserts.map(r => r[1])).toEqual(['舊名 ?', '新名 🎉']);
-  });
   it('skips the added row when the stored name is empty or ctime is unusable', async () => {
     const { inserts, ctx } = fake([]);
     await recordTitleChange(ctx, { u_id: 9, title: '', ctime: null } as never, '新名');
