@@ -18,7 +18,7 @@ import {analyticsTransportEnabled} from '../shared/analytics-runtime.js';
 const databases=frontendDatabases(process.env);
 const apiKeys=databases.state?mysqlApiKeyStore(databases.state):null;
 const apiKeysReady=apiKeys?await apiKeys.ready():false;
-const app = buildApp({sitemapWarmup:true,publicApi:{keys:apiKeysReady?apiKeys:null}});
+const app = buildApp({sitemapWarmup:true,homeWarmup:true,publicApi:{keys:apiKeysReady?apiKeys:null}});
 if(apiKeys)app.addHook('onClose',()=>apiKeys.close());
 const auth=await registerAuth(app,{databaseUrl:databases.auth,env:{...process.env,DATABASE_URL:databases.auth}});
 await registerReaderAccounts(app,auth,{databaseUrl:databases.auth});
