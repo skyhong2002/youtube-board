@@ -47,6 +47,9 @@ const channelSelect = sql `c.u_id,c.youtube_id,c.title,c.thumbnails,c.descriptio
 export function reports(reader: Reader, clock: () => Date = () => new Date(), diagnostic?:HomeDiagnosticCallback,rankingPools?:RankedPoolClient,keywordStore?:KeywordWindowStore<KeywordWindows>,keywordSource?:KeywordSource): ReportService {
     let cachedHome=homeResultCache();const cachedKeywordWindows=keywordWindowCache<KeywordWindows>(value=>value.keywords.status==='synchronized'&&value.keywordToday.status==='synchronized',{store:keywordStore});
     const cachedKeywordVideos=keywordVideoCache<VideoCollection>({cacheable:(value,query)=>query.cursor===undefined&&value.totalStatus!=='unavailable'&&value.evidenceCoverage?.coverageStatus!=='unavailable'});
+    // InnoDB has no stored row count: the unfiltered archive total scans an index
+    // (~0.8 s under load). It only grows with ingestion, so share it for 5 minutes.
+    const cachedArchiveTotal=keywordVideoCache<number>({ttlMs:300_000,maxKeys:1,maxPending:1,maxBytes:4096,maxResultBytes:64});
     const names = async () => new Map((await reader.rows(sql `SELECT tag_id,tag_name FROM urt_tag ORDER BY tag_id`)).map(r => [integer(r.tag_id) ?? 0, text(r.tag_name)]));
     const channelWhere = (query: Query): SQL => {
         const term = search(query.q);
@@ -158,11 +161,13 @@ export function reports(reader: Reader, clock: () => Date = () => new Date(), di
             if(term)return {total:null,totalStatus:'not-computed'};
             // urt_count.u_id is unique, so the LEFT JOIN cannot change the count
             // unless the predicate reads n.*. MariaDB eliminates the join but then
-            // scans every urt_video index entry (~1.2 s); without it, MyISAM answers
-            // the unfiltered total from table metadata.
+            // scans every urt_video index entry (~1.2 s). Without it the unfiltered
+            // total is still an index scan on InnoDB, so it comes from cachedArchiveTotal.
             const tagScoped=requestedScope==='taxonomy'||idList(query.tagid).length>0||idList(query.or).length>0||idList(query.not).length>0;
             const countSource=keyword||tagScoped?source:sql`FROM urt_video v`;
-            try{const rows=await reader.rows(sql`SELECT COUNT(*) AS total ${countSource} WHERE ${where}`);return {total:integer(rows[0]?.total)??0,totalStatus:'exact'};}
+            const unfiltered=!keyword&&!tagScoped&&channelId===null&&!ids.length&&!exactWindow&&!from&&!to&&hours===null&&min===null&&dayFrom===null&&!cursor;
+            const total=async()=>integer((await reader.rows(sql`SELECT COUNT(*) AS total ${countSource} WHERE ${where}`))[0]?.total)??0;
+            try{return {total:unfiltered?await cachedArchiveTotal({},undefined,total):await total(),totalStatus:'exact'};}
             catch(error){if(error instanceof DataSourceUnavailable)return {total:null,totalStatus:'unavailable'};throw error;}
         };
         // The unbounded historical coverage scan is independent of the indexed
