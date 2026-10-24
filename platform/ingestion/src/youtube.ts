@@ -18,6 +18,8 @@ const str = (value: unknown) => typeof value === 'string' ? value : '';
 export interface VideoStatistics { viewCount: number; likeCount: number | null; dislikeCount: number; favoriteCount: number | null; commentCount: number | null }
 export interface ChannelProfile { id:string; title:string; description:string; uploads:string; publishedAt:string; thumbnail:string|null; statistics:ChannelStatistics }
 export interface ChannelStatistics { viewCount: number; videoCount: number; subscriberCount: number | null; hiddenSubscriberCount: boolean }
+/** Same channels.list call (1 unit per 50 ids) also carries the current name and default avatar URL. */
+export interface ChannelSnapshot extends ChannelStatistics { title?: string; thumbnail?: string }
 export interface PlaylistItem { id: string; videoId: string; publishedAt: string; channelId: string; title: string; description: string; thumbnails: string; channelTitle: string; playlistId: string; position: number; liveBroadcastContent: 'none' | 'live' | 'upcoming' }
 export interface Page<T> { items: T[]; nextPageToken: string | null }
 export interface RequestAudit { method: string; attempt: number; status: number | null; ok: boolean; failure?: YoutubeFailure; units: 1 }
@@ -133,14 +135,17 @@ export class YoutubeDataApiClient {
     if (items.some(item => !record(item) || !ids.includes(str(item.id)))) throw new YoutubeError('invalid-response');
     return items.filter(record).map(item => str(item.id));
   }
-  async channelStatistics(values: string[]): Promise<Map<string, ChannelStatistics>> {
-    const ids = this.ids(values); const result = new Map<string, ChannelStatistics>(); if (!ids.length) return result;
-    const data = await this.get('channels', { part: 'statistics', id: ids.join(','), maxResults: '50' });
+  async channelStatistics(values: string[]): Promise<Map<string, ChannelSnapshot>> {
+    const ids = this.ids(values); const result = new Map<string, ChannelSnapshot>(); if (!ids.length) return result;
+    const data = await this.get('channels', { part: 'snippet,statistics', id: ids.join(','), maxResults: '50' });
     for (const item of this.items(data)) {
       if (!record(item) || !ids.includes(str(item.id)) || !record(item.statistics)) continue;
       const s = item.statistics, viewCount = unsigned(s.viewCount), videoCount = unsigned(s.videoCount), subscriberCount = unsigned(s.subscriberCount), hidden = s.hiddenSubscriberCount ?? false;
       if (viewCount === null || videoCount === null || typeof hidden !== 'boolean' || (subscriberCount === null && !hidden)) continue;
-      result.set(str(item.id), { viewCount, videoCount, subscriberCount, hiddenSubscriberCount: hidden });
+      // Snippet is optional: a malformed name or avatar never blocks the statistics write.
+      const snippet = record(item.snippet) ? item.snippet : {}, title = str(snippet.title).trim(), thumbnails = record(snippet.thumbnails) ? snippet.thumbnails : {}, avatar = str(record(thumbnails.default) ? thumbnails.default.url : '');
+      let thumbnail: string | undefined; if (avatar.length <= 256) { try { const u = new URL(avatar); if (u.protocol === 'https:' && !u.username && !u.password && ['yt3.ggpht.com', 'yt3.googleusercontent.com'].includes(u.hostname)) thumbnail = avatar; } catch { /* Optional image omitted. */ } }
+      result.set(str(item.id), { viewCount, videoCount, subscriberCount, hiddenSubscriberCount: hidden, ...(title && [...title].length <= 256 ? { title } : {}), ...(thumbnail ? { thumbnail } : {}) });
     } return result;
   }
   async videoStatistics(values: string[]): Promise<Map<string, VideoStatistics>> {
