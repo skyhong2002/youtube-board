@@ -78,6 +78,10 @@
           "INSERT",
           "UPDATE",
           "DELETE"
+        ],
+        "ts_channel_title_history": [
+          "SELECT",
+          "INSERT"
         ]
       },
       "dependencies": []

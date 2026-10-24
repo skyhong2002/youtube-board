@@ -1,6 +1,6 @@
 import type { RowDataPacket } from 'mysql2/promise';
 import { clearItemBackoff, recordItemBackoff } from './backoff.js';
-import { jsonMap, selectOne, taipeiSql, update, upsert } from './legacy-db.js';
+import { jsonMap, legacyInstant, selectOne, taipeiSql, update, upsert } from './legacy-db.js';
 import type { SourceJobContext } from './video-statistics.js';
 import type { ChannelSnapshot, PlaylistItem } from './youtube.js';
 import { isYoutubeItemFailure, YoutubeError, youtubeFailureDetail } from './quota.js';
@@ -14,6 +14,18 @@ const laravelActiveChannel = 'c.flag_del IS NULL';
 const RUN_STOPPING = new Set(['quota-exhausted', 'quota-budget', 'quota-comment-budget', 'quota-daily', 'quota-window', 'authentication', 'rate-limit', 'not-configured']);
 export const isRunStoppingYoutubeError = (error: unknown): error is YoutubeError => error instanceof YoutubeError && RUN_STOPPING.has(error.code);
 const missingLog = 'NOT EXISTS (SELECT 1 FROM urt_log l WHERE l.u_id = c.u_id)';
+const utcSql = (date: Date) => date.toISOString().slice(0, 19).replace('T', ' ');
+/** Append the observed name before urt_channel changes, so a failed write retries without losing the rename. A channel's
+ * first recorded rename also stores the name it was added under, dated by its legacy ctime. */
+export async function recordTitleChange(ctx: SourceJobContext, row: RowDataPacket, title: string) {
+  const stored = String(row.title ?? '').trim();
+  if (title === stored) return;
+  const [last] = await ctx.db.query<RowDataPacket[]>('SELECT title FROM ts_channel_title_history WHERE u_id = ? ORDER BY observed_at DESC, id DESC LIMIT 1', [row.u_id]);
+  if (last[0]?.title === title) return;
+  const added = legacyInstant(row.ctime);
+  if (!last.length && stored && added && added < ctx.now) await ctx.db.execute('INSERT INTO ts_channel_title_history (u_id, title, observed_at, origin) VALUES (?, ?, ?, ?)', [row.u_id, stored.slice(0, 256), utcSql(added), 'added']);
+  await ctx.db.execute('INSERT INTO ts_channel_title_history (u_id, title, observed_at, origin) VALUES (?, ?, ?, ?)', [row.u_id, title, utcSql(ctx.now), 'stats']);
+}
 export async function publishChannelStatistics(ctx: SourceJobContext, row: RowDataPacket, stats: ChannelSnapshot) {
   if (stats.viewCount <= 0) throw new Error('Channel view count is not positive');
   const at = taipeiSql(ctx.now), date = at.slice(0, 10), month = date.slice(0, 7) + '-01', u_id = row.u_id;
@@ -25,6 +37,7 @@ export async function publishChannelStatistics(ctx: SourceJobContext, row: RowDa
   const values = { mtime: at, viewCount: stats.viewCount, videoCount: stats.videoCount, ...(stats.subscriberCount === null ? {} : { subscriberCount: stats.subscriberCount }) };
   await upsert(ctx.db, 'urt_count', { u_id }, { ...(count ? {} : { ctime: at }), ...values });
   // Legacy only wrote name/avatar when a channel was added; renames and expired yt3 URLs now follow the daily stats sweep.
+  if (stats.title) await recordTitleChange(ctx, row, stats.title);
   await update(ctx.db, 'urt_channel', { u_id }, { ...values, ...(stats.title ? { title: stats.title } : {}), ...(stats.thumbnail ? { thumbnails: stats.thumbnail } : {}), stime: at });
 }
 export async function channelStatisticsJob(ctx: SourceJobContext, input: { uId?: number; limit: number; hours?: number }) {

@@ -73,6 +73,15 @@ export async function withCacheWriter<T>(root:string,work:()=>Promise<T>):Promis
  try{lock=await open(path,'wx',0o600);}catch{fail('CACHE_WRITER_BUSY');}
  try{return await work();}finally{await lock!.close();await unlink(path);}
 }
+/** Every retained PNG revision of one channel, oldest first, dated by file mtime (when it was cached).
+ * Old revisions are never deleted, so this is the channel's observed logo history. */
+export async function listAvatarRevisions(root:string,id:number):Promise<Array<{revision:string;cachedAt:string}>>{
+ if(!isChannelAssetId(id))fail('INVALID_ASSET');
+ const base=await checkedRoot(root),channels=await directory(base,'channels'),channel=await directory(channels,String(id));
+ const names=(await readdir(channel)).filter(f=>/^[a-f0-9]{64}\.png$/.test(f)).slice(0,64),out:Array<{revision:string;cachedAt:string}>=[];
+ for(const name of names){const stat=await lstat(join(channel,name));if(stat.isFile()&&!stat.isSymbolicLink()&&Number.isFinite(stat.mtimeMs))out.push({revision:name.slice(0,64),cachedAt:new Date(stat.mtimeMs).toISOString()});}
+ return out.sort((a,b)=>a.cachedAt.localeCompare(b.cachedAt)||a.revision.localeCompare(b.revision));
+}
 export async function readAvatarBytes(root:string,id:number,revision:string):Promise<Buffer>{
  if(!channelAvatarUrl(id,revision))fail('INVALID_ASSET');
  const base=await checkedRoot(root),channels=await directory(base,'channels'),channel=await directory(channels,String(id));

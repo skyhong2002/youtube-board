@@ -38,7 +38,7 @@ test('production requires explicit restricted IPv4 account host and a contiguous
 test('public report grants exclude private identities, saved items and operational queues',async()=>{
  const plan=await planFrontend();
  for(const grant of plan.grants.filter(g=>g.endsWith("TO 'youtube_ts_report'@'%'"))){assert.doesNotMatch(grant,/ts_(?:auth_|reader_|notification_|job_|comment_stage|youtube_item)/);if(grant.includes('`.`ts_'))assert.ok([...publicStateTables,...reportStateTables].some(t=>grant.includes('`'+t+'`')));}
- assert.deepEqual(reportStateTables,['ts_keyword_reviews']);
+ assert.deepEqual(reportStateTables,['ts_keyword_reviews','ts_channel_title_history']);
  for(const grant of plan.grants.filter(g=>g.endsWith("TO 'youtube_ts_state'@'%'")))assert.ok(grant.includes('ON `youtube_board_ts`.'));
 });
 test('postcreate privilege inspection fails closed on unexpected grants',async()=>{

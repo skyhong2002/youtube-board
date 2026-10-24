@@ -420,3 +420,13 @@ CREATE TABLE IF NOT EXISTS ts_reader_api_keys (
  INDEX reader_api_key_owner (user_id,revoked_at,id),
  CONSTRAINT reader_api_key_user FOREIGN KEY (user_id) REFERENCES ts_auth_users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+-- TS-owned definitions from 017_channel_title_history.sql.
+CREATE TABLE IF NOT EXISTS ts_channel_title_history (
+ id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ u_id INT NOT NULL,
+ title VARCHAR(256) NOT NULL,
+ observed_at DATETIME NOT NULL,
+ origin VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ INDEX channel_title_history_lookup (u_id,observed_at,id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
