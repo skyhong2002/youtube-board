@@ -73,6 +73,17 @@ slow log（0.5 s）比較，基準 `baseline-slow.log` 44.8 分鐘、轉換後 `
 
 表鎖等待已經消失；代價是 buffer pool 壓力，讓本來就是 InnoDB 的 keyword evidence 查詢變慢。
 
+### issue 第 3 點：最慢的 worker 查詢
+
+兩份 slow log 裡最慢的都是 `ingestion/src/video-durations.ts` 選待補時長影片的查詢
+（`urt_video LEFT JOIN urt_video_duration LEFT JOIN ts_youtube_item_backoff … ORDER BY … LIMIT 25`）：
+基準 56.6 s，轉換後 57.6／92.7 s，每次 `Rows_examined` 約 8,500 萬，並產生落盤暫存表。轉換前就這樣，不是退步。
+
+原因：`ts_youtube_item_backoff.video_id` 是 `ascii_bin`，`urt_video.videoId` 是 `utf8mb4_bin`。
+`b.video_id = v.videoId` 要轉換字元集，所以 PRIMARY 只用到 `workflow` 前綴（plan：`ref const`，每部影片 111 列），
+76.7 萬部 × 111 ≈ 8,500 萬列。`recent-video-evidence.ts` 已經用 `CONVERT(v.videoId USING ascii)` 避開同樣的問題；
+duration 查詢照做即可。這需要 worker release。
+
 ## 回滾
 
 - 單表：`ALTER TABLE youtube_board.<t> ENGINE=MyISAM`（同樣要先停 worker）。
