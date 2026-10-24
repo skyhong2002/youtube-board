@@ -2,7 +2,7 @@ import type { RowDataPacket } from 'mysql2/promise';
 import { clearItemBackoff, recordItemBackoff } from './backoff.js';
 import { jsonMap, selectOne, taipeiSql, update, upsert } from './legacy-db.js';
 import type { SourceJobContext } from './video-statistics.js';
-import type { ChannelStatistics, PlaylistItem } from './youtube.js';
+import type { ChannelSnapshot, PlaylistItem } from './youtube.js';
 import { isYoutubeItemFailure, YoutubeError, youtubeFailureDetail } from './quota.js';
 
 export function cap(value: number, max: number, min = 1) { if (!Number.isSafeInteger(value) || value < min || value > max) throw new Error('Invalid source workflow cap'); return value; }
@@ -14,7 +14,7 @@ const laravelActiveChannel = 'c.flag_del IS NULL';
 const RUN_STOPPING = new Set(['quota-exhausted', 'quota-budget', 'quota-comment-budget', 'quota-daily', 'quota-window', 'authentication', 'rate-limit', 'not-configured']);
 export const isRunStoppingYoutubeError = (error: unknown): error is YoutubeError => error instanceof YoutubeError && RUN_STOPPING.has(error.code);
 const missingLog = 'NOT EXISTS (SELECT 1 FROM urt_log l WHERE l.u_id = c.u_id)';
-export async function publishChannelStatistics(ctx: SourceJobContext, row: RowDataPacket, stats: ChannelStatistics) {
+export async function publishChannelStatistics(ctx: SourceJobContext, row: RowDataPacket, stats: ChannelSnapshot) {
   if (stats.viewCount <= 0) throw new Error('Channel view count is not positive');
   const at = taipeiSql(ctx.now), date = at.slice(0, 10), month = date.slice(0, 7) + '-01', u_id = row.u_id;
   const log = await selectOne(ctx.db, 'urt_log', { u_id, themonth: month });
@@ -24,7 +24,8 @@ export async function publishChannelStatistics(ctx: SourceJobContext, row: RowDa
   const count = await selectOne(ctx.db, 'urt_count', { u_id });
   const values = { mtime: at, viewCount: stats.viewCount, videoCount: stats.videoCount, ...(stats.subscriberCount === null ? {} : { subscriberCount: stats.subscriberCount }) };
   await upsert(ctx.db, 'urt_count', { u_id }, { ...(count ? {} : { ctime: at }), ...values });
-  await update(ctx.db, 'urt_channel', { u_id }, { ...values, stime: at });
+  // Legacy only wrote name/avatar when a channel was added; renames and expired yt3 URLs now follow the daily stats sweep.
+  await update(ctx.db, 'urt_channel', { u_id }, { ...values, ...(stats.title ? { title: stats.title } : {}), ...(stats.thumbnail ? { thumbnails: stats.thumbnail } : {}), stime: at });
 }
 export async function channelStatisticsJob(ctx: SourceJobContext, input: { uId?: number; limit: number; hours?: number }) {
   channelId(input.uId); cap(input.limit, 50); const hours = cap(input.hours ?? 22, 168), job = 'youtube.channels.stats';
@@ -33,7 +34,7 @@ export async function channelStatisticsJob(ctx: SourceJobContext, input: { uId?:
   const applied: number[] = [], skipped: { uId: number; reason: string }[] = [];
   if (!ctx.execute || !rows.length) return { mode: ctx.execute ? 'execute' : 'dry-run', selected: rows.length, apiAttempts: 0, applied, skipped };
   await ctx.assertOwnership(); const valid = rows.filter(r => /^[A-Za-z0-9_-]{1,32}$/.test(String(r.youtube_id)));
-  let result: Map<string, ChannelStatistics>;
+  let result: Map<string, ChannelSnapshot>;
   try { result = await ctx.youtube.channelStatistics(valid.map(r => r.youtube_id)); }
   catch (error) {
     if (!isYoutubeItemFailure(error)) throw error;

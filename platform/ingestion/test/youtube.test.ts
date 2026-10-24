@@ -43,6 +43,17 @@ it('honors hidden subscribers without replacing them by zero and presence reject
   expect((await api.channelStatistics(['UCtest'])).get('UCtest')?.subscriberCount).toBeNull();
   await expect(client(response({ items: [null] })).api.channelPresence(['UCtest'])).rejects.toMatchObject({ code: 'invalid-response' });
 });
+it('channel statistics carry the current name and yt3 avatar, dropping malformed snippet fields without losing counts', async () => {
+  const statistics = { viewCount: '20', videoCount: '2', subscriberCount: '5' };
+  const { api } = client(response({ items: [
+    { id: 'UCrenamed', snippet: { title: ' 沈伯洋Puma ', thumbnails: { default: { url: 'https://yt3.ggpht.com/abc=s88-c-k' } } }, statistics },
+    { id: 'UCforeign', snippet: { title: '', thumbnails: { default: { url: 'https://evil.example/a.png' } } }, statistics },
+    { id: 'UCbare', statistics },
+  ] }));
+  const result = await api.channelStatistics(['UCrenamed', 'UCforeign', 'UCbare']);
+  expect(result.get('UCrenamed')).toMatchObject({ viewCount: 20, title: '沈伯洋Puma', thumbnail: 'https://yt3.ggpht.com/abc=s88-c-k' });
+  for (const id of ['UCforeign', 'UCbare']) { expect(result.get(id)).toMatchObject({ viewCount: 20 }); expect(result.get(id)).not.toHaveProperty('title'); expect(result.get(id)).not.toHaveProperty('thumbnail'); }
+});
 it('distinguishes malformed live details from a genuinely absent/non-live API item', async () => {
   const { api } = client(response({ items: [{ id: 'Abc12345678', liveStreamingDetails: { concurrentViewers: '-1' } }, { id: 'abc12345678' }] }));
   const result = await api.videoLiveStreamingDetails(['Abc12345678', 'abc12345678', 'Missing1234']);
