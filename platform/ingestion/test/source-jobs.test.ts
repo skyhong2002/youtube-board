@@ -195,7 +195,7 @@ it.skipIf(!enabled)('uploads write failures retain source rows already published
   try {
     await video(db,b,uId+999,id);
     const item=(videoId:string)=>({id:'PI'+videoId,snippet:{resourceId:{videoId},publishedAt:'2026-10-11T02:00:00Z',channelId:id,title:'title',description:'description',thumbnails:{default:{url:'https://i.ytimg.com/default.jpg'}},channelTitle:'channel',playlistId:'UU'+id,position:0}});
-    // An out-of-range position makes the second item's MyISAM write fail after the first item was published.
+    // An out-of-range position makes the second item's legacy write fail after the first item was published.
     const huge=(videoId:string)=>({...item(videoId),snippet:{...item(videoId).snippet,position:99999999999}});
     expect(await channelUploadsJob(context(db,()=>({items:[item(a),huge(b)]})),{uId,limit:1,maxPages:1,days:7})).toMatchObject({applied:[],skipped:[{uId,reason:'item-processing-failed',partialVideos:[a]}]});
     const[cooldown]=await db.query<RowDataPacket[]>('SELECT vtime FROM urt_channel WHERE u_id=?',[uId]);expect(cooldown[0]?.vtime).toBe('2026-10-12 10:05:00');
@@ -224,7 +224,7 @@ it.skipIf(!enabled)('an API attempt-cap stop retains already published progress 
   const db=await connect(),id=uid(),uId=await channel(db,id),a=uid(),b=uid();
   try{
     // Connection-local queue isolates selection without deleting fixtures owned by other tests.
-    await db.query('CREATE TEMPORARY TABLE urt_comment_queue (pk INT NOT NULL AUTO_INCREMENT PRIMARY KEY, ctime DATETIME NOT NULL, stime DATETIME NULL, ftime DATETIME NULL, videoId VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL) ENGINE=MyISAM');
+    await db.query('CREATE TEMPORARY TABLE urt_comment_queue (pk INT NOT NULL AUTO_INCREMENT PRIMARY KEY, ctime DATETIME NOT NULL, stime DATETIME NULL, ftime DATETIME NULL, videoId VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL) ENGINE=InnoDB');
     await db.query('ALTER TABLE urt_comment_queue AUTO_INCREMENT=1900000000');
     await video(db,a,uId,id);await video(db,b,uId,id);
     const ctx=context(db,()=>({items:[]}));

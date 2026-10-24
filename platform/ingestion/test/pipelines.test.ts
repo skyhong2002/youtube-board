@@ -31,7 +31,7 @@ it.skipIf(!enabled)('real shared quota ledger atomically precharges attempts wit
     await expect(new MysqlQuotaLedger(db, 9999, () => new Date('2099-01-10T20:00:00Z')).precharge(15000)).rejects.toMatchObject({ code: 'quota-exhausted' });
   } finally { if (inserted) await db.execute('DELETE FROM ingestion_youtube_quota_daily WHERE provider = ? AND quota_date = ?', ['youtube_data_api_v3', date]); await db.end(); await other.end(); }
 });
-it.skipIf(!enabled)('statistics writes history/monthly cache before freshness, preserves omitted counts, and replays idempotently on MyISAM', async () => {
+it.skipIf(!enabled)('statistics writes history/monthly cache before freshness, preserves omitted counts, and replays idempotently without a transaction', async () => {
   const db = await connect(), id = uid();
   try {
     await insertVideo(db, id);

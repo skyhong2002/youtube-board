@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS `tag_group` (
   PRIMARY KEY (`pk`),
   KEY `tag` (`tag`),
   KEY `group_name` (`group_name`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `tags` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS `tags` (
   `no_tag` tinyint(4) DEFAULT NULL,
   PRIMARY KEY (`pk`),
   KEY `tag` (`tag`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS `urt_ai_date` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
   `ctime` datetime NOT NULL,
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS `urt_ai_date` (
   KEY `data_type` (`data_type`),
   KEY `condition_type` (`condition_type`),
   KEY `date_to` (`date_to`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `urt_ai_event` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS `urt_ai_event` (
   PRIMARY KEY (`pk`),
   KEY `data_type` (`data_type`),
   KEY `condition_type` (`condition_type`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `urt_ai_hour` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS `urt_ai_hour` (
   `del_flag` int(11) DEFAULT NULL,
   `result_json` text NOT NULL,
   PRIMARY KEY (`pk`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_ai_period` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS `urt_ai_period` (
   `result_json` text NOT NULL,
   PRIMARY KEY (`pk`),
   KEY `data_type` (`data_type`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_channel` (
   `u_id` int(11) NOT NULL AUTO_INCREMENT,
@@ -126,7 +126,7 @@ CREATE TABLE IF NOT EXISTS `urt_channel` (
   KEY `videoCount` (`videoCount`),
   KEY `stime` (`stime`),
   KEY `vtime` (`vtime`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `urt_channel_ai` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -142,7 +142,7 @@ CREATE TABLE IF NOT EXISTS `urt_channel_ai` (
   `result_json` text NOT NULL,
   PRIMARY KEY (`pk`),
   KEY `u_id` (`u_id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_channel_history` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -154,7 +154,7 @@ CREATE TABLE IF NOT EXISTS `urt_channel_history` (
   `description` text NOT NULL,
   PRIMARY KEY (`pk`),
   KEY `u_id` (`u_id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_comment` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -175,7 +175,7 @@ CREATE TABLE IF NOT EXISTS `urt_comment` (
   `comments_json` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   PRIMARY KEY (`pk`),
   UNIQUE KEY `videoId` (`videoId`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_comment_author` (
   `author_id` int(11) NOT NULL AUTO_INCREMENT,
@@ -187,7 +187,7 @@ CREATE TABLE IF NOT EXISTS `urt_comment_author` (
   `DisplayName` varchar(32) NOT NULL,
   PRIMARY KEY (`author_id`),
   KEY `ChannelId` (`ChannelId`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_comment_queue` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -196,7 +196,7 @@ CREATE TABLE IF NOT EXISTS `urt_comment_queue` (
   `ftime` datetime DEFAULT NULL,
   `videoId` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   PRIMARY KEY (`pk`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_comment_queue_done` (
   `pk` int(11) NOT NULL,
@@ -205,7 +205,7 @@ CREATE TABLE IF NOT EXISTS `urt_comment_queue_done` (
   `ftime` datetime DEFAULT NULL,
   `videoId` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   PRIMARY KEY (`pk`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_comment_rev` (
   `author_id` int(11) NOT NULL,
@@ -215,7 +215,7 @@ CREATE TABLE IF NOT EXISTS `urt_comment_rev` (
   `videos` int(11) DEFAULT NULL,
   `index_json` longtext,
   PRIMARY KEY (`author_id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_count` (
   `u_id` int(11) NOT NULL,
@@ -237,7 +237,7 @@ CREATE TABLE IF NOT EXISTS `urt_count` (
   PRIMARY KEY (`u_id`),
   KEY `view_week` (`view_week`),
   KEY `tags` (`tags`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `urt_log` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -248,7 +248,7 @@ CREATE TABLE IF NOT EXISTS `urt_log` (
   `thedata` text COLLATE utf8mb4_unicode_ci,
   PRIMARY KEY (`pk`),
   UNIQUE KEY `fpid` (`u_id`,`themonth`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `urt_log_api` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -258,7 +258,7 @@ CREATE TABLE IF NOT EXISTS `urt_log_api` (
   `api_key` varchar(32) NOT NULL,
   `token` varchar(64) NOT NULL,
   PRIMARY KEY (`pk`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_log_tag` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -269,7 +269,7 @@ CREATE TABLE IF NOT EXISTS `urt_log_tag` (
   `hits` int(11) NOT NULL,
   PRIMARY KEY (`pk`),
   KEY `ctime` (`ctime`,`mtime`,`tag`,`group_condition`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_show_cloud` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -281,7 +281,7 @@ CREATE TABLE IF NOT EXISTS `urt_show_cloud` (
   PRIMARY KEY (`pk`),
   KEY `fpid` (`u_id`),
   KEY `days` (`days`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `urt_show_data` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -303,7 +303,7 @@ CREATE TABLE IF NOT EXISTS `urt_show_live_date` (
   `the_date` date NOT NULL,
   `return_json` longtext,
   PRIMARY KEY (`pk`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_show_live_tag_date` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -328,7 +328,7 @@ CREATE TABLE IF NOT EXISTS `urt_show_live_tag_date` (
   KEY `tagid` (`tagid`,`tag_or`,`tag_not`),
   KEY `tags_count` (`tags_count`),
   KEY `the_date` (`the_date`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `urt_show_photo` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -339,7 +339,7 @@ CREATE TABLE IF NOT EXISTS `urt_show_photo` (
   `image_source` varchar(32) DEFAULT NULL,
   PRIMARY KEY (`pk`),
   KEY `tag` (`tag`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_show_tag_cloud` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -358,7 +358,7 @@ CREATE TABLE IF NOT EXISTS `urt_show_tag_cloud` (
   KEY `tagid` (`tagid`,`tag_or`,`tag_not`),
   KEY `tags_count` (`tags_count`),
   KEY `days` (`days`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `urt_show_tag_cloud_tag` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -380,7 +380,7 @@ CREATE TABLE IF NOT EXISTS `urt_show_tag_cloud_tag` (
   KEY `tags_count` (`tags_count`),
   KEY `days` (`days`),
   KEY `tag` (`tag`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `urt_show_tag_date` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -403,7 +403,7 @@ CREATE TABLE IF NOT EXISTS `urt_show_tag_date` (
   KEY `tagid` (`tagid`,`tag_or`,`tag_not`),
   KEY `tags_count` (`tags_count`),
   KEY `the_date` (`the_date`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `urt_show_tag_month` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -421,7 +421,7 @@ CREATE TABLE IF NOT EXISTS `urt_show_tag_month` (
   KEY `tagid` (`tagid`,`tag_or`,`tag_not`),
   KEY `tag` (`tag`),
   KEY `the_month` (`the_month`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `urt_show_topic` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -441,7 +441,7 @@ CREATE TABLE IF NOT EXISTS `urt_show_topic` (
   PRIMARY KEY (`pk`),
   KEY `the_date` (`the_date`),
   KEY `topic` (`topic`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `urt_show_video_live` (
   `pk_live` int(11) NOT NULL,
@@ -460,7 +460,7 @@ CREATE TABLE IF NOT EXISTS `urt_show_video_live` (
   KEY `videoId` (`videoId`),
   KEY `u_id` (`u_id`),
   KEY `publishedAt` (`publishedAt`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_show_video_tag` (
   `pk_video` int(11) NOT NULL,
@@ -475,7 +475,7 @@ CREATE TABLE IF NOT EXISTS `urt_show_video_tag` (
   PRIMARY KEY (`pk_video`),
   KEY `publishedAt` (`publishedAt`),
   KEY `videoId` (`videoId`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_show_video_tag_date` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -491,7 +491,7 @@ CREATE TABLE IF NOT EXISTS `urt_show_video_tag_date` (
   PRIMARY KEY (`pk`),
   KEY `the_date` (`the_date`),
   KEY `tag` (`tag`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_show_video_tag_title` (
   `pk_video` int(11) NOT NULL,
@@ -506,7 +506,7 @@ CREATE TABLE IF NOT EXISTS `urt_show_video_tag_title` (
   PRIMARY KEY (`pk_video`),
   KEY `publishedAt` (`publishedAt`),
   KEY `videoId` (`videoId`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_show_video_time` (
   `pk_video` int(11) NOT NULL,
@@ -518,7 +518,7 @@ CREATE TABLE IF NOT EXISTS `urt_show_video_time` (
   PRIMARY KEY (`pk_video`),
   KEY `publishedAt` (`publishedAt`),
   KEY `videoId` (`videoId`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_tag` (
   `tag_id` int(11) NOT NULL AUTO_INCREMENT,
@@ -528,7 +528,7 @@ CREATE TABLE IF NOT EXISTS `urt_tag` (
   `del_flag` tinyint(4) DEFAULT NULL,
   PRIMARY KEY (`tag_id`),
   KEY `topic_name` (`tag_name`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `urt_tag_log` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -537,7 +537,7 @@ CREATE TABLE IF NOT EXISTS `urt_tag_log` (
   `tag_id` int(11) NOT NULL,
   `log_type` varchar(16) COLLATE utf8mb4_unicode_ci NOT NULL,
   PRIMARY KEY (`pk`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `urt_user` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -554,7 +554,7 @@ CREATE TABLE IF NOT EXISTS `urt_user` (
   `refresh_token` varchar(256) COLLATE utf8mb4_unicode_ci NOT NULL,
   `code_return` text COLLATE utf8mb4_unicode_ci,
   PRIMARY KEY (`pk`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `urt_user_channel` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -565,7 +565,7 @@ CREATE TABLE IF NOT EXISTS `urt_user_channel` (
   `channel_name` varchar(256) NOT NULL,
   PRIMARY KEY (`pk`),
   UNIQUE KEY `channel` (`channel`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_user_log` (
   `urt_pk` int(11) NOT NULL,
@@ -576,7 +576,7 @@ CREATE TABLE IF NOT EXISTS `urt_user_log` (
   `videos_count` int(11) DEFAULT NULL,
   `data_json` longtext,
   PRIMARY KEY (`urt_pk`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_user_video` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -589,7 +589,7 @@ CREATE TABLE IF NOT EXISTS `urt_user_video` (
   PRIMARY KEY (`pk`),
   UNIQUE KEY `videoId` (`videoId`),
   KEY `channel` (`channel`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_video` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -622,7 +622,7 @@ CREATE TABLE IF NOT EXISTS `urt_video` (
   KEY `commentCount` (`commentCount`),
   KEY `u_id` (`u_id`),
   KEY `mtime` (`mtime`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `urt_video_details` (
   `pk_video` int(11) NOT NULL,
@@ -639,7 +639,7 @@ CREATE TABLE IF NOT EXISTS `urt_video_details` (
   PRIMARY KEY (`pk_video`),
   KEY `publishedAt` (`publishedAt`),
   KEY `videoId` (`videoId`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_video_duration` (
   `pk_video` int(11) NOT NULL AUTO_INCREMENT,
@@ -654,7 +654,7 @@ CREATE TABLE IF NOT EXISTS `urt_video_duration` (
   PRIMARY KEY (`pk_video`),
   KEY `publishedAt` (`publishedAt`),
   KEY `videoId` (`videoId`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_video_live` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -674,7 +674,7 @@ CREATE TABLE IF NOT EXISTS `urt_video_live` (
   UNIQUE KEY `videoId` (`videoId`),
   KEY `u_id` (`u_id`),
   KEY `mtime` (`mtime`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_video_live_log` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -688,7 +688,7 @@ CREATE TABLE IF NOT EXISTS `urt_video_live_log` (
   PRIMARY KEY (`pk`),
   KEY `videoId` (`videoId`),
   KEY `the_date` (`the_date`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_video_live_log_tvbs` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -702,7 +702,7 @@ CREATE TABLE IF NOT EXISTS `urt_video_live_log_tvbs` (
   PRIMARY KEY (`pk`),
   KEY `videoId` (`videoId`),
   KEY `the_date` (`the_date`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_video_live_tvbs` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -722,7 +722,7 @@ CREATE TABLE IF NOT EXISTS `urt_video_live_tvbs` (
   UNIQUE KEY `videoId` (`videoId`),
   KEY `u_id` (`u_id`),
   KEY `mtime` (`mtime`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `urt_video_log` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -733,7 +733,7 @@ CREATE TABLE IF NOT EXISTS `urt_video_log` (
   `thedata` text COLLATE utf8mb4_unicode_ci,
   PRIMARY KEY (`pk`),
   UNIQUE KEY `videoId` (`videoId`,`themonth`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `urt_video_log_history` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -746,7 +746,7 @@ CREATE TABLE IF NOT EXISTS `urt_video_log_history` (
   `commentCount` int(11) NOT NULL,
   PRIMARY KEY (`pk`),
   KEY `videoId` (`videoId`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `urt_video_schedule` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
@@ -778,4 +778,4 @@ CREATE TABLE IF NOT EXISTS `urt_video_schedule_myisam` (
   UNIQUE KEY `videoId` (`videoId`),
   KEY `stime` (`stime`),
   KEY `publishedAt` (`publishedAt`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
