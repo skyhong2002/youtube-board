@@ -84,16 +84,27 @@ test('snapshot source videos show the recorded channel as a sibling of the YouTu
  for(const a of html.match(/<a [^>]*youtube\.com[\s\S]*?<\/a>/g)??[])assert.doesNotMatch(a,/\/channels\/|甲頻道|乙媒體/);
 });
 
-test('channel insight cells render explicit sources on one clipped line with unknown fallbacks; plain cells are unchanged',async()=>{
+test('channel insight cards render explicit sources with unknown fallbacks, show one shared source once and keep method notes out',async()=>{
  const {ChannelInsights}=await import('../components/ChannelInsights');
- const report=(rows:Record<string,ReportValue|ReportCell>[])=>({title:'',columns:[],rows,total:rows.length,limit:5,offset:0,updatedAt:null});
- const data={channel:{id:7},trendAvailable:false,aiSummary:report([{title:'純文字議題',description:'描述'}]),dailySummary:report([{title:{value:'丙頻道',sources:[]},description:'描述',source:{value:'甲頻道、乙媒體',sources:[known,unknown]}}])};
+ const report=(rows:Record<string,ReportValue|ReportCell>[],notes?:string[])=>({title:'',columns:[{key:'title',label:'議題'}],rows,total:rows.length,limit:5,offset:0,updatedAt:null,notes});
+ const data={channel:{id:7},trendAvailable:false,aiSummary:report([{title:'純文字議題',description:'描述'}],['方法說明']),dailySummary:report([{title:{value:'丙頻道',sources:[]},description:'描述',source:{value:'甲頻道、乙媒體',sources:[known,unknown]}}])};
  const html=render(createElement(ChannelInsights,{data:data as never}));
- assert.match(html,new RegExp(`<strong><span class="${clip}" title="丙頻道"><span title="丙頻道（未對應到本站頻道）">`));
- assert.match(html,new RegExp(`<small><span class="${clip}" title="甲頻道、乙媒體">${anchor({href:'/channels/7'})}`));
+ assert.match(html,new RegExp(`<p class="font-medium"><span class="${clip}" title="丙頻道"><span title="丙頻道（未對應到本站頻道）">`));
+ assert.match(html,new RegExp(`來源 <span class="${clip}" title="甲頻道、乙媒體">${anchor({href:'/channels/7'})}`));
  assert.match(html,/<span title="乙媒體（未對應到本站頻道）">/);
- assert.match(html,/<strong>純文字議題<\/strong>/);
+ assert.match(html,/<p class="font-medium">純文字議題<\/p>/);
  assert.equal(html.match(/<img /g)?.length,1);
+ assert.doesNotMatch(html,/方法說明|未記錄/);
+ assert.match(html,/尚無既有分析：人物分析、觀點描述。/);
+});
+
+test('channel insights collapse to one line when nothing is available and surface only unavailable-source notes',async()=>{
+ const {ChannelInsights}=await import('../components/ChannelInsights');
+ const empty=(columns:{key:string;label:string}[],notes:string[])=>({title:'',columns,rows:[],total:0,limit:5,offset:0,updatedAt:null,notes});
+ const none=render(createElement(ChannelInsights,{data:{channel:{id:7},trendAvailable:true,aiSummary:empty([{key:'title',label:'議題'}],['方法說明']),dailySummary:empty([{key:'title',label:'議題'}],['方法說明'])} as never}));
+ assert.match(none,/這個頻道目前沒有可呈現的 AI 分析/);assert.doesNotMatch(none,/<article|方法說明/);
+ const off=render(createElement(ChannelInsights,{data:{channel:{id:7},trendAvailable:false,aiSummary:empty([],['AI 發布紀錄尚未配置']),dailySummary:empty([],['AI 發布紀錄尚未配置'])} as never}));
+ assert.equal(off.match(/AI 發布紀錄尚未配置/g)?.length,1);assert.doesNotMatch(off,/這個頻道目前沒有/);
 });
 
 test('feed and saved video targets add a separate channel byline only when the source is present',()=>{
