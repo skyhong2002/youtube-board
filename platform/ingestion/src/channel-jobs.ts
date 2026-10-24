@@ -15,13 +15,16 @@ const RUN_STOPPING = new Set(['quota-exhausted', 'quota-budget', 'quota-comment-
 export const isRunStoppingYoutubeError = (error: unknown): error is YoutubeError => error instanceof YoutubeError && RUN_STOPPING.has(error.code);
 const missingLog = 'NOT EXISTS (SELECT 1 FROM urt_log l WHERE l.u_id = c.u_id)';
 const utcSql = (date: Date) => date.toISOString().slice(0, 19).replace('T', ' ');
+/** Names stored through a utf8mb3 client lost each supplementary character (emoji, flags) to '?'; compare in that form so
+ * an intact API name is not taken for a rename of its own mangled copy. */
+export const comparableTitle = (title: string) => title.trim().replace(/[\u{10000}-\u{10FFFF}]/gu, '?');
 /** Append the observed name before urt_channel changes, so a failed write retries without losing the rename. A channel's
  * first recorded rename also stores the name it was added under, dated by its legacy ctime. */
 export async function recordTitleChange(ctx: SourceJobContext, row: RowDataPacket, title: string) {
   const stored = String(row.title ?? '').trim();
-  if (title === stored) return;
+  if (comparableTitle(title) === comparableTitle(stored)) return;
   const [last] = await ctx.db.query<RowDataPacket[]>('SELECT title FROM ts_channel_title_history WHERE u_id = ? ORDER BY observed_at DESC, id DESC LIMIT 1', [row.u_id]);
-  if (last[0]?.title === title) return;
+  if (last.length && comparableTitle(String(last[0]!.title)) === comparableTitle(title)) return;
   const added = legacyInstant(row.ctime);
   if (!last.length && stored && added && added < ctx.now) await ctx.db.execute('INSERT INTO ts_channel_title_history (u_id, title, observed_at, origin) VALUES (?, ?, ?, ?)', [row.u_id, stored.slice(0, 256), utcSql(added), 'added']);
   await ctx.db.execute('INSERT INTO ts_channel_title_history (u_id, title, observed_at, origin) VALUES (?, ?, ?, ?)', [row.u_id, title, utcSql(ctx.now), 'stats']);
