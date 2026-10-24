@@ -42,13 +42,16 @@ function driverCode(error: unknown): string {
     }
     return 'UNKNOWN';
 }
-export function createReader(databaseUrl: string | undefined, limits = { acquireMs: 3000, statementMs: 5000 }): Reader {
-    if (![limits.acquireMs, limits.statementMs].every(n => Number.isSafeInteger(n) && n >= 10 && n <= 15000)) throw new Error("Invalid query deadline");
+/** Request readers keep the 15-second statement ceiling. A background reader (the homepage keyword refresh,
+ * which no request waits for) may raise it to at most 60 seconds on its own small pool. */
+export function createReader(databaseUrl: string | undefined, limits = { acquireMs: 3000, statementMs: 5000 }, { maxStatementMs = 15000, connectionLimit = 6 }: { maxStatementMs?: number; connectionLimit?: number } = {}): Reader {
+    if (!Number.isSafeInteger(maxStatementMs) || maxStatementMs < 10 || maxStatementMs > 60000 || !Number.isSafeInteger(connectionLimit) || connectionLimit < 1 || connectionLimit > 6) throw new Error("Invalid query deadline");
+    if (![limits.acquireMs, limits.statementMs].every(n => Number.isSafeInteger(n) && n >= 10 && n <= maxStatementMs) || limits.acquireMs > 15000) throw new Error("Invalid query deadline");
     // Report before callers translate source errors into section-level failures.
     const reportFailure = dataSourceReporter();
     if (!databaseUrl)
         return { rows: async () => { const error = new DataSourceUnavailable(undefined, 'configuration'); reportFailure(error, 'reader'); throw error; }, close: async () => { } };
-    const pool = mysql.createPool({ uri: databaseUrl, connectionLimit: 6, connectTimeout: 5000, queueLimit: 24, maxPreparedStatements: 200,
+    const pool = mysql.createPool({ uri: databaseUrl, connectionLimit, connectTimeout: 5000, queueLimit: 24, maxPreparedStatements: 200,
         dateStrings: true, supportBigNumbers: true, bigNumberStrings: true, timezone: '+08:00',
         multipleStatements: false });
     const dialect = new MySqlDialect();
@@ -71,7 +74,7 @@ export function createReader(databaseUrl: string | undefined, limits = { acquire
     return {
         async rows<T extends Row>(query: SQL, options?: { statementMs?: number; operation?: ReaderOperation }): Promise<T[]> {
             const statementMs = options?.statementMs ?? limits.statementMs;
-            if (!Number.isSafeInteger(statementMs) || statementMs < 10 || statementMs > 15000) throw new Error("Invalid query deadline");
+            if (!Number.isSafeInteger(statementMs) || statementMs < 10 || statementMs > maxStatementMs) throw new Error("Invalid query deadline");
             const started = performance.now();
             let operation = readerOperation('', options?.operation), phase: ReaderFailureObservation['phase'] = 'compile', acquireStarted: number | undefined, acquiredAt: number | undefined, failure: ReaderFailureObservation | undefined;
             const detail = (): ReaderFailureObservation => ({operation, phase, durationMs: observationElapsed(started, performance.now()), acquireMs: acquireStarted === undefined ? 0 : observationElapsed(acquireStarted, acquiredAt ?? performance.now()), statementMs: acquiredAt === undefined ? 0 : observationElapsed(acquiredAt, performance.now()), pool: observation.snapshot()});

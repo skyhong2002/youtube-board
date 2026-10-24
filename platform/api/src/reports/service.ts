@@ -17,7 +17,7 @@ import {loadVideoComments,summarizeVideoComments} from './video-analytics.js';
 import { CHANNEL_SORTS, type ChannelRankingScope, type ChannelSort } from '../../../shared/channel-ranking.js';
 import { optionalChannelAi } from './channel-ai.js';
 import { channelNameHistory } from './channel-title-history.js';
-import { homeExploration, type KeywordWindows } from './home-exploration.js';
+import { homeExploration, type KeywordWindows, type KeywordSource } from './home-exploration.js';
 import { keywordWindowCache, type KeywordWindowStore } from './home-keyword-cache.js';
 import { rankingDisplayExclusions } from './keyword-overlay.js';
 import { sql, type SQL } from 'drizzle-orm';
@@ -44,7 +44,7 @@ export interface ReportService {
 const channelSelect = sql `c.u_id,c.youtube_id,c.title,c.thumbnails,c.description,c.publishedAt,c.mtime,c.stime,c.ctime,
   CASE WHEN n.u_id IS NULL THEN c.viewCount ELSE n.viewCount END AS viewCount,CASE WHEN n.u_id IS NULL THEN c.subscriberCount ELSE n.subscriberCount END AS subscriberCount,
   CASE WHEN n.u_id IS NULL THEN c.videoCount ELSE n.videoCount END AS videoCount,n.view_week,n.view_month,n.sub_week,n.sub_month,n.video_week,n.video_month,n.views_pred_week,n.views_pred_month,n.tags,n.mtime AS count_mtime`;
-export function reports(reader: Reader, clock: () => Date = () => new Date(), diagnostic?:HomeDiagnosticCallback,rankingPools?:RankedPoolClient,keywordStore?:KeywordWindowStore<KeywordWindows>): ReportService {
+export function reports(reader: Reader, clock: () => Date = () => new Date(), diagnostic?:HomeDiagnosticCallback,rankingPools?:RankedPoolClient,keywordStore?:KeywordWindowStore<KeywordWindows>,keywordSource?:KeywordSource): ReportService {
     let cachedHome=homeResultCache();const cachedKeywordWindows=keywordWindowCache<KeywordWindows>(value=>value.keywords.status==='synchronized'&&value.keywordToday.status==='synchronized',{store:keywordStore});
     const cachedKeywordVideos=keywordVideoCache<VideoCollection>({cacheable:(value,query)=>query.cursor===undefined&&value.totalStatus!=='unavailable'&&value.evidenceCoverage?.coverageStatus!=='unavailable'});
     const names = async () => new Map((await reader.rows(sql `SELECT tag_id,tag_name FROM urt_tag ORDER BY tag_id`)).map(r => [integer(r.tag_id) ?? 0, text(r.tag_name)]));
@@ -255,7 +255,7 @@ export function reports(reader: Reader, clock: () => Date = () => new Date(), di
         /** After an administrator ranking decision: the next home read recomputes keywords. */
         invalidateKeywordRanking(){cachedKeywordWindows.invalidate();cachedHome=homeResultCache();},
         home: () => cachedHome(async () => {
-            const [channels, tags, live, days, exploration, totals] = await Promise.all([channelsRows({ limit: '12' }), tagRows({ limit: '20' }).then(v => ({rows:v.rows,status:'available' as const})).catch(error => {if(error?.statusCode===422)return {rows:[],status:'bounded' as const};throw error;}), liveRows({ limit: '20' }), aiDays(), homeExploration(reader, clock(), diagnostic,rankingPools,cachedKeywordWindows), reader.rows(sql `SELECT (SELECT COUNT(*) FROM urt_channel WHERE flag_del IS NULL OR flag_del<1) AS channels,(SELECT COUNT(*) FROM urt_video) AS videos,(SELECT COALESCE(SUM(view_week),0) FROM urt_count) AS weeklyViews,(SELECT COUNT(DISTINCT u_id) FROM urt_video_live WHERE actualEndTime IS NULL AND concurrentViewers>0 AND mtime>=${taipeiSql(new Date(clock().getTime() - 3600000))}) AS liveChannels,(SELECT COALESCE(SUM(concurrentViewers),0) FROM urt_video_live WHERE actualEndTime IS NULL AND concurrentViewers>0 AND mtime>=${taipeiSql(new Date(clock().getTime() - 3600000))}) AS liveViewers`,{operation:'home-summary'})]);
+            const [channels, tags, live, days, exploration, totals] = await Promise.all([channelsRows({ limit: '12' }), tagRows({ limit: '20' }).then(v => ({rows:v.rows,status:'available' as const})).catch(error => {if(error?.statusCode===422)return {rows:[],status:'bounded' as const};throw error;}), liveRows({ limit: '20' }), aiDays(), homeExploration(reader, clock(), diagnostic,rankingPools,cachedKeywordWindows,keywordSource), reader.rows(sql `SELECT (SELECT COUNT(*) FROM urt_channel WHERE flag_del IS NULL OR flag_del<1) AS channels,(SELECT COUNT(*) FROM urt_video) AS videos,(SELECT COALESCE(SUM(view_week),0) FROM urt_count) AS weeklyViews,(SELECT COUNT(DISTINCT u_id) FROM urt_video_live WHERE actualEndTime IS NULL AND concurrentViewers>0 AND mtime>=${taipeiSql(new Date(clock().getTime() - 3600000))}) AS liveChannels,(SELECT COALESCE(SUM(concurrentViewers),0) FROM urt_video_live WHERE actualEndTime IS NULL AND concurrentViewers>0 AND mtime>=${taipeiSql(new Date(clock().getTime() - 3600000))}) AS liveViewers`,{operation:'home-summary'})]);
             const t = totals[0] ?? {};
             return { exploration, summary: { channels: integer(t.channels) ?? 0, videos: integer(t.videos) ?? 0, weeklyViews: integer(t.weeklyViews) ?? 0, liveChannels: integer(t.liveChannels) ?? 0, liveViewers: integer(t.liveViewers) ?? 0 }, channels: channels.rows, tags: tags.rows, tagsStatus:tags.status, live: live.rows, events: days.rows, aiDate: days.date };
         }),

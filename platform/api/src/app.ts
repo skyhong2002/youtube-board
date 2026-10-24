@@ -62,6 +62,8 @@ interface AppOptions {
     reader?: Reader;
     /** Runtime startup readiness waits for a complete read-only sitemap family. */
     sitemapWarmup?: boolean;
+    /** Runtime startup computes the homepage once (keyword windows take ~40 s), so first visitors do not wait for it. */
+    homeWarmup?: boolean;
     databaseUrl?: string;
     dataset?: 'fixture' | 'live' | 'unknown';
     clock?: () => Date;
@@ -75,7 +77,10 @@ declare module 'fastify' {
 export function buildApp(options: AppOptions = {}) {
     const fixture=(options.dataset??process.env.DATASET_KIND)==='fixture';
     const rankingPools=options.rankingPools===false?undefined:options.rankingPools??(fixture?undefined:createRankedPoolClient({clock:options.clock,onEvent:event=>{writeSync(2,'TAG_RANKING_POOL_UPSTREAM '+JSON.stringify(event)+'\n');}}));
-    const app = Fastify({ logger: false, routerOptions:{maxParamLength:240}, trustProxy: trustedProxies(process.env.AUTH_TRUSTED_PROXY_CIDRS), requestTimeout: 15000, bodyLimit: 16384 }), reader = options.reader ?? createReader(options.databaseUrl ?? process.env.DATABASE_URL), clock = options.clock ?? (() => new Date()), keywordStore = options.keywordStore===false?undefined:redisKeywordWindowStore<KeywordWindows>(process.env,6*3600), service = reports(reader, clock, homeDiagnosticSink(line=>{writeSync(2,line);}, clock),rankingPools,keywordStore);
+    const app = Fastify({ logger: false, routerOptions:{maxParamLength:240}, trustProxy: trustedProxies(process.env.AUTH_TRUSTED_PROXY_CIDRS), requestTimeout: 15000, bodyLimit: 16384 }), reader = options.reader ?? createReader(options.databaseUrl ?? process.env.DATABASE_URL), clock = options.clock ?? (() => new Date()), keywordStore = options.keywordStore===false?undefined:redisKeywordWindowStore<KeywordWindows>(process.env,6*3600),
+        // The homepage keyword refresh runs in the background on its own connection with a 60-second ceiling.
+        keywordReader = options.reader?undefined:createReader(options.databaseUrl ?? process.env.DATABASE_URL,{acquireMs:3000,statementMs:60000},{maxStatementMs:60000,connectionLimit:1}),
+        service = reports(reader, clock, homeDiagnosticSink(line=>{writeSync(2,line);}, clock),rankingPools,keywordStore,keywordReader&&{reader:keywordReader,statementMs:60000});
     const reportDataSourceFailure = dataSourceReporter();
     app.decorate('keywordRankingChanged',()=>service.invalidateKeywordRanking());
     if(options.publicApi!==false)registerPublicApiPolicy(app,{clock,...options.publicApi});
@@ -92,6 +97,7 @@ export function buildApp(options: AppOptions = {}) {
     const keywordRelations=createKeywordRelationsReport({...options.tagRelations,clock:options.clock??options.tagRelations?.clock});
     const sitemaps=registerSitemaps(app,reader,{staticLastModified:'2026-10-12T14:00:00.000Z',now:()=>+clock()});
     if(options.sitemapWarmup)app.addHook('onReady',async()=>{sitemaps.start();});
+    if(options.homeWarmup)app.addHook('onReady',async()=>{service.home().catch(()=>{});});
     app.addHook('onSend', async (_request, reply, payload) => { reply.header('Strict-Transport-Security','max-age=31536000'); return payload; });
     const meta = (data: unknown): ReportMeta => ({ schemaVersion: 1, requestedAt: clock().toISOString(), updatedAt: deepUpdatedAt(data), timezone: 'Asia/Taipei', source: 'mariadb', dataset: options.dataset ?? (process.env.DATASET_KIND === 'fixture' ? 'fixture' : 'unknown'), coverage: {}, warnings: [] });
     registerApiMetadata(app,{meta:()=>meta(null)});
@@ -242,7 +248,7 @@ export function buildApp(options: AppOptions = {}) {
             process.stderr.write(`youtube-board-api: internal request error${error instanceof DataQueryFailed ? ' [' + error.driverCode + ']' : ''}\n`);
         reply.code(code).header('Cache-Control', 'no-store').send(_request.url.startsWith('/api/v1/') ? { error: message, code: key } : { error: { code: key, message } });
     });
-    app.addHook('onClose', async () => {keywordStore?.close();await reader.close();});
+    app.addHook('onClose', async () => {keywordStore?.close();await keywordReader?.close();await reader.close();});
     return app;
 }
 /** Freshness is derived only from source timestamps carried by report rows. */
