@@ -430,3 +430,10 @@ CREATE TABLE IF NOT EXISTS ts_channel_title_history (
  origin VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
  INDEX channel_title_history_lookup (u_id,observed_at,id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+-- TS-owned definitions from 018_home_keyword_snapshot.sql.
+CREATE TABLE IF NOT EXISTS ts_home_keyword_snapshot (
+ id TINYINT UNSIGNED NOT NULL PRIMARY KEY,
+ computed_at_ms BIGINT UNSIGNED NOT NULL,
+ payload LONGTEXT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;

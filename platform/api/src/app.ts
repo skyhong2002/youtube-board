@@ -47,7 +47,7 @@ import { vocabulary, videoTagEvidence } from './reports/vocabulary.js';
 import { BadQuery, NotFound, mergeTagId, positiveId, videoId, type Query } from './reports/query.js';
 import { latest, integer, text, object } from './reports/normalize.js';
 import type { ReportMeta } from './contracts.js';
-import { redisKeywordWindowStore } from './reports/home-keyword-store.js';
+import { sqlKeywordWindowStore } from './reports/home-keyword-store.js';
 import type { KeywordWindows } from './reports/home-exploration.js';
 export const routeRegistry = [
     '/home', '/channels', '/channels/:id', '/channels/:id/videos', '/videos', '/videos/:id', '/videos/:id/tags',
@@ -55,7 +55,7 @@ export const routeRegistry = [
 ] as const;
 interface AppOptions {
     rankingPools?:RankedPoolClient|false;
-    /** Shared last-good homepage keyword windows (Redis from REDIS_URL); false disables it. */
+    /** Shared last-good homepage keyword windows (ts_home_keyword_snapshot via TS_DATABASE_URL); false disables it. */
     keywordStore?:false;
     tagRelations?: KeywordRelationsOptions;
     publicApi?: PublicApiPolicyOptions | false;
@@ -77,7 +77,7 @@ declare module 'fastify' {
 export function buildApp(options: AppOptions = {}) {
     const fixture=(options.dataset??process.env.DATASET_KIND)==='fixture';
     const rankingPools=options.rankingPools===false?undefined:options.rankingPools??(fixture?undefined:createRankedPoolClient({clock:options.clock,onEvent:event=>{writeSync(2,'TAG_RANKING_POOL_UPSTREAM '+JSON.stringify(event)+'\n');}}));
-    const app = Fastify({ logger: false, routerOptions:{maxParamLength:240}, trustProxy: trustedProxies(process.env.AUTH_TRUSTED_PROXY_CIDRS), requestTimeout: 15000, bodyLimit: 16384 }), reader = options.reader ?? createReader(options.databaseUrl ?? process.env.DATABASE_URL), clock = options.clock ?? (() => new Date()), keywordStore = options.keywordStore===false?undefined:redisKeywordWindowStore<KeywordWindows>(process.env,6*3600),
+    const app = Fastify({ logger: false, routerOptions:{maxParamLength:240}, trustProxy: trustedProxies(process.env.AUTH_TRUSTED_PROXY_CIDRS), requestTimeout: 15000, bodyLimit: 16384 }), reader = options.reader ?? createReader(options.databaseUrl ?? process.env.DATABASE_URL), clock = options.clock ?? (() => new Date()), keywordStore = options.keywordStore===false?undefined:sqlKeywordWindowStore<KeywordWindows>(process.env),
         // The homepage keyword refresh runs in the background on its own connection with a 60-second ceiling.
         keywordReader = options.reader?undefined:createReader(options.databaseUrl ?? process.env.DATABASE_URL,{acquireMs:3000,statementMs:60000},{maxStatementMs:60000,connectionLimit:1}),
         service = reports(reader, clock, homeDiagnosticSink(line=>{writeSync(2,line);}, clock),rankingPools,keywordStore,keywordReader&&{reader:keywordReader,statementMs:60000});
@@ -248,7 +248,7 @@ export function buildApp(options: AppOptions = {}) {
             process.stderr.write(`youtube-board-api: internal request error${error instanceof DataQueryFailed ? ' [' + error.driverCode + ']' : ''}\n`);
         reply.code(code).header('Cache-Control', 'no-store').send(_request.url.startsWith('/api/v1/') ? { error: message, code: key } : { error: { code: key, message } });
     });
-    app.addHook('onClose', async () => {keywordStore?.close();await keywordReader?.close();await reader.close();});
+    app.addHook('onClose', async () => {await keywordStore?.close().catch(()=>{});await keywordReader?.close();await reader.close();});
     return app;
 }
 /** Freshness is derived only from source timestamps carried by report rows. */

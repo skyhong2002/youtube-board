@@ -10,7 +10,7 @@ export interface KeywordWindowStore<T> {
  * minutes, then returned stale while a single background refresh runs, for up to maxStaleMs
  * (six hours) without a successful refresh. Past that an outage shows as unavailable rather
  * than keeping an old ranking indefinitely, and callers wait for a load again. Failures are not
- * cached. The store (Redis in production) keeps the last success across restarts; a process
+ * cached. The store (ts_home_keyword_snapshot in production) keeps the last success across restarts; a process
  * reads it once, before its first load. invalidate() (an administrator ranking decision) ignores
  * any refresh started before it and makes the next caller start one; until it lands, callers
  * keep the previous ranking, because waiting for it would outlast the request deadline. The
