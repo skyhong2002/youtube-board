@@ -18,7 +18,7 @@ import { CHANNEL_SORTS, type ChannelRankingScope, type ChannelSort } from '../..
 import { optionalChannelAi } from './channel-ai.js';
 import { channelNameHistory } from './channel-title-history.js';
 import { homeExploration, type KeywordWindows } from './home-exploration.js';
-import { keywordWindowCache } from './home-keyword-cache.js';
+import { keywordWindowCache, type KeywordWindowStore } from './home-keyword-cache.js';
 import { rankingDisplayExclusions } from './keyword-overlay.js';
 import { sql, type SQL } from 'drizzle-orm';
 import { DataQueryFailed, DataSourceUnavailable, type Reader, type Row } from '../db/client.js';
@@ -44,8 +44,8 @@ export interface ReportService {
 const channelSelect = sql `c.u_id,c.youtube_id,c.title,c.thumbnails,c.description,c.publishedAt,c.mtime,c.stime,c.ctime,
   CASE WHEN n.u_id IS NULL THEN c.viewCount ELSE n.viewCount END AS viewCount,CASE WHEN n.u_id IS NULL THEN c.subscriberCount ELSE n.subscriberCount END AS subscriberCount,
   CASE WHEN n.u_id IS NULL THEN c.videoCount ELSE n.videoCount END AS videoCount,n.view_week,n.view_month,n.sub_week,n.sub_month,n.video_week,n.video_month,n.views_pred_week,n.views_pred_month,n.tags,n.mtime AS count_mtime`;
-export function reports(reader: Reader, clock: () => Date = () => new Date(), diagnostic?:HomeDiagnosticCallback,rankingPools?:RankedPoolClient): ReportService {
-    let cachedHome=homeResultCache();const cachedKeywordWindows=keywordWindowCache<KeywordWindows>(value=>value.keywords.status==='synchronized'&&value.keywordToday.status==='synchronized');
+export function reports(reader: Reader, clock: () => Date = () => new Date(), diagnostic?:HomeDiagnosticCallback,rankingPools?:RankedPoolClient,keywordStore?:KeywordWindowStore<KeywordWindows>): ReportService {
+    let cachedHome=homeResultCache();const cachedKeywordWindows=keywordWindowCache<KeywordWindows>(value=>value.keywords.status==='synchronized'&&value.keywordToday.status==='synchronized',{store:keywordStore});
     const cachedKeywordVideos=keywordVideoCache<VideoCollection>({cacheable:(value,query)=>query.cursor===undefined&&value.totalStatus!=='unavailable'&&value.evidenceCoverage?.coverageStatus!=='unavailable'});
     const names = async () => new Map((await reader.rows(sql `SELECT tag_id,tag_name FROM urt_tag ORDER BY tag_id`)).map(r => [integer(r.tag_id) ?? 0, text(r.tag_name)]));
     const channelWhere = (query: Query): SQL => {

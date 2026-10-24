@@ -15,6 +15,9 @@ import {HomeSectionUnavailable,measuredCount,keywordDisplayMap,rankKeywordWindow
 /** Seven-day evidence scans run in a background keyword refresh (see keywordWindowCache),
  * so they get the reader's 15-second ceiling instead of the 5-second request default. */
 const KEYWORD_QUERY=(operation:ReaderOperation)=>({statementMs:15000,operation});
+/** The 14-day source window passed 100k objects / 16 MiB of decoded rows on 2026-10-24 (about 7.5k videos a day).
+ * Memory is bounded by rows; the SQL bound is each JSON_TABLE literal, kept well under max_allowed_packet (16 MiB). */
+export const HOME_SOURCE_ROW_CAP=200_000,HOME_SOURCE_LITERAL_BYTES=12*1024*1024;
 /** Laravel homepage's top-eight category scope. Membership sums deliberately overlap.
  * updatedAt describes the complete category source scan used to determine the top eight. */
 export function homeCategories(records:Row[],names:Map<number,string>){
@@ -63,16 +66,16 @@ export async function homeExploration(reader:Reader,now:Date,diagnostic?:HomeDia
   // Hash the bounded source window once. Only identifiers, timestamps and
   // numeric metrics cross the boundary; title/description never leave SQL.
   keywordStage='video-source';
-  const sources=await reader.rows(sql`SELECT v.pk,v.u_id,v.publishedAt,m.video_id,m.vocabulary_version,
+  const sources=await reader.rows(sql`SELECT v.pk,v.u_id,v.publishedAt,m.video_id,
    CASE WHEN v.viewCount>=0 THEN v.viewCount ELSE NULL END AS viewCount,
    1 AS source_videos,(m.video_id IS NULL) AS unprocessed,CASE WHEN ${fresh} THEN 1 ELSE 0 END AS fresh,UNIX_TIMESTAMP(m.matched_at)*1000 AS matched_epoch
    FROM urt_video v LEFT JOIN ts_video_tag_matches m ON m.video_id=CONVERT(v.videoId USING ascii) AND BINARY m.video_id=BINARY v.videoId AND m.vocabulary_version=${version}
-   WHERE v.publishedAt>=${windows[2]!.from} AND v.publishedAt<=${to} AND ${latestKeywordVideo()} LIMIT 100001`,KEYWORD_QUERY('home-video-source'));
-  if(sources.length>100000||Buffer.byteLength(JSON.stringify(sources))>16*1024*1024)throw new HomeSectionUnavailable('source-cap');
+   WHERE v.publishedAt>=${windows[2]!.from} AND v.publishedAt<=${to} AND ${latestKeywordVideo()} LIMIT ${HOME_SOURCE_ROW_CAP+1}`,KEYWORD_QUERY('home-video-source'));
+  if(sources.length>HOME_SOURCE_ROW_CAP)throw new HomeSectionUnavailable('source-cap');
   for(const r of sources){if(measuredCount(r.pk)<1||measuredCount(r.u_id)<1||measuredCount(r.fresh)>1||measuredCount(r.unprocessed)>1||measuredCount(r.fresh)+measuredCount(r.unprocessed)>1||!/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d(?:\.\d+)?$/.test(text(r.publishedAt)))throw new HomeSectionUnavailable('precision');}
   const coverage=windows.map(w=>{const rows=sources.filter(r=>text(r.publishedAt)>=w.from&&text(r.publishedAt)<=w.to),freshRows=rows.filter(r=>Number(r.fresh)===1),unprocessed=rows.filter(r=>Number(r.unprocessed)===1).length;return {window_key:w.key,source_videos:rows.length,unprocessed,fresh:freshRows.length,stale:rows.length-unprocessed-freshRows.length,latest_match:freshRows.reduce<number|null>((latest,r)=>r.matched_epoch===null?latest:Math.max(latest??0,Number(r.matched_epoch)),null)};});
   const counts=new Map(coverage.map(c=>[text(c.window_key),c]));
-  const coverageFor=(key:string)=>{const c=counts.get(key);if(!c)return {sourceVideos:0,freshVideos:0,staleVideos:0,unprocessedVideos:0};const result={sourceVideos:measuredCount(c.source_videos),freshVideos:measuredCount(c.fresh),staleVideos:measuredCount(c.stale),unprocessedVideos:measuredCount(c.unprocessed)};if(result.sourceVideos>100000)throw new HomeSectionUnavailable('source-cap');if(result.sourceVideos!==result.freshVideos+result.staleVideos+result.unprocessedVideos)throw new HomeSectionUnavailable('precision');return result;};
+  const coverageFor=(key:string)=>{const c=counts.get(key);if(!c)return {sourceVideos:0,freshVideos:0,staleVideos:0,unprocessedVideos:0};const result={sourceVideos:measuredCount(c.source_videos),freshVideos:measuredCount(c.fresh),staleVideos:measuredCount(c.stale),unprocessedVideos:measuredCount(c.unprocessed)};if(result.sourceVideos>HOME_SOURCE_ROW_CAP)throw new HomeSectionUnavailable('source-cap');if(result.sourceVideos!==result.freshVideos+result.staleVideos+result.unprocessedVideos)throw new HomeSectionUnavailable('precision');return result;};
   for(const w of windows)coverageFor(w.key);
   const complete=(key:string)=>{const c=coverageFor(key);return coverageSufficient(c.freshVideos,c.sourceVideos);};
   const comparable={week:complete('week')&&complete('prior-week'),today:complete('today')&&complete('prior-today')};
@@ -81,8 +84,10 @@ export async function homeExploration(reader:Reader,now:Date,diagnostic?:HomeDia
   const activeWindows=windows.filter(w=>w.key!=='prior-week'&&w.key!=='prior-today'||w.key==='prior-week'&&comparable.week||w.key==='prior-today'&&comparable.today);
   const evidenceFrom=activeWindows.reduce((lo,w)=>w.from<lo?w.from:lo,from);
   const freshSourceRows=(since:string,until=to)=>{
-   const selected=sources.filter(r=>Number(r.fresh)===1&&text(r.publishedAt)>=since&&text(r.publishedAt)<=until).map(r=>[r.pk,r.u_id,r.publishedAt,r.video_id,r.vocabulary_version,r.viewCount]);
-   return sql`SELECT j.* FROM JSON_TABLE(${JSON.stringify(selected)},'$[*]' COLUMNS(pk BIGINT UNSIGNED PATH '$[0]',u_id BIGINT UNSIGNED PATH '$[1]',publishedAt DATETIME PATH '$[2]',video_id VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin PATH '$[3]',vocabulary_version VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin PATH '$[4]',viewCount BIGINT PATH '$[5]')) j`;
+   const selected=sources.filter(r=>Number(r.fresh)===1&&text(r.publishedAt)>=since&&text(r.publishedAt)<=until).map(r=>[r.pk,r.u_id,r.publishedAt,r.video_id,r.viewCount]),literal=JSON.stringify(selected);
+   if(Buffer.byteLength(literal)>HOME_SOURCE_LITERAL_BYTES)throw new HomeSectionUnavailable('source-cap');
+   // Every fresh row already matched the selected vocabulary version, so it is not repeated per row.
+   return sql`SELECT j.* FROM JSON_TABLE(${literal},'$[*]' COLUMNS(pk BIGINT UNSIGNED PATH '$[0]',u_id BIGINT UNSIGNED PATH '$[1]',publishedAt DATETIME PATH '$[2]',video_id VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin PATH '$[3]',viewCount BIGINT PATH '$[4]')) j`;
   };
   const freshSources=freshSourceRows(evidenceFrom);
   // This bounded labels-only scan applies the exact case-sensitive upstream
