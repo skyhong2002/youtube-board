@@ -72,10 +72,11 @@ it.each([
  expect(JSON.stringify(operations)).not.toContain('PRIVATE-fixture');
 });
 it('scans the text prefilter once and reads sources only by the selected primary keys',async()=>{
- const {reader,statements}=scriptedReader({aliases:[{term:'AI'}],evidence:[{term:'AI',start_offset:0,end_offset:2}]});
+ const {reader,statements,operations}=scriptedReader({aliases:[{term:'AI'}],evidence:[{term:'AI',start_offset:0,end_offset:2}]});
  expect((await loadDerivedSource(reader,{},'2036-10-10','2036-10-12',unitNow,'AI')).coverage.status).toBe('ready');
  const scans=statements.filter(text=>text.includes('OCTET_LENGTH(COALESCE(title')),sources=statements.filter(text=>text.includes('AS source_hash'));
  expect(scans).toHaveLength(1);expect(sources).toHaveLength(2);for(const text of sources)expect(text).toContain('v.pk IN (?)');
+ expect(operations[statements.indexOf(scans[0]!)]).toBe('derived-keyword-source-size');
  const empty=scriptedReader({aliases:[{term:'AI'}],candidates:[]});
  expect((await loadDerivedSource(empty.reader,{},'2036-10-10','2036-10-12',unitNow,'AI')).coverage).toMatchObject({status:'no-source',sourceVideos:0});
  expect(empty.statements.some(text=>text.includes('AS source_hash'))).toBe(false);

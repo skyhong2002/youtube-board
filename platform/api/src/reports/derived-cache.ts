@@ -39,7 +39,8 @@ export async function loadDerivedSource(reader:Reader,q:Query,from:string,to:str
  // The text prefilter scans the whole date range once (about 2 s for 30 days of a common keyword on
  // 2026-10-24). Both source reads below then look up only these primary keys, instead of rescanning
  // and hashing every candidate's text twice, which outran the 5-second statement deadline under load.
- const candidates=await reader.rows(sql`SELECT v.pk,OCTET_LENGTH(COALESCE(title,''))+OCTET_LENGTH(COALESCE(description,'')) AS bytes FROM urt_video v WHERE ${where} ORDER BY v.pk LIMIT ${MAX_VIDEOS+1}`,{operation:keyword?'derived-keyword-source-size':'derived-taxonomy-source-size'});
+ // This one scan may take 10 s on the loaded two-core host; the key lookups after it stay short.
+ const candidates=await reader.rows(sql`SELECT v.pk,OCTET_LENGTH(COALESCE(title,''))+OCTET_LENGTH(COALESCE(description,'')) AS bytes FROM urt_video v WHERE ${where} ORDER BY v.pk LIMIT ${MAX_VIDEOS+1}`,{operation:keyword?'derived-keyword-source-size':'derived-taxonomy-source-size',statementMs:10000});
  if(candidates.length>MAX_VIDEOS||candidates.reduce((n,r)=>n+Number(r.bytes),0)>MAX_BYTES)throw new ReportReadBound('Derived cache video budget exceeded');
  if(!candidates.length){coverage.sourceVideos=0;if(keyword)result.channelCount=0;coverage.status='no-source';return result;}
  const pks=sql.join(candidates.map(r=>sql`${integer(r.pk)}`),sql`,`);
