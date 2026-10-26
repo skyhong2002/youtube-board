@@ -33,7 +33,8 @@ async function changeTags(ctx: SourceJobContext, uId: number, add: number[], rem
     await db.execute('UPDATE urt_count SET tags = ? WHERE u_id = ?', [delta.tags, uId]);
     for (const [ids, type] of [[delta.added, 'add'], [delta.removed, 'del']] as const) for (const id of ids) await db.execute('INSERT INTO urt_tag_log (ctime, u_id, tag_id, log_type) VALUES (?, ?, ?, ?)', [at, uId, id, type]);
   }
-  return { uId, before, after: delta.tags, added: delta.added, removed: delta.removed };
+  // Report what the row holds now: an unchanged NULL stays NULL (nothing was written), not the empty string a change would have made.
+  return { uId, before, after: delta.changed ? delta.tags : before, added: delta.added, removed: delta.removed };
 }
 
 async function setTags(ctx: SourceJobContext, id: number, payload: Extract<ChannelAdminPayload, { kind: 'set-tags' }>): Promise<Outcome> {

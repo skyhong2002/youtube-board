@@ -118,7 +118,7 @@ describe('channelAdminJob', () => {
     expect(sqls('INSERT INTO urt_tag_log')).toHaveLength(0);
   });
 
-  it('creates the count row of a channel that has none, and keeps an emptied channel as an empty string', async () => {
+  it('creates the count row of a channel that has none, and reports an unchanged NULL as NULL', async () => {
     const { ctx, sqls } = harness(sql => {
       if (sql.includes('FROM ts_channel_admin_requests')) return pending({ id: 9, kind: 'set-tags', payload: { uId: 3, add: [], remove: [1] } }, { id: 10, kind: 'set-tags', payload: { uId: 4, add: [2], remove: [] } });
       if (sql.startsWith('SELECT u_id FROM urt_channel')) return [{ u_id: 1 }];
@@ -127,7 +127,7 @@ describe('channelAdminJob', () => {
       return {};
     });
     const result = await channelAdminJob(ctx, { limit: 10 });
-    expect(result.applied.map(item => item.outcome)).toEqual([{ uId: 3, before: null, after: '', added: [], removed: [] }, { uId: 4, before: null, after: '[2]', added: [2], removed: [] }]);
+    expect(result.applied.map(item => item.outcome)).toEqual([{ uId: 3, before: null, after: null, added: [], removed: [] }, { uId: 4, before: null, after: '[2]', added: [2], removed: [] }]);
     expect(sqls('INSERT INTO urt_count')).toHaveLength(2);
   });
 

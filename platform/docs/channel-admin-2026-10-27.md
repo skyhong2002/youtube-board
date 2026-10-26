@@ -69,13 +69,13 @@ worker（`youtube_ts_w_youtube_source`，整個 youtube-source 批次共用）�
 | 物件 | 新增權限 |
 |---|---|
 | `ts_channel_admin_requests` | SELECT、UPDATE（新表） |
-| `urt_tag_log` | INSERT（新 view，只能新增，不能讀） |
+| `urt_tag_log` | INSERT、SELECT（新 view）。**SELECT 不是多餘的**：worker 每次連線都會讀外觀 view 的定義與實體表欄位來驗證映射，而 MariaDB 對只有 INSERT 的帳號會把這些隱藏起來，整個連線就被拒絕（見上線紀錄的事故）。日誌仍不能 UPDATE／DELETE |
 | `urt_channel` | INSERT（原本 SELECT、UPDATE） |
 | `urt_tag` | INSERT（原本 SELECT） |
 
-**這是這個功能最敏感的地方**：整個 youtube-source worker 第一次能在 `urt_channel` 新增列。全部沒有 DELETE、DDL。`tools/channel-admin-upgrade.test.mjs` 鎖定了這 8 條授權語句的完整內容。
+**這是這個功能最敏感的地方**：整個 youtube-source worker 第一次能在 `urt_channel` 新增列。全部沒有 DELETE、DDL。`tools/channel-admin-upgrade.test.mjs` 鎖定了這 8 條授權語句的完整內容。上線後用 worker 自己的帳號做過無副作用的權限探測：三張表的 INSERT 都通過（刻意送重複主鍵，得到 `ER_DUP_ENTRY` 而不是權限錯誤）、請求表可 UPDATE，`urt_tag_log` 的 UPDATE／DELETE 被拒。
 
-## 上線步驟（需要使用者核准；尚未執行）
+## 上線步驟（使用者已核准，2026-10-26 UTC 已執行，見下方紀錄）
 
 順序與 WebSub 相同，原因也相同（worker 連線時逐條比對授權與映像內的權限檔）。
 
@@ -97,9 +97,57 @@ worker（`youtube_ts_w_youtube_source`，整個 youtube-source 批次共用）�
 **還沒有驗證的假設**
 
 1. **YouTube 查不到頻道時的回應。** 現有 `get()` 對沒有 `items` 的回應丟 `invalid-response`，我假設查單一不存在的頻道（或 handle）會是這種回應，所以把它對應成「找不到這個頻道」。若不是，使用者會看到「YouTube 回應異常」，不影響資料正確性。第一次實際新增時請留意。
-2. **經由 facade view 寫入。** 真實資料庫測試是直接連到表，沒有經過 worker 的 facade view（`youtube_board_ts_worker_youtube_source`）與逐表授權。view 是 `ALGORITHM=MERGE` 的單表 view，MariaDB 可更新，但 INSERT 經 view 加 `urt_tag_log` 只有 INSERT 權限這個組合，要在 prepare／worker 階段之後第一次實際執行時才能確認。
-3. **交易跨 schema。** 請求狀態（`youtube_board_ts`）與來源表（`youtube_board`）在不同 schema，同一連線的交易應涵蓋兩者（都是 InnoDB），測試環境是同一個 schema，沒有覆蓋跨 schema。
-4. **瀏覽器操作沒有實測。** 介面只過型別檢查與純邏輯測試，沒有在瀏覽器裡點過。請在上線驗證時實際操作一次。
+2. **瀏覽器操作沒有實測。** 介面只過型別檢查與純邏輯測試，沒有在瀏覽器裡點過（我無法用 Google 登入）。請在第一次使用時實際操作一次。
+3. **「新增頻道」與「新增分類」在正式環境沒有實際執行過。** 上線驗證只實際執行了「改分類」（含真實日誌、被拒絕、沒變動三種結果）；`urt_channel`／`urt_tag` 的 INSERT 只做了權限探測，沒有真的新增一列，因為新增會留下永久的編號（頻道 4155、分類 115）。
+
+已在正式環境驗證的：經由 worker 外觀 view 的寫入、同一交易裡同時更新 `youtube_board` 的來源表與 `youtube_board_ts` 的請求狀態（跨 schema）、緊接著授權比對的連線檢查。
+
+## 正式環境上線紀錄（UTC 2026-10-26）
+
+程式 main `105954c`（功能）與 `721e183`（`urt_tag_log` 授權修正）；`ingestion` 的 `after` 欄位小修在其後。腳本 `.local/dokploy/release-channel-admin.py`（預設 dry-run，`--phase=web|workers|schedule`）、`/home/ubuntu/yt-release-chadmin-105954c/run-upgrade.sh`（在 `dokploy-network` 上的拋棄式容器裡執行升級工具）。
+
+| 時間 | 動作 |
+|---|---|
+| 19:10:53 | 備份：`/home/ubuntu/backups/services/channel-admin-20261026T191053Z/`（`principals/` 12 個帳號 396 條授權，sha256 `bbd7004c…`；`source-tables.sql.gz` 含 `urt_tag`、`urt_tag_log`、`urt_channel`、`urt_count`，已驗證 gzip 與 SHA256SUMS）。 |
+| 19:11 | 在正式主機上建置網頁映像。**事故，見下。** |
+| 19:12 | `channel-admin-upgrade.mjs --phase=prepare`：建 `ts_channel_admin_requests`、兩個 worker 外觀 view、web 的 SELECT／INSERT。plan sha256 `159cc8cf…`；來源寫入 0、DDL 0。 |
+| 19:32–19:34 | 在有限制的條件下重新建置網頁映像（2 分鐘完成，期間主機壓力全程正常）。候選容器（loopback、writers 關閉）驗證：就緒、新路由存在且未登入 GET／POST 皆 401。 |
+| 19:43:44 | 換 web：`d56073e1…` → `90d896e3…`（`release-channel-admin-web-before-*.private.json` 留存換版前的 compose）。公開網域驗證新路由回 401。 |
+| 19:48:39 | 換 `worker-youtube-source`（`6fb522ec…` → `32334284…`）與 scheduler（`6ae19ba5…` → `ccbb7afd…`），3 秒後套用 8 條 worker 授權。**這一組映像有缺陷，見下。** |
+| 20:01:07 | 修正後的映像（worker `4dfe93ef…`、scheduler `3076111f…`），同時補 `urt_tag_log` 的 SELECT；52 條 worker 授權逐條比對通過。 |
+| 20:02:32 | 排程設定 v9 → v10（多一筆 `channel-admin-v1`），20:02:59 完成。`youtube.channels.admin` 每分鐘一筆，`completed`。 |
+| 20:04:16 | 端到端驗證（見下）。 |
+
+### 事故 1：網頁映像編譯拖垮主機（約 19:14–19:22，對外中斷約 6 分鐘）
+
+在正式主機上用不受限制的 `docker build` 編譯 Next（Turbopack）。主機只有 2 核、約 12GB 記憶體，而前一個 release（`62b01eb`）把 InnoDB 緩衝池加到 3.5GB，可用記憶體已經不多；編譯把 swap 用滿（4095/4095）、I/O 壓力近 100%、負載平均到 55，連 SSH 都逾時。web 與資料庫容器被系統終止並由 Swarm 重新拉起（MariaDB 19:20:34 起來，InnoDB 正常崩潰復原，19:20:59 就緒，沒有損毀訊息；匯入的 265 個頻道、prepare 建立的物件都完整）。網站 19:21:53 恢復。
+
+之後的建置改用 `guarded-build.sh`：舊式建置器加 `--memory=2500m --memory-swap=2500m --cpu-quota=100000`（超過上限只會自己失敗），加上監看程式（可用記憶體 < 700MB、記憶體壓力 ≥ 25 或 I/O 壓力 ≥ 85，連續兩次就中止建置）。重跑 2 分鐘完成、主機沒有異常。**以後這台主機上不要再跑不受限制的 Next 編譯。** 若上限內失敗，改去 sky-mini（arm64、已有 Docker）建置，不要放寬上限。
+
+### 事故 2：worker 連線被拒，youtube-source 的所有工作中斷約 12.5 分鐘（19:48:40–20:01:20）
+
+第一組 worker 映像用 `urt_tag_log: INSERT`（只新增）。worker 連線時會驗證每個外觀 view 的定義與實體表欄位，MariaDB 不會把這些資訊給只有 INSERT 的帳號，檢查回報 `Worker source view mapping mismatch`，**一個 view 不符整個連線就被拒絕**，所以不只新功能，youtube-source 批次的統計、影片探索、WebSub、影片統計等全部在連線階段失敗（日誌只有 `Worker job failed`，沒有 `ts_job_runs` 資料列）。升級工具在 prepare 階段對這個 view 的驗證是通過的，因為它用的是有完整權限的管理帳號，驗證不到 worker 的視角。
+
+影響：這些工作都是依到期時間輪詢的，恢復後自己補上；WebSub 通知存在 `ts_websub_events`（保留 3 天），沒有遺失。不影響網站。修正：`urt_tag_log` 改為 INSERT＋SELECT（`721e183`），重建映像並補授權。
+
+**教訓（寫進測試與工具）：** 「升級工具能通過」不等於「worker 能連線」。往後新增 worker 授權時，上線前要用 worker 自己的帳號在候選容器裡跑一次 `connectDatabase`，而不是只相信管理帳號的驗證；本次事故後我在線上容器用同樣方法重現並確認了修正。
+
+### 端到端驗證（20:03–20:04）
+
+用資料庫管理帳號代替網頁，在請求表插入 4 筆（`actor = system:release-test`，留在表裡作為紀錄）：
+
+| 請求 | 結果 |
+|---|---|
+| 頻道 4154 移除一個本來就沒有的分類 | `done`，沒有寫入（4154 仍是 NULL） |
+| 頻道 4149（`4ForceLab`，`[1]`）加入分類 2 | `done`，`[1]` → `[1][2]`，`urt_tag_log` 多一筆 `add`（pk 5433） |
+| 頻道 4149 移除分類 2 | `done`，回到 `[1]`，`urt_tag_log` 多一筆 `del`（pk 5434） |
+| 頻道 4154 加入不存在的分類 9999 | `failed`，`TAG_NOT_FOUND`，沒有任何寫入 |
+
+這次測試在 `urt_tag_log` 留下 2 筆永久的日誌（`u_id 4149`，tag 2，add／del）。
+
+## 回復（上線後的版本）
+
+反向依序：`--phase=schedule --rollback`（v10 → v9）；`--phase=workers --rollback`（worker／scheduler 換回舊映像）**之前必須先收回 worker 的新授權**，否則舊映像連線一樣被拒絕（授權是精確比對）：對 `youtube_ts_w_youtube_source`@`10.0.1.0/255.255.255.0` 收回 `ts_channel_admin_requests`、`urt_tag_log` 兩張新表在實體表與 facade 的全部權限，以及 `urt_channel`、`urt_tag` 的 INSERT（facade 與實體表各一），再用 `verifyGrants` 對舊版計畫逐條比對（升級工具刻意不含收回操作）；最後 `--phase=web --rollback`。上線前的 compose 與環境變數在 `.local/dokploy/release-channel-admin-*-before-*.private.json`（權限 0600，不要印出或提交）。注意 `release-channel-admin.py` 內 worker／scheduler 的「前一版」現在是有缺陷的 `32334284…`／`ccbb7afd…`，回復到更早版本要改成 `6fb522ec…`／`6ae19ba5…`。
 
 ## 一次性匯入（2026-10-27，已完成）
 
