@@ -27,6 +27,11 @@ export function ReportTable({columns:all,rows,label,showMobileScrollHint=false,f
 }
 function Cell({value,column,lead=false,phoneClip=false}:{value:ReportValue|ReportCell|undefined;column:ReportColumn;lead?:boolean;phoneClip?:boolean}){
  const cell=value!==null&&typeof value==='object'?value:{value:value??null};
+ // Native disclosure remains keyboard-operable without hydrating every row.
+ if(column.key==='tags'&&column.label==='頻道分類'&&typeof cell.value==='string'){
+  const tags=cell.value.split(' · ').map(tag=>tag.trim()).filter(Boolean);
+  if(tags.length>1)return <details className="group/categories w-40 whitespace-normal"><summary className="flex cursor-pointer items-center gap-1 rounded focus-visible:outline-2 focus-visible:outline-offset-2" aria-label={`頻道分類：${tags[0]}，另 ${tags.length-1} 項`}><span className="min-w-0 truncate" title={tags[0]}>{tags[0]}</span><span className="shrink-0 text-xs text-zinc-500 dark:text-zinc-400"><span className="group-open/categories:hidden">+{tags.length-1}</span><span className="hidden group-open/categories:inline">收合</span></span></summary><ul className="mt-1 space-y-1 break-words text-xs">{tags.slice(1).map((tag,i)=><li key={i}>{tag}</li>)}</ul></details>;
+ }
  const sources=cellSources(cell);
  const href=sources?undefined:safeReportHref(cell.href);
  const text=(cell.value===null||(typeof cell.value==='number'&&!Number.isFinite(cell.value)))
@@ -39,7 +44,7 @@ function Cell({value,column,lead=false,phoneClip=false}:{value:ReportValue|Repor
      ?cell.value?'是':'否'
      :cell.value;
  // One line per cell: long text is cut with an ellipsis and keeps the full text as its title.
- const clip=lead?tableStyle.leadText+' inline-block align-top sm:max-w-xs':tableStyle.clip+(phoneClip?' max-sm:max-w-36':'');
+ const clip=lead?tableStyle.leadText+' inline-block align-top sm:max-w-xs':(column.key==='channel'||cell.media?.kind==='channel'?'inline-block min-w-0 max-w-40 truncate align-top':tableStyle.clip)+(phoneClip?' max-sm:max-w-36':'');
  // Source names share that one clipped line; each keeps its own icon and the list keeps the full title.
  const label=sources?<ChannelSourceList sources={sources} className={clip}/>:typeof text==='string'&&!numericColumn(column)?<span className={clip} title={text}>{text}</span>:text;
  const row='inline-flex min-w-0 max-w-full items-center gap-2 align-top';

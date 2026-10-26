@@ -44,3 +44,14 @@ it('cleared group-hour date and metric select the latest scoped cache day with v
  registerLiveExtra((path,handler)=>handlers.set(path,handler),{rows:async(q)=>{const compiled=dialect.sqlToQuery(q);if(compiled.sql.includes('MAX(the_date)')){latestReads++;return [{latest:'2026-10-09'}] as any;}if(compiled.sql.includes('AS hour_bytes')){expect(compiled.params).toContain('2026-10-09');return [];}throw new Error('Unexpected query');},close:async()=>{}},clock);
  const result=await handlers.get('/live/groups/:group/hours')({group:'media'},{date:'',type:''});expect(latestReads).toBeGreaterThan(0);expect(result.title).toContain('2026-10-09');expect(result.filters.find((f:any)=>f.key==='type').value).toBe('views');expect(result.rows.every((r:any)=>Object.values(r).slice(1).every(v=>v===null))).toBe(true);expect(result.notes.join(' ')).not.toMatch(/讀取時變更|已隱藏該日期所有版本/);
 });
+
+it('live day and period observations lead with peak viewers',async()=>{
+ const app=buildApp({reader:{rows:async()=>[],close:async()=>{}},clock});
+ try{
+  for(const path of ['/live/periods','/live/days','/live/days/2026-10-12']){
+   const response=await app.inject('/api/v1'+path);
+   expect(response.statusCode).toBe(200);
+   expect(response.json().data.columns.map((column:any)=>column.key)).toEqual(['peak','video','channel','tags','date','evidence','trend']);
+  }
+ }finally{await app.close();}
+});

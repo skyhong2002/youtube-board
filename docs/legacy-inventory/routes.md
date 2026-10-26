@@ -428,3 +428,8 @@ These additions describe the isolated replacement. The Laravel routes and their 
 ## F4 third-batch visual review — 2026-10-15
 
 The four production route examples `/channels/3715`, `/channels/3715/videos`, `/tags/102/channels`, and `/live/channels` have scoped anonymous default-state visual evidence for light/dark 1280/390. Full-page captures were independently inspected; interaction and exceptional states remain pending. See `docs/f4-third-batch-2026-10-15.md` and `docs/ui-review-ledger.json` for the exact artifact binding.
+
+
+## Live observation table compactness — 2026-10-26
+
+`/live/periods`, `/live/days` and `/live/days/{date}` place measured peak viewers first. Shared report tables cap channel names with ellipsis and retain full-name tooltips; multiple channel categories show the first category and a keyboard-accessible disclosure for the rest. Data, ranking, ingestion and route contracts are unchanged apart from display column order.

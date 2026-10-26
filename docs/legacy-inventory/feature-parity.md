@@ -277,3 +277,8 @@ Operator replacements consolidate workflow inventory, guarded preview/run and bo
 ## TypeScript F4 third batch — 2026-10-15
 
 Production visual review covered `/channels/3715`, `/channels/3715/videos`, `/tags/102/channels`, and `/live/channels` at light/dark 1280/390. The existing non-author reviewer opened all 16 full-page captures and found no blocking presentation issue. This is scoped default-state evidence; query/filter submission, authentication, loading/error states, per-field freshness, and the known thumbnail 404 remain pending. No writer, scheduler, database, Cloudflare, or WAF behavior changed.
+
+
+## Live observation table compactness — 2026-10-26
+
+`/live/periods`, `/live/days` and `/live/days/{date}` place measured peak viewers first. Shared report tables cap channel names with ellipsis and retain full-name tooltips; multiple channel categories show the first category and a keyboard-accessible disclosure for the rest. Data, ranking, ingestion and route contracts are unchanged apart from display column order.

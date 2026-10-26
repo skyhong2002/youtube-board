@@ -61,7 +61,8 @@ test('wide report table: sticky entity lead, one-line clipped text with full tit
  assert.match(html,/<span class="shrink-0"><span class="inline-flex shrink-0/);
  assert.match(html,/table-lead-box[\s\S]*?class="min-w-0 max-w-full truncate inline-block align-top sm:max-w-xs" title="影片標題"/);
  assert.match(html,thumbIn('table-lead-extra shrink-0'));
- assert.equal(html.match(new RegExp(`class="${clip}" title="${longTitle}"`,'g'))?.length,2);
+ assert.equal(html.match(new RegExp(`class="${clip}" title="${longTitle}"`,'g'))?.length,1);
+ assert.match(html,new RegExp(`class="inline-block min-w-0 max-w-40 truncate align-top" title="${longTitle}"`));
  // The detail rides on the same line as its value and is cut first.
  assert.match(html,new RegExp(`<span class="inline-flex min-w-0 max-w-full items-center gap-2 align-top"><span class="${clip}" title="${longTitle}">${longTitle}</span><small class="min-w-0 max-w-xs shrink-3 truncate text-xs" title="批次說明很長很長的補充">`));
  assert.doesNotMatch(html,/white-space:normal|display:block|<small class="block/);
@@ -227,4 +228,16 @@ test('mobile live cards keep full distinguishing titles, attribution and every o
  assert.equal(mobile.match(/>來源頻道</g)?.length,2);
  assert.doesNotMatch(html,/min-width:1280px/);assert.match(html,/hidden sm:block/);
  assert.match(mobile,/dark:text-zinc-400/);
+});
+
+test('report channel categories disclose additional values without hiding single or empty values',()=>{
+ const columns:ReportColumn[]=[{key:'tags',label:'頻道分類'}];
+ const html=render(createElement(ReportTable,{columns,rows:[{tags:'社論 · 泛藍 · 中國立場 · 廣播 · 泛紅'},{tags:'泛綠'},{tags:''}],label:'分類'}));
+ assert.equal(html.match(/<details /g)?.length,1);
+ assert.doesNotMatch(html,/<details[^>]*\sopen(?:[ =>])/);
+ assert.match(html,/<summary[^>]*aria-label="頻道分類：社論，另 4 項"/);
+ assert.match(html,/>\+4<\/span>/);
+ assert.match(html,/>收合<\/span>/);
+ assert.match(html,/<li>泛藍<\/li><li>中國立場<\/li><li>廣播<\/li><li>泛紅<\/li>/);
+ assert.match(html,/>泛綠<\/span>/);
 });
