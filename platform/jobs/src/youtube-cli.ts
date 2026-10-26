@@ -1,12 +1,12 @@
 import { withLaravelSourceLock } from './laravel-source-lock.js';
 import { workflowShutdownSignal } from '../../shared/shutdown.js';
 import { randomUUID } from 'node:crypto';
-import { channelStatisticsJob, channelRetirementJob, channelUploadsJob, videoDurationsJob, commentQueueJob, commentFetchJob, commentResetJob, MysqlQuotaLedger, YoutubeDataApiClient, videoStatisticsJob, livePollingJob, tagBackfillJob, taipeiSql, type BackfillInput, type TagDictionary } from '@youtube-board/ingestion';
+import { channelAdminJob, channelStatisticsJob, channelRetirementJob, channelUploadsJob, videoDurationsJob, commentQueueJob, commentFetchJob, commentResetJob, MysqlQuotaLedger, YoutubeDataApiClient, videoStatisticsJob, livePollingJob, tagBackfillJob, taipeiSql, type BackfillInput, type TagDictionary } from '@youtube-board/ingestion';
 import { connectDatabase, withWriterLock } from './database.js';
 import { assertExecute, executionPolicy } from './policy.js';
 import { loadVocabularySnapshot } from './load-vocabulary.js';
 import { matchVocabulary } from './match.js';
-export const youtubeCommands = { 'youtube:tvbs:videos': 'youtube.tvbs.videos', 'youtube:tvbs:live:poll': 'youtube.tvbs.live.poll', 'youtube:channels:stats': 'youtube.channels.stats', 'youtube:channels:retire': 'youtube.channels.retire', 'youtube:channels:videos': 'youtube.channels.videos.general', 'youtube:channels:videos:live-group': 'youtube.channels.videos.live_group', 'youtube:channels:videos:live': 'youtube.channels.videos.live', 'youtube:videos:duration': 'youtube.videos.duration', 'youtube:comments:queue': 'youtube.comments.queue', 'youtube:comments:fetch': 'youtube.comments.fetch', 'youtube:comments:reset': 'youtube.comments.reset', 'youtube:videos:stats': 'youtube.videos.stats', 'youtube:live:poll': 'youtube.live.poll', 'youtube:tag-videos:backfill': 'youtube.tag_videos.backfill' } as const;
+export const youtubeCommands = { 'youtube:tvbs:videos': 'youtube.tvbs.videos', 'youtube:tvbs:live:poll': 'youtube.tvbs.live.poll', 'youtube:channels:stats': 'youtube.channels.stats', 'youtube:channels:retire': 'youtube.channels.retire', 'youtube:channels:videos': 'youtube.channels.videos.general', 'youtube:channels:videos:live-group': 'youtube.channels.videos.live_group', 'youtube:channels:videos:live': 'youtube.channels.videos.live', 'youtube:videos:duration': 'youtube.videos.duration', 'youtube:comments:queue': 'youtube.comments.queue', 'youtube:comments:fetch': 'youtube.comments.fetch', 'youtube:comments:reset': 'youtube.comments.reset', 'youtube:videos:stats': 'youtube.videos.stats', 'youtube:live:poll': 'youtube.live.poll', 'youtube:tag-videos:backfill': 'youtube.tag_videos.backfill', 'youtube:channels:admin': 'youtube.channels.admin' } as const;
 /** Laravel `--live=1` is tag 52 (youtube.channels.videos.live) and `--live=2` tag 89 (youtube.channels.videos.live_group). */
 export const uploadsLiveMode = (job: string) => job === 'youtube.channels.videos.live' ? { live: 1 as const } : job === 'youtube.channels.videos.live_group' ? { live: 2 as const } : {};
 /** Laravel services.youtube transient_retries (0–3, default 1) and retry_delay_ms (0–5000, default 250). */
@@ -36,6 +36,7 @@ export function validateYoutubeArguments(args: string[]) {
   if (!Array.isArray(args) || args.length > 25 || args.some(a => typeof a !== 'string' || a.length > 1000) || !args[0] || !Object.hasOwn(youtubeCommands, args[0])) throw new Error('Unknown YouTube source command');
   const command = args[0] as keyof typeof youtubeCommands, job = youtubeCommands[command];
   const options = job === 'youtube.channels.stats' ? ['u_id','channel','hours']
+    : job === 'youtube.channels.admin' ? []
     : job === 'youtube.channels.retire' ? ['u_id','channel','stale-days','restore']
     : job === 'youtube.tvbs.videos' ? ['u_id','channel','days','max-pages','max-results','offset']
     : job.startsWith('youtube.channels.videos.') ? ['u_id','channel','days','max-pages','max-results','until']
@@ -88,6 +89,7 @@ export async function executeYoutubeWorkflow(args: string[], env: NodeJS.Process
       const specific = videoId ? { videoId } : {};
       const uId = option('u_id') ?? option('channel');
       const channel = uId === undefined ? {} : { uId: Number(uId) };
+      if (job === 'youtube.channels.admin') return channelAdminJob(ctx, { limit: integer('limit', 10, 50) });
       if (job === 'youtube.channels.stats') return channelStatisticsJob(ctx, { ...channel, limit: integer('limit', 25, 50), hours: integer('hours', 22, 168) });
       if (job === 'youtube.channels.retire') return channelRetirementJob(ctx, { ...channel, limit: integer('limit', 25, 50), staleDays: integer('stale-days', 14, 365), restore: args.includes('--restore') });
       if ((job.startsWith('youtube.channels.videos.') || job === 'youtube.tvbs.videos')) return channelUploadsJob(ctx, { ...channel, limit: integer('limit', 20, 100), tvbs: job === 'youtube.tvbs.videos', maxPages: integer('max-pages', 1, 200), maxResults:integer('max-results',5,50), ...(option('until') ? { stopAt: Date.parse(option('until')!) } : {}), days: integer('days', 7, 365), ...uploadsLiveMode(job), ...(job === 'youtube.tvbs.videos' ? { offset: option('offset') === 'auto' ? 'auto' as const : Number(option('offset') ?? 0) } : {}) });

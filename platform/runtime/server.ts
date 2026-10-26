@@ -3,6 +3,7 @@ import {mysqlApiKeyStore} from '../api/src/reader/api-key-store.js';
 import {registerPersonalApiKeys} from '../api/src/reader/api-keys.js';
 import {registerReaderAccounts} from '../api/src/reader/routes.js';
 import {registerManage} from '../api/src/manage/routes.js';
+import {registerChannelAdmin} from '../api/src/channel-admin.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import { buildApp } from '../api/src/app.js';
 import { registerOps } from '../api/src/ops/index.js';
@@ -25,6 +26,7 @@ const auth=await registerAuth(app,{databaseUrl:databases.auth,env:{...process.en
 await registerReaderAccounts(app,auth,{databaseUrl:databases.auth});
 await registerPersonalApiKeys(app,auth,{store:apiKeysReady?apiKeys:null});
 await registerManage(app,auth,{stateUrl:databases.state,reportsUrl:databases.reports});
+await registerChannelAdmin(app,auth,{stateUrl:databases.state});
 let stopping = false;
 const active = new Set<string>();
 app.addHook('onRequest', async (request, reply) => {

@@ -5,6 +5,7 @@ export * from './live-polling.js';
 export * from './tag-backfill.js';
 export * from './legacy-db.js';
 export * from './channel-jobs.js';
+export * from './channel-admin.js';
 export * from './video-durations.js';
 export * from './comments.js';
 export * from './report-caches.js';

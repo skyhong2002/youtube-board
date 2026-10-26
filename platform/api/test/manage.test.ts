@@ -38,7 +38,7 @@ it('admin overview routes are session-admin only and list archived channels with
   'FROM urt_channel c':[{u_id:7,youtube_id:'UCaaaaaaaaaaaaaaaaaaaaaa',title:'甲台',flag_del:null,ctime:'2020-01-01 08:00:00',stime:'2026-10-17 10:00:00',subscriberCount:'1200',videoCount:'50',tags:'[3][12]'},{u_id:8,youtube_id:'UCbbbbbbbbbbbbbbbbbbbbbb',title:'乙台',flag_del:1,ctime:null,stime:null,subscriberCount:null,videoCount:null,tags:null}],
   'MAX(publishedAt)':[{u_id:7,latest:'2026-10-16 20:00:00'},{u_id:8,latest:'2025-01-01 00:00:00'}],
   'COUNT(*) AS n FROM urt_video':[{u_id:7,n:'4'}],
-  'FROM urt_tag':[{tag_id:3,tag_name:'泛藍'},{tag_id:12,tag_name:'電視台'},{tag_id:99,tag_name:'沒用到'}],
+  'FROM urt_tag':[{tag_id:3,tag_name:'泛藍',del_flag:null},{tag_id:12,tag_name:'電視台',del_flag:0},{tag_id:99,tag_name:'沒用到',del_flag:null},{tag_id:98,tag_name:'已停用',del_flag:1}],
  });
  const store:ActivityStore={activity:async()=>[{userId:1,follows:1,saves:0,apiKeys:0,feed:false,sessions:1,editorial:{event:0,nomination:0,decision:0},keywordReviews:0,roleChanges:0,lastActiveAt:null}],close:async()=>{}};
  const s=await setup(reader,store);try{
@@ -49,7 +49,8 @@ it('admin overview routes are session-admin only and list archived channels with
   }
   const activity=await s.app.inject({url:'/auth/admin/user-activity',headers:{cookie:s.admin}});expect(activity.headers['cache-control']).toBe('private, no-store');expect(activity.json()).toMatchObject({activity:[{userId:1,follows:1}],generatedAt:now.toISOString()});
   const list=(await s.app.inject({url:'/auth/admin/channels',headers:{cookie:s.admin}})).json();
-  expect(list.tags).toEqual([{id:3,name:'泛藍'},{id:12,name:'電視台'}]);
+  // The editor offers every live category, including one nobody uses yet, but not a retired one.
+  expect(list.tags).toEqual([{id:3,name:'泛藍'},{id:12,name:'電視台'},{id:99,name:'沒用到'}]);
   expect(list.channels).toMatchObject([
    {channelId:7,channelTitle:'甲台',status:'active',tags:[3,12],subscribers:1200,videos:50,weekVideos:4,latestVideoAt:'2026-10-16T12:00:00.000Z',statsAt:'2026-10-17T02:00:00.000Z',addedAt:'2020-01-01T00:00:00.000Z'},
    {channelId:8,channelTitle:'乙台',status:'archived',tags:[],subscribers:null,weekVideos:0,statsAt:null},

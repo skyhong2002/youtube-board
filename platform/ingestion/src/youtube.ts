@@ -128,6 +128,15 @@ export class YoutubeDataApiClient {
     }
     return result;
   }
+  /** channels.list?forHandle: the channel id behind an `@handle`, or null when YouTube lists none (one quota unit). */
+  async channelIdForHandle(handle: string): Promise<string | null> {
+    if (!/^@[\p{L}\p{N}._-]{3,30}$/u.test(handle)) throw new YoutubeError('request-failed');
+    const items = this.items(await this.get('channels', { part: 'id', forHandle: handle }));
+    if (!items.length) return null;
+    const first = items[0];
+    if (items.length > 1 || !record(first) || !/^UC[A-Za-z0-9_-]{22}$/.test(str(first.id))) throw new YoutubeError('invalid-response');
+    return str(first.id);
+  }
   async channelPresence(values: string[]): Promise<string[]> {
     const ids = this.ids(values); if (!ids.length) return [];
     const data = await this.get('channels', { part: 'id', id: ids.join(','), maxResults: '50' });

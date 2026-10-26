@@ -15,6 +15,7 @@ interface Definition { command: string; values: string[]; flags: string[]; kind:
 const common = ['limit', 'max-api-attempts'];
 const fields: Record<string, [string[], string[]]> = {
   'youtube.channels.stats': [['u_id', 'hours'], []],
+  'youtube.channels.admin': [[], []],
   'youtube.channels.retire': [['u_id', 'stale-days'], ['restore']],
   'youtube.channels.videos.general': [['u_id', 'max-pages', 'max-results', 'days'], []],
   'youtube.channels.videos.live_group': [['u_id', 'max-pages', 'max-results', 'days'], []],

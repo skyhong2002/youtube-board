@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "timezone": "Asia/Taipei",
+  "schedules": [
+    {"id": "channel-admin-v1", "workflow": "youtube.channels.admin", "cron": "* * * * *", "options": {"limit": 10}}
+  ]
+}

@@ -66,7 +66,7 @@ export async function managedChannels(reader:Reader,now:Date):Promise<ManagedCha
   reader.rows(sql`SELECT c.u_id,c.youtube_id,LEFT(c.title,256) AS title,c.flag_del,c.ctime,c.stime,c.subscriberCount,c.videoCount,n.tags FROM urt_channel c LEFT JOIN urt_count n ON n.u_id=c.u_id ORDER BY c.u_id LIMIT ${CHANNELS_MAX+1}`),
   reader.rows(sql`SELECT u_id,MAX(publishedAt) AS latest FROM urt_video GROUP BY u_id`),
   reader.rows(sql`SELECT u_id,COUNT(*) AS n FROM urt_video WHERE publishedAt>=${since} GROUP BY u_id`),
-  reader.rows(sql`SELECT tag_id,LEFT(tag_name,64) AS tag_name FROM urt_tag ORDER BY tag_id LIMIT 1000`),
+  reader.rows(sql`SELECT tag_id,LEFT(tag_name,64) AS tag_name,del_flag FROM urt_tag ORDER BY tag_id LIMIT 1000`),
  ]);
  if(rows.length>CHANNELS_MAX)throw new DataQueryFailed('MANAGE_CHANNEL_BOUND');
  const byChannel=(list:Row[],key:string)=>new Map(list.map(r=>[integer(r.u_id)??0,r[key]]));
@@ -76,7 +76,8 @@ export async function managedChannels(reader:Reader,now:Date):Promise<ManagedCha
   const tags=tagIds(r.tags),latestVideoAt=timestamp(latestAt.get(id)),statsAt=timestamp(r.stime);for(const tag of tags)used.add(tag);
   return [{channelId:id,channelTitle:text(r.title)||String(id),youtubeChannelId:text(r.youtube_id),status:channelStatus({archived:integer(r.flag_del)!==null&&integer(r.flag_del)!>=1,latestVideoAt,statsAt},now),tags,subscribers:integer(r.subscriberCount),videos:integer(r.videoCount),weekVideos:integer(week.get(id))??0,latestVideoAt,statsAt,addedAt:timestamp(r.ctime)}];
  });
- const tags=names.flatMap(r=>{const id=integer(r.tag_id);return id!==null&&used.has(id)?[{id,name:text(r.tag_name)||String(id)}]:[];});
+ // Every live category is listed so the editor can offer one nobody uses yet; a retired one only while a channel still carries it.
+ const tags=names.flatMap(r=>{const id=integer(r.tag_id),retired=(integer(r.del_flag)??0)>=1;return id!==null&&(used.has(id)||!retired)?[{id,name:text(r.tag_name)||String(id)}]:[];});
  return enrichPublicMedia(reader,{channels,tags,generatedAt:now.toISOString(),quietDays:QUIET_DAYS,staleDays:STALE_DAYS});
 }
 const unavailableCodes=new Set(['ECONNREFUSED','ECONNRESET','ETIMEDOUT','PROTOCOL_CONNECTION_LOST','ER_ACCESS_DENIED_ERROR','ER_DBACCESS_DENIED_ERROR','ER_TABLEACCESS_DENIED_ERROR','ER_STATEMENT_TIMEOUT','ER_NO_SUCH_TABLE','ER_CON_COUNT_ERROR']);

@@ -10,6 +10,7 @@ import {readerFetch} from '@/lib/reader';
 import {table} from '@/lib/table-styles';
 import {field,note} from '@/app/my/ReaderGate';
 import SortTable,{type SortColumn} from './SortTable';
+import ChannelTools from './ChannelTools';
 export const CHANNEL_STATUS:Record<ManagedChannelStatus,{label:string;tone:string;rank:number}>={
  stale:{label:'統計逾期',tone:'text-amber-800 bg-amber-50 dark:text-amber-200 dark:bg-amber-950',rank:0},
  empty:{label:'尚未抓到影片',tone:'text-amber-800 bg-amber-50 dark:text-amber-200 dark:bg-amber-950',rank:1},
@@ -22,7 +23,7 @@ const time=(value:string|null)=>value?Date.parse(value):null;
 /** Search matches the title, the YouTube channel ID or the local channel number. */
 export function channelMatches(row:ManagedChannel,query:string){const q=query.trim().toLowerCase();return !q||row.channelTitle.toLowerCase().includes(q)||row.youtubeChannelId.toLowerCase()===q||String(row.channelId)===q;}
 export default function Channels(){
- const [data,setData]=useState<ManagedChannelList|null>(null),[error,setError]=useState(''),[retry,setRetry]=useState(0),[query,setQuery]=useState(''),[status,setStatus]=useState<ManagedChannelStatus|null>(null),[tag,setTag]=useState<number|0|null>(null);
+ const [data,setData]=useState<ManagedChannelList|null>(null),[error,setError]=useState(''),[retry,setRetry]=useState(0),[query,setQuery]=useState(''),[status,setStatus]=useState<ManagedChannelStatus|null>(null),[tag,setTag]=useState<number|0|null>(null),[editing,setEditing]=useState<number|null>(null);
  useEffect(()=>{const controller=new AbortController();setError('');void readerFetch<ManagedChannelList>('/auth/admin/channels',{signal:controller.signal}).then(value=>{if(!controller.signal.aborted)setData(value);}).catch(e=>{if(!controller.signal.aborted)setError(accountMessage(e));});return()=>controller.abort();},[retry]);
  const names=useMemo(()=>new Map(data?.tags.map(t=>[t.id,t.name])??[]),[data]);
  const searched=useMemo(()=>data?.channels.filter(row=>channelMatches(row,query))??[],[data,query]);
@@ -38,6 +39,7 @@ export default function Channels(){
   {key:'week',label:'7 天新片',num:true,sort:r=>r.weekVideos,cell:r=>count(r.weekVideos)},
   {key:'status',label:'收錄狀態',sort:r=>CHANNEL_STATUS[r.status].rank,first:'asc',cell:r=><span className={'rounded-full px-2 py-0.5 text-xs '+CHANNEL_STATUS[r.status].tone}>{CHANNEL_STATUS[r.status].label}</span>},
   {key:'tags',label:'分類',sort:r=>r.tags.length?r.tags.map(id=>names.get(id)??id).join('、'):null,cell:r=>r.tags.length?<span className="inline-block max-w-xs truncate align-middle text-xs text-zinc-600 dark:text-zinc-400" title={r.tags.map(id=>names.get(id)??id).join('、')}>{r.tags.map((id,i)=><Fragment key={id}>{i>0&&'、'}<button type="button" className={'hover:text-brand-700 hover:underline dark:hover:text-brand-400 '+(tag===id?'font-semibold text-brand-700 dark:text-brand-400':'')} title={`只看「${names.get(id)??id}」分類`} onClick={()=>setTag(tag===id?null:id)}>{names.get(id)??id}</button></Fragment>)}</span>:<button type="button" className="text-xs text-zinc-400 hover:text-brand-700 hover:underline dark:hover:text-brand-400" title="只看未分類的頻道" onClick={()=>setTag(tag===0?null:0)}>未分類</button>},
+  {key:'edit',label:'編輯',cell:r=><button type="button" className="text-xs text-brand-700 hover:underline dark:text-brand-400" aria-label={`編輯 ${r.channelTitle} 的分類`} onClick={()=>{setEditing(r.channelId);window.scrollTo({top:0,behavior:'smooth'});}}>分類</button>},
   {key:'subscribers',label:'訂閱',num:true,sort:r=>r.subscribers,cell:r=>compact(r.subscribers)},
   {key:'videos',label:'影片',num:true,sort:r=>r.videos,cell:r=>count(r.videos)},
   {key:'latest',label:'最新影片',num:true,time:true,sort:r=>time(r.latestVideoAt),cell:r=>r.latestVideoAt?dateTime(r.latestVideoAt,true):'—'},
@@ -46,6 +48,7 @@ export default function Channels(){
  ];
  const sortedTags=[...data.tags].sort((a,b)=>(tagCounts.get(b.id)??0)-(tagCounts.get(a.id)??0)||a.id-b.id);
  return <div className="grid gap-4">
+  <ChannelTools data={data} editing={editing} onEdit={setEditing} onApplied={()=>setRetry(n=>n+1)}/>
   <div className="flex flex-wrap items-center gap-2">
    <input type="search" className={field+' w-64 max-w-full'} placeholder="搜尋頻道名稱、YouTube ID 或編號" aria-label="搜尋頻道" value={query} onChange={e=>setQuery(e.target.value)}/>
    <select className={field} aria-label="頻道分類" value={tag===null?'':String(tag)} onChange={e=>setTag(e.target.value===''?null:Number(e.target.value))}>

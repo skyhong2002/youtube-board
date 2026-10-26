@@ -1789,6 +1789,41 @@
         ]
       },
       "dependencies": []
+    },
+    "youtube.channels.admin": {
+      "tables": {
+        "urt_channel": [
+          "SELECT",
+          "INSERT"
+        ],
+        "urt_count": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_tag": [
+          "SELECT",
+          "INSERT"
+        ],
+        "urt_tag_log": [
+          "INSERT"
+        ],
+        "ts_channel_admin_requests": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ingestion_youtube_quota_daily": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ]
+      },
+      "dependencies": []
     }
   }
 }
