@@ -45,7 +45,7 @@ hub ──POST──▶ /websub/youtube/<channelId>/<token>   接收端（api/sr
 |---|---|
 | `shared/websub.ts` | 常數、Redis key、token／簽章導出與驗證、通知解析（不用 XML 解析器，只比對兩個固定格式的 ID） |
 | `api/src/websub.ts` | `GET`（驗證訂閱）與 `POST`（收通知）；未啟用時不註冊路由 |
-| `api/src/index.ts` | `registerWebsub(app)` |
+| `runtime/server.ts`、`api/src/index.ts` | `registerWebsub(app)`。正式環境的啟動器跑的是 `runtime/server.ts`，不是 `api/src/index.ts`，兩處都要註冊 |
 | `jobs/src/websub-cli.ts` | `youtube.websub.sync`（指令 `youtube:websub:sync`） |
 | `jobs/src/workflow-registry.ts`、`cli.ts` | 註冊 |
 | `shared/worker-batches.ts`、`worker-permissions.json` | 放進 `youtube-source` 批次與權限檔 |

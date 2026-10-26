@@ -80,6 +80,20 @@ describe('WebSub callback', () => {
     expect(response.statusCode).toBe(204);
     expect(pushed).toEqual([]);
   });
+  it('works on the production gateway app, whose not-found handler rejects every non-GET', async () => {
+    const { buildApp } = await import('../src/app.js'), memory = memoryStore();
+    const app = buildApp({ dataset: 'fixture', rankingPools: false, reader: { rows: async () => [], close: async () => {} } });
+    await registerWebsub(app, { env, store: memory.store });
+    const body = atom();
+    const post = await app.inject({ method: 'POST', url: path(), headers: { 'content-type': 'application/atom+xml; charset=UTF-8', 'x-hub-signature': sign(body) }, payload: body });
+    expect(post.statusCode).toBe(204);
+    expect(memory.pushed).toEqual([`${CHANNEL}:${VIDEO}`]);
+    const get = await app.inject({ method: 'GET', url: `${path()}?${new URLSearchParams({ 'hub.mode': 'subscribe', 'hub.topic': websubTopic(CHANNEL), 'hub.challenge': 'c1', 'hub.lease_seconds': '432000' })}` });
+    expect([get.statusCode, get.body]).toEqual([200, 'c1']);
+    // Unrelated POSTs still get the gateway's own answer.
+    expect((await app.inject({ method: 'POST', url: '/websub/other', payload: '{}' })).statusCode).toBe(405);
+    await app.close();
+  });
   it('asks the hub to retry when Redis is unavailable', async () => {
     const app = Fastify();
     await registerWebsub(app, { env, store: { async push() { throw new Error('down'); }, async count() {}, async verified() { throw new Error('down'); } } });
