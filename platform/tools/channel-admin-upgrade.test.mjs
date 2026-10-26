@@ -13,20 +13,21 @@ test('plan adds one table with web SELECT/INSERT, two worker facade views and on
  assert.deepEqual(p.views.map(v=>/`\.`(\w+)` AS SELECT/.exec(v)[1]).sort(),[...NEW_TABLES].sort());
  for(const v of p.views)assert.match(v,/SQL SECURITY INVOKER VIEW `youtube_board_ts_worker_youtube_source`\./);
  assert.deepEqual(p.workerGrants.sort(),[
-  "GRANT INSERT ON `youtube_board`.`urt_tag_log` "+W,
+  "GRANT INSERT,SELECT ON `youtube_board`.`urt_tag_log` "+W,
   "GRANT INSERT,SELECT ON `youtube_board`.`urt_tag` "+W,
   "GRANT INSERT,SELECT,SHOW VIEW ON `youtube_board_ts_worker_youtube_source`.`urt_tag` "+W,
   "GRANT INSERT,SELECT,UPDATE ON `youtube_board`.`urt_channel` "+W,
   "GRANT INSERT,SELECT,UPDATE,SHOW VIEW ON `youtube_board_ts_worker_youtube_source`.`urt_channel` "+W,
-  "GRANT INSERT,SHOW VIEW ON `youtube_board_ts_worker_youtube_source`.`urt_tag_log` "+W,
+  "GRANT INSERT,SELECT,SHOW VIEW ON `youtube_board_ts_worker_youtube_source`.`urt_tag_log` "+W,
   "GRANT SELECT,UPDATE ON `youtube_board_ts`.`ts_channel_admin_requests` "+W,
   "GRANT SELECT,UPDATE,SHOW VIEW ON `youtube_board_ts_worker_youtube_source`.`ts_channel_admin_requests` "+W,
  ].sort());
 });
-test('the worker never gains DELETE, DDL or any right on another table, and urt_tag_log is insert-only',async()=>{
+test('the worker never gains DELETE, DDL or any right on another table, and urt_tag_log stays append-only',async()=>{
  const p=await planChannelAdmin(env);
  for(const g of p.workerGrants){assert.doesNotMatch(g,/DELETE|DROP|ALTER|CREATE|ALL|GRANT OPTION/);assert.match(g,/urt_channel|urt_tag_log|urt_tag|ts_channel_admin_requests/);}
- assert.ok(p.workerGrants.filter(g=>g.includes('`urt_tag_log`')).every(g=>!/SELECT|UPDATE/.test(g)));
+ // SELECT is needed so the worker can verify its facade view; the log must still never be updated or deleted from.
+ assert.ok(p.workerGrants.filter(g=>g.includes('`urt_tag_log`')).every(g=>/INSERT/.test(g)&&!/UPDATE|DELETE/.test(g)));
 });
 test('the grants before the upgrade are the planned set minus the new tables and the added INSERT rights, and nothing else',async()=>{
  const planned=planWorker({...env,WORKER_BATCH:'youtube-source'}).grants,before=grantsBefore(planned);

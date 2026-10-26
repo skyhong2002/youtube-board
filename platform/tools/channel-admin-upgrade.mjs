@@ -40,7 +40,9 @@ export async function planChannelAdmin(env){
  if(changed.length!==8||tablesOf(changed).join()!==['ts_channel_admin_requests','urt_channel','urt_tag','urt_tag_log'].join())throw Error('INVALID_CHANNEL_ADMIN_WORKER_GRANTS');
  for(const g of changed){const [, rights,, name]=grantPattern.exec(g);const list=rights.split(',');
   if(list.some(r=>['ALL','DELETE','DROP','ALTER','CREATE','GRANT OPTION'].includes(r)||r.startsWith('ALL')))throw Error('INVALID_CHANNEL_ADMIN_WORKER_GRANTS');
-  if(name==='urt_tag_log'&&list.some(r=>!['INSERT','SHOW VIEW'].includes(r)))throw Error('INVALID_CHANNEL_ADMIN_WORKER_GRANTS');}
+  // SELECT is required, not optional: the worker verifies its facade view against the backing table's columns on every connection,
+  // and MariaDB hides both from an account that holds only INSERT. The log stays append-only (no UPDATE, no DELETE).
+  if(name==='urt_tag_log'&&list.some(r=>!['SELECT','INSERT','SHOW VIEW'].includes(r)))throw Error('INVALID_CHANNEL_ADMIN_WORKER_GRANTS');}
  const mappings=Object.fromEntries(NEW_TABLES.map(name=>[name,worker.mapping[name]]));
  const plan={target:frontend.target,facade:worker.facade,workerUser:worker.user,workerHost:worker.host,stateUser:frontend.stateUser,ddl,views,stateGrants,workerGrants:changed,mappings};
  return {...plan,sha256:createHash('sha256').update(JSON.stringify(plan)).digest('hex')};

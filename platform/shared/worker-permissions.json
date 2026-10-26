@@ -1806,6 +1806,7 @@
           "INSERT"
         ],
         "urt_tag_log": [
+          "SELECT",
           "INSERT"
         ],
         "ts_channel_admin_requests": [

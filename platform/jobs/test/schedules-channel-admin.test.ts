@@ -32,7 +32,8 @@ describe('channel admin schedule file', () => {
     const { tables } = workerProfile('youtube.channels.admin');
     expect(tables.urt_channel).toEqual(['INSERT', 'SELECT']);
     expect(tables.urt_tag).toEqual(['INSERT', 'SELECT']);
-    expect(tables.urt_tag_log).toEqual(['INSERT']);
+    // SELECT lets the worker verify its facade view on connect; the log is never updated or deleted.
+    expect(tables.urt_tag_log).toEqual(['INSERT', 'SELECT']);
     expect(tables.ts_channel_admin_requests).toEqual(['SELECT', 'UPDATE']);
     expect(Object.values(tables).flat()).not.toContain('DELETE');
   });
