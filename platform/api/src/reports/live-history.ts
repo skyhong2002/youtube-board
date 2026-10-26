@@ -53,7 +53,7 @@ export function registerLiveHistory(register: Register, reader: Reader, clock: (
                 byVideo.set(r.id, r);
         }
         const rows = [...byVideo.values()].sort((a, b) => b.peak - a.peak||b.date.localeCompare(a.date)||a.id.localeCompare(b.id)).map(r => ({ video: link(r.title, `/videos/${encodeURIComponent(r.id)}`), channel: link(r.channelTitle, `/channels/${r.channelId}`), date: r.date, peak: r.peak,tags:r.tags,evidence:partialVideos.has(r.id)?'部分取樣':'可用取樣',trend:link('查看觀測',`/live/videos/${encodeURIComponent(r.id)}/trend`) }));
-        return {...table('直播期間排行', [{ key: 'peak', label: '實測峰值在線', kind: 'number' }, { key: 'video', label: '影片' }, { key: 'channel', label: '頻道' }, {key:'tags',label:'頻道分類'}, { key: 'date', label: '峰值日期', kind: 'date' },{key:'evidence',label:'取樣範圍'},{key:'trend',label:'歷史觀測'}], rows, q, { updatedAt,...livePeriodControls(q,videoPeriod!,pathDate?'/live/days':'/live/periods'), notes: ['以來源峰值及有效取樣取最大值；未觀測時段的真正峰值可能更高。',liveCoverageNote,'預設為台北今日；單日／起訖最多90日。無效、顛倒、超界日期回報錯誤，不自動改成另一段期間。'] }),evidenceCoverage:{...coverage,from:period.from,to:period.to}};
+        return {...table('直播期間排行', [{ key: 'video', label: '影片' }, { key: 'peak', label: '實測峰值在線', kind: 'number' }, { key: 'channel', label: '頻道' }, {key:'tags',label:'頻道分類'}, { key: 'date', label: '峰值日期', kind: 'date' },{key:'evidence',label:'取樣範圍'},{key:'trend',label:'歷史觀測'}], rows, q, { updatedAt,...livePeriodControls(q,videoPeriod!,pathDate?'/live/days':'/live/periods'), notes: ['以來源峰值及有效取樣取最大值；未觀測時段的真正峰值可能更高。',liveCoverageNote,'預設為台北今日；單日／起訖最多90日。無效、顛倒、超界日期回報錯誤，不自動改成另一段期間。'] }),evidenceCoverage:{...coverage,from:period.from,to:period.to}};
     };
     register('/live/days', (_p,q)=>live(q,'videos'));
     register('/live/periods', (_p,q)=>live(q,'videos'));

@@ -432,4 +432,4 @@ The four production route examples `/channels/3715`, `/channels/3715/videos`, `/
 
 ## Live observation table compactness — 2026-10-26
 
-`/live/periods`, `/live/days` and `/live/days/{date}` place measured peak viewers first. Shared report tables cap channel names with ellipsis and retain full-name tooltips; multiple channel categories show the first category and a keyboard-accessible disclosure for the rest. Data, ranking, ingestion and route contracts are unchanged apart from display column order.
+`/live/periods`, `/live/days` and `/live/days/{date}` place measured peak viewers in the second column, immediately after the video. Shared report tables cap channel names with ellipsis and retain full-name tooltips; multiple channel categories show the first category and a keyboard-accessible disclosure for the rest. Data, ranking, ingestion and route contracts are unchanged apart from display column order.
