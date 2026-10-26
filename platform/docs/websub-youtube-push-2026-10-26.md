@@ -66,7 +66,7 @@ hub ──GET───▶ 同一網址（訂閱驗證）→ 回 challenge，INSE
 - **第一次上線嘗試（2026-10-26 07:58Z，已回復）：** 照第一版（Redis）換 web，外部驗證接收端回 503／500。原因是正式 web 的 `REDIS_URL` 為空。網站頁面一直正常，也還沒有任何訂閱；08:01Z 用 `release-websub.py --phase=web --rollback` 回到原 image，compose 與 env 與發版前逐位元組相同。已建立的 Swarm secret `yb_ts_websub_env_v1` 保留（尚未被任何服務使用）。
 - 該次順便確認：舊 scheduler image 會拒絕含 `youtube.websub.sync` 的排程設定（`Unregistered workflow`），所以一定要先換 scheduler image 再換排程設定。
 
-## 上線步驟（資料表版本）
+## 上線步驟（資料表版本，已照此順序執行）
 
 1. **權限備份**（`export-ts-principals.py`）。
 2. **prepare：** `tools/websub-upgrade.mjs --phase=prepare --execute`。建表、worker facade view、web 的 SELECT/INSERT；正在跑的 worker 權限不變。
@@ -77,6 +77,35 @@ hub ──GET───▶ 同一網址（訂閱驗證）→ 回 challenge，INSE
 7. 觀察：`verify` 逐步增加到約 786；有新影片時 `bumped` 增加，頻道 `vtime` 被提前後 5 分鐘內新影片入庫。
 
 回復：移除排程（設定回 v8）、worker／scheduler／web 換回舊 image 與 env。資料表與授權是附加的，留著不影響其他功能；既有訂閱最多 5 天後自然過期。
+
+## 正式環境上線紀錄（資料表版本，UTC 2026-10-26）
+
+main 為 `5460bd4`（`2cb3531` 功能、`7434049` 掛上閘道、`5460bd4` 改成資料表）。腳本 `.local/dokploy/release-websub.py`（預設 dry-run，`--phase=web|workers|schedule`，每階段都斷言 compose 其餘部分不變，備份在 `release-websub-<phase>-before-*.private.json`）。
+
+| 時間 | 動作 |
+|---|---|
+| 08:46:57 | 權限備份：`export-ts-principals.py` → `skyhong-blog:/home/ubuntu/backups/services/websub-20261026T084657Z/principals/`（12 個帳號、393 條授權，sha256 `8a7ff5d7…`）。 |
+| 08:49 | `websub-upgrade.mjs --phase=prepare`（在 overlay 網路上的容器內執行，主機連不到資料庫）：建 `ts_websub_events`、worker facade view、web 帳號 `SELECT, INSERT`。plan sha256 `e285acd5…`；來源 schema 寫入 0、DDL 0。 |
+| 08:50 | 候選容器（loopback、唯讀、writers 關閉）連真實資料庫：驗證、簽章、錯誤路徑都符合預期；測試用的合成頻道資料已刪除。 |
+| 08:50:41–08:51:27 | 換 web：`132791ba…` → `1d34870c…`（`release-websub-web-5460bd4`），env 加 `TS_WEBSUB_ENABLED`、`WEBSUB_SECRET`。從公開網域驗證回呼可達，Cloudflare 沒有擋。 |
+| 08:51:56 | 換 `worker-youtube-source`（`2f60f294…` → `6fb522ec…`）與 scheduler（`65038431…` → `6ae19ba5…`）；owners／allowlist 加 `youtube.websub.sync`；worker 掛上 Swarm secret `yb_ts_websub_env_v1`。 |
+| 08:52:00 | `--phase=worker`：worker 的 `DELETE, SELECT`。距 deploy 請求 2 秒，兩個服務 08:52:23 都 `completed`、healthy，一般探索與影片統計照常執行。 |
+| 09:02:59 | 排程設定 v8 → v9（多一筆 `websub-sync-v1`），09:03:30 完成。 |
+| 09:03:37 | 第一輪：目標 786 個頻道，送出 40 個訂閱全部被接受，hub 幾秒內回頭驗證，`verify` 40 筆。 |
+
+觀察（09:03–09:17）：
+- 每 2 分鐘一輪，皆 `completed`，訂閱失敗 0；已建立的訂閱 40 → 280。
+- hub 開始推播：33 筆通知，其中 24 支影片已被探索收進 `urt_video`，8 支由觀察機制確認入庫，沒有過期或重試。
+- 主機負載 1.2–2.6。
+
+回復（反向依序）：
+1. `release-websub.py --phase=schedule --rollback --execute`（設定回 v8）。
+2. `release-websub.py --phase=workers --rollback --execute`（worker、scheduler 換回舊 image，移除 owners 與 secret 掛載）。**舊 worker 會比對授權，所以要先收回 worker 的授權**，否則連線會失敗：
+   `REVOKE DELETE, SELECT ON youtube_board_ts.ts_websub_events FROM 'youtube_ts_w_youtube_source'@'10.0.1.0/255.255.255.0'`
+   `REVOKE DELETE, SELECT, SHOW VIEW ON youtube_board_ts_worker_youtube_source.ts_websub_events FROM 'youtube_ts_w_youtube_source'@'10.0.1.0/255.255.255.0'`
+   （升級工具刻意不含收回操作，需用 root 手動執行並以 `verifyGrants` 比對。）
+3. `release-websub.py --phase=web --rollback --execute`。
+資料表與 web 的 INSERT 授權是附加的，留著不影響其他功能；既有訂閱最多 5 天後自然過期。
 
 ## 已知限制與待驗證
 
