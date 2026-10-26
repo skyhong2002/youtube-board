@@ -5,13 +5,13 @@ import { connectDatabase, withWriterLock } from './database.js';
 import { assertExecute, executionPolicy } from './policy.js';
 import { workflowShutdownSignal } from '../../shared/shutdown.js';
 import {
-  WEBSUB_CHANNEL_ID, WEBSUB_COMMAND, WEBSUB_HUB_URL, WEBSUB_JOB, WEBSUB_LEASE_SECONDS, WEBSUB_PRIORITY_VTIME, callbackUrl, decodeEvent, hubSecret, websubKeys, websubSecret, websubTopic,
+  WEBSUB_CHANNEL_ID, WEBSUB_COMMAND, WEBSUB_VIDEO_ID, WEBSUB_HUB_URL, WEBSUB_JOB, WEBSUB_LEASE_SECONDS, WEBSUB_PRIORITY_VTIME, callbackUrl, hubSecret, websubKeys, websubSecret, websubTopic,
 } from '../../shared/websub.js';
 
 export { WEBSUB_COMMAND, WEBSUB_JOB };
 /** The news and politics scope of /live/current: editorials, politicians, TV, news, parties, radio. */
 export const WEBSUB_DEFAULT_TAGS = [1, 2, 12, 13, 14, 81];
-const DRAIN_LIMIT = 500, WATCH_LIMIT = 2000, WATCH_REBUMP_MS = 6 * 60 * 1000, WATCH_EXPIRE_MS = 30 * 60 * 1000, WATCH_MAX_BUMPS = 3, RENEW_BEFORE_MS = 24 * 3600 * 1000, ACCEPTED_RETRY_MS = 6 * 3600 * 1000, FAILED_RETRY_MS = 30 * 60 * 1000, MAX_CONSECUTIVE_FAILURES = 5;
+const DRAIN_LIMIT = 500, FIRST_RUN_WINDOW_MINUTES = 30, NOTICE_RETENTION_DAYS = 3, VERIFY_RETENTION_DAYS = 35, PRUNE_LIMIT = 1000, WATCH_LIMIT = 2000, WATCH_REBUMP_MS = 6 * 60 * 1000, WATCH_EXPIRE_MS = 30 * 60 * 1000, WATCH_MAX_BUMPS = 3, RENEW_BEFORE_MS = 24 * 3600 * 1000, ACCEPTED_RETRY_MS = 6 * 3600 * 1000, FAILED_RETRY_MS = 30 * 60 * 1000, MAX_CONSECUTIVE_FAILURES = 5;
 
 export function validateWebsubArguments(args: string[]) {
   if (args[0] !== WEBSUB_COMMAND || args.length > 4) throw new Error('Invalid WebSub command');
@@ -53,12 +53,18 @@ export async function scopedChannels(db: Connection, tagIds: number[]) {
  * channel is moved to the front again, at most three times, six minutes apart.
  */
 export async function drainNotices(db: Connection, redis: Redis, assertOwnership: () => Promise<void>, now = Date.now()) {
-  const popped = await redis.lpop(websubKeys.events, DRAIN_LIMIT) ?? [];
+  // The cursor is the last processed row id. Without one (first run, or Redis lost it) only the recent past is read.
+  const stored = await redis.get(websubKeys.cursor), cursor = stored !== null && /^\d+$/.test(stored) ? stored : null;
+  const [popped] = await db.query<RowDataPacket[]>(
+    `SELECT id, channel_id, video_id FROM ts_websub_events WHERE kind = 'notice' AND ${cursor !== null ? 'id > ?' : `received_at >= UTC_TIMESTAMP() - INTERVAL ${FIRST_RUN_WINDOW_MINUTES} MINUTE`} ORDER BY id LIMIT ?`,
+    cursor !== null ? [cursor, DRAIN_LIMIT] : [DRAIN_LIMIT]);
   const watch = await redis.hgetall(websubKeys.watch);
   const noticed: { channelId: string; videoId: string }[] = [];
   let invalid = 0;
-  for (const raw of popped) { const event = decodeEvent(raw); if (event) noticed.push(event); else invalid++; }
-  // The default collation is case-insensitive, so confirm each hit byte for byte.
+  for (const row of popped) {
+    const channelId = String(row.channel_id), videoId = String(row.video_id);
+    if (WEBSUB_CHANNEL_ID.test(channelId) && WEBSUB_VIDEO_ID.test(videoId)) noticed.push({ channelId, videoId }); else invalid++;
+  }
   const wanted = [...new Set([...noticed.map(event => event.videoId), ...Object.keys(watch)])], known = new Set<string>();
   if (wanted.length) {
     const [rows] = await db.query<RowDataPacket[]>('SELECT videoId FROM urt_video WHERE videoId IN (?)', [wanted]);
@@ -86,9 +92,25 @@ export async function drainNotices(db: Connection, redis: Redis, assertOwnership
     if (result.affectedRows > 0) bumped++; else alreadyQueuedOrUnknown++;
   }
   for (const [videoId, value] of updates) await redis.hset(websubKeys.watch, videoId, value);
+  if (popped.length) await redis.set(websubKeys.cursor, String(popped[popped.length - 1]!.id));
   if (removals.length) await redis.hdel(websubKeys.watch, ...removals);
   for (const [field, count] of Object.entries({ drained: popped.length, bumped, ignored, rebumped, resolved, expired })) if (count) await redis.hincrby(websubKeys.stats, field, count);
   return { drained: popped.length, invalid, channels: bump.size, bumped, ignored, alreadyQueuedOrUnknown, watching: watching - removals.length, resolved, expired, rebumped };
+}
+
+/** Subscription leases the hub confirmed (the receiver records each verification), as channelId -> expiry in epoch ms. */
+export async function loadLeases(db: Connection, now: number) {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `SELECT e.channel_id, TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), e.received_at + INTERVAL e.lease_seconds SECOND) AS remaining
+     FROM ts_websub_events e JOIN (SELECT channel_id, MAX(id) AS id FROM ts_websub_events WHERE kind = 'verify' GROUP BY channel_id) latest ON latest.id = e.id`);
+  return new Map(rows.map(row => [String(row.channel_id), now + Number(row.remaining) * 1000]));
+}
+/** Notices are consumed within minutes; verifications must outlive the longest lease the hub can grant. */
+export async function pruneEvents(db: Connection, assertOwnership: () => Promise<void>) {
+  await assertOwnership();
+  const [notices] = await db.execute<ResultSetHeader>(`DELETE FROM ts_websub_events WHERE kind = 'notice' AND received_at < UTC_TIMESTAMP() - INTERVAL ${NOTICE_RETENTION_DAYS} DAY LIMIT ${PRUNE_LIMIT}`);
+  const [verifications] = await db.execute<ResultSetHeader>(`DELETE FROM ts_websub_events WHERE kind = 'verify' AND received_at < UTC_TIMESTAMP() - INTERVAL ${VERIFY_RETENTION_DAYS} DAY LIMIT ${PRUNE_LIMIT}`);
+  return { notices: notices.affectedRows, verifications: verifications.affectedRows };
 }
 
 type Subscribe = (body: URLSearchParams) => Promise<number>;
@@ -102,10 +124,10 @@ const postToHub: Subscribe = async body => {
  * verifies the callback, so "requested" and "established" stay separate: a channel is asked again only when it has
  * no lease, or its lease ends within a day, and never more often than the retry hold.
  */
-export async function renewSubscriptions(redis: Redis, channels: string[], options: { secret: string; origin: string; limit: number; now: number; subscribe?: Subscribe; assertOwnership: () => Promise<void> }) {
-  const [leases, holds] = channels.length ? await Promise.all([redis.hmget(websubKeys.leases, ...channels), redis.hmget(websubKeys.retry, ...channels)]) : [[], []];
+export async function renewSubscriptions(redis: Redis, channels: string[], options: { secret: string; origin: string; limit: number; now: number; leases: ReadonlyMap<string, number>; subscribe?: Subscribe; assertOwnership: () => Promise<void> }) {
+  const holds = channels.length ? await redis.hmget(websubKeys.retry, ...channels) : [];
   const due = channels.flatMap((channelId, index) => {
-    const lease = leases[index] == null ? 0 : Number(leases[index]), hold = holds[index] == null ? 0 : Number(holds[index]);
+    const lease = options.leases.get(channelId) ?? 0, hold = holds[index] == null ? 0 : Number(holds[index]);
     return hold <= options.now && lease < options.now + RENEW_BEFORE_MS ? [{ channelId, lease }] : [];
   }).sort((a, b) => a.lease - b.lease || (a.channelId < b.channelId ? -1 : 1));
   const subscribe = options.subscribe ?? postToHub;
@@ -126,7 +148,7 @@ export async function renewSubscriptions(redis: Redis, channels: string[], optio
   }
   if (accepted) await redis.hincrby(websubKeys.stats, 'subscribe_accepted', accepted);
   if (failed) await redis.hincrby(websubKeys.stats, 'subscribe_failed', failed);
-  const established = leases.filter(value => value != null && Number(value) > options.now).length;
+  const established = channels.filter(channelId => (options.leases.get(channelId) ?? 0) > options.now).length;
   return { scoped: channels.length, established, due: due.length, attempted, accepted, failed, stoppedEarly: consecutive >= MAX_CONSECUTIVE_FAILURES };
 }
 
@@ -148,8 +170,9 @@ export async function executeWebsubWorkflow(args: string[], env: NodeJS.ProcessE
       try {
         const drained = await drainNotices(db, redis, assertOwnership);
         workflowShutdownSignal().throwIfAborted();
-        const subscriptions = await renewSubscriptions(redis, await scopedChannels(db, input.tagIds), { secret, origin: parsed.origin, limit: input.limit, now: Date.now(), assertOwnership });
-        const result = { executionKey, drained, subscriptions };
+        const now = Date.now(), subscriptions = await renewSubscriptions(redis, await scopedChannels(db, input.tagIds), { secret, origin: parsed.origin, limit: input.limit, now, leases: await loadLeases(db, now), assertOwnership });
+        const pruned = await pruneEvents(db, assertOwnership);
+        const result = { executionKey, drained, subscriptions, pruned };
         await db.execute('UPDATE ts_job_runs SET status=?,result=? WHERE job_key=? AND execution_key=?', [subscriptions.stoppedEarly ? 'incomplete' : 'completed', JSON.stringify(result), WEBSUB_JOB, executionKey]);
         return result;
       } catch (error) {

@@ -11,7 +11,7 @@ test('new schema and principals must be distinct and identifiers cannot inject S
 test('dedicated state migration never touches source schemas and grants cannot write sources/views',async()=>{
  const plan=await planFrontend();assert.ok(plan.statements.length>30);assert.ok(plan.views.every(v=>v.includes("DEFINER='youtube_ts_report'@'%' SQL SECURITY DEFINER")&&v.includes('`youtube_board_ts`.')&&v.includes('FROM `youtube_board`.')));
  assert.ok(plan.tables.every(t=>t.startsWith('ts_')));assert.equal(new Set(plan.tables).size,plan.tables.length);
- for(const grant of plan.grants){assert.doesNotMatch(grant,/\b(?:ALL|CREATE|ALTER|DROP|TRIGGER|GRANT OPTION)\b/);if(!grant.startsWith('GRANT SELECT ON')){assert.match(grant,/ON `youtube_board_ts`\.`ts_(?:auth_|reader_|keyword_review|home_keyword_snapshot)/);assert.doesNotMatch(grant,/'youtube_ts_report'/);}}
+ for(const grant of plan.grants){assert.doesNotMatch(grant,/\b(?:ALL|CREATE|ALTER|DROP|TRIGGER|GRANT OPTION)\b/);if(!grant.startsWith('GRANT SELECT ON')){assert.match(grant,/ON `youtube_board_ts`\.`ts_(?:auth_|reader_|keyword_review|home_keyword_snapshot|websub_events)/);assert.doesNotMatch(grant,/'youtube_ts_report'/);}}
  assert.throws(()=>grantStatements(settings({}),[...plan.tables,'urt_video']));assert.ok(!sourceTables.includes('users'));assert.ok(!sourceTables.includes('cache'));
 });
 test('DDL guard rejects source DML/DDL, views, cross-schema references and dynamic SQL',()=>{

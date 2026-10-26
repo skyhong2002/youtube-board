@@ -17,12 +17,14 @@
 YouTube 的 WebSub hub（`pubsubhubbub.appspot.com`）會在頻道有新影片、新直播或影片資料變動時，主動 POST 一則 Atom 通知給我們。訂閱與接收都不是 YouTube Data API，不吃配額。
 
 ```
-hub ──POST──▶ /websub/youtube/<channelId>/<token>   接收端（api/src/websub.ts）
-                 驗簽章 → LPUSH Redis yt-ts:websub:events
+hub ──POST──▶ /websub/youtube/<channelId>/<token>    接收端（api/src/websub.ts，公開 web）
+                 驗簽章 → INSERT ts_websub_events（kind='notice'）
+hub ──GET───▶ 同一網址（訂閱驗證）→ 回 challenge，INSERT（kind='verify'，含租約秒數）
                                    │
           youtube.websub.sync（每 2 分鐘，youtube-source worker）
-            1. 消化事件：影片不在 urt_video → urt_channel.vtime = 2000-01-01
+            1. 讀新的 notice：影片不在 urt_video → urt_channel.vtime = 2000-01-01
             2. 訂閱／續訂：每輪最多 40 個頻道向 hub 送 subscribe
+            3. 清掉 3 天前的 notice、35 天前的 verify
                                    │
           youtube.channels.videos.general（每 5 分鐘）先讀 vtime 最小的頻道
                                    ▼
@@ -31,10 +33,9 @@ hub ──POST──▶ /websub/youtube/<channelId>/<token>   接收端（api/sr
 
 設計重點：
 
-- **接收端不碰資料庫。** 回呼網址含頻道 ID 和由 `WEBSUB_SECRET` 導出的 token；`hub.secret` 也是由同一個密鑰與頻道 ID 導出，所以驗證不用查表。接收端只寫 Redis。
-- **沒有新資料表、沒有新資料庫授權。** 事件與訂閱狀態都在 web 與 worker 本來就共用的私有 Redis。`youtube.websub.sync` 的資料表權限（`urt_channel` SELECT/UPDATE、`urt_count` SELECT、`urt_video` SELECT、`ts_job_runs`）是 youtube-source 現有權限的子集，批次權限聯集不變（已用權限清單算過）。
-- **Redis 掉資料是安全的。** 事件只是加速用，漏掉就退回原本的探索節奏；租約表掉了就重新訂閱一次（786 個請求，冪等）。
-- **租約只由接收端寫。** hub 回頭驗證回呼網址時，接收端才記下租約；job 只記「多久內不要再問 hub」，所以「已請求」與「已建立」不會混淆。到期前 24 小時續訂。
+- **接收端不讀資料庫，只追加一張表。** 回呼網址含頻道 ID 和由 `WEBSUB_SECRET` 導出的 token；`hub.secret` 也是由同一個密鑰與頻道 ID 導出，所以驗證不用查表。web 的 own-state 帳號對 `ts_websub_events` 只有 `SELECT, INSERT`。
+- **web 沒有 Redis 憑證，這是刻意的。** 正式環境 web 的 `REDIS_URL` 是空字串（Redis 有密碼，只有 worker 拿得到），所以通知不能走 Redis。第一版就是這樣設計，上線時 web 回 503 才發現，已回復並改成資料表（見「上線紀錄」）。worker 自己的重試與觀察狀態仍放它的 Redis。
+- **租約由接收端記錄。** hub 回頭驗證回呼網址時，接收端寫一筆 `verify`；job 讀每個頻道最新一筆來算到期時間，到期前 24 小時續訂。job 另外記「多久內不要再問 hub」，所以「已請求」與「已建立」不會混淆。
 - **只處理新影片。** 已在 `urt_video` 的影片被編輯會再通知一次，直接忽略。
 - **通知可能比上傳清單更新得早。** 未入庫的影片會被觀察 30 分鐘，期間最多再提前頻道 2 次，間隔 6 分鐘。
 - **範圍。** 預設 `--or=1,2,12,13,14,81`（社論、政治人物、電視台、新聞、政黨、廣播），可用 `--or=` 調整。
@@ -44,40 +45,42 @@ hub ──POST──▶ /websub/youtube/<channelId>/<token>   接收端（api/sr
 | 檔案 | 內容 |
 |---|---|
 | `shared/websub.ts` | 常數、Redis key、token／簽章導出與驗證、通知解析（不用 XML 解析器，只比對兩個固定格式的 ID） |
-| `api/src/websub.ts` | `GET`（驗證訂閱）與 `POST`（收通知）；未啟用時不註冊路由 |
-| `runtime/server.ts`、`api/src/index.ts` | `registerWebsub(app)`。正式環境的啟動器跑的是 `runtime/server.ts`，不是 `api/src/index.ts`，兩處都要註冊 |
+| `api/src/websub.ts` | `GET`（驗證訂閱）與 `POST`（收通知）；INSERT-only 的小型連線池；未啟用或沒有資料庫時不註冊路由 |
+| `runtime/server.ts`、`api/src/index.ts` | `registerWebsub(app, {databaseUrl: databases.state})`。正式環境的啟動器跑的是 `runtime/server.ts`，不是 `api/src/index.ts`，兩處都要註冊 |
 | `jobs/src/websub-cli.ts` | `youtube.websub.sync`（指令 `youtube:websub:sync`） |
 | `jobs/src/workflow-registry.ts`、`cli.ts` | 註冊 |
-| `shared/worker-batches.ts`、`worker-permissions.json` | 放進 `youtube-source` 批次與權限檔 |
+| `shared/worker-batches.ts`、`worker-permissions.json` | 放進 `youtube-source` 批次；權限 `ts_websub_events: SELECT, DELETE` 加上既有的 `urt_channel` SELECT/UPDATE、`urt_count`/`urt_video` SELECT、`ts_job_runs` |
 | `runtime/schedules.websub.json` | `*/2 * * * *`，`limit=40`。獨立檔案，因為 `schedules.batch2.json` 被測試鎖成與 Laravel 排程一一對應 |
+| `jobs/migrations/019_websub_events.sql`、`migrations/002-frontend-state.sql` | 資料表；`tools/frontend-schema.mjs` 的 `accountWrites` 加 `ts_websub_events: INSERT` |
+| `tools/websub-upgrade.mjs` | 正式資料庫的兩階段升級（照 `channel-title-history-upgrade.mjs`） |
 
-### 營運計數器
+### 營運觀察
 
-`HGETALL yt-ts:websub:stats`：`received`、`rejected`、`drained`、`bumped`、`ignored`、`rebumped`、`resolved`、`expired`、`subscribe_accepted`、`subscribe_failed`。
-`HLEN yt-ts:websub:leases` 是已被 hub 驗證的訂閱數；`HLEN yt-ts:websub:watch` 是正在觀察的影片數。
+- 資料表：`SELECT kind, COUNT(*), MAX(received_at) FROM ts_websub_events GROUP BY kind`。`verify` 的頻道數就是 hub 已確認的訂閱數（預期約 786）；`notice` 有新增代表 hub 在推播。
+- worker Redis：`HGETALL yt-ts:websub:stats`（`drained`、`bumped`、`ignored`、`rebumped`、`resolved`、`expired`、`subscribe_accepted`、`subscribe_failed`），`HLEN yt-ts:websub:watch` 是正在觀察的影片數。
+- `ts_job_runs` 裡 `youtube.websub.sync` 的 `result` 有每輪的消化、訂閱、清理摘要。
 
-## 狀態
+## 狀態與上線紀錄
 
-程式、測試都已完成（api 7 項、jobs 16 項新測試；jobs 全套 314 項、tools 112 項通過；另用真的 Redis 跑過接收端 → 佇列 → 消化／訂閱一輪）。**尚未上線。** 上線是正式環境變更，需要明確核准。
+- 程式在 main：`2cb3531`（功能）、`7434049`（掛上正式閘道）、之後的資料表版本。
+- **第一次上線嘗試（2026-10-26 07:58Z，已回復）：** 照第一版（Redis）換 web，外部驗證接收端回 503／500。原因是正式 web 的 `REDIS_URL` 為空。網站頁面一直正常，也還沒有任何訂閱；08:01Z 用 `release-websub.py --phase=web --rollback` 回到原 image，compose 與 env 與發版前逐位元組相同。已建立的 Swarm secret `yb_ts_websub_env_v1` 保留（尚未被任何服務使用）。
+- 該次順便確認：舊 scheduler image 會拒絕含 `youtube.websub.sync` 的排程設定（`Unregistered workflow`），所以一定要先換 scheduler image 再換排程設定。
 
-## 上線步驟（尚未執行）
+## 上線步驟（資料表版本）
 
-1. 產生 `WEBSUB_SECRET`（至少 32 字元的隨機值），只放 Dokploy／Swarm 設定，不進 git、log 或聊天。
-2. 建新 image（照 `ts-site-manual-release` 的流程）。web、`worker-youtube-source` 換同一個 image。
-3. 環境變數：
-   - web：`TS_WEBSUB_ENABLED=true`、`WEBSUB_SECRET`（web 已有 `REDIS_URL`）。
-   - `worker-youtube-source`：`TS_WEBSUB_ENABLED=true`、`WEBSUB_SECRET`（同一個值）、`TS_INGESTION_OWNERS` 與 `TS_INGESTION_WRITE_ALLOWLIST` 各加 `youtube.websub.sync`。可選 `TS_WEBSUB_CALLBACK_ORIGIN`（預設 `https://youtube.observe.tw`，必須是 https）。
-   - scheduler：排程設定改為 v8 加上 `schedules.websub.json` 的那一筆（新的 swarm config）。
-4. **先換 web，再開排程。** web 起來後，從外部驗證回呼可達（含 Cloudflare 在前面時不被擋）：
-   `GET /websub/youtube/<channelId>/<token>?hub.mode=subscribe&hub.topic=<topic>&hub.challenge=x&hub.lease_seconds=100` 應回 `x`；錯的 token 回 404。
-5. 再換 worker 並加排程。每輪 40 個頻道，786 個約 40 分鐘訂完。
-6. 確認：`HLEN leases` 逐步增加到約 786；`received` 開始增加；有新影片時 `bumped` 增加，且頻道 `vtime` 被提前後 5 分鐘內新影片入庫。
+1. **權限備份**（`export-ts-principals.py`）。
+2. **prepare：** `tools/websub-upgrade.mjs --phase=prepare --execute`。建表、worker facade view、web 的 SELECT/INSERT；正在跑的 worker 權限不變。
+3. **候選容器**（loopback、唯讀、writers 關閉）用新 web image 驗證接收端：驗證、簽章、錯誤路徑；驗完刪掉測試資料列。
+4. **換 web**：新 image，env 加 `TS_WEBSUB_ENABLED=true`、`WEBSUB_SECRET`（與 Swarm secret `yb_ts_websub_env_v1` 同值）。從公開網域驗證回呼可達（不被 Cloudflare 擋）。
+5. **換 worker-youtube-source 與 scheduler**，並立刻 `--phase=worker`。worker 連線時會逐條比對授權與映像內的權限檔，所以授權要與 worker 換版一起做（上次建表同樣有數秒的空窗）。owners／allowlist 各加 `youtube.websub.sync`，worker 另外掛上 Swarm secret。
+6. **排程設定 v8 → v9**（只多一筆 `websub-sync-v1`）。
+7. 觀察：`verify` 逐步增加到約 786；有新影片時 `bumped` 增加，頻道 `vtime` 被提前後 5 分鐘內新影片入庫。
 
-回復：移除排程與環境變數即可。接收端未啟用時不註冊路由；既有訂閱最多 5 天後自然過期，期間收到的通知沒有人消化，不影響其他功能。換回舊 image 同樣安全。
+回復：移除排程（設定回 v8）、worker／scheduler／web 換回舊 image 與 env。資料表與授權是附加的，留著不影響其他功能；既有訂閱最多 5 天後自然過期。
 
 ## 已知限制與待驗證
 
-- **待驗證：YouTube 是否在「預定直播建立」時就推播。** hub 的行為以官方文件和經驗為準，沒有在正式環境確認過。上線後第一週要看 `received` 與實際直播的對應；若只在開播時才推，延遲仍是從開播起算約 7 分鐘以內，仍比一週好得多。
+- **待驗證：YouTube 是否在「預定直播建立」時就推播。** hub 的行為以官方文件和經驗為準，沒有在正式環境確認過。上線後第一週要看 `notice` 與實際直播的對應；若只在開播時才推，延遲仍是從開播起算約 7 分鐘以內，仍比一週好得多。
 - **競態：** 通知消化與探索同時處理同一個頻道時，探索結束後會把 `vtime` 重排，蓋掉剛提前的值。觀察機制會在 6 分鐘後再提前一次，所以最多延遲一輪。
 - **佇列公平性：** 被提前的頻道排在逾期佇列前面，大量通知時（例如同時 30 個頻道），原本積壓的頻道會晚一點。範圍限定在 786 個頻道，預期很小。
 - **探索仍是一輪最多 10 個頻道。** 不在 `--or` 範圍內的頻道行為完全不變。

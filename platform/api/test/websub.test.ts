@@ -9,13 +9,12 @@ const env = { TS_WEBSUB_ENABLED: 'true', WEBSUB_SECRET: SECRET, APP_ENV: 'test' 
 const atom = (channelId = CHANNEL, videoId = VIDEO) => `<?xml version='1.0' encoding='UTF-8'?><feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns="http://www.w3.org/2005/Atom"><entry><id>yt:video:${videoId}</id><yt:videoId>${videoId}</yt:videoId><yt:channelId>${channelId}</yt:channelId><title>t</title></entry></feed>`;
 const sign = (body: string, channelId = CHANNEL, algorithm = 'sha1') => `${algorithm}=${createHmac(algorithm, hubSecret(SECRET, channelId)).update(body).digest('hex')}`;
 function memoryStore() {
-  const pushed: string[] = [], leases: Record<string, number> = {}, counts: Record<string, number> = {};
+  const pushed: string[] = [], leases: Record<string, number> = {};
   const store: WebsubStore = {
-    async push(entries) { pushed.push(...entries.map(e => `${e.channelId}:${e.videoId}`)); },
-    async count(field) { counts[field] = (counts[field] ?? 0) + 1; },
+    async notice(entries) { pushed.push(...entries.map(e => `${e.channelId}:${e.videoId}`)); },
     async verified(channelId, lease) { leases[channelId] = lease; },
   };
-  return { store, pushed, leases, counts };
+  return { store, pushed, leases };
 }
 async function build(overrides: Partial<typeof env> = {}) {
   const memory = memoryStore(), app = Fastify();
@@ -25,6 +24,11 @@ async function build(overrides: Partial<typeof env> = {}) {
 const path = (channelId = CHANNEL, token = callbackToken(SECRET, channelId)) => `/websub/youtube/${channelId}/${token}`;
 
 describe('WebSub callback', () => {
+  it('is absent without a store or own-state database, even when enabled', async () => {
+    const app = Fastify();
+    await registerWebsub(app, { env });
+    expect((await app.inject({ method: 'GET', url: path() })).statusCode).toBe(404);
+  });
   it('is absent unless enabled with a long enough secret', async () => {
     for (const off of [{ TS_WEBSUB_ENABLED: 'false' }, { WEBSUB_SECRET: 'short' }]) {
       const { app } = await build(off);
@@ -62,7 +66,7 @@ describe('WebSub callback', () => {
     expect(pushed).toEqual([`${CHANNEL}:${VIDEO}`, `${CHANNEL}:${VIDEO}`]);
   });
   it('rejects missing, wrong or other-channel signatures without queueing anything', async () => {
-    const { app, pushed, counts } = await build();
+    const { app, pushed } = await build();
     const body = atom(), post = (headers: Record<string, string>, payload = body) => app.inject({ method: 'POST', url: path(), headers: { 'content-type': 'application/atom+xml', ...headers }, payload });
     expect((await post({})).statusCode).toBe(403);
     expect((await post({ 'x-hub-signature': 'sha1=' + '0'.repeat(40) })).statusCode).toBe(403);
@@ -71,7 +75,6 @@ describe('WebSub callback', () => {
     // A valid signature does not cover a different body.
     expect((await post({ 'x-hub-signature': sign(body) }, atom(CHANNEL, 'AAAAAAAAAAA'))).statusCode).toBe(403);
     expect(pushed).toEqual([]);
-    expect(counts.rejected).toBe(5);
   });
   it('drops entries that belong to another channel than the signed URL', async () => {
     const { app, pushed } = await build();
@@ -94,9 +97,9 @@ describe('WebSub callback', () => {
     expect((await app.inject({ method: 'POST', url: '/websub/other', payload: '{}' })).statusCode).toBe(405);
     await app.close();
   });
-  it('asks the hub to retry when Redis is unavailable', async () => {
+  it('asks the hub to retry when the database is unavailable', async () => {
     const app = Fastify();
-    await registerWebsub(app, { env, store: { async push() { throw new Error('down'); }, async count() {}, async verified() { throw new Error('down'); } } });
+    await registerWebsub(app, { env, store: { async notice() { throw new Error('down'); }, async verified() { throw new Error('down'); } } });
     const body = atom();
     expect((await app.inject({ method: 'POST', url: path(), headers: { 'content-type': 'application/atom+xml', 'x-hub-signature': sign(body) }, payload: body })).statusCode).toBe(503);
     const query = new URLSearchParams({ 'hub.mode': 'subscribe', 'hub.topic': websubTopic(CHANNEL), 'hub.challenge': 'abc', 'hub.lease_seconds': '100' });

@@ -1782,6 +1782,10 @@
           "SELECT",
           "INSERT",
           "UPDATE"
+        ],
+        "ts_websub_events": [
+          "SELECT",
+          "DELETE"
         ]
       },
       "dependencies": []

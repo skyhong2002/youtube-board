@@ -11,7 +11,7 @@ const auth=await registerAuth(app,{databaseUrl:databases.auth,env:{...process.en
 await registerReaderAccounts(app,auth,{databaseUrl:databases.auth});
 await registerManage(app,auth,{stateUrl:databases.state,reportsUrl:databases.reports});
 await registerOps(app,{auth,onRankingDisplayChanged:()=>app.keywordRankingChanged()});
-await registerWebsub(app);
+await registerWebsub(app,{databaseUrl:databases.state});
 const port = Number(process.env.PORT ?? 4100);
 await app.listen({ host: process.env.HOST ?? '127.0.0.1', port });
 console.log(`YouTube Board API listening on port ${port}`);

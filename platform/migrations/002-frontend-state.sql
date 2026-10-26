@@ -437,3 +437,15 @@ CREATE TABLE IF NOT EXISTS ts_home_keyword_snapshot (
  computed_at_ms BIGINT UNSIGNED NOT NULL,
  payload LONGTEXT NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+-- TS-owned definitions from 019_websub_events.sql.
+CREATE TABLE IF NOT EXISTS ts_websub_events (
+ id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ kind VARCHAR(8) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ channel_id VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ video_id VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NULL,
+ lease_seconds INT UNSIGNED NULL,
+ received_at DATETIME NOT NULL,
+ INDEX websub_events_kind (kind,id),
+ INDEX websub_events_age (kind,received_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;

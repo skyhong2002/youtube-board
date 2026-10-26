@@ -6,9 +6,11 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
  * of waiting for its `urt_channel.vtime`. The hub is not the YouTube Data API: subscribing and
  * receiving cost no quota.
  *
- * The receiver (api/src/websub.ts) and the sync job (jobs/src/websub-cli.ts) share only a secret
- * (`WEBSUB_SECRET`) and a private Redis. Everything the receiver must check is derived from that
- * secret and the channel id, so it never reads the database.
+ * The receiver (api/src/websub.ts, public web) and the sync job (jobs/src/websub-cli.ts, youtube-source
+ * worker) share a secret (`WEBSUB_SECRET`) and one append-only table, `ts_websub_events`: the web's
+ * own-state principal may only INSERT into it, the worker reads and prunes it. Everything the receiver
+ * must check is derived from the secret and the channel id, so it never reads the database. The web has
+ * no Redis credentials by design; the job's own retry and watch state lives in the worker's Redis.
  */
 export const WEBSUB_HUB_URL = 'https://pubsubhubbub.appspot.com/subscribe';
 export const WEBSUB_JOB = 'youtube.websub.sync';
@@ -20,17 +22,15 @@ export const WEBSUB_LEASE_SECONDS = 432000;
 export const WEBSUB_MAX_LEASE_SECONDS = 30 * 86400;
 /** `urt_channel.vtime` ahead of every real due time: the next general discovery sweep reads this channel first. */
 export const WEBSUB_PRIORITY_VTIME = '2000-01-01 00:00:00';
-export const WEBSUB_EVENT_CAP = 10000;
+/** Worker-side Redis keys (the web never touches them). */
 export const websubKeys = Object.freeze({
-  /** List of `<channelId>:<videoId>` pushed by the receiver, drained by the job. */
-  events: 'yt-ts:websub:events',
-  /** Hash channelId -> lease expiry (epoch ms), written only by the receiver once the hub verified a subscription. */
-  leases: 'yt-ts:websub:leases',
+  /** Last `ts_websub_events.id` of a notice the job has processed. */
+  cursor: 'yt-ts:websub:cursor',
   /** Hash channelId -> epoch ms before which the job does not ask the hub again. */
   retry: 'yt-ts:websub:retry',
   /** Hash videoId -> `<channelId>|<firstSeenMs>|<lastBumpMs>|<bumps>`: notified videos not yet stored, re-checked for a while. */
   watch: 'yt-ts:websub:watch',
-  /** Counters for operators: received, rejected, drained, bumped, ignored, rebumped, resolved, expired, subscribe_accepted, subscribe_failed. */
+  /** Counters for operators: drained, bumped, ignored, rebumped, resolved, expired, subscribe_accepted, subscribe_failed. */
   stats: 'yt-ts:websub:stats',
 });
 
@@ -71,11 +71,6 @@ export function parseNotification(xml: string, limit = 20): WebsubEntry[] {
     if (entries.length >= limit) break;
   }
   return entries;
-}
-export const encodeEvent = (entry: WebsubEntry) => `${entry.channelId}:${entry.videoId}`;
-export function decodeEvent(value: string): WebsubEntry | null {
-  const [channelId, videoId, ...rest] = value.split(':');
-  return rest.length === 0 && channelId && videoId && WEBSUB_CHANNEL_ID.test(channelId) && WEBSUB_VIDEO_ID.test(videoId) ? { channelId, videoId } : null;
 }
 /** The shared secret: required for both halves, long enough to derive tokens from. */
 export function websubSecret(env: NodeJS.ProcessEnv): string | null {
