@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "timezone": "Asia/Taipei",
+  "schedules": [
+    {"id": "websub-sync-v1", "workflow": "youtube.websub.sync", "cron": "*/2 * * * *", "options": {"limit": 40}}
+  ]
+}

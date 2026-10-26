@@ -1765,6 +1765,26 @@
       "dependencies": [
         "tags.videos.match"
       ]
+    },
+    "youtube.websub.sync": {
+      "tables": {
+        "urt_channel": [
+          "SELECT",
+          "UPDATE"
+        ],
+        "urt_count": [
+          "SELECT"
+        ],
+        "urt_video": [
+          "SELECT"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ]
+      },
+      "dependencies": []
     }
   }
 }

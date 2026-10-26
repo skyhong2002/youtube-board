@@ -11,7 +11,7 @@
  */
 const batches={
  cache:['reports.counts.build','reports.people.build','reports.tag_cloud.build','reports.tag_date.build','reports.keywords.cache','reports.schedule.build','reports.live.build','reports.live.clean','reports.channel_cloud.build','reports.keyword_cloud.build','reports.keyword_relations.build','tags.videos.match.recent','channels.avatars.refresh'],
- 'youtube-source':['youtube.channels.stats','youtube.channels.videos.general','youtube.channels.videos.live','youtube.channels.videos.live_group','youtube.tvbs.videos','youtube.videos.stats','youtube.videos.duration','youtube.live.cleanup','youtube.tag_videos.backfill'],
+ 'youtube-source':['youtube.channels.stats','youtube.channels.videos.general','youtube.channels.videos.live','youtube.channels.videos.live_group','youtube.tvbs.videos','youtube.videos.stats','youtube.videos.duration','youtube.live.cleanup','youtube.tag_videos.backfill','youtube.websub.sync'],
  // Minute live polls get their own serial queue: under Laravel they ran beside slower fetches, and a
  // multi-minute statistics or discovery run must not delay them.
  'youtube-live':['youtube.live.poll','youtube.tvbs.live.poll'],

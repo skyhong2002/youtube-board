@@ -8,9 +8,10 @@ import { notificationCommands, notificationFields, executeNotificationWorkflow, 
 import { executeSnapshotImport, SNAPSHOT_IMPORT_JOB } from './snapshot-import.js';
 import { matchVideoBatch, VIDEO_EVIDENCE_JOB } from './video-evidence.js';
 import { executionPolicy, assertExecute } from './policy.js';
+import { WEBSUB_JOB, WEBSUB_COMMAND, validateWebsubArguments, executeWebsubWorkflow } from './websub-cli.js';
 import { MEDIA_AVATAR_JOB, MEDIA_AVATAR_COMMAND, validateMediaArguments, executeMediaWorkflow } from './media-cli.js';
 export interface WorkflowInput { options: Record<string, string | number | boolean> }
-interface Definition { command: string; values: string[]; flags: string[]; kind: 'youtube' | 'ai' | 'cache' | 'notification' | 'media' }
+interface Definition { command: string; values: string[]; flags: string[]; kind: 'youtube' | 'ai' | 'cache' | 'notification' | 'media' | 'websub' }
 const common = ['limit', 'max-api-attempts'];
 const fields: Record<string, [string[], string[]]> = {
   'youtube.channels.stats': [['u_id', 'hours'], []],
@@ -30,6 +31,7 @@ const fields: Record<string, [string[], string[]]> = {
 };
 const definitions: Record<string, Definition> = Object.create(null);
 definitions[MEDIA_AVATAR_JOB] = { command: MEDIA_AVATAR_COMMAND, values: ['u_id', 'after-id', 'limit', 'max-age-days'], flags: ['resolve-missing'], kind: 'media' };
+definitions[WEBSUB_JOB] = { command: WEBSUB_COMMAND, values: ['limit', 'or'], flags: [], kind: 'websub' };
 for (const [command, job] of Object.entries(youtubeCommands)) {
   const definition = fields[job];
   if (definition) definitions[job] = { command, values: [...common, ...definition[0]], flags: definition[1], kind: 'youtube' };
@@ -66,6 +68,7 @@ export function validateWorkflowInput(name: string, raw: unknown): WorkflowInput
   if (definitions[name]?.kind === 'cache') validateCacheArguments(cliArgs(definitions[name]!, normalized));
   if (definitions[name]?.kind === 'notification') validateNotificationArguments(cliArgs(definitions[name]!, normalized));
   if (definitions[name]?.kind === 'media') validateMediaArguments(cliArgs(definitions[name]!, normalized));
+  if (definitions[name]?.kind === 'websub') validateWebsubArguments(cliArgs(definitions[name]!, normalized));
   if(name===VOCABULARY_JOB){
     validateWindow({since:String(normalized.since??''),until:String(normalized.until??'')});
     const maxPages=Number(normalized['max-pages']??20);if(!Number.isSafeInteger(maxPages)||maxPages<1||maxPages>1000)throw new Error('Invalid vocabulary page cap');
@@ -96,6 +99,7 @@ export async function executeRegisteredWorkflow(name: string, raw: unknown, env:
   if (name === VIDEO_EVIDENCE_JOB) return matchVideoBatch({ afterPk: Number(input.options['after-pk'] ?? 0), limit: Number(input.options.limit ?? 100), ...(input.options.version ? { version: String(input.options.version) } : {}), ...(input.options['changed-since'] ? { changedSince: String(input.options['changed-since']) } : {}), execute: true }, env);
   const args = workflowArgs(name, input);
   if (definitions[name]!.kind === 'media') return executeMediaWorkflow(args, env, true);
+  if (definitions[name]!.kind === 'websub') return executeWebsubWorkflow(args, env, true);
   if (definitions[name]!.kind === 'notification') {
     const result = await executeNotificationWorkflow(args, env, true);
     if (['failed', 'uncertain', 'incomplete'].includes(result.status)) throw new Error('Notification requires durable dispatch reconciliation; no automatic replay');
