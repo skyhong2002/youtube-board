@@ -13,7 +13,7 @@
 - **新增分類**：建立新的 `urt_tag`；同名（含已存在）回傳既有的，不會重複。
 - **最近的變更**：每筆請求的狀態（等待中／已套用／未套用）、原因與結果。有等待中的請求時每 4 秒自動更新，套用完成後頻道表自動重新載入。
 
-沒有做：停用／還原頻道（`flag_del`）、分類改名與刪除、書籤式一鍵加入、AI 或規則建議分類、讀者回報。這些等實際使用後再決定。
+沒有做：停用／還原頻道（`flag_del`）、分類改名與刪除、AI 或規則建議分類、讀者回報。（書籤已於第二次上線補上。）這些等實際使用後再決定。
 
 ## 運作方式
 
@@ -144,6 +144,14 @@ worker（`youtube_ts_w_youtube_source`，整個 youtube-source 批次共用）�
 | 頻道 4154 加入不存在的分類 9999 | `failed`，`TAG_NOT_FOUND`，沒有任何寫入 |
 
 這次測試在 `urt_tag_log` 留下 2 筆永久的日誌（`u_id 4149`，tag 2，add／del）。
+
+### 第二次上線：書籤與 `after` 修正（UTC 2026-10-27 07:03–07:04，`fcc6760`）
+
+- **Chrome 書籤**（`web/src/lib/channel-bookmarklet.ts`、`ChannelTools.tsx`）：「新增頻道或分類」裡有可拖到書籤列的按鈕（照 tag.observe.tw 的「設定這家媒體」；React 擋 `javascript:` href，所以用 ref 設屬性）。在 YouTube 頻道頁、@handle 頁或影片頁按下去，書籤從頁面讀 `meta[itemprop=channelId]`（其次 canonical `/channel/UC…`，最後是網址），開啟 `/admin/?add=…` 並帶入新增表單；已在清單的頻道會顯示「已在清單」並提供編輯分類，已封存的不能重新加入。`?add=` 會跟著登入導向保留。公開網域驗證：`/admin/?add=…` 308 到 `/admin?add=…`（query 保留）。書籤程式碼有單元測試（用假頁面執行它，並確認輸入無法跳出程式碼）。**瀏覽器裡沒有實際拖曳點擊過。**
+- **`after` 修正**：無變動的請求結果現在保留實際值（NULL 不變成空字串），正式環境以頻道 4154 驗證（`after: null`）。
+- 換版：web `90d896e3…` → `1d97c103…`；worker `4dfe93ef…` → `35053b1b…`；scheduler `3076111f…` → `7a033881…`。授權沒有變動，worker 換版後用自己的帳號連線確認正常，工作照常執行、失敗 0。
+- 建置：`release-baf5d47` 基底映像已被清掉，改以線上的 `release-chadmin-web-105954c` 為基底，同樣用 `guarded-build.sh`（2 分鐘，主機壓力正常）。測試在 `/admin` 改成 async 後需要 await 頁面（`keyword-review-ui.test.ts`）。
+- 驗證請求又在請求表留下一筆 `system:release-test`（無變動，不寫日誌）。
 
 ## 回復（上線後的版本）
 
