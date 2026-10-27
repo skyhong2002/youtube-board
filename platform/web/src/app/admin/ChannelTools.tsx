@@ -4,6 +4,7 @@ import {parseChannelSource,type ChannelAdminRequest,type ChannelAdminPayload} fr
 import type {ManagedChannel,ManagedChannelList} from '../../../../shared/manage-contracts';
 import {pill,pillOff,pillOn} from '@/components/reader/FollowButton';
 import {accountMessage} from '@/lib/account-client';
+import {addParam,bookmarkletSource} from '@/lib/channel-bookmarklet';
 import {fetchChannelRequests,requestOutcome,requestSummary,submitChannelRequest,tagChange} from '@/lib/channel-admin-client';
 import {dateTime} from '@/lib/format';
 import {button,card,field,note,primary} from '@/app/my/ReaderGate';
@@ -45,10 +46,18 @@ function TagEditor({channel,tags,onClose,onQueued}:{channel:ManagedChannel;tags:
  </section>;
 }
 
+/** Drag-to-bookmarks-bar link. React refuses javascript: hrefs, so the attribute is set on the element directly. */
+function Bookmarklet(){
+ const link=useRef<HTMLAnchorElement>(null);
+ useEffect(()=>{link.current?.setAttribute('href',bookmarkletSource(location.origin));},[]);
+ return <div className="grid gap-1 text-sm"><span className="font-medium">從 YouTube 直接加入</span>
+  <p className="text-xs text-zinc-600 dark:text-zinc-400">把右邊的按鈕拖到 Chrome 的書籤列。之後在任何 YouTube 頻道頁或影片頁按這個書籤，就會跳到這裡並帶入該頻道。<a ref={link} href="#" onClick={e=>e.preventDefault()} draggable className={button+' ml-2 align-middle'}>加入有影儀表板</a></p></div>;
+}
+
 /** Add a channel from what the administrator pastes: a /channel/ link, an @handle link or a channel ID. */
-function AddChannel({tags,onQueued}:{tags:Tag[];onQueued:()=>void}){
- const [text,setText]=useState(''),[chosen,setChosen]=useState<ReadonlySet<number>>(new Set()),[busy,setBusy]=useState(false),[error,setError]=useState(''),[sent,setSent]=useState('');
- const source=parseChannelSource(text),problem=text.trim()&&!source?'請貼上頻道網址（youtube.com/channel/… 或 youtube.com/@…）、@名稱或 UC 開頭的頻道 ID。/user/ 與 /c/ 舊式網址查不到，請改貼 @名稱。':'';
+function AddChannel({tags,channels,initial,onQueued,onEdit}:{tags:Tag[];channels:ManagedChannel[];initial:string;onQueued:()=>void;onEdit:(channelId:number)=>void}){
+ const [text,setText]=useState(initial),[chosen,setChosen]=useState<ReadonlySet<number>>(new Set()),[busy,setBusy]=useState(false),[error,setError]=useState(''),[sent,setSent]=useState('');
+ const source=parseChannelSource(text),known=source?channels.find(c=>c.youtubeChannelId===source)??null:null,problem=text.trim()&&!source?'請貼上頻道網址（youtube.com/channel/… 或 youtube.com/@…）、@名稱或 UC 開頭的頻道 ID。/user/ 與 /c/ 舊式網址查不到，請改貼 @名稱。':'';
  async function submit(){
   if(!source)return;
   setBusy(true);setError('');setSent('');
@@ -61,11 +70,12 @@ function AddChannel({tags,onQueued}:{tags:Tag[];onQueued:()=>void}){
    <input className={field+' font-normal'} value={text} onChange={e=>setText(e.target.value)} placeholder="貼上 YouTube 頻道網址、@名稱或頻道 ID" autoComplete="off" spellCheck={false} maxLength={300}/>
   </label>
   {problem&&<p role="alert" className="text-xs text-amber-800 dark:text-amber-300">{problem}</p>}
-  {source&&<p className="text-xs text-zinc-500">辨識為：{source}</p>}
+  {source&&!known&&<p className="text-xs text-zinc-500">辨識為：{source}</p>}
+  {known&&<p role="status" className="text-sm text-amber-800 dark:text-amber-300">這個頻道已經在清單裡：{known.channelTitle}（#{known.channelId}）{known.status==='archived'?'，目前是封存狀態，不能重新加入':''}。<button type="button" className="ml-2 underline" onClick={()=>onEdit(known.channelId)}>編輯它的分類</button></p>}
   <details className="text-sm"><summary className="cursor-pointer text-zinc-600 dark:text-zinc-400">一併設定分類{chosen.size?`（已選 ${chosen.size}）`:'（可略過，之後再補）'}</summary><div className="mt-2"><TagPicker tags={tags} selected={chosen} onToggle={id=>setChosen(s=>flip(s,id))} label="新增時的分類"/></div></details>
   {error&&<p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
   {sent&&<p role="status" className="text-sm text-emerald-700 dark:text-emerald-300">已送出 {sent}，約 1 分鐘內會出現在下方的紀錄與頻道表。</p>}
-  <div><button type="submit" className={primary} disabled={busy||!source}>{busy?'送出中…':'加入頻道'}</button></div>
+  <div><button type="submit" className={primary} disabled={busy||!source||Boolean(known)}>{busy?'送出中…':'加入頻道'}</button></div>
  </form>;
 }
 
@@ -107,7 +117,7 @@ function History({requests,error,names}:{requests:ChannelAdminRequest[]|null;err
 }
 
 export default function ChannelTools({data,editing,onEdit,onApplied}:{data:ManagedChannelList;editing:number|null;onEdit:(channelId:number|null)=>void;onApplied:()=>void}){
- const [requests,setRequests]=useState<ChannelAdminRequest[]|null>(null),[error,setError]=useState(''),[open,setOpen]=useState(false);
+ const [requests,setRequests]=useState<ChannelAdminRequest[]|null>(null),[error,setError]=useState(''),[initialAdd]=useState(()=>typeof location==='undefined'?'':addParam(location.search)),[open,setOpen]=useState(initialAdd!=='');
  const waiting=useRef<Set<number>>(new Set()),applied=useRef(onApplied),timer=useRef<ReturnType<typeof setTimeout>|null>(null),alive=useRef(true);
  applied.current=onApplied;
  const tagName=useMemo(()=>new Map(data.tags.map(t=>[t.id,t.name])),[data.tags]),channelName=useMemo(()=>new Map(data.channels.map(c=>[c.channelId,c.channelTitle])),[data.channels]);
@@ -131,7 +141,7 @@ export default function ChannelTools({data,editing,onEdit,onApplied}:{data:Manag
    <button type="button" className={button} aria-expanded={open} onClick={()=>setOpen(v=>!v)}>{open?'收起新增':'新增頻道或分類'}</button>
    {requests&&requests.some(r=>r.status==='pending')&&<span role="status" className="text-sm text-amber-800 dark:text-amber-300">有 {requests.filter(r=>r.status==='pending').length} 項變更等待套用…</span>}
   </div>
-  {open&&<div className={card+' grid gap-4 p-4'}><AddChannel tags={data.tags} onQueued={queued}/><hr className="border-zinc-200 dark:border-zinc-800"/><NewTag onQueued={queued}/></div>}
+  {open&&<div className={card+' grid gap-4 p-4'}><AddChannel tags={data.tags} channels={data.channels} initial={initialAdd} onQueued={queued} onEdit={id=>{onEdit(id);window.scrollTo({top:0,behavior:'smooth'});}}/><hr className="border-zinc-200 dark:border-zinc-800"/><NewTag onQueued={queued}/><hr className="border-zinc-200 dark:border-zinc-800"/><Bookmarklet/></div>}
   {channel&&<TagEditor key={channel.channelId} channel={channel} tags={data.tags} onClose={()=>onEdit(null)} onQueued={queued}/>}
   <details className="text-sm" open={Boolean(requests?.some(r=>r.status!=='done'))}><summary className="cursor-pointer font-medium">最近的變更</summary><div className="mt-2"><History requests={requests} error={error} names={names}/></div></details>
  </div>;
