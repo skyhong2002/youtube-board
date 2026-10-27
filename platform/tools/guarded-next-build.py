@@ -17,7 +17,7 @@ import subprocess
 import time
 
 GIB = 1024 ** 3
-SITES = {'tag': 'https://tag.observe.tw/', 'blog': 'https://blog.observe.tw/', 'youtube': 'https://youtube.observe.tw/'}
+SITES = {'tag': 'https://tag.observe.tw/', 'blog': 'https://weblog.tw/', 'youtube': 'https://youtube.observe.tw/'}
 GATE_BASELINE = json.loads(Path(__file__).with_name('performance-gate-baseline.json').read_text())
 SITE_LIMITS = {site: max(2, 2 * GATE_BASELINE['sites'][site]['medianSeconds']) for site in SITES}
 assert all(SITE_LIMITS[site] == GATE_BASELINE['sites'][site]['limitSeconds'] for site in SITES)
