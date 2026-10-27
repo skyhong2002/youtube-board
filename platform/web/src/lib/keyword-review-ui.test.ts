@@ -88,10 +88,12 @@ test('selected vocabulary shows the exact original term, version and key as read
  assert.match(out,new RegExp('value="'+VKEY+'"'));assert.match(out,/value="run_2026_10_13"/);assert.match(out,/value="&lt;img src=x onerror=alert\(1\)&gt;"/);
  assert.match(out,/未在瀏覽器推導/);assert.match(out,/up-1/);assert.doesNotMatch(out,/<img src=x/);
 });
-test('pages are force-dynamic noindex; /admin is the channel table, not a redirect',()=>{
+test('pages are force-dynamic noindex; /admin is the channel table, not a redirect',async()=>{
  assert.equal(keywordsDynamic,'force-dynamic');assert.deepEqual(keywordsMetadata.robots,{index:false,follow:false});assert.deepEqual(manageMetadata.robots,{index:false,follow:false});
  const keywords=html(createElement(KeywordsPage));assert.match(keywords,/關鍵字覆核/);assert.match(keywords,new RegExp(NOT_APPLIED_NOTICE));
- const manage=html(createElement(ManagePage));assert.match(manage,/頻道管理表/);
+ // /admin reads ?add= from the YouTube bookmark, so the page is async.
+ const manage=html(await ManagePage({searchParams:Promise.resolve({})}));assert.match(manage,/頻道管理表/);
+ assert.match(html(await ManagePage({searchParams:Promise.resolve({add:'UCabcdefghijklmnopqrstuv'})})),/頻道管理表/);
 });
 
 import KeywordExcludeButton from '../components/admin/KeywordExcludeButton';
