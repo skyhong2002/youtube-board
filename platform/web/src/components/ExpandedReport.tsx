@@ -75,7 +75,9 @@ export async function ExpandedReport({
     const keywordEmpty = { title: "這個關鍵字沒有預先計算的報表", description: "文字雲與逐日排行只為「標籤與關鍵字」排行前 50 名預先計算，每天更新兩次。這不代表來源沒有相關影片。" };
     const mayorCity = path === "/mayor" ? String((Array.isArray(search.city) ? search.city[0] : search.city) || "taipei").trim().toLowerCase() : path.match(/^\/mayor\/cities\/([^/]+)$/)?.[1]?.toLowerCase();
     const filters = data.filters || [],
-        known = new Set(filters.map((filter) => filter.key));
+        known = new Set(filters.map((filter) => filter.key)),
+        // The daily live trend reads like the legacy page: open filter row and table, only the chart framed.
+        openSheet = path === "/live/trends/daily";
     return (
         <>
             <Heading
@@ -94,15 +96,15 @@ export async function ExpandedReport({
                 const href = safeReportHref(item.href);
                 return href ? [{ href, label: item.label, active: item.active === true }] : [];
             })} /> : null}
-            {/* The page's own switches (period, metric, group) sit under a divider, apart from the section
-                tabs above; each is its own tab group, side by side and wrapping on narrow screens. */}
-            {data.tabRows?.length ? <div className="mt-2 flex flex-wrap items-start gap-x-6 border-t border-zinc-200 pt-5 dark:border-zinc-800">{data.tabRows.map(row => <div key={row.label} className="min-w-0 max-w-full"><Tabs label={row.label} active={path} items={row.items.flatMap(item => {
+            {/* The page's own switches (period, metric, group) sit apart from the section
+                tabs above by extra space; each is its own tab group, side by side and wrapping on narrow screens. */}
+            {data.tabRows?.length ? <div className="mt-6 flex flex-wrap items-start gap-x-6">{data.tabRows.map(row => <div key={row.label} className="min-w-0 max-w-full"><Tabs label={row.label} active={path} items={row.items.flatMap(item => {
                 const href = safeReportHref(item.href);
                 return href ? [{ href, label: item.label, active: item.active === true }] : [];
             })} /></div>)}</div> : null}
             {/* Mayor pages put their filters in MayorSwitcher's single row: period and metric chips plus a custom date range. */}
             {filters.length > 0 && !mayorCity && (
-                <form key={JSON.stringify([filterPath||path,search,filters])} className={ui.form} action={filterPath || path}>
+                <form key={JSON.stringify([filterPath||path,search,filters])} className={openSheet ? ui.formOpen : ui.form} action={filterPath || path}>
                     {Object.entries(search)
                         .filter(([key]) => !known.has(key) && key !== "offset")
                         .flatMap(([key, value]) =>
@@ -242,7 +244,7 @@ export async function ExpandedReport({
                     {/* A list of three columns or fewer (group, basis, count) keeps to a readable width;
                         wider tables use the whole column. */}
                     <div className={data.columns.length <= NARROW_SECTION_COLUMNS ? "max-w-3xl" : undefined}>
-                        <ReportTable columns={data.columns} rows={data.rows} label={data.title||title} showMobileScrollHint={Boolean(mayorCity)} foldUniform/>
+                        <ReportTable columns={data.columns} rows={data.rows} label={data.title||title} showMobileScrollHint={Boolean(mayorCity)} foldUniform card={!openSheet}/>
                     </div>
                 </>
             ) : !data.words?.length &&
