@@ -95,8 +95,8 @@ export async function ExpandedReport({
                 return href ? [{ href, label: item.label, active: item.active === true }] : [];
             })} /> : null}
             {/* The page's own switches (period, metric, group) sit under a divider, apart from the section
-                tabs above, and each row gets its own line so its single active tab reads clearly. */}
-            {data.tabRows?.length ? <div className="mt-2 border-t border-zinc-200 pt-5 dark:border-zinc-800">{data.tabRows.map(row => <div key={row.label}><Tabs label={row.label} active={path} items={row.items.flatMap(item => {
+                tabs above; each is its own tab group, side by side and wrapping on narrow screens. */}
+            {data.tabRows?.length ? <div className="mt-2 flex flex-wrap items-start gap-x-6 border-t border-zinc-200 pt-5 dark:border-zinc-800">{data.tabRows.map(row => <div key={row.label} className="min-w-0 max-w-full"><Tabs label={row.label} active={path} items={row.items.flatMap(item => {
                 const href = safeReportHref(item.href);
                 return href ? [{ href, label: item.label, active: item.active === true }] : [];
             })} /></div>)}</div> : null}
