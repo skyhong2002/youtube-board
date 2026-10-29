@@ -94,11 +94,12 @@ export async function ExpandedReport({
                 const href = safeReportHref(item.href);
                 return href ? [{ href, label: item.label, active: item.active === true }] : [];
             })} /> : null}
-            {/* Each switch row (period, metric, group) gets its own line so its single active tab reads clearly. */}
-            {data.tabRows?.map(row => <div key={row.label}><Tabs label={row.label} active={path} items={row.items.flatMap(item => {
+            {/* The page's own switches (period, metric, group) sit under a divider, apart from the section
+                tabs above, and each row gets its own line so its single active tab reads clearly. */}
+            {data.tabRows?.length ? <div className="mt-2 border-t border-zinc-200 pt-5 dark:border-zinc-800">{data.tabRows.map(row => <div key={row.label}><Tabs label={row.label} active={path} items={row.items.flatMap(item => {
                 const href = safeReportHref(item.href);
                 return href ? [{ href, label: item.label, active: item.active === true }] : [];
-            })} /></div>)}
+            })} /></div>)}</div> : null}
             {/* Mayor pages put their filters in MayorSwitcher's single row: period and metric chips plus a custom date range. */}
             {filters.length > 0 && !mayorCity && (
                 <form key={JSON.stringify([filterPath||path,search,filters])} className={ui.form} action={filterPath || path}>
