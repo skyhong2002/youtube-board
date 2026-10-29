@@ -15,7 +15,7 @@ import {stackOnPhones,uniformColumns} from '@/lib/report-table-layout';
  * phones unless their text is too long for it, then stack (see stackOnPhones).
  * `foldUniform` names columns that hold one value on every row once above the
  * table instead of repeating them (see uniformColumns). */
-export function ReportTable({columns:all,rows,label,showMobileScrollHint=false,foldUniform=false,card=true}:{columns:ReportColumn[];rows:Record<string,ReportValue|ReportCell>[];label:string;showMobileScrollHint?:boolean;foldUniform?:boolean;card?:boolean}){
+export function ReportTable({columns:all,rows,label,showMobileScrollHint=false,foldUniform=false,card=false}:{columns:ReportColumn[];rows:Record<string,ReportValue|ReportCell>[];label:string;showMobileScrollHint?:boolean;foldUniform?:boolean;card?:boolean}){
  const uniform=foldUniform?uniformColumns(all,rows,all.length>3?reportLeadIndex(all,rows):-1):[],folded=new Set(uniform.map(u=>u.column.key));
  const columns=folded.size?all.filter(column=>!folded.has(column.key)):all;
  const wide=columns.length>3,lead=wide?reportLeadIndex(columns,rows):-1,stack=!wide&&stackOnPhones(columns,rows);

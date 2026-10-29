@@ -117,8 +117,8 @@ test('/keywords controls are labelled, keyboard-native and carry dark tokens (cl
  assert.match(markup,/<legend class="sr-only">排行期間<\/legend>/);
  assert.equal(markup.match(/type="radio"/g)?.length,2);assert.match(markup,/aria-controls="keyword-ranking-table"/);
  assert.match(markup,/peer-focus-visible:outline-2/);assert.match(markup,/dark:peer-checked:bg-brand-600/);assert.match(markup,/dark:text-brand-400/);
- // The scroll label is only applied once the client measures overflow, so the server markup has the card tokens alone.
- assert.match(markup,/table-card[^"]*dark:border-zinc-800 dark:bg-zinc-900/);
+ // Data tables sit open on the page (no card); the scroll frame still carries the table tokens.
+ assert.doesNotMatch(markup,/table-card/);assert.match(markup,/table-frame/);
 });
 
 const video=(id:string,title:string,views:number|null,patch:object={})=>({id,title,views,channelId:42,channelTitle:'來源頻道',youtubeChannelId:'',description:'',thumbnail:null,publishedAt:'2026-10-12T00:00:00Z',likes:null,comments:0,updatedAt:null,youtubeUrl:'',...patch}) as VideoRow;

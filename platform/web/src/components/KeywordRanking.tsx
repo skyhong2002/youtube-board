@@ -62,7 +62,7 @@ function RankingPane({view:v,priority}:{view:View;priority:boolean}){
 }
 export function KeywordRankingTable({rows,summary,window,basis,priority=false}:{rows:RankingRow[];summary:NonNullable<View['summary']>;window:KeywordWindow;basis:View['basis'];priority?:boolean}){
  const heat=basis==='heat';
- return <TableScroller card label={`${window==='today'?'過去24小時':'近七日'}熱門標籤排行表格，可左右捲動`}>
+ return <TableScroller label={`${window==='today'?'過去24小時':'近七日'}熱門標籤排行表格，可左右捲動`}>
   <table className={'w-full min-w-[64rem] text-left text-sm '+table.nowrap}>
    <thead className="bg-(--table-head-bg) text-xs text-zinc-600 dark:text-zinc-400">
     <tr>

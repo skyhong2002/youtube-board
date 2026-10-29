@@ -61,7 +61,7 @@ export async function AiAspectsBoard({apiPath,path,search,title}:{apiPath:string
                     {chips.map(c=><li key={c.label} className={ui.tag}><span className="mr-1 text-zinc-500 dark:text-zinc-400">{c.label}</span>{c.value}</li>)}
                 </ul>}
             </div>
-            {rows.length?<TableScroller card label="立場分布表，可左右捲動">
+            {rows.length?<TableScroller label="立場分布表，可左右捲動">
                 <table className={"w-full text-left text-sm "+tableStyle.nowrap}>
                     <thead className="bg-(--table-head-bg) text-xs text-zinc-600 dark:text-zinc-400"><tr>
                         <th scope="col" className={tableStyle.leadHead}>頻道</th>

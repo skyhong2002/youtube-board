@@ -94,7 +94,7 @@ export async function VocabularyReport({
                 </button>
             </form>
             {data.rows.length ? (
-                <TableScroller card label="共同詞彙表格，可左右捲動">
+                <TableScroller label="共同詞彙表格，可左右捲動">
                     <table className={"w-full text-left text-sm " + table.nowrap}>
                         <thead className="bg-(--table-head-bg) text-xs text-zinc-600 dark:text-zinc-400">
                             <tr>

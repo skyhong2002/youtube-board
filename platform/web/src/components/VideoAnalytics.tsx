@@ -37,7 +37,7 @@ export async function VideoAnalytics({apiPath,search,path}:{apiPath:string;searc
   {/* One stored count is already the table's single row below; a chart needs two. */}
   {observedPoints(views).length>1&&<Chart title="累計觀看數歷史" points={views} unit="次"/>}
   <SectionHeading title="影片統計歷史"/>
-  {data.history.length ? <TableScroller card label="影片統計歷史，可左右捲動">
+  {data.history.length ? <TableScroller label="影片統計歷史，可左右捲動">
    <table className={'w-full min-w-[30rem] text-left text-sm '+table.nowrap}>
     <thead className="bg-(--table-head-bg) text-xs text-zinc-600 dark:text-zinc-400"><tr><th scope="col" className={table.leadHead}>日期</th><th scope="col" className={table.num}>累計觀看</th><th scope="col" className={table.num}>喜歡</th><th scope="col" className={table.num}>留言</th></tr></thead>
     <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">{data.history.map(r => <tr className={table.row} key={r.date}>
@@ -49,7 +49,7 @@ export async function VideoAnalytics({apiPath,search,path}:{apiPath:string;searc
   {COMMENTS_PUBLISHED&&<>
   <div className="analytics-grid"><Chart title="逐時留言與回覆" points={c.hourly} unit="則"/><Chart title="逐日留言與回覆" points={c.daily} unit="則"/></div>
   <SectionHeading title="最多留言與回覆的帳號"/>
-  {c.authors.length ? <TableScroller card label="留言帳號排名，可左右捲動">
+  {c.authors.length ? <TableScroller label="留言帳號排名，可左右捲動">
    <table className={'w-full min-w-[36rem] text-left text-sm '+table.nowrap}>
     <thead className="bg-(--table-head-bg) text-xs text-zinc-600 dark:text-zinc-400"><tr><th scope="col" className={table.leadHead}>帳號</th><th scope="col" className={table.num}>留言</th><th scope="col" className={table.num}>回覆</th><th scope="col" className={table.num}>合計</th><th scope="col" className={table.num}>喜歡合計</th></tr></thead>
     <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">{c.authors.map(a => <tr className={table.row} key={a.id}>
@@ -59,7 +59,7 @@ export async function VideoAnalytics({apiPath,search,path}:{apiPath:string;searc
    </table>
   </TableScroller> : <Empty title={statuses[c.status]} description="沒有成功解析的公開留言帳號。"/>}
   <SectionHeading title="最多喜歡的留言與回覆"/>
-  {c.top.length ? <TableScroller card label="留言與回覆原文">
+  {c.top.length ? <TableScroller label="留言與回覆原文">
    <table className={'w-full text-left text-sm ' + table.nowrap + ' ' + table.stack}>
     <thead className="bg-(--table-head-bg) text-xs text-zinc-600 dark:text-zinc-400"><tr><th scope="col" className={table.cell}>帳號／類型</th><th scope="col" className={table.cell}>原文</th><th scope="col" className={table.num}>喜歡</th><th scope="col" className={table.cell}>發布時間</th></tr></thead>
     <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">{c.top.map((r,i) => <tr className={table.row} key={`${r.id}-${i}`}>

@@ -43,7 +43,7 @@ export function LiveSortable({ columns, rows, rowClassName, tableClassName, comp
         <ul aria-label="直播觀測清單" className="m-0 list-none space-y-3 p-0 sm:hidden">
             {ordered.map((row) => <li key={row.key} className="min-w-0 rounded-xl border border-zinc-300 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">{row.card}</li>)}
         </ul>
-        <TableScroller card label="直播觀測表，可左右捲動" className="hidden sm:block">
+        <TableScroller label="直播觀測表，可左右捲動" className="hidden sm:block">
         <table className={tableClassName}>
             <thead>
                 <tr>

@@ -75,9 +75,7 @@ export async function ExpandedReport({
     const keywordEmpty = { title: "這個關鍵字沒有預先計算的報表", description: "文字雲與逐日排行只為「標籤與關鍵字」排行前 50 名預先計算，每天更新兩次。這不代表來源沒有相關影片。" };
     const mayorCity = path === "/mayor" ? String((Array.isArray(search.city) ? search.city[0] : search.city) || "taipei").trim().toLowerCase() : path.match(/^\/mayor\/cities\/([^/]+)$/)?.[1]?.toLowerCase();
     const filters = data.filters || [],
-        known = new Set(filters.map((filter) => filter.key)),
-        // The daily live trend reads like the legacy page: open filter row and table, only the chart framed.
-        openSheet = path === "/live/trends/daily";
+        known = new Set(filters.map((filter) => filter.key));
     return (
         <>
             <Heading
@@ -104,7 +102,7 @@ export async function ExpandedReport({
             })} /></div>)}</div> : null}
             {/* Mayor pages put their filters in MayorSwitcher's single row: period and metric chips plus a custom date range. */}
             {filters.length > 0 && !mayorCity && (
-                <form key={JSON.stringify([filterPath||path,search,filters])} className={openSheet ? ui.formOpen : ui.form} action={filterPath || path}>
+                <form key={JSON.stringify([filterPath||path,search,filters])} className={ui.form} action={filterPath || path}>
                     {Object.entries(search)
                         .filter(([key]) => !known.has(key) && key !== "offset")
                         .flatMap(([key, value]) =>
@@ -244,7 +242,7 @@ export async function ExpandedReport({
                     {/* A list of three columns or fewer (group, basis, count) keeps to a readable width;
                         wider tables use the whole column. */}
                     <div className={data.columns.length <= NARROW_SECTION_COLUMNS ? "max-w-3xl" : undefined}>
-                        <ReportTable columns={data.columns} rows={data.rows} label={data.title||title} showMobileScrollHint={Boolean(mayorCity)} foldUniform card={!openSheet}/>
+                        <ReportTable columns={data.columns} rows={data.rows} label={data.title||title} showMobileScrollHint={Boolean(mayorCity)} foldUniform/>
                     </div>
                 </>
             ) : !data.words?.length &&

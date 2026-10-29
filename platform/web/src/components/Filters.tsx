@@ -68,7 +68,7 @@ export function ReportFilters({
     const present=(key:string)=>{const value=search[key];return Array.isArray(value)?value.some(v=>v!==''):value!==undefined&&value!=='';};
     // One row of pills (chosen 2026-10-24); the live list scrolls for more rows, so only the other lists keep a row count.
     const pill='min-h-10 rounded-full border border-zinc-300 bg-white px-3.5 text-sm text-zinc-700 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300';
-    return <form key={formKey} className="my-4 flex flex-wrap items-center gap-2 rounded-xl border border-zinc-300 bg-white p-3 text-sm dark:border-zinc-800 dark:bg-zinc-900" action={path} method="get">
+    return <form key={formKey} className="my-4 flex flex-wrap items-center gap-2 text-sm" action={path} method="get">
         {hidden}
         {searchInput(`${pill} w-full sm:w-64`)}
         {taxonomyPicker&&(present('or')&&present('tagid')

@@ -53,7 +53,7 @@ function Hour({group,duplicate}:{group:HourGroup;duplicate:boolean}){
     const heading=`${group.date} ${Number(group.hour)}時`;
     return <section className="space-y-2" aria-label={heading}>
         <h2 className="scroll-mt-20 text-lg font-semibold" id={`hour-${group.hour}${duplicate?"-"+group.dataType:""}`}>{heading}{duplicate&&group.dataType&&<span className="ml-2 text-sm font-normal text-zinc-500">{group.dataType}</span>}<span className="ml-2 text-sm font-normal tabular-nums text-zinc-500">{count(group.topics.length)} 個議題</span></h2>
-        <TableScroller card label={`${heading}議題表格，可左右捲動`}>
+        <TableScroller label={`${heading}議題表格，可左右捲動`}>
             <table className={"w-full text-left text-sm sm:min-w-[960px] "+aiStack.table}>
                 <thead className={"bg-(--table-head-bg) text-xs text-zinc-600 dark:text-zinc-400 "+aiStack.head}><tr>
                     {HEADERS.map((label,i)=><th key={label} scope="col" className={(i===0||i===2?cell.num:cell.cell)+" whitespace-nowrap"}>{label}</th>)}

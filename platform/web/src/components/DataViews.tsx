@@ -63,7 +63,7 @@ export function ChannelTable({ rows, offset=0, ranking, responsive=false }: { ro
           </li>;
         })}</ol>}
         <div className={responsive?'hidden sm:block':undefined}>
-        <TableScroller card label="頻道排行表，可左右捲動" showScrollHint={responsive}>
+        <TableScroller label="頻道排行表，可左右捲動" showScrollHint={responsive}>
             <table className={`${table.nowrap} w-full`}>
                 <thead>
                     <tr>
@@ -109,7 +109,7 @@ export function VideoTable({ rows, responsive=false }: { rows: VideoRow[]; respo
         <>
         {responsive&&<div className="sm:hidden"><VideoResults rows={rows} report/></div>}
         <div className={responsive?'hidden sm:block':undefined}>
-        <TableScroller card label="影片觀測表，可左右捲動" showScrollHint={responsive}>
+        <TableScroller label="影片觀測表，可左右捲動" showScrollHint={responsive}>
             <table className={table.nowrap}>
                 <thead>
                     <tr>

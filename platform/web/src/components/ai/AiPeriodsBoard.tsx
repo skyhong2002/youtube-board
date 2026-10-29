@@ -75,7 +75,7 @@ export async function AiPeriodsBoard({apiPath,path,search,title,filterPath}:{api
                 <Metric label="彙整統計" value={count(stats.stored)} unit="個事件" detail={`其餘 ${count(topics.length-stats.stored)} 個只有原始每日議題`}/>
             </section>
             <h2 className="text-lg font-semibold">期間事件</h2>
-            {topics.length?<TableScroller card label="期間事件表格，可左右捲動">
+            {topics.length?<TableScroller label="期間事件表格，可左右捲動">
                 <table className={"w-full text-left text-sm sm:min-w-[960px] "+aiStack.table}>
                     <thead className={"bg-(--table-head-bg) text-xs text-zinc-600 dark:text-zinc-400 "+aiStack.head}><tr>
                         {COLUMNS.map((label,i)=><th key={i} scope="col" className={(NUMERIC.has(i)?cell.num:cell.cell)+" whitespace-nowrap"}>{label}</th>)}
