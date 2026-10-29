@@ -4,7 +4,7 @@ import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {ReportTable} from '../components/ReportTable';
 import {stackOnPhones,textWidth,uniformColumns} from './report-table-layout';
-import {compareOnOneAxis,COMPARE_COLORS,COMPARE_MAX_SERIES} from './series-compare';
+import {CAMP_COLORS,compareOnOneAxis,compareStyle,COMPARE_COLORS,COMPARE_MAX_ENCODED,COMPARE_MAX_SERIES,encodeOnOneAxis} from './series-compare';
 import type {ReportColumn} from './report-contract';
 const groups:ReportColumn[]=[{key:'name',label:'群組'},{key:'basis',label:'分類依據'},{key:'items',label:'項目數',kind:'number'}];
 const groupRows=[['政治人物','內容詞彙群組',512],['台灣／中國立場與其他頻道分類','頻道分類群組',7],['名嘴','內容詞彙群組',18]].map(([name,basis,items])=>({name,basis,items}));
@@ -36,4 +36,12 @@ test('term comparison shares one axis only with a fixed colour slot for every te
  assert.equal(compareOnOneAxis([s(),s('部')]),false);
  assert.equal(compareOnOneAxis([s(),s('次',6)]),false);
  assert.equal(compareOnOneAxis(Array.from({length:COMPARE_MAX_SERIES+1},()=>s())),false,'never a cycled colour');
+});
+test('daily live comparison keeps camp colours and encodes a second slot pass instead of new hues',()=>{
+ assert.equal(compareStyle('泛紅',3,'light').color,CAMP_COLORS.泛紅!.light);
+ assert.deepEqual(compareStyle('x',1,'dark'),{color:COMPARE_COLORS.dark[1],dashed:false,symbol:'circle'});
+ assert.deepEqual(compareStyle('x',COMPARE_MAX_SERIES+1,'light'),{color:COMPARE_COLORS.light[1],dashed:true,symbol:'triangle'});
+ const s=()=>({unit:'次',points:[1,2]});
+ assert.equal(encodeOnOneAxis(Array.from({length:14},s)),true);
+ assert.equal(encodeOnOneAxis(Array.from({length:COMPARE_MAX_ENCODED+1},s)),false);
 });

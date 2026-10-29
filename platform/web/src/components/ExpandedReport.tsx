@@ -28,7 +28,7 @@ import {
 } from "./ReportUI";
 import { TimeChart } from "./Charts";
 import { SeriesCompareChart } from "./SeriesCompareChart";
-import { compareOnOneAxis } from "@/lib/series-compare";
+import { compareOnOneAxis, COMPARE_MAX_ENCODED, encodeOnOneAxis } from "@/lib/series-compare";
 import { Suspense } from "react";
 import { MayorShare, MayorShareLive, MayorSwitcher, MayorSwitcherLive } from "./MayorShare";
 import { searchView } from "@/lib/mayor-view";
@@ -94,6 +94,11 @@ export async function ExpandedReport({
                 const href = safeReportHref(item.href);
                 return href ? [{ href, label: item.label, active: item.active === true }] : [];
             })} /> : null}
+            {/* Each switch row (period, metric, group) gets its own line so its single active tab reads clearly. */}
+            {data.tabRows?.map(row => <div key={row.label}><Tabs label={row.label} active={path} items={row.items.flatMap(item => {
+                const href = safeReportHref(item.href);
+                return href ? [{ href, label: item.label, active: item.active === true }] : [];
+            })} /></div>)}
             {/* Mayor pages put their filters in MayorSwitcher's single row: period and metric chips plus a custom date range. */}
             {filters.length > 0 && !mayorCity && (
                 <form key={JSON.stringify([filterPath||path,search,filters])} className={ui.form} action={filterPath || path}>
@@ -178,12 +183,18 @@ export async function ExpandedReport({
             ) : null}
             {mayorCity && data.series?.length ? <MayorShare part="candidates" city={mayorCity} series={data.series} search={search} rows={data.bucketCoverage ?? data.rows} view={searchView(search)} /> : null}
             {/* Mayor pages show every candidate in the one share chart above, so no per-person raw charts. */}
-            {/* A term comparison draws every term on one shared axis. Other reports with several series
-                (one per group or category, on their own scales) sit two to a row as shorter charts. */}
+            {/* A term comparison and the daily live categories draw every series on one shared axis
+                (the legend toggles lines). Other reports with several series (one per group or
+                category, on their own scales) sit two to a row as shorter charts. */}
             {!mayorCity && path === "/tags/compare" && data.series && compareOnOneAxis(data.series) ? (
                 <section>
                     <SectionHeading title="趨勢比較" />
                     <div className={ui.panel}><SeriesCompareChart series={data.series} label={data.title || title} /></div>
+                </section>
+            ) : !mayorCity && path === "/live/trends/daily" && data.series && encodeOnOneAxis(data.series) ? (
+                <section>
+                    <SectionHeading title="每日趨勢" />
+                    <div className={ui.panel}><SeriesCompareChart series={data.series} label={data.title || title} max={COMPARE_MAX_ENCODED} /></div>
                 </section>
             ) : mayorCity ? null : <div className={(data.series?.length ?? 0) > 1 ? "lg:grid lg:grid-cols-2 lg:gap-x-6" : undefined}>{data.series?.map((series, index, all) => (
                 <section key={`${series.name}-${index}`} className="min-w-0">

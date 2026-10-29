@@ -24,6 +24,8 @@ export interface ReportSeries {
 export interface ReportData {
     title: string;
     navigation?: {label:string;href:string;active?:boolean}[];
+    /** Extra rows of switch tabs (period, metric, group) drawn under the title, each with an accessible label. */
+    tabRows?: {label:string;items:{label:string;href:string;active?:boolean}[]}[];
     description?: string;
     columns: ReportColumn[];
     rows: Record<string, ReportValue | ReportCell>[];
