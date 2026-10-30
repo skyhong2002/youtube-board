@@ -4,14 +4,16 @@ import type { Connection, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import { connectDatabase, withWriterLock } from './database.js';
 import { assertExecute, executionPolicy } from './policy.js';
 import { workflowShutdownSignal } from '../../shared/shutdown.js';
+import { isLiveCandidate, MysqlQuotaLedger, publishUploads, YoutubeDataApiClient, YoutubeError, type PlaylistItem } from '@youtube-board/ingestion';
+import { youtubeQuotaOptions, youtubeRetryOptions } from './youtube-cli.js';
 import {
-  WEBSUB_CHANNEL_ID, WEBSUB_COMMAND, WEBSUB_VIDEO_ID, WEBSUB_HUB_URL, WEBSUB_JOB, WEBSUB_LEASE_SECONDS, WEBSUB_PRIORITY_VTIME, callbackUrl, hubSecret, websubKeys, websubSecret, websubTopic,
+  WEBSUB_CHANNEL_ID, WEBSUB_COMMAND, WEBSUB_VIDEO_ID, WEBSUB_HUB_URL, WEBSUB_JOB, WEBSUB_LEASE_SECONDS, callbackUrl, hubSecret, websubKeys, websubSecret, websubTopic,
 } from '../../shared/websub.js';
 
 export { WEBSUB_COMMAND, WEBSUB_JOB };
 /** The news and politics scope of /live/current: editorials, politicians, TV, news, parties, radio. */
 export const WEBSUB_DEFAULT_TAGS = [1, 2, 12, 13, 14, 81];
-const DRAIN_LIMIT = 500, FIRST_RUN_WINDOW_MINUTES = 30, NOTICE_RETENTION_DAYS = 3, VERIFY_RETENTION_DAYS = 35, PRUNE_LIMIT = 1000, WATCH_LIMIT = 2000, WATCH_REBUMP_MS = 6 * 60 * 1000, WATCH_EXPIRE_MS = 30 * 60 * 1000, WATCH_MAX_BUMPS = 3, RENEW_BEFORE_MS = 24 * 3600 * 1000, ACCEPTED_RETRY_MS = 6 * 3600 * 1000, FAILED_RETRY_MS = 30 * 60 * 1000, MAX_CONSECUTIVE_FAILURES = 5;
+const DRAIN_LIMIT = 500, FIRST_RUN_WINDOW_MINUTES = 30, NOTICE_RETENTION_DAYS = 3, VERIFY_RETENTION_DAYS = 35, PRUNE_LIMIT = 1000, WATCH_LIMIT = 2000, WATCH_RECHECK_MS = 10 * 60 * 1000, WATCH_EXPIRE_MS = 2 * 3600 * 1000, LOOKUP_BATCH = 50, LOOKUP_INTERVAL_MS = 4 * 60 * 1000, LOOKUP_MAX_API_ATTEMPTS = 3, RENEW_BEFORE_MS = 24 * 3600 * 1000, ACCEPTED_RETRY_MS = 6 * 3600 * 1000, FAILED_RETRY_MS = 30 * 60 * 1000, MAX_CONSECUTIVE_FAILURES = 5;
 
 export function validateWebsubArguments(args: string[]) {
   if (args[0] !== WEBSUB_COMMAND || args.length > 4) throw new Error('Invalid WebSub command');
@@ -43,16 +45,29 @@ export async function scopedChannels(db: Connection, tagIds: number[]) {
   return rows.map(row => String(row.youtube_id)).filter(id => WEBSUB_CHANNEL_ID.test(id));
 }
 
+/** Looks up notified videos by id; `null` when the job has no YouTube access (no key configured). */
+export type VideoLookup = ((videoIds: string[]) => Promise<PlaylistItem[]>) | null;
+type Watched = { channelId: string; first: number; last: number; checks: number };
+/** `<channelId>|<firstSeenMs>|<lastCheckMs>|<checks>`; entries written before 2026-10-30 carried bumps in the last field. */
+function parseWatch(value: string): Watched | null {
+  const [channelId = '', first, last, checks] = value.split('|');
+  const numbers = [first, last, checks].map(Number);
+  return WEBSUB_CHANNEL_ID.test(channelId) && numbers.every(n => Number.isSafeInteger(n) && n >= 0) ? { channelId, first: numbers[0]!, last: numbers[1]!, checks: numbers[2]! } : null;
+}
+const watchValue = (w: Watched) => `${w.channelId}|${w.first}|${w.last}|${w.checks}`;
+
 /**
- * Turn pushed notices into discovery work. A notice for a video we already hold is a metadata edit and is ignored;
- * an unknown video moves its channel to the front of the general discovery queue, whose next sweep (every five
- * minutes) reads the uploads playlist and registers live candidates exactly as it always has.
+ * Turn pushed notices into stored videos without spending general discovery slots. A notice for a video we already hold
+ * is a metadata edit and is ignored. An unknown video is watched and looked up by id with videos.list: one quota unit
+ * covers up to 50 notified videos across channels, where reading each channel's uploads playlist would cost one unit per
+ * channel. Found videos are written exactly like an uploads sweep writes them (urt_video, urt_video_schedule and, for
+ * live or upcoming broadcasts, urt_video_live), so live.poll picks them up as before.
  *
- * The hub can announce a video before the uploads playlist lists it, which would spend the notice on a sweep that
- * finds nothing. Unknown videos are therefore watched: until the video is stored (or half an hour has passed) the
- * channel is moved to the front again, at most three times, six minutes apart.
+ * The hub can announce a video before YouTube serves it (still processing, scheduled privately), so a video the lookup
+ * does not return stays watched and is asked again every ten minutes for up to two hours. Lookups run at most every four
+ * minutes unless a full batch is waiting, which bounds the quota at roughly 360–720 units a day.
  */
-export async function drainNotices(db: Connection, redis: Redis, assertOwnership: () => Promise<void>, now = Date.now()) {
+export async function drainNotices(db: Connection, redis: Redis, assertOwnership: () => Promise<void>, lookup: VideoLookup = null, now = Date.now()) {
   // The cursor is the last processed row id. Without one (first run, or Redis lost it) only the recent past is read.
   const stored = await redis.get(websubKeys.cursor), cursor = stored !== null && /^\d+$/.test(stored) ? stored : null;
   const [popped] = await db.query<RowDataPacket[]>(
@@ -70,32 +85,54 @@ export async function drainNotices(db: Connection, redis: Redis, assertOwnership
     const [rows] = await db.query<RowDataPacket[]>('SELECT videoId FROM urt_video WHERE videoId IN (?)', [wanted]);
     for (const row of rows) known.add(String(row.videoId));
   }
-  const bump = new Set<string>(), updates = new Map<string, string>(), removals: string[] = [];
-  let ignored = 0, resolved = 0, expired = 0, rebumped = 0, watching = Object.keys(watch).length;
+  const active = new Map<string, Watched>(), changed = new Set<string>(), removals: string[] = [];
+  let ignored = 0, watched = 0, resolved = 0, expired = 0;
+  for (const [videoId, value] of Object.entries(watch)) {
+    const entry = parseWatch(value);
+    if (entry && known.has(videoId)) { removals.push(videoId); resolved++; }
+    else if (!entry || now - entry.first > WATCH_EXPIRE_MS) { removals.push(videoId); expired++; }
+    else active.set(videoId, entry);
+  }
   for (const { channelId, videoId } of noticed) {
     if (known.has(videoId)) { ignored++; continue; }
-    if (watch[videoId] !== undefined || updates.has(videoId)) continue;
-    bump.add(channelId);
-    if (watching < WATCH_LIMIT) { updates.set(videoId, `${channelId}|${now}|${now}|1`); watching++; }
+    if (active.has(videoId) || removals.includes(videoId) || active.size >= WATCH_LIMIT) continue;
+    active.set(videoId, { channelId, first: now, last: 0, checks: 0 }); changed.add(videoId); watched++;
   }
-  for (const [videoId, value] of Object.entries(watch)) {
-    const [channelId = '', first = 0, last = 0, bumps = 0] = value.split('|'), age = now - Number(first);
-    if (known.has(videoId)) { removals.push(videoId); resolved++; }
-    else if (!WEBSUB_CHANNEL_ID.test(channelId) || age > WATCH_EXPIRE_MS) { removals.push(videoId); expired++; }
-    else if (Number(bumps) < WATCH_MAX_BUMPS && now - Number(last) >= WATCH_REBUMP_MS) { bump.add(channelId); updates.set(videoId, `${channelId}|${first}|${now}|${Number(bumps) + 1}`); rebumped++; }
-  }
-  let bumped = 0, alreadyQueuedOrUnknown = 0;
-  for (const channelId of bump) {
+  const due = [...active].filter(([, w]) => w.checks === 0 || now - w.last >= WATCH_RECHECK_MS)
+    // Stable sort: within equal times, notices keep their arrival order.
+    .sort(([, x], [, y]) => Number(x.checks > 0) - Number(y.checks > 0) || x.last - y.last || x.first - y.first).slice(0, LOOKUP_BATCH);
+  const lastLookup = Number(await redis.get(websubKeys.lookup) ?? 0);
+  const lookups = { attempted: 0, published: 0, live: 0, unavailable: 0, unknownChannel: 0, failed: false };
+  if (lookup && due.length && (due.length >= LOOKUP_BATCH || !Number.isSafeInteger(lastLookup) || now - lastLookup >= LOOKUP_INTERVAL_MS)) {
     await assertOwnership();
-    const [result] = await db.execute<ResultSetHeader>(
-      'UPDATE urt_channel SET vtime = ? WHERE BINARY youtube_id = BINARY ? AND (flag_del IS NULL OR flag_del < 1) AND (vtime IS NULL OR vtime > ?)', [WEBSUB_PRIORITY_VTIME, channelId, WEBSUB_PRIORITY_VTIME]);
-    if (result.affectedRows > 0) bumped++; else alreadyQueuedOrUnknown++;
+    await redis.set(websubKeys.lookup, String(now));
+    lookups.attempted = due.length;
+    let found: PlaylistItem[] | null = null;
+    try { found = await lookup(due.map(([videoId]) => videoId)); } catch (error) { if (!(error instanceof YoutubeError)) throw error; lookups.failed = true; }
+    if (found) {
+      const byVideo = new Map(found.map(item => [item.videoId, item])), channels = new Map<string, number>();
+      const channelIds = [...new Set(found.map(item => item.channelId))];
+      if (channelIds.length) {
+        const [rows] = await db.query<RowDataPacket[]>('SELECT u_id, youtube_id FROM urt_channel WHERE youtube_id IN (?) AND flag_del IS NULL', [channelIds]);
+        for (const row of rows) channels.set(String(row.youtube_id), Number(row.u_id));
+      }
+      for (const [videoId, entry] of due) {
+        const item = byVideo.get(videoId), uId = item ? channels.get(item.channelId) : undefined;
+        if (item && uId !== undefined) {
+          await publishUploads({ db, now: new Date(now), assertOwnership }, uId, [item]);
+          if (isLiveCandidate(item)) lookups.live++;
+          lookups.published++; active.delete(videoId); changed.delete(videoId); removals.push(videoId);
+        } else if (item) { lookups.unknownChannel++; active.delete(videoId); changed.delete(videoId); removals.push(videoId); }
+        else { lookups.unavailable++; active.set(videoId, { ...entry, last: now, checks: entry.checks + 1 }); changed.add(videoId); }
+      }
+    }
   }
-  for (const [videoId, value] of updates) await redis.hset(websubKeys.watch, videoId, value);
+  for (const videoId of changed) await redis.hset(websubKeys.watch, videoId, watchValue(active.get(videoId)!));
   if (popped.length) await redis.set(websubKeys.cursor, String(popped[popped.length - 1]!.id));
   if (removals.length) await redis.hdel(websubKeys.watch, ...removals);
-  for (const [field, count] of Object.entries({ drained: popped.length, bumped, ignored, rebumped, resolved, expired })) if (count) await redis.hincrby(websubKeys.stats, field, count);
-  return { drained: popped.length, invalid, channels: bump.size, bumped, ignored, alreadyQueuedOrUnknown, watching: watching - removals.length, resolved, expired, rebumped };
+  const counters = { drained: popped.length, ignored, watched, resolved, expired, published: lookups.published, published_live: lookups.live, unavailable: lookups.unavailable, unknown_channel: lookups.unknownChannel, lookups: lookups.attempted ? 1 : 0, lookup_failed: lookups.failed ? 1 : 0 };
+  for (const [field, count] of Object.entries(counters)) if (count) await redis.hincrby(websubKeys.stats, field, count);
+  return { drained: popped.length, invalid, ignored, watched, resolved, expired, watching: active.size, due: due.length, lookups };
 }
 
 /** Subscription leases the hub confirmed (the receiver records each verification), as channelId -> expiry in epoch ms. */
@@ -152,6 +189,13 @@ export async function renewSubscriptions(redis: Redis, channels: string[], optio
   return { scoped: channels.length, established, due: due.length, attempted, accepted, failed, stoppedEarly: consecutive >= MAX_CONSECUTIVE_FAILURES };
 }
 
+/** videos.list through the shared daily quota ledger, like every other YouTube source job. */
+function videoLookup(db: Connection, env: NodeJS.ProcessEnv): VideoLookup {
+  const keys = [env.YOUTUBE_API_KEY ?? '', ...(env.YOUTUBE_API_KEYS ?? '').split(',')];
+  if (!keys.some(key => key.trim())) return null;
+  const youtube = new YoutubeDataApiClient({ ...youtubeRetryOptions(env), keys, ledger: new MysqlQuotaLedger(db, youtubeQuotaOptions(env, WEBSUB_JOB).dailyBudget), maxAttempts: LOOKUP_MAX_API_ATTEMPTS });
+  return videoIds => youtube.videoUploads(videoIds);
+}
 export async function executeWebsubWorkflow(args: string[], env: NodeJS.ProcessEnv, scheduled = false) {
   const input = validateWebsubArguments(args);
   // A dry run neither connects nor contacts the hub.
@@ -168,12 +212,12 @@ export async function executeWebsubWorkflow(args: string[], env: NodeJS.ProcessE
       await assertOwnership();
       await db.execute('INSERT INTO ts_job_runs(job_key,execution_key,status) VALUES(?,?,?)', [WEBSUB_JOB, executionKey, 'running']);
       try {
-        const drained = await drainNotices(db, redis, assertOwnership);
+        const drained = await drainNotices(db, redis, assertOwnership, videoLookup(db, env));
         workflowShutdownSignal().throwIfAborted();
         const now = Date.now(), subscriptions = await renewSubscriptions(redis, await scopedChannels(db, input.tagIds), { secret, origin: parsed.origin, limit: input.limit, now, leases: await loadLeases(db, now), assertOwnership });
         const pruned = await pruneEvents(db, assertOwnership);
         const result = { executionKey, drained, subscriptions, pruned };
-        await db.execute('UPDATE ts_job_runs SET status=?,result=? WHERE job_key=? AND execution_key=?', [subscriptions.stoppedEarly ? 'incomplete' : 'completed', JSON.stringify(result), WEBSUB_JOB, executionKey]);
+        await db.execute('UPDATE ts_job_runs SET status=?,result=? WHERE job_key=? AND execution_key=?', [subscriptions.stoppedEarly || drained.lookups.failed ? 'incomplete' : 'completed', JSON.stringify(result), WEBSUB_JOB, executionKey]);
         return result;
       } catch (error) {
         await db.execute('UPDATE ts_job_runs SET status=?,result=? WHERE job_key=? AND execution_key=?', ['failed', JSON.stringify({ error: 'websub-sync-failed' }), WEBSUB_JOB, executionKey]).catch(() => {});

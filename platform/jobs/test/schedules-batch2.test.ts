@@ -18,7 +18,7 @@ const laravel: [workflow: string, cron: string, command: string][] = [
   // missed their daily live windows. General discovery runs Laravel's 10-channel execute cap (2026-10-23).
   ['youtube.channels.videos.live_group', '1,31 0-15 * * *', 'youtube:channels:videos:live-group --limit=3 --max-results=50 --execute'],
   ['youtube.channels.videos.live', '5 2-16 * * *', 'youtube:channels:videos:live --limit=3 --max-results=50 --execute'],
-  ['youtube.channels.videos.general', '*/5 * * * *', 'youtube:channels:videos --limit=10 --max-results=50 --execute'],
+  ['youtube.channels.videos.general', '*/5 * * * *', 'youtube:channels:videos --limit=12 --max-results=50 --execute'],
   ['youtube.tvbs.videos', '*/5 * * * *', 'youtube:tvbs:videos --limit=1 --max-results=1 --offset=auto --execute'],
   // Laravel also passes --keyword-limit=100000; TS matches the pinned upstream vocabulary instead of a keyword scan.
   ['youtube.tag_videos.backfill', '17 3,6,9,12,15,18,21 * * *', 'youtube:tag-videos:backfill --days=2 --limit=100 --max-pages=20 --max-results=50 --tagid=102 --execute'],

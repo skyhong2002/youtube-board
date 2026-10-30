@@ -4,7 +4,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
  * YouTube pushes "new or changed video" notices through the public WebSub hub, so a channel that
  * uploads or schedules a live stream between two discovery sweeps is noticed within minutes instead
  * of waiting for its `urt_channel.vtime`. The hub is not the YouTube Data API: subscribing and
- * receiving cost no quota.
+ * receiving cost no quota. Storing a notified video costs one videos.list unit per batch of up to 50.
  *
  * The receiver (api/src/websub.ts, public web) and the sync job (jobs/src/websub-cli.ts, youtube-source
  * worker) share a secret (`WEBSUB_SECRET`) and one append-only table, `ts_websub_events`: the web's
@@ -20,17 +20,18 @@ export const WEBSUB_VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 /** YouTube grants five days whatever is asked; ask for it explicitly. */
 export const WEBSUB_LEASE_SECONDS = 432000;
 export const WEBSUB_MAX_LEASE_SECONDS = 30 * 86400;
-/** `urt_channel.vtime` ahead of every real due time: the next general discovery sweep reads this channel first. */
-export const WEBSUB_PRIORITY_VTIME = '2000-01-01 00:00:00';
 /** Worker-side Redis keys (the web never touches them). */
 export const websubKeys = Object.freeze({
   /** Last `ts_websub_events.id` of a notice the job has processed. */
   cursor: 'yt-ts:websub:cursor',
   /** Hash channelId -> epoch ms before which the job does not ask the hub again. */
   retry: 'yt-ts:websub:retry',
-  /** Hash videoId -> `<channelId>|<firstSeenMs>|<lastBumpMs>|<bumps>`: notified videos not yet stored, re-checked for a while. */
+  /** Hash videoId -> `<channelId>|<firstSeenMs>|<lastCheckMs>|<checks>`: notified videos not yet stored, looked up for a while. */
   watch: 'yt-ts:websub:watch',
-  /** Counters for operators: drained, bumped, ignored, rebumped, resolved, expired, subscribe_accepted, subscribe_failed. */
+  /** Epoch ms of the last videos.list lookup, which spaces lookups out to bound quota. */
+  lookup: 'yt-ts:websub:lookup',
+  /** Counters for operators: drained, ignored, watched, resolved, expired, published, published_live, unavailable, unknown_channel,
+   * lookups, lookup_failed, subscribe_accepted, subscribe_failed. */
   stats: 'yt-ts:websub:stats',
 });
 

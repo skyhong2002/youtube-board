@@ -4,7 +4,8 @@ import type { Redis } from 'ioredis';
 import { WEBSUB_COMMAND, WEBSUB_JOB, drainNotices, executeWebsubWorkflow, loadLeases, pruneEvents, renewSubscriptions, validateWebsubArguments } from '../src/websub-cli.js';
 import { validateWorkflowInput, workflowArgs } from '../src/workflow-registry.js';
 import { validateScheduleConfig } from '../src/scheduler.js';
-import { callbackToken, parseNotification, websubKeys, websubTopic, WEBSUB_PRIORITY_VTIME } from '../../shared/websub.js';
+import { callbackToken, parseNotification, websubKeys, websubTopic } from '../../shared/websub.js';
+import { YoutubeError, type PlaylistItem } from '@youtube-board/ingestion';
 
 const SECRET = 's'.repeat(40), A = 'UC9EWrkZoT3agfx45s6FdVtQ', B = 'UCxxxxxxxxxxxxxxxxxxxxxx', C = 'UCyyyyyyyyyyyyyyyyyyyyyy';
 /** Just the Redis commands the job uses, over plain maps. */
@@ -57,74 +58,124 @@ describe('WebSub sync boundary', () => {
 describe('draining notices', () => {
   const NOW = 1_800_000_000_000, MIN = 60000;
   type Row = { id: number; channel_id: string; video_id: string };
-  /** Answers the four statements the drain issues; records the notice query and the channels moved to the front. */
-  function fakeDb(rows: Row[], known: string[], updated: string[], seen: { sql?: string; params?: unknown[] } = {}) {
+  type Seen = { sql?: string; params?: unknown[]; inserts: { table: string; row: Record<string, unknown> }[] };
+  /** Answers the drain's reads and records the rows publishUploads inserts. Only channel A and B are active. */
+  function fakeDb(rows: Row[], known: string[], seen: Seen = { inserts: [] }) {
     return {
       async query(sql: string, params: unknown[] = []) {
         if (sql.includes('FROM ts_websub_events')) { seen.sql = sql; seen.params = params; const after = sql.includes('id > ?') ? Number(params[0]) : 0; return [rows.filter(r => r.id > after)]; }
-        if (sql.includes('FROM urt_video')) return [(params[0] as string[]).filter(id => known.includes(id)).map(videoId => ({ videoId }))];
+        if (sql.includes('SELECT videoId FROM urt_video')) return [(params[0] as string[]).filter(id => known.includes(id)).map(videoId => ({ videoId }))];
+        if (sql.includes('FROM urt_channel')) return [(params[0] as string[]).filter(id => id === A || id === B).map(youtube_id => ({ u_id: youtube_id === A ? 7 : 8, youtube_id }))];
+        if (sql.startsWith('SELECT * FROM')) return [[]];
         throw new Error('unexpected query ' + sql);
       },
-      async execute(_sql: string, params: unknown[]) { const [vtime, channelId] = params as string[]; expect(vtime).toBe(WEBSUB_PRIORITY_VTIME); const hit = channelId !== C; if (hit) updated.push(channelId!); return [{ affectedRows: hit ? 1 : 0 }]; },
+      async execute(sql: string, params: unknown[]) {
+        const match = /^INSERT INTO `(\w+)` \((.*?)\)/.exec(sql);
+        if (!match) throw new Error('unexpected write ' + sql);
+        const columns = match[2]!.split(', ').map(c => c.replace(/`/g, ''));
+        seen.inserts.push({ table: match[1]!, row: Object.fromEntries(columns.map((c, i) => [c, params[i]])) });
+        return [{ affectedRows: 1 }];
+      },
     } as unknown as Connection;
   }
   const notices = (...list: [string, string][]): Row[] => list.map(([channel_id, video_id], i) => ({ id: 101 + i, channel_id, video_id }));
-  it('moves a channel with an unseen video to the front of discovery and ignores edits of known videos', async () => {
-    const updated: string[] = [], { redis, hashes, strings } = fakeRedis();
-    const rows = notices([A, 'zpqFQ8ilYD0'], [A, 'zpqFQ8ilYD0'], [B, 'AAAAAAAAAAA'], [C, 'CCCCCCCCCCC'], [A, 'short']);
-    const result = await drainNotices(fakeDb(rows, ['AAAAAAAAAAA'], updated), redis, owner, NOW);
-    expect(result).toEqual({ drained: 5, invalid: 1, channels: 2, bumped: 1, ignored: 1, alreadyQueuedOrUnknown: 1, watching: 2, resolved: 0, expired: 0, rebumped: 0 });
-    expect(updated).toEqual([A]);
-    expect(hashes[websubKeys.stats]).toEqual({ drained: '5', bumped: '1', ignored: '1' });
-    expect(hashes[websubKeys.watch]).toEqual({ zpqFQ8ilYD0: `${A}|${NOW}|${NOW}|1`, CCCCCCCCCCC: `${C}|${NOW}|${NOW}|1` });
-    expect(strings[websubKeys.cursor]).toBe('105');
+  const video = (videoId: string, channelId: string, live: PlaylistItem['liveBroadcastContent'] = 'none'): PlaylistItem => ({ id: '', videoId, publishedAt: '2027-01-15T08:00:00Z', channelId, title: 't ' + videoId, description: '', thumbnails: `https://i.ytimg.com/vi/${videoId}/default.jpg`, channelTitle: 'c', playlistId: 'UU' + channelId.slice(2), position: 0, liveBroadcastContent: live });
+  const lookupOf = (found: PlaylistItem[], asked: string[][] = []) => async (ids: string[]) => { asked.push(ids); return found.filter(item => ids.includes(item.videoId)); };
+
+  it('looks up unseen videos by id in one batch, stores them and their live rows, and ignores edits of known videos', async () => {
+    const { redis, hashes, strings } = fakeRedis(), seen: Seen = { inserts: [] }, asked: string[][] = [];
+    const rows = notices([A, 'zpqFQ8ilYD0'], [A, 'zpqFQ8ilYD0'], [B, 'AAAAAAAAAAA'], [B, 'LLLLLLLLLLL'], [A, 'PPPPPPPPPPP'], [A, 'short']);
+    const result = await drainNotices(fakeDb(rows, ['AAAAAAAAAAA'], seen), redis, owner, lookupOf([video('zpqFQ8ilYD0', A, 'upcoming'), video('LLLLLLLLLLL', B)], asked), NOW);
+    expect(asked).toEqual([['zpqFQ8ilYD0', 'LLLLLLLLLLL', 'PPPPPPPPPPP']]);
+    expect(result).toMatchObject({ drained: 6, invalid: 1, ignored: 1, watched: 3, watching: 1, due: 3, lookups: { attempted: 3, published: 2, live: 1, unavailable: 1, failed: false } });
+    expect(seen.inserts.map(i => [i.table, i.row.videoId])).toEqual([['urt_video', 'zpqFQ8ilYD0'], ['urt_video_schedule', 'zpqFQ8ilYD0'], ['urt_video_live', 'zpqFQ8ilYD0'], ['urt_video', 'LLLLLLLLLLL'], ['urt_video_schedule', 'LLLLLLLLLLL']]);
+    expect(seen.inserts[0]!.row).toMatchObject({ u_id: 7, channelId: A, playlistId: 'UU' + A.slice(2), id: '', position: 0 });
+    expect(seen.inserts[2]!.row).toMatchObject({ u_id: 7, publishedAt: '2027-01-15 16:00:00' });
+    // The video YouTube did not serve yet stays watched with one check recorded.
+    expect(hashes[websubKeys.watch]).toEqual({ PPPPPPPPPPP: `${A}|${NOW}|${NOW}|1` });
+    expect(hashes[websubKeys.stats]).toEqual({ drained: '6', ignored: '1', watched: '3', published: '2', published_live: '1', unavailable: '1', lookups: '1' });
+    expect(strings[websubKeys.cursor]).toBe('106');
+    expect(strings[websubKeys.lookup]).toBe(String(NOW));
+  });
+  it('never moves channels in the general discovery queue', async () => {
+    const { redis } = fakeRedis(), db = fakeDb(notices([A, 'zpqFQ8ilYD0']), []);
+    (db as unknown as { execute: unknown }).execute = async (sql: string) => { throw new Error('unexpected write ' + sql); };
+    expect(await drainNotices(db, redis, owner, null, NOW)).toMatchObject({ watched: 1, lookups: { attempted: 0 } });
+  });
+  it('spaces lookups four minutes apart unless a full batch is waiting', async () => {
+    const recent = String(NOW - 2 * MIN), asked: string[][] = [];
+    const few = fakeRedis({}, { [websubKeys.lookup]: recent });
+    expect((await drainNotices(fakeDb(notices([A, 'zpqFQ8ilYD0']), []), few.redis, owner, lookupOf([], asked), NOW)).lookups.attempted).toBe(0);
+    expect(few.hashes[websubKeys.watch]).toEqual({ zpqFQ8ilYD0: `${A}|${NOW}|0|0` });
+    const ids = Array.from({ length: 55 }, (_, i) => `V${String(i).padStart(10, '0')}`);
+    const many = fakeRedis({}, { [websubKeys.lookup]: recent });
+    expect((await drainNotices(fakeDb(notices(...ids.map(id => [A, id] as [string, string])), []), many.redis, owner, lookupOf([], asked), NOW)).lookups.attempted).toBe(50);
+    expect(asked).toEqual([ids.slice(0, 50)]);
+    const later = fakeRedis({ [websubKeys.watch]: { zpqFQ8ilYD0: `${A}|${NOW - 5 * MIN}|0|0` } }, { [websubKeys.lookup]: String(NOW - 4 * MIN) });
+    expect((await drainNotices(fakeDb([], []), later.redis, owner, lookupOf([]), NOW)).lookups.attempted).toBe(1);
+  });
+  it('asks again for a missing video every ten minutes, never-checked videos first', async () => {
+    const asked: string[][] = [], { redis, hashes } = fakeRedis({ [websubKeys.watch]: {
+      AAAAAAAAAAA: `${A}|${NOW - 30 * MIN}|${NOW - 11 * MIN}|2`, BBBBBBBBBBB: `${A}|${NOW - 30 * MIN}|${NOW - 9 * MIN}|2`, CCCCCCCCCCC: `${B}|${NOW - MIN}|0|0` } });
+    const result = await drainNotices(fakeDb([], []), redis, owner, lookupOf([], asked), NOW);
+    expect(asked).toEqual([['CCCCCCCCCCC', 'AAAAAAAAAAA']]);
+    expect(result).toMatchObject({ due: 2, watching: 3, lookups: { unavailable: 2 } });
+    expect(hashes[websubKeys.watch]).toMatchObject({ AAAAAAAAAAA: `${A}|${NOW - 30 * MIN}|${NOW}|3`, BBBBBBBBBBB: `${A}|${NOW - 30 * MIN}|${NOW - 9 * MIN}|2`, CCCCCCCCCCC: `${B}|${NOW - MIN}|${NOW}|1` });
+  });
+  it('keeps videos watched when the lookup fails on quota or the API, and rethrows anything else', async () => {
+    const { redis, hashes } = fakeRedis();
+    const failing = async () => { throw new YoutubeError('quota-exhausted'); };
+    expect(await drainNotices(fakeDb(notices([A, 'zpqFQ8ilYD0']), []), redis, owner, failing, NOW)).toMatchObject({ lookups: { attempted: 1, failed: true, published: 0 } });
+    expect(hashes[websubKeys.watch]).toEqual({ zpqFQ8ilYD0: `${A}|${NOW}|0|0` });
+    expect(hashes[websubKeys.stats]).toMatchObject({ lookup_failed: '1' });
+    await expect(drainNotices(fakeDb([], []), fakeRedis({ [websubKeys.watch]: { zpqFQ8ilYD0: `${A}|${NOW}|0|0` } }).redis, owner, async () => { throw new Error('bug'); }, NOW)).rejects.toThrow('bug');
+  });
+  it('drops a looked-up video whose channel is not an active channel', async () => {
+    const seen: Seen = { inserts: [] }, { redis, hashes } = fakeRedis();
+    const result = await drainNotices(fakeDb(notices([C, 'CCCCCCCCCCC']), [], seen), redis, owner, lookupOf([video('CCCCCCCCCCC', C)]), NOW);
+    expect(result.lookups).toMatchObject({ unknownChannel: 1, published: 0 });
+    expect(seen.inserts).toEqual([]);
+    expect(hashes[websubKeys.watch]).toEqual({});
   });
   it('starts from the recent past without a cursor, then continues after the stored cursor', async () => {
-    const seen: { sql?: string; params?: unknown[] } = {}, rows = notices([A, 'zpqFQ8ilYD0'], [A, 'BBBBBBBBBBB']);
+    const seen: Seen = { inserts: [] }, rows = notices([A, 'zpqFQ8ilYD0'], [A, 'BBBBBBBBBBB']);
     const first = fakeRedis();
-    await drainNotices(fakeDb(rows, [], [], seen), first.redis, owner, NOW);
+    await drainNotices(fakeDb(rows, [], seen), first.redis, owner, null, NOW);
     expect(seen.sql).toContain('received_at >= UTC_TIMESTAMP() - INTERVAL 30 MINUTE');
     expect(first.strings[websubKeys.cursor]).toBe('102');
     const resumed = fakeRedis({}, { [websubKeys.cursor]: '101' });
-    const result = await drainNotices(fakeDb(rows, [], [], seen), resumed.redis, owner, NOW);
+    const result = await drainNotices(fakeDb(rows, [], seen), resumed.redis, owner, null, NOW);
     expect(seen.sql).toContain('id > ?');
     expect(seen.params).toEqual(['101', 500]);
     expect(result.drained).toBe(1);
     expect(resumed.strings[websubKeys.cursor]).toBe('102');
   });
   it('ignores a corrupt cursor instead of trusting it', async () => {
-    const seen: { sql?: string; params?: unknown[] } = {}, { redis } = fakeRedis({}, { [websubKeys.cursor]: '1; DROP TABLE x' });
-    await drainNotices(fakeDb([], [], [], seen), redis, owner, NOW);
+    const seen: Seen = { inserts: [] }, { redis } = fakeRedis({}, { [websubKeys.cursor]: '1; DROP TABLE x' });
+    await drainNotices(fakeDb([], [], seen), redis, owner, null, NOW);
     expect(seen.sql).toContain('received_at >= UTC_TIMESTAMP()');
   });
   it('treats video ids case-sensitively when deciding what is known', async () => {
-    const updated: string[] = [], { redis } = fakeRedis();
-    expect((await drainNotices(fakeDb(notices([A, 'aaaaaaaaaaa']), ['AAAAAAAAAAA'], updated), redis, owner, NOW)).bumped).toBe(1);
+    const { redis } = fakeRedis();
+    expect((await drainNotices(fakeDb(notices([A, 'aaaaaaaaaaa']), ['AAAAAAAAAAA']), redis, owner, null, NOW)).watched).toBe(1);
   });
   it('does nothing when there are no notices', async () => {
     const { redis, strings } = fakeRedis();
-    expect(await drainNotices(fakeDb([], [], []), redis, owner, NOW)).toMatchObject({ drained: 0, bumped: 0, watching: 0 });
+    expect(await drainNotices(fakeDb([], []), redis, owner, lookupOf([]), NOW)).toMatchObject({ drained: 0, watched: 0, watching: 0, lookups: { attempted: 0 } });
     expect(strings[websubKeys.cursor]).toBeUndefined();
+    expect(strings[websubKeys.lookup]).toBeUndefined();
   });
-  it('does not bump again for a repeated notice of a video already being watched', async () => {
-    const updated: string[] = [], { redis } = fakeRedis({ [websubKeys.watch]: { zpqFQ8ilYD0: `${A}|${NOW - MIN}|${NOW - MIN}|1` } });
-    expect(await drainNotices(fakeDb(notices([A, 'zpqFQ8ilYD0']), [], updated), redis, owner, NOW)).toMatchObject({ bumped: 0, rebumped: 0, watching: 1 });
-    expect(updated).toEqual([]);
+  it('does not watch a repeated notice twice', async () => {
+    const { redis, hashes } = fakeRedis({ [websubKeys.watch]: { zpqFQ8ilYD0: `${A}|${NOW - MIN}|${NOW - MIN}|1` } });
+    expect(await drainNotices(fakeDb(notices([A, 'zpqFQ8ilYD0']), []), redis, owner, null, NOW)).toMatchObject({ watched: 0, watching: 1 });
+    expect(hashes[websubKeys.watch]).toEqual({ zpqFQ8ilYD0: `${A}|${NOW - MIN}|${NOW - MIN}|1` });
   });
-  it('bumps a watched channel again after six minutes, at most three times in total', async () => {
-    const updated: string[] = [], { redis, hashes } = fakeRedis({ [websubKeys.watch]: { zpqFQ8ilYD0: `${A}|${NOW - 7 * MIN}|${NOW - 7 * MIN}|1` } });
-    expect(await drainNotices(fakeDb([], [], updated), redis, owner, NOW)).toMatchObject({ bumped: 1, rebumped: 1, watching: 1 });
-    expect(hashes[websubKeys.watch]!.zpqFQ8ilYD0).toBe(`${A}|${NOW - 7 * MIN}|${NOW}|2`);
-    hashes[websubKeys.watch]!.zpqFQ8ilYD0 = `${A}|${NOW - 20 * MIN}|${NOW - 7 * MIN}|3`;
-    expect(await drainNotices(fakeDb([], [], updated), redis, owner, NOW)).toMatchObject({ bumped: 0, rebumped: 0, watching: 1 });
-    expect(updated).toEqual([A]);
-  });
-  it('stops watching a video once it is stored, or after half an hour', async () => {
-    const updated: string[] = [], { redis, hashes } = fakeRedis({ [websubKeys.watch]: {
-      AAAAAAAAAAA: `${A}|${NOW - 2 * MIN}|${NOW - 2 * MIN}|1`, BBBBBBBBBBB: `${B}|${NOW - 31 * MIN}|${NOW - 25 * MIN}|2`, junkjunkjun: 'not-a-record' } });
-    const result = await drainNotices(fakeDb([], ['AAAAAAAAAAA'], updated), redis, owner, NOW);
-    expect(result).toMatchObject({ resolved: 1, expired: 2, watching: 0, bumped: 0 });
-    expect(hashes[websubKeys.watch]).toEqual({});
+  it('stops watching a video once it is stored, or after two hours, and drops corrupt entries', async () => {
+    const { redis, hashes } = fakeRedis({ [websubKeys.watch]: {
+      AAAAAAAAAAA: `${A}|${NOW - 2 * MIN}|${NOW - 2 * MIN}|1`, BBBBBBBBBBB: `${B}|${NOW - 121 * MIN}|${NOW - 5 * MIN}|9`, DDDDDDDDDDD: `${B}|${NOW - 119 * MIN}|${NOW - 5 * MIN}|9`, junkjunkjun: 'not-a-record' } });
+    const result = await drainNotices(fakeDb([], ['AAAAAAAAAAA']), redis, owner, null, NOW);
+    expect(result).toMatchObject({ resolved: 1, expired: 2, watching: 1 });
+    expect(hashes[websubKeys.watch]).toEqual({ DDDDDDDDDDD: `${B}|${NOW - 119 * MIN}|${NOW - 5 * MIN}|9` });
     expect(hashes[websubKeys.stats]).toEqual({ resolved: '1', expired: '2' });
   });
 });

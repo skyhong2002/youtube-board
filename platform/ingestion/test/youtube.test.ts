@@ -109,3 +109,11 @@ it('a failed durable breaker write preserves quota-daily and prevents another re
   await expect(api.channelPresence(['UCtest'])).rejects.toMatchObject({code:'quota-exhausted'});
   expect(calls).toBe(1);
 });
+it('looks up notified videos by id as uploads items with the real live state, skipping malformed and foreign items', async () => {
+  const channelId = 'UC9EWrkZoT3agfx45s6FdVtQ', snippet = { publishedAt: '2026-10-30T05:50:00Z', channelId, title: ' 直播 ', description: 'd', thumbnails: { default: { url: 'https://i.ytimg.com/vi/zpqFQ8ilYD0/default.jpg?v=6a1b' } }, channelTitle: '蔣萬安', liveBroadcastContent: 'upcoming' };
+  const { api, fetcher } = client(response({ items: [{ id: 'zpqFQ8ilYD0', snippet }, { id: 'Abc12345678', snippet: { ...snippet, channelId: 'nope' } }, { id: 'Other123456', snippet }, { id: 'Bare1234567' }] }));
+  expect(await api.videoUploads(['zpqFQ8ilYD0', 'Abc12345678', 'Bare1234567'])).toEqual([{ id: '', videoId: 'zpqFQ8ilYD0', publishedAt: '2026-10-30T05:50:00Z', channelId, title: '直播', description: 'd', thumbnails: snippet.thumbnails.default.url, channelTitle: '蔣萬安', playlistId: 'UU9EWrkZoT3agfx45s6FdVtQ', position: 0, liveBroadcastContent: 'upcoming' }]);
+  const url = new URL(String(fetcher.mock.calls[0]![0]));
+  expect([url.pathname, url.searchParams.get('part'), url.searchParams.get('id')]).toEqual(['/youtube/v3/videos', 'snippet', 'zpqFQ8ilYD0,Abc12345678,Bare1234567']);
+  expect(await client().api.videoUploads([])).toEqual([]);
+});

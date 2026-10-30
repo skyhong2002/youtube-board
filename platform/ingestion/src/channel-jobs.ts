@@ -86,7 +86,7 @@ export async function channelRetirementJob(ctx: SourceJobContext, input: { uId?:
   return { mode: 'execute', selected: rows.length, apiAttempts: ctx.youtube.attemptsMade, applied, skipped };
 }
 /** Laravel upsertByKeys: insert or overwrite every column, including `ctime` (re-discovery refreshes it), with no owner check. */
-export async function publishUploads(ctx: SourceJobContext, uId: number, items: Iterable<PlaylistItem>, tvbs = false, publishedVideos: string[] = []) {
+export async function publishUploads(ctx: Pick<SourceJobContext, 'db' | 'now' | 'assertOwnership'>, uId: number, items: Iterable<PlaylistItem>, tvbs = false, publishedVideos: string[] = []) {
   const at = taipeiSql(ctx.now);
   for (const item of items) {
     await ctx.assertOwnership();
@@ -147,8 +147,9 @@ async function tvbsChannels(ctx: SourceJobContext, input: UploadsInput, limit: n
 export async function channelUploadsJob(ctx: SourceJobContext, input: UploadsInput) {
   channelId(input.uId); cap(input.limit, 100); cap(input.maxPages, 200); cap(input.days, 365, 7); const maxResults = cap(input.maxResults ?? 5,50);
   if (input.offset !== undefined && input.offset !== 'auto') cap(input.offset, 2147483647, 0);
-  // Laravel clamps execute batches to 10 discovery / 3 TVBS channels (previews to 81 / 80).
-  const limit = Math.min(input.limit, input.tvbs ? (ctx.execute ? 3 : 80) : (ctx.execute ? 10 : 81));
+  // Laravel clamped execute batches to 10 discovery / 3 TVBS channels (previews to 81 / 80). Since 2026-10-30 WebSub notices no
+  // longer take discovery slots and the shared quota has room, so discovery may run up to 15 channels per batch.
+  const limit = Math.min(input.limit, input.tvbs ? (ctx.execute ? 3 : 80) : (ctx.execute ? 15 : 81));
   let rows: RowDataPacket[];
   if (input.tvbs) rows = await tvbsChannels(ctx, input, limit);
   else if (input.uId) [rows] = await ctx.db.query<RowDataPacket[]>('SELECT c.* FROM urt_channel c WHERE c.u_id = ? ORDER BY c.u_id LIMIT ?', [input.uId, limit]);

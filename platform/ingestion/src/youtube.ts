@@ -182,6 +182,25 @@ export class YoutubeDataApiClient {
     }); return { items, nextPageToken: this.next(data) };
   }
   async playlistItems(playlistId: string, maxResults = 50) { return (await this.playlistItemsPage(playlistId, null, maxResults)).items; }
+  /**
+   * videos.list?part=snippet for up to 50 known video ids (one unit), shaped like an uploads playlist item. The playlist item id
+   * and position are not part of a video resource: `id` stays empty and `position` 0 until the next uploads sweep rewrites the row.
+   * Unlike playlistItems, the video snippet carries the real liveBroadcastContent. Private, deleted or not yet public videos are
+   * simply absent; a malformed item is skipped so it cannot block the rest of the batch.
+   */
+  async videoUploads(values: string[]): Promise<PlaylistItem[]> {
+    const ids = this.ids(values); if (!ids.length) return [];
+    const data = await this.get('videos', { part: 'snippet', id: ids.join(','), maxResults: '50' }), result: PlaylistItem[] = [];
+    for (const item of this.items(data)) {
+      if (!record(item) || !ids.includes(str(item.id)) || !record(item.snippet)) continue;
+      const s = item.snippet, thumbnails = record(s.thumbnails) ? s.thumbnails : {}, trimmed = (value: unknown) => str(value).trim(), publishedAt = trimmed(s.publishedAt), channelId = trimmed(s.channelId);
+      const thumbnail = ['default', 'medium', 'high'].map(size => thumbnails[size]).filter(record).map(t => str(t.url)).find(url => url.trim() !== '') ?? '';
+      const live = s.liveBroadcastContent === undefined ? 'none' : trimmed(s.liveBroadcastContent);
+      if (!rfc3339(publishedAt) || !/^UC[A-Za-z0-9_-]{22}$/.test(channelId) || !trimmed(s.title) || !trimmed(s.channelTitle) || typeof s.description !== 'string' || !thumbnail || !['none', 'live', 'upcoming'].includes(live)) continue;
+      result.push({ id: '', videoId: str(item.id), publishedAt, channelId, title: trimmed(s.title), description: s.description, thumbnails: thumbnail, channelTitle: trimmed(s.channelTitle), playlistId: 'UU' + channelId.slice(2), position: 0, liveBroadcastContent: live as PlaylistItem['liveBroadcastContent'] });
+    }
+    return result;
+  }
   async videoContentDetails(values: string[]): Promise<Map<string, { duration: string; durationSeconds: number; caption: string | null }>> {
     const ids = this.ids(values); const result = new Map<string, { duration: string; durationSeconds: number; caption: string | null }>(); if (!ids.length) return result;
     const data = await this.get('videos', { part: 'contentDetails', id: ids.join(','), maxResults: '50' });

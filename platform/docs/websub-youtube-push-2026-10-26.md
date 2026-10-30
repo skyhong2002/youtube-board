@@ -114,3 +114,33 @@ main 為 `5460bd4`（`2cb3531` 功能、`7434049` 掛上閘道、`5460bd4` 改�
 - **佇列公平性：** 被提前的頻道排在逾期佇列前面，大量通知時（例如同時 30 個頻道），原本積壓的頻道會晚一點。範圍限定在 786 個頻道，預期很小。
 - **探索仍是一輪最多 10 個頻道。** 不在 `--or` 範圍內的頻道行為完全不變。
 - **Cloudflare 或邊緣規則若擋 hub 的 POST／GET，** 訂閱會一直驗證失敗；步驟 4 就是為了先發現這件事。
+
+## 2026-10-30 改版：通知直接用 videos.list 入庫，不再提前頻道（尚未上線）
+
+### 為什麼改
+
+正式資料（2026-10-30 16:10 台北，sky-server 唯讀查詢）：
+
+- Redis 累計：bumped 9,493、rebumped 14,886、resolved 12,279、expired 5,666。觀察中的影片約 32% 在 30 分鐘內沒有入庫。
+- 一般探索每輪 10 個頻道，每天約 3,800 個；WebSub 每天提前約 2,400 個頻道，佔掉大半名額。佇列裡同時有 114 個被提前的頻道在排隊（約一小時才輪完，超過 30 分鐘觀察期）。
+- 逾期頻道從 10/26 的 967 個增加到 2,253 個，最舊的已逾期約兩天。
+- 配額每天約 7,400–7,700 / 9,000。若把提前的頻道改成另開佇列、照樣讀上傳清單（每頻道 1 點），每天會多約 2,400 點，超過預算。
+
+### 做法
+
+- `youtube.websub.sync` 不再更新 `urt_channel.vtime`。未入庫的影片留在 watch，直接用 `videos.list?part=snippet` 以影片 ID 查（每次最多 50 部，1 點）。
+- 查到的影片用與上傳清單掃描相同的 `publishUploads` 寫入 `urt_video`、`urt_video_schedule`；`liveBroadcastContent` 是 live／upcoming（或縮圖符合直播規則）時寫入 `urt_video_live`，之後由 live.poll 接手。
+  - `urt_video.id`（playlist item id）先寫空字串、`position` 寫 0，頻道下次被一般探索讀到時會被正確值覆蓋。
+- 沒查到的影片（處理中、尚未公開、已刪除）每 10 分鐘再查一次，最多觀察 2 小時。
+- 查詢最少間隔 4 分鐘；累積滿 50 部時立即查。預估每天 360–720 點。
+- 一般探索每輪從 10 個頻道調到 12 個（execute 上限從 10 放寬到 15）。預估每天合計約 8,600–8,900 點。
+- 權限：`youtube.websub.sync` 的 profile 增加 `urt_video`／`urt_video_schedule`／`urt_video_live`／`ingestion_youtube_quota_daily` 的寫入，拿掉 `urt_channel` UPDATE。這些都已在 youtube-source 批次的聯集內，所以批次帳號的授權不變，不需要改資料庫授權。
+- Redis 統計欄位改為：drained、ignored、watched、resolved、expired、published、published_live、unavailable、unknown_channel、lookups、lookup_failed（舊的 bumped／rebumped 不再增加）。新 key `yt-ts:websub:lookup` 記錄上次查詢時間。
+
+### 上線
+
+只需換 `worker-youtube-source` image（含 `websub-cli.ts`、ingestion 的 `youtube.ts`、`channel-jobs.ts`、`worker-permissions.json`），並把排程設定的一般探索 `limit` 改成 12。換版後確認：
+
+- `HGETALL yt-ts:websub:stats` 的 published、unavailable、lookup_failed。
+- `ingestion_youtube_quota_daily` 當日用量低於 9,000；若接近，先把一般探索調回 10。
+- `urt_channel` 逾期數量（`vtime <= NOW()`）是否開始下降。

@@ -1769,14 +1769,30 @@
     "youtube.websub.sync": {
       "tables": {
         "urt_channel": [
-          "SELECT",
-          "UPDATE"
+          "SELECT"
         ],
         "urt_count": [
           "SELECT"
         ],
         "urt_video": [
-          "SELECT"
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_video_schedule": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_video_live": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "ingestion_youtube_quota_daily": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
         ],
         "ts_job_runs": [
           "SELECT",
