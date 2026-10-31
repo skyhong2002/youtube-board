@@ -207,10 +207,10 @@ it('queued image reads re-check the 429 cooldown when they receive a slot',async
  await new Promise(r=>setTimeout(r,0));expect(fetcher).toHaveBeenCalledTimes(2);for(const open of gates)open();
  expect(await Promise.all(reads)).toEqual(Array(5).fill('failed'));expect(fetcher).toHaveBeenCalledTimes(2);
 });
-it('caches revisioned public images up to min(max-age, one day) in either auth mode, never private ones',async()=>{
+it('caches revisioned images for one day whatever their cache-control (tag marks credentialed responses private), never with set-cookie',async()=>{
  let now=Date.parse('2026-10-17T00:00:00Z');const clock=()=>new Date(now);
  const service={TS_TAG_RELATIONS_ENABLED:'true',TS_TAG_RELATIONS_AUTH_MODE:'service'},credentials=async()=>({serviceToken:'service-secret'});
- for(const [control,ttl] of [['public, max-age=86400',86400],['public, max-age=999999',86400],['public, max-age=120',120],['private, max-age=86400',0],['public, no-store, max-age=86400',0],['public',0]] as Array<[string,number]>){
+ for(const [control,ttl] of [['public, max-age=86400',86400],['public, max-age=999999',86400],['public, max-age=120',86400],['private, max-age=86400',86400],['private, no-store',86400],['public, no-store, max-age=86400',86400],['public',86400]] as Array<[string,number]>){
   const fetcher=mock(async()=>new Response(webp(),{headers:{'content-type':'image/webp','cache-control':control}}));
   const client=createTagIllustration({env:service,credentials,fetcher,clock});
   await client.image(tag,'avatar',revision);now+=Math.max(0,ttl-1)*1000;await client.image(tag,'avatar',revision);

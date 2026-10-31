@@ -123,10 +123,12 @@ export function createTagIllustration(options:KeywordRelationsOptions={}){
    reader=response.body.getReader();const chunks:Uint8Array[]=[];let size=0;
    while(true){const part=await reader.read();controller.signal.throwIfAborted();if(part.done)break;size+=part.value.byteLength;if(size>(image?524288:jsonCap))throw Error();chunks.push(part.value);}
    const bytes=Buffer.concat(chunks,size),control=response.headers.get('cache-control')??'',age=/(?:^|,)\s*max-age=(\d+)/i.exec(control);
-   // Revisioned image URLs are immutable: reuse them up to a day in either auth
-   // mode. JSON stays anonymous-only and at most 60 seconds.
-   const ttl=age?Math.min(image?86400:60,Number(age[1])):0;
-   if((image||env.TS_TAG_RELATIONS_AUTH_MODE==='anonymous')&&!response.headers.has('set-cookie')&&/(?:^|,)\s*public(?:,|$)/i.test(control)&&!/(?:private|no-store|no-cache)/i.test(control)&&ttl>0){
+   // Revisioned image URLs are immutable: keep them a day in either auth mode.
+   // tag marks every credentialed response private, no-store, but a service
+   // token identifies this server, not a reader, so the bytes are the same for
+   // every visitor. JSON stays anonymous-only, public and at most 60 seconds.
+   const ttl=image?86400:age?Math.min(60,Number(age[1])):0;
+   if(!response.headers.has('set-cookie')&&ttl>0&&(image||(env.TS_TAG_RELATIONS_AUTH_MODE==='anonymous'&&/(?:^|,)\s*public(?:,|$)/i.test(control)&&!/(?:private|no-store|no-cache)/i.test(control)))){
     forget(url);
     while(cache.size>=64||(cache.size&&cachedBytes+size>25165824))forget(cache.keys().next().value!);
     cache.set(url,{bytes:Buffer.from(bytes),mime,until:+clock()+ttl*1000});cachedBytes+=size;
