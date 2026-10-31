@@ -46,10 +46,11 @@ async function browser(path:string,{referrer='',hostname='youtube.observe.tw'}:{
  }});
  Object.defineProperty(globalThis,'navigator',{configurable:true,value:{userAgent:chrome,webdriver:false,doNotTrack:null}});
  // A fresh module instance per document, as after a full page load.
- const {syncAnalytics}=await import(`../components/SiteAnalytics.tsx?document=${++instance}`) as typeof import('../components/SiteAnalytics');
+ const mod=await import(`../components/SiteAnalytics.tsx?document=${++instance}`) as typeof import('../components/SiteAnalytics');
+ const {syncAnalytics}=mod;
  const history=()=>win.history as {pushState:(d:unknown,u:string,next:string)=>void};
  const page={
-  hits,scripts,win,disabled,listeners,documentListeners,
+  hits,scripts,win,disabled,listeners,documentListeners,mod,
   hydrate(){syncAnalytics();if(scripts.length&&!(win as {gtagLoaded?:boolean}).gtagLoaded){(win as {gtagLoaded?:boolean}).gtagLoaded=true;loadGtag();}},
   push(next:string){history().pushState(null,'',next);syncAnalytics();},
   pop(next:string){url=new URL(next,url);dispatch('popstate');syncAnalytics();},
@@ -142,4 +143,70 @@ test('HTML link clicks still send their events, and non-link clicks send none',a
   ['event','open_original',{link_domain:'www.youtube.com',source_page_type:'videos'}],
   ['event','rss_click',{source_page_type:'videos'}],
  ]);
+});
+
+// A fake web-vitals module: records each registration and lets the test settle metrics.
+function fakeVitals(){
+ const callbacks:Record<string,Array<(metric:unknown)=>void>>={};
+ const on=(name:string)=>(fn:(metric:never)=>void)=>void (callbacks[name]??=[]).push(fn as (metric:unknown)=>void);
+ const module={onCLS:on('CLS'),onINP:on('INP'),onLCP:on('LCP')};
+ let loads=0;
+ return {callbacks,get loads(){return loads;},load:async()=>{loads++;return module as never;},
+  settle(name:string,value:number,rating='good'){for(const fn of callbacks[name]??[])fn({name,value,rating,delta:value,id:`v6-1761955200000-${1e12+value}`.replace('.',''),navigationType:'navigate',entries:[]});}};
+}
+const settled=async()=>{await new Promise(resolve=>setImmediate(resolve));};
+const vitals=(win:{dataLayer?:unknown[]})=>events(win).filter(args=>args[1]==='web_vital').map(args=>args[2] as Record<string,unknown>);
+test('web vitals register once per document after GA starts and send web_vital with the landing page type',async()=>{
+ const page=await browser('/videos');page.hydrate();
+ const fake=fakeVitals();
+ page.mod.registerWebVitals(fake.load);page.mod.registerWebVitals(fake.load);
+ await settled();
+ assert.equal(fake.loads,1);
+ assert.deepEqual(Object.keys(fake.callbacks).sort(),['CLS','INP','LCP']);
+ // An SPA navigation is not a new load: no re-registration, and page_type stays the landing one.
+ page.push('/channels/123');page.mod.registerWebVitals(fake.load);await settled();
+ assert.equal(fake.loads,1);
+ fake.settle('LCP',2345.6);fake.settle('CLS',0.12345,'needs-improvement');fake.settle('INP',512.4,'poor');
+ const sent=vitals(page.win);
+ assert.deepEqual(sent.map(({metric_id:_id,...rest})=>rest),[
+  {metric_name:'LCP',metric_value:2346,metric_rating:'good',page_type:'videos',navigation_type:'navigate'},
+  {metric_name:'CLS',metric_value:0.123,metric_rating:'needs-improvement',page_type:'videos',navigation_type:'navigate'},
+  {metric_name:'INP',metric_value:512,metric_rating:'poor',page_type:'videos',navigation_type:'navigate'},
+ ]);
+ assert.ok(sent.every(params=>/^v6-\d+-\d+$/.test(String(params.metric_id))));
+ assert.doesNotMatch(JSON.stringify(sent),/channels|observe\.tw|有影/);
+});
+test('web vitals never register or send before GA starts, when it is blocked, or on an unmeasured landing page',async()=>{
+ const before=await browser('/videos');
+ const fake=fakeVitals();
+ before.mod.registerWebVitals(fake.load);await settled();
+ assert.equal(fake.loads,0);
+ assert.equal(before.mod.reportWebVital({name:'LCP',value:1000,rating:'good',id:'v6-1-1000000000000',navigationType:'navigate'}),false);
+ assert.equal(before.win.dataLayer,undefined);
+ const blocked=await browser('/videos');
+ (blocked.win.localStorage as {getItem:(key:string)=>string|null}).getItem=()=>'1';
+ blocked.hydrate();blocked.mod.registerWebVitals(fake.load);await settled();
+ assert.equal(fake.loads,0);
+ assert.equal(blocked.mod.reportWebVital({name:'LCP',value:1000,rating:'good',id:'v6-1-1000000000000',navigationType:'navigate'}),false);
+ assert.deepEqual(blocked.scripts,[]);assert.equal(blocked.win.dataLayer,undefined);
+ const unmeasured=await browser('/videos?q=secret');unmeasured.hydrate();unmeasured.mod.registerWebVitals(fake.load);await settled();
+ assert.equal(fake.loads,0);assert.equal(unmeasured.win.dataLayer,undefined);
+});
+test('web vitals settled after GA stops (unmeasured URL or opt-out) are not sent',async()=>{
+ const leave=await browser('/videos');leave.hydrate();
+ const fake=fakeVitals();leave.mod.registerWebVitals(fake.load);await settled();
+ fake.settle('LCP',1200);
+ leave.push('/keywords/secret/videos');
+ fake.settle('CLS',0.01);fake.settle('INP',80);
+ assert.deepEqual(vitals(leave.win).map(params=>params.metric_name),['LCP']);
+ // An opt-out written in another tab without a storage event is caught at send time.
+ const optOut=await browser('/channels');optOut.hydrate();
+ const other=fakeVitals();optOut.mod.registerWebVitals(other.load);await settled();
+ (optOut.win.localStorage as {getItem:(key:string)=>string|null}).getItem=()=>'1';
+ other.settle('LCP',900);
+ assert.deepEqual(vitals(optOut.win),[]);
+ assert.ok(optOut.disabled());
+ // Other metrics from the library (if ever wired) are ignored.
+ const page=await browser('/videos');page.hydrate();
+ assert.equal(page.mod.reportWebVital({name:'TTFB',value:100,rating:'good',id:'v6-1-1000000000000',navigationType:'navigate'}),false);
 });

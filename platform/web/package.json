@@ -14,7 +14,8 @@
         "react": "19.2.8",
         "react-dom": "19.2.8",
         "echarts": "6.1.0",
-        "server-only": "^0.0.1"
+        "server-only": "^0.0.1",
+        "web-vitals": "^6.2.3"
     },
     "devDependencies": {
         "@tailwindcss/postcss": "^4",

@@ -4,13 +4,29 @@ GA4 measurement ID `G-X2G1PLNP7K` belongs to property 558497452 / stream 1611295
 
 The loader runs after hydration from the hash/SRI-trusted application bundle, creating the external gtag script under strict-dynamic. No nonce or unsafe-inline is added to script policy. Google signals and advertisement personalization signals are disabled. The Google console must retain the operator-confirmed enhanced measurement settings: **page loads and browser-history changes only**. Other automatic click/form/download/video events must remain off because they can transmit raw links or text.
 
-There is no manual page_view. One gtag config supplies the initial view; Google's enhanced measurement owns history/back navigation. Every measured hit uses the fixed title `有影儀表板`. Initial external referrers are reduced to origin. Custom events are `open_original` (domain and fixed page type), `select_content` (fixed type; only numeric channel or YouTube video IDs), `rss_click` and `app_installed`. Keyword clicks do not send the keyword itself. Neither application user IDs nor email, account/session/CSRF tokens, titles, search text or full external URLs are sent.
+There is no manual page_view. One gtag config supplies the initial view; Google's enhanced measurement owns history/back navigation. Every measured hit uses the fixed title `有影儀表板`. Initial external referrers are reduced to origin. Custom events are `open_original` (domain and fixed page type), `select_content` (fixed type; only numeric channel or YouTube video IDs), `rss_click`, `app_installed` and `web_vital` (see Real-user performance). Keyword clicks do not send the keyword itself. Neither application user IDs nor email, account/session/CSRF tokens, titles, search text or full external URLs are sent.
 
 ## Privacy boundary for automatic history measurement
 
 Real gtag transport testing demonstrated that automatic history views override global page_location and page_referrer. Consequently, free-text routes (keyword/group/city detail), private/unknown paths and any query/fragment are not measured. The first such navigation permanently disables analytics for that document; returning to a public page does not resume it and leak the prior raw URL as referrer. A fresh eligible document may start. An unmeasured initial route or unmeasured same-origin document referrer prevents startup. This intentionally undercounts some visits to preserve privacy.
 
 The opt-out page `/observe/opt-out` is noindex. Choosing opt-out immediately stops the current document even if storage fails; failed persistence is disclosed and can be retried. A full reload is needed to restart tracking after opting back in. The `login` event remains pending a verified one-time server callback receipt; ordinary session presence, URL fragments and user IDs must never manufacture that event.
+
+## Real-user performance
+
+Once GA has started in a document, the `web-vitals` package (v6, loaded as a separate chunk; attribution build not used) reports a `web_vital` event per settled metric:
+
+- `metric_name`: LCP, INP or CLS.
+- `metric_value`: LCP/INP in whole milliseconds; CLS is unitless, rounded to three decimals.
+- `metric_rating`: good, needs-improvement or poor (the library's thresholds).
+- `page_type`: the fixed `analyticsPage` type of the landing page of this document load (home, videos, video, channel, …). Never a URL, query text, title or DOM text, and it does not change on SPA navigation.
+- `metric_id`, `navigation_type`: identify the sample and how the document was reached (navigate, reload, back-forward, back-forward-cache, prerender, restore). Do not register the high-cardinality `metric_id` as a custom dimension.
+
+The observers are registered once per document, only after GA started, with web-vitals' default reporting (the settled value, usually at the first interaction or when the page is hidden, not every change). SPA navigation is not a new load and soft-navigation reporting is off; pages without interaction produce no INP. Sending goes through the same `sendEvent` gate as every other custom event in `SiteAnalytics`: nothing before start, nothing once the document has stopped (first unmeasured URL, opt-out), and a block reason found at send time stops GA instead of sending. A metric that settles after the reader moved to an unmeasured page is therefore dropped. Opt-out, DNT, GPC, automation, preview hosts and non-production never load GA, so they never load web-vitals either.
+
+Chosen over Next's `useReportWebVitals` (`next/web-vitals`): the copy Next 16.3 bundles is web-vitals v3 (still exports FID, older INP), registers FCP/TTFB/FID too and re-registers whenever the callback identity changes. The `web-vitals` package gives current LCP/INP/CLS with `rating` and lets registration be gated on GA having started.
+
+GA4 custom definitions for the owner to create (Admin → Custom definitions; needs Editor): event-scoped dimensions `metric_name`, `metric_rating` and `page_type`, and the custom metric `metric_value` (standard unit). Always filter reports by `metric_name` before aggregating `metric_value`: milliseconds and CLS must not be mixed. GA does not backfill, so events sent before a definition exists have that field blank. Explore by device category, page type, metric name and rating for sample counts and the good share. GA's aggregate average is not a 75th percentile; for real p75 use a BigQuery raw-event export, or CrUX / Search Console Core Web Vitals where the sample is large enough.
 
 ## Validation and operational status
 

@@ -1,7 +1,8 @@
 'use client';
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
-import { ANALYTICS_PAGE_TITLE, OPT_OUT_EVENT, OPT_OUT_STORAGE_KEY, analyticsBlockReason, analyticsLinkEvent, analyticsPage, analyticsReferrer, analyticsReferrerAllowsStart, readOptOut, resolveMeasurementId, type AnalyticsPage } from '@/lib/analytics-consent';
+import { ANALYTICS_PAGE_TITLE, OPT_OUT_EVENT, OPT_OUT_STORAGE_KEY, analyticsBlockReason, analyticsLinkEvent, analyticsPage, analyticsReferrer, analyticsReferrerAllowsStart, readOptOut, resolveMeasurementId, type AnalyticsPage, type PageType } from '@/lib/analytics-consent';
+import { webVitalEvent, type WebVitalMetric } from '@/lib/web-vitals';
 
 // GA4 for public pages only, started after hydration. This module is part of the
 // hash/SRI-trusted bundle, so under 'strict-dynamic' the gtag script element it creates
@@ -14,11 +15,18 @@ import { ANALYTICS_PAGE_TITLE, OPT_OUT_EVENT, OPT_OUT_STORAGE_KEY, analyticsBloc
 // resuming later would let the referrer of the next history hit carry the unmeasured URL.
 // The fixed `set` page_title is honoured, so the document title (video, channel names) is
 // not sent.
+// Custom events (link clicks, app_installed, web_vital) all go through sendEvent, which
+// re-checks started/stopped and the block reasons at send time. Events pushed before
+// gtag.js has loaded wait in dataLayer; gtag.js reads the kill switch when it processes
+// them, so a stop in between drops them too.
 
 // NEXT_PUBLIC_GA_ID is inlined at build: unset, empty or malformed disables GA.
 const measurementId = resolveMeasurementId(process.env.NEXT_PUBLIC_GA_ID);
 let started = false, stopped = false;
 let current: AnalyticsPage | null = null;
+/** The measured type of this document's landing page, fixed for the whole document. */
+let landing: PageType | null = null;
+let vitalsRegistered = false;
 const globals = () => window as unknown as Record<string, unknown> & { dataLayer?: unknown[] };
 
 // gtag.js reads the Arguments object itself, so this must stay a function declaration.
@@ -74,13 +82,13 @@ function onClick(event: MouseEvent) {
   const source = analyticsPage(window.location)?.type;
   if (!source) return;
   const tracked = analyticsLinkEvent(href, window.location.href, source);
-  if (tracked) gtag('event', tracked.name, tracked.params);
+  if (tracked) sendEvent(tracked.name, tracked.params);
 }
 // Registered before gtag.js loads, so it runs ahead of gtag's own popstate handler; the
 // browser URL has already changed when popstate fires. Fragment navigation fires popstate
 // before the queued hashchange; the hashchange listener covers browsers that skip it.
 const onUrlChange = () => prepare(new URL(window.location.href));
-const onInstalled = () => gtag('event', 'app_installed');
+const onInstalled = () => { sendEvent('app_installed', {}); };
 const onStorage = (event: StorageEvent) => { if (event.key === OPT_OUT_STORAGE_KEY && event.newValue === '1') stop(); };
 /** Opt-out, or the first unmeasured URL: disable every further hit and drop our listeners.
  * gtag.js itself cannot be unloaded; the kill switch keeps it silent until a full reload. */
@@ -95,9 +103,37 @@ function stop() {
   window.removeEventListener('storage', onStorage);
   window.removeEventListener(OPT_OUT_EVENT, stop);
 }
+/** The only way a custom event reaches gtag: never before start or after stop, and a
+ * block reason found now (an opt-out in another tab, say) stops GA instead of sending. */
+function sendEvent(name: string, params: Record<string, unknown>): boolean {
+  if (!started || stopped) return false;
+  if (blocked()) { stop(); return false; }
+  gtag('event', name, params);
+  return true;
+}
+/** Reports one settled LCP/INP/CLS value as `web_vital` with the landing page's type;
+ * exported for tests. */
+export function reportWebVital(metric: WebVitalMetric): boolean {
+  const event = landing ? webVitalEvent(metric, landing) : null;
+  return event ? sendEvent(event.name, event.params) : false;
+}
+type WebVitalsModule = Pick<typeof import('web-vitals'), 'onCLS' | 'onINP' | 'onLCP'>;
+/** Registers the web-vitals observers once per document, only when GA has started here,
+ * with the library's default (settled, not every change) reporting. SPA navigations are
+ * not new loads; nothing is registered again. Exported for tests (fake loader). */
+export function registerWebVitals(load: () => Promise<WebVitalsModule> = () => import('web-vitals')) {
+  if (vitalsRegistered || !started || stopped) return;
+  vitalsRegistered = true;
+  load().then(({ onCLS, onINP, onLCP }) => {
+    onCLS(reportWebVital);
+    onINP(reportWebVital);
+    onLCP(reportWebVital);
+  }).catch(() => { /* chunk failed to load: no vitals for this document */ });
+}
 function start(id: string, page: AnalyticsPage) {
   started = true;
   current = page;
+  landing = page.type;
   disable(false);
   guardHistory();
   document.addEventListener('click', onClick, true);
@@ -133,5 +169,7 @@ export default function SiteAnalytics() {
   // browser URL even when the proxy rendered an internal ISR target.
   const pathname = usePathname();
   useEffect(syncAnalytics, [pathname]);
+  // Declared after the sync effect, so on the first commit GA has already started or not.
+  useEffect(() => registerWebVitals(), []);
   return null;
 }
