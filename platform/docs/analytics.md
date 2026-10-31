@@ -101,7 +101,17 @@ The worker's DB settings come from the env secret its service command sources (`
 
 Verification: `npx vitest run test/site-analytics-cli.test.ts test/schedules-site-analytics.test.ts` (jobs), `npx vitest run test/site-observation.test.ts` (api), `node --import tsx --test src/lib/site-observation-view.test.ts` (web), `node --test tools/site-metrics-upgrade.test.mjs`.
 
-### Production release steps (not performed)
+### Release status (2026-11-01)
+
+- Done: web half (Web Vitals, `/observe`, API) released, see `release-observe-web-7891484-2026-11-01.md`.
+- Google side, done by the user with Codex's help (the user reported these as checked; I have not checked them myself):
+  - Service account reused from tag.observe.tw: `tag-observe-analytics-reader@skys-gemini-api.iam.gserviceaccount.com` (an identifier, not a credential). No new key was created.
+  - Search Console: URL-prefix property `https://youtube.observe.tw/` added and auto-verified; the service account is a Restricted user on it.
+  - GA4 558497452: event-scoped dimensions `metric_name`, `metric_rating`, `page_type` and the Standard-unit metric `metric_value` created; the Search Console link to stream 16112956911 was created.
+  - Key file: the existing key, copied on sky-server to `/root/youtube-board-secrets/google-analytics-sa.json` (root:root 0600, byte-identical to tag's copy, never printed).
+- **Open:** GA4 Property access management did not load, so the service account is **not yet Viewer** on 558497452. GA reads and the sync stay unconfigured; do not start steps 2–7 until the user confirms Viewer access.
+
+### Production release steps (step 4 done; the rest not performed)
 
 1. Google side (user): grant the tag.observe.tw service account **Viewer** on GA4 property 558497452 and a (restricted) user on the Search Console property `https://youtube.observe.tw/`. Optionally register event-scoped custom dimensions `metric_name`, `metric_rating` in GA (needs editor) so vitals appear; GA does not backfill.
 2. Secret on sky-server: keep the key as a root-only file outside git (for example `/root/youtube-board-secrets/google-analytics-sa.json`, mode 0600), then `docker secret create yb_ts_google_analytics_sa_v1 <that file>`. Never paste or log the key.
