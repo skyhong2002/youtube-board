@@ -1,5 +1,6 @@
 import {createRankedPoolClient,type RankedPoolClient} from './reports/tag-ranked-pool.js';
 import {createTagIllustration} from './reports/tag-illustration.js';
+import {tagHttpOptions} from '../../jobs/src/tag-http.js';
 import {validTagLabel,validTagPictureRevision} from '../../shared/tag-illustration.js';
 import {writeSync} from 'node:fs';
 import {homeDiagnosticSink} from './reports/home-diagnostics.js';
@@ -76,7 +77,7 @@ declare module 'fastify' {
 }
 export function buildApp(options: AppOptions = {}) {
     const fixture=(options.dataset??process.env.DATASET_KIND)==='fixture';
-    const rankingPools=options.rankingPools===false?undefined:options.rankingPools??(fixture?undefined:createRankedPoolClient({clock:options.clock,onEvent:event=>{writeSync(2,'TAG_RANKING_POOL_UPSTREAM '+JSON.stringify(event)+'\n');}}));
+    const rankingPools=options.rankingPools===false?undefined:options.rankingPools??(fixture?undefined:createRankedPoolClient({clock:options.clock,serviceToken:process.env.TS_TAG_RELATIONS_AUTH_MODE==='service'?async()=>(await tagHttpOptions(process.env)).serviceToken:undefined,onEvent:event=>{writeSync(2,'TAG_RANKING_POOL_UPSTREAM '+JSON.stringify(event)+'\n');}}));
     const app = Fastify({ logger: false, routerOptions:{maxParamLength:240}, trustProxy: trustedProxies(process.env.AUTH_TRUSTED_PROXY_CIDRS), requestTimeout: 15000, bodyLimit: 16384 }), reader = options.reader ?? createReader(options.databaseUrl ?? process.env.DATABASE_URL), clock = options.clock ?? (() => new Date()), keywordStore = options.keywordStore===false?undefined:sqlKeywordWindowStore<KeywordWindows>(process.env),
         // The homepage keyword refresh runs in the background on its own connection with a 60-second ceiling.
         keywordReader = options.reader?undefined:createReader(options.databaseUrl ?? process.env.DATABASE_URL,{acquireMs:3000,statementMs:60000},{maxStatementMs:60000,connectionLimit:1}),

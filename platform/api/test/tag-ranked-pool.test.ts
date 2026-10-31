@@ -97,3 +97,15 @@ it('never lets a later 5xx relabel a longer 429 cooldown, and contains a failing
  let calls=0;const broken=createRankedPoolClient({fetch:vi.fn(async()=>new Response('{}',{status:503})),clock:()=>++calls>2?new Date(NaN):now,onEvent:()=>{throw new Error('sink');}});
  await expect(broken.load(window)).rejects.toThrow('unavailable');
 });
+it('sends the tag service token on every page when configured, reading it once',async()=>{
+ const f=fixture(2001),inner=transport(f),seen:unknown[]=[];
+ const fetch=vi.fn(async(url:URL|RequestInfo,options?:RequestInit)=>{const {['X-Service-Token']:token,...rest}=options!.headers as Record<string,string>;seen.push(token);return inner(url,{...options,headers:rest});}) as unknown as typeof globalThis.fetch;
+ const serviceToken=vi.fn(async()=>'svc-token');
+ const r=await createRankedPoolClient({fetch,clock:()=>now,serviceToken}).load(window);
+ expect(r.entries).toHaveLength(2001);expect(seen).toEqual(['svc-token','svc-token','svc-token']);expect(serviceToken).toHaveBeenCalledTimes(1);
+});
+it('reports a token configuration failure as unavailable without calling upstream',async()=>{
+ const fetch=transport();
+ await expect(createRankedPoolClient({fetch,clock:()=>now,serviceToken:async()=>{throw Error('SECRET-path');}}).load(window)).rejects.toMatchObject({reason:'unavailable'});
+ expect(fetch).not.toHaveBeenCalled();
+});

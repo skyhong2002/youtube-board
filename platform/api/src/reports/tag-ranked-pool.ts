@@ -34,7 +34,9 @@ const instant=(ms:number):string=>Number.isFinite(ms)&&Math.abs(ms)<=8.64e15?new
  * (60 s when absent). Any other failed upstream attempt backs off failureBackoffMs, doubling
  * up to maxFailureBackoffMs, so repeated page renders cannot turn an upstream outage into
  * a request storm. Valid cached pools are still served during a cooldown. */
-export function createRankedPoolClient({fetch:transport=fetch,clock=()=>new Date(),timeoutMs=15000,maxTerms=20000,failureBackoffMs=30000,maxFailureBackoffMs=300000,onEvent}:{fetch?:typeof fetch;clock?:()=>Date;timeoutMs?:number;maxTerms?:number;failureBackoffMs?:number;maxFailureBackoffMs?:number;onEvent?:(event:PoolUpstreamEvent)=>void}={}):RankedPoolClient {
+/** serviceToken: tag.observe.tw service-client token (own 6000/min budget instead of the 60/min per-IP one). */
+export function createRankedPoolClient({fetch:transport=fetch,clock=()=>new Date(),timeoutMs=15000,maxTerms=20000,failureBackoffMs=30000,maxFailureBackoffMs=300000,onEvent,serviceToken}:{fetch?:typeof fetch;clock?:()=>Date;timeoutMs?:number;maxTerms?:number;failureBackoffMs?:number;maxFailureBackoffMs?:number;onEvent?:(event:PoolUpstreamEvent)=>void;serviceToken?:()=>Promise<string|undefined>}={}):RankedPoolClient {
+ let token:Promise<string|undefined>|undefined;
  const pending=new Map<string,Promise<RankedPool>>(),cache=new Map<string,RankedPool>();let cooldownUntil=0,cooldownReason:PoolUnavailable['reason']='rate-limited',failures=0;
  const emit=(event:()=>PoolUpstreamEvent)=>{try{if(onEvent)onEvent(event());}catch{/* Diagnostics (and their clock reads) never change availability. */}};
  const load=async(window:{since:string;until:string}):Promise<RankedPool>=>{
@@ -47,7 +49,9 @@ export function createRankedPoolClient({fetch:transport=fetch,clock=()=>new Date
   const timer=setTimeout(()=>{timedOut=true;controller.abort();void stream.reader?.cancel().catch(()=>{});void stream.body?.cancel().catch(()=>{});},timeoutMs);
   const get=async(path:string)=>{
    let response:Response;
-   try{response=await transport(ORIGIN+path,{headers:{accept:'application/json',DNT:'1','Sec-GPC':'1'},credentials:'omit',redirect:'manual',cache:'no-store',signal:controller.signal});}
+   const headers:Record<string,string>={accept:'application/json',DNT:'1','Sec-GPC':'1'};
+   if(serviceToken){let value:string|undefined;try{value=await (token??=serviceToken());}catch{throw new PoolUnavailable('unavailable');}if(value)headers['X-Service-Token']=value;}
+   try{response=await transport(ORIGIN+path,{headers,credentials:'omit',redirect:'manual',cache:'no-store',signal:controller.signal});}
    catch{throw new PoolUnavailable(controller.signal.aborted?'deadline':'unavailable');}
    stream.body=response.body;status=response.status;
    if(controller.signal.aborted){void stream.body?.cancel().catch(()=>{});throw new PoolUnavailable('deadline');}
