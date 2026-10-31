@@ -1,6 +1,6 @@
 import {afterEach,expect,it,vi} from 'vitest';
 import {buildApp} from '../src/app.js';
-import {createTagIllustration,inertTagSvg,parseTagPicture} from '../src/reports/tag-illustration.js';
+import {cooldownSeconds,createTagIllustration,inertTagSvg,parseTagPicture} from '../src/reports/tag-illustration.js';
 import {pictureRevision,tagPicturePath,tagPictureUpstream} from '../../shared/tag-illustration.js';
 import {PUBLIC_ENDPOINTS} from '../src/public-api/catalog.js';
 import {responseValidator} from '../../tools/check-openapi.js';
@@ -64,6 +64,27 @@ it.each([429,503,307])('does not turn upstream %s into successful absence',async
 it('respects upstream cooldown across keywords',async()=>{
  const fetcher=mock(async()=>new Response('',{status:429,headers:{'Retry-After':'120'}})),client=createTagIllustration({env,fetcher});
  await client.report(tag);await client.report('另一詞');expect(fetcher).toHaveBeenCalledTimes(1);
+});
+it('bounds the 429 cooldown to 60–600 seconds whatever Retry-After says',()=>{
+ const now=new Date('2026-11-01T00:00:00Z'),clock=()=>now;
+ expect(cooldownSeconds(null,clock)).toBe(60);
+ expect(cooldownSeconds('garbage',clock)).toBe(60);
+ expect(cooldownSeconds('5',clock)).toBe(60);
+ expect(cooldownSeconds('120',clock)).toBe(120);
+ expect(cooldownSeconds('999999',clock)).toBe(600);
+ expect(cooldownSeconds(new Date(+now+180_000).toUTCString(),clock)).toBe(180);
+ expect(cooldownSeconds(new Date(+now+86_400_000).toUTCString(),clock)).toBe(600);
+});
+it('recovers from a 429 with an unparseable Retry-After once the cooldown ends',async()=>{
+ let now=+new Date('2026-11-01T00:00:00Z');const clock=()=>new Date(now);
+ let limited=true;
+ const fetcher=mock(async()=>limited?new Response('',{status:429,headers:{'Retry-After':'soon'}}):Response.json(person));
+ const client=createTagIllustration({env,fetcher,clock});
+ expect((await client.report(tag)).status).toBe('unavailable');
+ limited=false;now+=30_000;
+ expect((await client.report(tag)).status).toBe('unavailable');expect(fetcher).toHaveBeenCalledTimes(1);
+ now+=31_000;
+ expect((await client.report(tag)).status).toBe('available');
 });
 it('rejects oversized metadata and does not expose transport errors',async()=>{
  const fetcher=mock(async()=>Response.json({...person,extra:'x'.repeat(131072)}));

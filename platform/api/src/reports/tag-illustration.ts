@@ -69,6 +69,12 @@ export function inertTagSvg(bytes:Buffer):Buffer {
  return Buffer.from(serialize(tree));
 }
 
+/** 429 cooldown in seconds, 60–600. A missing, unparseable or huge Retry-After must not
+ * pin the process: an unbounded hold made every tag picture 404 until restart. */
+export function cooldownSeconds(value:string|null,clock:()=>Date=()=>new Date()):number{
+ const wait=value&&/^\d+$/.test(value.trim())?Number(value.trim()):value?Math.ceil((Date.parse(value)-+clock())/1000):NaN;
+ return Number.isFinite(wait)?Math.min(600,Math.max(60,wait)):60;
+}
 export function createTagIllustration(options:KeywordRelationsOptions={}){
  const env=options.env??process.env,transport=options.fetcher??fetch,clock=options.clock??(()=>new Date());
  let auth:Promise<Record<string,string>>|undefined,active=0,holdUntil=0,cachedBytes=0;
@@ -110,7 +116,7 @@ export function createTagIllustration(options:KeywordRelationsOptions={}){
    const configured=await headers();controller.signal.throwIfAborted();
    response=await transport(url,{headers:{...configured,Accept:image?'image/webp,image/svg+xml':'application/json'},credentials:'omit',redirect:'error',cache:'no-store',signal:controller.signal});
    controller.signal.throwIfAborted();
-   if(response.status===429){const value=response.headers.get('retry-after');const wait=value&&/^\d+$/.test(value)?Number(value):value?Math.ceil((Date.parse(value)-+clock())/1000):60;holdUntil=Number.isFinite(wait)?Math.max(holdUntil,+clock()+Math.max(60,wait)*1000):Infinity;throw Error();}
+   if(response.status===429){holdUntil=Math.max(holdUntil,+clock()+cooldownSeconds(response.headers.get('retry-after'),clock)*1000);throw Error();}
    if(response.status!==200||!response.body)throw Error();
    const mime=(response.headers.get('content-type')??'').split(';')[0]!.trim().toLowerCase();
    if(!(image?['image/webp','image/svg+xml']:['application/json']).includes(mime))throw Error();
