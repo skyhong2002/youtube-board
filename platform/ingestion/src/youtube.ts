@@ -137,6 +137,15 @@ export class YoutubeDataApiClient {
     if (items.length > 1 || !record(first) || !/^UC[A-Za-z0-9_-]{22}$/.test(str(first.id))) throw new YoutubeError('invalid-response');
     return str(first.id);
   }
+  /** videos.list?part=snippet: the channel that published a video, or null when YouTube lists none (private, deleted, unknown; one quota unit). */
+  async videoChannelId(videoId: string): Promise<string | null> {
+    if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) throw new YoutubeError('request-failed');
+    const items = this.items(await this.get('videos', { part: 'snippet', id: videoId }));
+    if (!items.length) return null;
+    const first = items[0];
+    if (items.length > 1 || !record(first) || str(first.id) !== videoId || !record(first.snippet) || !/^UC[A-Za-z0-9_-]{22}$/.test(str(first.snippet.channelId))) throw new YoutubeError('invalid-response');
+    return str(first.snippet.channelId);
+  }
   async channelPresence(values: string[]): Promise<string[]> {
     const ids = this.ids(values); if (!ids.length) return [];
     const data = await this.get('channels', { part: 'id', id: ids.join(','), maxResults: '50' });
@@ -182,6 +191,22 @@ export class YoutubeDataApiClient {
     }); return { items, nextPageToken: this.next(data) };
   }
   async playlistItems(playlistId: string, maxResults = 50) { return (await this.playlistItemsPage(playlistId, null, maxResults)).items; }
+  /**
+   * playlistItems.list?part=contentDetails (one unit): only the listed video ids, in playlist order. Unlike playlistItemsPage this
+   * does not need a full snippet, so a private or deleted entry (YouTube serves it without thumbnails) cannot invalidate the
+   * page; an entry without a well-formed video id is counted in `malformed` and skipped.
+   */
+  async playlistVideoIds(playlistId: string, maxResults = 50): Promise<{ videoIds: string[]; malformed: number; nextPageToken: string | null }> {
+    if (!/^PL[A-Za-z0-9_-]{10,64}$/.test(playlistId)) throw new YoutubeError('request-failed');
+    const data = await this.get('playlistItems', { part: 'contentDetails', playlistId, maxResults: String(Math.max(1, Math.min(50, maxResults))) });
+    const videoIds: string[] = []; let malformed = 0;
+    for (const item of this.items(data)) {
+      const videoId = record(item) && record(item.contentDetails) ? str(item.contentDetails.videoId).trim() : '';
+      if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) { malformed++; continue; }
+      if (!videoIds.includes(videoId)) videoIds.push(videoId);
+    }
+    return { videoIds, malformed, nextPageToken: this.next(data) };
+  }
   /**
    * videos.list?part=snippet for up to 50 known video ids (one unit), shaped like an uploads playlist item. The playlist item id
    * and position are not part of a video resource: `id` stays empty and `position` 0 until the next uploads sweep rewrites the row.

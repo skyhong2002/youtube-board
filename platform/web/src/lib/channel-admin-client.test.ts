@@ -13,6 +13,7 @@ test('a request is described with the names the administrator sees',()=>{
  assert.equal(requestSummary(set({kind:'create-tag',payload:{kind:'create-tag',name:'新分類'}}),names),'新增分類「新分類」');
  assert.equal(requestSummary(set({kind:'add-channel',payload:{kind:'add-channel',source:'@abc.def',tags:[1,5]}}),names),'新增頻道 @abc.def，分類 「社論」、「泛藍」');
  assert.equal(requestSummary(set({kind:'add-channel',payload:{kind:'add-channel',source:'UCabcdefghijklmnopqrstuv',tags:[]}}),names),'新增頻道 UCabcdefghijklmnopqrstuv');
+ assert.equal(requestSummary(set({kind:'add-channel',payload:{kind:'add-channel',source:'https://youtu.be/dQw4w9WgXc_',tags:[1]}}),names),'新增影片 https://youtu.be/dQw4w9WgXc_ 的頻道，分類 「社論」');
 });
 
 test('the outcome says whether it is waiting, applied or refused, and why',()=>{
@@ -23,6 +24,10 @@ test('the outcome says whether it is waiting, applied or refused, and why',()=>{
  assert.equal(requestOutcome(set({status:'done',result:{added:[],removed:[]}})),'沒有變動，分類本來就是這樣');
  assert.equal(requestOutcome(set({status:'done',kind:'add-channel',payload:{kind:'add-channel',source:'UCabcdefghijklmnopqrstuv',tags:[]},result:{uId:4155,created:true}})),'已新增為 #4155，統計與影片稍後補齊');
  assert.equal(requestOutcome(set({status:'done',kind:'add-channel',payload:{kind:'add-channel',source:'UCabcdefghijklmnopqrstuv',tags:[]},result:{uId:12,created:false}})),'已有此頻道（#12），沒有重複新增');
+ const video={kind:'add-channel' as const,payload:{kind:'add-channel' as const,source:'https://youtu.be/dQw4w9WgXc_',tags:[]}};
+ assert.equal(requestOutcome(set({...video,status:'done',result:{uId:4155,created:true,title:'新頻道',videoId:'dQw4w9WgXc_'}})),'已新增「新頻道」為 #4155，統計與影片稍後補齊');
+ assert.equal(requestOutcome(set({...video,status:'done',result:{uId:12,created:false,title:'舊頻道',videoId:'dQw4w9WgXc_'}})),'已有此頻道「舊頻道」（#12），沒有重複新增');
+ assert.equal(requestOutcome(set({...video,status:'failed',errorCode:'VIDEO_NOT_FOUND',result:{videoId:'dQw4w9WgXc_'}})),'找不到這部影片，可能已刪除、設為私人或尚未公開');
  assert.equal(requestOutcome(set({status:'done',kind:'create-tag',payload:{kind:'create-tag',name:'x'},result:{tagId:115,created:true}})),'已建立，編號 115');
  assert.equal(requestOutcome(set({status:'done',kind:'create-tag',payload:{kind:'create-tag',name:'x'},result:{tagId:115,created:false}})),'已有同名分類（#115）');
  // A result the worker never wrote must not break the row.

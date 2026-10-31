@@ -93,13 +93,27 @@ export async function scheduleCacheJob(ctx:CacheContext,input:{videoId?:string;l
   }
   return {mode:ctx.execute?'execute':'dry-run',selected:Math.min(rows.length,input.limit),truncated:rows.length>input.limit,applied,skipped,deferred};
 }
-export async function liveCleanupJob(ctx:CacheContext,limit:number) {
-  cap(limit,200);const stale=taipeiSql(new Date(ctx.now.getTime()-3600000)),scheduled=taipeiSql(new Date(ctx.now.getTime()-7200000)),at=taipeiSql(ctx.now);
+/** Rows cleanup retired before live.poll ever read them: del_flag=1 with no mtime (the poller always stamps mtime). */
+const UNPOLLED_RETIRED='del_flag=1 AND mtime IS NULL AND actualEndTime IS NULL AND ctime>=?';
+export async function liveCleanupJob(ctx:CacheContext,limit:number,restoreUnpolledDays?:number) {
+  cap(limit,200);const stale=taipeiSql(new Date(ctx.now.getTime()-3600000)),scheduled=taipeiSql(new Date(ctx.now.getTime()-7200000));
+  if(restoreUnpolledDays!==undefined)return restoreUnpolledLive(ctx,limit,restoreUnpolledDays);
   // Laravel LiveCleanupPreview: only del_flag IS NULL rows (a stored 0 is left alone), oldest mtime then videoId first.
+  // Laravel also accepted any row created before now, so a stream found at :26 was retired by the :27 run before the
+  // first live.poll read it (dKGM2rzKRjs, 2026-10-30). A row now gets two hours from its latest discovery.
   const predicate='(mtime IS NULL OR mtime<?) AND actualEndTime IS NULL AND (scheduledStartTime IS NULL OR scheduledStartTime<?) AND del_flag IS NULL AND ctime<?';
-  const [rows]=await ctx.db.query<RowDataPacket[]>(`SELECT pk,videoId FROM urt_video_live WHERE ${predicate} ORDER BY mtime,videoId LIMIT ?`,[stale,scheduled,at,limit+1]);
-  if(ctx.execute)for(const row of rows.slice(0,limit)){await ctx.assertOwnership();await ctx.db.execute(`UPDATE urt_video_live SET del_flag=1 WHERE pk=? AND ${predicate}`,[row.pk,stale,scheduled,at]);}
+  const [rows]=await ctx.db.query<RowDataPacket[]>(`SELECT pk,videoId FROM urt_video_live WHERE ${predicate} ORDER BY mtime,videoId LIMIT ?`,[stale,scheduled,scheduled,limit+1]);
+  if(ctx.execute)for(const row of rows.slice(0,limit)){await ctx.assertOwnership();await ctx.db.execute(`UPDATE urt_video_live SET del_flag=1 WHERE pk=? AND ${predicate}`,[row.pk,stale,scheduled,scheduled]);}
   return {mode:ctx.execute?'execute':'dry-run',selected:Math.min(rows.length,limit),truncated:rows.length>limit,applied:ctx.execute?rows.slice(0,limit).map(r=>r.videoId):[],skipped:[]};
+}
+/** One-off repair for rows the old cleanup retired before their first poll: clear del_flag so live.poll reads them. The
+ * poller then records their end time, or retires them again (stamping mtime) when YouTube no longer serves the video. */
+async function restoreUnpolledLive(ctx:CacheContext,limit:number,days:number){
+  if(!Number.isInteger(days)||days<1||days>30)throw new Error('Invalid restore window');
+  const since=taipeiSql(new Date(ctx.now.getTime()-days*86400000));
+  const [rows]=await ctx.db.query<RowDataPacket[]>(`SELECT pk,videoId FROM urt_video_live WHERE ${UNPOLLED_RETIRED} ORDER BY ctime DESC,pk DESC LIMIT ?`,[since,limit+1]);
+  if(ctx.execute)for(const row of rows.slice(0,limit)){await ctx.assertOwnership();await ctx.db.execute(`UPDATE urt_video_live SET del_flag=NULL WHERE pk=? AND ${UNPOLLED_RETIRED}`,[row.pk,since]);}
+  return {mode:ctx.execute?'execute':'dry-run',restore:true,selected:Math.min(rows.length,limit),truncated:rows.length>limit,applied:ctx.execute?rows.slice(0,limit).map(r=>r.videoId):[],skipped:[]};
 }
 /** Laravel LiveDisplayCachePreview: live rows created within `hours` without a display row and WITH video metadata, newest
  * live ctime first (limit clamped to 100). Live rows lacking urt_video metadata never consume the limit; they are reported as

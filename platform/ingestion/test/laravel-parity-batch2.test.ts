@@ -200,7 +200,22 @@ describe('durations and cleanup', () => {
     const f = fakeDb(() => [{ pk: 1, videoId: 'Live0000001' }]);
     await liveCleanupJob({ db: f.db, now, execute: true, assertOwnership: async () => {} }, 100);
     expect(f.calls[0]!.sql).toContain('del_flag IS NULL AND ctime<?'); expect(f.calls[0]!.sql).not.toContain('COALESCE(del_flag'); expect(f.calls[0]!.sql).toMatch(/ORDER BY mtime,videoId LIMIT \?$/);
-    expect(f.calls[0]!.params).toEqual(['2026-10-12 09:00:00', '2026-10-12 08:00:00', at, 101]);
+    // ctime uses the two-hour cutoff, not `now`: a stream discovered just before the run must reach live.poll first.
+    expect(f.calls[0]!.params).toEqual(['2026-10-12 09:00:00', '2026-10-12 08:00:00', '2026-10-12 08:00:00', 101]);
+    expect(f.calls[1]!.params).toEqual([1, '2026-10-12 09:00:00', '2026-10-12 08:00:00', '2026-10-12 08:00:00']);
+  });
+
+  it('youtube.live.cleanup --restore-unpolled-days clears only rows retired before their first poll', async () => {
+    const f = fakeDb(() => [{ pk: 7, videoId: 'dKGM2rzKRjs' }]);
+    const result = await liveCleanupJob({ db: f.db, now, execute: true, assertOwnership: async () => {} }, 100, 7);
+    expect(f.calls[0]!.sql).toContain('del_flag=1 AND mtime IS NULL AND actualEndTime IS NULL AND ctime>=?');
+    expect(f.calls[0]!.params).toEqual(['2026-10-05 10:00:00', 101]);
+    expect(f.calls[1]!.sql).toMatch(/^UPDATE urt_video_live SET del_flag=NULL WHERE pk=\? AND del_flag=1 AND mtime IS NULL/);
+    expect(result).toMatchObject({ restore: true, applied: ['dKGM2rzKRjs'] });
+    const dry = fakeDb(() => [{ pk: 7, videoId: 'dKGM2rzKRjs' }]);
+    expect(await liveCleanupJob({ db: dry.db, now, execute: false, assertOwnership: async () => {} }, 100, 7)).toMatchObject({ mode: 'dry-run', selected: 1, applied: [] });
+    expect(dry.calls).toHaveLength(1);
+    await expect(liveCleanupJob({ db: dry.db, now, execute: false, assertOwnership: async () => {} }, 100, 31)).rejects.toThrow('Invalid restore window');
   });
 });
 

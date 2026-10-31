@@ -18,7 +18,7 @@ const profile: ChannelProfile = { id: UC, title: '新頻道 🎉', description: 
 describe.skipIf(!enabled)('channelAdminJob on a real database', () => {
   let db: Connection;
   const ctx = () => ({ db, now, clock: () => now, execute: true, assertOwnership: async () => {},
-    youtube: { attemptsMade: 0, channelProfiles: async (ids: string[]) => new Map(ids.filter(id => id === UC).map(id => [id, profile])), channelIdForHandle: async (handle: string) => handle === '@new.channel' ? UC : null } } as unknown as SourceJobContext);
+    youtube: { attemptsMade: 0, channelProfiles: async (ids: string[]) => new Map(ids.filter(id => id === UC).map(id => [id, profile])), channelIdForHandle: async (handle: string) => handle === '@new.channel' ? UC : null, videoChannelId: async (videoId: string) => videoId === 'newvideo_01' ? UC : null } } as unknown as SourceJobContext);
   const rows = async <T = RowDataPacket>(sql: string, params: unknown[] = []) => (await db.query<RowDataPacket[]>(sql, params))[0] as unknown as T[];
   const enqueue = async (kind: string, payload: unknown) => { const [r] = await db.execute<mysql.ResultSetHeader>("INSERT INTO ts_channel_admin_requests (request_id, kind, actor, payload, created_at) VALUES (UUID(), ?, 'user:1', ?, UTC_TIMESTAMP())", [kind, JSON.stringify(payload)]); return r.insertId; };
   const request = async (id: number) => (await rows<RowDataPacket>('SELECT status, error_code, result, applied_at FROM ts_channel_admin_requests WHERE id = ?', [id]))[0]!;
@@ -105,6 +105,14 @@ describe.skipIf(!enabled)('channelAdminJob on a real database', () => {
     await channelAdminJob(ctx(), { limit: 10 });
     expect((await request(retired)).error_code).toBe('CHANNEL_RETIRED');
     expect((await request(unknown)).error_code).toBe('CHANNEL_NOT_FOUND');
+  });
+
+  it('adds the channel of a video link and records the video id; an unavailable video is refused with its id kept', async () => {
+    const added = await enqueue('add-channel', { source: 'https://youtu.be/newvideo_01', tags: [2] }), missing = await enqueue('add-channel', { source: 'https://youtu.be/privatevid1' });
+    await channelAdminJob(ctx(), { limit: 10 });
+    expect(JSON.parse((await request(added)).result)).toEqual({ uId: 2, youtubeId: UC, title: '新頻道 🎉', created: true, tags: '[2]', videoId: 'newvideo_01' });
+    expect(await request(missing)).toMatchObject({ status: 'failed', error_code: 'VIDEO_NOT_FOUND' });
+    expect(JSON.parse((await request(missing)).result)).toEqual({ videoId: 'privatevid1' });
   });
 
   it('leaves nothing behind when part of an add fails: the channel row is rolled back with the rest', async () => {

@@ -19,8 +19,9 @@ test('plan adds one table with web SELECT/INSERT, two worker facade views and on
   "GRANT INSERT,SELECT,UPDATE ON `youtube_board`.`urt_channel` "+W,
   "GRANT INSERT,SELECT,UPDATE,SHOW VIEW ON `youtube_board_ts_worker_youtube_source`.`urt_channel` "+W,
   "GRANT INSERT,SELECT,SHOW VIEW ON `youtube_board_ts_worker_youtube_source`.`urt_tag_log` "+W,
-  "GRANT SELECT,UPDATE ON `youtube_board_ts`.`ts_channel_admin_requests` "+W,
-  "GRANT SELECT,UPDATE,SHOW VIEW ON `youtube_board_ts_worker_youtube_source`.`ts_channel_admin_requests` "+W,
+  // INSERT came later with youtube.live.playlist (tools/live-playlist-upgrade.mjs); the plan always reflects the current manifest.
+  "GRANT INSERT,SELECT,UPDATE ON `youtube_board_ts`.`ts_channel_admin_requests` "+W,
+  "GRANT INSERT,SELECT,UPDATE,SHOW VIEW ON `youtube_board_ts_worker_youtube_source`.`ts_channel_admin_requests` "+W,
  ].sort());
 });
 test('the worker never gains DELETE, DDL or any right on another table, and urt_tag_log stays append-only',async()=>{

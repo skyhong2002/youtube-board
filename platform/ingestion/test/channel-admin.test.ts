@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ChannelAdminError, applyTagDelta, parseChannelSource, parsePayload, parseTags } from '../../shared/channel-admin.js';
+import { CHANNEL_ADMIN_ERRORS, ChannelAdminError, applyTagDelta, parseChannelSource, parsePayload, parseTags, sourceVideoId } from '../../shared/channel-admin.js';
 import { channelAdminJob } from '../src/channel-admin.js';
 import { YoutubeError } from '../src/quota.js';
 import type { SourceJobContext } from '../src/video-statistics.js';
@@ -43,7 +43,26 @@ describe('what an administrator may paste', () => {
     expect(parseChannelSource('@%E6%B2%88%E4%BC%AF%E6%B4%8B')).toBe('@沈伯洋');
   });
   it('refuses what cannot be resolved exactly or does not belong to YouTube', () => {
-    for (const input of ['', 'abc', '@ab', 'https://www.youtube.com/user/foo', 'https://www.youtube.com/c/foo', `https://evil.example/channel/${UC}`, `https://user:pw@youtube.com/channel/${UC}`, 'https://www.youtube.com/watch?v=abcdefghijk', 'UCshort', 5, null]) expect(parseChannelSource(input as never)).toBeNull();
+    for (const input of ['', 'abc', '@ab', 'https://www.youtube.com/user/foo', 'https://www.youtube.com/c/foo', `https://evil.example/channel/${UC}`, `https://user:pw@youtube.com/channel/${UC}`, 'UCshort', 5, null]) expect(parseChannelSource(input as never)).toBeNull();
+  });
+  it('accepts a video link in its usual forms and normalizes it to a youtu.be link that parses back to itself', () => {
+    const V = 'dQw4w9WgXc_', short = `https://youtu.be/${V}`;
+    for (const input of [`https://www.youtube.com/watch?v=${V}`, `youtube.com/watch?v=${V}&t=42s&list=PLx`, `https://m.youtube.com/watch?feature=share&v=${V}`, `https://music.youtube.com/watch?v=${V}&si=x`,
+      `https://youtu.be/${V}`, `youtu.be/${V}?si=abc&t=3`, `https://www.youtube.com/live/${V}?si=x`, `https://m.youtube.com/shorts/${V}`, `https://youtube.com/shorts/${V}/`, ` ${short} `]) expect(parseChannelSource(input)).toBe(short);
+    expect(sourceVideoId(short)).toBe(V);
+    expect(parsePayload('add-channel', { source: `https://www.youtube.com/live/${V}`, tags: [2] })).toEqual({ kind: 'add-channel', source: short, tags: [2] });
+    for (const source of [UC, '@abc.def', `https://youtu.be/${V}?x`, `http://youtu.be/${V}`, 'https://youtu.be/short']) expect(sourceVideoId(source)).toBeNull();
+  });
+  it('refuses video links that are malformed, ambiguous or on another host', () => {
+    const V = 'dQw4w9WgXc_';
+    for (const input of [V, 'https://www.youtube.com/watch?v=short', `https://www.youtube.com/watch?v=${V}x`, `https://www.youtube.com/watch?v=${V}&v=${V}`, 'https://www.youtube.com/watch', `https://www.youtube.com/watch/?v=${V}`,
+      `https://youtu.be/${V}/extra`, 'https://youtu.be/', `https://www.youtube.com/live/${V}/x`, `https://www.youtube.com/shorts/`, `https://music.youtube.com/live/${V}`, `https://music.youtube.com/channel/${UC}`,
+      `https://evil.example/watch?v=${V}`, `https://youtu.be.evil.example/${V}`, `https://evilyoutu.be/${V}`, `https://user:pw@youtu.be/${V}`, `https://www.youtube.com/embed/${V}`,
+      `https://www.youtube.com/watch?v=${V}&pad=${'x'.repeat(300)}`]) expect(parseChannelSource(input)).toBeNull();
+  });
+  it('has a message for every error code, including an unavailable video', () => {
+    expect(CHANNEL_ADMIN_ERRORS.VIDEO_NOT_FOUND).toMatch(/影片/);
+    for (const code of Object.keys(CHANNEL_ADMIN_ERRORS)) expect(code.length).toBeLessThanOrEqual(24);
   });
 });
 
@@ -61,7 +80,7 @@ describe('request payloads', () => {
 });
 
 interface Call { sql: string; params: unknown[] }
-function harness(handler: (sql: string, params: unknown[]) => unknown, options: { profiles?: (ids: string[]) => Promise<Map<string, unknown>>; handle?: (handle: string) => Promise<string | null>; execute?: boolean } = {}) {
+function harness(handler: (sql: string, params: unknown[]) => unknown, options: { profiles?: (ids: string[]) => Promise<Map<string, unknown>>; handle?: (handle: string) => Promise<string | null>; video?: (videoId: string) => Promise<string | null>; execute?: boolean } = {}) {
   const calls: Call[] = [];
   const answer = async (sql: string, params: unknown[] = []) => { calls.push({ sql: sql.replace(/\s+/g, ' ').trim(), params }); return handler(sql, params); };
   const db = {
@@ -71,7 +90,7 @@ function harness(handler: (sql: string, params: unknown[]) => unknown, options: 
     commit: async () => { calls.push({ sql: 'COMMIT', params: [] }); },
     rollback: async () => { calls.push({ sql: 'ROLLBACK', params: [] }); },
   };
-  const youtube = { attemptsMade: 0, channelProfiles: options.profiles ?? (async () => new Map()), channelIdForHandle: options.handle ?? (async () => null) };
+  const youtube = { attemptsMade: 0, channelProfiles: options.profiles ?? (async () => new Map()), channelIdForHandle: options.handle ?? (async () => null), videoChannelId: options.video ?? (async () => null) };
   const ctx = { db, youtube, now, clock: () => now, execute: options.execute ?? true, assertOwnership: async () => {} } as unknown as SourceJobContext;
   const sqls = (prefix: string) => calls.filter(call => call.sql.startsWith(prefix));
   return { ctx, calls, sqls };
@@ -206,6 +225,55 @@ describe('channelAdminJob', () => {
     expect(result.applied).toHaveLength(1);
     expect(result.rejected).toEqual([{ id: 2, kind: 'add-channel', code: 'CHANNEL_NOT_FOUND' }]);
     expect(sqls('INSERT INTO urt_channel')).toHaveLength(1);
+  });
+
+  it('resolves a video link to its channel with one lookup, records the video id, and refuses an unavailable video', async () => {
+    const V = 'dQw4w9WgXc_', asked: string[] = [];
+    const { ctx, sqls } = harness(sql => {
+      if (sql.includes('FROM ts_channel_admin_requests')) return pending({ id: 1, kind: 'add-channel', payload: { source: `https://youtu.be/${V}`, tags: [1] } }, { id: 2, kind: 'add-channel', payload: { source: 'https://youtu.be/privatevid1' } });
+      if (sql.startsWith('SELECT u_id, flag_del, title FROM urt_channel')) return [];
+      if (sql.startsWith('INSERT INTO urt_channel')) return { insertId: 4155 };
+      if (sql.includes('FROM urt_tag WHERE tag_id IN')) return [{ tag_id: 1 }];
+      if (sql.startsWith('SELECT tags FROM urt_count')) return [{ tags: null }];
+      return {};
+    }, { video: async videoId => { asked.push(videoId); return videoId === V ? UC : null; }, handle: async () => { throw new Error('a video is not a handle'); }, profiles: async ids => { expect(ids).toEqual([UC]); return new Map([[UC, profile]]); } });
+    const result = await channelAdminJob(ctx, { limit: 10 });
+    expect(asked).toEqual([V, 'privatevid1']);
+    expect(result.applied[0]!.outcome).toEqual({ uId: 4155, youtubeId: UC, title: '新頻道', created: true, tags: '[1]', videoId: V });
+    expect(result.rejected).toEqual([{ id: 2, kind: 'add-channel', code: 'VIDEO_NOT_FOUND' }]);
+    expect(sqls('INSERT INTO urt_channel')).toHaveLength(1);
+    expect(sqls('INSERT INTO urt_channel')[0]!.params[2]).toBe(UC);
+    const marks = sqls('UPDATE ts_channel_admin_requests').map(call => call.params.slice(0, 3));
+    expect(marks[0]!.slice(0, 2)).toEqual(['done', null]);
+    expect(JSON.parse(String(marks[0]![2]))).toMatchObject({ videoId: V, youtubeId: UC });
+    expect(marks[1]!.slice(0, 2)).toEqual(['failed', 'VIDEO_NOT_FOUND']);
+    expect(JSON.parse(String(marks[1]![2]))).toEqual({ videoId: 'privatevid1' });
+  });
+
+  it('handles a video of a tracked or retired channel exactly like its channel id, keeping both ids for audit', async () => {
+    const V = 'dQw4w9WgXc_';
+    let rows: { u_id: number; flag_del: number | null; title: string }[] = [{ u_id: 12, flag_del: null, title: '舊頻道' }];
+    const run = (id: number) => harness(sql => {
+      if (sql.includes('FROM ts_channel_admin_requests')) return pending({ id, kind: 'add-channel', payload: { source: `https://youtu.be/${V}` } });
+      if (sql.startsWith('SELECT u_id, flag_del, title FROM urt_channel')) return rows;
+      return {};
+    }, { video: async () => UC, profiles: async () => { throw new Error('must not ask YouTube for a channel we already have'); } });
+    const tracked = run(1);
+    expect((await channelAdminJob(tracked.ctx, { limit: 10 })).applied[0]!.outcome).toEqual({ uId: 12, youtubeId: UC, title: '舊頻道', created: false, tags: null, videoId: V });
+    expect(tracked.sqls('INSERT INTO urt_channel')).toHaveLength(0);
+    rows = [{ u_id: 12, flag_del: 1, title: '舊頻道' }];
+    const retired = run(2);
+    expect((await channelAdminJob(retired.ctx, { limit: 10 })).rejected).toEqual([{ id: 2, kind: 'add-channel', code: 'CHANNEL_RETIRED' }]);
+    const mark = retired.sqls('UPDATE ts_channel_admin_requests')[0]!.params;
+    expect(mark.slice(0, 2)).toEqual(['failed', 'CHANNEL_RETIRED']);
+    expect(JSON.parse(String(mark[2]))).toEqual({ videoId: V, youtubeId: UC });
+  });
+
+  it('leaves a video request pending when the lookup runs out of quota', async () => {
+    const quota = harness(sql => sql.includes('FROM ts_channel_admin_requests') ? pending({ id: 1, kind: 'add-channel', payload: { source: 'https://youtu.be/dQw4w9WgXc_' } }) : {},
+      { video: async () => { throw new YoutubeError('quota-exhausted'); } });
+    expect(await channelAdminJob(quota.ctx, { limit: 10 })).toMatchObject({ stoppedReason: 'quota-exhausted', remaining: 1 });
+    expect(quota.sqls('UPDATE ts_channel_admin_requests')).toHaveLength(0);
   });
 
   it('only tags a channel it already tracks, and refuses a retired one', async () => {

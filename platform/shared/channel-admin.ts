@@ -14,6 +14,7 @@ export const CHANNEL_TAGS_MAX_LENGTH = 100;
 export const TAG_NAME_MAX_LENGTH = 32;
 export const TAG_IDS_PER_REQUEST_MAX = 20;
 export const YOUTUBE_CHANNEL_ID = /^UC[A-Za-z0-9_-]{22}$/;
+export const YOUTUBE_VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 export const REQUEST_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export type ChannelAdminPayload =
@@ -26,6 +27,7 @@ export const CHANNEL_ADMIN_ERRORS = {
   INVALID_REQUEST: '請求內容不正確',
   CHANNEL_NOT_FOUND: '找不到這個頻道',
   CHANNEL_RETIRED: '這個頻道已封存',
+  VIDEO_NOT_FOUND: '找不到這部影片，可能已刪除、設為私人或尚未公開',
   TAG_NOT_FOUND: '有分類編號不存在',
   TAGS_TOO_LONG: '這個頻道的分類已滿（上限約 20 個）',
   PROVIDER_ERROR: 'YouTube 回應異常，稍後再試',
@@ -33,7 +35,8 @@ export const CHANNEL_ADMIN_ERRORS = {
 } as const;
 export type ChannelAdminErrorCode = keyof typeof CHANNEL_ADMIN_ERRORS;
 export class ChannelAdminError extends Error {
-  constructor(readonly code: ChannelAdminErrorCode) { super(code); this.name = 'ChannelAdminError'; }
+  /** `detail` is kept as the refused request's result, for audit (for example the channel a video resolved to). */
+  constructor(readonly code: ChannelAdminErrorCode, readonly detail: Record<string, unknown> | null = null) { super(code); this.name = 'ChannelAdminError'; }
 }
 
 const marker = (id: number) => `[${id}]`;
@@ -69,9 +72,21 @@ export const normalizeTagName = (value: unknown): string | null => {
   return name && [...name].length <= TAG_NAME_MAX_LENGTH && !/[\u0000-\u001f\u007f]/.test(name) ? name : null;
 };
 
+/** The normalized source of a video link: short, readable in the history and parsed back to itself. */
+export const videoSource = (videoId: string) => 'https://youtu.be/' + videoId;
+/** The video id of a normalized add-channel source, or null when the source names a channel or a handle. */
+export function sourceVideoId(source: string): string | null {
+  const match = /^https:\/\/youtu\.be\/([A-Za-z0-9_-]{11})$/.exec(source);
+  return match ? match[1]! : null;
+}
+
+const CHANNEL_HOSTS = ['youtube.com', 'www.youtube.com', 'm.youtube.com'];
+const WATCH_HOSTS = [...CHANNEL_HOSTS, 'music.youtube.com'];
 /**
- * What the administrator pasted: a channel id, a /channel/ URL or an @handle (bare or in a URL). /user/ and /c/ URLs
- * cannot be resolved without a search request, so they are refused with the reason instead of guessed.
+ * What the administrator pasted: a channel id, a /channel/ URL or an @handle (bare or in a URL), or a video link whose
+ * channel the worker looks up (watch?v=, youtu.be/, /live/, /shorts/; music.youtube.com only for watch?v=). A video comes
+ * back as `https://youtu.be/<id>`. /user/ and /c/ URLs cannot be resolved without a search request, so they are refused
+ * with the reason instead of guessed.
  */
 export function parseChannelSource(input: unknown): string | null {
   if (typeof input !== 'string') return null;
@@ -79,12 +94,17 @@ export function parseChannelSource(input: unknown): string | null {
   if (!text || text.length > 300) return null;
   if (YOUTUBE_CHANNEL_ID.test(text)) return text;
   const handle = (value: string) => { const name = decodeURIComponent(value.replace(/^@/, '')); return /^[\p{L}\p{N}._-]{3,30}$/u.test(name) ? '@' + name : null; };
+  const video = (value: string | null | undefined) => value && YOUTUBE_VIDEO_ID.test(value) ? videoSource(value) : null;
   try {
     if (text.startsWith('@')) return handle(text);
     const url = new URL(/^https?:\/\//i.test(text) ? text : 'https://' + text);
-    if (!['youtube.com', 'www.youtube.com', 'm.youtube.com'].includes(url.hostname.toLowerCase()) || url.username || url.password) return null;
-    const first = url.pathname.split('/').filter(Boolean)[0] ?? '', second = url.pathname.split('/').filter(Boolean)[1] ?? '';
+    if (url.username || url.password) return null;
+    const host = url.hostname.toLowerCase(), parts = url.pathname.split('/').filter(Boolean), [first = '', second = ''] = parts;
+    if (host === 'youtu.be') return parts.length === 1 ? video(first) : null;
+    if (WATCH_HOSTS.includes(host) && url.pathname === '/watch') { const ids = url.searchParams.getAll('v'); return ids.length === 1 ? video(ids[0]) : null; }
+    if (!CHANNEL_HOSTS.includes(host)) return null;
     if (first === 'channel') return YOUTUBE_CHANNEL_ID.test(second) ? second : null;
+    if (first === 'live' || first === 'shorts') return parts.length === 2 ? video(second) : null;
     if (first.startsWith('@')) return handle(first);
   } catch { /* not a URL */ }
   return null;

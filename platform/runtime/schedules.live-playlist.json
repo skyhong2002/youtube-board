@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "timezone": "Asia/Taipei",
+  "schedules": [
+    {"id": "live-playlist-v1", "workflow": "youtube.live.playlist", "cron": "*/5 * * * *", "options": {"playlist": "PLWDKpvlDapjQ"}}
+  ]
+}

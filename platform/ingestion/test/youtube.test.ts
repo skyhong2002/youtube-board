@@ -117,3 +117,22 @@ it('looks up notified videos by id as uploads items with the real live state, sk
   expect([url.pathname, url.searchParams.get('part'), url.searchParams.get('id')]).toEqual(['/youtube/v3/videos', 'snippet', 'zpqFQ8ilYD0,Abc12345678,Bare1234567']);
   expect(await client().api.videoUploads([])).toEqual([]);
 });
+it('finds the channel of one video with a single videos.list unit, null for an unavailable video, and refuses malformed answers', async () => {
+  const channelId = 'UC9EWrkZoT3agfx45s6FdVtQ';
+  const { api, fetcher, ledger } = client(response({ items: [{ id: 'zpqFQ8ilYD0', snippet: { channelId, title: 't' } }] }), response({ items: [] }), response({ items: [{ id: 'zpqFQ8ilYD0', snippet: { channelId: 'nope' } }] }), response({ items: [{ id: 'Other123456', snippet: { channelId } }] }));
+  expect(await api.videoChannelId('zpqFQ8ilYD0')).toBe(channelId);
+  const url = new URL(String(fetcher.mock.calls[0]![0]));
+  expect([url.pathname, url.searchParams.get('part'), url.searchParams.get('id')]).toEqual(['/youtube/v3/videos', 'snippet', 'zpqFQ8ilYD0']);
+  expect(await api.videoChannelId('privatevid1')).toBeNull();
+  await expect(api.videoChannelId('zpqFQ8ilYD0')).rejects.toMatchObject({ code: 'invalid-response' });
+  await expect(api.videoChannelId('zpqFQ8ilYD0')).rejects.toMatchObject({ code: 'invalid-response' });
+  expect(ledger.precharge).toHaveBeenCalledTimes(4);
+  await expect(api.videoChannelId('short')).rejects.toMatchObject({ code: 'request-failed' }); expect(fetcher).toHaveBeenCalledTimes(4);
+});
+it('reads only the video ids of a playlist page, so a private or deleted entry cannot invalidate it', async () => {
+  const { api, fetcher } = client(response({ items: [{ contentDetails: { videoId: 'dKGM2rzKRjs', videoPublishedAt: '2026-10-30T01:26:00Z' } }, { snippet: { title: 'Private video', thumbnails: {} }, contentDetails: { videoId: 'Private1234' } }, { contentDetails: { videoId: 'dKGM2rzKRjs' } }, { contentDetails: {} }, { contentDetails: { videoId: 'bad id' } }, null], nextPageToken: 'more' }));
+  expect(await api.playlistVideoIds('PLWDKpvlDapjQ', 50)).toEqual({ videoIds: ['dKGM2rzKRjs', 'Private1234'], malformed: 3, nextPageToken: 'more' });
+  const url = new URL(String(fetcher.mock.calls[0]![0]));
+  expect([url.pathname, url.searchParams.get('part'), url.searchParams.get('playlistId'), url.searchParams.get('maxResults')]).toEqual(['/youtube/v3/playlistItems', 'contentDetails', 'PLWDKpvlDapjQ', '50']);
+  await expect(client().api.playlistVideoIds('UUabcdefghijkl')).rejects.toMatchObject({ code: 'request-failed' });
+});

@@ -1,5 +1,5 @@
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
-import { ChannelAdminError, applyTagDelta, parsePayload, type ChannelAdminErrorCode, type ChannelAdminPayload } from '../../shared/channel-admin.js';
+import { ChannelAdminError, applyTagDelta, parsePayload, sourceVideoId, type ChannelAdminErrorCode, type ChannelAdminPayload } from '../../shared/channel-admin.js';
 import { isRunStoppingYoutubeError } from './channel-jobs.js';
 import { taipeiSql } from './legacy-db.js';
 import { YoutubeError } from './quota.js';
@@ -68,16 +68,23 @@ async function addChannel(ctx: SourceJobContext, id: number, payload: Extract<Ch
   // A request for a category that does not exist is refused before it spends any YouTube quota.
   await assertTagsExist(db, payload.tags);
   let youtubeId = payload.source;
-  if (youtubeId.startsWith('@')) {
+  // A video link names its channel only through YouTube: one videos.list unit, then everything goes as for a channel id.
+  const videoId = sourceVideoId(payload.source), via = videoId ? { videoId } : {};
+  if (videoId) {
+    const resolved = await youtube.videoChannelId(videoId);
+    if (!resolved) throw new ChannelAdminError('VIDEO_NOT_FOUND', via);
+    youtubeId = resolved;
+  } else if (youtubeId.startsWith('@')) {
     const resolved = await youtube.channelIdForHandle(youtubeId);
     if (!resolved) throw new ChannelAdminError('CHANNEL_NOT_FOUND');
     youtubeId = resolved;
   }
+  const refused = (code: ChannelAdminErrorCode) => new ChannelAdminError(code, videoId ? { ...via, youtubeId } : null);
   const [existing] = await db.query<RowDataPacket[]>('SELECT u_id, flag_del, title FROM urt_channel WHERE youtube_id = ? AND BINARY youtube_id = BINARY ? LIMIT 2', [youtubeId, youtubeId]);
-  if (existing.length > 1) throw new ChannelAdminError('APPLY_FAILED');
+  if (existing.length > 1) throw refused('APPLY_FAILED');
   let profile: ChannelProfile | undefined;
-  if (existing[0]) { if (existing[0].flag_del !== null && Number(existing[0].flag_del) >= 1) throw new ChannelAdminError('CHANNEL_RETIRED'); }
-  else { profile = (await youtube.channelProfiles([youtubeId])).get(youtubeId); if (!profile) throw new ChannelAdminError('CHANNEL_NOT_FOUND'); }
+  if (existing[0]) { if (existing[0].flag_del !== null && Number(existing[0].flag_del) >= 1) throw refused('CHANNEL_RETIRED'); }
+  else { profile = (await youtube.channelProfiles([youtubeId])).get(youtubeId); if (!profile) throw refused('CHANNEL_NOT_FOUND'); }
   await ctx.assertOwnership();
   const at = taipeiSql(ctx.now);
   let uId = Number(existing[0]?.u_id ?? 0), title = String(existing[0]?.title ?? '');
@@ -89,7 +96,7 @@ async function addChannel(ctx: SourceJobContext, id: number, payload: Extract<Ch
     await db.execute('INSERT INTO urt_count (u_id, ctime, mtime, viewCount, subscriberCount, videoCount) VALUES (?, ?, ?, ?, ?, ?)', [uId, at, at, stats.viewCount, stats.subscriberCount, stats.videoCount]);
   }
   const tagged = payload.tags.length ? await changeTags(ctx, uId, payload.tags, []) : null;
-  const outcome = { uId, youtubeId, title: title.slice(0, 100), created: Boolean(profile), tags: tagged?.after ?? null };
+  const outcome = { uId, youtubeId, title: title.slice(0, 100), created: Boolean(profile), tags: tagged?.after ?? null, ...via };
   await finish(db, id, 'done', null, outcome, ctx.now);
   return outcome;
 }
@@ -126,7 +133,7 @@ export async function channelAdminJob(ctx: SourceJobContext, input: { limit: num
       if (isRunStoppingYoutubeError(error)) return { ...summary(), stoppedReason: error.code, remaining: rows.length - applied.length - rejected.length };
       const code = errorCode(error);
       await ctx.assertOwnership();
-      await finish(ctx.db, id, 'failed', code, null, ctx.now);
+      await finish(ctx.db, id, 'failed', code, error instanceof ChannelAdminError ? error.detail : null, ctx.now);
       rejected.push({ id, kind, code });
       if (code === 'APPLY_FAILED') skipped.push({ id, reason: 'apply-failed' });
     }

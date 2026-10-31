@@ -78,6 +78,7 @@ describe('channel request routes', () => {
       {}, { ...valid, requestId: 'not-a-uuid' }, { ...valid, kind: 'drop-table' }, { ...valid, payload: undefined },
       { ...valid, payload: { uId: 3 } }, { ...valid, payload: { uId: 3, add: [1], remove: [1] } }, { ...valid, payload: { uId: '3', add: [1] } },
       { requestId: ID, kind: 'add-channel', payload: { source: 'https://evil.example/channel/' + UC } }, { requestId: ID, kind: 'add-channel', payload: { source: 'https://www.youtube.com/user/x' } },
+      { requestId: ID, kind: 'add-channel', payload: { source: 'https://evil.example/watch?v=dQw4w9WgXc_' } }, { requestId: ID, kind: 'add-channel', payload: { source: 'https://youtu.be/short' } }, { requestId: ID, kind: 'add-channel', payload: { source: 'dQw4w9WgXc_' } },
       { requestId: ID, kind: 'create-tag', payload: { name: '' } }, { requestId: ID, kind: 'create-tag', payload: { name: 'x'.repeat(33) } },
     ]) expect((await write(admin, body)).statusCode, JSON.stringify(body)).toBe(400);
     expect(queued).toEqual([]);
@@ -90,8 +91,9 @@ describe('channel request routes', () => {
       { requestId: ID, kind: 'add-channel', payload: { source: `https://www.youtube.com/channel/${UC}`, tags: [1] } },
       { requestId: ID.replace('3f', '4f'), kind: 'add-channel', payload: { source: '@abc.def' } },
       { requestId: ID.replace('3f', '5f'), kind: 'create-tag', payload: { name: '新分類' } },
+      { requestId: ID.replace('3f', '6f'), kind: 'add-channel', payload: { source: 'https://www.youtube.com/live/dQw4w9WgXc_?si=x' } },
     ]) expect((await write(admin, body)).statusCode).toBe(202);
-    expect(queued.map(request => request.payload)).toEqual([{ kind: 'add-channel', source: UC, tags: [1] }, { kind: 'add-channel', source: '@abc.def', tags: [] }, { kind: 'create-tag', name: '新分類' }]);
+    expect(queued.map(request => request.payload)).toEqual([{ kind: 'add-channel', source: UC, tags: [1] }, { kind: 'add-channel', source: '@abc.def', tags: [] }, { kind: 'create-tag', name: '新分類' }, { kind: 'add-channel', source: 'https://youtu.be/dQw4w9WgXc_', tags: [] }]);
   });
 
   it('answers a repeated request id with the same 202, refuses one reused for something else, and says when the queue is full', async () => {
@@ -138,5 +140,6 @@ describe('request rows', () => {
     expect(requestFromRow({ ...row, created_at: null } as never)).toBeNull();
     expect(requestFromRow({ ...row, error_code: 'SQL: secret' } as never)?.errorCode).toBeNull();
     expect(requestFromRow({ ...row, status: 'done', error_code: null, result: '[1]' } as never)?.result).toBeNull();
+    expect(requestFromRow({ ...row, kind: 'add-channel', payload: JSON.stringify({ source: 'https://youtu.be/dQw4w9WgXc_' }), error_code: 'VIDEO_NOT_FOUND', result: '{"videoId":"dQw4w9WgXc_"}' } as never)).toMatchObject({ kind: 'add-channel', payload: { kind: 'add-channel', source: 'https://youtu.be/dQw4w9WgXc_', tags: [] }, errorCode: 'VIDEO_NOT_FOUND', result: { videoId: 'dQw4w9WgXc_' } });
   });
 });

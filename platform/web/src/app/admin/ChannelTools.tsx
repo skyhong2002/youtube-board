@@ -1,6 +1,6 @@
 'use client';
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import {parseChannelSource,type ChannelAdminRequest,type ChannelAdminPayload} from '../../../../shared/channel-admin';
+import {parseChannelSource,sourceVideoId,type ChannelAdminRequest,type ChannelAdminPayload} from '../../../../shared/channel-admin';
 import type {ManagedChannel,ManagedChannelList} from '../../../../shared/manage-contracts';
 import {pill,pillOff,pillOn} from '@/components/reader/FollowButton';
 import {accountMessage} from '@/lib/account-client';
@@ -51,13 +51,13 @@ function Bookmarklet(){
  const link=useRef<HTMLAnchorElement>(null);
  useEffect(()=>{link.current?.setAttribute('href',bookmarkletSource(location.origin));},[]);
  return <div className="grid gap-1 text-sm"><span className="font-medium">從 YouTube 直接加入</span>
-  <p className="text-xs text-zinc-600 dark:text-zinc-400">把右邊的按鈕拖到 Chrome 的書籤列。之後在任何 YouTube 頻道頁或影片頁按這個書籤，就會跳到這裡並帶入該頻道。<a ref={link} href="#" onClick={e=>e.preventDefault()} draggable className={button+' ml-2 align-middle'}>加入有影儀表板</a></p></div>;
+  <p className="text-xs text-zinc-600 dark:text-zinc-400">把右邊的按鈕拖到 Chrome 的書籤列。之後在任何 YouTube 頻道頁、影片頁或直播頁按這個書籤，就會跳到這裡並帶入該頻道（影片頁帶入影片網址，送出後自動查出頻道）。<a ref={link} href="#" onClick={e=>e.preventDefault()} draggable className={button+' ml-2 align-middle'}>加入有影儀表板</a></p></div>;
 }
 
-/** Add a channel from what the administrator pastes: a /channel/ link, an @handle link or a channel ID. */
+/** Add a channel from what the administrator pastes: a /channel/ link, an @handle link, a channel ID, or a video link whose channel the worker looks up. */
 function AddChannel({tags,channels,initial,onQueued,onEdit}:{tags:Tag[];channels:ManagedChannel[];initial:string;onQueued:()=>void;onEdit:(channelId:number)=>void}){
  const [text,setText]=useState(initial),[chosen,setChosen]=useState<ReadonlySet<number>>(new Set()),[busy,setBusy]=useState(false),[error,setError]=useState(''),[sent,setSent]=useState('');
- const source=parseChannelSource(text),known=source?channels.find(c=>c.youtubeChannelId===source)??null:null,problem=text.trim()&&!source?'請貼上頻道網址（youtube.com/channel/… 或 youtube.com/@…）、@名稱或 UC 開頭的頻道 ID。/user/ 與 /c/ 舊式網址查不到，請改貼 @名稱。':'';
+ const source=parseChannelSource(text),video=source?sourceVideoId(source):null,known=source&&!video?channels.find(c=>c.youtubeChannelId===source)??null:null,problem=text.trim()&&!source?'請貼上頻道網址（youtube.com/channel/… 或 youtube.com/@…）、影片網址（watch?v=…、youtu.be/…、/live/…、/shorts/…）、@名稱或 UC 開頭的頻道 ID。/user/ 與 /c/ 舊式網址查不到，請改貼 @名稱或該頻道的任一部影片。':'';
  async function submit(){
   if(!source)return;
   setBusy(true);setError('');setSent('');
@@ -67,10 +67,10 @@ function AddChannel({tags,channels,initial,onQueued,onEdit}:{tags:Tag[];channels
  }
  return <form className="grid gap-2" onSubmit={e=>{e.preventDefault();void submit();}} aria-label="新增頻道">
   <label className="grid gap-1 text-sm font-medium">新增頻道
-   <input className={field+' font-normal'} value={text} onChange={e=>setText(e.target.value)} placeholder="貼上 YouTube 頻道網址、@名稱或頻道 ID" autoComplete="off" spellCheck={false} maxLength={300}/>
+   <input className={field+' font-normal'} value={text} onChange={e=>setText(e.target.value)} placeholder="貼上 YouTube 頻道或影片網址、@名稱或頻道 ID" autoComplete="off" spellCheck={false} maxLength={300}/>
   </label>
   {problem&&<p role="alert" className="text-xs text-amber-800 dark:text-amber-300">{problem}</p>}
-  {source&&!known&&<p className="text-xs text-zinc-500">辨識為：{source}</p>}
+  {source&&!known&&<p className="text-xs text-zinc-500">{video?`辨識為影片 ${video}，送出後會查出它所屬的頻道再加入（已在清單裡的頻道不會重複新增）。`:`辨識為：${source}`}</p>}
   {known&&<p role="status" className="text-sm text-amber-800 dark:text-amber-300">這個頻道已經在清單裡：{known.channelTitle}（#{known.channelId}）{known.status==='archived'?'，目前是封存狀態，不能重新加入':''}。<button type="button" className="ml-2 underline" onClick={()=>onEdit(known.channelId)}>編輯它的分類</button></p>}
   <details className="text-sm"><summary className="cursor-pointer text-zinc-600 dark:text-zinc-400">一併設定分類{chosen.size?`（已選 ${chosen.size}）`:'（可略過，之後再補）'}</summary><div className="mt-2"><TagPicker tags={tags} selected={chosen} onToggle={id=>setChosen(s=>flip(s,id))} label="新增時的分類"/></div></details>
   {error&&<p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
@@ -111,7 +111,7 @@ function History({requests,error,names}:{requests:ChannelAdminRequest[]|null;err
   {requests.slice(0,15).map(r=><li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-sm">
    <span className={'rounded-full px-2 py-0.5 text-xs '+STATUS_TONE[r.status]}>{STATUS_LABEL[r.status]}</span>
    <span className="min-w-0 break-words font-medium">{requestSummary(r,names)}</span>
-   <span className="text-xs text-zinc-500">{requestOutcome(r)} · 帳號 {r.actor.replace('user:','#')} · {dateTime(r.appliedAt??r.createdAt)}</span>
+   <span className="text-xs text-zinc-500">{requestOutcome(r)} · {r.actor==='live-playlist'?'來源 加入直播清單':'帳號 '+r.actor.replace('user:','#')} · {dateTime(r.appliedAt??r.createdAt)}</span>
   </li>)}
  </ul>;
 }
