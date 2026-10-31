@@ -54,3 +54,61 @@ Opus5.5 review was complete and model-verified. Adopted: real built-bundle trans
 ## 2026-11-01: GA silently off since Docker-built releases
 
 GA4 showed "No data received" for stream 16112956911. The live bundle referenced `process.env.NEXT_PUBLIC_GA_ID` un-inlined: `platform/Dockerfile` ran `next build` without the ID (only `tools/guarded-next-build.py` set it), so every Docker-built web image shipped with GA disabled even though the runtime env and gateway CSP were correct. The Dockerfile now sets `ARG/ENV NEXT_PUBLIC_GA_ID=G-X2G1PLNP7K` before the web build (`--build-arg NEXT_PUBLIC_GA_ID=` builds a GA-disabled image), and `web/src/lib/analytics-consent.test.ts` guards it. After a web release, confirm the served chunk contains `G-X2G1PLNP7K` and a normal browser sends `g/collect`.
+
+## Public site traffic (本站流量, `/observe`)
+
+Port of tag.observe.tw's `/observe/` page (its `docs/analytics.md` sections 「公開本站流量與讀者關注」 and 「授權讀取 GSC／GA 成效」). Not released yet; the production steps below are still open.
+
+### Data flow
+
+- `site.analytics.sync` (hourly at :20 Taipei) reads the GA4 Data API (property 558497452) and Search Console with a service account and replaces a trailing window of `ts_site_metrics` rows (Taipei day × source × metric × item). The first run backfills 90 days; later runs re-read GA for the last 7 days and Search Console for the last 10 and overwrite that whole window in one InnoDB transaction, so late data and corrections settle and vanished items disappear. It also writes `source='meta', metric='synced_at'` (the page's 更新於) and journals each run in `ts_job_runs`.
+- `site.analytics.live` (every 2 minutes) reads GA Realtime: active users and views of the last 30 minutes plus views per minute (`source='rt'`), replacing all realtime rows each run; no `ts_job_runs` row. Totals only, never `unifiedScreenName`/pages.
+- `GET /api/v1/site-observation?days=7|28|90` (`api/src/reports/site-observation.ts`; default 28, anything else 400) aggregates the table for the page: `updatedAt`, `live` (null when missing or older than 15 minutes), `traffic` (zero-filled daily views/sessions/users since the first GA day, default channel groups, devices, custom-event counts), `pages` (top 20), `content` (top 10 content pages), `search` (daily clicks/impressions/position, impression-weighted position, top 10 pages by clicks), `vitals`. Standard v1 envelope and 60-second public cache; the API also reuses one aggregation per period for a minute. A missing table or grant yields the empty shape, not an error.
+- `/observe` (`web/src/app/observe/page.tsx`, `components/SiteObservationView.tsx`) renders it with a method block (`components/method/observe.tsx`); linked from the footer, `/about#observe` and the opt-out page; listed in both sitemaps. The page itself stays outside GA measurement (`/observe` is a private path in `analytics-consent.ts`), and the gateway does not share its HTML.
+- What is read: GA `date`, `pagePath`, `sessionDefaultChannelGroup`, `deviceCategory`, `eventName` (`open_original`, `select_content`, `rss_click`) and, once the event-scoped custom dimensions `metric_name`/`metric_rating` exist in the property, `web_vital` counts per LCP/INP/CLS rating; every GA report is filtered to `hostName = youtube.observe.tw`. Search Console: dimensions `date` and `date,page` only with `dataState=all` — **search queries are never requested**. GA page titles are never requested (GA only receives the fixed 有影儀表板); the API names pages from their path and, for videos, channels, categories and AI topics, from `urt_video`/`urt_channel`/`urt_tag`/`urt_ai_event`.
+- Paths are normalized by `shared/site-analytics.ts` `sitePath`: other hosts (a `sc-domain:` property also covers tag.observe.tw etc.), private pages, `/observe/opt-out`, `/api/*` and every free-text route (keyword, vocabulary term, group, mayor city/person, live group, AI condition, comment author) are dropped, matching what the web never measures. With a domain property the Search Console requests also carry a `page includingRegex ^https?://youtube\.observe\.tw/` filter, so the daily totals cover only this site.
+- Content pages (讀者關注): `/videos/:id`, `/live/videos/:id/trend`, `/channels/:id/…`, `/tags/:id/…`, `/ai/events/:id`, `/ai/days/:id/events`, `/events/:uuid`.
+
+### Configuration
+
+Worker env (cache worker only; the web never touches Google credentials). If any of the three is unset both jobs return `{status:'skipped', reason:'google-access-not-configured'}` without connecting; a set but malformed value fails the run.
+
+| Variable | Production value |
+| --- | --- |
+| `GOOGLE_APPLICATION_CREDENTIALS` | `/run/secrets/yb_ts_google_analytics_sa_v1` (path to the service-account JSON) |
+| `GA4_PROPERTY_ID` | `558497452` |
+| `GSC_SITE_URL` | `https://youtube.observe.tw/` (the URL-prefix property; `sc-domain:observe.tw` also works) |
+
+The client signs a JWT for `analytics.readonly` and `webmasters.readonly` only (`jobs/src/google-analytics.ts`), never logs the token, assertion or response bodies (errors carry only status and URL path).
+
+### Batch and grants
+
+Both workflows belong to the `cache` batch (`shared/worker-batches.ts`): they derive TS-owned aggregates without YouTube quota or Laravel tables, like the avatar refresh, and a dedicated batch would need a new facade, principal and worker service for two small jobs. The cache worker is serial, so a long report-cache run can delay `site.analytics.live`; delays over 15 minutes simply hide the 最近 30 分鐘 panel until the next run.
+
+Profiles (`shared/worker-permissions.json`): `site.analytics.sync` = `ts_site_metrics` SELECT/INSERT/DELETE + `ts_job_runs` SELECT/INSERT/UPDATE (already in the batch); `site.analytics.live` = `ts_site_metrics` SELECT/INSERT/DELETE. The report principal gets SELECT on `ts_site_metrics` (`reportStateTables`). Table: `jobs/migrations/021_site_metrics.sql` (also in `migrations/002-frontend-state.sql`).
+
+### Manual one-off run
+
+Inside the cache worker container (its env already has the facade DB settings and gates; `TS_INGESTION_OWNERS` and, in production, `TS_INGESTION_WRITE_ALLOWLIST` must include the workflow):
+
+```bash
+node --import tsx jobs/src/cli.ts site:analytics:sync            # dry run: reports whether Google access is configured
+node --import tsx jobs/src/cli.ts site:analytics:sync --execute  # one GA/GSC pull (first run backfills 90 days)
+node --import tsx jobs/src/cli.ts site:analytics:live --execute  # one realtime refresh
+```
+
+The worker's DB settings come from the env secret its service command sources (`set -a; . /run/secrets/<worker-cache env secret>; set +a`); source the same file in a `docker exec … sh -c` before these commands. The output is a JSON summary of windows and row counts only. Locally the same commands run against the isolated `*_rewrite` database with `APP_ENV=local`, `TS_INGESTION_ENABLED=true`, `TS_INGESTION_OWNERS=site.analytics.sync,site.analytics.live` and the three Google variables.
+
+Verification: `npx vitest run test/site-analytics-cli.test.ts test/schedules-site-analytics.test.ts` (jobs), `npx vitest run test/site-observation.test.ts` (api), `node --import tsx --test src/lib/site-observation-view.test.ts` (web), `node --test tools/site-metrics-upgrade.test.mjs`.
+
+### Production release steps (not performed)
+
+1. Google side (user): grant the tag.observe.tw service account **Viewer** on GA4 property 558497452 and a (restricted) user on the Search Console property `https://youtube.observe.tw/`. Optionally register event-scoped custom dimensions `metric_name`, `metric_rating` in GA (needs editor) so vitals appear; GA does not backfill.
+2. Secret on sky-server: keep the key as a root-only file outside git (for example `/root/youtube-board-secrets/google-analytics-sa.json`, mode 0600), then `docker secret create yb_ts_google_analytics_sa_v1 <that file>`. Never paste or log the key.
+3. Take the usual consistent backup, then `node tools/site-metrics-upgrade.mjs` (dry run) and `--execute --phase=prepare` with `FRONTEND_BOOTSTRAP_URL`, `FRONTEND_ACCOUNT_HOST`, `WORKER_ACCOUNT_HOST` set as for the earlier upgrades: creates the table, the `youtube_board_ts_worker_cache` facade view and the report SELECT; the running cache worker's grants stay unchanged.
+4. Build the image from this commit. Swap the **web** service (route, page, sitemap) — it reads the table through the report grant from step 3.
+5. Swap **worker-cache** to the new image and immediately run `--execute --phase=worker` (cache principal SELECT/INSERT/DELETE): the worker verifies its grants against the permission file on connect, so the grants and the image go together. In the same compose update add to worker-cache: the secret `{source: yb_ts_google_analytics_sa_v1, uid: '1000', gid: '1000', mode: 0400}` (external), env `GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/yb_ts_google_analytics_sa_v1`, `GA4_PROPERTY_ID=558497452`, `GSC_SITE_URL=https://youtube.observe.tw/`, and `site.analytics.sync,site.analytics.live` in its `TS_INGESTION_OWNERS` and `TS_INGESTION_WRITE_ALLOWLIST`.
+6. Swap the **scheduler** image first (an older image rejects unknown workflows), add the two workflows to its owners/allowlist, then add `runtime/schedules.site-analytics.json` to its schedule configuration.
+7. Run `site:analytics:sync --execute` once by hand in worker-cache, check `ts_job_runs`, `GET /api/v1/site-observation` and `/observe`.
+
+Rollback: remove the schedule entries, swap worker-cache/scheduler/web back (revoke the cache principal's `ts_site_metrics` grants before starting an old worker image, since it verifies grants against its own permission file), drop the secret mount. The table and the report grant are additive and can stay.

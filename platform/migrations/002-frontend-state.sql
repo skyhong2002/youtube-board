@@ -465,3 +465,14 @@ CREATE TABLE IF NOT EXISTS ts_channel_admin_requests (
  UNIQUE INDEX channel_admin_request_id (request_id),
  INDEX channel_admin_status (status,id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+-- TS-owned definitions from 021_site_metrics.sql.
+CREATE TABLE IF NOT EXISTS ts_site_metrics (
+ day DATE NOT NULL,
+ source VARCHAR(8) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ metric VARCHAR(24) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ item VARCHAR(255) NOT NULL DEFAULT '',
+ value DOUBLE NOT NULL,
+ PRIMARY KEY (day,source,metric,item),
+ INDEX site_metrics_metric_day (source,metric,day)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;

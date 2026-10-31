@@ -7,7 +7,7 @@ const publicPaths = [
  '/', '/videos', '/channels', '/tags', '/keywords', '/vocabulary',
  '/groups', '/mayor', '/ai/days', '/ai/hours', '/ai/periods', '/ai/aspects',
  '/live/current', '/live/channels', '/live/hours', '/live/tags',
- '/live/periods', '/live/trends/daily', '/compare/titles', '/about',
+ '/live/periods', '/live/trends/daily', '/compare/titles', '/about', '/observe',
  // Exact public API docs page only; /api/* (status, v1, private) stays out.
  '/api',
 ] as const;

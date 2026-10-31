@@ -16,7 +16,7 @@ test('bounded sitemap uses canonical public routes without invented timestamps, 
  for(const row of rows){
   const url=new URL(row.url);assert.equal(url.origin,SITE_ORIGIN);assert.equal(url.search,'');assert.equal(url.hash,'');assert.equal(url.username,'');
   assert.deepEqual(Object.keys(row),['url']);assert.doesNotMatch(url.pathname,/^\/(?:auth|login|my|admin|manage|ops|runtime|boards|feeds)(?:\/|$)|^\/api\//);
-  assert.ok(['/', '/events', '/about', '/compare/titles', '/api'].includes(url.pathname)||resolveRoute(url.pathname.slice(1).split('/')),url.pathname);
+  assert.ok(['/', '/events', '/about', '/observe', '/compare/titles', '/api'].includes(url.pathname)||resolveRoute(url.pathname.slice(1).split('/')),url.pathname);
  }
  for(const {links} of NAV_GROUPS)for(const link of links)if(link.href!=='/boards')assert.ok(urls.includes(new URL(link.href.split('?')[0]!,SITE_ORIGIN).href),link.href);
  assert.deepEqual(sitemap(),rows);

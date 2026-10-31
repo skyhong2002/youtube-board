@@ -18,6 +18,7 @@ const COLUMNS: Array<{ label: string; links: FooterLink[] }> = [
     { href: '/compare/titles', label: '影片標題用語比較' },
     { href: '/live/walls/news', label: '直播電視牆' },
     { href: '/about/brand', label: '有影儀表板識別' },
+    { href: '/observe', label: '本站流量' },
     { href: '/observe/opt-out', label: '停用網站分析' },
   ] },
   { label: '開發與來源', links: [

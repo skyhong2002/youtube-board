@@ -8,9 +8,13 @@
  * use no YouTube Data API quota and no Laravel-written tables, and already share one host lock with each
  * other. Putting them in `youtube-source` would queue a multi-minute matcher sweep in front of the
  * every-minute live polls and quota-bound fetches.
+ *
+ * `site.analytics.sync`/`site.analytics.live` (本站流量) also belong to `cache`: they derive TS-owned aggregates
+ * (ts_site_metrics) without YouTube quota or Laravel tables, and their Google calls take seconds. A new batch would
+ * need its own facade, principal and worker service for two small jobs.
  */
 const batches={
- cache:['reports.counts.build','reports.people.build','reports.tag_cloud.build','reports.tag_date.build','reports.keywords.cache','reports.schedule.build','reports.live.build','reports.live.clean','reports.channel_cloud.build','reports.keyword_cloud.build','reports.keyword_relations.build','tags.videos.match.recent','channels.avatars.refresh'],
+ cache:['reports.counts.build','reports.people.build','reports.tag_cloud.build','reports.tag_date.build','reports.keywords.cache','reports.schedule.build','reports.live.build','reports.live.clean','reports.channel_cloud.build','reports.keyword_cloud.build','reports.keyword_relations.build','tags.videos.match.recent','channels.avatars.refresh','site.analytics.sync','site.analytics.live'],
  'youtube-source':['youtube.channels.stats','youtube.channels.videos.general','youtube.channels.videos.live','youtube.channels.videos.live_group','youtube.tvbs.videos','youtube.videos.stats','youtube.videos.duration','youtube.live.cleanup','youtube.tag_videos.backfill','youtube.websub.sync','youtube.channels.admin'],
  // Minute live polls get their own serial queue: under Laravel they ran beside slower fetches, and a
  // multi-minute statistics or discovery run must not delay them.

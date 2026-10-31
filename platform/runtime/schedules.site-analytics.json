@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "timezone": "Asia/Taipei",
+  "schedules": [
+    {"id": "site-analytics-sync-v1", "workflow": "site.analytics.sync", "cron": "20 * * * *", "options": {}},
+    {"id": "site-analytics-live-v1", "workflow": "site.analytics.live", "cron": "*/2 * * * *", "options": {}}
+  ]
+}

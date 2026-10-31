@@ -1841,6 +1841,31 @@
         ]
       },
       "dependencies": []
+    },
+    "site.analytics.sync": {
+      "tables": {
+        "ts_site_metrics": [
+          "SELECT",
+          "INSERT",
+          "DELETE"
+        ],
+        "ts_job_runs": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ]
+      },
+      "dependencies": []
+    },
+    "site.analytics.live": {
+      "tables": {
+        "ts_site_metrics": [
+          "SELECT",
+          "INSERT",
+          "DELETE"
+        ]
+      },
+      "dependencies": []
     }
   }
 }

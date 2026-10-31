@@ -22,7 +22,7 @@ export class PublicDataError extends Error {
 }
 /** Families registered under the read-only /api/v1 surface. Credentialed /auth and
  * /api/ops routes live outside the base and are never reachable from here. */
-const PUBLIC_FAMILIES = new Set(["home", "channels", "videos", "live", "tags", "ai", "vocabulary", "keywords", "groups", "mayor", "comments", "filter-options", "editorial"]);
+const PUBLIC_FAMILIES = new Set(["home", "channels", "videos", "live", "tags", "ai", "vocabulary", "keywords", "groups", "mayor", "comments", "filter-options", "editorial", "site-observation"]);
 const encodedSegment = /^[A-Za-z0-9\-_.!~*'()%]+$/;
 /** Build a public read URL, rejecting anything that could leave the public API base. */
 export function publicApiUrl(base: string, path: string, search: Search = {}): string {

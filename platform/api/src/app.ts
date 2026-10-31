@@ -35,6 +35,7 @@ import { registerCloud } from './reports/cloud.js';
 import { registerTagDays } from './reports/tag-days.js';
 import { registerComments } from './reports/comments.js';
 import { registerChannelHistory } from './reports/channel-history.js';
+import { registerSiteObservation } from './reports/site-observation.js';
 import Fastify from 'fastify';
 import { sql } from 'drizzle-orm';
 import { createReader, DataSourceUnavailable, DataQueryFailed, type Reader } from './db/client.js';
@@ -229,6 +230,7 @@ export function buildApp(options: AppOptions = {}) {
     registerTagDays(register, reader, clock);
     registerComments(register, reader, clock);
     registerChannelHistory(register, reader, clock);
+    registerSiteObservation(register, reader, clock);
     registerLegacyApi(app, reader, clock, options.dataset ?? (process.env.DATASET_KIND === 'fixture' ? 'fixture' : 'unknown'));
     app.setNotFoundHandler((request, reply) => {
         if (request.method !== 'GET' && request.method !== 'HEAD')

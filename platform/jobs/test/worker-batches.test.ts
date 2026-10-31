@@ -5,7 +5,7 @@ import {batchProfile,workerProfile,workerSchema} from '../../shared/worker-schem
 import {assertQueueJob,consumerQueue,queueMode,schedulerNamespace,statusQueues,workflowQueueName} from '../src/queue-scope.js';
 
 const expected={
- cache:['reports.counts.build','reports.people.build','reports.tag_cloud.build','reports.tag_date.build','reports.keywords.cache','reports.schedule.build','reports.live.build','reports.live.clean','reports.channel_cloud.build','reports.keyword_cloud.build','reports.keyword_relations.build','tags.videos.match.recent','channels.avatars.refresh'],
+ cache:['reports.counts.build','reports.people.build','reports.tag_cloud.build','reports.tag_date.build','reports.keywords.cache','reports.schedule.build','reports.live.build','reports.live.clean','reports.channel_cloud.build','reports.keyword_cloud.build','reports.keyword_relations.build','tags.videos.match.recent','channels.avatars.refresh','site.analytics.sync','site.analytics.live'],
  'youtube-source':['youtube.channels.stats','youtube.channels.videos.general','youtube.channels.videos.live','youtube.channels.videos.live_group','youtube.tvbs.videos','youtube.videos.stats','youtube.videos.duration','youtube.live.cleanup','youtube.tag_videos.backfill','youtube.websub.sync','youtube.channels.admin'],
  'youtube-live':['youtube.live.poll','youtube.tvbs.live.poll'],
  comments:['youtube.comments.queue','youtube.comments.fetch'],

@@ -15,7 +15,7 @@ type Kind = typeof kinds[number];
 const staticPaths = [
     '/', '/videos', '/channels', '/tags', '/keywords', '/groups', '/mayor',
     '/ai/days', '/ai/hours', '/ai/periods', '/ai/aspects', '/live/current', '/live/channels',
-    '/live/hours', '/live/tags', '/live/periods', '/live/trends/daily', '/compare/titles', '/about', '/api',
+    '/live/hours', '/live/tags', '/live/periods', '/live/trends/daily', '/compare/titles', '/about', '/observe', '/api',
 ] as const;
 export interface SitemapOptions {
     /** Explicit source-content release timestamp; never the request/build clock. */

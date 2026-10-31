@@ -398,6 +398,7 @@ Schema coverage `partial` or `envelope-only` explicitly identifies incomplete fi
 | GET | `/api/v1/channels/{id}/ai` | channels · id · ai | envelope-only |
 | GET | `/api/v1/channels/{id}/ai/days` | channels · id · ai · days | envelope-only |
 | GET | `/api/v1/channels/{id}/people` | channels · id · people | envelope-only |
+| GET | `/api/v1/site-observation` | This site's own traffic (本站流量): daily GA4 views and sessions for youtube.observe.tw, top pages and content pages, channel groups, devices, custom-event counts, Search Console clicks/impressions per day and page (never search queries), Web Vitals rating counts, and GA Realtime totals for the last 30 minutes (null when older than 15 minutes). Aggregates only; refreshed hourly. | envelope-only |
 | GET | `/api/api_live_day.php` | api_live_day | legacy-wire |
 | GET | `/api/api_live_date.php` | api_live_date | legacy-wire |
 | GET | `/api/api_live_hour.php` | api_live_hour | legacy-wire |
@@ -1004,6 +1005,14 @@ Report is implemented. Only its data/meta envelope is specified in this catalog;
 | Parameter | In | Schema / bounds | Description |
 | --- | --- | --- | --- |
 | `id` (required) | path | {"type":"integer","minimum":1,"maximum":9007199254740991} | Local positive numeric record ID. |
+
+### /api/v1/site-observation
+
+Report is implemented. Only its data/meta envelope is specified in this catalog; route-specific data and query parameter documentation remains incomplete.
+
+| Parameter | In | Schema / bounds | Description |
+| --- | --- | --- | --- |
+| `days` | query | {"type":"string","enum":["7","28","90"],"default":"28"} | Period in Taipei calendar days ending today: 7, 28 (default) or 90. |
 
 ## 回應欄位
 

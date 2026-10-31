@@ -4,6 +4,7 @@ import {planVocabularyBackfill} from './vocabulary-plan.js';
 import { assertReportCacheSchema } from './report-schema.js';
 import { handleMediaCli } from './media-cli.js';
 import { handleWebsubCli } from './websub-cli.js';
+import { handleSiteAnalyticsCli } from './site-analytics-cli.js';
 import { handleCacheCli } from './cache-cli.js';
 import { handleNotificationCli } from './notification-cli.js';
 import { handleEditorialCli } from './editorial-cli.js';
@@ -56,6 +57,7 @@ async function main() {
   if (await handleGroupStatusCli(args, process.env)) return;
   if (await handleMediaCli(args, process.env)) return;
   if (await handleWebsubCli(args, process.env)) return;
+  if (await handleSiteAnalyticsCli(args, process.env)) return;
   if (await handleEditorialCli(args, process.env)) return;
   if (await handleNotificationCli(args, process.env)) return;
   if (await handleCacheCli(args, process.env)) return;

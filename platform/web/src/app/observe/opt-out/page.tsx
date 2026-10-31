@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Heading } from '@/components/ReportUI';
 import { privateMetadata } from '@/lib/seo';
 import OptOutPanel from './OptOutPanel';
@@ -10,6 +11,7 @@ export default function OptOutPage() {
         <p>有影儀表板以 Google Analytics 了解公開頁面的使用情形，用來改善報表與導覽。你可以在這裡為此瀏覽器停用。</p>
         <p>只在正式網站 youtube.observe.tw 的公開觀測頁面載入；登入、我的有影儀表板、管理、搜尋結果與本頁不載入。瀏覽器送出「不要追蹤」（Do Not Track）或全球隱私控制（GPC）訊號時，也不會載入。</p>
         <p>本站自訂事件只記錄連結網域、頁面類型、頻道編號或 YouTube 影片編號，不記錄搜尋字詞、帳號或 Email。Google Analytics 預設仍會收集頁面網址與標題等瀏覽資訊。</p>
+        <p>彙整後的數字公開在<Link href="/observe" className="text-brand-700 underline underline-offset-2 dark:text-brand-400">本站流量</Link>。</p>
       </article>
       <OptOutPanel />
     </section>

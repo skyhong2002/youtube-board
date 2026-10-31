@@ -18,6 +18,7 @@ import {
     VocabularyMethod,
 } from "@/components/MethodNotes";
 import { inlineLink } from "@/components/method/styles";
+import { ObserveMethod } from "@/components/method/observe";
 import { pageMetadata } from "@/lib/seo";
 import { COMMENTS_PUBLISHED } from "@/lib/comments-launch";
 export const metadata = pageMetadata({ title: "資料來源與計算方式", description: "有影儀表板的資料來源、觀測範圍與計算方式：頻道、影片、直播、AI 議題、頻道分類與共同標籤的每個數字怎麼來、有哪些限制。", path: "/about" });
@@ -37,6 +38,7 @@ const GROUPS: Array<{ id: string; title: string; pages?: Array<[string, string]>
     { id: "mayor", title: "地方選戰", pages: [["/mayor", "選戰"]], body: <MayorMethod /> },
     ...(COMMENTS_PUBLISHED ? [{ id: "comments", title: "留言", body: <CommentMethod /> }] : []),
     { id: "boards", title: "自訂看板", pages: [["/boards", "我的看板"]], body: <BoardsMethod /> },
+    { id: "observe", title: "本站流量", pages: [["/observe", "本站流量"], ["/observe/opt-out", "停用網站分析"]], body: <ObserveMethod /> },
     {
         id: "about",
         title: "關於有影儀表板",
