@@ -8,12 +8,21 @@ asserted identical.
 
 Service account `tag-observe-analytics-reader@skys-gemini-api.iam.gserviceaccount.com` (reused from tag.observe.tw).
 A one-off probe with `jobs/src/google-analytics.ts`, run as root on the host, printed only statuses and counts:
-GA4 Data API runReport, Realtime and Search Console searchAnalytics for `https://youtube.observe.tw/` all returned 200 (no rows yet).
+GA4 Data API runReport, Realtime and Search Console searchAnalytics for `https://youtube.observe.tw/` all returned
+HTTP 200 with zero rows (about 17:50Z). That is **access granted, no data yet**, not an access failure. A permission
+or API failure would surface as `Google API HTTP 4xx/5xx` and fail the run.
 
-GA receipt: one browser visit (Playwright Chromium, normal UA, webdriver hidden; sent to production GA on purpose)
-sent `page_view` and `web_vital` to `www.google-analytics.com/g/collect` with `tid=G-X2G1PLNP7K`, fixed `dt=有影儀表板`, and no
-CSP errors. The GA Realtime API then reported `page_view` 2, `web_vital` 2, `session_start` 2, `first_visit` 1, activeUsers 2.
-So Google receives the hits; the Realtime counts include this test visit.
+GA receipt. The browser side only shows that requests were attempted. The Google readback below is the evidence.
+- **Contains test traffic.** At 17:51Z (twice, 17:51:14 and 17:51:32) a Playwright Chromium visit to `/about` → `/channels`
+  was sent to production GA on purpose. It used a normal UA and hid `navigator.webdriver`, the one-off method tag's
+  analytics doc describes; DNT, GPC and opt-out were all off. Requests seen in the browser: `page_view` and `web_vital` POSTs to
+  `www.google-analytics.com/g/collect` (`tid=G-X2G1PLNP7K`, `dt=有影儀表板`), no CSP errors. Playwright reported those
+  requests as `net::ERR_ABORTED`. That alone does not show they were delivered.
+- **Google readback (evidence):** GA Data API `runRealtimeReport` for property 558497452 at **2026-10-31T17:52:01Z**:
+  `page_view` 2, `web_vital` 2, `session_start` 2, `first_visit` 1, activeUsers 2.
+  The scheduled `site.analytics.live` stored activeUsers 2 / views 2 at 18:01:08Z. All of these counts **include the test
+  visits** and must not be read as organic traffic.
+- No further test traffic is to be generated, and the DNT/GPC/opt-out/automation guards stay as they are.
 
 ## Images (targeted overlays, not the full HEAD)
 
@@ -44,10 +53,22 @@ Build directory `/home/sky/yt-release-sitemetrics-workers` (`cache/`, `sched/`; 
 | ~18:00 | Both updates `completed`, healthy, 0 restarts; `reports.live.build` completed 18:00:13 on the new worker. |
 | 18:00:54 | `release-sitemetrics.py --schedules --execute`: `yb_ts_schedules_v11` → `yb_ts_schedules_v12` (+`site-analytics-sync-v1` `20 * * * *`, `site-analytics-live-v1` `*/2 * * * *`, Asia/Taipei). |
 | 18:01:08 | First scheduled `site.analytics.live`: 2 active users, 2 views. |
-| 18:01:26–40 | Manual `site:analytics:sync --execute`: GA 90-day backfill 49 rows (2026-10-12…13, the short window when GA worked before later builds dropped the ID); GSC 0 rows (property verified today). |
+| 18:01:26–40 | Manual `site:analytics:sync --execute`: GA 90-day backfill 49 rows (2026-10-12…13, the short window when GA worked before later builds dropped the ID); GSC: the read succeeded (run `completed`) and returned 0 rows, because the URL-prefix property was only verified today. That is no data yet, not a failure. |
 
 Old-subnet accounts (`10.0.1.0/24`, kept for 36 definer views) were not granted: the new view is SQL SECURITY INVOKER and
 no live connection uses that subnet.
+
+## Scheduled runs (evidence)
+
+- Scheduler (v12) `site.analytics.live` 2026-10-31T18:00:00Z and 18:02:00Z `completed`, then every 2 minutes; the latest stored
+  `fetched_at` was 18:20:05.028Z.
+- Scheduler `site.analytics.sync` 2026-10-31T18:20:00Z (queue `youtube-board-ts-batch-cache`, runId `schedule-1dc58bec…`) `completed`;
+  `ts_job_runs` 18:20:05.015Z: GA refresh window 2026-10-25…11-01 rows 0 (`backfill:false`), GSC rows 0 (`backfill:true`).
+  Both reads **succeeded without data**: GA has not yet processed 2026-11-01, and the new GSC property has no data yet. While GSC
+  stays empty, each run requests the full 90-day backfill again (cheap, read-only) until rows appear.
+- Manual `site.analytics.live` was not run: the scheduled job covers it, and a second writer for the same workflow is avoided.
+- Public API 18:20:35Z: `updatedAt` 2026-10-31T18:20:05.013Z, `live` {fetchedAt 18:20:05.028Z, activeUsers 2, views 2}. The live
+  figures are inside the 30-minute window of the 17:51Z test visits, so they **include test traffic**. `search` and `vitals` are null.
 
 ## After
 
