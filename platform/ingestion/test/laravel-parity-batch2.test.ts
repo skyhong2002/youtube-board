@@ -171,11 +171,12 @@ describe('live polling (youtube.live.poll / youtube.tvbs.live.poll)', () => {
     expect((await livePollingJob(ctx(nine.db, noApi, false), { limit: 50 })).wouldCallApi).toBe(false);
     expect(nine.calls[0]!.sql).toContain('(v.mtime IS NULL OR v.mtime < ?)'); expect(nine.calls[0]!.sql).toContain('v.scheduledStartTime < ?');
     expect(nine.calls[0]!.sql).toContain('(v.del_flag IS NULL OR v.del_flag < 1)'); expect(nine.calls[0]!.sql).toMatch(/ORDER BY v\.mtime, v\.videoId LIMIT 50$/);
-    expect(nine.calls[0]!.params).toEqual(['2026-10-12 09:49:00', at]);
+    // Upcoming streams are due 30 minutes before their scheduled start (early starts), not only after it.
+    expect(nine.calls[0]!.params).toEqual(['2026-10-12 09:49:00', '2026-10-12 10:30:00']);
     expect((await livePollingJob(ctx(fakeDb(() => rows(10)).db, noApi, false), { limit: 50 })).wouldCallApi).toBe(true);
     const tvbs = fakeDb(() => rows(30));
     const preview = await livePollingJob(ctx(tvbs.db, noApi, false), { tvbs: true, limit: 20 });
-    expect(preview).toMatchObject({ wouldCallApi: true, selected: 20 }); expect(tvbs.calls[0]!.params).toEqual(['2026-10-12 09:59:20', at]);
+    expect(preview).toMatchObject({ wouldCallApi: true, selected: 20 }); expect(tvbs.calls[0]!.params).toEqual(['2026-10-12 09:59:20', '2026-10-12 10:30:00']);
   });
 
   it('raises max_current only above the stored maximum and keeps the day log owner', async () => {

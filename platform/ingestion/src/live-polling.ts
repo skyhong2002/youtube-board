@@ -24,14 +24,17 @@ export async function publishLiveDetails(ctx: Pick<SourceJobContext, 'db' | 'now
   }
   await update(ctx.db, liveTable, { pk: row.pk }, values);
 }
+/** How long before scheduledStartTime an upcoming stream is polled (streams often start early). */
+export const UPCOMING_LEAD_MS = 30 * 60000;
 export async function livePollingJob(ctx: SourceJobContext, input: { videoId?: string; limit: number; intervalMinutes?: number; tvbs?: boolean; staleSeconds?: number }) {
   const interval = input.intervalMinutes ?? 11, liveTable = input.tvbs ? 'urt_video_live_tvbs' : 'urt_video_live', job = input.tvbs ? 'youtube.tvbs.live.poll' : 'youtube.live.poll';
   const delay = input.tvbs ? (input.staleSeconds ?? 40) * 1000 : interval * 60000;
   if (!Number.isInteger(delay) || delay < 10000 || delay > 14400000) throw new Error('Invalid live interval');
   if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 50 || !Number.isInteger(interval) || interval < 1 || interval > 240) throw new Error('Invalid live polling caps');
   // Laravel LivePollingPreview / TvbsLivePollingPreview: strict cutoffs, del_flag NULL or < 1, a fixed 50-row legacy batch
-  // (the threshold counts that batch), then the first `limit` rows are polled.
-  const [batch] = await ctx.db.query<RowDataPacket[]>(input.videoId ? `SELECT * FROM ${liveTable} WHERE BINARY videoId = BINARY ? LIMIT 1` : `SELECT v.* FROM ${liveTable} v WHERE (v.mtime IS NULL OR v.mtime < ?) AND v.actualEndTime IS NULL AND (v.scheduledStartTime IS NULL OR v.scheduledStartTime < ?) AND (v.del_flag IS NULL OR v.del_flag < 1) ORDER BY v.mtime, v.videoId LIMIT 50`, input.videoId ? [input.videoId] : [taipeiSql(new Date(ctx.now.getTime() - delay)), taipeiSql(ctx.now)]);
+  // (the threshold counts that batch), then the first `limit` rows are polled. Unlike Laravel, upcoming streams become due
+  // UPCOMING_LEAD_MS before their scheduled start, so a stream that goes live early is picked up within one interval.
+  const [batch] = await ctx.db.query<RowDataPacket[]>(input.videoId ? `SELECT * FROM ${liveTable} WHERE BINARY videoId = BINARY ? LIMIT 1` : `SELECT v.* FROM ${liveTable} v WHERE (v.mtime IS NULL OR v.mtime < ?) AND v.actualEndTime IS NULL AND (v.scheduledStartTime IS NULL OR v.scheduledStartTime < ?) AND (v.del_flag IS NULL OR v.del_flag < 1) ORDER BY v.mtime, v.videoId LIMIT 50`, input.videoId ? [input.videoId] : [taipeiSql(new Date(ctx.now.getTime() - delay)), taipeiSql(new Date(ctx.now.getTime() + UPCOMING_LEAD_MS))]);
   const rows = batch.slice(0, input.limit);
   // Legacy get_live.php exits below ten due streams unless one video is named; the TVBS poller polls any due row.
   const wouldCallApi = rows.length > 0 && (!!input.tvbs || !!input.videoId || batch.length >= 10);
