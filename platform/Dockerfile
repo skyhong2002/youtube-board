@@ -11,6 +11,11 @@ COPY platform/notifications/package.json notifications/package.json
 RUN npm ci
 COPY platform/ ./
 ENV NEXT_TELEMETRY_DISABLED=1
+# Next inlines NEXT_PUBLIC_* at build; without it the bundle keeps GA off whatever the
+# runtime env says. Public GA4 measurement ID (docs/analytics.md), not a secret.
+# `--build-arg NEXT_PUBLIC_GA_ID=` builds a GA-disabled image.
+ARG NEXT_PUBLIC_GA_ID=G-X2G1PLNP7K
+ENV NEXT_PUBLIC_GA_ID=$NEXT_PUBLIC_GA_ID
 # Dynamic pages are built without touching any database or provider.
 RUN mkdir -p web/public && npm run typecheck && npx tsc -p runtime/tsconfig.json && npm run build --workspace=@youtube-board/web
 

@@ -98,3 +98,8 @@ test('SiteAnalytics loads gtag only through the trusted bundle: one config, no i
  assert.doesNotMatch(code,/document\.title|location\.search|location\.hash/);
  const layout=source('src/app/layout.tsx');assert.match(layout,/<SiteAnalytics \/>/);assert.doesNotMatch(layout,/cookies\(|headers\(/);
 });
+test('the release image inlines the public measurement ID at next build',()=>{
+ const docker=source('../Dockerfile');
+ const arg=docker.indexOf(`ARG NEXT_PUBLIC_GA_ID=${PUBLIC_GA_ID}`),env=docker.indexOf('ENV NEXT_PUBLIC_GA_ID=$NEXT_PUBLIC_GA_ID'),build=docker.indexOf('npm run build --workspace=@youtube-board/web');
+ assert.ok(arg>=0&&env>arg&&build>env,'Dockerfile must set NEXT_PUBLIC_GA_ID before the web build, or the bundle ships with GA off');
+});
