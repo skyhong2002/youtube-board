@@ -1,8 +1,10 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { RowDataPacket } from 'mysql2/promise';
 import { parsePayload } from '../../shared/channel-admin.js';
+import { clearItemBackoff, recordItemBackoff } from './backoff.js';
 import { cap, isLiveCandidate, publishUploads } from './channel-jobs.js';
 import { taipeiSql, upsert } from './legacy-db.js';
+import { fetchPlaylistFeed, PLAYLIST_FEED_CAP, PlaylistFeedError, type PlaylistFeed } from './playlist-feed.js';
 import { YoutubeError } from './quota.js';
 import type { SourceJobContext } from './video-statistics.js';
 import type { PlaylistItem } from './youtube.js';
@@ -17,9 +19,14 @@ const REQUEST_PENDING_LIMIT = 100;
 /** A channel requested within this window is not requested again, whatever the outcome. Only the newest 1,000 requests are
  * read: with at most 100 pending, a day with more than 1,000 answered add-channel requests is not expected. */
 const REQUEST_HOLD = 'INTERVAL 1 DAY';
+/** The quota-free feed is read every run; the one-unit API read only when the feed failed or may be cut off, at most hourly. */
+const API_HOLD_MS = 3600000;
+const API_HOLD_WORKFLOW = 'youtube.live.playlist.api';
+/** ts_youtube_item_backoff.video_id is VARCHAR(32). */
+const holdKey = (playlistId: string) => playlistId.length <= 32 ? playlistId : createHash('sha256').update(playlistId).digest('base64url').slice(0, 32);
 
 type Applied = { videoId: string; outcome: 'restored' } | { videoId: string; outcome: 'published'; uId: number; live: PlaylistItem['liveBroadcastContent'] } | { videoId: string; outcome: 'channel-requested'; channelId: string };
-type Skipped = { videoId: string; reason: 'retired-by-poller' | 'retired' | 'unavailable' | 'retired-channel' | 'request-queue-full'; channelId?: string };
+type Skipped = { videoId: string; reason: 'retired-by-poller' | 'retired' | 'unavailable' | 'retired-channel' | 'request-queue-full' | 'backoff'; channelId?: string };
 const alive = (row: RowDataPacket) => row.del_flag === null || Number(row.del_flag) < 1;
 
 /**
@@ -40,7 +47,7 @@ async function recentChannelRequests(db: SourceJobContext['db']) {
 /**
  * 加入直播: an administrator lists live streams the discovery sweeps missed in a public playlist of our channel, and every run
  * makes each listed video part of the live tracking. Everything in the playlist is trusted. Items stay until the administrator
- * removes them, so a run over an already-handled list only spends the one-unit playlist read.
+ * removes them, so a run over an already-handled list reads only the feed and the database.
  *
  * - Live row alive: nothing to do (unless urt_video lacks the video, then it is looked up so the display cache has metadata).
  * - Live row retired before live.poll ever read it (del_flag=1, no mtime, the old cleanup race): revived with a fresh ctime,
@@ -50,24 +57,49 @@ async function recentChannelRequests(db: SourceJobContext['db']) {
  *   or retires it if YouTube has none. A video of an unknown channel queues an add-channel request for youtube.channels.admin
  *   (actor `live-playlist`), and a later run publishes the video once the channel is tracked. A retired channel is not re-added.
  *
- * Only the first page is read: the playlist is a short work list that the administrator empties, and `truncated` reports more.
+ * The list comes from the playlist's public feed (no quota, newest 15 entries at most). The API's first page (one unit, up to
+ * `limit` entries) is read instead or as well only when the feed failed or came back full, and then at most once an hour, so a
+ * playlist of more than 15 is still seen whole, an hour late at worst. Lookups that found nothing to do (private or deleted
+ * video, retired channel, full request queue) back off per video (5 minutes doubling to 6 hours), so an item the administrator
+ * has not removed yet costs almost nothing. `truncated` reports a list that may continue beyond what was read.
  */
-export async function livePlaylistJob(ctx: SourceJobContext, input: { playlistId: string; limit: number }) {
+export async function livePlaylistJob(ctx: SourceJobContext, input: { playlistId: string; limit: number; feed?: (playlistId: string) => Promise<PlaylistFeed> }) {
   if (!LIVE_PLAYLIST_ID.test(input.playlistId)) throw new Error('Invalid live playlist');
   cap(input.limit, 50);
   const applied: Applied[] = [], skipped: Skipped[] = [], unchanged: string[] = [], waiting: { videoId: string; channelId: string }[] = [];
-  let listed = 0, malformed = 0, truncated = false;
+  let listed = 0, malformed = 0, truncated = false, source: 'feed' | 'api' | 'feed+api' | 'none' = 'none', feedError: string | undefined, apiError: string | undefined;
   const summary = (stoppedReason?: string) => ({
-    mode: 'execute' as const, playlistId: input.playlistId, listed, malformed, truncated, apiAttempts: ctx.youtube.attemptsMade,
+    mode: 'execute' as const, playlistId: input.playlistId, source, listed, malformed, truncated, apiAttempts: ctx.youtube.attemptsMade, ...(feedError ? { feedError } : {}), ...(apiError ? { apiError } : {}),
     counts: { unchanged: unchanged.length, restored: applied.filter(a => a.outcome === 'restored').length, published: applied.filter(a => a.outcome === 'published').length, requested: applied.filter(a => a.outcome === 'channel-requested').length, waiting: waiting.length, skipped: skipped.length },
     applied, skipped, unchanged, waiting, ...(stoppedReason ? { stoppedReason } : {}),
   });
-  if (!ctx.execute) return { mode: 'dry-run' as const, playlistId: input.playlistId, listed, malformed, truncated, apiAttempts: 0, applied, skipped, unchanged, waiting };
+  if (!ctx.execute) return { mode: 'dry-run' as const, playlistId: input.playlistId, source, listed, malformed, truncated, apiAttempts: 0, applied, skipped, unchanged, waiting };
 
-  let page: Awaited<ReturnType<SourceJobContext['youtube']['playlistVideoIds']>>;
-  try { page = await ctx.youtube.playlistVideoIds(input.playlistId, input.limit); }
-  catch (error) { if (error instanceof YoutubeError) return summary(error.code); throw error; }
-  const ids = page.videoIds; listed = ids.length; malformed = page.malformed; truncated = page.nextPageToken !== null;
+  let feedIds: string[] | null = null;
+  try { const feed = await (input.feed ?? fetchPlaylistFeed)(input.playlistId); feedIds = feed.videoIds; truncated = feed.entries >= PLAYLIST_FEED_CAP; source = 'feed'; }
+  catch (error) { if (!(error instanceof PlaylistFeedError)) throw error; feedError = error.reason; }
+  let ids = feedIds ?? [];
+  if (feedIds === null || truncated) {
+    const [held] = await ctx.db.query<RowDataPacket[]>('SELECT 1 FROM ts_youtube_item_backoff WHERE workflow = ? AND video_id = ? AND retry_after > ?', [API_HOLD_WORKFLOW, holdKey(input.playlistId), taipeiSql(ctx.now)]);
+    if (held.length) { if (feedIds === null) return summary('feed-' + feedError); }
+    else {
+      // Held before the call, so a failing API is not retried every five minutes either.
+      await ctx.assertOwnership();
+      await ctx.db.execute('INSERT INTO ts_youtube_item_backoff (workflow, video_id, failures, retry_after, reason, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE failures = VALUES(failures), retry_after = VALUES(retry_after), reason = VALUES(reason), updated_at = VALUES(updated_at)', [API_HOLD_WORKFLOW, holdKey(input.playlistId), 1, taipeiSql(new Date(ctx.now.getTime() + API_HOLD_MS)), feedIds === null ? 'feed-failed' : 'feed-full', taipeiSql(ctx.now)]);
+      try {
+        const page = await ctx.youtube.playlistVideoIds(input.playlistId, input.limit);
+        ids = [...page.videoIds, ...ids.filter(videoId => !page.videoIds.includes(videoId))];
+        malformed = page.malformed; truncated = page.nextPageToken !== null; source = feedIds === null ? 'api' : 'feed+api';
+      } catch (error) {
+        if (!(error instanceof YoutubeError)) throw error;
+        if (feedIds === null) return summary(error.code);
+        apiError = error.code;
+      }
+    }
+  }
+  // `limit` bounds the work of a run (and keeps one videos.list batch within 50), whichever source the list came from.
+  if (ids.length > input.limit) { ids = ids.slice(0, input.limit); truncated = true; }
+  listed = ids.length;
   if (!ids.length) return summary();
 
   const [liveRows] = await ctx.db.query<RowDataPacket[]>('SELECT pk, videoId, del_flag, mtime FROM urt_video_live WHERE videoId IN (?)', [ids]);
@@ -77,7 +109,7 @@ export async function livePlaylistJob(ctx: SourceJobContext, input: { playlistId
   // uploads sweep writes exist, so a publish interrupted between them is completed by the next run.
   const scheduled = new Set(scheduleRows.map(row => String(row.videoId)));
   const stored = new Set(videoRows.map(row => String(row.videoId)).filter(videoId => scheduled.has(videoId)));
-  const lookup: string[] = [];
+  let lookup: string[] = [];
   for (const videoId of ids) {
     const rows = liveRows.filter(row => String(row.videoId) === videoId);
     if (!rows.length) { lookup.push(videoId); continue; }
@@ -92,6 +124,15 @@ export async function livePlaylistJob(ctx: SourceJobContext, input: { playlistId
     if (!stored.has(videoId)) lookup.push(videoId);
   }
   if (!lookup.length) return summary();
+
+  /** Videos with a backoff row: held ones are not looked up again yet; the others are cleared once handled. */
+  const [backoffRows] = await ctx.db.query<RowDataPacket[]>('SELECT video_id, retry_after > ? AS held FROM ts_youtube_item_backoff WHERE workflow = ? AND video_id IN (?)', [taipeiSql(ctx.now), LIVE_PLAYLIST_JOB, lookup]);
+  const backedOff = new Set(backoffRows.map(row => String(row.video_id))), held = new Set(backoffRows.filter(row => Number(row.held) === 1).map(row => String(row.video_id)));
+  for (const videoId of lookup.filter(id => held.has(id))) skipped.push({ videoId, reason: 'backoff' });
+  lookup = lookup.filter(id => !held.has(id));
+  if (!lookup.length) return summary();
+  const backoff = async (entry: Skipped) => { skipped.push(entry); await ctx.assertOwnership(); await recordItemBackoff(ctx.db, LIVE_PLAYLIST_JOB, entry.videoId, entry.reason, ctx.now); };
+  const done = async (entry: Applied) => { applied.push(entry); if (backedOff.has(entry.videoId)) { await ctx.assertOwnership(); await clearItemBackoff(ctx.db, LIVE_PLAYLIST_JOB, entry.videoId); } };
 
   let found: PlaylistItem[];
   try { found = await ctx.youtube.videoUploads(lookup); }
@@ -112,7 +153,7 @@ export async function livePlaylistJob(ctx: SourceJobContext, input: { playlistId
   let requests: Awaited<ReturnType<typeof recentChannelRequests>> | null = null;
   for (const videoId of lookup) {
     const item = byVideo.get(videoId);
-    if (!item) { skipped.push({ videoId, reason: 'unavailable' }); continue; }
+    if (!item) { await backoff({ videoId, reason: 'unavailable' }); continue; }
     const channelId = item.channelId, uId = channels.get(channelId);
     if (typeof uId === 'number') {
       await publishUploads(ctx, uId, [item]);
@@ -120,21 +161,21 @@ export async function livePlaylistJob(ctx: SourceJobContext, input: { playlistId
         await ctx.assertOwnership();
         await upsert(ctx.db, 'urt_video_live', { videoId }, { ctime: taipeiSql(ctx.now), publishedAt: taipeiSql(new Date(item.publishedAt)), u_id: uId });
       }
-      applied.push({ videoId, outcome: 'published', uId, live: item.liveBroadcastContent });
+      await done({ videoId, outcome: 'published', uId, live: item.liveBroadcastContent });
       continue;
     }
     // Same refusal youtube.channels.admin gives (CHANNEL_RETIRED): a retired channel is not brought back from here.
-    if (uId === null) { skipped.push({ videoId, reason: 'retired-channel', channelId }); continue; }
+    if (uId === null) { await backoff({ videoId, reason: 'retired-channel', channelId }); continue; }
     requests ??= await recentChannelRequests(ctx.db);
     if (requests.sources.has(channelId)) { waiting.push({ videoId, channelId }); continue; }
-    if (requests.pending >= REQUEST_PENDING_LIMIT) { skipped.push({ videoId, reason: 'request-queue-full', channelId }); continue; }
+    if (requests.pending >= REQUEST_PENDING_LIMIT) { await backoff({ videoId, reason: 'request-queue-full', channelId }); continue; }
     // Stored exactly as the web stores a request: the parsed payload, whose source is the bare channel id.
     const payload = parsePayload('add-channel', { source: `https://www.youtube.com/channel/${channelId}`, tags: [] });
     if (!payload) throw new Error('Invalid add-channel request');
     await ctx.assertOwnership();
     await ctx.db.execute("INSERT INTO ts_channel_admin_requests (request_id, kind, actor, payload, status, created_at) VALUES (?, ?, ?, ?, 'pending', UTC_TIMESTAMP())", [randomUUID(), payload.kind, LIVE_PLAYLIST_ACTOR, JSON.stringify(payload)]);
     requests.sources.add(channelId); requests.pending++;
-    applied.push({ videoId, outcome: 'channel-requested', channelId });
+    await done({ videoId, outcome: 'channel-requested', channelId });
   }
   return summary();
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { livePlaylistJob, LIVE_PLAYLIST_ACTOR } from '../src/live-playlist.js';
+import { PlaylistFeedError } from '../src/playlist-feed.js';
 import { YoutubeError } from '../src/quota.js';
 import type { SourceJobContext } from '../src/video-statistics.js';
 import type { PlaylistItem } from '../src/youtube.js';
@@ -15,9 +16,11 @@ function item(videoId: string, channelId: string, live: PlaylistItem['liveBroadc
 }
 
 /** A small stateful fake of the tables the job reads and writes, answering only the statements it issues. */
-function harness(state: { playlist: string[]; live?: Row[]; videos?: string[]; schedules?: string[]; channels?: Row[]; requests?: Row[]; found?: PlaylistItem[]; playlistError?: YoutubeError; lookupError?: YoutubeError; execute?: boolean }) {
+function harness(state: { playlist: string[]; live?: Row[]; videos?: string[]; schedules?: string[]; channels?: Row[]; requests?: Row[]; found?: PlaylistItem[]; playlistError?: YoutubeError; lookupError?: YoutubeError; execute?: boolean; feed?: string[] | PlaylistFeedError; apiPage?: { videoIds: string[]; nextPageToken: string | null }; backoff?: Row[] }) {
   const calls: Call[] = [], live = (state.live ?? []).map(row => ({ ...row })), videos = new Set(state.videos ?? []), schedules = new Set(state.schedules ?? state.videos ?? []), requests = (state.requests ?? []).map(row => ({ ...row }));
-  const api = { playlist: 0, lookups: [] as string[][] };
+  const api = { playlist: 0, feed: 0, lookups: [] as string[][], before: 0 };
+  /** ts_youtube_item_backoff, keyed workflow|video_id; retry_after in Taipei time like taipeiSql. */
+  const backoff = new Map<string, Row>((state.backoff ?? []).map(row => [row.workflow + '|' + row.video_id, { ...row }]));
   const answer = async (raw: string, params: unknown[] = []): Promise<unknown> => {
     const sql = raw.replace(/\s+/g, ' ').trim(); calls.push({ sql, params });
     const ids = (params[0] ?? []) as string[];
@@ -25,6 +28,11 @@ function harness(state: { playlist: string[]; live?: Row[]; videos?: string[]; s
     if (sql.startsWith('SELECT videoId FROM urt_video WHERE')) return [...videos].filter(id => ids.includes(id)).map(videoId => ({ videoId }));
     if (sql.startsWith('SELECT videoId FROM urt_video_schedule WHERE')) return [...schedules].filter(id => ids.includes(id)).map(videoId => ({ videoId }));
     if (sql.startsWith('UPDATE urt_video_live SET del_flag = NULL')) { const row = live.find(r => r.pk === params[1] && r.del_flag === 1 && r.mtime === null); if (row) { row.del_flag = null; row.ctime = params[0]; } return { affectedRows: row ? 1 : 0 }; }
+    if (sql.startsWith('SELECT 1 FROM ts_youtube_item_backoff')) { const row = backoff.get(params[0] + '|' + params[1]); return row && String(row.retry_after) > String(params[2]) ? [{ 1: 1 }] : []; }
+    if (sql.startsWith('SELECT video_id, retry_after > ? AS held FROM ts_youtube_item_backoff')) return [...backoff.values()].filter(row => row.workflow === params[1] && (params[2] as string[]).includes(String(row.video_id))).map(row => ({ video_id: row.video_id, held: String(row.retry_after) > String(params[0]) ? 1 : 0 }));
+    if (sql.startsWith('SELECT failures FROM ts_youtube_item_backoff')) { const row = backoff.get(params[0] + '|' + params[1]); return row ? [{ failures: row.failures }] : []; }
+    if (sql.startsWith('INSERT INTO ts_youtube_item_backoff')) { backoff.set(params[0] + '|' + params[1], { workflow: params[0], video_id: params[1], failures: params[2], retry_after: params[3], reason: params[4] }); return { affectedRows: 1 }; }
+    if (sql.startsWith('DELETE FROM ts_youtube_item_backoff')) { backoff.delete(params[0] + '|' + params[1]); return { affectedRows: 1 }; }
     if (sql.startsWith('SELECT u_id, youtube_id, flag_del FROM urt_channel')) return (state.channels ?? []).filter(row => ids.includes(String(row.youtube_id)));
     if (sql.startsWith("SELECT payload, result FROM ts_channel_admin_requests WHERE kind = 'add-channel'")) return requests.filter(row => row.kind === 'add-channel' && (row.status === 'pending' || row.recent));
     if (sql.startsWith('SELECT COUNT(*) AS n FROM ts_channel_admin_requests')) return [{ n: requests.filter(row => row.status === 'pending').length }];
@@ -45,16 +53,18 @@ function harness(state: { playlist: string[]; live?: Row[]; videos?: string[]; s
   };
   const db = { query: async (sql: string, params?: unknown[]) => [await answer(sql, params)], execute: async (sql: string, params?: unknown[]) => [await answer(sql, params)] };
   const youtube = {
-    get attemptsMade() { return api.playlist + api.lookups.length; },
-    playlistVideoIds: async (playlistId: string) => { expect(playlistId).toBe(PLAYLIST); api.playlist++; if (state.playlistError) throw state.playlistError; return { videoIds: state.playlist, malformed: 0, nextPageToken: null }; },
+    /** Per run, like the real client (one per job). */
+    get attemptsMade() { return api.playlist + api.lookups.length - api.before; },
+    playlistVideoIds: async (playlistId: string) => { expect(playlistId).toBe(PLAYLIST); api.playlist++; if (state.playlistError) throw state.playlistError; return { malformed: 0, ...(state.apiPage ?? { videoIds: state.playlist, nextPageToken: null }) }; },
     videoUploads: async (ids: string[]) => { api.lookups.push(ids); if (state.lookupError) throw state.lookupError; return (state.found ?? []).filter(found => ids.includes(found.videoId)); },
   };
   let owned = 0;
   const ctx = { db, youtube, now, clock: () => now, execute: state.execute ?? true, assertOwnership: async () => { owned++; } } as unknown as SourceJobContext;
+  const feed = async (playlistId: string) => { expect(playlistId).toBe(PLAYLIST); api.feed++; const value = state.feed ?? state.playlist; if (value instanceof PlaylistFeedError) throw value; return { videoIds: [...new Set(value)], entries: value.length }; };
   const sqls = (prefix: string) => calls.filter(call => call.sql.startsWith(prefix));
-  return { ctx, calls, sqls, live, videos, requests, api, owned: () => owned };
+  return { ctx, feed, calls, sqls, live, videos, requests, api, backoff, owned: () => owned };
 }
-const run = (h: ReturnType<typeof harness>, limit = 50) => livePlaylistJob(h.ctx, { playlistId: PLAYLIST, limit });
+const run = (h: ReturnType<typeof harness>, limit = 50) => (h.api.before = h.api.playlist + h.api.lookups.length, livePlaylistJob(h.ctx, { playlistId: PLAYLIST, limit, feed: h.feed }));
 
 describe('youtube.live.playlist', () => {
   it('revives a row cleanup retired before its first poll, with a fresh ctime, and spends only the playlist read', async () => {
@@ -62,7 +72,7 @@ describe('youtube.live.playlist', () => {
     const result = await run(h);
     expect(h.live[0]).toMatchObject({ del_flag: null, ctime: at });
     expect(result).toMatchObject({ mode: 'execute', listed: 1, applied: [{ videoId: 'dKGM2rzKRjs', outcome: 'restored' }], skipped: [], counts: { restored: 1 } });
-    expect(h.api.lookups).toEqual([]); expect(result.apiAttempts).toBe(1);
+    expect(h.api.lookups).toEqual([]); expect(result.apiAttempts).toBe(0); expect(result.source).toBe('feed');
     // A second run over the same list is a no-op.
     const again = await run(h);
     expect(again).toMatchObject({ applied: [], unchanged: ['dKGM2rzKRjs'], skipped: [] });
@@ -77,7 +87,8 @@ describe('youtube.live.playlist', () => {
   it('does nothing for an alive row and never calls videos.list when nothing is missing', async () => {
     const h = harness({ playlist: ['Alive123456', 'Alive765432'], videos: ['Alive123456', 'Alive765432'], live: [{ pk: 1, videoId: 'Alive123456', del_flag: null, mtime: null }, { pk: 2, videoId: 'Alive765432', del_flag: 0, mtime: '2026-11-01 11:00:00' }] });
     const result = await run(h);
-    expect(result).toMatchObject({ applied: [], skipped: [], unchanged: ['Alive123456', 'Alive765432'], apiAttempts: 1 });
+    expect(result).toMatchObject({ applied: [], skipped: [], unchanged: ['Alive123456', 'Alive765432'], apiAttempts: 0 });
+    expect(h.api.playlist).toBe(0);
     expect(h.api.lookups).toEqual([]);
     expect(h.calls.filter(call => !call.sql.startsWith('SELECT'))).toEqual([]);
   });
@@ -135,15 +146,54 @@ describe('youtube.live.playlist', () => {
     expect(await run(h)).toMatchObject({ applied: [], skipped: [{ videoId: 'NewCh123456', reason: 'request-queue-full' }] });
     expect(h.sqls('INSERT INTO ts_channel_admin_requests')).toEqual([]);
   });
-  it('never re-adds a retired channel', async () => {
+  it('never re-adds a retired channel, and backs off from looking it up again', async () => {
     const h = harness({ playlist: ['OldCh123456'], channels: [{ u_id: 8, youtube_id: UC_RETIRED, flag_del: 1 }], found: [item('OldCh123456', UC_RETIRED)] });
     expect(await run(h)).toMatchObject({ applied: [], skipped: [{ videoId: 'OldCh123456', reason: 'retired-channel', channelId: UC_RETIRED }] });
-    expect(h.calls.filter(call => !call.sql.startsWith('SELECT'))).toEqual([]);
+    expect(h.calls.filter(call => !call.sql.startsWith('SELECT')).map(call => call.sql.slice(0, 37))).toEqual(['INSERT INTO ts_youtube_item_backoff (']);
+    expect(await run(h)).toMatchObject({ skipped: [{ videoId: 'OldCh123456', reason: 'backoff' }] }); expect(h.api.lookups).toHaveLength(1);
   });
-  it('reports a video YouTube does not serve as unavailable', async () => {
+  it('reports a video YouTube does not serve as unavailable and backs off 5 minutes, doubling', async () => {
     const h = harness({ playlist: ['Private1234'], found: [] });
-    expect(await run(h)).toMatchObject({ applied: [], skipped: [{ videoId: 'Private1234', reason: 'unavailable' }] });
-    expect(h.calls.filter(call => !call.sql.startsWith('SELECT'))).toEqual([]);
+    expect(await run(h)).toMatchObject({ applied: [], skipped: [{ videoId: 'Private1234', reason: 'unavailable' }], apiAttempts: 1 });
+    expect(h.backoff.get('youtube.live.playlist|Private1234')).toMatchObject({ failures: 1, retry_after: '2026-11-01 12:05:00', reason: 'unavailable' });
+    expect(h.sqls('INSERT INTO `')).toEqual([]);
+    // Held: no lookup, nothing written.
+    const held = await run(h);
+    expect(held).toMatchObject({ skipped: [{ videoId: 'Private1234', reason: 'backoff' }], apiAttempts: 0 }); expect(h.api.lookups).toHaveLength(1);
+    // Expired: looked up again, the hold doubles.
+    h.backoff.get('youtube.live.playlist|Private1234')!.retry_after = '2026-11-01 11:59:00';
+    await run(h);
+    expect(h.api.lookups).toHaveLength(2);
+    expect(h.backoff.get('youtube.live.playlist|Private1234')).toMatchObject({ failures: 2, retry_after: '2026-11-01 12:10:00' });
+  });
+  it('clears an expired backoff once the video is handled', async () => {
+    const h = harness({ playlist: ['Live1234567'], channels: [{ u_id: 42, youtube_id: UC_TRACKED, flag_del: null }], found: [item('Live1234567', UC_TRACKED)], backoff: [{ workflow: 'youtube.live.playlist', video_id: 'Live1234567', failures: 3, retry_after: '2026-11-01 11:00:00' }] });
+    expect(await run(h)).toMatchObject({ applied: [{ videoId: 'Live1234567', outcome: 'published' }] });
+    expect(h.backoff.size).toBe(0);
+  });
+  it('reads the API instead of a failed feed, at most hourly', async () => {
+    const h = harness({ playlist: ['Alive123456'], videos: ['Alive123456'], live: [{ pk: 1, videoId: 'Alive123456', del_flag: null, mtime: null }], feed: new PlaylistFeedError('status') });
+    expect(await run(h)).toMatchObject({ source: 'api', feedError: 'status', listed: 1, unchanged: ['Alive123456'], apiAttempts: 1 });
+    expect(h.backoff.get('youtube.live.playlist.api|' + PLAYLIST)).toMatchObject({ retry_after: '2026-11-01 13:00:00', reason: 'feed-failed' });
+    expect(await run(h)).toMatchObject({ source: 'none', listed: 0, stoppedReason: 'feed-status', apiAttempts: 0 });
+    expect(h.api.playlist).toBe(1);
+    // The hold is also taken when the API read fails, so a broken API is not retried every run.
+    const broken = harness({ playlist: [], feed: new PlaylistFeedError('request-failed'), playlistError: new YoutubeError('quota-exhausted') });
+    expect(await run(broken)).toMatchObject({ stoppedReason: 'quota-exhausted' });
+    expect(await run(broken)).toMatchObject({ stoppedReason: 'feed-request-failed' }); expect(broken.api.playlist).toBe(1);
+  });
+  it('adds the API page to a full feed, which may be cut off at 15, at most hourly', async () => {
+    const feed = Array.from({ length: 15 }, (_, i) => `Feed${String(i).padStart(7, '0')}`), extra = 'Beyond15000';
+    const all = [...feed, extra];
+    const h = harness({ playlist: feed, videos: all, live: all.map((videoId, pk) => ({ pk, videoId, del_flag: null, mtime: null })), apiPage: { videoIds: all, nextPageToken: null } });
+    expect(await run(h)).toMatchObject({ source: 'feed+api', listed: 16, truncated: false, apiAttempts: 1 });
+    expect(h.backoff.get('youtube.live.playlist.api|' + PLAYLIST)).toMatchObject({ reason: 'feed-full' });
+    // Within the hour: the feed alone, reported as possibly cut off.
+    expect(await run(h)).toMatchObject({ source: 'feed', listed: 15, truncated: true, apiAttempts: 0 });
+    // A failing API read does not stop the feed's list from being handled.
+    const failing = harness({ playlist: feed, videos: feed, live: feed.map((videoId, pk) => ({ pk, videoId, del_flag: null, mtime: null })), playlistError: new YoutubeError('quota-daily') });
+    expect(await run(failing)).toMatchObject({ source: 'feed', apiError: 'quota-daily', listed: 15 });
+    expect((await run(failing)).unchanged).toHaveLength(15);
   });
   it('looks up an alive or revived row whose video metadata is missing', async () => {
     const h = harness({ playlist: ['Bare1234567', 'Revive12345'], channels: [{ u_id: 42, youtube_id: UC_TRACKED, flag_del: null }], live: [{ pk: 1, videoId: 'Bare1234567', del_flag: null, mtime: null }, { pk: 2, videoId: 'Revive12345', del_flag: 1, mtime: null }], found: [item('Bare1234567', UC_TRACKED), item('Revive12345', UC_TRACKED, 'upcoming')] });
@@ -164,22 +214,35 @@ describe('youtube.live.playlist', () => {
     expect(h.api.lookups).toHaveLength(1);
   });
 
+  it('counts duplicate feed entries toward the cap and bounds the work by limit', async () => {
+    const dup = Array.from({ length: 14 }, (_, i) => `Dupe${String(i).padStart(7, '0')}`);
+    const h = harness({ playlist: [...dup, dup[0]!], videos: dup, live: dup.map((videoId, pk) => ({ pk, videoId, del_flag: null, mtime: null })), apiPage: { videoIds: dup, nextPageToken: null } });
+    expect(await run(h)).toMatchObject({ source: 'feed+api', listed: 14 });
+    const many = Array.from({ length: 50 }, (_, i) => `Api${String(i).padStart(8, '0')}`), feed = Array.from({ length: 15 }, (_, i) => `Feed${String(i).padStart(7, '0')}`);
+    const big = harness({ playlist: feed, apiPage: { videoIds: many, nextPageToken: null }, found: [] });
+    const result = await run(big);
+    expect(result).toMatchObject({ listed: 50, truncated: true }); expect(big.api.lookups[0]).toHaveLength(50);
+    const small = harness({ playlist: ['Private1234', 'Private5678'], found: [] });
+    expect(await run(small, 1)).toMatchObject({ listed: 1, truncated: true }); expect(small.api.lookups).toEqual([['Private1234']]);
+  });
   it('surfaces YouTube failures as a stopped run instead of swallowing them', async () => {
-    const quota = harness({ playlist: ['x'], playlistError: new YoutubeError('quota-exhausted') });
+    const quota = harness({ playlist: ['x'], feed: new PlaylistFeedError('invalid-feed'), playlistError: new YoutubeError('quota-exhausted') });
     expect(await run(quota)).toMatchObject({ stoppedReason: 'quota-exhausted', applied: [], listed: 0 });
-    expect(quota.calls).toEqual([]);
-    const missing = harness({ playlist: [], playlistError: new YoutubeError('request-failed', 404, 'playlistNotFound') });
+    expect(quota.calls.map(call => call.sql.slice(0, 40))).toEqual(['SELECT 1 FROM ts_youtube_item_backoff WH', 'INSERT INTO ts_youtube_item_backoff (wor']);
+    const missing = harness({ playlist: [], feed: new PlaylistFeedError('status'), playlistError: new YoutubeError('request-failed', 404, 'playlistNotFound') });
     expect(await run(missing)).toMatchObject({ stoppedReason: 'request-failed' });
     const lookup = harness({ playlist: ['dKGM2rzKRjs', 'NewCh123456'], live: [{ pk: 7, videoId: 'dKGM2rzKRjs', del_flag: 1, mtime: null }], lookupError: new YoutubeError('quota-daily') });
     expect(await run(lookup)).toMatchObject({ stoppedReason: 'quota-daily', applied: [{ videoId: 'dKGM2rzKRjs', outcome: 'restored' }] });
-    await expect(run(harness({ playlist: ['x'], playlistError: new Error('db down') as YoutubeError }))).rejects.toThrow('db down');
+    await expect(run(harness({ playlist: ['x'], feed: new PlaylistFeedError('status'), playlistError: new Error('db down') as YoutubeError }))).rejects.toThrow('db down');
+    // Only a feed failure falls back; anything else (a shutdown, a bug) propagates.
+    await expect(livePlaylistJob(harness({ playlist: [] }).ctx, { playlistId: PLAYLIST, limit: 50, feed: async () => { throw new Error('aborted'); } })).rejects.toThrow('aborted');
   });
   it('checks ownership before every write, spends nothing in a dry run, and validates its input', async () => {
     const h = harness({ playlist: ['dKGM2rzKRjs', 'NewCh123456'], live: [{ pk: 7, videoId: 'dKGM2rzKRjs', del_flag: 1, mtime: null }], found: [item('NewCh123456', UC_NEW)] });
     await run(h);
     expect(h.owned()).toBeGreaterThanOrEqual(2);
     const dry = harness({ playlist: ['dKGM2rzKRjs'], execute: false });
-    expect(await run(dry)).toMatchObject({ mode: 'dry-run', apiAttempts: 0 }); expect(dry.api.playlist).toBe(0); expect(dry.calls).toEqual([]);
+    expect(await run(dry)).toMatchObject({ mode: 'dry-run', apiAttempts: 0 }); expect(dry.api.playlist + dry.api.feed).toBe(0); expect(dry.calls).toEqual([]);
     await expect(livePlaylistJob(h.ctx, { playlistId: 'UUabcdefghijkl', limit: 50 })).rejects.toThrow('Invalid live playlist');
     await expect(livePlaylistJob(h.ctx, { playlistId: PLAYLIST, limit: 51 })).rejects.toThrow();
   });

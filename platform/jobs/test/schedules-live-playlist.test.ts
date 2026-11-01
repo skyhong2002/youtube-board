@@ -37,11 +37,11 @@ describe('live playlist schedule file', () => {
     expect(youtubeResultState({ ...base, stoppedReason: 'request-failed' })).toBe('failed');
     expect(youtubeResultState({ ...base, stoppedReason: 'quota-exhausted' })).toBe('skipped');
   });
-  it('holds only the table rights the job needs: no delete, and only INSERT on the request queue', () => {
+  it('holds only the table rights the job needs: delete only on its backoff rows, and only INSERT on the request queue', () => {
     const { tables } = workerProfile('youtube.live.playlist');
     expect(tables).toEqual({
       urt_channel: ['SELECT'], urt_video: ['INSERT', 'SELECT', 'UPDATE'], urt_video_schedule: ['INSERT', 'SELECT', 'UPDATE'], urt_video_live: ['INSERT', 'SELECT', 'UPDATE'],
-      ts_channel_admin_requests: ['INSERT', 'SELECT'], ts_job_runs: ['INSERT', 'SELECT', 'UPDATE'], ingestion_youtube_quota_daily: ['INSERT', 'SELECT', 'UPDATE'],
+      ts_channel_admin_requests: ['INSERT', 'SELECT'], ts_youtube_item_backoff: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'], ts_job_runs: ['INSERT', 'SELECT', 'UPDATE'], ingestion_youtube_quota_daily: ['INSERT', 'SELECT', 'UPDATE'],
     });
   });
 });

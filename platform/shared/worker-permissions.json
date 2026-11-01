@@ -1866,6 +1866,12 @@
           "SELECT",
           "INSERT"
         ],
+        "ts_youtube_item_backoff": [
+          "SELECT",
+          "INSERT",
+          "UPDATE",
+          "DELETE"
+        ],
         "ts_job_runs": [
           "SELECT",
           "INSERT",
