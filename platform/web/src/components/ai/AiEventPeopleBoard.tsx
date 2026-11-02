@@ -10,18 +10,19 @@ import {mediaSections,peopleSections,type MediaCard,type PersonCard,type Section
 import {Heading,DataNotice,Unavailable,Tabs} from "@/components/ReportUI";
 import {ReportMethod} from "@/components/ReportMethod";
 import {ChannelAvatar} from "@/components/ChannelAvatar";
+import {DescriptionText,citedChannels} from "@/components/ai/DescriptionText";
 
 const NOTES=[
     "版面沿用舊版人物觀點頁：先列人物分析的主體，再依 AI 分類分為支持者、反對者與其他觀點，每位人物一張卡片，列出角色、觀點、強度、描述與引用影片；接著以相同方式列出媒體分析。",
     "引用影片只在識別碼格式有效且屬於生成時來源時連到 YouTube；其他引用保留原始識別碼並標示引用來源狀態。",
 ];
 const Chips=({items}:{items:string[]})=>items.some(Boolean)?<div className="mt-2 flex flex-wrap gap-1.5">{items.filter(Boolean).map((item,i)=><span className={ui.tag} key={i}>{item}</span>)}</div>:null;
-const Description=({text}:{text:string})=>text?<p className="mt-2 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{text}</p>:null;
+const Description=({text,channelOf}:{text:string;channelOf:(videoId:string)=>string|undefined})=>text?<p className="mt-2 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300"><DescriptionText text={text} channelOf={channelOf}/></p>:null;
 function Person({row}:{row:PersonCard}){
     return <article className={ui.panel}>
         <h4 className="text-base font-semibold leading-snug">{row.person}</h4>
         <Chips items={[row.role,row.stance,row.strength&&`強度 ${row.strength}`]}/>
-        <Description text={row.description}/>
+        <Description text={row.description} channelOf={citedChannels(row.videos.map(v=>({id:v.videoId,rawId:v.rawId,media:v.media})))}/>
         {row.videos.length>0&&<ul className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5 text-xs" aria-label="引用影片">{row.videos.map((v,i)=><li className="flex min-w-0 items-center gap-1.5" key={i}>
             <ChannelAvatar avatar={v.source?.channelAvatar} title={v.media} size={16}/>
             {v.videoId?<a className={ui.link} href={`https://www.youtube.com/watch?v=${v.videoId}`} target="_blank" rel="noopener noreferrer">{v.media||"YouTube"} · <span className="tabular-nums">{v.videoId}</span><span className="sr-only">（另開視窗）</span> ↗</a>
@@ -37,7 +38,7 @@ function Media({row}:{row:MediaCard}){
             {id?<Link className="hover:text-brand-700 hover:underline dark:hover:text-brand-400" href={`/channels/${id}`}>{row.media}</Link>:<span>{row.media}</span>}
         </h4>
         <Chips items={[row.stance,row.strength&&`強度 ${row.strength}`]}/>
-        <Description text={row.description}/>
+        <Description text={row.description} channelOf={()=>row.media}/>
     </article>;
 }
 function Group<T>({title,subject,sections,card}:{title:string;subject:string;sections:Section<T>[];card:(row:T,i:number)=>React.ReactNode}){

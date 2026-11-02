@@ -12,6 +12,7 @@ import {ReportMethod} from "@/components/ReportMethod";
 import {eventAnalysisNotes} from "@/components/EventAnalysis";
 import {ChannelSourceLabel,unresolvedSource} from "@/components/ChannelSource";
 import {TopicRelatedVideos} from "@/components/ai/TopicRelatedVideos";
+import {DescriptionText,citedChannels} from "@/components/ai/DescriptionText";
 
 /** The Laravel /ai/events/{id} content and order (逐日事件線, then each summary event with its
  * facts and opinions, then 人物觀點 by supporting/opposing/other), drawn with the site's cards and tags. */
@@ -68,7 +69,7 @@ function People({people}:{people:NonNullable<AiEventData["presentation"]["people
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">{g.rows.map((r,i)=>{const first=r.citations[0];return <article className={ui.panel+" space-y-1.5 text-sm"} key={`${r.person}-${i}`}>
                 <h4 className="font-semibold">{r.person}</h4>
                 {[r.role,r.stance,r.strength].some(Boolean)&&<p className="text-xs text-zinc-600 dark:text-zinc-400">{[r.role,r.stance,r.strength].filter(Boolean).join(" · ")}</p>}
-                {r.description&&<p className="leading-relaxed">{r.description}</p>}
+                {r.description&&<p className="leading-relaxed"><DescriptionText text={r.description} channelOf={citedChannels(r.citations)}/></p>}
                 {first&&<Byline citation={first}>{r.citations.length>1&&<span className="tabular-nums">另 {count(r.citations.length-1)} 則</span>}</Byline>}
             </article>;})}</div>
         </section>):<p className={empty}>人物觀點分析沒有列出人物。</p>}
