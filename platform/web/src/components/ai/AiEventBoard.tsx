@@ -11,6 +11,7 @@ import {Heading,DataNotice,Tabs,Unavailable,SectionHeading} from "@/components/R
 import {ReportMethod} from "@/components/ReportMethod";
 import {eventAnalysisNotes} from "@/components/EventAnalysis";
 import {ChannelSourceLabel,unresolvedSource} from "@/components/ChannelSource";
+import {TopicRelatedVideos} from "@/components/ai/TopicRelatedVideos";
 
 /** The Laravel /ai/events/{id} content and order (逐日事件線, then each summary event with its
  * facts and opinions, then 人物觀點 by supporting/opposing/other), drawn with the site's cards and tags. */
@@ -101,10 +102,12 @@ export async function AiEventBoard({apiPath,title,description,path,search}:{apiP
             </section>
             {p.people&&<People people={p.people}/>}
         </div>}
+        {data.title&&<TopicRelatedVideos dailyId={data.dailyId} title={data.title} path={path} search={search}/>}
         <ReportMethod path={path} description={description} meta={meta} notes={[
             ...eventAnalysisNotes(data),
             "事件摘要、事實與觀點的分類、人物立場與強度都是 AI 對來源影片的歸納，不是編輯查證的結論；事實與觀點後面列出 AI 引用的影片，僅連結本站已核對的影片。",
             "人物觀點卡片列出第一則引用影片，其餘以則數表示；完整引用與媒體觀點見「人物觀點」分頁，所有引用影片見「來源影片牆」。",
+            "「其他頻道相關影片」是規則比對（topic-related-v1），不是 AI 判讀：當天全部頻道的影片，標題同時出現議題人物與事件詞才算，說明欄前 300 字只加權；同一頻道當天多數標題都有的詞視為節目名稱不計；同樣接近兩個議題的影片列為「也可能相關」，不計入數字。可能有誤判或漏算。",
             ...(history?.ok?history.response.data.notes??[]:[]),
         ]}/>
     </>;

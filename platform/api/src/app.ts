@@ -208,6 +208,13 @@ export function buildApp(options: AppOptions = {}) {
             throw new BadQuery('Provide an event name.');
         return service.aiEvent(positiveId(p.id), q.event);
     });
+    register('/ai/days/:id/events/related', (p, q) => {
+        if (typeof q.event !== 'string' || !q.event.trim() || q.event.length > 256)
+            throw new BadQuery('Provide an event name.');
+        const page = q.page === undefined || q.page === '' ? 1 : Number(q.page);
+        if (!Number.isSafeInteger(page) || page < 1 || page > 200) throw new BadQuery('Invalid page.');
+        return service.topicRelated(positiveId(p.id), q.event, page);
+    });
     register('/vocabulary', (_p, q) => vocabulary(reader, q,rankingPools,clock()));
     // Content keywords now originate from the maintained upstream vocabulary.
     register('/keywords', (_p, q) => vocabulary(reader, q,rankingPools,clock()));

@@ -363,6 +363,7 @@ Schema coverage `partial` or `envelope-only` explicitly identifies incomplete fi
 | GET | `/api/v1/ai/events/{id}/wall` | ai · events · id · wall | envelope-only |
 | GET | `/api/v1/ai/events/{id}/history` | ai · events · id · history | envelope-only |
 | GET | `/api/v1/ai/days/{id}/events/history` | ai · days · id · events · history | envelope-only |
+| GET | `/api/v1/ai/days/{id}/events/related` | Rule-matched videos of every channel on the topic's Taipei day (topic-related-v1): a named person in the title plus an event keyword. Not AI output; AI-cited videos are excluded and counted separately. Query: event (topic title), page (30 per page). | envelope-only |
 | GET | `/api/v1/live/days` | live · days | envelope-only |
 | GET | `/api/v1/live/periods` | live · periods | envelope-only |
 | GET | `/api/v1/live/days/{date}` | live · days · date | envelope-only |
@@ -839,6 +840,14 @@ Report is implemented. Only its data/meta envelope is specified in this catalog;
 | `id` (required) | path | {"type":"integer","minimum":1,"maximum":9007199254740991} | Local positive numeric record ID. |
 
 ### /api/v1/ai/days/{id}/events/history
+
+Report is implemented. Only its data/meta envelope is specified in this catalog; route-specific data and query parameter documentation remains incomplete.
+
+| Parameter | In | Schema / bounds | Description |
+| --- | --- | --- | --- |
+| `id` (required) | path | {"type":"integer","minimum":1,"maximum":9007199254740991} | Local positive numeric record ID. |
+
+### /api/v1/ai/days/{id}/events/related
 
 Report is implemented. Only its data/meta envelope is specified in this catalog; route-specific data and query parameter documentation remains incomplete.
 

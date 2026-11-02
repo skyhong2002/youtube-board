@@ -166,6 +166,38 @@ export interface TopicRow {
         event: string;
     }[];
     summary?: TopicSummary;
+    /** Rule-matched videos of other channels on the same Taipei day (api/src/reports/topic-related.ts); home and event reads. */
+    coverage?: TopicCoverage;
+}
+export interface RelatedVideo { videoId: string; channelId: number; channelTitle: string; title: string; publishedAt: string; views: number | null; score: number; matchedTerms: string[] }
+export interface TopicCoverage {
+    status: 'ready' | 'unavailable';
+    ruleVersion: string;
+    window: { from: string; to: string };
+    /** Channels the AI cited. */
+    aiChannels: number;
+    /** Related videos this topic clearly claims, AI-cited videos excluded. */
+    videos: number;
+    /** Distinct channels: AI-cited plus related. */
+    channels: number;
+    networks: number | null;
+    /** Videos that also fit another topic about as well; not counted in `videos`. */
+    possibleVideos: number;
+    /** Share of the AI-cited videos the rule itself matches (calibration). */
+    seedRecall: number | null;
+    top: RelatedVideo[];
+}
+export interface TopicRelatedData {
+    dailyId: number;
+    date: string | null;
+    title: string;
+    coverage: TopicCoverage;
+    terms: { people: string[]; events: string[] };
+    page: number;
+    pageSize: number;
+    rows: RelatedVideo[];
+    possible: RelatedVideo[];
+    possibleTotal: number;
 }
 export interface AiDaysData {
     date: string | null;

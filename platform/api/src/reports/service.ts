@@ -22,13 +22,14 @@ import { keywordWindowCache, type KeywordWindowStore } from './home-keyword-cach
 import { rankingDisplayExclusions } from './keyword-overlay.js';
 import { sql, type SQL } from 'drizzle-orm';
 import { DataQueryFailed, DataSourceUnavailable, type Reader, type Row } from '../db/client.js';
-import type { ChannelData, ChannelRow, ChannelCollection, Collection, HomeData, LiveRow, TagRow, VideoData, VideoRow, VideoCollection, AiDaysData, AiEventData } from '../contracts.js';
+import type { ChannelData, ChannelRow, ChannelCollection, Collection, HomeData, LiveRow, TagRow, VideoData, VideoRow, VideoCollection, AiDaysData, AiEventData, TopicRelatedData } from '../contracts.js';
 import { channel, integer, latest, list, object, tags, text, timestamp, video, taipeiDate, taipeiSql, tagIds } from './normalize.js';
 import { BadQuery, NotFound, page, tagFilter, search, positiveId, idList, dateFilter, bounded,utcPublicationWindow,normalizedIdList } from './query.js';
 import type { Query } from './query.js';
 import { videoTextDigest } from './video-digest.js';
 import { dailyLineage } from './ai-lineage.js';
 import { buildTopics } from './topics.js';
+import { topicRelatedCache, withTopicCoverage, topicCoverage } from './topic-related.js';
 export interface ReportService {
     channels(query?: Query, scope?: ChannelRankingScope): Promise<ChannelCollection>;
     channel(id: number): Promise<ChannelData>;
@@ -38,6 +39,8 @@ export interface ReportService {
     tags(query?: Query): Promise<Collection<TagRow>>;
     aiDays(query?: Query): Promise<AiDaysData>;
     aiEvent(id: number, event?: string): Promise<AiEventData>;
+    /** Rule-matched other-channel videos for one daily topic, 30 per page. */
+    topicRelated(id: number, event: string, page?: number): Promise<TopicRelatedData>;
     home(query?: Query): Promise<HomeData>;
     invalidateKeywordRanking(): void;
 }
@@ -225,6 +228,7 @@ export function reports(reader: Reader, clock: () => Date = () => new Date(), di
         return { rows: rows.slice(offset, offset + limit), total: rows.length, limit, offset };
     };
     const aiDays = async (query: Query = {}) => readAiDaily(reader,query);
+    const relatedDay = topicRelatedCache(reader, clock);
     const api: ReportService = {
         channels: channelsRows, videos: (query={},scope)=>query.keyword===undefined?videoRows(query,scope):cachedKeywordVideos(query,scope,()=>videoRows(query,scope)), live: liveRows, tags: tagRows, aiDays,
         channel: async (id) => {
@@ -257,12 +261,19 @@ export function reports(reader: Reader, clock: () => Date = () => new Date(), di
             return { video: video(r), commentSummary:summarizeVideoComments(comments[0]), durationSeconds: integer(durations[0]?.duration), captionAvailable: caption == null ? null : caption === 'true' || caption === '1', history: [...history.values()].sort((a, b) => a.date.localeCompare(b.date)), liveHistory: [...liveHistory.values()].sort((a, b) => a.time.localeCompare(b.time)) };
         },
         aiEvent: (id,event)=>eventReport(reader,aiDays,id,event),
+        topicRelated: async (id,event,page=1)=>{
+            const days=await aiDays({pk:String(id)});if(days.dailyId!==id||!days.date)throw new NotFound();
+            const topic=days.rows.find(t=>t.title===event);if(!topic)throw new NotFound();
+            const day=await relatedDay(days.rows,days.date),match=day.matches.get(topic.id),pageSize=30;
+            const coverage=topicCoverage(topic,day.status==='ready'?match:undefined,day.tags,day.window);
+            return {dailyId:id,date:days.date,title:topic.title,coverage,terms:match?.terms??{people:[],events:[]},page,pageSize,rows:(match?.primary??[]).slice((page-1)*pageSize,page*pageSize),possible:(match?.possible??[]).slice(0,pageSize),possibleTotal:match?.possible.length??0};
+        },
         /** After an administrator ranking decision: the next home read recomputes keywords. */
         invalidateKeywordRanking(){cachedKeywordWindows.invalidate();cachedHome=homeResultCache();},
         home: () => cachedHome(async () => {
             const [channels, tags, live, days, exploration, totals] = await Promise.all([channelsRows({ limit: '12' }), tagRows({ limit: '20' }).then(v => ({rows:v.rows,status:'available' as const})).catch(error => {if(error?.statusCode===422)return {rows:[],status:'bounded' as const};throw error;}), liveRows({ limit: '20' }), aiDays(), homeExploration(reader, clock(), diagnostic,rankingPools,cachedKeywordWindows,keywordSource), reader.rows(sql `SELECT (SELECT COUNT(*) FROM urt_channel WHERE flag_del IS NULL OR flag_del<1) AS channels,(SELECT COUNT(*) FROM urt_video) AS videos,(SELECT COALESCE(SUM(view_week),0) FROM urt_count) AS weeklyViews,(SELECT COUNT(DISTINCT u_id) FROM urt_video_live WHERE actualEndTime IS NULL AND concurrentViewers>0 AND mtime>=${taipeiSql(new Date(clock().getTime() - 3600000))}) AS liveChannels,(SELECT COALESCE(SUM(concurrentViewers),0) FROM urt_video_live WHERE actualEndTime IS NULL AND concurrentViewers>0 AND mtime>=${taipeiSql(new Date(clock().getTime() - 3600000))}) AS liveViewers`,{operation:'home-summary'})]);
             const t = totals[0] ?? {};
-            return { exploration, summary: { channels: integer(t.channels) ?? 0, videos: integer(t.videos) ?? 0, weeklyViews: integer(t.weeklyViews) ?? 0, liveChannels: integer(t.liveChannels) ?? 0, liveViewers: integer(t.liveViewers) ?? 0 }, channels: channels.rows, tags: tags.rows, tagsStatus:tags.status, live: live.rows, events: days.rows, aiDate: days.date };
+            return { exploration, summary: { channels: integer(t.channels) ?? 0, videos: integer(t.videos) ?? 0, weeklyViews: integer(t.weeklyViews) ?? 0, liveChannels: integer(t.liveChannels) ?? 0, liveViewers: integer(t.liveViewers) ?? 0 }, channels: channels.rows, tags: tags.rows, tagsStatus:tags.status, live: live.rows, events: await withTopicCoverage(relatedDay, days.rows, days.date), aiDate: days.date };
         }),
     };
     return api;

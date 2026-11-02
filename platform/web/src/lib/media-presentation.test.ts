@@ -4,7 +4,7 @@ import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {firstGrapheme,localAvatarSource} from './media-presentation';
 import {ChannelAvatar,avatarWebpSrcSet,nextAvatarStage} from '../components/ChannelAvatar';
-import {VideoThumbnail,settledThumbnailState} from '../components/VideoThumbnail';
+import {VideoThumbnail,settledThumbnailState,thumbnailSources} from '../components/VideoThumbnail';
 import {ImageConfigContext} from 'next/dist/shared/lib/image-config-context.shared-runtime';
 import {imageConfigDefault} from 'next/dist/shared/lib/image-config';
 import config from '../../next.config';
@@ -97,4 +97,9 @@ test('hydration settles only finished requests: lazy unrequested stays pending, 
  assert.equal(settledThumbnailState({complete:false,naturalWidth:0,currentSrc:'https://x/a.jpg'}),null);
  assert.equal(settledThumbnailState({complete:true,naturalWidth:320,currentSrc:'/_next/image?url=a'}),'loaded');
  assert.equal(settledThumbnailState({complete:true,naturalWidth:0,currentSrc:'/_next/image?url=a'}),'error');
+});
+test('thumbnail fallbacks are distinct valid videos, primary first, never size variants',()=>{
+ assert.deepEqual(thumbnailSources('Primary0001',['Primary0001','bad id','Backup00001']),['https://i.ytimg.com/vi/Primary0001/mqdefault.jpg','https://i.ytimg.com/vi/Backup00001/mqdefault.jpg']);
+ assert.deepEqual(thumbnailSources(null,['Backup00001']),['https://i.ytimg.com/vi/Backup00001/mqdefault.jpg']);
+ assert.deepEqual(thumbnailSources(null),[]);
 });
