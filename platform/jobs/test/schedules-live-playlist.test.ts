@@ -2,7 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { readScheduleConfig, planSchedules, validateScheduleConfig } from '../src/scheduler.js';
 import { validateWorkflowInput, workflowArgs } from '../src/workflow-registry.js';
-import { validateYoutubeArguments, youtubeResultState } from '../src/youtube-cli.js';
+import { playlistOwner, validateYoutubeArguments, youtubeResultState } from '../src/youtube-cli.js';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { workflowBatch } from '../../shared/worker-batches.js';
 import { workerProfile } from '../../shared/worker-schema.js';
 
@@ -36,6 +39,18 @@ describe('live playlist schedule file', () => {
     expect(youtubeResultState({ ...base, skipped: [{ videoId: 'x', reason: 'unavailable' }] })).toBe('incomplete');
     expect(youtubeResultState({ ...base, stoppedReason: 'request-failed' })).toBe('failed');
     expect(youtubeResultState({ ...base, stoppedReason: 'quota-exhausted' })).toBe('skipped');
+    // Handled but not removed from the list (a revoked owner grant) must stay visible.
+    expect(youtubeResultState({ ...base, removeError: 'authentication' })).toBe('incomplete');
+  });
+  it('uses the owner grant only from an absolute secret file', async () => {
+    const ledger = { precharge: async () => '2026-11-01', markDailyExhausted: async () => undefined };
+    expect(await playlistOwner({}, ledger)).toBeNull();
+    await expect(playlistOwner({ YOUTUBE_OWNER_CREDENTIALS_FILE: 'relative.json' }, ledger)).rejects.toThrow('absolute');
+    await expect(playlistOwner({ YOUTUBE_OWNER_CREDENTIALS_FILE: '/nonexistent/owner.json' }, ledger)).rejects.toThrow('unreadable');
+    const dir = await mkdtemp(join(tmpdir(), 'owner-')), file = join(dir, 'owner.json');
+    await writeFile(file, JSON.stringify({ client_id: '1-a.apps.googleusercontent.com', client_secret: 's', refresh_token: 'r' }));
+    expect(await playlistOwner({ YOUTUBE_OWNER_CREDENTIALS_FILE: file }, ledger)).not.toBeNull();
+    await rm(dir, { recursive: true });
   });
   it('holds only the table rights the job needs: delete only on its backoff rows, and only INSERT on the request queue', () => {
     const { tables } = workerProfile('youtube.live.playlist');

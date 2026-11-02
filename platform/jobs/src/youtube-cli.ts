@@ -1,7 +1,8 @@
 import { withLaravelSourceLock } from './laravel-source-lock.js';
 import { workflowShutdownSignal } from '../../shared/shutdown.js';
 import { randomUUID } from 'node:crypto';
-import { channelAdminJob, livePlaylistJob, LIVE_PLAYLIST_ID, channelStatisticsJob, channelRetirementJob, channelUploadsJob, videoDurationsJob, commentQueueJob, commentFetchJob, commentResetJob, MysqlQuotaLedger, YoutubeDataApiClient, videoStatisticsJob, livePollingJob, tagBackfillJob, taipeiSql, type BackfillInput, type TagDictionary } from '@youtube-board/ingestion';
+import { readFile } from 'node:fs/promises';
+import { channelAdminJob, livePlaylistJob, YoutubePlaylistOwner, parseOwnerCredentials, type QuotaLedger, LIVE_PLAYLIST_ID, channelStatisticsJob, channelRetirementJob, channelUploadsJob, videoDurationsJob, commentQueueJob, commentFetchJob, commentResetJob, MysqlQuotaLedger, YoutubeDataApiClient, videoStatisticsJob, livePollingJob, tagBackfillJob, taipeiSql, type BackfillInput, type TagDictionary } from '@youtube-board/ingestion';
 import { connectDatabase, withWriterLock } from './database.js';
 import { assertExecute, executionPolicy } from './policy.js';
 import { loadVocabularySnapshot } from './load-vocabulary.js';
@@ -22,13 +23,26 @@ export function youtubeQuotaOptions(env: NodeJS.ProcessEnv, job: string) {
   if (commentBudget !== undefined && (!Number.isSafeInteger(commentBudget) || commentBudget < 1 || commentBudget > dailyBudget)) throw new Error('Invalid comment YouTube quota budget');
   return { dailyBudget, commentBudget };
 }
-export function youtubeResultState(result: { skipped: unknown[]; applied?:unknown[]; enqueued?:unknown[]; truncated?: boolean; checkpointed?: unknown[]; stoppedReason?: string; capacityBlocked?: string; allSkipped?: boolean; discoveryFailures?: number }): 'failed' | 'incomplete' | 'completed' | 'skipped' {
+/**
+ * The 加入直播 playlist owner's grant, when the worker has one: YOUTUBE_OWNER_CREDENTIALS_FILE names a root-only secret file
+ * (JSON client_id, client_secret, refresh_token). Without it handled items simply stay in the list.
+ */
+export async function playlistOwner(env: NodeJS.ProcessEnv, ledger: QuotaLedger): Promise<YoutubePlaylistOwner | null> {
+  const file = env.YOUTUBE_OWNER_CREDENTIALS_FILE?.trim();
+  if (!file) return null;
+  if (!file.startsWith('/')) throw new Error('YOUTUBE_OWNER_CREDENTIALS_FILE must be an absolute path');
+  let text: string; try { text = await readFile(file, 'utf8'); } catch { throw new Error('YouTube owner credentials file is unreadable'); }
+  return new YoutubePlaylistOwner({ credentials: parseOwnerCredentials(text), ledger });
+}
+export function youtubeResultState(result: { skipped: unknown[]; applied?:unknown[]; enqueued?:unknown[]; truncated?: boolean; checkpointed?: unknown[]; stoppedReason?: string; capacityBlocked?: string; allSkipped?: boolean; discoveryFailures?: number; removeError?: string }): 'failed' | 'incomplete' | 'completed' | 'skipped' {
   if(result.stoppedReason==='quota-exhausted'||result.stoppedReason==='quota-comment-budget')return result.applied?.length || result.enqueued?.length || result.checkpointed?.length ? 'incomplete' : 'skipped';
   if (result.stoppedReason) return 'failed';
   if (result.allSkipped && (result.discoveryFailures ?? 0) > 0) return 'failed';
   // Like Laravel, a per-item skip (e.g. a deleted channel missing from the API) is logged and the run continues.
   if(result.skipped.length)return 'incomplete';
   if(result.capacityBlocked)return 'incomplete';
+  // 加入直播: the work was done but handled items could not be removed from the list (for example a revoked owner grant).
+  if(result.removeError)return 'incomplete';
   return result.truncated || result.checkpointed?.length ? 'incomplete' : 'completed';
 }
 /** Pure validation for CLI and queue ingress: no database or provider requests. */
@@ -85,7 +99,8 @@ export async function executeYoutubeWorkflow(args: string[], env: NodeJS.Process
   const quota = youtubeQuotaOptions(env, job);
   const db = await connectDatabase(env);
   try {
-    const youtube = new YoutubeDataApiClient({ ...youtubeRetryOptions(env), keys: [env.YOUTUBE_API_KEY ?? '', ...(env.YOUTUBE_API_KEYS ?? '').split(',')], ledger: new MysqlQuotaLedger(db, quota.dailyBudget, undefined, quota.commentBudget), maxAttempts });
+    const ledger = new MysqlQuotaLedger(db, quota.dailyBudget, undefined, quota.commentBudget);
+    const youtube = new YoutubeDataApiClient({ ...youtubeRetryOptions(env), keys: [env.YOUTUBE_API_KEY ?? '', ...(env.YOUTUBE_API_KEYS ?? '').split(',')], ledger, maxAttempts });
     const work = async (assertOwnership: () => Promise<void>) => {
       const now = new Date(), ctx = { db, youtube, now, clock:()=>new Date(), execute, assertOwnership };
       const videoId = option('videoId');
@@ -93,7 +108,7 @@ export async function executeYoutubeWorkflow(args: string[], env: NodeJS.Process
       const uId = option('u_id') ?? option('channel');
       const channel = uId === undefined ? {} : { uId: Number(uId) };
       if (job === 'youtube.channels.admin') return channelAdminJob(ctx, { limit: integer('limit', 10, 50) });
-      if (job === 'youtube.live.playlist') return livePlaylistJob(ctx, { playlistId: option('playlist')!, limit: integer('limit', 50, 50) });
+      if (job === 'youtube.live.playlist') return livePlaylistJob(ctx, { playlistId: option('playlist')!, limit: integer('limit', 50, 50), owner: await playlistOwner(env, ledger) });
       if (job === 'youtube.channels.stats') return channelStatisticsJob(ctx, { ...channel, limit: integer('limit', 25, 50), hours: integer('hours', 22, 168) });
       if (job === 'youtube.channels.retire') return channelRetirementJob(ctx, { ...channel, limit: integer('limit', 25, 50), staleDays: integer('stale-days', 14, 365), restore: args.includes('--restore') });
       if ((job.startsWith('youtube.channels.videos.') || job === 'youtube.tvbs.videos')) return channelUploadsJob(ctx, { ...channel, limit: integer('limit', 20, 100), tvbs: job === 'youtube.tvbs.videos', maxPages: integer('max-pages', 1, 200), maxResults:integer('max-results',5,50), ...(option('until') ? { stopAt: Date.parse(option('until')!) } : {}), days: integer('days', 7, 365), ...uploadsLiveMode(job), ...(job === 'youtube.tvbs.videos' ? { offset: option('offset') === 'auto' ? 'auto' as const : Number(option('offset') ?? 0) } : {}) });

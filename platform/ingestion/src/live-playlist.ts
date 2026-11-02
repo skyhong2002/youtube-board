@@ -8,6 +8,7 @@ import { fetchPlaylistFeed, PLAYLIST_FEED_CAP, PlaylistFeedError, type PlaylistF
 import { YoutubeError } from './quota.js';
 import type { SourceJobContext } from './video-statistics.js';
 import type { PlaylistItem } from './youtube.js';
+import type { YoutubePlaylistOwner } from './youtube-owner.js';
 
 export const LIVE_PLAYLIST_JOB = 'youtube.live.playlist';
 export const LIVE_PLAYLIST_COMMAND = 'youtube:live:playlist';
@@ -23,6 +24,19 @@ const REQUEST_HOLD = 'INTERVAL 1 DAY';
 const API_HOLD_MS = 3600000;
 const API_HOLD_WORKFLOW = 'youtube.live.playlist.api';
 /** ts_youtube_item_backoff.video_id is VARCHAR(32). */
+/** Owner calls (removal) failed: not again for an hour, so a revoked grant or a 50-unit failing delete is not retried every run. */
+const OWNER_HOLD_WORKFLOW = 'youtube.live.playlist.owner';
+/** A removed video may linger in the cached feed: it is not removed (listed) again for six hours. */
+const REMOVED_WORKFLOW = 'youtube.live.playlist.removed';
+const REMOVED_HOLD_MS = 6 * 3600000;
+/** At most this many deletes (50 units each) per run. */
+const REMOVE_LIMIT = 10;
+/** An unavailable video is removed at its third failed lookup (about 15 minutes after the first), not at a passing glitch. */
+const UNAVAILABLE_STRIKES = 3;
+/** Consecutive unavailable lookups per video, counted apart from the lookup backoff (whose count mixes reasons). */
+const STRIKES_WORKFLOW = 'youtube.live.playlist.unavailable';
+/** Final skips: the video can never be handled from the list, so it is removed. */
+const FINAL_SKIPS: ReadonlySet<Skipped['reason']> = new Set(['retired-by-poller', 'retired', 'retired-channel']);
 const holdKey = (playlistId: string) => playlistId.length <= 32 ? playlistId : createHash('sha256').update(playlistId).digest('base64url').slice(0, 32);
 
 type Applied = { videoId: string; outcome: 'restored' } | { videoId: string; outcome: 'published'; uId: number; live: PlaylistItem['liveBroadcastContent'] } | { videoId: string; outcome: 'channel-requested'; channelId: string };
@@ -63,17 +77,57 @@ async function recentChannelRequests(db: SourceJobContext['db']) {
  * video, retired channel, full request queue) back off per video (5 minutes doubling to 6 hours), so an item the administrator
  * has not removed yet costs almost nothing. `truncated` reports a list that may continue beyond what was read.
  */
-export async function livePlaylistJob(ctx: SourceJobContext, input: { playlistId: string; limit: number; feed?: (playlistId: string) => Promise<PlaylistFeed> }) {
+export async function livePlaylistJob(ctx: SourceJobContext, input: { playlistId: string; limit: number; feed?: (playlistId: string) => Promise<PlaylistFeed>; owner?: YoutubePlaylistOwner | null }) {
   if (!LIVE_PLAYLIST_ID.test(input.playlistId)) throw new Error('Invalid live playlist');
   cap(input.limit, 50);
   const applied: Applied[] = [], skipped: Skipped[] = [], unchanged: string[] = [], waiting: { videoId: string; channelId: string }[] = [];
+  const removed: string[] = [], strikes = new Map<string, number>();
+  let removeError: string | undefined;
   let listed = 0, malformed = 0, truncated = false, source: 'feed' | 'api' | 'feed+api' | 'none' = 'none', feedError: string | undefined, apiError: string | undefined;
   const summary = (stoppedReason?: string) => ({
-    mode: 'execute' as const, playlistId: input.playlistId, source, listed, malformed, truncated, apiAttempts: ctx.youtube.attemptsMade, ...(feedError ? { feedError } : {}), ...(apiError ? { apiError } : {}),
-    counts: { unchanged: unchanged.length, restored: applied.filter(a => a.outcome === 'restored').length, published: applied.filter(a => a.outcome === 'published').length, requested: applied.filter(a => a.outcome === 'channel-requested').length, waiting: waiting.length, skipped: skipped.length },
-    applied, skipped, unchanged, waiting, ...(stoppedReason ? { stoppedReason } : {}),
+    mode: 'execute' as const, playlistId: input.playlistId, source, listed, malformed, truncated, apiAttempts: ctx.youtube.attemptsMade, ...(input.owner ? { ownerUnits: input.owner.unitsCharged } : {}), ...(feedError ? { feedError } : {}), ...(apiError ? { apiError } : {}), ...(removeError ? { removeError } : {}),
+    counts: { unchanged: unchanged.length, restored: applied.filter(a => a.outcome === 'restored').length, published: applied.filter(a => a.outcome === 'published').length, requested: applied.filter(a => a.outcome === 'channel-requested').length, waiting: waiting.length, skipped: skipped.length, removed: removed.length },
+    applied, skipped, unchanged, waiting, removed, ...(stoppedReason ? { stoppedReason } : {}),
   });
-  if (!ctx.execute) return { mode: 'dry-run' as const, playlistId: input.playlistId, source, listed, malformed, truncated, apiAttempts: 0, applied, skipped, unchanged, waiting };
+  if (!ctx.execute) return { mode: 'dry-run' as const, playlistId: input.playlistId, source, listed, malformed, truncated, apiAttempts: 0, applied, skipped, unchanged, waiting, removed };
+
+  /**
+   * With the owner's grant, a handled video leaves the list, so what stays is what needs a person: a channel still waiting for
+   * youtube.channels.admin, a full request queue, or a video in backoff. Handled means tracked (unchanged, revived or published)
+   * or final (retired, retired channel, unavailable at its third lookup).
+   */
+  const removeHandled = async () => {
+    if (!input.owner) return;
+    const keep = new Set([...waiting.map(w => w.videoId), ...skipped.filter(s => !FINAL_SKIPS.has(s.reason) && !(s.reason === 'unavailable' && (strikes.get(s.videoId) ?? 0) >= UNAVAILABLE_STRIKES)).map(s => s.videoId), ...applied.filter(a => a.outcome === 'channel-requested').map(a => a.videoId)]);
+    let handled = [...new Set([...unchanged, ...applied.map(a => a.videoId), ...skipped.map(s => s.videoId)])].filter(videoId => !keep.has(videoId));
+    if (!handled.length) return;
+    const at = taipeiSql(ctx.now);
+    const [recent] = await ctx.db.query<RowDataPacket[]>('SELECT video_id FROM ts_youtube_item_backoff WHERE workflow = ? AND video_id IN (?) AND retry_after > ?', [REMOVED_WORKFLOW, handled, at]);
+    const recentlyRemoved = new Set(recent.map(row => String(row.video_id)));
+    handled = handled.filter(videoId => !recentlyRemoved.has(videoId));
+    if (!handled.length) return;
+    const [ownerHeld] = await ctx.db.query<RowDataPacket[]>('SELECT 1 FROM ts_youtube_item_backoff WHERE workflow = ? AND video_id = ? AND retry_after > ?', [OWNER_HOLD_WORKFLOW, holdKey(input.playlistId), at]);
+    if (ownerHeld.length) { removeError = 'held'; return; }
+    const hold = async (workflow: string, key: string, ms: number, reason: string) => { await ctx.assertOwnership(); await ctx.db.execute('INSERT INTO ts_youtube_item_backoff (workflow, video_id, failures, retry_after, reason, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE failures = VALUES(failures), retry_after = VALUES(retry_after), reason = VALUES(reason), updated_at = VALUES(updated_at)', [workflow, key, 1, taipeiSql(new Date(ctx.now.getTime() + ms)), reason, at]); };
+    try {
+      const listing = await input.owner.playlistItems(input.playlistId);
+      let deletes = 0;
+      for (const videoId of handled) {
+        if (deletes >= REMOVE_LIMIT) break;
+        const items = listing.items.filter(item => item.videoId === videoId), now = items.slice(0, REMOVE_LIMIT - deletes);
+        for (const item of now) { await ctx.assertOwnership(); await input.owner.deleteItem(item.itemId); deletes++; }
+        if (now.length) removed.push(videoId);
+        // Marked (no listing again for six hours) only when every copy is known gone: all listed copies deleted and the listing
+        // complete. Otherwise the next run lists again and deletes the rest.
+        if (now.length === items.length && listing.complete) await hold(REMOVED_WORKFLOW, videoId, REMOVED_HOLD_MS, items.length ? 'removed' : 'absent');
+      }
+    } catch (error) {
+      if (!(error instanceof YoutubeError)) throw error;
+      removeError = error.code;
+      await hold(OWNER_HOLD_WORKFLOW, holdKey(input.playlistId), API_HOLD_MS, error.code);
+    }
+  };
+  const finish = async () => { await removeHandled(); return summary(); };
 
   let feedIds: string[] | null = null;
   try { const feed = await (input.feed ?? fetchPlaylistFeed)(input.playlistId); feedIds = feed.videoIds; truncated = feed.entries >= PLAYLIST_FEED_CAP; source = 'feed'; }
@@ -100,7 +154,7 @@ export async function livePlaylistJob(ctx: SourceJobContext, input: { playlistId
   // `limit` bounds the work of a run (and keeps one videos.list batch within 50), whichever source the list came from.
   if (ids.length > input.limit) { ids = ids.slice(0, input.limit); truncated = true; }
   listed = ids.length;
-  if (!ids.length) return summary();
+  if (!ids.length) return finish();
 
   const [liveRows] = await ctx.db.query<RowDataPacket[]>('SELECT pk, videoId, del_flag, mtime FROM urt_video_live WHERE videoId IN (?)', [ids]);
   const [videoRows] = await ctx.db.query<RowDataPacket[]>('SELECT videoId FROM urt_video WHERE videoId IN (?)', [ids]);
@@ -123,17 +177,19 @@ export async function livePlaylistJob(ctx: SourceJobContext, input: { playlistId
     applied.push({ videoId, outcome: 'restored' });
     if (!stored.has(videoId)) lookup.push(videoId);
   }
-  if (!lookup.length) return summary();
+  if (!lookup.length) return finish();
 
   /** Videos with a backoff row: held ones are not looked up again yet; the others are cleared once handled. */
-  const [backoffRows] = await ctx.db.query<RowDataPacket[]>('SELECT video_id, retry_after > ? AS held FROM ts_youtube_item_backoff WHERE workflow = ? AND video_id IN (?)', [taipeiSql(ctx.now), LIVE_PLAYLIST_JOB, lookup]);
+  const [backoffRows] = await ctx.db.query<RowDataPacket[]>('SELECT video_id, failures, retry_after > ? AS held FROM ts_youtube_item_backoff WHERE workflow = ? AND video_id IN (?)', [taipeiSql(ctx.now), LIVE_PLAYLIST_JOB, lookup]);
   const backedOff = new Set(backoffRows.map(row => String(row.video_id))), held = new Set(backoffRows.filter(row => Number(row.held) === 1).map(row => String(row.video_id)));
   for (const videoId of lookup.filter(id => held.has(id))) skipped.push({ videoId, reason: 'backoff' });
   lookup = lookup.filter(id => !held.has(id));
-  if (!lookup.length) return summary();
+  if (!lookup.length) return finish();
   const backoff = async (entry: Skipped) => { skipped.push(entry); await ctx.assertOwnership(); await recordItemBackoff(ctx.db, LIVE_PLAYLIST_JOB, entry.videoId, entry.reason, ctx.now); };
   const done = async (entry: Applied) => { applied.push(entry); if (backedOff.has(entry.videoId)) { await ctx.assertOwnership(); await clearItemBackoff(ctx.db, LIVE_PLAYLIST_JOB, entry.videoId); } };
 
+  const [strikeList] = await ctx.db.query<RowDataPacket[]>('SELECT video_id, failures, retry_after > ? AS held FROM ts_youtube_item_backoff WHERE workflow = ? AND video_id IN (?)', [taipeiSql(ctx.now), STRIKES_WORKFLOW, lookup]);
+  const strikeRows = new Map(strikeList.map(row => [String(row.video_id), Number(row.failures ?? 0)]));
   let found: PlaylistItem[];
   try { found = await ctx.youtube.videoUploads(lookup); }
   catch (error) { if (error instanceof YoutubeError) return summary(error.code); throw error; }
@@ -153,7 +209,13 @@ export async function livePlaylistJob(ctx: SourceJobContext, input: { playlistId
   let requests: Awaited<ReturnType<typeof recentChannelRequests>> | null = null;
   for (const videoId of lookup) {
     const item = byVideo.get(videoId);
-    if (!item) { await backoff({ videoId, reason: 'unavailable' }); continue; }
+    if (!item) {
+      const count = (strikeRows.get(videoId) ?? 0) + 1; strikes.set(videoId, count);
+      await ctx.assertOwnership();
+      await ctx.db.execute('INSERT INTO ts_youtube_item_backoff (workflow, video_id, failures, retry_after, reason, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE failures = VALUES(failures), retry_after = VALUES(retry_after), reason = VALUES(reason), updated_at = VALUES(updated_at)', [STRIKES_WORKFLOW, videoId, count, taipeiSql(ctx.now), 'unavailable', taipeiSql(ctx.now)]);
+      await backoff({ videoId, reason: 'unavailable' }); continue;
+    }
+    if (strikeRows.has(videoId)) { await ctx.assertOwnership(); await clearItemBackoff(ctx.db, STRIKES_WORKFLOW, videoId); }
     const channelId = item.channelId, uId = channels.get(channelId);
     if (typeof uId === 'number') {
       await publishUploads(ctx, uId, [item]);
@@ -177,5 +239,5 @@ export async function livePlaylistJob(ctx: SourceJobContext, input: { playlistId
     requests.sources.add(channelId); requests.pending++;
     await done({ videoId, outcome: 'channel-requested', channelId });
   }
-  return summary();
+  return finish();
 }

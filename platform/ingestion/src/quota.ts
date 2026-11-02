@@ -19,7 +19,8 @@ export function youtubeFailureDetail(error: unknown) {
 export function isYoutubeItemFailure(error: unknown): boolean {
   return error instanceof YoutubeError && (error.code === 'invalid-response' || (error.code === 'request-failed' && (error.status === undefined || [400,403,404,410].includes(error.status))));
 }
-export interface QuotaLedger { precharge(timeoutMs: number): Promise<string>; markDailyExhausted(date: string): Promise<void> }
+/** `units` defaults to 1 (a list call); a write such as playlistItems.delete costs 50. */
+export interface QuotaLedger { precharge(timeoutMs: number, units?: number): Promise<string>; markDailyExhausted(date: string): Promise<void> }
 export function pacificDate(at: Date): string {
   const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(at);
   const part = (name: string) => parts.find(p => p.type === name)!.value;
@@ -36,7 +37,8 @@ export class MysqlQuotaLedger implements QuotaLedger {
     if (!Number.isSafeInteger(budget) || budget < 1) throw new YoutubeError('quota-budget');
     if (commentBudget !== undefined && (!Number.isSafeInteger(commentBudget) || commentBudget < 1 || commentBudget > budget)) throw new YoutubeError('quota-comment-budget');
   }
-  async precharge(timeoutMs: number): Promise<string> {
+  async precharge(timeoutMs: number, units = 1): Promise<string> {
+    if (!Number.isSafeInteger(units) || units < 1 || units > 100) throw new YoutubeError('quota-budget');
     const date = assertQuotaWindow(this.now(), timeoutMs);
     await this.db.execute('INSERT INTO ingestion_youtube_quota_daily (provider, quota_date, consumed_units, reserved_units, created_at, updated_at) VALUES (?, ?, 0, 0, UTC_TIMESTAMP(), UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE provider = provider', ['youtube_data_api_v3', date]);
     if (this.commentBudget !== undefined) {
@@ -44,18 +46,18 @@ export class MysqlQuotaLedger implements QuotaLedger {
       // Charge shared and comment budgets in one statement. A rejected comment
       // reservation must not consume capacity reserved for video/live ingestion.
       const [result] = await this.db.execute<ResultSetHeader>(`UPDATE ingestion_youtube_quota_daily g JOIN ingestion_youtube_quota_daily c ON c.quota_date=g.quota_date
-        SET g.consumed_units=g.consumed_units+1,g.updated_at=UTC_TIMESTAMP(),c.consumed_units=c.consumed_units+1,c.updated_at=UTC_TIMESTAMP()
+        SET g.consumed_units=g.consumed_units+?,g.updated_at=UTC_TIMESTAMP(),c.consumed_units=c.consumed_units+?,c.updated_at=UTC_TIMESTAMP()
         WHERE g.provider=? AND c.provider=? AND g.quota_date=? AND g.google_exhausted_at IS NULL
-          AND g.consumed_units+g.reserved_units+1<=? AND c.consumed_units+c.reserved_units+1<=?`,
-        ['youtube_data_api_v3', 'youtube_data_api_v3_comments', date, this.budget, this.commentBudget]);
+          AND g.consumed_units+g.reserved_units+?<=? AND c.consumed_units+c.reserved_units+?<=?`,
+        [units, units, 'youtube_data_api_v3', 'youtube_data_api_v3_comments', date, units, this.budget, units, this.commentBudget]);
       if (result.affectedRows !== 2) {
         const [rows] = await this.db.query<RowDataPacket[]>('SELECT google_exhausted_at,consumed_units,reserved_units FROM ingestion_youtube_quota_daily WHERE provider=? AND quota_date=?', ['youtube_data_api_v3', date]);
-        throw new YoutubeError(rows[0]?.google_exhausted_at ? 'quota-exhausted' : !rows[0] || Number(rows[0].consumed_units)+Number(rows[0].reserved_units)+1>this.budget ? 'quota-budget' : 'quota-comment-budget');
+        throw new YoutubeError(rows[0]?.google_exhausted_at ? 'quota-exhausted' : !rows[0] || Number(rows[0].consumed_units)+Number(rows[0].reserved_units)+units>this.budget ? 'quota-budget' : 'quota-comment-budget');
       }
       assertQuotaWindow(this.now(), timeoutMs, date);
       return date;
     }
-    const [result] = await this.db.execute<ResultSetHeader>('UPDATE ingestion_youtube_quota_daily SET consumed_units = consumed_units + 1, updated_at = UTC_TIMESTAMP() WHERE provider = ? AND quota_date = ? AND google_exhausted_at IS NULL AND consumed_units + reserved_units + 1 <= ?', ['youtube_data_api_v3', date, this.budget]);
+    const [result] = await this.db.execute<ResultSetHeader>('UPDATE ingestion_youtube_quota_daily SET consumed_units = consumed_units + ?, updated_at = UTC_TIMESTAMP() WHERE provider = ? AND quota_date = ? AND google_exhausted_at IS NULL AND consumed_units + reserved_units + ? <= ?', [units, 'youtube_data_api_v3', date, units, this.budget]);
     if (result.affectedRows !== 1) {
       const [rows]=await this.db.query<RowDataPacket[]>('SELECT google_exhausted_at FROM ingestion_youtube_quota_daily WHERE provider=? AND quota_date=?',['youtube_data_api_v3',date]);
       throw new YoutubeError(rows[0]?.google_exhausted_at ? 'quota-exhausted' : 'quota-budget');

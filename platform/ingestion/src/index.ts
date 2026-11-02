@@ -16,3 +16,4 @@ export * from './maintenance-caches.js';
 export * from './photos-predictions.js';
 export * from './group-status.js';
 export * from './playlist-feed.js';
+export * from './youtube-owner.js';

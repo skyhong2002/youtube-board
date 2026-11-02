@@ -4,6 +4,7 @@ import { PlaylistFeedError } from '../src/playlist-feed.js';
 import { YoutubeError } from '../src/quota.js';
 import type { SourceJobContext } from '../src/video-statistics.js';
 import type { PlaylistItem } from '../src/youtube.js';
+import type { YoutubePlaylistOwner } from '../src/youtube-owner.js';
 
 const PLAYLIST = 'PLWDKpvlDapjQ';
 const UC_TRACKED = 'UCtrackedtrackedtracked1', UC_NEW = 'UCnewnewnewnewnewnewnew1', UC_RETIRED = 'UCretiredretiredretired1';
@@ -16,7 +17,7 @@ function item(videoId: string, channelId: string, live: PlaylistItem['liveBroadc
 }
 
 /** A small stateful fake of the tables the job reads and writes, answering only the statements it issues. */
-function harness(state: { playlist: string[]; live?: Row[]; videos?: string[]; schedules?: string[]; channels?: Row[]; requests?: Row[]; found?: PlaylistItem[]; playlistError?: YoutubeError; lookupError?: YoutubeError; execute?: boolean; feed?: string[] | PlaylistFeedError; apiPage?: { videoIds: string[]; nextPageToken: string | null }; backoff?: Row[] }) {
+function harness(state: { playlist: string[]; live?: Row[]; videos?: string[]; schedules?: string[]; channels?: Row[]; requests?: Row[]; found?: PlaylistItem[]; playlistError?: YoutubeError; lookupError?: YoutubeError; execute?: boolean; feed?: string[] | PlaylistFeedError; apiPage?: { videoIds: string[]; nextPageToken: string | null }; backoff?: Row[]; owner?: { items: { itemId: string; videoId: string }[]; complete?: boolean; listError?: YoutubeError; deleteError?: YoutubeError } }) {
   const calls: Call[] = [], live = (state.live ?? []).map(row => ({ ...row })), videos = new Set(state.videos ?? []), schedules = new Set(state.schedules ?? state.videos ?? []), requests = (state.requests ?? []).map(row => ({ ...row }));
   const api = { playlist: 0, feed: 0, lookups: [] as string[][], before: 0 };
   /** ts_youtube_item_backoff, keyed workflow|video_id; retry_after in Taipei time like taipeiSql. */
@@ -29,7 +30,8 @@ function harness(state: { playlist: string[]; live?: Row[]; videos?: string[]; s
     if (sql.startsWith('SELECT videoId FROM urt_video_schedule WHERE')) return [...schedules].filter(id => ids.includes(id)).map(videoId => ({ videoId }));
     if (sql.startsWith('UPDATE urt_video_live SET del_flag = NULL')) { const row = live.find(r => r.pk === params[1] && r.del_flag === 1 && r.mtime === null); if (row) { row.del_flag = null; row.ctime = params[0]; } return { affectedRows: row ? 1 : 0 }; }
     if (sql.startsWith('SELECT 1 FROM ts_youtube_item_backoff')) { const row = backoff.get(params[0] + '|' + params[1]); return row && String(row.retry_after) > String(params[2]) ? [{ 1: 1 }] : []; }
-    if (sql.startsWith('SELECT video_id, retry_after > ? AS held FROM ts_youtube_item_backoff')) return [...backoff.values()].filter(row => row.workflow === params[1] && (params[2] as string[]).includes(String(row.video_id))).map(row => ({ video_id: row.video_id, held: String(row.retry_after) > String(params[0]) ? 1 : 0 }));
+    if (sql.startsWith('SELECT video_id, failures, retry_after > ? AS held FROM ts_youtube_item_backoff')) return [...backoff.values()].filter(row => row.workflow === params[1] && (params[2] as string[]).includes(String(row.video_id))).map(row => ({ video_id: row.video_id, failures: row.failures, held: String(row.retry_after) > String(params[0]) ? 1 : 0 }));
+    if (sql.startsWith('SELECT video_id FROM ts_youtube_item_backoff WHERE workflow = ? AND video_id IN (?) AND retry_after > ?')) return [...backoff.values()].filter(row => row.workflow === params[0] && (params[1] as string[]).includes(String(row.video_id)) && String(row.retry_after) > String(params[2])).map(row => ({ video_id: row.video_id }));
     if (sql.startsWith('SELECT failures FROM ts_youtube_item_backoff')) { const row = backoff.get(params[0] + '|' + params[1]); return row ? [{ failures: row.failures }] : []; }
     if (sql.startsWith('INSERT INTO ts_youtube_item_backoff')) { backoff.set(params[0] + '|' + params[1], { workflow: params[0], video_id: params[1], failures: params[2], retry_after: params[3], reason: params[4] }); return { affectedRows: 1 }; }
     if (sql.startsWith('DELETE FROM ts_youtube_item_backoff')) { backoff.delete(params[0] + '|' + params[1]); return { affectedRows: 1 }; }
@@ -62,9 +64,15 @@ function harness(state: { playlist: string[]; live?: Row[]; videos?: string[]; s
   const ctx = { db, youtube, now, clock: () => now, execute: state.execute ?? true, assertOwnership: async () => { owned++; } } as unknown as SourceJobContext;
   const feed = async (playlistId: string) => { expect(playlistId).toBe(PLAYLIST); api.feed++; const value = state.feed ?? state.playlist; if (value instanceof PlaylistFeedError) throw value; return { videoIds: [...new Set(value)], entries: value.length }; };
   const sqls = (prefix: string) => calls.filter(call => call.sql.startsWith(prefix));
-  return { ctx, feed, calls, sqls, live, videos, requests, api, backoff, owned: () => owned };
+  const ownerLog = { lists: 0, deleted: [] as string[] };
+  const owner = state.owner ? {
+    unitsCharged: 0,
+    async playlistItems(playlistId: string) { expect(playlistId).toBe(PLAYLIST); ownerLog.lists++; this.unitsCharged += 1; if (state.owner!.listError) throw state.owner!.listError; return { items: state.owner!.items, complete: state.owner!.complete ?? true }; },
+    async deleteItem(itemId: string) { if (state.owner!.deleteError) throw state.owner!.deleteError; this.unitsCharged += 50; ownerLog.deleted.push(itemId); state.owner!.items = state.owner!.items.filter(item => item.itemId !== itemId); return 'deleted' as const; },
+  } : null;
+  return { ctx, feed, owner, ownerLog, calls, sqls, live, videos, requests, api, backoff, owned: () => owned };
 }
-const run = (h: ReturnType<typeof harness>, limit = 50) => (h.api.before = h.api.playlist + h.api.lookups.length, livePlaylistJob(h.ctx, { playlistId: PLAYLIST, limit, feed: h.feed }));
+const run = (h: ReturnType<typeof harness>, limit = 50) => (h.api.before = h.api.playlist + h.api.lookups.length, livePlaylistJob(h.ctx, { playlistId: PLAYLIST, limit, feed: h.feed, owner: h.owner as unknown as YoutubePlaylistOwner }));
 
 describe('youtube.live.playlist', () => {
   it('revives a row cleanup retired before its first poll, with a fresh ctime, and spends only the playlist read', async () => {
@@ -224,6 +232,81 @@ describe('youtube.live.playlist', () => {
     expect(result).toMatchObject({ listed: 50, truncated: true }); expect(big.api.lookups[0]).toHaveLength(50);
     const small = harness({ playlist: ['Private1234', 'Private5678'], found: [] });
     expect(await run(small, 1)).toMatchObject({ listed: 1, truncated: true }); expect(small.api.lookups).toEqual([['Private1234']]);
+  });
+  describe('removing handled items with the owner grant', () => {
+    const ch = { u_id: 42, youtube_id: UC_TRACKED, flag_del: null };
+    it('removes tracked, revived and published videos, keeps a channel that is still waiting', async () => {
+      const h = harness({
+        playlist: ['Alive123456', 'Revive12345', 'Live1234567', 'NewCh123456'], videos: ['Alive123456', 'Revive12345'], channels: [ch],
+        live: [{ pk: 1, videoId: 'Alive123456', del_flag: null, mtime: null }, { pk: 2, videoId: 'Revive12345', del_flag: 1, mtime: null }],
+        found: [item('Live1234567', UC_TRACKED), item('NewCh123456', UC_NEW)],
+        owner: { items: [{ itemId: 'i1', videoId: 'Alive123456' }, { itemId: 'i2', videoId: 'Revive12345' }, { itemId: 'i3', videoId: 'Live1234567' }, { itemId: 'i3b', videoId: 'Live1234567' }, { itemId: 'i4', videoId: 'NewCh123456' }] },
+      });
+      const result = await run(h);
+      expect(h.ownerLog.deleted).toEqual(['i1', 'i2', 'i3', 'i3b']);
+      expect(result).toMatchObject({ removed: ['Alive123456', 'Revive12345', 'Live1234567'], counts: { removed: 3 }, ownerUnits: 201 });
+      expect(h.backoff.get('youtube.live.playlist.removed|Alive123456')).toMatchObject({ retry_after: '2026-11-01 18:00:00', reason: 'removed' });
+      // The cached feed still lists them: no listing again, only the waiting video is left.
+      const again = await run(h);
+      expect(again.removed).toEqual([]); expect(h.ownerLog.lists).toBe(1);
+    });
+    it('removes final skips, and an unavailable video only at its third failed lookup', async () => {
+      const h = harness({ playlist: ['Gone1234567', 'OldCh123456', 'Private1234'], live: [{ pk: 3, videoId: 'Gone1234567', del_flag: 1, mtime: '2026-10-31 10:00:00' }], channels: [{ u_id: 8, youtube_id: UC_RETIRED, flag_del: 1 }], found: [item('OldCh123456', UC_RETIRED)],
+        owner: { items: [{ itemId: 'g', videoId: 'Gone1234567' }, { itemId: 'o', videoId: 'OldCh123456' }, { itemId: 'p', videoId: 'Private1234' }] } });
+      expect((await run(h)).removed).toEqual(['Gone1234567', 'OldCh123456']);
+      const expire = () => { h.backoff.get('youtube.live.playlist|Private1234')!.retry_after = '2026-11-01 11:00:00'; };
+      expire(); expect((await run(h)).removed).toEqual([]);
+      expire(); expect((await run(h)).removed).toEqual(['Private1234']);
+      expect(h.ownerLog.deleted).toEqual(['g', 'o', 'p']);
+    });
+    it('counts only unavailable lookups as strikes, and resets them once the video is found', async () => {
+      const h = harness({ playlist: ['Private1234'], found: [], channels: [ch], owner: { items: [{ itemId: 'p', videoId: 'Private1234' }] },
+        backoff: [{ workflow: 'youtube.live.playlist', video_id: 'Private1234', failures: 2, retry_after: '2026-11-01 11:00:00', reason: 'request-queue-full' }] });
+      expect((await run(h)).removed).toEqual([]);
+      expect(h.backoff.get('youtube.live.playlist.unavailable|Private1234')).toMatchObject({ failures: 1 });
+      const found = harness({ playlist: ['Live1234567'], channels: [ch], found: [item('Live1234567', UC_TRACKED)], backoff: [{ workflow: 'youtube.live.playlist.unavailable', video_id: 'Live1234567', failures: 2, retry_after: '2026-11-01 11:00:00', reason: 'unavailable' }] });
+      await run(found);
+      expect(found.backoff.has('youtube.live.playlist.unavailable|Live1234567')).toBe(false);
+    });
+    it('deletes many copies of one video across runs, marking it only once every copy is gone', async () => {
+      const copies = Array.from({ length: 12 }, (_, i) => ({ itemId: 'c' + i, videoId: 'Alive123456' }));
+      const h = harness({ playlist: ['Alive123456'], videos: ['Alive123456'], live: [{ pk: 1, videoId: 'Alive123456', del_flag: null, mtime: null }], owner: { items: copies } });
+      expect((await run(h)).removed).toEqual(['Alive123456']); expect(h.ownerLog.deleted).toHaveLength(10);
+      expect(h.backoff.has('youtube.live.playlist.removed|Alive123456')).toBe(false);
+      await run(h); expect(h.ownerLog.deleted).toHaveLength(12);
+      expect(h.backoff.get('youtube.live.playlist.removed|Alive123456')).toMatchObject({ reason: 'removed' });
+      const partial = harness({ playlist: ['Alive123456'], videos: ['Alive123456'], live: [{ pk: 1, videoId: 'Alive123456', del_flag: null, mtime: null }], owner: { items: [{ itemId: 'a', videoId: 'Alive123456' }], complete: false } });
+      expect((await run(partial)).removed).toEqual(['Alive123456']);
+      expect(partial.backoff.has('youtube.live.playlist.removed|Alive123456')).toBe(false);
+    });
+    it('keeps a held or queue-full video and lists nothing when nothing is handled', async () => {
+      const pending = Array.from({ length: 100 }, (_, i) => ({ kind: 'create-tag', status: 'pending', payload: JSON.stringify({ kind: 'create-tag', name: 't' + i }) }));
+      const h = harness({ playlist: ['NewCh123456'], found: [item('NewCh123456', UC_NEW)], requests: pending, owner: { items: [{ itemId: 'n', videoId: 'NewCh123456' }] } });
+      expect(await run(h)).toMatchObject({ removed: [], skipped: [{ reason: 'request-queue-full' }] });
+      expect(await run(h)).toMatchObject({ removed: [], skipped: [{ reason: 'backoff' }] });
+      expect(h.ownerLog.lists).toBe(0);
+    });
+    it('marks an item already gone from the list without deleting, caps deletes, and holds off an hour after an owner failure', async () => {
+      const gone = harness({ playlist: ['Alive123456'], videos: ['Alive123456'], live: [{ pk: 1, videoId: 'Alive123456', del_flag: null, mtime: null }], owner: { items: [] } });
+      expect((await run(gone)).removed).toEqual([]);
+      expect(gone.backoff.get('youtube.live.playlist.removed|Alive123456')).toMatchObject({ reason: 'absent' });
+      const ids = Array.from({ length: 12 }, (_, i) => `Many${String(i).padStart(7, '0')}`);
+      const many = harness({ playlist: ids, videos: ids, live: ids.map((videoId, pk) => ({ pk, videoId, del_flag: null, mtime: null })), owner: { items: ids.map(videoId => ({ itemId: 'x' + videoId, videoId })) } });
+      expect((await run(many)).removed).toHaveLength(10);
+      expect((await run(many)).removed).toHaveLength(2);
+      const revoked = harness({ playlist: ['Alive123456'], videos: ['Alive123456'], live: [{ pk: 1, videoId: 'Alive123456', del_flag: null, mtime: null }], owner: { items: [{ itemId: 'a', videoId: 'Alive123456' }], listError: new YoutubeError('authentication', 400, 'invalid_grant') } });
+      expect(await run(revoked)).toMatchObject({ removeError: 'authentication', removed: [], unchanged: ['Alive123456'] });
+      expect(revoked.backoff.get('youtube.live.playlist.owner|' + PLAYLIST)).toMatchObject({ retry_after: '2026-11-01 13:00:00' });
+      expect(await run(revoked)).toMatchObject({ removeError: 'held' }); expect(revoked.ownerLog.lists).toBe(1);
+      const failing = harness({ playlist: ['Alive123456'], videos: ['Alive123456'], live: [{ pk: 1, videoId: 'Alive123456', del_flag: null, mtime: null }], owner: { items: [{ itemId: 'a', videoId: 'Alive123456' }], deleteError: new YoutubeError('quota-daily', 403, 'quotaExceeded') } });
+      expect(await run(failing)).toMatchObject({ removeError: 'quota-daily', removed: [] });
+    });
+    it('never removes without the grant', async () => {
+      const h = harness({ playlist: ['Alive123456'], videos: ['Alive123456'], live: [{ pk: 1, videoId: 'Alive123456', del_flag: null, mtime: null }] });
+      const result = await run(h);
+      expect(result).toMatchObject({ removed: [], unchanged: ['Alive123456'] }); expect(result).not.toHaveProperty('ownerUnits');
+      expect(h.calls.filter(call => call.sql.includes('ts_youtube_item_backoff'))).toEqual([]);
+    });
   });
   it('surfaces YouTube failures as a stopped run instead of swallowing them', async () => {
     const quota = harness({ playlist: ['x'], feed: new PlaylistFeedError('invalid-feed'), playlistError: new YoutubeError('quota-exhausted') });
