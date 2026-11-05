@@ -135,6 +135,19 @@ export async function tickSchedules(config: ScheduleConfig, env: NodeJS.ProcessE
   return output;
 }
 
+export type WorkflowStatus = 'unknown' | 'ok' | 'attention';
+/**
+ * Maps one daemon tick to readiness and workflow status. `readyAt` is the time the
+ * tick loop last made progress (0 = unready). A thrown cycle (Redis or gate
+ * unavailable) is reported as workflowStatus `unknown` but keeps the loop live:
+ * every cycle opens a fresh connection, so replacing the process cannot repair it.
+ * A stalled loop still goes stale and fails `/ready`.
+ */
+export function observeScheduleCycle(outcome: { ready: boolean; healthy: boolean } | { thrown: true }, now: number): { readyAt: number; workflowStatus: WorkflowStatus } {
+  if ('thrown' in outcome) return { readyAt: now, workflowStatus: 'unknown' };
+  return { readyAt: outcome.ready ? now : 0, workflowStatus: outcome.healthy ? 'ok' : 'attention' };
+}
+
 /** A fresh bounded connection each cycle recovers after a Redis restart even in plain Compose. */
 export async function runScheduleCycle(config: ScheduleConfig, env: NodeJS.ProcessEnv, now = new Date(), connect = redisConnection, enqueue = enqueueWorkflow) {
   const validated = validateScheduleConfig(config);
@@ -163,11 +176,12 @@ export async function runScheduleCycle(config: ScheduleConfig, env: NodeJS.Proce
       if (!aborted && !clockSkew) await redis.eval("local n=tonumber(ARGV[1]); local p=tonumber(redis.call('GET',KEYS[1]) or '-1'); if n>p then redis.call('SET',KEYS[1],ARGV[1]) end; return 1", 1, namespace, minute);
     } catch { watermarkError = true; }
     const persistenceError = auditError || watermarkError;
-    // Workflow failures need operator attention, not scheduler replacement. A fast
-    // worker can fail a newly accepted job before the enqueue snapshot is read.
-    // Keep submission uncertainty and current queue/persistence failures unready.
-    const ready = !clockSkew && !persistenceError && !aborted
-      && attention.every(run => ['failed', 'PREVIOUS_RUN_FAILED', 'FAILED_REQUIRES_RESUME'].includes(run.state));
+    // Per-run outcomes (retained failures, submission uncertainty, enqueue errors)
+    // need operator attention, not scheduler replacement: a replacement re-plans the
+    // same deterministic run IDs and hits the same queue state. They stay in
+    // `healthy`, the attention stream and logs. Clock skew, persistence failure and
+    // shutdown remain unready.
+    const ready = !clockSkew && !persistenceError && !aborted;
     // Preserve accepted queue IDs even if the audit sink failed after enqueue.
     return { ready, healthy: baseline === 'known' && !clockSkew && !missedWindow && attention.length === 0 && !persistenceError && !aborted, runs, missedWindow, attention, persistenceError, auditError, watermarkError, clockSkew, aborted, baseline };
   } finally { await redis.quit().catch(() => { redis.disconnect(); }); }

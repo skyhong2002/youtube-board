@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { validateScheduleConfig, planSchedules, tickSchedules, runScheduleCycle, SCHEDULER_WATERMARK, type ScheduleConfig } from '../src/scheduler.js';
+import { validateScheduleConfig, planSchedules, tickSchedules, runScheduleCycle, observeScheduleCycle, SCHEDULER_WATERMARK, type ScheduleConfig } from '../src/scheduler.js';
 import { QueueInputConflict, type enqueueWorkflow, type redisConnection } from '../src/worker.js';
 const config: ScheduleConfig = { version: 1, timezone: 'Asia/Taipei', schedules: [
   { id: 'stats-v1', workflow: 'youtube.videos.stats', cron: '*/9 * * * *', options: { limit: 25 } },
@@ -63,7 +63,7 @@ describe('explicit recurring schedule plans', () => {
     expect(connect).toHaveBeenCalledTimes(2);
     enqueue.mockRejectedValue(new QueueInputConflict('unknown', 'SUBMISSION_UNOBSERVED', 'a'.repeat(64)));
     const uncertain = await runScheduleCycle(both, env, new Date(), connect as unknown as typeof redisConnection, enqueue);
-    expect(uncertain.healthy).toBe(false); expect(uncertain.ready).toBe(false); expect(uncertain.attention[0]?.queueId).toBe('a'.repeat(64)); expect(alive.xadd).toHaveBeenCalled();
+    expect(uncertain.healthy).toBe(false); expect(uncertain.ready).toBe(true); expect(uncertain.attention[0]?.state).toBe('SUBMISSION_UNOBSERVED'); expect(uncertain.attention[0]?.queueId).toBe('a'.repeat(64)); expect(alive.xadd).toHaveBeenCalled();
     alive.xadd.mockRejectedValue(new Error('audit sink unavailable'));
     const unpersisted = await runScheduleCycle(both, env, new Date(), connect as unknown as typeof redisConnection, enqueue);
     expect(unpersisted.healthy).toBe(false); expect(unpersisted.ready).toBe(false); expect(unpersisted.persistenceError).toBe(true); expect(unpersisted.runs[0]?.queueId).toBe('a'.repeat(64)); expect(alive.eval).toHaveBeenCalledTimes(3);
@@ -87,7 +87,8 @@ describe('explicit recurring schedule plans', () => {
     expect(next.missedWindow).not.toBeNull(); // Historical coverage gaps stay visible too.
     enqueue.mockRejectedValue(new Error('Queue transport unavailable'));
     const transportFailure = await runScheduleCycle(stats, env, now, (() => redis) as unknown as typeof redisConnection, enqueue);
-    expect(transportFailure).toMatchObject({ ready: false, healthy: false, attention: [{ state: 'ENQUEUE_ERROR' }] });
+    expect(transportFailure).toMatchObject({ ready: true, healthy: false, attention: [{ state: 'ENQUEUE_ERROR' }] });
+    expect(JSON.parse(redis.xadd.mock.calls.at(-1)!.at(-1))).toMatchObject({ runs: [{ state: 'ENQUEUE_ERROR' }] });
     redis.xadd.mockRejectedValue(new Error('Audit persistence unavailable'));
     enqueue.mockRejectedValue(new QueueInputConflict('Retained failure', state, 'retained-failed-job'));
     const unavailable = await runScheduleCycle(stats, env, now, (() => redis) as unknown as typeof redisConnection, enqueue);
@@ -123,6 +124,30 @@ it.skipIf(process.env.REDIS_WORKFLOW_TEST !== '1')('real Redis schedule ticks re
   } finally { await (await queue.getJob(id))?.remove(); await redis.del(`youtube-board-ts:input:${id}`, watermark, watermark + ':attention'); await queue.close(); await redis.quit(); }
 });
 
+
+it.each(['SUBMISSION_UNOBSERVED', 'SUBMISSION_IN_PROGRESS', 'RUN_ID_CONFLICT'])('keeps the scheduler ready while recording %s submission uncertainty as attention', async state => {
+  const env = { APP_ENV: 'test', TS_INGESTION_ENABLED: 'true', TS_SCHEDULER_ENABLED: 'true', TS_INGESTION_OWNERS: 'youtube.videos.stats' };
+  const stats = { ...config, schedules: [config.schedules[0]!] }, now = new Date('2032-01-01T00:09:00Z');
+  const redis = { ping: async () => 'PONG', get: async () => String(Math.floor(now.getTime() / 60000) - 1), eval: vi.fn().mockResolvedValue(1), xadd: vi.fn().mockResolvedValue('1-0'), quit: async () => {}, disconnect() {} };
+  const enqueue = vi.fn().mockRejectedValue(new QueueInputConflict('uncertain', state, 'b'.repeat(64)));
+  // Every tick inside the two-minute lookback re-plans the same slot; none may fail liveness.
+  for (const offset of [0, 15000, 30000, 45000, 60000]) {
+    const cycle = await runScheduleCycle(stats, env, new Date(now.getTime() + offset), (() => redis) as unknown as typeof redisConnection, enqueue);
+    expect(cycle).toMatchObject({ ready: true, healthy: false, attention: [{ state, queueId: 'b'.repeat(64) }] });
+    expect(observeScheduleCycle(cycle, 1000)).toEqual({ readyAt: 1000, workflowStatus: 'attention' });
+  }
+  expect(redis.xadd).toHaveBeenCalledTimes(5);
+  expect(JSON.parse(redis.xadd.mock.calls[0]!.at(-1))).toMatchObject({ runs: [{ state, queueId: 'b'.repeat(64) }] });
+});
+
+it('maps daemon ticks to liveness and workflow status without hiding failures', () => {
+  expect(observeScheduleCycle({ ready: true, healthy: true }, 5)).toEqual({ readyAt: 5, workflowStatus: 'ok' });
+  expect(observeScheduleCycle({ ready: true, healthy: false }, 5)).toEqual({ readyAt: 5, workflowStatus: 'attention' });
+  // Clock skew, persistence failure and shutdown stay unready.
+  expect(observeScheduleCycle({ ready: false, healthy: false }, 5)).toEqual({ readyAt: 0, workflowStatus: 'attention' });
+  // A thrown cycle (Redis/gates unavailable) keeps the loop live but reports unknown workflow state.
+  expect(observeScheduleCycle({ thrown: true }, 5)).toEqual({ readyAt: 5, workflowStatus: 'unknown' });
+});
 
 it('reports missing baseline and future watermark through attention without hiding accepted IDs', async () => {
   const env = { APP_ENV: 'test', TS_INGESTION_ENABLED: 'true', TS_SCHEDULER_ENABLED: 'true', TS_INGESTION_OWNERS: 'youtube.videos.stats' };
