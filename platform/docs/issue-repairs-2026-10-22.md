@@ -6,7 +6,7 @@ A retained `PREVIOUS_RUN_FAILED` or `FAILED_REQUIRES_RESUME` result no longer ma
 
 Independent review also covers a fast worker failing a newly accepted job before its enqueue snapshot is read (`state=failed`): it follows the same readiness/attention separation. An isolated real scheduler process with a deliberately failing BullMQ worker stayed alive across 80 seconds, retained failed jobs with exactly one attempt each, and kept durable attention visible; this is controlled runtime evidence, not a synthetic production job.
 
-`/ready` still requires a successful readiness observation within 60 seconds. Queue submission uncertainty, enqueue failures, clock skew, persistence failures, shutdown and thrown cycle failures remain unready. The endpoint additionally exposes `workflowStatus` (`unknown`, `ok`, `attention`); readiness must not be interpreted as publication acceptance. No failed job is replayed or removed by this change.
+(Superseded in part by `hermes/issue-4`: submission uncertainty, enqueue errors and an unreachable Redis no longer fail readiness; see `runtime/README.md`.) `/ready` still requires a successful readiness observation within 60 seconds. Queue submission uncertainty, enqueue failures, clock skew, persistence failures, shutdown and thrown cycle failures remain unready. The endpoint additionally exposes `workflowStatus` (`unknown`, `ok`, `attention`); readiness must not be interpreted as publication acceptance. No failed job is replayed or removed by this change.
 
 ## Single pre-publication report sample (#3)
 

@@ -135,13 +135,35 @@ export async function tickSchedules(config: ScheduleConfig, env: NodeJS.ProcessE
   return output;
 }
 
+export type WorkflowStatus = 'unknown' | 'ok' | 'attention';
+/** Redis did not answer the cycle's first PING; nothing was planned or written. */
+export class SchedulerRedisUnavailable extends Error {}
+/**
+ * Maps one daemon tick to readiness and workflow status. `readyAt` is the time the
+ * tick loop last made progress (0 = unready). Redis being unreachable keeps the loop
+ * live with workflowStatus `unknown`: every cycle opens a fresh connection, so
+ * replacing the process cannot repair it. Any other thrown cycle (gate, config,
+ * watermark validation, mid-cycle transport loss) stays unready so a scheduler that
+ * plans nothing is never reported healthy. A stalled loop goes stale and fails `/ready`.
+ */
+export function observeScheduleCycle(outcome: { ready: boolean; healthy: boolean } | { thrown: unknown }, now: number): { readyAt: number; workflowStatus: WorkflowStatus } {
+  if ('thrown' in outcome) return { readyAt: outcome.thrown instanceof SchedulerRedisUnavailable ? now : 0, workflowStatus: 'unknown' };
+  return { readyAt: outcome.ready ? now : 0, workflowStatus: outcome.healthy ? 'ok' : 'attention' };
+}
+/** Stderr label for a thrown cycle: fixed category plus our own message, never connection details. */
+export function scheduleFailureLabel(error: unknown) {
+  if (error instanceof SchedulerRedisUnavailable) return 'redis_unavailable';
+  const message = error instanceof Error ? error.message : '';
+  return /^[A-Za-z][A-Za-z0-9 ;,.'()_-]{0,159}$/.test(message) ? 'error: ' + message : 'unclassified';
+}
+
 /** A fresh bounded connection each cycle recovers after a Redis restart even in plain Compose. */
 export async function runScheduleCycle(config: ScheduleConfig, env: NodeJS.ProcessEnv, now = new Date(), connect = redisConnection, enqueue = enqueueWorkflow) {
   const validated = validateScheduleConfig(config);
   const namespace = schedulerNamespace(env)+':scheduler:attempted-minute';
   const redis = connect(env);
   try {
-    await redis.ping();
+    await redis.ping().catch(() => { throw new SchedulerRedisUnavailable('Scheduler Redis unavailable'); });
     const minute = Math.floor(now.getTime() / 60000), stored = await redis.get(namespace);
     if (stored !== null && (!/^\d+$/.test(stored) || !Number.isSafeInteger(Number(stored)) || Number(stored) > 144000000000)) throw new Error('Invalid scheduler watermark');
     const previous = stored === null ? null : Number(stored);
@@ -163,11 +185,12 @@ export async function runScheduleCycle(config: ScheduleConfig, env: NodeJS.Proce
       if (!aborted && !clockSkew) await redis.eval("local n=tonumber(ARGV[1]); local p=tonumber(redis.call('GET',KEYS[1]) or '-1'); if n>p then redis.call('SET',KEYS[1],ARGV[1]) end; return 1", 1, namespace, minute);
     } catch { watermarkError = true; }
     const persistenceError = auditError || watermarkError;
-    // Workflow failures need operator attention, not scheduler replacement. A fast
-    // worker can fail a newly accepted job before the enqueue snapshot is read.
-    // Keep submission uncertainty and current queue/persistence failures unready.
-    const ready = !clockSkew && !persistenceError && !aborted
-      && attention.every(run => ['failed', 'PREVIOUS_RUN_FAILED', 'FAILED_REQUIRES_RESUME'].includes(run.state));
+    // Per-run outcomes (retained failures, submission uncertainty, enqueue errors)
+    // need operator attention, not scheduler replacement: a replacement re-plans the
+    // same deterministic run IDs and hits the same queue state. They stay in
+    // `healthy`, the attention stream and logs. Clock skew, persistence failure and
+    // shutdown remain unready.
+    const ready = !clockSkew && !persistenceError && !aborted;
     // Preserve accepted queue IDs even if the audit sink failed after enqueue.
     return { ready, healthy: baseline === 'known' && !clockSkew && !missedWindow && attention.length === 0 && !persistenceError && !aborted, runs, missedWindow, attention, persistenceError, auditError, watermarkError, clockSkew, aborted, baseline };
   } finally { await redis.quit().catch(() => { redis.disconnect(); }); }
