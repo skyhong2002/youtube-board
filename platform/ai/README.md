@@ -24,6 +24,14 @@ npm run start -w @youtube-board/jobs -- ai:daily:catchup --date=2026-10-10 --cal
 
 Preview is default. `--execute` requires exact TypeScript ownership, ingestion,
 and production gates. Scheduled execution additionally checks scheduler gates.
+
+`ai:days-refresh` failed rows carry an allowlisted `reason`: `call_budget_exhausted`,
+`business_key_locked` (zero-wait lock held by another writer), `explicit_retry_required`
+(a prior journal attempt failed; manual runs need `--retry-failed`), `source_changed`,
+`source_unavailable` (pre-generation source check, with `sourceCode`), `journal_mismatch`,
+`provider_transient`, `generation_failed` (provider or output validation), `projection_failed`,
+or `source_generation_or_projection_failed` when the stage is unknown. Rows add `stage` and the
+`ts_ai_runs` `runId` when known. Error text is never echoed.
 Scheduled daily/hourly use the source-first pipeline adapters; direct
 `ai:daily` / `ai:hourly` are manual-only. Every invoked subworkflow rechecks its own authorization. Runtime worker/ops
 registration uses the same strict argument parser as CLI.
