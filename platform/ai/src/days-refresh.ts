@@ -5,6 +5,23 @@ import {runDailyPipeline,type DailyOptions} from './pipeline.js';
 import {runEvent} from './event.js';
 import {runPeriod} from './period.js';
 import {buildTopicCache} from './topic-cache.js';
+import {aiFailureStage} from './derived-runner.js';
+import {RetryableProviderError} from './provider.js';
+const SOURCE_CODE=/^[a-z][a-z_]{0,63}$/;
+/** Allowlisted reason for a failed refresh row; never echoes free-form error text. */
+export function refreshFailure(error:unknown):{reason:string;stage?:string;sourceCode?:string;runId?:string}{
+ const message=error instanceof Error?error.message:'',tagged=aiFailureStage(error),extra={...(SOURCE_CODE.test(message)?{sourceCode:message}:{}),...(tagged?.runId?{runId:tagged.runId}:{})};
+ if(message==='AI call budget exhausted')return {reason:'call_budget_exhausted'};
+ if(message.includes('locked'))return {reason:'business_key_locked',...(tagged?{stage:tagged.stage}:{})};
+ if(message.includes('retryFailed'))return {reason:'explicit_retry_required',...extra};
+ if(message.includes('source changed')||message.includes('source identity changed'))return {reason:'source_changed',...extra};
+ const stage=tagged?.stage;
+ if(stage==='source'||!stage&&SOURCE_CODE.test(message))return {reason:'source_unavailable',...(stage?{stage}:{}),...extra};
+ if(stage==='journal')return {reason:'journal_mismatch',stage,...extra};
+ if(stage==='generation')return {reason:error instanceof RetryableProviderError?'provider_transient':'generation_failed',stage,...extra};
+ if(stage==='projection')return {reason:'projection_failed',stage,...extra};
+ return {reason:'source_generation_or_projection_failed',...(stage?{stage}:{}),...extra};
+}
 export interface RefreshInput {from:string;to:string;condition?:string;userToken?:string;skipDaily?:boolean;skipEvents?:boolean;skipPeriod?:boolean;skipCache?:boolean;topicLimit?:number}
 export function normalizeRefresh(raw:RefreshInput){day(raw.from);day(raw.to);const span=(Date.parse(raw.to)-Date.parse(raw.from))/86400000;if(span<0||span>6)throw new Error('Refresh range must be 1–7 ordered days');const topicLimit=raw.topicLimit??100;if(!Number.isSafeInteger(topicLimit)||topicLimit<1||topicLimit>200)throw new Error('Invalid topic cap');for(const flag of ['skipDaily','skipEvents','skipPeriod','skipCache'] as const)if(raw[flag]!==undefined&&typeof raw[flag]!=='boolean')throw new Error('Invalid skip flag');return {...raw,condition:condition(raw.condition),userToken:token(raw.userToken),topicLimit};}
 /** Explicit finite range, shared actual-call budget, journal-backed restart; never hides a failed prerequisite. */
@@ -17,7 +34,7 @@ export async function refreshDays(db:Connection,raw:RefreshInput,options:DailyOp
  let calls=0;const rows:Record<string,unknown>[]=[],reserveCall=()=>{if(calls>=options.callLimit)throw new Error('AI call budget exhausted');options.reserveCall?.();calls++;};
  const runOptions=(job:string)=>({...options,reserveCall,assertAuthorized:()=>authorize(job)});
  const source={condition:input.condition,userToken:input.userToken};
- const fail=(workflow:string,date:string,error:unknown)=>{workflowShutdownSignal().throwIfAborted();if(options.execute)dependencies.forEach(authorize);const message=error instanceof Error?error.message:'';rows.push({workflow,date,status:'failed',reason:message==='AI call budget exhausted'?'call_budget_exhausted':message.includes('locked')?'business_key_locked':message.includes('retryFailed')?'explicit_retry_required':'source_generation_or_projection_failed'});};
+ const fail=(workflow:string,date:string,error:unknown)=>{workflowShutdownSignal().throwIfAborted();if(options.execute)dependencies.forEach(authorize);rows.push({workflow,date,status:'failed',...refreshFailure(error)});};
  const ready=new Set<string>();
  for(const date of dates){
   try{
