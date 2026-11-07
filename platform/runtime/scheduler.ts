@@ -1,11 +1,11 @@
 import { createServer } from 'node:http';
-import { readScheduleConfig, runScheduleCycle } from '../jobs/src/scheduler.js';
+import { observeScheduleCycle, readScheduleConfig, runScheduleCycle, scheduleFailureLabel, type WorkflowStatus } from '../jobs/src/scheduler.js';
 import { requestWorkflowShutdown } from '../shared/shutdown.js';
 
 const config = await readScheduleConfig(process.env.TS_SCHEDULE_CONFIG ?? 'runtime/schedules.json');
 if (!config.schedules.length) throw new Error('No explicit recurring schedules configured');
 let stopping = false, lastReady = 0;
-let workflowStatus: 'unknown' | 'ok' | 'attention' = 'unknown';
+let workflowStatus: WorkflowStatus = 'unknown';
 let timer: ReturnType<typeof setTimeout> | undefined;
 let current: Promise<void> = Promise.resolve();
 const server = createServer((req, res) => {
@@ -16,10 +16,9 @@ const server = createServer((req, res) => {
 async function tick() {
   try {
     const cycle = await runScheduleCycle(config, process.env);
-    lastReady = cycle.ready ? Date.now() : 0;
-    workflowStatus = cycle.healthy ? 'ok' : 'attention';
+    ({ readyAt: lastReady, workflowStatus } = observeScheduleCycle(cycle, Date.now()));
     if (cycle.runs.length || cycle.missedWindow || cycle.persistenceError || cycle.aborted || cycle.clockSkew || cycle.baseline === 'unobserved') process.stdout.write(JSON.stringify({ event: cycle.healthy ? 'schedule-tick' : 'schedule-attention', ...cycle }) + '\n');
-  } catch { if (!stopping) { lastReady = 0; workflowStatus = 'unknown'; process.stderr.write('Scheduler tick failed; configuration, gates and queue health require inspection\n'); } }
+  } catch (error) { if (!stopping) { ({ readyAt: lastReady, workflowStatus } = observeScheduleCycle({ thrown: error }, Date.now())); process.stderr.write(`Scheduler tick failed (${scheduleFailureLabel(error)}); configuration, gates and queue health require inspection\n`); } }
   finally { if (!stopping) timer = setTimeout(() => { current = tick(); }, 15000); }
 }
 for (const signal of ['SIGTERM', 'SIGINT'] as const) process.once(signal, async () => {
