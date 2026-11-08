@@ -42,3 +42,16 @@ it('points the web container healthcheck at liveness, workers and scheduler at t
     const source = await readFile(new URL('../../runtime/healthcheck.mjs', import.meta.url), 'utf8');
     expect(source).toContain("worker || scheduler ? 'ready' : 'runtime/live'");
 });
+it('bounds every part of the readiness check so liveness never judges a stale result', async () => {
+    const { withDeadline } = await import('../../runtime/readiness.js');
+    vi.useFakeTimers();
+    try {
+        // A wedged Next child: the /about inject never settles.
+        const hung = withDeadline(new Promise(() => {}), 4000);
+        const outcome = hung.then(() => 'settled', () => 'timed out');
+        await vi.advanceTimersByTimeAsync(4000);
+        expect(await outcome).toBe('timed out');
+        await expect(withDeadline(Promise.resolve(200), 4000)).resolves.toBe(200);
+        expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+});

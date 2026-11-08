@@ -9,7 +9,7 @@ import { buildApp } from '../api/src/app.js';
 import { registerOps } from '../api/src/ops/index.js';
 import { registerWebsub } from '../api/src/websub.js';
 import { registerUiProxy } from '../api/src/ui-proxy.js';
-import { readinessProbe, runtimeLiveness, type RuntimeChecks } from './readiness.js';
+import { readinessProbe, runtimeLiveness, withDeadline, type RuntimeChecks } from './readiness.js';
 import {frontendDatabases} from '../api/src/db/frontend.js';
 import {publicScriptManifest} from '../api/src/public-html.js';
 import {THEME_SCRIPT} from '../shared/public-render-contract.js';
@@ -46,7 +46,8 @@ let apiSeenReady = false;
 const ready = readinessProbe(async () => {
   const [api, ui] = await Promise.allSettled([
     app.inject({ method: 'GET', url: '/ready' }),
-    app.inject({method:'GET',url:'/about'}),
+    // The API check is bounded by the reader acquire and statement deadlines.
+    withDeadline(app.inject({method:'GET',url:'/about'}), 4000),
   ]);
   const uiReady = ui.status === 'fulfilled' && ui.value.statusCode === 200;
   const csp = ui.status === 'fulfilled' ? ui.value.headers['content-security-policy'] : undefined;
@@ -66,7 +67,8 @@ app.get('/runtime/live', async (_request, reply) => {
   if (stopping) return reply.code(503).send({ status: 'unavailable', checks: { lifecycle: 'stopping' } });
   // Never wait on the data source for longer than the healthcheck allows: refresh in
   // the background and judge the last completed check.
-  await Promise.race([ready(), delay(1500)]);
+  const wait = new AbortController();
+  await Promise.race([ready(), delay(1500, undefined, { signal: wait.signal }).catch(() => undefined)]).finally(() => wait.abort());
   const { live, checks } = runtimeLiveness(readinessChecks, apiSeenReady);
   return live ? { status: 'live', checks } : reply.code(503).send({ status: 'unavailable', checks });
 });
