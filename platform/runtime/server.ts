@@ -9,7 +9,7 @@ import { buildApp } from '../api/src/app.js';
 import { registerOps } from '../api/src/ops/index.js';
 import { registerWebsub } from '../api/src/websub.js';
 import { registerUiProxy } from '../api/src/ui-proxy.js';
-import { readinessProbe } from './readiness.js';
+import { readinessProbe, runtimeLiveness, type RuntimeChecks } from './readiness.js';
 import {frontendDatabases} from '../api/src/db/frontend.js';
 import {publicScriptManifest} from '../api/src/public-html.js';
 import {THEME_SCRIPT} from '../shared/public-render-contract.js';
@@ -41,7 +41,8 @@ const uiOrigin = process.env.UI_ORIGIN ?? 'http://127.0.0.1:3100';
 const assets=await publicScriptManifest(fileURLToPath(new URL('../web/.next/standalone/web/.next/static/',import.meta.url)));
 const unavailable=await loadUnavailableAssets(new URL('../web/.next/standalone/web/public/errors/',import.meta.url));
 await registerUiProxy(app, { origin: uiOrigin,htmlSecurity:{assets,themeScript:THEME_SCRIPT,...unavailable,analytics:analyticsTransportEnabled(process.env)} });
-let readinessChecks = { api: 'unchecked', ui: 'unchecked', security: 'unchecked' };
+let readinessChecks: RuntimeChecks = { api: 'unchecked', ui: 'unchecked', security: 'unchecked' };
+let apiSeenReady = false;
 const ready = readinessProbe(async () => {
   const [api, ui] = await Promise.allSettled([
     app.inject({ method: 'GET', url: '/ready' }),
@@ -51,12 +52,23 @@ const ready = readinessProbe(async () => {
   const csp = ui.status === 'fulfilled' ? ui.value.headers['content-security-policy'] : undefined;
   readinessChecks = { api: api.status === 'fulfilled' && api.value.statusCode === 200 ? 'ready' : 'unavailable',
     ui: uiReady ? 'ready' : 'unavailable', security: typeof csp === 'string' && csp.includes("'strict-dynamic'") ? 'ready' : 'unavailable' };
+  if (readinessChecks.api === 'ready') apiSeenReady = true;
   return Object.values(readinessChecks).every(state => state === 'ready');
 });
 app.get('/runtime/ready', async (_request, reply) => {
   reply.header('Cache-Control', 'no-store');
   if (stopping) return reply.code(503).send({ status: 'unavailable', checks: { lifecycle: 'stopping' } });
   return !await ready() ? reply.code(503).send({ status: 'unavailable', checks: readinessChecks }) : { status: 'ready', checks: readinessChecks };
+});
+// Container healthcheck: keeps a running web task when only its data source is degraded.
+app.get('/runtime/live', async (_request, reply) => {
+  reply.header('Cache-Control', 'no-store');
+  if (stopping) return reply.code(503).send({ status: 'unavailable', checks: { lifecycle: 'stopping' } });
+  // Never wait on the data source for longer than the healthcheck allows: refresh in
+  // the background and judge the last completed check.
+  await Promise.race([ready(), delay(1500)]);
+  const { live, checks } = runtimeLiveness(readinessChecks, apiSeenReady);
+  return live ? { status: 'live', checks } : reply.code(503).send({ status: 'unavailable', checks });
 });
 for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, async () => {
   if (stopping) return;
