@@ -13,7 +13,7 @@ const headers=Object.freeze({
  'Strict-Transport-Security':'max-age=31536000',
  'Connection':'close',
 });
-const probes=new Set(['/up','/healthz','/runtime/ready']);
+const probes=new Set(['/up','/healthz','/runtime/ready','/runtime/live']);
 export function createMaintenanceServer(){
  const server=createServer({maxHeaderSize:8192,requestTimeout:10000,headersTimeout:5000,keepAliveTimeout:1000},(request,response)=>{
   // Only exact query-free local health paths bypass maintenance. Every other

@@ -34,7 +34,7 @@ test('rollback responder denies every private path and method without echoing UR
 });
 test('exact GET/HEAD probes work with runtime Docker healthcheck and nothing else bypasses',async t=>{
  const port=await fixture(t);
- for(const path of ['/up','/healthz','/runtime/ready']){
+ for(const path of ['/up','/healthz','/runtime/ready','/runtime/live']){
   assert.equal((await get(port,path)).status,200);
   assert.equal((await get(port,path,'HEAD')).status,200);
   assert.equal((await get(port,path,'POST')).status,503);

@@ -49,7 +49,8 @@ Root owns the current backup/restore evidence and actual execution record.
   `TS_OPS_TOKEN` empty and `TS_OPS_SERVICE_AUTH_ENABLED=false`.
 - Fastify serves port 8000; Next binds internal loopback 3100. Use at least a
   35-second web stop grace, a 1 GiB memory limit and the reviewed CPU limit. Verify
-  the real Swarm healthcheck calls `/runtime/ready`, not only `/up` or `/healthz`.
+  the real Swarm healthcheck calls `/runtime/live` (since #6; before, `/runtime/ready`),
+  not only `/up` or `/healthz`.
   Mount media read-only; missing media falls back and does not require a writer.
 - Prepare and validate the rollback maintenance responder and exact private-path
   routers before the public switch. A written rollback intention is insufficient.
