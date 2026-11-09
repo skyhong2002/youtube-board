@@ -10,12 +10,12 @@ test('incomplete chart warning stays visible; complete date evidence uses a clos
  const html=render([{date:'2026-10-11',observed:19,status:'partial'},{date:'2026-10-12',observed:null,status:'unknown'},{date:'2026-10-13',observed:28,status:'complete'}]);
  const visible=html.slice(0,html.indexOf('<details>'));
  assert.match(visible,/1 個日期未完整、1 個日期涵蓋未知/);
- assert.match(visible,/虛線與空心點不應與完整觀測直接比較/);
+ assert.match(visible,/虛線不應與完整觀測直接比較/);
  assert.match(visible,/不補零.*不代表聲量下降/);
  assert.match(html,/<details><summary[^>]*>查看各日期的來源涵蓋與計算限制/);
  assert.doesNotMatch(html,/<details[^>]*open/);
  assert.match(html,/2026-10-11 19\/28、2026-10-12 涵蓋未知/);
- assert.match(html,/實線與實心點只用於已算完且涵蓋完整（28\/28）/);
+ assert.match(html,/實線只用於涵蓋完整（28\/28）/);
  assert.doesNotMatch(html,/2026-10-13 28\/28/);
 });
 test('complete coverage and no dates produce no incomplete-data warning',()=>{
@@ -28,9 +28,6 @@ test('recorded zero coverage is partial, unknown remains distinct and source dat
  assert.match(html,/&lt;img src=x&gt; 0\/28/);assert.doesNotMatch(html,/<img|2026-10-12 0\/28/);
  assert.match(html,/dark:text-amber-200/);
 });
-test('dates whose buckets are still being rebuilt are flagged as provisional, separately from gaps',()=>{
- const html=render([{date:'2026-11-08',observed:28,pending:6,status:'provisional'},{date:'2026-11-09',observed:28,pending:7,status:'provisional'},{date:'2026-11-01',observed:28,status:'complete'}]);
- assert.match(html,/2 個日期仍在累積（尚未算完）。/);
- assert.doesNotMatch(html,/未完整、/);
- assert.match(html,/2026-11-08（6 桶累積中）、2026-11-09（7 桶累積中）/);
+test('still-accumulating dates get no near-chart text; only the dashed line marks them',()=>{
+ assert.equal(render([{date:'2026-11-08',observed:28,pending:6,status:'provisional'},{date:'2026-11-01',observed:28,status:'complete'}]),'');
 });

@@ -48,7 +48,7 @@ export function MayorShare({part,city,series,search,rows,view}:ShareProps&{view:
  // Latest date on which any candidate has a share; a missing candidate there stays —.
  const lastIndex=(()=>{for(let i=dates.length-1;i>=0;i--)if(shares.some(s=>s.points[i]?.value!==null))return i;return -1;})();
  const last=lastIndex<0?undefined:{index:lastIndex},one=(key:string)=>{const value=search[key];return Array.isArray(value)?value[0]:value;};
- const lastCoverage=last?coverage[last.index]:undefined,incomplete=coverage.filter(c=>c.status!=='complete');
+ const lastCoverage=last?coverage[last.index]:undefined,incomplete=coverage.filter(c=>c.status==='partial'||c.status==='unknown');
  // 原始量 is the default; 占比 is kept in the URL (view=share) so city, period and metric links carry it.
  // The choice lives in the URL; replaceState updates it (and useSearchParams) at once, without a server round trip,
  // so the city, period and metric links carry it before the user can click them.
@@ -82,7 +82,7 @@ export function MayorShare({part,city,series,search,rows,view}:ShareProps&{view:
    {failed?<p className="py-8 text-center text-sm text-zinc-500">圖表載入失敗，請參考下方數值表格。</p>:<div ref={ref} role="img" aria-label={`候選人${raw?unit:'媒體聲量占比'}趨勢，${period}。${partialNote??'各日期涵蓋完整。'}`} className="h-80 w-full lg:h-[28rem]"/>}
   </figure>;
  return <section className="space-y-3" aria-label="候選人媒體聲量占比">
-  <p role="status" className={`inline-flex rounded-full px-2.5 py-0.5 text-xs ${lastCoverage?.status==='complete'?'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300':'bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-200'}`}>{last?dates[last.index]:''} {coverageLabel(lastCoverage)}</p>
+  <p role="status" className={`inline-flex rounded-full px-2.5 py-0.5 text-xs ${lastCoverage?.status==='complete'||lastCoverage?.status==='provisional'?'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300':'bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-200'}`}>{last?dates[last.index]:''} {coverageLabel(lastCoverage)}</p>
   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{series.map((s,i)=>{
    const trend=new URLSearchParams({tagid:MAYOR_TAGIDS,tags:s.name});
    for(const key of ['type','days','from','to'])if(one(key))trend.set(key,one(key)!);

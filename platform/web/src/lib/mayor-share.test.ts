@@ -64,12 +64,12 @@ test('series: complete points get small solid markers (an isolated true zero sta
  const [solid,partial]=coverageSeries('甲',[null,0,7],coverage,'#123456');
  assert.equal(solid!.name,'甲');assert.equal(partial!.name,'甲');
  assert.deepEqual(solid!.data,[null,0,null]);assert.equal(solid!.showSymbol,true);assert.equal(solid!.showAllSymbol,true);assert.equal(solid!.symbol,'circle');assert.ok(solid!.symbolSize>0);
- assert.deepEqual(partial!.data,[null,{value:0,symbol:'none',symbolSize:7},{value:7,symbol:'emptyCircle',symbolSize:7}]);assert.equal(partial!.lineStyle.type,'dashed');
+ assert.deepEqual(partial!.data,[null,{value:0,symbol:'none',symbolSize:4},{value:7,symbol:'circle',symbolSize:4}]);assert.equal(partial!.lineStyle.type,'dashed');
 });
 
 const cov=(statuses:string)=>[...statuses].map((s,i)=>({date:`d${i}`,observed:s==='C'?28:s==='P'?20:null,status:(s==='C'?'complete':s==='P'?'partial':'unknown') as BucketCoverage['status']}));
-/** Dashed series as [index, value, hollow] triples, one list per series, for compact assertions. */
-const dashed=(values:(number|null)[],statuses:string)=>coverageSeries('甲',values,cov(statuses),'#000').slice(1).map(s=>(s.data as ({value:number;symbol:string}|null)[]).flatMap((p,i)=>p===null?[]:[[i,p.value,p.symbol==='emptyCircle']]));
+/** Dashed series as [index, value, own point (marker drawn)] triples, one list per series, for compact assertions. */
+const dashed=(values:(number|null)[],statuses:string)=>coverageSeries('甲',values,cov(statuses),'#000').slice(1).map(s=>(s.data as ({value:number;symbol:string}|null)[]).flatMap((p,i)=>p===null?[]:[[i,p.value,p.symbol==='circle']]));
 /** Every pair of indices joined by a dashed segment (consecutive non-null points in one series). */
 const dashedEdges=(values:(number|null)[],statuses:string)=>coverageSeries('甲',values,cov(statuses),'#000').slice(1).flatMap(s=>{const d=s.data as unknown[];return d.flatMap((p,i)=>p!==null&&d[i+1]!=null?[`${i}-${i+1}`]:[]);});
 
@@ -116,7 +116,7 @@ test('pending buckets make a fully covered date provisional, drawn dashed like o
  const dates=['2026-11-07','2026-11-08','2026-11-09'];
  const coverage=mayorCoverage([{date:'2026-11-07',observedBuckets:28,pendingBuckets:0},{date:'2026-11-08',observedBuckets:28,pendingBuckets:5},{date:'2026-11-09',observedBuckets:27,pendingBuckets:7}],dates);
  assert.deepEqual(coverage.map(c=>c.status),['complete','provisional','partial']);
- assert.match(coverageLabel(coverage[1]),/其中 5 個仍在累積/);
+ assert.equal(coverageLabel(coverage[1]),coverageLabel(coverage[0]));
  const [solid,...runs]=coverageSeries('甲',[1,2,3],coverage,'#000');
  assert.deepEqual(solid.data,[1,null,null]);assert.equal(runs.length,1);assert.equal(runs[0]!.lineStyle.type,'dashed');
 });

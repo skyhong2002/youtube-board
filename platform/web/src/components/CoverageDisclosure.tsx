@@ -8,9 +8,8 @@ export function CoverageDisclosure({coverage}:{coverage:readonly BucketCoverage[
  if(!note)return null;
  const partial=coverage.filter(c=>c.status==='partial').length;
  const unknown=coverage.filter(c=>c.status==='unknown').length;
- const provisional=coverage.filter(c=>c.status==='provisional').length;
  return <div className="space-y-1 text-xs text-amber-900 dark:text-amber-200" data-coverage-disclosure>
-  <p>來源觀測：{[provisional?`${provisional} 個日期仍在累積（尚未算完）`:'',partial?`${partial} 個日期未完整`:'',unknown?`${unknown} 個日期涵蓋未知`:''].filter(Boolean).join('、')}。虛線與空心點不應與完整觀測直接比較，缺少的桶不補零，偏低也不代表聲量下降。</p>
+  <p>來源觀測：{partial} 個日期未完整、{unknown} 個日期涵蓋未知。虛線不應與完整觀測直接比較，缺少的桶不補零，也不代表聲量下降。</p>
   <details>
    <summary className="cursor-pointer rounded-sm py-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">查看各日期的來源涵蓋與計算限制</summary>
    <p className="mt-1 leading-5 [overflow-wrap:anywhere]">{note}</p>
