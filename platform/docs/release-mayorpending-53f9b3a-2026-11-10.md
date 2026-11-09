@@ -51,3 +51,13 @@ pending (4…24 buckets) with 11/03 and earlier settled; the page shows the 仍�
 
 `python3 /home/sky/yt-release-mayorpending-53f9b3a/release-mayorpending.py --execute --rollback` (back to `sha256:4f2ae67a…`).
 Pre-change compose: `/home/sky/yt-release-mayorpending-53f9b3a/release-mayorpending-before-20261109T191440Z.private.json`.
+
+## Follow-up 4003f84 (2026-11-09 19:20Z)
+
+The user asked for no near-chart text and no hollow points: provisional dates now show only the dashed line (filled
+4 px dots); the near-chart notice, tooltip and badge read as for complete dates, and the explanation stays in the
+method block. Image `youtube-board-ts:release-mayorquiet-web-4003f84-amd64`
+`sha256:9fb607b6d4b32b42ae8f71c195575fdcbad3e061cb599cb258c6e496b301df40`, built the same way on the 53f9b3a image
+(patch `mayorquiet.patch` applied to the same `head`). `release-mayorquiet.py --execute` at 19:20:29Z, `completed` at
+19:20:59Z; `/`, `/mayor/cities/taipei`, `/channels`, `/api/v1/videos` 200. Rollback:
+`python3 /home/sky/yt-release-mayorpending-53f9b3a/release-mayorquiet.py --execute --rollback` (back to `sha256:48c87eb3…`).
