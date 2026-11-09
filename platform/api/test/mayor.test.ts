@@ -1,7 +1,7 @@
 import {it,expect} from 'vitest';
 import {MySqlDialect} from 'drizzle-orm/mysql-core';
 import {buildApp} from '../src/app.js';
-import {foldCandidateAliases,mayorMetric,mayorPeriod,mayorWeights} from '../src/reports/mayor.js';
+import {foldCandidateAliases,mayorMetric,mayorObservations,mayorPeriod,mayorWeights} from '../src/reports/mayor.js';
 import {cities} from '../src/reports/city-definitions.js';
 const clock=()=>new Date('2026-10-12T17:00:00Z'),dialect=new MySqlDialect();
 const metadata={pk:1,tagid:'3',the_date:'2026-10-01',ctime:'2026-10-01 12:00:00',mtime:'2026-10-01 12:00:00',payload_bytes:40,payload_hash:'fixture'};
@@ -68,5 +68,11 @@ it('mayor counts press spellings under the registered name and keeps the CEC ros
 it('mayor bucket coverage spans every charted date while table rows stay paginated',async()=>{
  const r=await request('/mayor/cities/taipei?from=2026-07-19&to=2026-10-16',()=>[]);expect(r.statusCode).toBe(200);
  const data=r.json().data;expect(data.series[0].points).toHaveLength(90);expect(data.rows).toHaveLength(50);
- expect(data.bucketCoverage).toHaveLength(90);expect(data.bucketCoverage.at(-1)).toEqual({date:'2026-10-16',observedBuckets:0});
+ expect(data.bucketCoverage).toHaveLength(90);expect(data.bucketCoverage.at(-1)).toEqual({date:'2026-10-16',observedBuckets:0,pendingBuckets:0});
+});
+
+it('buckets still inside the rebuild window count as pending for every rolling date that includes them',()=>{
+ const byDate=new Map([['2026-11-02',new Map([['3',new Map([['甲',1]])]])],['2026-11-08',new Map([['3',new Map([['甲',2]])]])]]);
+ const rows=mayorObservations(['2026-11-07','2026-11-08','2026-11-14','2026-11-15'],['甲'],{byDate,pending:new Set(['2026-11-08|3'])});
+ expect(rows.map(r=>r.pendingBuckets)).toEqual([0,1,1,0]);expect(rows.map(r=>r['甲'])).toEqual([1,3,2,null]);
 });

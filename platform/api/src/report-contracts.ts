@@ -66,6 +66,8 @@ export interface ReportData {
     bucketCoverage?: {
         date: string;
         observedBuckets: number;
+        /** Buckets in the seven-day window still inside the rebuild window (views still accumulating). */
+        pendingBuckets?: number;
     }[];
 }
 /** /ai/aspects additions (Laravel AiAspectReport): a tag is LegacyTagFilter's {id, name}. */

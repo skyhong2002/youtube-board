@@ -111,3 +111,12 @@ test('raw candidate chart shows a coverage column and note only when coverage is
  const plain=renderToStaticMarkup(createElement(TimeChart,{points,label:'甲',unit:'觀看引用'}));
  assert.doesNotMatch(plain,/分類日桶|不代表聲量下降/);
 });
+test('pending buckets make a fully covered date provisional, drawn dashed like other incomplete dates',async()=>{
+ const {coverageSeries}=await import('./bucket-coverage');
+ const dates=['2026-11-07','2026-11-08','2026-11-09'];
+ const coverage=mayorCoverage([{date:'2026-11-07',observedBuckets:28,pendingBuckets:0},{date:'2026-11-08',observedBuckets:28,pendingBuckets:5},{date:'2026-11-09',observedBuckets:27,pendingBuckets:7}],dates);
+ assert.deepEqual(coverage.map(c=>c.status),['complete','provisional','partial']);
+ assert.match(coverageLabel(coverage[1]),/其中 5 個仍在累積/);
+ const [solid,...runs]=coverageSeries('甲',[1,2,3],coverage,'#000');
+ assert.deepEqual(solid.data,[1,null,null]);assert.equal(runs.length,1);assert.equal(runs[0]!.lineStyle.type,'dashed');
+});
