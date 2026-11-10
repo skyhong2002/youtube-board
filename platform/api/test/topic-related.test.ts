@@ -1,5 +1,6 @@
 import {describe,expect,it} from 'vitest';
 import {matchTopics,topicCoverage,topicRelatedCache,withTopicCoverage,TOPIC_RELATED_RULE,type CandidateVideo,type TopicInput} from '../src/reports/topic-related.js';
+import type { TopicRow } from '../src/contracts.js';
 import type {Reader} from '../src/db/client.js';
 
 let seq=0;
@@ -67,7 +68,7 @@ describe('topic related videos',()=>{
   let calls=0;
   const reader={rows:async()=>{calls++;return [{videoId:'abcdefghijk',u_id:9,title:'沈伯洋 深偽音檔',description:'',publishedAt:'2026-10-31 01:00:00',viewCount:'12',channelTitle:'台',tags:'[64]'}];},close:async()=>{}} as unknown as Reader;
   const load=topicRelatedCache(reader,()=>new Date('2026-11-01T00:00:00Z'));
-  const topics=[{...topic('t',['沈伯洋'],['深偽音檔']),dailyId:1,channelCount:1,videoCount:0,score:0,unresolvedReferences:[]}];
+  const topics:TopicRow[]=[{...topic('t',['沈伯洋'],['深偽音檔']),dailyId:1,channelCount:1,videoCount:0,score:0,unresolvedReferences:[]}];
   const [first]=await withTopicCoverage(load,topics,'2026-10-31');const afterFirst=calls;await withTopicCoverage(load,topics,'2026-10-31');
   // Videos plus the cited channel's network tags; the second read is served from the cache.
   expect([afterFirst,calls]).toEqual([2,2]);
