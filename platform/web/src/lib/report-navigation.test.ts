@@ -16,6 +16,46 @@ test('report transition matrix preserves only compatible destination scope',()=>
  assert.deepEqual(query(reportHref('/ai/periods',{date:'2026-10-11',condition:'blue',type:'oneday'},'/ai/days')),{condition:'blue',from:'2026-10-11',to:'2026-10-11'});
  assert.deepEqual(query(reportHref('/channels/8/trends',selection)),{from:'2026-10-01',to:'2026-10-11',mode:'orig',days:'30'});
 });
+test('daily live menu drops unsupported filters and preserves its own quarter/group/metric controls',()=>{
+ const daily='/live/trends/daily';
+ const selection={or:'1,2,12,13,14,81',tagid:'1',not:'3',q:'交通',date:'2026-10-11',days:'90',group:'party',type:'count_videos',hours:'24',min:'100',diff:'1'};
+ assert.equal(familyTabs('/live/current',selection).find(t=>t.label==='每日趨勢')?.href,daily+'?from=2026-10-11&to=2026-10-11');
+ assert.equal(familyTabs('/live/current',{or:selection.or}).find(t=>t.label==='每日趨勢')?.href,daily);
+ assert.deepEqual(query(familyTabs(daily,selection).find(t=>t.label==='每日趨勢')!.href),{days:'90',group:'party',type:'count_videos'});
+ assert.deepEqual(query(reportHref(daily,{...selection,from:'2026-08-13',to:'2026-11-11',today:'1'})),{from:'2026-08-13',to:'2026-11-11',days:'90',today:'1',type:'count_videos',group:'party'});
+ assert.deepEqual(query(familyTabs(daily,{days:'90',group:'party',type:'count_videos'}).find(t=>t.label==='即時直播')!.href),{});
+});
+test('live family tabs keep only each destination’s supported scope and same-page controls',()=>{
+ const selection={tagid:'1',or:'2,3',not:'4',q:'交通',from:'2026-10-01',to:'2026-10-11',date:'2026-10-05',days:'7',today:'1',type:'views',group:'party',hours:'24',min:'100',diff:'1'};
+ const cases:[string,Record<string,string>][]=[
+  ['/live/channels',{date:'2026-10-05',days:'7'}],
+  ['/live/days',{date:'2026-10-05',days:'7'}],
+  ['/live/periods',{date:'2026-10-05',days:'7'}],
+  ['/live/hours',{days:'7',today:'1',type:'views'}],
+  ['/live/tags',{days:'7',today:'1',type:'tags_views'}],
+  ['/live/continuous',{date:'2026-10-05',days:'7',today:'1',hours:'24'}],
+ ];
+ for(const [path,own] of cases){
+  const tabs=familyTabs(path,{...selection,...(path==='/live/tags'?{type:'tags_views'}:{})});
+  assert.deepEqual(query(tabs.find(t=>t.href.split('?')[0]===path)!.href),{tagid:'1',or:'2,3',not:'4',...(path==='/live/tags'?{}:{q:'交通'}),from:'2026-10-01',to:'2026-10-11',...own},path);
+  assert.deepEqual(query(tabs.find(t=>t.label==='分類')!.href),{tagid:'1',or:'2,3',not:'4',from:path==='/live/channels'?'2026-10-05':'2026-10-01',to:path==='/live/channels'?'2026-10-05':'2026-10-11',...(path==='/live/tags'?own:{})},path+' → 分類');
+ }
+});
+test('live transitions handle daily year, endpoint-only dates and incompatible range budgets',()=>{
+ const daily='/live/trends/daily';
+ for(const path of ['/live/days','/live/periods','/live/hours','/live/channels','/live/tags','/live/continuous']){
+  assert.equal(reportHref(path,{from:'year'},daily),path);
+  assert.deepEqual(query(reportHref(path,{from:'year',to:'2026-11-10'},daily)),['/live/days','/live/periods'].includes(path)?{from:'2026-11-10',to:'2026-11-10'}:{to:'2026-11-10'});
+  assert.deepEqual(query(reportHref(path,{from:'2026-01-01',to:'2026-11-10'},daily)),path==='/live/channels'?{from:'2026-01-01',to:'2026-11-10'}:{from:'2026-11-10',to:'2026-11-10'});
+  assert.deepEqual(query(reportHref(path,{from:'2026-01-01'},daily)),{from:'2026-01-01',to:'2026-01-01'});
+ }
+ const end='2026-11-10',shift=(days:number)=>new Date(Date.parse(end)-days*86400000).toISOString().slice(0,10);
+ for(const [path,span] of [['/live/hours',31],['/live/days',89],['/live/periods',89],['/live/continuous',89],['/live/tags',90],['/live/channels',366]] as const){
+  assert.deepEqual(query(reportHref(path,{from:shift(span),to:end},daily)),{from:shift(span),to:end});
+  assert.deepEqual(query(reportHref(path,{from:shift(span+1),to:end},daily)),{from:end,to:end});
+ }
+ assert.equal(reportHref(daily,{from:'year',days:'90',group:'party',type:'count_videos'}),daily+'?from=year&days=90&type=count_videos&group=party');
+});
 test('keyword and taxonomy lists expose sibling reports and comparison retains exact selection',()=>{
  const keyword='/keywords/'+encodeURIComponent('交通%41'),tabs=familyTabs(keyword+'/videos',{from:'2026-10-01',to:'2026-10-11',days:'7',type:'unsupported'});
  assert.ok(tabs.some(t=>t.href.startsWith(keyword+'/days?')));assert.ok(tabs.some(t=>t.href.startsWith(keyword+'/groups/trends?')));

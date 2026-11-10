@@ -24,6 +24,9 @@ function scopeKeys(path:string):string[]{
  if(path==='/live/current')return [...taxonomy,'q'];
  // Taxonomy hourly live is one day; group/period/view selectors of ranking/trends do not apply.
  if(liveGroupHours.test(path))return ['date'];
+ // Daily trends compare fixed groups and reject channel/text filters.
+ if(path==='/live/trends/daily')return period;
+ if(path==='/live/tags')return [...taxonomy,...period];
  if(/^\/live\/(days|periods|hours|channels|tags|continuous|trends\/daily)/.test(path))return [...taxonomy,...period,'q'];
  if(path==='/tags/compare')return [...taxonomy,...period,'tags'];
  if(/^\/(?:tags|keywords)\//.test(path))return [...taxonomy,...period];
@@ -31,16 +34,22 @@ function scopeKeys(path:string):string[]{
  return [];
 }
 function samePageKeys(path:string):string[]{
+ if(path==='/live/channels'||path==='/live/days'||path==='/live/periods')return ['date','days'];
+ if(path==='/live/hours'||path==='/live/tags')return ['days','today','type'];
+ if(path==='/live/continuous')return ['date','days','today','hours'];
  if(/^\/channels\/\d+\/ai$/.test(path))return []; // This tab always returns to the overview, not its legacy daily alias.
  if(/\/videos$/.test(path)||path==='/videos')return ['column','hours','days','min'];
  if(path==='/channels'||/\/channels$/.test(path))return ['column','min'];
  if(/^\/channels\/\d+\/trends$/.test(path))return ['mode','orig','each','videos','days'];
  if(path==='/live/current')return ['hours'];
  if(liveGroupHours.test(path))return ['type'];
+ if(path==='/live/trends/daily')return ['days','today','type','group'];
  if(path.startsWith('/ai/'))return ['type','month','date','condition','event','pk'];
  return ['days','today','type','diff','view','tags','group','pk','sourceLimit','hours','min'];
 }
 export function reportHref(target:string,search:Search={},source=target):string{
+ // Channel aggregates give a single date priority over stale range fields.
+ if(source==='/live/channels'&&target!==source){const date=scalar(search.date);if(date&&/^\d{4}-\d{2}-\d{2}$/.test(date))search={...search,from:date,to:date};}
  const params=new URLSearchParams(),keys=[...scopeKeys(target),...(target===source?samePageKeys(target):[])];
  for(const key of new Set(keys)){const value=scalar(search[key]);if(value!==undefined&&value!=='')params.set(key,value);}
  // The hourly group report accepts only its own count/views metric.
@@ -49,6 +58,16 @@ export function reportHref(target:string,search:Search={},source=target):string{
  if(target!==source&&keys.includes('from')&&keys.includes('to')&&!params.has('from')&&!params.has('to')){const date=scalar(search.date);if(date&&/^\d{4}-\d{2}-\d{2}$/.test(date)){params.set('from',date);params.set('to',date);}}
  // Single-day views retain the endpoint of an explicitly selected interval.
  if(target!==source&&keys.includes('date')&&!params.has('date')){const date=scalar(search.to);if(date&&/^\d{4}-\d{2}-\d{2}$/.test(date))params.set('date',date);}
+ // Live reports have different date budgets. On an incompatible transition,
+ // show the selected endpoint day rather than generate a rejected URL.
+ if(target!==source&&/^\/live\//.test(target)&&keys.includes('from')){
+  if(target!=='/live/trends/daily'&&params.get('from')==='year')params.delete('from');
+  const from=params.get('from'),to=params.get('to');
+  const maxSpan=target==='/live/hours'?31:['/live/days','/live/periods','/live/continuous'].includes(target)?89:target==='/live/tags'?90:366;
+  if(from&&to&&Date.parse(to)-Date.parse(from)>maxSpan*86400000)params.set('from',to);
+  if(to&&!from&&['/live/days','/live/periods'].includes(target))params.set('from',to);
+  if(from&&!to)params.set('to',from);
+ }
  return target+(params.size?'?'+params.toString():'');
 }
 export function eventTabs(path:string,search:Search):ReportTab[]{
