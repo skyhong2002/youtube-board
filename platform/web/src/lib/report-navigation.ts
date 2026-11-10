@@ -50,6 +50,11 @@ function samePageKeys(path:string):string[]{
 export function reportHref(target:string,search:Search={},source=target):string{
  // Channel aggregates give a single date priority over stale range fields.
  if(source==='/live/channels'&&target!==source){const date=scalar(search.date);if(date&&/^\d{4}-\d{2}-\d{2}$/.test(date))search={...search,from:date,to:date};}
+ if(target!==source&&/^\/tags(?:\/\d+)?\/trends$/.test(source)){
+  const from=scalar(search.from),to=scalar(search.to);
+  // Tag trends accept reversed boundaries; sibling reports require ordered dates.
+  if(from&&to&&from!=='year'&&from>to)search={...search,from:to,to:from};
+ }
  const params=new URLSearchParams(),keys=[...scopeKeys(target),...(target===source?samePageKeys(target):[])];
  for(const key of new Set(keys)){const value=scalar(search[key]);if(value!==undefined&&value!=='')params.set(key,value);}
  // The hourly group report accepts only its own count/views metric.
@@ -67,6 +72,11 @@ export function reportHref(target:string,search:Search={},source=target):string{
   if(from&&to&&Date.parse(to)-Date.parse(from)>maxSpan*86400000)params.set('from',to);
   if(to&&!from&&['/live/days','/live/periods'].includes(target))params.set('from',to);
   if(from&&!to)params.set('to',from);
+ }
+ if(target!==source&&/^\/tags(?:\/\d+)?\/trends$/.test(source)){
+  if(!/^\/tags(?:\/\d+)?\/trends$/.test(target)&&params.get('from')==='year')params.delete('from');
+  const from=params.get('from'),to=params.get('to');
+  if(/^\/tags(?:\/\d+)?\/days$/.test(target)&&from&&to&&Date.parse(to)-Date.parse(from)>90*86400000)params.set('from',to);
  }
  return target+(params.size?'?'+params.toString():'');
 }

@@ -56,6 +56,17 @@ test('live transitions handle daily year, endpoint-only dates and incompatible r
  }
  assert.equal(reportHref(daily,{from:'year',days:'90',group:'party',type:'count_videos'}),daily+'?from=year&days=90&type=count_videos&group=party');
 });
+test('tag trend menus respect daily limits, year shorthand and reversed source boundaries',()=>{
+ for(const base of ['/tags','/tags/102']){
+  const source=base+'/trends',target=base+'/days';
+  assert.deepEqual(query(reportHref(target,{from:'2026-01-01',to:'2026-11-10'},source)),{from:'2026-11-10',to:'2026-11-10'});
+  assert.deepEqual(query(reportHref(target,{from:'2026-11-10',to:'2026-11-01'},source)),{from:'2026-11-01',to:'2026-11-10'});
+  assert.deepEqual(query(reportHref(target,{from:'2026-08-12',to:'2026-11-10'},source)),{from:'2026-08-12',to:'2026-11-10'});
+  for(const tab of familyTabs(source,{from:'year',to:'2026-11-10'})){
+   assert.equal(query(tab.href).from,tab.href.split('?')[0]===source?'year':undefined,tab.href);
+  }
+ }
+});
 test('keyword and taxonomy lists expose sibling reports and comparison retains exact selection',()=>{
  const keyword='/keywords/'+encodeURIComponent('交通%41'),tabs=familyTabs(keyword+'/videos',{from:'2026-10-01',to:'2026-10-11',days:'7',type:'unsupported'});
  assert.ok(tabs.some(t=>t.href.startsWith(keyword+'/days?')));assert.ok(tabs.some(t=>t.href.startsWith(keyword+'/groups/trends?')));
