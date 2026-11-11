@@ -113,6 +113,15 @@ export function nextUploadsCheck(now: Date, weekCount: number) {
 export type UploadsInput = { uId?: number; limit: number; maxPages: number; days: number; maxResults?: number; stopAt?: number; live?: 1 | 2; tvbs?: boolean; tagId?: number; offset?: number | 'auto' };
 /** `--live=1` is Laravel's tag 52 (youtube.channels.videos.live), `--live=2` tag 89 (youtube.channels.videos.live_group). */
 export const uploadsJobKey = (input: Pick<UploadsInput, 'live' | 'tvbs'>) => input.tvbs ? 'youtube.tvbs.videos' : input.live === 1 ? 'youtube.channels.videos.live' : input.live === 2 ? 'youtube.channels.videos.live_group' : 'youtube.channels.videos.general';
+/** HTTP 404/410 or playlistItemsNotAccessible: the uploads playlist is absent or not public (#7). */
+export const missingPlaylist = (failure: ReturnType<typeof youtubeFailureDetail>) => failure.category === 'request-failed' && ([404, 410].includes(failure.status ?? 0) || failure.reason === 'playlistItemsNotAccessible');
+/**
+ * #7: Laravel deferred every playlist error by one hour. About 117 channels whose stored UU playlist answers 404
+ * playlistNotFound on every request came back due every few hours, took ~9% of discovery selections and API calls,
+ * and filled whole batches (completed, applied 0, all skipped). Their playlist does not come back within an hour, so
+ * re-check it daily; transient and unexpected errors keep the one-hour retry.
+ */
+export const MISSING_PLAYLIST_RECHECK_SECONDS = 86400;
 const later = (now: Date, seconds: number) => taipeiSql(new Date(now.getTime() + seconds * 1000));
 async function crawlUploads(ctx: SourceJobContext, row: RowDataPacket, maxPages: number, maxResults: number, stopAt?: number) {
   const items = new Map<string, PlaylistItem>(), seen = new Set<string>(); let token: string | null = null;
@@ -175,10 +184,10 @@ export async function channelUploadsJob(ctx: SourceJobContext, input: UploadsInp
     catch (error) {
       if (isRunStoppingYoutubeError(error)) return stopped(error);
       await ctx.assertOwnership();
-      if (!input.tvbs) await update(ctx.db, 'urt_channel', { u_id: uId }, { vtime: later(ctx.now, 3600) });
-      const failure = youtubeFailureDetail(error);
+      const failure = youtubeFailureDetail(error), missing = missingPlaylist(failure);
+      if (!input.tvbs) await update(ctx.db, 'urt_channel', { u_id: uId }, { vtime: later(ctx.now, missing ? MISSING_PLAYLIST_RECHECK_SECONDS : 3600) });
       // A genuinely missing/inaccessible playlist remains an expected per-item skip.
-      if (!(failure.category === 'request-failed' && ([404, 410].includes(failure.status ?? 0) || failure.reason === 'playlistItemsNotAccessible'))) discoveryFailures++;
+      if (!missing) discoveryFailures++;
       skipped.push({ uId, reason: 'playlist-api-error', partialVideos, failure }); continue;
     }
     try {
