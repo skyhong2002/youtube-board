@@ -166,8 +166,8 @@ it.skipIf(!enabled)('resource-specific HTTP errors backoff queue items while glo
     const[backoff]=await db.query<RowDataPacket[]>('SELECT failures FROM ts_youtube_item_backoff WHERE workflow=? AND video_id=?',['youtube.comments.fetch',vid]);expect(backoff[0]?.failures).toBe(1);
     expect((await commentFetchJob({...ctx,youtube:failing(403,'quotaExceeded')},{videoId:vid,limit:1,maxPages:1,maxReplyPages:1})).stoppedReason).toBe('quota-daily');
     expect((await channelUploadsJob({...ctx,youtube:failing(404,'playlistNotFound')},{uId,limit:1,maxPages:1,days:7})).skipped).toHaveLength(1);
-    // Laravel playlist_api_error: the channel's vtime moves one hour ahead (no TS-only backoff row).
-    const[deferred]=await db.query<RowDataPacket[]>('SELECT vtime FROM urt_channel WHERE u_id=?',[uId]);expect(deferred[0]?.vtime).toBe('2026-10-12 11:00:00');
+    // #7: a missing uploads playlist moves the channel's vtime a day ahead (no TS-only backoff row).
+    const[deferred]=await db.query<RowDataPacket[]>('SELECT vtime FROM urt_channel WHERE u_id=?',[uId]);expect(deferred[0]?.vtime).toBe('2026-10-13 10:00:00');
   }finally{await clean(db,uId,[vid]);await db.end();}
 });
 it.skipIf(!enabled)('batch item rejection defers statistics and duration without fabricated freshness and quota stops preserve enqueue provenance',async()=>{
