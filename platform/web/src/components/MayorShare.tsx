@@ -5,7 +5,7 @@ import {useEffect,useRef,useState} from 'react';
 import {mayorView,type View} from '@/lib/mayor-view';
 import {cities} from '../../../shared/city-definitions';
 import {chartTimeLabel} from '@/lib/chart-window';
-import {compact,count} from '@/lib/format';
+import {compact,count,share as shareNumber} from '@/lib/format';
 import {reportStyle as ui} from '@/lib/report-styles';
 import type {ChartPoint} from './Charts';
 import {CoverageDisclosure} from './CoverageDisclosure';
@@ -35,7 +35,7 @@ export function mayorShares(series:Series[]){
 /** The trend chart's y-axis: raw volume unless the URL asks for share. */
 type Search=Record<string,string|string[]|undefined>;
 // Missing values read 「—」 as on every other report page.
-const share=(value:number|null|undefined)=>value===null||value===undefined?'—':value.toFixed(1)+'%';
+const share=(value:number|null|undefined)=>{const text=shareNumber(value);return text==='—'?text:text+'%';};
 export {MAYOR_EXPECTED_BUCKETS,coverageLabel,coverageSegments,mayorCoverage,type BucketCoverage} from '@/lib/bucket-coverage';
 
 /** Mayor pages render this twice: the share chart right after the filters, and the candidate cards below it. */
