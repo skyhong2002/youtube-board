@@ -55,8 +55,8 @@ export function MayorShare({part,city,series,search,rows,view}:ShareProps&{view:
  const ref=useRef<HTMLDivElement>(null),[failed,setFailed]=useState(false);
  const pickView=(next:'share'|'raw')=>{const query=new URLSearchParams(window.location.search);if(next==='share')query.set('view','share');else query.delete('view');const text=query.toString();window.history.replaceState(null,'',`${window.location.pathname}${text?'?'+text:''}`);};
  const unit=series[0]?.unit??'',raw=view==='raw',plotted=raw?series:shares;
- useEffect(()=>{if(part!=='chart'||!dates.length)return;let disposed=false,chart:import('echarts').ECharts|undefined,resize:ResizeObserver|undefined,observer:MutationObserver|undefined;
-  async function load(){const echarts=await import('echarts');if(disposed||!ref.current)return;chart=echarts.init(ref.current,undefined,{renderer:'svg'});
+ useEffect(()=>{if(part!=='chart'||!dates.length)return;let disposed=false,chart:import('@/lib/echarts').ECharts|undefined,resize:ResizeObserver|undefined,observer:MutationObserver|undefined;
+  async function load(){const echarts=await import('@/lib/echarts');if(disposed||!ref.current)return;chart=echarts.init(ref.current,undefined,{renderer:'svg'});
    const render=()=>{const style=getComputedStyle(document.documentElement),muted=style.getPropertyValue('--muted').trim(),line=style.getPropertyValue('--line').trim(),panel=style.getPropertyValue('--panel').trim(),fg=style.getPropertyValue('--foreground').trim();
     chart?.setOption({animation:false,aria:{enabled:true,label:{description:`候選人${raw?unit:'媒體聲量占比'}趨勢，${dates[0]}～${dates[dates.length-1]}`}},textStyle:{fontFamily:style.fontFamily,color:muted,fontSize:12},
      legend:{type:'scroll',left:0,right:0,top:0,textStyle:{color:muted,fontSize:12}},grid:{left:56,right:24,top:40,bottom:32},

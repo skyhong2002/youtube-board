@@ -16,8 +16,8 @@ export function SeriesCompareChart({series,label,max=COMPARE_MAX_SERIES}:{series
  const shown=series.slice(0,max),dates=shown.reduce<string[]>((longest,s)=>s.points.length>longest.length?s.points.map(p=>p.time):longest,[]);
  const unit=shown[0]?.unit??'',ref=useRef<HTMLDivElement>(null),[failed,setFailed]=useState(false),key=JSON.stringify(shown);
  const observed=shown.some(s=>s.points.some(p=>p.value!==null&&Number.isFinite(p.value)));
- useEffect(()=>{if(!observed)return;setFailed(false);let disposed=false,chart:import('echarts').ECharts|undefined,resize:ResizeObserver|undefined,observer:MutationObserver|undefined,selected:Record<string,boolean>={};
-  async function load(){const echarts=await import('echarts');if(disposed||!ref.current)return;chart=echarts.init(ref.current,undefined,{renderer:'svg'});
+ useEffect(()=>{if(!observed)return;setFailed(false);let disposed=false,chart:import('@/lib/echarts').ECharts|undefined,resize:ResizeObserver|undefined,observer:MutationObserver|undefined,selected:Record<string,boolean>={};
+  async function load(){const echarts=await import('@/lib/echarts');if(disposed||!ref.current)return;chart=echarts.init(ref.current,undefined,{renderer:'svg'});
    const render=()=>{const root=document.documentElement,style=getComputedStyle(root),muted=style.getPropertyValue('--muted').trim(),line=style.getPropertyValue('--line').trim(),panel=style.getPropertyValue('--panel').trim(),fg=style.getPropertyValue('--foreground').trim(),theme=root.dataset.theme==='dark'?'dark':'light',labelled=shown.length<=4,
      // Wide screens wrap a long legend onto a second line so every category stays one click away; phones scroll it.
      wrap=shown.length>COMPARE_MAX_SERIES&&(ref.current?.clientWidth??0)>=900;
