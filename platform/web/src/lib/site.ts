@@ -10,7 +10,7 @@ export const siteMetadata: Metadata = {
   openGraph: { siteName: SITE_NAME, title: SITE_NAME, description: SITE_DESCRIPTION, locale: 'zh_TW', type: 'website', images: [{ url: '/brand/og-light.png', width: 1200, height: 630, alt: SITE_NAME }] },
   twitter: { card: 'summary_large_image', title: SITE_NAME, description: SITE_DESCRIPTION, images: ['/brand/og-light.png'] },
   appleWebApp: { capable: true, title: SITE_NAME, statusBarStyle: 'default' },
-  icons: { icon: [{ url: '/brand/icon-light.svg', type: 'image/svg+xml', media: '(prefers-color-scheme: light)' }, { url: '/brand/icon-dark.svg', type: 'image/svg+xml', media: '(prefers-color-scheme: dark)' }, { url: '/favicon.ico', sizes: '16x16 32x32 48x48', type: 'image/x-icon' }], apple: [{ url: '/brand/apple-180-light.png', sizes: '180x180' }] },
+  icons: { icon: [{ url: '/brand/icon-light.svg?v=20261108', type: 'image/svg+xml', media: '(prefers-color-scheme: light)' }, { url: '/brand/icon-dark.svg?v=20261108', type: 'image/svg+xml', media: '(prefers-color-scheme: dark)' }, { url: '/favicon.ico?v=20261108', sizes: '16x16 32x32 48x48', type: 'image/x-icon' }], apple: [{ url: '/brand/apple-180-light.png', sizes: '180x180' }] },
   alternates: { types: { 'application/rss+xml': [{ url: '/feeds/videos.xml', title: `${SITE_NAME}｜影片` }] } },
 };
 export const siteViewport: Viewport = { themeColor: [{ media: '(prefers-color-scheme: light)', color: '#ffffff' }, { media: '(prefers-color-scheme: dark)', color: '#09090b' }] };
