@@ -16,7 +16,6 @@ import type {
 import { count, compact, clockTime, dateTime, shortDateTime, youtubeUrl } from "@/lib/format";
 import { LiveSortable, type LiveSortColumn } from "./LiveSortable";
 import { LivePreviewThumb } from "./LivePreview";
-import { YouTubeFacade } from "./ai/YouTubeFacade";
 import { Empty } from "./ReportUI";
 import TableScroller from "./TableScroller";
 import { table } from "@/lib/table-styles";
@@ -192,23 +191,33 @@ export function LiveTable({ rows,offset=0,complete }: { rows: LiveRow[];offset?:
         key:row.id,
         values:{rank:offset+index,current:row.currentViewers,todayPeak:row.todayPeak,trend:trendChange(row),allTimePeak:row.allTimePeak,channel:row.channelTitle||null,tags:row.tags.map(tag=>tag.name).join('、')||null,start:liveStart(row)?Date.parse(liveStart(row)!):null},
         card:<>
-            {/* Phones have no hover: the card leads with a full-width thumbnail that plays the stream inline when tapped. */}
-            <YouTubeFacade videoId={row.id} title={row.title||row.channelTitle||row.id}/>
-            <div className="mt-3 min-w-0">
-              <span className="text-xs tabular-nums text-zinc-600 dark:text-zinc-400">{String(offset+index+1).padStart(2,'0')}</span>
-              <Link className="block whitespace-normal break-words font-medium leading-6 hover:underline [overflow-wrap:anywhere]" href={`/videos/${encodeURIComponent(row.id)}`} prefetch={false}>{row.title||"直播標題尚未取得"}</Link>
+            {/* One compact row per stream: thumbnail and title first, then the live figures on one line;
+                channel categories and the YouTube link stay on the video page and in the desktop table. */}
+            <div className="flex min-w-0 gap-3">
+              <Link className="relative block w-32 shrink-0 self-start overflow-hidden rounded-md" href={`/videos/${encodeURIComponent(row.id)}`} prefetch={false} tabIndex={-1} aria-hidden="true">
+                <VideoThumbnail videoId={row.id} width={128} height={72}/>
+                <span className="absolute left-1 top-1 rounded bg-brand-600 px-1 text-[10px] font-semibold leading-4 text-white">{String(offset+index+1).padStart(2,'0')}</span>
+              </Link>
+              <div className="min-w-0 flex-1">
+                <Link className="block whitespace-normal break-words text-[15px] font-medium leading-snug hover:underline [overflow-wrap:anywhere]" href={`/videos/${encodeURIComponent(row.id)}`} prefetch={false}>{row.title||"直播標題尚未取得"}</Link>
+                <div className="mt-1 min-w-0 text-xs text-zinc-600 dark:text-zinc-400"><ChannelCell id={row.channelId} title={row.channelTitle} avatar={row.channelAvatar}/></div>
+              </div>
             </div>
-            <div className="mt-3 min-w-0"><ChannelCell id={row.channelId} title={row.channelTitle} avatar={row.channelAvatar}/></div>
-            <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-3 text-sm">
-              <div><dt className="text-xs text-zinc-600 dark:text-zinc-400">同時在線</dt><dd className="m-0 font-semibold tabular-nums">{count(row.currentViewers)}</dd></div>
-              <div><dt className="text-xs text-zinc-600 dark:text-zinc-400">今日高峰</dt><dd className="m-0 tabular-nums">{count(row.todayPeak)}{row.partialLogEvidence&&<span className="ml-1 text-xs text-zinc-600 dark:text-zinc-400">部分取樣</span>}</dd></div>
-              <div><dt className="text-xs text-zinc-600 dark:text-zinc-400">歷史高峰</dt><dd className="m-0 tabular-nums">{count(row.allTimePeak)}</dd></div>
-              <div><dt className="text-xs text-zinc-600 dark:text-zinc-400">開播時間</dt><dd className="m-0 whitespace-normal text-xs">{dateTime(liveStart(row))}</dd></div>
-              <div><dt className="text-xs text-zinc-600 dark:text-zinc-400">更新時間</dt><dd className="m-0 whitespace-normal text-xs">{dateTime(row.updatedAt)}</dd></div>
-              <div className="col-span-2"><dt className="text-xs text-zinc-600 dark:text-zinc-400">今日走勢</dt><dd className="m-0"><LiveTrend row={row}/></dd></div>
-              <div className="col-span-2"><dt className="text-xs text-zinc-600 dark:text-zinc-400">頻道分類</dt><dd className="m-0 flex flex-wrap gap-1">{row.tags.length?row.tags.map(tag=><Link className="inline-flex min-h-11 items-center rounded-full border border-zinc-300 px-3 text-sm hover:underline dark:border-zinc-700" key={tag.id} href={`/live/current?tagid=${tag.id}`} prefetch={false}>{tag.name}</Link>):'—'}</dd></div>
+            <div className="mt-2.5 flex items-end justify-between gap-3 border-t border-zinc-100 pt-2.5 dark:border-zinc-800">
+              <dl className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
+                <div><dt className="text-[11px] text-zinc-600 dark:text-zinc-400">同時在線</dt><dd className="m-0 text-lg font-semibold leading-6 tabular-nums text-zinc-950 dark:text-zinc-50">{count(row.currentViewers)}</dd></div>
+                <div><dt className="text-[11px] text-zinc-600 dark:text-zinc-400">今日高峰</dt><dd className="m-0 text-sm tabular-nums">{count(row.todayPeak)}{row.partialLogEvidence&&<span className="ml-1 text-[11px] text-zinc-600 dark:text-zinc-400">部分取樣</span>}</dd></div>
+                <div><dt className="text-[11px] text-zinc-600 dark:text-zinc-400">歷史高峰</dt><dd className="m-0 text-sm tabular-nums">{count(row.allTimePeak)}</dd></div>
+              </dl>
+              <div className="shrink-0"><LiveTrend row={row}/></div>
+            </div>
+            {/* Secondary facts on one quiet wrapped line, so every observation stays on the card without a grid of labels. */}
+            <dl className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-600 dark:text-zinc-400">
+              <div className="flex gap-1"><dt>開播</dt><dd className="m-0 tabular-nums"><time dateTime={liveStart(row) ?? undefined}>{shortDateTime(liveStart(row))}</time></dd></div>
+              <div className="flex gap-1"><dt>更新時間</dt><dd className="m-0 tabular-nums">{clockTime(row.updatedAt)}</dd></div>
+              <div className="flex min-w-0 gap-1"><dt>頻道分類</dt><dd className="m-0 min-w-0">{row.tags.length?row.tags.map((tag,i)=><Fragment key={tag.id}>{i>0&&'、'}<Link className="underline decoration-zinc-300 underline-offset-2 hover:text-brand-700 dark:decoration-zinc-600" href={`/live/current?tagid=${tag.id}`} prefetch={false}>{tag.name}</Link></Fragment>):'—'}</dd></div>
+              <div><dt className="sr-only">原始來源</dt><dd className="m-0"><a className="text-brand-700 underline underline-offset-2 dark:text-brand-400" href={youtubeUrl(row.youtubeUrl)} target="_blank" rel="noopener noreferrer">YouTube 原始來源 ↗</a></dd></div>
             </dl>
-            <a className="inline-flex min-h-11 items-center text-sm text-brand-700 underline dark:text-brand-400" href={youtubeUrl(row.youtubeUrl)} target="_blank" rel="noopener noreferrer">YouTube 原始來源 ↗</a>
           </>,
         cells:<>
                             <td className={table.lead}>

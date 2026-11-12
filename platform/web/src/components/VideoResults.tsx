@@ -8,7 +8,8 @@ import {COMMENTS_PUBLISHED} from '@/lib/comments-launch';
 
 /** Mother ArticleResults divided-row layout: one metrics line per video; collection
  * details (authors, replies, observation times) stay on the video page. */
-export function VideoResults({rows,report=false}:{rows:VideoRow[];report?:boolean}){
+/** `channel` lists one channel's own videos: its name and avatar would repeat on every row, so only the time shows. */
+export function VideoResults({rows,report=false,channel=false}:{rows:VideoRow[];report?:boolean;channel?:boolean}){
  if(!rows.length)return <p className="rounded-lg border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">目前沒有可呈現的近期影片。尚未收錄，不代表頻道沒有發布影片。</p>;
  return <ul className="divide-y divide-zinc-200 dark:divide-zinc-800" aria-label="近期收錄影片列表">{rows.map(row=>{
   const href=`/videos/${encodeURIComponent(row.id)}`,title=row.title||'影片標題尚未取得',listing=row.listing;
@@ -17,7 +18,7 @@ export function VideoResults({rows,report=false}:{rows:VideoRow[];report?:boolea
   return <li key={row.id} className="py-3">
    <div className="flex items-start gap-3">
     <div className="min-w-0 flex-1">
-     <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-zinc-600 dark:text-zinc-400"><Link href={`/channels/${row.channelId}`} className="inline-flex min-w-0 items-center gap-1.5 font-medium hover:underline"><ChannelAvatar avatar={row.channelAvatar} title={row.channelTitle} size={16}/><span className="min-w-0 break-words">{row.channelTitle||'頻道名稱尚未取得'}</span></Link><span aria-hidden="true">·</span><time dateTime={row.publishedAt??undefined} className="tabular-nums">{dateTime(row.publishedAt)}</time></p>
+     <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-zinc-600 dark:text-zinc-400">{!channel&&<><Link href={`/channels/${row.channelId}`} className="inline-flex min-w-0 items-center gap-1.5 font-medium hover:underline"><ChannelAvatar avatar={row.channelAvatar} title={row.channelTitle} size={16}/><span className="min-w-0 break-words">{row.channelTitle||'頻道名稱尚未取得'}</span></Link><span aria-hidden="true">·</span></>}<time dateTime={row.publishedAt??undefined} className="tabular-nums">{dateTime(row.publishedAt)}</time></p>
      <h3 className="mt-1 break-words text-[15px] font-medium leading-6 [overflow-wrap:anywhere]"><Link href={href} className={(report?'whitespace-normal break-words [overflow-wrap:anywhere] ':'line-clamp-3 ')+'hover:text-brand-700 dark:hover:text-brand-400'} title={title}>{title}</Link></h3>
      {!report&&row.description&&<p className="mt-0.5 line-clamp-2 break-words text-sm text-zinc-600 dark:text-zinc-400 [overflow-wrap:anywhere]">{row.description}</p>}
      <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1"><VideoMetrics views={row.views} likes={row.likes} comments={collected?listing.providerComments:row.comments} commentsLabel={collected&&COMMENTS_PUBLISHED?'YouTube 留言':'留言'}/>{collected&&COMMENTS_PUBLISHED&&<p className="text-xs tabular-nums text-zinc-500 dark:text-zinc-400">收錄留言 {count(listing.recordedComments)}<span className="ml-1">（{status}）</span></p>}</div>

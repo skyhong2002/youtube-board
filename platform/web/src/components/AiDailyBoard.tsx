@@ -43,9 +43,10 @@ function Topic({topic,index}:{topic:TopicRow;index:number}){
         ["媒體數",<span className="tabular-nums [&>span]:whitespace-nowrap" key="m" title={topic.networks?.join("、")}>{typeof topic.networkCount==="number"&&<><span>{count(topic.networkCount)} 個媒體集團</span> · </>}<span>{count(topic.channelCount)} 個頻道</span> · <span>{count(topic.videoCount)} 則影片</span></span>],
         ["關鍵字",<Counts rows={s.keywords} link key="k"/>],
         ["人物",<Counts rows={s.people} key="p"/>],
-        ["媒體陣營",<Pair a={["泛綠媒體",s.party.green]} b={["泛藍媒體",s.party.blue]} key="g"/>],
-        ["報導角度",<Pair a={["台灣角度",s.angle.taiwan]} b={["中國角度",s.angle.china]} key="a"/>],
-        ["政黨觀點",<Pair a={["民進黨觀點",s.camp.dpp]} b={["國民黨觀點",s.camp.kmt]} key="c"/>],
+        // A camp, angle or party row where both sides are 0 says nothing about this topic; it is left out.
+        ...(s.party.green||s.party.blue?[["媒體陣營",<Pair a={["泛綠媒體",s.party.green]} b={["泛藍媒體",s.party.blue]} key="g"/>] as [string,React.ReactNode]]:[]),
+        ...(s.angle.taiwan||s.angle.china?[["報導角度",<Pair a={["台灣角度",s.angle.taiwan]} b={["中國角度",s.angle.china]} key="a"/>] as [string,React.ReactNode]]:[]),
+        ...(s.camp.dpp||s.camp.kmt?[["政黨觀點",<Pair a={["民進黨觀點",s.camp.dpp]} b={["國民黨觀點",s.camp.kmt]} key="c"/>] as [string,React.ReactNode]]:[]),
     ];
     return <article className={ui.panel+" scroll-mt-20"} id={`topic-${topic.id}`}>
         <h2 className="flex gap-2 text-lg font-semibold leading-snug">
@@ -76,7 +77,7 @@ function Topic({topic,index}:{topic:TopicRow;index:number}){
 export function AiDailyBoard({data,dated}:{data:AiDaysData;dated:boolean}){
     const condition=data.condition||"all",anchor=data.date??taipeiToday(),prev=shiftDate(anchor,-1),next=shiftDate(anchor,1),stats=data.sourceStats??{channels:data.sourceChannels,channelsWithEvents:0,eventRows:0,videoRefs:0};
     const summaryRefs=data.rows.reduce((n,t)=>n+t.videoCount,0);
-    // The selected tabs already show the date and condition; the stored record stays beside its count.
+    // The stored record id and data type are kept for support as a tooltip, not as reader-facing copy.
     const record=data.dailyId?`紀錄 #${data.dailyId}${data.dataType?` · 資料類型 ${data.dataType}`:""}`:"由頻道摘要重新分組";
     const conditionHref=(key:string)=>dated&&data.date?dayHref(data.date,key):key==="all"?"/ai/days":`/ai/days?condition=${key}`;
     return <div className="space-y-4">
@@ -88,14 +89,16 @@ export function AiDailyBoard({data,dated}:{data:AiDaysData;dated:boolean}){
             ]}/>
             <SectionTabs label="條件" tabs={AI_DAILY_CONDITIONS.map(([key,label])=>({href:conditionHref(key),label,current:condition===key}))}/>
         </div>
-        <section className="grid grid-cols-3 gap-2 sm:gap-3" aria-label="AI 涵蓋範圍">
-            <Metric label="原始收錄" value={data.rawVideoRows===null?"—":count(data.rawVideoRows)} unit={data.rawVideoRows===null?undefined:"則"} detail="來源頻道當日影片"/>
-            <Metric label="AI 來源" value={count(stats.videoRefs)} unit="則" detail={`${count(stats.channelsWithEvents)} / ${count(stats.channels)} 個頻道 · ${count(stats.eventRows)} 個事件`}/>
-            <Metric label="每日彙整" value={count(summaryRefs)} unit="則" detail={`${count(data.rows.length)} 個議題 · ${record}`}/>
+        {/* How the day was assembled, in reading order: channels read → videos cited → topics formed. */}
+        <section className={`grid gap-2 sm:gap-3 ${data.rawVideoRows===null?"grid-cols-3":"grid-cols-2 sm:grid-cols-4"}`} aria-label="這一天的整理範圍" title={record}>
+            {data.rawVideoRows!==null&&<Metric label="當日收錄影片" value={count(data.rawVideoRows)} unit="支" detail="來源頻道當天發布"/>}
+            <Metric label="分析的頻道" value={`${count(stats.channelsWithEvents)} / ${count(stats.channels)}`} unit="個" detail={`整理出 ${count(stats.eventRows)} 則頻道事件`}/>
+            <Metric label="引用的影片" value={count(stats.videoRefs)} unit="則" detail="AI 摘要引用的來源影片"/>
+            <Metric label="跨頻道議題" value={count(data.rows.length)} unit="個" detail={`共 ${count(summaryRefs)} 則影片引用`}/>
         </section>
         {data.rows.length?<div className="space-y-4">{data.rows.map((topic,index)=><Topic key={topic.id} topic={topic} index={index}/>)}</div>
             :<div className="rounded-lg border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400" role="status">
-                <p>{data.date??"這一天"}{condition==="all"?"":`「${conditionLabel(condition)}」條件`}目前沒有 AI 每日彙整。</p>
+                <p className="text-base font-medium text-zinc-900 dark:text-zinc-100">{data.date?`${data.date} `:"這一天"}{condition==="all"?"":`「${conditionLabel(condition)}」條件`}還沒有整理好的跨頻道議題</p><p className="mt-1">議題由 AI 讀過當天來源影片後整理；尚未產出不代表沒有公共討論。</p>
                 <p className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-2"><Link className={ui.link} href={dayHref(prev,condition)}>← 看 {prev}</Link>{condition!=="all"&&<Link className={ui.link} href={conditionHref("all")}>改看全部媒體</Link>}</p>
             </div>}
     </div>;
