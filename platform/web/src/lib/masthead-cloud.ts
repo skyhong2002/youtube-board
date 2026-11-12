@@ -21,20 +21,20 @@ export const MASTHEAD_CANVASES:readonly MastheadCanvas[]=[
 /** Every ranked term the API returns for a window (at most forty). */
 export const MASTHEAD_WORDS=40;
 /** Ink cells of /brand/logo-{light,dark}.svg on a 16×16 grid of its 512 viewBox
- * ('#' = ink), rasterised from the file: the mark (y 48–332) over 有影儀表板 (y 375–465).
+ * ('#' = ink), rasterised from the file: the mark (y 55–325) over 有影儀表板 (y 375–466).
  * Coarser than the parent's glyph mask; markGap keeps words off the strokes. */
 export const LOGO_MASK:readonly string[]=[
  '................',
- '......###.......',
+ '.........##.....',
+ '........###.....',
+ '....##.####.....',
+ '.....######.....',
+ '......#####.....',
+ '.....######.....',
  '.....#####......',
- '...########.....',
- '....#######.....',
- '....#########...',
- '....#########...',
- '....#######.....',
- '....#######.....',
- '....######......',
- '......###.......',
+ '.....####.......',
+ '......##........',
+ '.......#........',
  '.###############',
  '################',
  '###############.',
