@@ -2,13 +2,17 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { NAV_GROUPS } from '@/lib/site-nav';
-import NavPending from './NavPending';
+import NavPending, { navigationTarget } from './NavPending';
 
 export default function SiteNavigation({variant}:{variant:'desktop'|'mobile'}) {
   const navigationId='site-navigation-'+variant;
-  const pathname = usePathname();
+  // While an in-site navigation runs, the section being opened is the one marked, so the bar never
+  // shows the page being left and the page being opened at once.
+  const target = useSyncExternalStore(navigationTarget.subscribe, navigationTarget.get, () => null);
+  const shownPath = usePathname();
+  const pathname = target ?? shownPath;
   const [open, setOpen] = useState(false);
   const container = useRef<HTMLDivElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);

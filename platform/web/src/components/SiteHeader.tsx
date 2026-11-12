@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import AccountMenu from './AccountMenu';
-import { usePathname } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import NavPending, { LinkClickPending, NavPendingContext, NavProgressBar, SlowNavigationHint } from './NavPending';
 import SiteNavigation from './SiteNavigation';
@@ -43,31 +42,13 @@ function HomeLink({ searchOpen, revealed }: { searchOpen: boolean; revealed: boo
 }
 
 export default function SiteHeader() {
-  const pathname=usePathname();
-  const mastheadId=pathname==='/'?'home-masthead':undefined;
   const [pendingSources,setPendingSources]=useState<Set<string>>(()=>new Set());
   const setNavPending=useCallback((source:string,pending:boolean)=>setPendingSources(previous=>{if(previous.has(source)===pending)return previous;const next=new Set(previous);if(pending)next.add(source);else next.delete(source);return next;}),[]);
   const [searchOpen, setSearchOpen] = useState(false);
-  // When the page opens with its own big site mark (the home masthead), the header's
-  // wordmark stays hidden until that mark scrolls out of view, so only one logo shows.
-  const [revealed, setRevealed] = useState(!mastheadId);
-  useEffect(() => {
-    if (!mastheadId) {setRevealed(true);return;}
-    const mark = document.getElementById(mastheadId);
-    if (!mark) {
-      setRevealed(true);
-      return;
-    }
-    const observer = new IntersectionObserver(([entry]) => setRevealed(!entry.isIntersecting), { rootMargin: '-56px 0px 0px 0px' });
-    observer.observe(mark);
-    return () => observer.disconnect();
-  }, [mastheadId]);
-  // While the wordmark is hidden, phones show the search box in the space it
-  // would take instead of a bare bar; it folds back into an icon once the
-  // wordmark returns. An explicit open outlives that.
-  // Report pages have their own search field. Keep the header compact there;
-  // the explicit search button still opens the global title/description search.
-  const autoSearch = !revealed && !searchOpen;
+  // The wordmark is always in the bar, the home page included: its masthead mark sits inside the
+  // word cloud and is not a substitute for the site's name at the top. Phones open search from the icon.
+  const revealed = true;
+  const autoSearch = false;
   const searchToggle = useRef<HTMLButtonElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   useEffect(() => {

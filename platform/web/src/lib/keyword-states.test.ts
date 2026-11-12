@@ -78,7 +78,7 @@ test('/keywords loaded: API order, selected-period links, partial views show the
  // Returned order, not re-sorted by heat (row 9 has the higher score).
  assert.ok(markup.indexOf('a/b%41')<markup.indexOf('零觀看'));
  assert.match(markup,/href="\/keywords\/a%2Fb%2541\/videos\?from=2026-10-06&amp;to=2026-10-12"/);
- assert.match(markup,/≥4,000 次<small[^>]*>（2 支缺值）/);
+ assert.match(markup,/≥4,000 次<small[^>]*>（2 支未取得觀看）/);
  assert.match(markup,/>0 次<\/td>/);
  assert.doesNotMatch(markup,/過去24小時詞|data-keyword-state/);
  assert.deepEqual(checkedWindow(markup),['week']);
@@ -166,15 +166,16 @@ test('keyword profile empty states: counted zero, uncounted, unavailable total a
 const findElement=(node:unknown,type:string):ReactElement<Record<string,unknown>>|null=>{
  if(!node||typeof node!=='object')return null;
  if(Array.isArray(node)){for(const child of node){const found=findElement(child,type);if(found)return found;}return null;}
- const element=node as ReactElement<{children?:unknown}>;
- return element.type===type?element as ReactElement<Record<string,unknown>>:findElement(element.props?.children,type);
+ const element=node as ReactElement<{children?:unknown;actions?:unknown}>;
+ // The shared status card takes its buttons in `actions`, beside its text children.
+ return element.type===type?element as ReactElement<Record<string,unknown>>:findElement([element.props?.actions,element.props?.children],type);
 };
 test('error fallback never shows the raw error or digest, never claims zero, and retries through Next',()=>{
  const error=Object.assign(new Error('SECRET upstream body 10.0.0.1'),{digest:'DIGEST-123'});
  const markup=renderToStaticMarkup(createElement(ErrorPage,{error}));
  assert.match(markup,/role="alert"/);assert.match(markup,/資料暫時無法讀取/);assert.match(markup,/無法讀取不代表影片、頻道或觀看數為零/);
  assert.doesNotMatch(markup,/SECRET|10\.0\.0\.1|DIGEST-123|digest/);
- assert.match(markup,/<button type="button" class="[^"]*dark:bg-brand-600[^"]*">重新讀取<\/button>/);assert.match(markup,/href="\/"/);
+ assert.match(markup,/<button type="button" class="[^"]*dark:bg-brand-600[^"]*">重新讀取這一頁<\/button>/);assert.match(markup,/href="\/"/);
  const calls:string[]=[];
  // app/error.tsx passes its props straight to the shared ErrorRecovery body, whose button is read here.
  const click=(props:Parameters<typeof ErrorPage>[0])=>(findElement(ErrorRecovery(props),'button')!.props.onClick as ()=>void)();
@@ -184,13 +185,13 @@ test('error fallback never shows the raw error or digest, never claims zero, and
  assert.deepEqual(calls,['retry','unstable']);
  // Report segments (ReportError) add their family's listing before the home link; the root page has none.
  const report=renderToStaticMarkup(createElement(ErrorRecovery,{error,back:{href:'/channels',label:'頻道觀測'}}));
- assert.match(report,/<a [^>]*href="\/channels"[^>]*>← 回到頻道觀測<\/a><a [^>]*href="\/"[^>]*>← 回到總覽<\/a>/);
+ assert.match(report,/<a [^>]*href="\/channels"[^>]*>回到頻道觀測<\/a><a [^>]*href="\/"[^>]*>回到總覽<\/a>/);
  assert.doesNotMatch(report,/SECRET|DIGEST-123/);
  assert.doesNotMatch(markup,/回到頻道觀測/);
 });
 test('an unavailable read renders the shared unavailable state, not zeros',()=>{
  const markup=renderToStaticMarkup(createElement(Unavailable,{status:503,title:'熱門標籤排行'}));
- assert.match(markup,/<h1[^>]*>熱門標籤排行<\/h1>/);assert.match(markup,/role="status"/);assert.match(markup,/資料來源暫時無法讀取/);assert.match(markup,/不代表影片、頻道或觀看數為零/);
+ assert.match(markup,/<h1[^>]*>熱門標籤排行<\/h1>/);assert.match(markup,/role="status"/);assert.match(markup,/資料暫時無法讀取/);assert.match(markup,/>重新讀取這一頁</);assert.match(markup,/不代表影片、頻道或觀看數為零/);
  assert.doesNotMatch(markup,/>0</);assert.match(markup,/href="\/"/);
 });
 

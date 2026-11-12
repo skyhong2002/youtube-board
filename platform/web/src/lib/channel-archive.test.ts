@@ -12,7 +12,7 @@ test('archived channel children retain all historical navigation while unavailab
   const path='/channels/8/'+child,tabs=familyTabs(path,{date:'2026-10-11'},archived);
   assert.equal(tabs.length,children.length);assert.ok(tabs.every(tab=>new URL(tab.href,'http://local').pathname!=='/channels/8'));
   assert.deepEqual(tabs.map(tab=>new URL(tab.href,'http://local').pathname),children.map(suffix=>'/channels/8/'+suffix));
-  assert.equal(tabs.find(tab=>tab.label==='提示詞預覽')?.href,'/channels/8/prompt?date=2026-10-11');
+  assert.equal(tabs.find(tab=>tab.label==='AI 輸入內容')?.href,'/channels/8/prompt?date=2026-10-11');
  }
 });
 test('active channels and absent or unrelated coverage never lose the profile tab',()=>{

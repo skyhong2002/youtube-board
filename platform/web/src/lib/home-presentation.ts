@@ -44,7 +44,7 @@ export function homeKeywordState(summary:HomeKeywordSummary|null,window:KeywordW
  // Completion count missing (null, omitted by an older build, or malformed): progress is unknown, not "none matched".
  if(!reported(summary.freshVideos))return {rows,kind:'completion-unknown',message:`${period(window)}收錄 ${count(summary.sourceVideos)} 支影片，完成比對的影片數未提供；比對進度未知，不代表沒有相關影片。`};
  if(summary.freshVideos===0)return {rows,kind:'not-computed',message:`${period(window)}收錄 ${count(summary.sourceVideos)} 支影片，尚無完成比對的影片；沒有比對資料不代表沒有相關影片。`};
- if(summary.rankingPool?.status==='available')return {rows,kind:'empty',message:`${period(window)}已完成比對 ${count(summary.freshVideos)} 支影片，尚無符合本期新聞詞池與顯示規則的關鍵字。`};
+ if(summary.rankingPool?.status==='available')return {rows,kind:'empty',message:`${period(window)}已完成比對 ${count(summary.freshVideos)} 支影片，尚無符合本期新聞熱詞與顯示規則的關鍵字。`};
  return {rows,kind:'empty',message:`${period(window)}已完成比對 ${count(summary.freshVideos)} 支影片，尚未出現共同詞彙。`};
 }
 /** Empty-row message for the lower 頻道分類觀測 band (categories after the top three). Rows are only

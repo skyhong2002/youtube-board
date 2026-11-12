@@ -74,6 +74,12 @@ h3,
 p {
     margin-top: 0;
 }
+/* Headings wrap into even lines, so a long CJK title never leaves one character on its last line. */
+h1,
+h2,
+h3 {
+    text-wrap: balance;
+}
 h1 {
     font-size: 1.5rem;
     letter-spacing: -0.025em;
@@ -743,3 +749,17 @@ main:has([data-page-method]) { padding-bottom: 0; }
 body:has(main [data-page-method]) [data-site-footer] { margin-top: 0; }
 /* The full write-up (/about) has no 本頁 block, as tag.observe.tw hides FooterMethod on /method/. */
 body:has(main [data-method-page]) [data-footer-method] { display: none; }
+
+/* A horizontally scrolling row (section tabs) fades at the edge it continues past. The scroll-driven
+ * animation only runs when the row can scroll, so a row that fits keeps both edges crisp. */
+@supports (animation-timeline: scroll()) {
+    .scroll-fade {
+        animation: scroll-fade linear both;
+        animation-timeline: scroll(self inline);
+    }
+    @keyframes scroll-fade {
+        0% { mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent); }
+        8%, 92% { mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent); }
+        100% { mask-image: linear-gradient(to right, transparent, #000 2.5rem); }
+    }
+}
