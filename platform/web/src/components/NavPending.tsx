@@ -27,6 +27,23 @@ export default function NavPending() {
 const previewClicks = new WeakSet<Event>();
 export const markPreviewClick = (event: Event) => previewClicks.add(event);
 
+// The pathname a same-site link click is navigating to, while that navigation runs (null otherwise).
+// PendingReport reads it to swap the page for a report skeleton; only LinkClickPending writes it.
+let navigationPath: string | null = null;
+const navigationListeners = new Set<() => void>();
+export const navigationTarget = {
+  get: () => navigationPath,
+  set(path: string | null) {
+    if (path === navigationPath) return;
+    navigationPath = path;
+    for (const listener of navigationListeners) listener();
+  },
+  subscribe(listener: () => void) {
+    navigationListeners.add(listener);
+    return () => { navigationListeners.delete(listener); };
+  },
+};
+
 const sameRoute = (a: URL, b: URL) => a.pathname.replace(/\/$/, '') === b.pathname.replace(/\/$/, '') && a.search === b.search;
 
 // Links elsewhere on the page light the same bar: a plain left click on a
@@ -38,12 +55,13 @@ export function LinkClickPending() {
   const source=useId();
   const route = `${usePathname()}?${useSearchParams()}`;
   // A new route ends the click's navigation.
-  useEffect(() => setPending(source,false), [route, setPending,source]);
+  useEffect(() => { setPending(source,false); navigationTarget.set(null); }, [route, setPending,source]);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const stop = () => {
       clearTimeout(timer);
       setPending(source,false);
+      navigationTarget.set(null);
     };
     function onClick(event: MouseEvent) {
       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -60,6 +78,8 @@ export function LinkClickPending() {
         if (previewClicks.has(event)) return;
         clearTimeout(timer);
         setPending(source,true);
+        // A query-only change (filters, tabs of the same report) keeps the page; only a new path is a new page.
+        navigationTarget.set(url.pathname.replace(/\/$/, '') === here.pathname.replace(/\/$/, '') ? null : url.pathname);
         timer = setTimeout(stop, 15_000);
       });
     }

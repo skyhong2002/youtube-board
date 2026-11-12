@@ -14,6 +14,7 @@ import {KeywordProfile} from '../components/KeywordProfile';
 import {Pagination} from '../components/Pagination';
 import {Unavailable} from '../components/ReportUI';
 import ErrorPage from '../app/error';
+import {ErrorRecovery} from '../components/ErrorRecovery';
 
 /* Offline server-markup checks of the F2 keyword states. They read rendered HTML and class
  * names only: they do not measure contrast, run a browser, switch periods interactively or
@@ -175,11 +176,17 @@ test('error fallback never shows the raw error or digest, never claims zero, and
  assert.doesNotMatch(markup,/SECRET|10\.0\.0\.1|DIGEST-123|digest/);
  assert.match(markup,/<button type="button" class="[^"]*dark:bg-brand-600[^"]*">重新讀取<\/button>/);assert.match(markup,/href="\/"/);
  const calls:string[]=[];
- const click=(props:Parameters<typeof ErrorPage>[0])=>(findElement(ErrorPage(props),'button')!.props.onClick as ()=>void)();
+ // app/error.tsx passes its props straight to the shared ErrorRecovery body, whose button is read here.
+ const click=(props:Parameters<typeof ErrorPage>[0])=>(findElement(ErrorRecovery(props),'button')!.props.onClick as ()=>void)();
  // Next 16.3 passes the stable `retry`; it wins over the 16.2 name and the client-only reset.
  click({error,retry:()=>calls.push('retry'),unstable_retry:()=>calls.push('unstable'),reset:()=>calls.push('reset')});
  click({error,unstable_retry:()=>calls.push('unstable'),reset:()=>calls.push('reset')});
  assert.deepEqual(calls,['retry','unstable']);
+ // Report segments (ReportError) add their family's listing before the home link; the root page has none.
+ const report=renderToStaticMarkup(createElement(ErrorRecovery,{error,back:{href:'/channels',label:'頻道觀測'}}));
+ assert.match(report,/<a [^>]*href="\/channels"[^>]*>← 回到頻道觀測<\/a><a [^>]*href="\/"[^>]*>← 回到總覽<\/a>/);
+ assert.doesNotMatch(report,/SECRET|DIGEST-123/);
+ assert.doesNotMatch(markup,/回到頻道觀測/);
 });
 test('an unavailable read renders the shared unavailable state, not zeros',()=>{
  const markup=renderToStaticMarkup(createElement(Unavailable,{status:503,title:'熱門標籤排行'}));
