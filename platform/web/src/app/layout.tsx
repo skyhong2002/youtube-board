@@ -3,6 +3,7 @@ import SiteFooter from '@/components/SiteFooter';
 import ThemeSync from '@/components/ThemeSync';
 import ScrollReset from '@/components/ScrollReset';
 import SiteAnalytics from '@/components/SiteAnalytics';
+import PendingReport from '@/components/PendingReport';
 import { siteMetadata, siteViewport } from '@/lib/site';
 import { THEME_SCRIPT } from '../../../shared/public-render-contract';
 import './globals.css';
@@ -21,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div className="flex min-h-dvh flex-col">
           <ScrollReset />
           <SiteHeader />
-          <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>
+          <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-6"><PendingReport>{children}</PendingReport></main>
           <div className="mx-auto w-full max-w-6xl px-4"><SiteFooter /></div>
         </div>
       </body>

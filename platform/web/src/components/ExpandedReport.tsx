@@ -10,7 +10,7 @@ import {ReportMethod} from './ReportMethod';
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api, rejectMalformedPayload, type Search } from "@/lib/api";
-import { count } from "@/lib/format";
+import { count, share } from "@/lib/format";
 import {
     type ReportData,
     safeReportHref,
@@ -170,7 +170,8 @@ export async function ExpandedReport({
                         <Metric
                             key={index}
                             {...metric}
-                            value={<ObservationValue value={metric.value}/>}
+                            // A share metric (the /mayor person page's 「七日已觀測名單占比」, unit %) keeps one decimal like the city page.
+                            value={metric.unit==='%'&&metric.value!==null&&Number.isFinite(metric.value)?share(metric.value):<ObservationValue value={metric.value}/>}
                             unit={metric.value===null||!Number.isFinite(metric.value)?undefined:metric.unit}
                         />
                     ))}

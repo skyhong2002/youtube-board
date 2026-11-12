@@ -4,6 +4,11 @@ export function count(value: number | null | undefined) {
         ? "—"
         : number.format(value);
 }
+/** A percentage share with one decimal and no % sign (the column label or metric unit carries it):
+ * the same toFixed(1) rounding as /mayor's share cards and chart tooltip, so the figures agree. */
+export function share(value: number | null | undefined) {
+    return value == null || !Number.isFinite(value) ? "—" : value.toFixed(1);
+}
 export function compact(value: number | null | undefined) {
     if (value == null || !Number.isFinite(value)) return "—";
     if (Math.abs(value) >= 1e8)

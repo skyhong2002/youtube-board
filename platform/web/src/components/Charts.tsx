@@ -5,25 +5,64 @@ import {CoverageDisclosure} from './CoverageDisclosure';
 import {chartTimeLabel,chartWindow,moveChartWindow,type ChartWindow} from '@/lib/chart-window';
 import {table} from '@/lib/table-styles';
 import TableScroller from './TableScroller';
-import {count} from '@/lib/format';
-import {coverageCount,coverageLabel,coverageSeries,coverageTag,incompleteCoverageNote,type BucketCoverage} from '@/lib/bucket-coverage';
-export type ChartPoint={time:string;value:number|null};
+import {coverageCount,incompleteCoverageNote,type BucketCoverage} from '@/lib/bucket-coverage';
+import type {ECharts} from '@/lib/echarts';
+import {timeChartOption,type ChartPoint} from '@/lib/time-chart-option';
+export type {ChartPoint};
 /** `coverage` (index-aligned with points) is optional and only given by /mayor: it splits the
  * line into solid complete and dashed/hollow incomplete parts and adds the coverage notes.
  * `compact` is for small multiples under their own heading: a shorter plot without the
  * one-entry legend that would repeat that heading. */
 export function TimeChart({points,label,unit,coverage,compact=false}:{points:ChartPoint[];label:string;unit:string;coverage?:BucketCoverage[];compact?:boolean}){
  const note=coverage?incompleteCoverageNote(coverage):null,coverageKey=coverage?JSON.stringify(coverage):'';
- const ref=useRef<HTMLDivElement>(null),chartRef=useRef<import('echarts').ECharts|undefined>(undefined),[failed,setFailed]=useState(false),[range,setRange]=useState<ChartWindow>(()=>chartWindow(points.length)),current=useRef(range);
+ const ref=useRef<HTMLDivElement>(null),chartRef=useRef<ECharts|undefined>(undefined),[failed,setFailed]=useState(false),[range,setRange]=useState<ChartWindow>(()=>chartWindow(points.length)),current=useRef(range);
  current.current=range;
  const observed=points.filter(p=>p.value!==null&&Number.isFinite(p.value)).length;
  useEffect(()=>{setRange(chartWindow(points.length));},[points]);
- useEffect(()=>{if(!observed)return;setFailed(false);let disposed=false,chart:import('echarts').ECharts|undefined,resize:ResizeObserver|undefined,observer:MutationObserver|undefined;
-  async function load(){const echarts=await import('echarts');if(disposed||!ref.current)return;chart=echarts.init(ref.current,undefined,{renderer:'svg'});chartRef.current=chart;
-   const render=()=>{const style=getComputedStyle(document.documentElement),muted=style.getPropertyValue('--muted').trim(),line=style.getPropertyValue('--line').trim(),accent=style.getPropertyValue('--accent').trim(),panel=style.getPropertyValue('--panel').trim(),color=style.getPropertyValue('--foreground').trim();chart?.setOption({animation:false,aria:{enabled:true,label:{description:label}},textStyle:{fontFamily:style.fontFamily,color:muted,fontSize:12},legend:{show:!compact,type:'scroll',left:0,right:0,top:0,data:[label],textStyle:{color:muted,fontSize:12}},grid:{left:48,right:24,top:compact?30:55,bottom:points.length>7?(compact?56:78):36},tooltip:{trigger:'axis',renderMode:'richText',confine:true,backgroundColor:panel,borderColor:line,textStyle:{color,fontSize:12},...(coverage?{formatter:(params:unknown)=>{const index=(Array.isArray(params)?params[0]:params as {dataIndex?:number})?.dataIndex??0,point=points[index];return `${point?chartTimeLabel(point.time):''}　${coverageLabel(coverage[index])}\n${label}：${count(point?.value)}${coverageTag(coverage[index])}`;}}:{})},xAxis:{type:'category',data:points.map(p=>chartTimeLabel(p.time)),axisLabel:{hideOverlap:true,color:muted},axisLine:{lineStyle:{color:line}}},yAxis:{type:'value',name:unit,axisLabel:{color:muted},splitLine:{lineStyle:{color:line}}},dataZoom:[{type:'inside',xAxisIndex:0,startValue:current.current.start,endValue:current.current.end,rangeMode:['value','value'],zoomLock:true,zoomOnMouseWheel:false,moveOnMouseWheel:false,zoomOnMouseMove:false},{type:'slider',show:points.length>7,xAxisIndex:0,startValue:current.current.start,endValue:current.current.end,rangeMode:['value','value'],zoomLock:true,brushSelect:false,showDataShadow:false,showDetail:false,height:8,bottom:8,borderColor:'transparent',borderRadius:4,backgroundColor:'rgba(113,113,122,0.08)',fillerColor:'rgba(113,113,122,0.24)',left:48,right:24,handleSize:0}],series:coverage?[...coverageSeries(label,points.map(p=>p.value),coverage,accent)]:[{name:label,type:'line',data:points.map(p=>p.value),connectNulls:false,showSymbol:true,showAllSymbol:true,symbolSize:4,lineStyle:{width:2},itemStyle:{color:accent}}]});};
-   chart.on('datazoom',()=>{const zoom=(chart?.getOption().dataZoom as {startValue?:number;endValue?:number}[]|undefined)?.[0];if(zoom)setRange(previous=>{const next=chartWindow(points.length,zoom.startValue,zoom.endValue);return next.start===previous.start&&next.end===previous.end?previous:next;});});render();resize=new ResizeObserver(()=>chart?.resize());resize.observe(ref.current);observer=new MutationObserver(render);observer.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+ useEffect(()=>{
+  if(!observed)return;
+  setFailed(false);
+  let disposed=false,chart:ECharts|undefined,resize:ResizeObserver|undefined,observer:MutationObserver|undefined;
+  async function load(){
+   const echarts=await import('@/lib/echarts');
+   if(disposed||!ref.current)return;
+   chart=echarts.init(ref.current,undefined,{renderer:'svg'});
+   chartRef.current=chart;
+   // Colours come from the theme's CSS variables, so the option is rebuilt when data-theme changes.
+   const render=()=>{
+    const style=getComputedStyle(document.documentElement);
+    const theme={
+     muted:style.getPropertyValue('--muted').trim(),
+     line:style.getPropertyValue('--line').trim(),
+     accent:style.getPropertyValue('--accent').trim(),
+     panel:style.getPropertyValue('--panel').trim(),
+     color:style.getPropertyValue('--foreground').trim(),
+     fontFamily:style.fontFamily,
+    };
+    chart?.setOption(timeChartOption({points,label,unit,coverage,compact,window:current.current,theme}));
+   };
+   chart.on('datazoom',()=>{
+    const zoom=(chart?.getOption().dataZoom as {startValue?:number;endValue?:number}[]|undefined)?.[0];
+    if(!zoom)return;
+    setRange(previous=>{
+     const next=chartWindow(points.length,zoom.startValue,zoom.endValue);
+     return next.start===previous.start&&next.end===previous.end?previous:next;
+    });
+   });
+   render();
+   resize=new ResizeObserver(()=>chart?.resize());
+   resize.observe(ref.current);
+   observer=new MutationObserver(render);
+   observer.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
   }
-  void load().catch(()=>{if(!disposed)setFailed(true);});return()=>{disposed=true;resize?.disconnect();observer?.disconnect();chart?.dispose();chartRef.current=undefined;};
+  void load().catch(()=>{if(!disposed)setFailed(true);});
+  return()=>{
+   disposed=true;
+   resize?.disconnect();
+   observer?.disconnect();
+   chart?.dispose();
+   chartRef.current=undefined;
+  };
  // Coverage is keyed by content: a new array with the same counts must not rebuild the chart.
  },[points,label,unit,observed,coverageKey,compact]);
  useEffect(()=>{chartRef.current?.dispatchAction({type:'dataZoom',startValue:range.start,endValue:range.end},{silent:true});},[range]);

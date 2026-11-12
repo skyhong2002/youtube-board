@@ -1,6 +1,8 @@
 import type {ReportCell,ReportColumn,ReportValue} from './report-contract';
 type Row=Record<string,ReportValue|ReportCell>;
 export function numericColumn(column:ReportColumn){return column.kind==='number'||column.kind==='percent';}
+/** /mayor's per-candidate share columns (`{candidate}：占比`, labelled 「… 占比 %」): shown with one decimal like the share cards. */
+export function shareColumn(column:ReportColumn){return column.key.endsWith('：占比');}
 const timeColumn=(column:ReportColumn)=>column.kind==='date'||column.kind==='datetime';
 /** Wide report tables keep one identifying column sticky. A leading rank or
  * source-log number says little once the table is scrolled, so the lead is the
