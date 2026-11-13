@@ -84,7 +84,7 @@ test('daily event tabs keep mandatory titles and pinned event tabs keep primary-
 test('navigation advertises only supported group reports and supplies prompt/wall entry points',()=>{
  assert.deepEqual(familyTabs('/groups/tags_economy').map(t=>t.href),['/groups/tags_economy']);
  assert.ok(familyTabs('/groups/position').some(t=>t.href==='/groups/position/trends'));
- assert.equal(familyTabs('/ai/days/2026-10-11/blue').find(t=>t.label==='AI 輸入內容')?.href,'/ai/days/prompt?date=2026-10-11&condition=blue');
+ assert.equal(familyTabs('/ai/days/2026-10-11/blue').find(t=>t.label==='AI 讀取資料')?.href,'/ai/days/prompt?date=2026-10-11&condition=blue');
  assert.ok(familyTabs('/live/current').some(t=>t.href==='/live/walls/news'));
  assert.deepEqual(wallVariantTabs().map(t=>t.href),['/live/walls/news','/live/walls/china','/live/walls/alternate']);
 });

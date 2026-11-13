@@ -11,7 +11,13 @@ export default function TabRowScroll() {
         const current = row.querySelector<HTMLElement>('[aria-current="page"]');
         if (current && row.scrollWidth > row.clientWidth) {
             const right = current.offsetLeft - row.offsetLeft + current.offsetWidth;
-            if (right > row.clientWidth - 24) row.scrollLeft = Math.max(0, right - row.clientWidth + 48);
+            if (right > row.clientWidth - 24) {
+                // Start the row at a whole tab, so its left edge never shows half a word.
+                const wanted = right - row.clientWidth + 48;
+                const starts = [...row.children].filter((el) => el !== marker.current).map((el) => (el as HTMLElement).offsetLeft - row.offsetLeft);
+                const start = starts.find((x) => x >= wanted) ?? wanted;
+                row.scrollLeft = Math.max(0, start);
+            }
         }
         const update = () => {
             const more = row.scrollWidth - row.clientWidth;

@@ -36,7 +36,9 @@ export function ChannelProfile({data,meta,path,search}:{data:ChannelData;meta:Re
      ['近七日觀看估計',count(c.estimatedWeeklyViews)],['近月觀看估計',count(c.estimatedMonthlyViews)],['近月估計差距',count(c.monthlyEstimateGap)],['觀看成長指標',c.legacyGrowthPercent===null?'—':c.legacyGrowthPercent.toFixed(1)+'%']
     ]}/></div></details>
    </SourceSidebar>
-   <div className="min-w-0 lg:col-start-1 lg:row-start-1"><SectionHeading title="近期收錄影片" href={`/channels/${c.id}/videos`}/><VideoResults rows={data.videos} channel/><ChannelInsights data={data}/></div>
+   <div className="min-w-0 lg:col-start-1 lg:row-start-1"><SectionHeading title="近期收錄影片" href={`/channels/${c.id}/videos`}/><VideoResults rows={data.videos} channel/></div>
+   {/* The analysis cards run the full width under both columns, so the sidebar never ends above a long empty strip. */}
+   <div className="min-w-0 lg:col-span-2"><ChannelInsights data={data}/></div>
   </div>
   <ReportMethod path={path} meta={meta}/>
  </div>;

@@ -754,5 +754,6 @@ body:has(main [data-method-page]) [data-footer-method] { display: none; }
 /* A horizontally scrolling row (section tabs) fades at the edge it continues past. TabRowScroll sets
  * data-fade from the row's scroll position (no animation, so it holds under reduced motion too). */
 .scroll-fade[data-fade="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent); }
-.scroll-fade[data-fade="both"] { mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent); }
-.scroll-fade[data-fade="start"] { mask-image: linear-gradient(to right, transparent, #000 2.5rem); }
+/* The start edge fades less: TabRowScroll lands the row on a whole tab, which should stay readable. */
+.scroll-fade[data-fade="both"] { mask-image: linear-gradient(to right, transparent, #000 1.25rem, #000 calc(100% - 2.5rem), transparent); }
+.scroll-fade[data-fade="start"] { mask-image: linear-gradient(to right, transparent, #000 1.25rem); }

@@ -92,12 +92,12 @@ export function familyTabs(path:string,search:Search={},coverage?:ReportMeta['co
  const dated=path.match(/^\/ai\/days\/(\d{4}-\d{2}-\d{2})(?:\/([^/]+))?/);if(dated)search={...search,date:dated[1],...(dated[2]&&dated[2]!=='prompt'?{condition:decodeSegment(dated[2])}:{})};
  const liveDate=path.match(/^\/live\/days\/(\d{4}-\d{2}-\d{2})$/),channelDate=path.match(/^\/channels\/\d+\/ai\/days\/(\d{4}-\d{2}-\d{2})$/);if(liveDate)search={...search,from:liveDate[1],to:liveDate[1]};if(channelDate)search={...search,date:channelDate[1]};
  const [,family,id]=path.split('/');let base='',parts:[string,string][]=[];
- if(family==='channels'&&/^\d+$/.test(id??'')){base=`/channels/${id}`;const hideProfile=coverage?.channelId===Number(id)&&coverage.channelProfileAvailable===false;parts=[...(hideProfile?[]:[['','概覽'] as [string,string]]),['videos','影片'],...(COMMENTS_PUBLISHED?[['comments','留言'] as [string,string]]:[]),['cloud','關鍵詞'],['trends','趨勢'],['people','人物'],['ai','AI 議題'],['ai/days','每日分析'],['prompt','AI 輸入內容']];}
+ if(family==='channels'&&/^\d+$/.test(id??'')){base=`/channels/${id}`;const hideProfile=coverage?.channelId===Number(id)&&coverage.channelProfileAvailable===false;parts=[...(hideProfile?[]:[['','概覽'] as [string,string]]),['videos','影片'],...(COMMENTS_PUBLISHED?[['comments','留言'] as [string,string]]:[]),['cloud','關鍵詞'],['trends','趨勢'],['people','人物'],['ai','AI 議題'],['ai/days','每日分析'],['prompt','AI 讀取資料']];}
  if(family==='tags'){base=/^\d+$/.test(id??'')?`/tags/${id}`:'/tags';parts=[...(base==='/tags'?[]:[['channels','頻道'] as [string,string]]),['videos','影片'],...(COMMENTS_PUBLISHED?[['comments','留言'] as [string,string]]:[]),['cloud','關鍵詞'],['days','逐日'],['trends','趨勢']];}
  if(family==='keywords'&&id){base=`/keywords/${id}`;parts=[['videos','影片'],['cloud','關鍵詞'],['days','逐日'],['groups/trends','群組趨勢'],['live/trends','直播趨勢']];}
  if(family==='groups'&&id){base=`/groups/${id}`;parts=[['','群組內容'],...(Object.hasOwn(groupDefinitions,id)?[['ranking','排行'],['trends','趨勢']] as [string,string][]:[])];}
  if(family==='live'){base='/live';parts=[['current','即時直播'],['days','每日直播'],['periods','期間'],['hours','逐時'],['channels','頻道'],['tags','分類'],['continuous','連續直播'],['trends/daily','每日趨勢'],['walls/news','直播電視牆']];}
- if(family==='ai'){base='/ai';parts=[['days','每日議題'],['hours','每小時'],['periods','跨日議題'],['aspects','觀點比較'],['days/prompt','AI 輸入內容']];}
+ if(family==='ai'){base='/ai';parts=[['days','每日議題'],['hours','每小時'],['periods','跨日議題'],['aspects','觀點比較'],['days/prompt','AI 讀取資料']];}
  const tabs=parts.map(([part,label])=>({href:reportHref(base+(part?'/'+part:''),search,path),label}));
  // /groups/:name/live has content tag-set semantics; taxonomy groups link to their hourly live report.
  if(family==='groups'&&id&&Object.hasOwn(groupDefinitions,id))tabs.push({href:reportHref(`/live/groups/${encodeURIComponent(id)}/hours`,search,path),label:'每小時直播'});

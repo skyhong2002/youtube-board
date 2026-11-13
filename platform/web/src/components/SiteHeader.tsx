@@ -31,7 +31,7 @@ function HomeLink({ searchOpen, revealed }: { searchOpen: boolean; revealed: boo
       onPointerUp={unpress}
       onPointerCancel={unpress}
       onPointerLeave={unpress}
-      className={`${searchOpen ? 'hidden lg:block' : ''} ${revealed ? 'max-w-48 px-2' : 'invisible max-w-0 px-0 opacity-0'} -ml-2 shrink-0 overflow-hidden rounded-md py-1.5 transition-[max-width,opacity,background-color,transform] duration-300 [-webkit-tap-highlight-color:transparent] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 has-data-pending:animate-pulse has-data-pending:bg-brand-50 has-data-pending:text-brand-800 dark:has-data-pending:bg-brand-950 dark:has-data-pending:text-brand-300 ${
+      className={`${searchOpen ? 'hidden lg:block' : ''} ${revealed ? 'max-w-48 px-2' : 'invisible max-w-0 px-0 opacity-0'} -ml-2 shrink-0 overflow-hidden rounded-md py-1.5 transition-[max-width,opacity,background-color,transform] duration-300 [-webkit-tap-highlight-color:transparent] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 has-data-pending:animate-pulse ${
         pressed ? 'scale-95 bg-brand-100 text-brand-800 dark:bg-brand-900 dark:text-brand-200' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'
       }`}
     >
