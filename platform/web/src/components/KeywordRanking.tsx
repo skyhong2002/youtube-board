@@ -7,7 +7,7 @@ import {table} from '@/lib/table-styles';
 import {reportStyle as ui} from '@/lib/report-styles';
 import {KEYWORD_WINDOWS,homeKeywordState,homeKeywordSummary,keywordRangeLabel,keywordVideosHref,type KeywordWindow} from '@/lib/home-presentation';
 import {INSUFFICIENT,heatLabel,keywordMethodNotes,rankingBasis,riseLabel,trendLabel,trendValues,viewsCell,type RankingRow} from '@/lib/keyword-ranking';
-import {KeywordWindowPane,KeywordWindowProvider,KeywordWindowSwitch} from '@/app/_home/KeywordWindow';
+import {KeywordWindowLink,KeywordWindowPane,KeywordWindowProvider,KeywordWindowSwitch} from '@/app/_home/KeywordWindow';
 import TableScroller from './TableScroller';
 import Sparkline,{DIRECTION_TEXT,seriesDirection} from './Sparkline';
 import {VideoThumbnail} from './VideoThumbnail';
@@ -57,10 +57,10 @@ function RankingPane({view:v,priority}:{view:View;priority:boolean}){
  const s=v.summary;
  return <>
   {s&&<div className="space-y-0.5"><p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">{keywordRangeLabel(s,v.window)}{v.rows.length>0&&<span className="whitespace-nowrap"> · 列出 {count(v.rows.length)} 個標籤</span>}</p>
-   {v.rows.length>0&&<p className="text-xs text-zinc-600 dark:text-zinc-400">走勢線<span className="font-medium text-brand-700 dark:text-brand-400">紅色</span>表示末日熱度高於首日，灰色為持平或下降。</p>}</div>}
+   {v.rows.length>0&&<p className="text-xs text-zinc-600 dark:text-zinc-400">走勢線<span className="font-medium text-brand-700 dark:text-brand-400">紅色</span>表示末日熱度比首日高 2% 以上，灰色為持平或下降。</p>}</div>}
   {s&&v.rows.length?<KeywordRankingTable rows={v.rows} summary={s} window={v.window} basis={v.basis} priority={priority}/>:<div className="rounded-xl border border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400"><p role="status" className="m-0" data-keyword-state={v.kind}>{v.message??`${v.label}範圍與比對狀態未知。`}</p>
    {/* An empty window still has somewhere to go: the other window, or the day's cross-channel topics. */}
-   <p className="mb-0 mt-3 flex flex-wrap gap-x-4 gap-y-1"><Link className="inline-flex min-h-11 items-center text-brand-700 hover:underline dark:text-brand-400" href={v.window==='today'?'/keywords':'/keywords?window=today'}>改看{v.window==='today'?'近七日':'過去24小時'} →</Link><Link className="inline-flex min-h-11 items-center text-brand-700 hover:underline dark:text-brand-400" href="/ai/days">看每日公共議題 →</Link></p></div>}
+   <p className="mb-0 mt-3 flex flex-wrap gap-x-4 gap-y-1"><KeywordWindowLink className="inline-flex min-h-11 items-center text-brand-700 hover:underline dark:text-brand-400" window={v.window==='today'?'week':'today'}>改看{v.window==='today'?'近七日':'過去24小時'} →</KeywordWindowLink><Link className="inline-flex min-h-11 items-center text-brand-700 hover:underline dark:text-brand-400" href="/ai/days">看每日公共議題 →</Link></p></div>}
  </>;
 }
 export function KeywordRankingTable({rows,summary,window,basis,priority=false}:{rows:RankingRow[];summary:NonNullable<View['summary']>;window:KeywordWindow;basis:View['basis'];priority?:boolean}){

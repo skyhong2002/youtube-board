@@ -1,5 +1,5 @@
 'use client';
-import {createContext,useContext,useState,type ReactNode} from 'react';
+import {createContext,useContext,useState,type MouseEvent,type ReactNode} from 'react';
 import {DEFAULT_KEYWORD_WINDOW,KEYWORD_WINDOWS,type KeywordWindow} from '@/lib/home-presentation';
 
 // One selection drives the masthead word cloud, the keyword ranking and their
@@ -30,4 +30,12 @@ export function KeywordWindowSwitch({name,className='mb-3',controls=KEYWORD_REGI
    </label>)}
   </div>
  </fieldset>;
+}
+/** A link to the other window that switches the shared selection in place: after a radio switch the URL
+ * still names the first window, so following the href alone could leave the page on the same window.
+ * The href stays for new tabs and readers without scripts. */
+export function KeywordWindowLink({window,className,children}:{window:KeywordWindow;className?:string;children:ReactNode}){
+ const {select}=useContext(Selection);
+ const follow=(event:MouseEvent<HTMLAnchorElement>)=>{if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;event.preventDefault();select(window);};
+ return <a className={className} href={window==='today'?'/keywords?window=today':'/keywords'} onClick={follow}>{children}</a>;
 }
