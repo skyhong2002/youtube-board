@@ -17,3 +17,6 @@ m2	opus-5.5	reference	6.5	6.25
 m3	opus-5.5	baseline	6	6.21
 m3	opus-5.5	new	7.5	7.25
 m3	opus-5.5	reference	7	6.54
+m4	opus-5.5	baseline	6	5.92
+m4	opus-5.5	new	8	7.71
+m4	opus-5.5	reference	7	6.5
