@@ -11,3 +11,6 @@ round	reviewer	set	overall	mean
 m1	opus-5.5	baseline	5.5	5.67
 m1	opus-5.5	new	7	7.17
 m1	opus-5.5	reference	7	6.62
+m2	opus-5.5	baseline	6	6.08
+m2	opus-5.5	new	7.5	7.42
+m2	opus-5.5	reference	6.5	6.25
