@@ -102,7 +102,9 @@ test('/keywords today states: empty, unknown, unavailable, not synchronized and 
  for(const [keywordToday,kind,message] of cases){
   const exploration=keywordToday===undefined?{keywords:week}:{keywords:week,keywordToday:keywordToday as HomeKeywordSummary};
   const markup=html(createElement(KeywordRankingView,{exploration,meta:meta(),initial:'today'}));
-  assert.match(markup,new RegExp(`role="status" class="[^"]*dark:bg-zinc-900[^"]*dark:text-zinc-400[^"]*" data-keyword-state="${kind}">`),kind);
+  assert.match(markup,new RegExp(`class="[^"]*dark:bg-zinc-900[^"]*dark:text-zinc-400[^"]*"><p role="status" class="m-0" data-keyword-state="${kind}">`),kind);
+  // An empty or unknown window still offers the other window and the daily topics.
+  assert.match(markup,/href="\/keywords">改看近七日 →<\/a>/,kind);assert.match(markup,/href="\/ai\/days">看每日公共議題 →<\/a>/,kind);
   assert.match(markup,message,kind);
   assert.doesNotMatch(markup,/<table|週詞|舊資料詞|>0 次</,kind);
   if(kind!=='empty')assert.doesNotMatch(markup,EMPTY_WORDING,kind);

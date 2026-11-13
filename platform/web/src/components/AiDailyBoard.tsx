@@ -29,7 +29,7 @@ const conditionLabel=(key:string)=>AI_DAILY_CONDITIONS.find(([k])=>k===key)?.[1]
 
 function Counts({rows,link}:{rows:{term:string;count:number}[];link?:boolean}){
     if(!rows.length)return <span className="text-zinc-400 dark:text-zinc-500">無</span>;
-    return <span className="flex flex-wrap gap-1.5">{rows.map(r=>{const body=<>{r.term}<span className="ml-1 tabular-nums text-zinc-500">{count(r.count)}</span></>;
+    return <span className="flex flex-wrap gap-1.5">{rows.map(r=>{const body=<>{r.term}<span className="ml-1 tabular-nums text-zinc-600 dark:text-zinc-400">{count(r.count)}</span></>;
         return link?<Link key={r.term} className={ui.tag+" hover:bg-zinc-200 dark:hover:bg-zinc-700"} href={`/keywords/${encodeURIComponent(r.term)}/videos`}>{body}</Link>:<span key={r.term} className={ui.tag}>{body}</span>;})}</span>;
 }
 /** Zero sides are greyed so the topics where a camp, angle or party view does appear stand out. */
@@ -57,7 +57,7 @@ function Topic({topic,index}:{topic:TopicRow;index:number}){
         <ul className="mt-3 space-y-1.5 text-sm leading-relaxed">
             {topic.evidence.map((e,i)=>{const videos=e.videoIds.length||e.withheldVideoReferenceCount||0;return <li className="flex gap-2" key={`${e.source.id}-${i}`}>
                 <ChannelAvatar className="mt-0.5 shrink-0" avatar={e.channelAvatar} title={e.channelTitle} size={20}/>
-                <span className="min-w-0"><Link className="font-medium text-zinc-900 hover:text-brand-700 hover:underline dark:text-zinc-100 dark:hover:text-brand-400" href={`/channels/${e.channelId}`}>{e.channelTitle}</Link><span className="mx-1.5 text-zinc-400">→</span><span className="text-zinc-700 dark:text-zinc-300">{e.event}</span>{videos>1&&<span className="ml-1.5 whitespace-nowrap text-xs tabular-nums text-zinc-500">{count(videos)} 則</span>}</span>
+                <span className="min-w-0"><Link className="font-medium text-zinc-900 hover:text-brand-700 hover:underline dark:text-zinc-100 dark:hover:text-brand-400" href={`/channels/${e.channelId}`}>{e.channelTitle}</Link><span className="mx-1.5 text-zinc-400">→</span><span className="text-zinc-700 dark:text-zinc-300">{e.event}</span>{videos>1&&<span className="ml-1.5 whitespace-nowrap text-xs tabular-nums text-zinc-600 dark:text-zinc-400">{count(videos)} 則</span>}</span>
             </li>;})}
             {topic.unresolvedReferences.map((r,i)=><li className="flex gap-2 pl-7" key={`u-${i}`}><span className="min-w-0"><span className="font-medium">{r.channelTitle}</span><span className="mx-1.5 text-zinc-400">→</span><span className="text-zinc-700 dark:text-zinc-300">{r.event}</span></span></li>)}
         </ul>

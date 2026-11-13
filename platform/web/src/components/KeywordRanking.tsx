@@ -56,8 +56,11 @@ export function KeywordRankingView({exploration,meta,notice,tabs,initial='week'}
 function RankingPane({view:v,priority}:{view:View;priority:boolean}){
  const s=v.summary;
  return <>
-  {s&&<p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">{keywordRangeLabel(s,v.window)}{v.rows.length>0&&` · 列出 ${count(v.rows.length)} 個標籤`}{v.rows.length>0&&<span className="whitespace-nowrap"> · 走勢線<span className="font-medium text-brand-700 dark:text-brand-400">紅色</span>表示末日熱度高於首日，灰色為持平或下降</span>}</p>}
-  {s&&v.rows.length?<KeywordRankingTable rows={v.rows} summary={s} window={v.window} basis={v.basis} priority={priority}/>:<p role="status" className="rounded-xl border border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400" data-keyword-state={v.kind}>{v.message??`${v.label}範圍與比對狀態未知。`}</p>}
+  {s&&<div className="space-y-0.5"><p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">{keywordRangeLabel(s,v.window)}{v.rows.length>0&&<span className="whitespace-nowrap"> · 列出 {count(v.rows.length)} 個標籤</span>}</p>
+   {v.rows.length>0&&<p className="text-xs text-zinc-600 dark:text-zinc-400">走勢線<span className="font-medium text-brand-700 dark:text-brand-400">紅色</span>表示末日熱度高於首日，灰色為持平或下降。</p>}</div>}
+  {s&&v.rows.length?<KeywordRankingTable rows={v.rows} summary={s} window={v.window} basis={v.basis} priority={priority}/>:<div className="rounded-xl border border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400"><p role="status" className="m-0" data-keyword-state={v.kind}>{v.message??`${v.label}範圍與比對狀態未知。`}</p>
+   {/* An empty window still has somewhere to go: the other window, or the day's cross-channel topics. */}
+   <p className="mb-0 mt-3 flex flex-wrap gap-x-4 gap-y-1"><Link className="inline-flex min-h-11 items-center text-brand-700 hover:underline dark:text-brand-400" href={v.window==='today'?'/keywords':'/keywords?window=today'}>改看{v.window==='today'?'近七日':'過去24小時'} →</Link><Link className="inline-flex min-h-11 items-center text-brand-700 hover:underline dark:text-brand-400" href="/ai/days">看每日公共議題 →</Link></p></div>}
  </>;
 }
 export function KeywordRankingTable({rows,summary,window,basis,priority=false}:{rows:RankingRow[];summary:NonNullable<View['summary']>;window:KeywordWindow;basis:View['basis'];priority?:boolean}){

@@ -125,7 +125,7 @@ test('/keywords uses the same pane and switch markers for its table and method n
   // notes stay plain paragraphs under the disclosure.
   assert.equal(html.match(/data-keyword-window-pane=/g)?.length,1);
   assert.doesNotMatch(html,new RegExp(`data-keyword-window-pane="${other}"`));
-  assert.match(html,new RegExp(`<div id="keyword-ranking-table"><div class="space-y-3" data-keyword-window-pane="${initial}"><p role="status"`));
+  assert.match(html,new RegExp(`<div id="keyword-ranking-table"><div class="space-y-3" data-keyword-window-pane="${initial}"><div class="[^"]*"><p role="status"`));
  }
 });
 test('cloud pictures keep only same-origin tag pictures, short emoji and bounded aspects',()=>{
