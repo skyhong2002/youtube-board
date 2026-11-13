@@ -50,4 +50,6 @@ hill climb 從 r3 之後移到 sky-mini。換機器後字型、渲染與負載�
 - 第一次拍的基準組有 3 張是快照代理的錯誤頁（`Error: read ECONNRESET`、`connect EADDRNOTAVAIL`）。原因是 Next 的 `/auth/me` 私有代理把請求轉給 API origin（也就是快照伺服器），快照伺服器又轉回 Next，形成伺服器端無限遞迴，一組拍攝打了約 10 萬次 `/auth/me`，耗盡本機暫時連接埠。修正後快照伺服器直接回 `/auth/me` 為 `enabled:false`（未設定登入時 API 的回應，帳號選單不顯示），其他私有路由回 503 JSON，並把代理錯誤頁視為擷取失敗重拍；錯誤組整組重拍。sky-server 上 r3 的空白圖與負載尖峰可能也與此有關。
 - 這組基準截圖只在修正後拍一次並沿用到 m7。
 
-各輪修改見 git 記錄（`Round m1 fixes` 到 `Round m6 fixes`）。前後對照：`compare/`（左為基準，右為 m7 新版）。
+m7 之後依使用者回饋（2026-11-14）改回「首頁頁首 logo 先藏起、捲過首頁主標題後淡入」，這項沒有再經評審計分（階段 1 的十輪已用完）；評審 r1–m6 曾把「首頁頁首沒有 logo」列為問題，這是使用者的明確選擇。
+
+各輪修改見 git 記錄（`Round m1 fixes` 到 `Round m6 fixes`）。前後對照：`compare/`（左為基準，右為新版；首頁兩張與 `home-header-reveal.jpg` 拍的是 logo 改動後的版本，其餘是 m7）。
