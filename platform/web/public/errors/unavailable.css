@@ -25,13 +25,103 @@ body {
     border-bottom: 1px solid #d4d4d8;
 }
 
-.brand {
-    display: block;
+.bar-inner {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
     width: 100%;
     max-width: 72rem;
     margin: 0 auto;
-    padding: 0.75rem 1rem;
+    padding: 0.5rem 1rem;
+}
+
+.brand {
+    display: block;
+    flex: none;
+    padding: 0.25rem 0;
     color: #18181b;
+}
+
+/* The same eight sections as the site header: a row on wide screens, a no-script <details> menu on phones. */
+.site-nav ul,
+.menu ul {
+    display: flex;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.site-nav {
+    display: none;
+}
+
+.site-nav ul {
+    gap: 0.25rem;
+}
+
+.site-nav a,
+.menu a {
+    display: flex;
+    align-items: center;
+    min-height: 2.5rem;
+    padding: 0 0.75rem;
+    border-radius: 0.375rem;
+    color: #52525b;
+    font-size: 0.875rem;
+    text-decoration: none;
+}
+
+.site-nav a:hover,
+.menu a:hover {
+    background: #f4f4f5;
+    color: #09090b;
+}
+
+.menu {
+    margin-left: auto;
+}
+
+.menu summary {
+    display: flex;
+    align-items: center;
+    min-height: 2.75rem;
+    padding: 0 0.875rem;
+    border: 1px solid #d4d4d8;
+    border-radius: 0.5rem;
+    color: #27272a;
+    font-size: 0.875rem;
+    cursor: pointer;
+    list-style: none;
+}
+
+.menu summary::-webkit-details-marker {
+    display: none;
+}
+
+.menu nav {
+    position: absolute;
+    inset: 100% 0 auto;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #e4e4e7;
+    background: #ffffff;
+    box-shadow: 0 8px 16px rgb(0 0 0 / 0.08);
+    z-index: 1;
+}
+
+.menu ul {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+@media (min-width: 1024px) {
+    .site-nav {
+        display: block;
+    }
+
+    .menu {
+        display: none;
+    }
 }
 
 .wordmark {
@@ -182,6 +272,27 @@ a:focus-visible {
     .brand,
     h1 {
         color: #f4f4f5;
+    }
+
+    .site-nav a,
+    .menu a {
+        color: #a1a1aa;
+    }
+
+    .site-nav a:hover,
+    .menu a:hover {
+        background: #27272a;
+        color: #f4f4f5;
+    }
+
+    .menu summary {
+        border-color: #3f3f46;
+        color: #e4e4e7;
+    }
+
+    .menu nav {
+        background: #0a0a0a;
+        border-color: #27272a;
     }
 
     .card {

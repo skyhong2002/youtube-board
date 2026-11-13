@@ -5,7 +5,7 @@ import { Fragment } from "react";
 import {ChannelAvatar} from "./ChannelAvatar";
 import {VideoThumbnail} from "./VideoThumbnail";
 import {VideoResults} from "./VideoResults";
-import Sparkline from "./Sparkline";
+import Sparkline, { DIRECTION_TEXT, seriesDirection } from "./Sparkline";
 import type {
     ChannelRow,
     VideoRow,
@@ -106,7 +106,7 @@ export function VideoTable({ rows, responsive=false }: { rows: VideoRow[]; respo
     const oneChannel=channelListing&&rows.every(r=>r.listing?.scope==='channel'&&r.channelId===rows[0]!.channelId);
     return (
         <>
-        {responsive&&<div className="sm:hidden"><VideoResults rows={rows} report/></div>}
+        {responsive&&<div className="sm:hidden"><VideoResults rows={rows} report channel={oneChannel}/></div>}
         <div className={responsive?'hidden sm:block':undefined}>
         <TableScroller label="影片觀測表，可左右捲動" showScrollHint={responsive}>
             <table className={table.nowrap}>
@@ -161,8 +161,8 @@ const LiveTrend=({row}:{row:LiveRow})=>{
     const start=row.trend[0]!,end=row.trend.at(-1)!;
     // The window is today's (Taipei) latest samples, roughly every 11 minutes; show its clock span so the unit is plain.
     return <span className="inline-flex flex-col items-start gap-0.5" title={`台北時間 ${clockTime(start.time)}–${clockTime(end.time)} 共 ${row.trend.length} 筆取樣：${count(start.value)} → ${count(end.value)} 人`}>
-        <span className="text-brand-600 dark:text-brand-400"><Sparkline values={row.trend.map(p=>p.value)} className="h-6 w-16"/></span>
-        <small className="text-[10px] leading-3 tabular-nums text-zinc-500 dark:text-zinc-400">{clockTime(start.time)}–{clockTime(end.time)}</small>
+        <span className={DIRECTION_TEXT[seriesDirection(row.trend.map(p=>p.value))]}><Sparkline values={row.trend.map(p=>p.value)} className="h-6 w-16"/></span>
+        <small className="text-xs leading-3 tabular-nums text-zinc-500 dark:text-zinc-400">{clockTime(start.time)}–{clockTime(end.time)}</small>
     </span>;
 };
 /** Relative change across the trend window; sorts rising streams first. */
@@ -196,7 +196,7 @@ export function LiveTable({ rows,offset=0,complete }: { rows: LiveRow[];offset?:
             <div className="flex min-w-0 gap-3">
               <Link className="relative block w-32 shrink-0 self-start overflow-hidden rounded-md" href={`/videos/${encodeURIComponent(row.id)}`} prefetch={false} tabIndex={-1} aria-hidden="true">
                 <VideoThumbnail videoId={row.id} width={128} height={72}/>
-                <span className="absolute left-1 top-1 rounded bg-brand-600 px-1 text-[10px] font-semibold leading-4 text-white">{String(offset+index+1).padStart(2,'0')}</span>
+                <span className="absolute left-1 top-1 rounded bg-brand-600 px-1 text-xs font-semibold leading-4 text-white">{String(offset+index+1).padStart(2,'0')}</span>
               </Link>
               <div className="min-w-0 flex-1">
                 <Link className="block whitespace-normal break-words text-[15px] font-medium leading-snug hover:underline [overflow-wrap:anywhere]" href={`/videos/${encodeURIComponent(row.id)}`} prefetch={false}>{row.title||"直播標題尚未取得"}</Link>
@@ -205,9 +205,9 @@ export function LiveTable({ rows,offset=0,complete }: { rows: LiveRow[];offset?:
             </div>
             <div className="mt-2.5 flex items-end justify-between gap-3 border-t border-zinc-100 pt-2.5 dark:border-zinc-800">
               <dl className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
-                <div><dt className="text-[11px] text-zinc-600 dark:text-zinc-400">同時在線</dt><dd className="m-0 text-lg font-semibold leading-6 tabular-nums text-zinc-950 dark:text-zinc-50">{count(row.currentViewers)}</dd></div>
-                <div><dt className="text-[11px] text-zinc-600 dark:text-zinc-400">今日高峰</dt><dd className="m-0 text-sm tabular-nums">{count(row.todayPeak)}{row.partialLogEvidence&&<span className="ml-1 text-[11px] text-zinc-600 dark:text-zinc-400">部分取樣</span>}</dd></div>
-                <div><dt className="text-[11px] text-zinc-600 dark:text-zinc-400">歷史高峰</dt><dd className="m-0 text-sm tabular-nums">{count(row.allTimePeak)}</dd></div>
+                <div><dt className="text-xs text-zinc-600 dark:text-zinc-400">同時在線</dt><dd className="m-0 text-lg font-semibold leading-6 tabular-nums text-zinc-950 dark:text-zinc-50">{count(row.currentViewers)}</dd></div>
+                <div><dt className="text-xs text-zinc-600 dark:text-zinc-400">今日高峰</dt><dd className="m-0 text-sm tabular-nums">{count(row.todayPeak)}{row.partialLogEvidence&&<span className="ml-1 text-xs text-zinc-600 dark:text-zinc-400">部分取樣</span>}</dd></div>
+                <div><dt className="text-xs text-zinc-600 dark:text-zinc-400">歷史高峰</dt><dd className="m-0 text-sm tabular-nums">{count(row.allTimePeak)}</dd></div>
               </dl>
               <div className="shrink-0"><LiveTrend row={row}/></div>
             </div>

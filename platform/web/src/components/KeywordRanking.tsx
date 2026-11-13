@@ -9,7 +9,7 @@ import {KEYWORD_WINDOWS,homeKeywordState,homeKeywordSummary,keywordRangeLabel,ke
 import {INSUFFICIENT,heatLabel,keywordMethodNotes,rankingBasis,riseLabel,trendLabel,trendValues,viewsCell,type RankingRow} from '@/lib/keyword-ranking';
 import {KeywordWindowPane,KeywordWindowProvider,KeywordWindowSwitch} from '@/app/_home/KeywordWindow';
 import TableScroller from './TableScroller';
-import Sparkline from './Sparkline';
+import Sparkline,{DIRECTION_TEXT,seriesDirection} from './Sparkline';
 import {VideoThumbnail} from './VideoThumbnail';
 import {ChannelAvatar} from './ChannelAvatar';
 import MethodLink from './MethodLink';
@@ -97,12 +97,12 @@ export function KeywordRankingTable({rows,summary,window,basis,priority=false}:{
       </div>
      </td>
      <td className={`${table.num} ${heat?'font-medium':'text-xs text-zinc-400'}`}>{heat?heatLabel(row):INSUFFICIENT}</td>
-     <td className={`${table.num} ${riseTone[rise.tone]}`}>{rise.text}</td>
-     <td className="px-2 py-1 sm:px-3">{values.some(v=>v!==null)?<span role="img" aria-label={trendLabel(row.trend)} title={trendLabel(row.trend)} className="inline-block align-middle text-brand-700 dark:text-brand-400"><Sparkline values={values}/></span>:<span className="text-xs text-zinc-400">{INSUFFICIENT}</span>}</td>
+     <td className={`${table.num} ${riseTone[rise.tone]}`}>{rise.tone==='up'&&<span aria-hidden="true" className="mr-0.5 text-[0.8em]">▲</span>}{rise.tone==='down'&&<span aria-hidden="true" className="mr-0.5 text-[0.8em]">▼</span>}{rise.text}</td>
+     <td className="px-2 py-1 sm:px-3">{values.some(v=>v!==null)?<span role="img" aria-label={trendLabel(row.trend)} title={trendLabel(row.trend)} className={`inline-block align-middle ${DIRECTION_TEXT[seriesDirection(values)]}`}><Sparkline values={values}/></span>:<span className="text-xs text-zinc-400">{INSUFFICIENT}</span>}</td>
      <td className={table.num}>{count(row.videoCount)}</td>
      <td className={`${table.num} text-zinc-600 dark:text-zinc-400`}>{count(row.titleVideos)}／{count(row.descriptionOnlyVideos)}</td>
      <td className={table.num}>{count(row.channelCount)}</td>
-     <td className={table.num} title={views.title}>{views.value}{views.detail&&<small className="ml-1 text-zinc-500">（{views.detail}）</small>}</td>
+     <td className={table.num} title={views.title}>{views.value}{views.detail&&<small className="ml-1 text-xs text-zinc-600 dark:text-zinc-400">（{views.detail}）</small>}</td>
      <td className={table.cell}>{channel?<Link href={`/channels/${encodeURIComponent(channel.id)}`} className="inline-flex max-w-[12rem] items-center gap-1.5 hover:underline" title={channel.name||channel.title}><ChannelAvatar avatar={channel.avatar??null} title={channel.name||channel.title} size={18}/><span className="truncate">{channel.name||channel.title||'頻道名稱尚未取得'}</span></Link>:<span className="text-xs text-zinc-400">—</span>}</td>
     </tr>;
    })}</tbody>

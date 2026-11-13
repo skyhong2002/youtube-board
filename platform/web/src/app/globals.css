@@ -2,7 +2,7 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 :root {
   --background: #ffffff; --foreground: #171717; --panel: #ffffff;
-  --muted: #71717a; --line: #e4e4e7; --brand: #ff0000;
+  --muted: #52525b; --line: #e4e4e7; --brand: #ff0000;
   --accent: #b91c1c; --tint: #fef2f2; --success: #047857;
   color-scheme: light;
 }
@@ -750,16 +750,8 @@ body:has(main [data-page-method]) [data-site-footer] { margin-top: 0; }
 /* The full write-up (/about) has no 本頁 block, as tag.observe.tw hides FooterMethod on /method/. */
 body:has(main [data-method-page]) [data-footer-method] { display: none; }
 
-/* A horizontally scrolling row (section tabs) fades at the edge it continues past. The scroll-driven
- * animation only runs when the row can scroll, so a row that fits keeps both edges crisp. */
-@supports (animation-timeline: scroll()) {
-    .scroll-fade {
-        animation: scroll-fade linear both;
-        animation-timeline: scroll(self inline);
-    }
-    @keyframes scroll-fade {
-        0% { mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent); }
-        8%, 92% { mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent); }
-        100% { mask-image: linear-gradient(to right, transparent, #000 2.5rem); }
-    }
-}
+/* A horizontally scrolling row (section tabs) fades at the edge it continues past. TabRowScroll sets
+ * data-fade from the row's scroll position (no animation, so it holds under reduced motion too). */
+.scroll-fade[data-fade="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent); }
+.scroll-fade[data-fade="both"] { mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent); }
+.scroll-fade[data-fade="start"] { mask-image: linear-gradient(to right, transparent, #000 2.5rem); }

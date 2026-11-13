@@ -1,5 +1,6 @@
 import Link from "next/link";
 import SectionTabs from "@/components/SectionTabs";
+import TabRowScroll from "@/components/TabRowScroll";
 import {ChannelAvatar} from "@/components/ChannelAvatar";
 import {Metric} from "@/components/ReportUI";
 import {YouTubeFacade} from "@/components/ai/YouTubeFacade";
@@ -65,11 +66,12 @@ function Topic({topic,index}:{topic:TopicRow;index:number}){
                 {rows.map(([label,value])=><div className="contents" key={label}><dt className="pt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{label}</dt><dd className="min-w-0">{value}</dd></div>)}
             </dl>
             {/* Phones swipe the representative videos sideways instead of stacking three players per topic. */}
-            {s.videos.length>0&&<div className="-mx-3 mt-3 flex snap-x gap-3 overflow-x-auto px-3 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 sm:pb-0" aria-label="代表影片">
+            {s.videos.length>0&&<div className="scroll-fade -mx-3 mt-3 flex snap-x gap-3 overflow-x-auto px-3 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 sm:pb-0 sm:[mask-image:none]" aria-label="代表影片">
                 {s.videos.map(v=><figure className="relative w-[78%] min-w-0 shrink-0 snap-start sm:w-auto" key={v.videoId}>
                     <YouTubeFacade videoId={v.videoId} title={`${v.channelTitle} - ${v.event}`}/>
                     <figcaption className="mt-1 line-clamp-2 text-xs leading-snug text-zinc-600 dark:text-zinc-400"><a className="hover:underline" href={`https://www.youtube.com/watch?v=${v.videoId}`} target="_blank" rel="noopener noreferrer" title={`${v.channelTitle} · ${v.event}`}><span className="font-medium text-zinc-700 dark:text-zinc-300">{v.channelTitle}</span> · {v.event}<span className="sr-only">（另開視窗）</span></a></figcaption>
                 </figure>)}
+                <TabRowScroll/>
             </div>}
         </div>
     </article>;

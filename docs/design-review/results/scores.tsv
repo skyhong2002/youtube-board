@@ -2,3 +2,6 @@ round	reviewer	set	overall	mean
 1	opus-5.5	baseline	6	6.21
 1	opus-5.5	new	7	6.75
 1	opus-5.5	reference	6.5	6.29
+2	opus-5.5	baseline	6	5.96
+2	opus-5.5	new	7.5	7.25
+2	opus-5.5	reference	7	6.71

@@ -11,7 +11,8 @@ import {COMMENTS_PUBLISHED} from '@/lib/comments-launch';
 /** `channel` lists one channel's own videos: its name and avatar would repeat on every row, so only the time shows. */
 export function VideoResults({rows,report=false,channel=false}:{rows:VideoRow[];report?:boolean;channel?:boolean}){
  if(!rows.length)return <p className="rounded-lg border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">目前沒有可呈現的近期影片。尚未收錄，不代表頻道沒有發布影片。</p>;
- return <ul className="divide-y divide-zinc-200 dark:divide-zinc-800" aria-label="近期收錄影片列表">{rows.map(row=>{
+ // Report lists say once, above the rows, what the per-row record time means; each row keeps only its time.
+ return <>{report&&<p className="mb-1 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">各項統計未必在同一時間觀測；「—」表示未取得。每部影片下方的時間是資料最後記錄的時間。</p>}<ul className="divide-y divide-zinc-200 dark:divide-zinc-800" aria-label="近期收錄影片列表">{rows.map(row=>{
   const href=`/videos/${encodeURIComponent(row.id)}`,title=row.title||'影片標題尚未取得',listing=row.listing;
   const collected=listing?.scope==='channel';
   const status=listing?.commentStatus==='complete'?(listing.recordedComments===null?'完整批次無總數':'完整收錄'):listing?.commentStatus==='pending'?'收錄未完成':'未收錄';
@@ -25,8 +26,8 @@ export function VideoResults({rows,report=false,channel=false}:{rows:VideoRow[];
     </div>
     <Link href={href} aria-label={`觀看影片：${title}`} className="mt-1 shrink-0 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"><VideoThumbnail videoId={row.id} title={title} width={96} height={54}/></Link>
    </div>
-   {report&&<p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">資料最後記錄：{dateTime(row.updatedAt)}。各項統計未必在同一時間觀測；「—」表示未取得。</p>}
+   {report&&<p className="mt-1.5 text-xs tabular-nums text-zinc-600 dark:text-zinc-400">資料最後記錄 {dateTime(row.updatedAt)}</p>}
    {report&&listing?.scope==='taxonomy'&&<dl className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-600 dark:text-zinc-400"><div className="flex gap-1"><dt>每千次觀看留言</dt><dd>{listing.commentsPerThousandViews==null?'—':listing.commentsPerThousandViews.toFixed(2)+'‰'}</dd></div><div className="flex flex-wrap gap-1"><dt>頻道分類</dt><dd>{listing.tags.length?listing.tags.map((tag,i)=><span key={tag.id}>{i>0?'、':''}<Link href={`/tags/${tag.id}/videos`} className="underline">{tag.name}</Link></span>):'尚未收錄'}</dd></div></dl>}
   </li>;
- })}</ul>;
+ })}</ul></>;
 }
