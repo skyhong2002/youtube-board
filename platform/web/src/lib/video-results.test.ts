@@ -28,11 +28,17 @@ test('a video with no observed counts says so once instead of three dashes',()=>
  const html=render([{...video,views:null,likes:null,comments:null,listing:{...video.listing!,providerComments:null}}]);
  assert.match(html,/data-video-metrics="none"/);assert.match(html,/尚未取得觀看數據/);assert.doesNotMatch(html,/<dd>—<\/dd>/);
 });
-test('a channel list counts its unobserved videos once and marks each on its time line',()=>{
+test('a channel overview leads with counted videos and folds the uncounted ones into one disclosure',()=>{
  const none={...video,views:null,likes:null,comments:null,listing:{...video.listing!,providerComments:null}};
- const html=renderToStaticMarkup(createElement(ImageConfigContext.Provider,{value:{...imageConfigDefault,...config.images}},createElement(VideoResults,{rows:[none,{...none,id:'ZyXwVuTs987'},video],channel:true})));
- assert.match(html,/這 3 支近期影片中，2 支尚未取得觀看數據；未取得不代表沒有觀看。/);
+ const channelList=(rows:VideoRow[],report=false)=>renderToStaticMarkup(createElement(ImageConfigContext.Provider,{value:{...imageConfigDefault,...config.images}},createElement(VideoResults,{rows,channel:true,report})));
+ const html=channelList([none,{...none,id:'ZyXwVuTs987'},video]);
+ assert.match(html,/這 3 支近期影片中，1 支已有觀看數據，列在前面；其餘 2 支尚未取得，收在下方。/);
+ assert.ok(html.indexOf('AbCdEfGh123')<html.indexOf('<details'),'counted video leads');
+ assert.match(html,/<details[^>]*><summary[^>]*><span>另有 2 支近期影片尚未取得觀看數據<\/span>/);
  assert.equal(html.match(/data-video-metrics="none"/g)?.length,2);assert.match(html,/<\/time><span aria-hidden="true">·<\/span><span data-video-metrics="none">/);
+ // All uncounted, or a report list: one coverage line, nothing folded.
+ const all=channelList([none,{...none,id:'ZyXwVuTs987'}]);assert.match(all,/這 2 支近期影片中，全部尚未取得觀看數據/);assert.doesNotMatch(all,/<details/);
+ assert.doesNotMatch(channelList([none,video],true),/<details/);
  assert.doesNotMatch(render([video]),/data-video-coverage/);
 });
 test('empty source listing explains observation scope',()=>{

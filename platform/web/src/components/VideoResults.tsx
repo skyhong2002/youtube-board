@@ -16,8 +16,10 @@ export function VideoResults({rows,report=false,channel=false}:{rows:VideoRow[];
  const waiting=channel?rows.filter(unobserved).length:0;
  // Report lists say once, above the rows, what the per-row record time means; each row keeps only its time.
  // A channel's own list says once how many of its newest videos have no counts yet, and those rows say it
- // on their time line instead of a line of their own.
- return <>{waiting>0&&<p className="mb-1 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400" data-video-coverage="">這 {count(rows.length)} 支近期影片中，{waiting===rows.length?'全部':`${count(waiting)} 支`}尚未取得觀看數據；未取得不代表沒有觀看。</p>}{report&&<p className="mb-1 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">各項統計未必在同一時間觀測；「—」表示未取得。每部影片下方的時間是資料最後記錄的時間。</p>}<ul className="divide-y divide-zinc-200 dark:divide-zinc-800" aria-label="近期收錄影片列表">{rows.map(row=>{
+ // on their time line instead of a line of their own. On the channel overview, when only some have counts,
+ // those lead and the rest fold into one disclosure, so the figures are not buried under empty rows.
+ const split=channel&&!report&&waiting>0&&waiting<rows.length;
+ const item=(row:VideoRow)=>{
   const href=`/videos/${encodeURIComponent(row.id)}`,title=row.title||'影片標題尚未取得',listing=row.listing;
   const collected=listing?.scope==='channel';
   const status=listing?.commentStatus==='complete'?(listing.recordedComments===null?'完整批次無總數':'完整收錄'):listing?.commentStatus==='pending'?'收錄未完成':'未收錄';
@@ -34,5 +36,14 @@ export function VideoResults({rows,report=false,channel=false}:{rows:VideoRow[];
    {report&&<p className="mt-1.5 text-xs tabular-nums text-zinc-600 dark:text-zinc-400">資料最後記錄 {dateTime(row.updatedAt)}</p>}
    {report&&listing?.scope==='taxonomy'&&<dl className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-600 dark:text-zinc-400"><div className="flex gap-1"><dt>每千次觀看留言</dt><dd>{listing.commentsPerThousandViews==null?'—':listing.commentsPerThousandViews.toFixed(2)+'‰'}</dd></div><div className="flex flex-wrap gap-1"><dt>頻道分類</dt><dd>{listing.tags.length?listing.tags.map((tag,i)=><span key={tag.id}>{i>0?'、':''}<Link href={`/tags/${tag.id}/videos`} className="underline">{tag.name}</Link></span>):'尚未收錄'}</dd></div></dl>}
   </li>;
- })}</ul></>;
+ };
+ const list=(items:VideoRow[],label='近期收錄影片列表')=><ul className="divide-y divide-zinc-200 dark:divide-zinc-800" aria-label={label}>{items.map(item)}</ul>;
+ const note='mb-1 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400';
+ if(split){
+  const pending=rows.filter(unobserved);
+  return <><p className={note} data-video-coverage="">這 {count(rows.length)} 支近期影片中，{count(rows.length-waiting)} 支已有觀看數據，列在前面；其餘 {count(waiting)} 支尚未取得，收在下方。未取得不代表沒有觀看。</p>
+   {list(rows.filter(row=>!unobserved(row)))}
+   <details className="group border-t border-zinc-200 dark:border-zinc-800"><summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 py-2 text-sm text-zinc-700 hover:text-brand-700 dark:text-zinc-300 dark:hover:text-brand-400 [&::-webkit-details-marker]:hidden"><span>另有 {count(waiting)} 支近期影片尚未取得觀看數據</span><span aria-hidden="true" className="text-xs text-zinc-500 group-open:hidden">展開 ▾</span><span aria-hidden="true" className="hidden text-xs text-zinc-500 group-open:inline">收合 ▴</span></summary>{list(pending,'尚未取得觀看數據的近期影片')}</details></>;
+ }
+ return <>{waiting>0&&<p className={note} data-video-coverage="">這 {count(rows.length)} 支近期影片中，{waiting===rows.length?'全部':`${count(waiting)} 支`}尚未取得觀看數據；未取得不代表沒有觀看。</p>}{report&&<p className={note}>各項統計未必在同一時間觀測；「—」表示未取得。每部影片下方的時間是資料最後記錄的時間。</p>}{list(rows)}</>;
 }
