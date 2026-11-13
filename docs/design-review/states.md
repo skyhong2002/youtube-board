@@ -7,13 +7,16 @@
 | `desktop` | 1440 × 900 | 1 | 從頁首起，最多 2400 px |
 | `mobile` | 390 × 844（觸控） | 2 | 從頁首起，最多 1688 CSS px |
 
-固定條件：
+固定條件（第二段起在 sky-mini 拍攝；第一段 r1–r3 在 sky-server，字型與渲染不同，兩段截圖不混用）：
+
+- 主機：sky-mini（macOS，Apple Silicon 10 核），Playwright 1.65 的 Chromium headless shell（`~/.cache/yb-review-pw/node_modules`，以 `NODE_PATH` 傳入）。建置與每個狀態開拍前都等 1 分鐘負載（`tools/load1.sh`：Linux 讀 `/proc/loadavg`，macOS 讀 `sysctl vm.loadavg`）≤ 10；建置用 `nice -n 19`（macOS 沒有 `ionice`，有才加）。一次只開一個瀏覽器。
+- 基準：`main` 4ce5bf19 另開 worktree 建置；新版：`ui-hill-climb` 分支建置。兩者用同一份快照、同一台機器、同一組工具拍攝。
 
 - 資料：`youtube.observe.tw` 公開 `/api/v1` 的一次性快照，於 2026-11-13 02:3x（台北）錄製，之後每一輪只回放，不再連正式 API。快照伺服器（`tools/snapshot-server.mjs`）站在正式閘道的位置：`/api/v1/*` 與 `/media/*`（頻道頭像）從快照回放，其餘轉給本機 `next start`；Next 伺服器端讀取也指向它。快照缺的網址回 404 並記錄，不會退回即時資料。它也照正式閘道（`api/src/ui-unavailable.ts`）的做法，把 Next 回的 5xx 頁面換成 `web/public/errors/unavailable.html`（503），所以錯誤狀態拍到的是讀者實際看到的頁面。
-- YouTube 縮圖（`i.ytimg.com`）第一次錄進本機快取，之後只從快取供應；其他站外請求一律擋下。
+- YouTube 縮圖走 Next 的 `/_next/image`：由本機 `next start` 在伺服器端向 `i.ytimg.com` 取圖（這是 YouTube 的圖片 CDN，不是正式 API），存進該次建置的 `.next/cache/images`。瀏覽器若直接要 `i.ytimg.com`，只從 `/tmp/yb-review/data/ytimg` 快取供應（預設不補錄，缺圖回 404）；其他站外請求一律擋下。
 - 每個瀏覽器 context 都送 `DNT: 1`、`Sec-GPC: 1`，`navigator.doNotTrack = "1"`，導覽前先擋 Google Analytics／GTM。
 - 瀏覽器時鐘固定在 2026-11-13 02:40（Asia/Taipei）。伺服器時鐘不固定：替換 `Date` 的預載會讓 Next 的資料快取失效（頁面 500），而伺服器端用到「現在」的只有每日議題的「今天」判斷，資料本身都是凍結的。
-- 繁中、`zh-TW`、淺色外觀（另列深色狀態）、減少動態效果；CJK 由本機 Noto Sans TC 補齊。
+- 繁中、`zh-TW`、淺色外觀（另列深色狀態）、減少動態效果；CJK 用 macOS 內建的 PingFang TC（網站字型堆疊的第一順位）。
 - 每批資料情境（有資料、空、錯誤）各自重啟一次 `next start`，載入中的每個狀態也各自重啟，避免記憶體 ISR 快取跨情境。
 
 ## 範圍說明：活動頁
@@ -62,9 +65,9 @@
 ## 重現
 
 ```bash
-# 0. 依賴：platform/node_modules；Playwright 取自 NODE_PATH（例如 ~/.cache/perf-fe-before/node_modules）
-# 1. 建置（load1 ≤ 10 才開始）
-(cd platform/web && NODE_ENV=production nice -n 19 ionice -c3 ../node_modules/.bin/next build)
+# 0. 依賴：platform/node_modules（npm ci）；Playwright 取自 NODE_PATH（預設 ~/.cache/yb-review-pw/node_modules）
+# 1. 建置（load1 ≤ 10 才開始；Linux 另加 ionice -c3）
+(cd platform/web && NODE_ENV=production nice -n 19 ../node_modules/.bin/next build)
 # 2. 快照伺服器：第一次加 --record https://youtube.observe.tw 錄製，之後只回放
 node docs/design-review/tools/snapshot-server.mjs --data /tmp/yb-review/data --port 8501 --next http://127.0.0.1:3101
 # 3. 截一整組（每批重啟 next start；一次只開一個瀏覽器）
@@ -72,5 +75,6 @@ docs/design-review/tools/run-set.sh platform /tmp/yb-review/sets/NAME
 # 4. 參考對手（只截一次）
 NODE_PATH=... node docs/design-review/tools/capture.mjs references /tmp/yb-review/sets/reference
 # 5. 盲測組裝：A/B/C 隨機，對照表寫在評審資料夾外
-python3 docs/design-review/tools/make_round.py r1 /tmp/yb-review/sets/new-r1
+python3 docs/design-review/tools/make_round.py m1 /tmp/yb-review/sets/new-m1   # 第二段輪次 m1、m2…，資料夾 rounds/rm1
+# 長時間的一組在 macOS 用 nohup 背景執行；中斷後加 SKIP_EXISTING=1 重跑 run-set.sh 續拍
 ```

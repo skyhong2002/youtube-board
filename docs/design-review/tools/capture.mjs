@@ -8,6 +8,7 @@ import { createRequire } from 'node:module';
 import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
+import { loadavg } from 'node:os';
 import { SIZES, STATES, REFERENCES, NOW } from './states.mjs';
 
 // ESM ignores NODE_PATH, so resolve Playwright from it explicitly.
@@ -42,9 +43,9 @@ async function guard(context, { frozenImages }) {
 // The host is shared: before every state, wait while the 1-minute load average is above 10.
 async function waitForLoad() {
   for (;;) {
-    const load = Number(readFileSync('/proc/loadavg', 'utf8').split(' ')[0]);
+    const load = loadavg()[0];
     if (!(load > 10)) return;
-    console.warn(`load1 ${load} > 10, waiting`);
+    console.warn(`load1 ${load.toFixed(2)} > 10, waiting`);
     await new Promise((done) => setTimeout(done, 30000));
   }
 }
