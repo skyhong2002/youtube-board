@@ -26,3 +26,6 @@ m5	opus-5.5	reference	6.5	6.54
 m6	opus-5.5	baseline	6.5	6.67
 m6	opus-5.5	new	8.5	8.12
 m6	opus-5.5	reference	7	6.79
+m7	opus-5.5	baseline	6.5	6.17
+m7	opus-5.5	new	7.5	7.42
+m7	opus-5.5	reference	7	6.5
