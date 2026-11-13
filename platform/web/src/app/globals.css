@@ -74,11 +74,12 @@ h3,
 p {
     margin-top: 0;
 }
-/* Headings wrap into even lines, so a long CJK title never leaves one character on its last line. */
+/* Headings avoid a one-character last line. Not `balance`: in CJK it moves every break to an even
+ * width, which cuts words mid-way (「一審宣／判」); `pretty` only pulls a few characters down. */
 h1,
 h2,
 h3 {
-    text-wrap: balance;
+    text-wrap: pretty;
 }
 h1 {
     font-size: 1.5rem;

@@ -28,6 +28,13 @@ test('a video with no observed counts says so once instead of three dashes',()=>
  const html=render([{...video,views:null,likes:null,comments:null,listing:{...video.listing!,providerComments:null}}]);
  assert.match(html,/data-video-metrics="none"/);assert.match(html,/尚未取得觀看數據/);assert.doesNotMatch(html,/<dd>—<\/dd>/);
 });
+test('a channel list counts its unobserved videos once and marks each on its time line',()=>{
+ const none={...video,views:null,likes:null,comments:null,listing:{...video.listing!,providerComments:null}};
+ const html=renderToStaticMarkup(createElement(ImageConfigContext.Provider,{value:{...imageConfigDefault,...config.images}},createElement(VideoResults,{rows:[none,{...none,id:'ZyXwVuTs987'},video],channel:true})));
+ assert.match(html,/這 3 支近期影片中，2 支尚未取得觀看數據；未取得不代表沒有觀看。/);
+ assert.equal(html.match(/data-video-metrics="none"/g)?.length,2);assert.match(html,/<\/time><span aria-hidden="true">·<\/span><span data-video-metrics="none">/);
+ assert.doesNotMatch(render([video]),/data-video-coverage/);
+});
 test('empty source listing explains observation scope',()=>{
  const html=render([]);assert.match(html,/尚未收錄，不代表頻道沒有發布影片/);assert.doesNotMatch(html,/<table|<ul/);
 });

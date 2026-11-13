@@ -56,7 +56,7 @@ export function KeywordRankingView({exploration,meta,notice,tabs,initial='week'}
 function RankingPane({view:v,priority}:{view:View;priority:boolean}){
  const s=v.summary;
  return <>
-  {s&&<p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">{keywordRangeLabel(s,v.window)}{v.rows.length>0&&` · 列出 ${count(v.rows.length)} 個標籤`}</p>}
+  {s&&<p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">{keywordRangeLabel(s,v.window)}{v.rows.length>0&&` · 列出 ${count(v.rows.length)} 個標籤`}{v.rows.length>0&&<span className="whitespace-nowrap"> · 走勢線<span className="font-medium text-brand-700 dark:text-brand-400">紅色</span>表示末日熱度高於首日，灰色為持平或下降</span>}</p>}
   {s&&v.rows.length?<KeywordRankingTable rows={v.rows} summary={s} window={v.window} basis={v.basis} priority={priority}/>:<p role="status" className="rounded-xl border border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400" data-keyword-state={v.kind}>{v.message??`${v.label}範圍與比對狀態未知。`}</p>}
  </>;
 }
