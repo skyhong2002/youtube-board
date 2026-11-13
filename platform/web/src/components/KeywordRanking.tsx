@@ -102,7 +102,7 @@ export function KeywordRankingTable({rows,summary,window,basis,priority=false}:{
      <td className={table.num}>{count(row.videoCount)}</td>
      <td className={`${table.num} text-zinc-600 dark:text-zinc-400`}>{count(row.titleVideos)}／{count(row.descriptionOnlyVideos)}</td>
      <td className={table.num}>{count(row.channelCount)}</td>
-     <td className={table.num} title={views.title}>{views.value}{views.detail&&<small className="ml-1 text-xs text-zinc-600 dark:text-zinc-400">（{views.detail}）</small>}</td>
+     <td className={table.num} title={views.title}>{views.value}{views.detail&&<small className="block text-xs leading-4 text-zinc-600 dark:text-zinc-400">（{views.detail}）</small>}</td>
      <td className={table.cell}>{channel?<Link href={`/channels/${encodeURIComponent(channel.id)}`} className="inline-flex max-w-[12rem] items-center gap-1.5 hover:underline" title={channel.name||channel.title}><ChannelAvatar avatar={channel.avatar??null} title={channel.name||channel.title} size={18}/><span className="truncate">{channel.name||channel.title||'頻道名稱尚未取得'}</span></Link>:<span className="text-xs text-zinc-400">—</span>}</td>
     </tr>;
    })}</tbody>

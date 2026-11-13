@@ -36,8 +36,9 @@ function KeywordCloud({view,pictures}:{view:KeywordView;pictures:ReturnType<type
  const words=view.summary?homeKeywordCloudWords(view.rows,view.summary,view.window).map(w=>({...w,picture:pictures[w.label]})):[];
  return words.length?<WordCloud words={words} canvases={mastheadCanvases} label={`YouTube ${view.label}關鍵字文字雲`} title={`${view.label}已比對影片的關鍵字`}/>:null;
 }
+/** Under the cloud: the window's range. An empty window's explanation is said once, in the ranking beside it. */
 function KeywordCloudNote({view}:{view:KeywordView}){
- return view.rows.length&&view.summary?<p className={styles.panelNote}>{keywordRangeLabel(view.summary,view.window)}</p>:<p className={styles.panelNote} role="status" data-keyword-state={view.kind}>{view.message}</p>;
+ return view.summary?<p className={styles.panelNote}>{keywordRangeLabel(view.summary,view.window)}</p>:<p className={styles.panelNote} role="status" data-keyword-state={view.kind}>{view.message}</p>;
 }
 /** Same notes as /keywords' 本頁的資料來源與計算方式, for the window being read. */
 function KeywordMethod({view}:{view:KeywordView}){
@@ -76,7 +77,7 @@ export default async function HomePage(){
    <aside className={styles.right} aria-label="即時直播與頻道分類">
     <Section title="即時直播" href="/live/current" label="全部直播"/>
     <div className={styles.gapList}>{data.live.slice(0,4).map(live=><article className={styles.gapGroup} key={live.id}><Link href={`/videos/${encodeURIComponent(live.id)}`} className={styles.liveCover} tabIndex={-1} aria-hidden="true"><VideoPicture videoId={meta.dataset==='fixture'?null:live.id} variant="live"/><span className={styles.liveBadge}>直播中</span></Link><p className={styles.gapGroupTitle}><ChannelAvatar avatar={live.channelAvatar} title={live.channelTitle} size={16}/><span>{live.channelTitle}</span></p><Link className={styles.liveTitle} href={`/videos/${encodeURIComponent(live.id)}`}>{live.title}</Link><p className={styles.liveStats}><strong>目前在線 {count(live.currentViewers)} 人</strong><span>今日峰值 {count(live.todayPeak)} 人</span>{live.partialLogEvidence&&<span>部分取樣</span>}</p></article>)}</div>
-    {!data.live.length&&<p className={styles.notice}>目前沒有符合最近有效觀測條件的直播。</p>}
+    {!data.live.length&&<p className={styles.notice}>{data.summary.liveChannels>0?`有 ${count(data.summary.liveChannels)} 個頻道正在直播，但目前沒有符合最近有效觀測條件、可以列出的直播。`:'目前沒有符合最近有效觀測條件的直播。'}</p>}
     <Section title="從分類看頻道" href="/tags" label="全部分類" later/>
     {categories.length>0&&<ul className={styles.categoryList}>{categories.slice(0,3).map(tag=><li key={tag.id}><h3><Link href={`/tags/${tag.id}/channels`}>{tag.name}</Link></h3><p className={styles.categoryMeta}><span>{count(tag.channels)} 個頻道</span><span>近七日 {tag.weeklyViews>0?'+':''}{compact(tag.weeklyViews)} 觀看</span></p><p className={styles.categoryLinks}><Link href={`/tags/${tag.id}/videos`}>影片 <Arrow/></Link><Link href={`/tags/${tag.id}/trends`}>分類趨勢 <Arrow/></Link></p></li>)}</ul>}
     {!categories.length&&<p className={styles.notice}>{discovery.categories.status==='unavailable'?'分類統計目前無法完整讀取。':'尚無符合觀看增量門檻的分類。'}</p>}

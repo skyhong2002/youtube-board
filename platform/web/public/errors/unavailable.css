@@ -78,19 +78,28 @@ body {
     color: #09090b;
 }
 
-.menu {
+/* Search opens the video search page (the static page cannot submit forms); on phones it sits beside the menu. */
+.icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    border-radius: 0.5rem;
+    color: #3f3f46;
+}
+
+.search {
     margin-left: auto;
+    text-decoration: none;
+}
+
+.search:hover,
+.menu summary:hover {
+    background: #f4f4f5;
 }
 
 .menu summary {
-    display: flex;
-    align-items: center;
-    min-height: 2.75rem;
-    padding: 0 0.875rem;
-    border: 1px solid #d4d4d8;
-    border-radius: 0.5rem;
-    color: #27272a;
-    font-size: 0.875rem;
     cursor: pointer;
     list-style: none;
 }
@@ -285,9 +294,13 @@ a:focus-visible {
         color: #f4f4f5;
     }
 
-    .menu summary {
-        border-color: #3f3f46;
-        color: #e4e4e7;
+    .icon {
+        color: #d4d4d8;
+    }
+
+    .search:hover,
+    .menu summary:hover {
+        background: #27272a;
     }
 
     .menu nav {

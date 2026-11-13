@@ -129,6 +129,8 @@ if (mode === 'site') {
           await page.waitForTimeout(600);
         }
         await settle(page, size.maxHeight);
+        // A page with no text at all is a capture failure (a crashed or starved renderer), never a state.
+        if (!(await page.evaluate(() => document.body?.innerText.trim().length ?? 0))) throw new Error('blank page');
         await shoot(page, file, size, state);
       }
       console.log(file);
