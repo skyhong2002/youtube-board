@@ -27,10 +27,12 @@ function taipeiToday(){return new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Ta
 const dayHref=(date:string,condition:string)=>`/ai/days/${date}${condition==="all"?"":"/"+encodeURIComponent(condition)}`;
 const conditionLabel=(key:string)=>AI_DAILY_CONDITIONS.find(([k])=>k===key)?.[1]??key;
 
+/** Topic chips read at 13px: the counts are compared across topics, not glanced at. */
+const chip=ui.tag.replace('text-xs','text-[13px]');
 function Counts({rows,link}:{rows:{term:string;count:number}[];link?:boolean}){
     if(!rows.length)return <span className="text-zinc-400 dark:text-zinc-500">無</span>;
     return <span className="flex flex-wrap gap-1.5">{rows.map(r=>{const body=<>{r.term}<span className="ml-1 tabular-nums text-zinc-600 dark:text-zinc-400">{count(r.count)}</span></>;
-        return link?<Link key={r.term} className={ui.tag+" hover:bg-zinc-200 dark:hover:bg-zinc-700"} href={`/keywords/${encodeURIComponent(r.term)}/videos`}>{body}</Link>:<span key={r.term} className={ui.tag}>{body}</span>;})}</span>;
+        return link?<Link key={r.term} className={chip+" hover:bg-zinc-200 dark:hover:bg-zinc-700"} href={`/keywords/${encodeURIComponent(r.term)}/videos`}>{body}</Link>:<span key={r.term} className={chip}>{body}</span>;})}</span>;
 }
 /** Zero sides are greyed so the topics where a camp, angle or party view does appear stand out. */
 function Side({side:[label,n]}:{side:[string,number]}){return <span className={"whitespace-nowrap"+(n?"":" text-zinc-400 dark:text-zinc-500")}>{label} {count(n)} 則</span>;}
@@ -63,11 +65,11 @@ function Topic({topic,index}:{topic:TopicRow;index:number}){
         </ul>
         <div className="mt-4 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-950/60">
             <dl className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-3 gap-y-2">
-                {rows.map(([label,value])=><div className="contents" key={label}><dt className="pt-0.5 text-xs text-zinc-600 dark:text-zinc-400">{label}</dt><dd className="min-w-0">{value}</dd></div>)}
+                {rows.map(([label,value])=><div className="contents" key={label}><dt className="pt-0.5 text-[13px] text-zinc-600 dark:text-zinc-400">{label}</dt><dd className="min-w-0">{value}</dd></div>)}
             </dl>
             {/* Phones swipe the representative videos sideways instead of stacking three players per topic. */}
             {s.videos.length>1&&<p className="mb-0 mt-3 text-xs text-zinc-600 sm:hidden dark:text-zinc-400" aria-hidden="true">代表影片 {s.videos.length} 支，左右滑動看全部</p>}
-            {s.videos.length>0&&<div className={`scroll-fade -mx-3 ${s.videos.length>1?"mt-1.5":"mt-3"} flex snap-x scroll-px-3 gap-3 overflow-x-auto px-3 pb-1 sm:mx-0 sm:mt-3 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 sm:pb-0 sm:[mask-image:none]`} aria-label="代表影片">
+            {s.videos.length>0&&<div className={`scroll-fade -mx-3 ${s.videos.length>1?"mt-1.5":"mt-3"} flex snap-x scroll-px-3 gap-3 overflow-x-auto px-3 pb-1 sm:mx-0 sm:mt-3 sm:grid sm:grid-cols-3 lg:grid-cols-[repeat(3,minmax(0,15rem))] sm:overflow-visible sm:px-0 sm:pb-0 sm:[mask-image:none]`} aria-label="代表影片">
                 {s.videos.map(v=><figure className="relative w-[78%] min-w-0 shrink-0 snap-start sm:w-auto" key={v.videoId}>
                     <YouTubeFacade videoId={v.videoId} title={`${v.channelTitle} - ${v.event}`}/>
                     <figcaption className="mt-1 line-clamp-2 text-xs leading-snug text-zinc-600 dark:text-zinc-400"><a className="hover:underline" href={`https://www.youtube.com/watch?v=${v.videoId}`} target="_blank" rel="noopener noreferrer" title={`${v.channelTitle} · ${v.event}`}><span className="font-medium text-zinc-700 dark:text-zinc-300">{v.channelTitle}</span> · {v.event}<span className="sr-only">（另開視窗）</span></a></figcaption>
