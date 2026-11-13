@@ -16,7 +16,7 @@ const { chromium } = require('playwright');
 const [mode, ...rest] = process.argv.slice(2);
 const flag = (name) => { const i = rest.indexOf(`--${name}`); return i >= 0 ? rest[i + 1] : undefined; };
 const YTIMG = process.env.YB_YTIMG_CACHE || '/tmp/yb-review/data/ytimg';
-const browser = await chromium.launch();
+let browser = await chromium.launch();
 const ANALYTICS = /(google-analytics\.com|googletagmanager\.com|analytics\.google\.com|doubleclick\.net)/;
 
 async function guard(context, { frozenImages }) {
@@ -37,6 +37,16 @@ async function guard(context, { frozenImages }) {
   });
   // Anything else off-site (fonts, embeds) is refused rather than fetched live.
   await context.route((url) => !['127.0.0.1', 'localhost'].includes(url.hostname) && !/(^|\.)ytimg\.com$|^img\.youtube\.com$/.test(url.hostname), (route) => route.abort());
+}
+
+// The host is shared: before every state, wait while the 1-minute load average is above 10.
+async function waitForLoad() {
+  for (;;) {
+    const load = Number(readFileSync('/proc/loadavg', 'utf8').split(' ')[0]);
+    if (!(load > 10)) return;
+    console.warn(`load1 ${load} > 10, waiting`);
+    await new Promise((done) => setTimeout(done, 30000));
+  }
 }
 
 async function settle(page, maxHeight) {
@@ -75,7 +85,12 @@ if (mode === 'site') {
   mkdirSync(out, { recursive: true });
   const states = STATES.filter((s) => (s.loading ? data === 'loading' : (s.data || 'normal') === data) && (!only || s.id.includes(only)));
   for (const [sizeName, size] of Object.entries(SIZES).filter(([name]) => !process.env.ONLY_SIZE || name === process.env.ONLY_SIZE)) {
-    for (const state of states) {
+    for (const state of states) for (let attempt = 1; ; attempt++) try {
+      // SKIP_EXISTING=1 resumes an interrupted set without re-shooting what is already there.
+      if (process.env.SKIP_EXISTING === '1' && existsSync(`${out}/${state.id}_${sizeName}.png`)) break;
+      await waitForLoad();
+      // A shared host can kill the browser under memory pressure: start a new one and retry the state once.
+      if (!browser.isConnected()) browser = await chromium.launch();
       const context = await browser.newContext({
         viewport: { width: size.width, height: size.height }, deviceScaleFactor: size.deviceScaleFactor,
         isMobile: !!size.isMobile, hasTouch: !!size.hasTouch, colorScheme: state.theme === 'dark' ? 'dark' : 'light',
@@ -118,6 +133,11 @@ if (mode === 'site') {
       }
       console.log(file);
       await context.close();
+      break;
+    } catch (error) {
+      console.warn(state.id, sizeName, `attempt ${attempt} failed:`, String(error).split('\n')[0]);
+      await browser.close().catch(() => {});
+      if (attempt >= 2) throw error;
     }
   }
 } else if (mode === 'references') {
