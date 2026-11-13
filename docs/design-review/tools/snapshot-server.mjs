@@ -120,6 +120,20 @@ http.createServer(async (request, response) => {
     response.writeHead(200, { 'content-type': 'text/css; charset=utf-8' });
     return response.end(readFileSync(join(ERRORS, 'unavailable.css')));
   }
+  // Account and operator routes belong to Fastify behind the production gateway. Next's
+  // same-origin bridge (web/src/lib/private-proxy.ts) forwards them to the API origin,
+  // which is this server: proxying them back to Next would recurse without end. Answer
+  // them here as an API without login configured (accounts-handoff.md: enabled:false).
+  const path = url.split('?')[0];
+  if (path === '/auth/me' && request.method === 'GET') {
+    response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'private, no-store' });
+    return response.end(JSON.stringify({ enabled: false, user: null, csrfToken: null }));
+  }
+  if (path.startsWith('/auth/') || path.startsWith('/api/ops/') || path.startsWith('/feeds/u/')) {
+    log(`PRIVATE-503 ${url}`);
+    response.writeHead(503, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'private, no-store' });
+    return response.end(JSON.stringify({ error: { code: 'AUTH_UNAVAILABLE' } }));
+  }
   const frozen = url.startsWith('/api/v1/') || url.startsWith('/media/');
   if (!frozen) return proxyToNext(request, response);
   const applies = scenario.mode !== 'normal' && url.startsWith('/api/v1/') && (!scenario.match || new RegExp(scenario.match).test(url));

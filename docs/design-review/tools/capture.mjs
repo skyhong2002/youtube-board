@@ -131,7 +131,10 @@ if (mode === 'site') {
         }
         await settle(page, size.maxHeight);
         // A page with no text at all is a capture failure (a crashed or starved renderer), never a state.
-        if (!(await page.evaluate(() => document.body?.innerText.trim().length ?? 0))) throw new Error('blank page');
+        const text = await page.evaluate(() => document.body?.innerText.trim() ?? '');
+        if (!text) throw new Error('blank page');
+        // The snapshot server's own proxy failure page (Next unreachable or reset) is not a state either.
+        if (/^Error: (read|connect|write) E[A-Z]+/.test(text)) throw new Error('proxy error page: ' + text.split('\n')[0]);
         await shoot(page, file, size, state);
       }
       console.log(file);
