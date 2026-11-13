@@ -78,7 +78,7 @@ test('/keywords loaded: API order, selected-period links, partial views show the
  // Returned order, not re-sorted by heat (row 9 has the higher score).
  assert.ok(markup.indexOf('a/b%41')<markup.indexOf('零觀看'));
  assert.match(markup,/href="\/keywords\/a%2Fb%2541\/videos\?from=2026-10-06&amp;to=2026-10-12"/);
- assert.match(markup,/≥4,000 次<small[^>]*>（2 支未取得觀看）/);
+ assert.match(markup,/>≥4,000 次<\/td><td[^>]*title="2 支未取得觀看">2 支<\/td>/);
  assert.match(markup,/>0 次<\/td>/);
  assert.doesNotMatch(markup,/過去24小時詞|data-keyword-state/);
  assert.deepEqual(checkedWindow(markup),['week']);

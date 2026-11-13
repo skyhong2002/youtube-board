@@ -169,7 +169,7 @@ test('live phone title wraps below its thumbnail; rank stays desktop-only and at
  assert.match(html,new RegExp(`${anchor({class:liveVideoName,title:`來源頻道 · ${longTitle}`,href:'/videos/AbCdEfGh123'})}${longTitle}</a>`));
  // The visible channel name lives only in the channel column, always beside its avatar.
  assert.equal(html.match(/>來源頻道</g)?.length,1);
- assert.match(html,new RegExp(`<td>${anchor({class:'flex min-w-0 items-center gap-1.5 hover:underline',title:'來源頻道',href:'/channels/8'})}<span class="inline-flex shrink-0[^>]*>[\\s\\S]*?<span class="${clip.replace('max-w-xs','max-w-40')}">來源頻道</span></a></td>`));
+ assert.match(html,new RegExp(`<td>${anchor({class:'flex min-w-0 items-center gap-1.5 hover:underline',title:'來源頻道',href:'/channels/8'})}<span class="inline-flex shrink-0[^>]*>[\\s\\S]*?<span class="${clip.replace('max-w-xs','max-w-36')}">來源頻道</span></a></td>`));
  // Taxonomy takes up to two lines rather than one clipped line.
  assert.match(html,new RegExp(`<td><span class="${escape('line-clamp-2 w-34 whitespace-normal text-xs leading-5 text-zinc-500 [overflow-wrap:anywhere]')}" title="新聞">${anchor({href:'/live/current?tagid=3'})}新聞</a></span></td>`));
  assert.match(html,/20<small class="ml-1.5">部分取樣<\/small>/);

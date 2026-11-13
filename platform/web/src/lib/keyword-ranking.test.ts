@@ -33,11 +33,11 @@ test('missing trend days stay gaps and an all-missing trend draws nothing',()=>{
  assert.deepEqual(sparklineRuns([null,null]),[]);assert.deepEqual(trendValues(undefined),[]);
 });
 test('partial measured views show a lower bound while all-missing and measured zero stay distinct',()=>{
- const partial=viewsCell(row());assert.equal(partial.value,'≥3,000 次');assert.equal(partial.detail,'1 支未取得觀看');assert.match(partial.title,/不是完整合計/);
+ const partial=viewsCell(row());assert.equal(partial.value,'≥3,000 次');assert.equal(partial.detail,'1 支未取得觀看');assert.equal(partial.missing,1);assert.match(partial.title,/不是完整合計/);
  assert.equal(viewsSummary(row()),'≥3,000 次（1 支未取得觀看）');assert.doesNotMatch(viewsSummary(row()),/無觀看值/);
  const none=viewsCell(row({measuredViewVideos:0,knownViews:0,unknownViewVideos:4}));assert.equal(none.value,NO_VIEWS);assert.equal(none.detail,'4 支未取得觀看');
  assert.deepEqual([viewsCell({videoCount:2,views:null,unknownViewVideos:2}).value,viewsCell({videoCount:2,views:null,unknownViewVideos:2}).detail],[NO_VIEWS,'2 支未取得觀看']);
- const full=viewsCell(row({views:3000,unknownViewVideos:0,measuredViewVideos:4}));assert.equal(full.value,'3,000 次');assert.equal(full.detail,null);
+ const full=viewsCell(row({views:3000,unknownViewVideos:0,measuredViewVideos:4}));assert.equal(full.value,'3,000 次');assert.equal(full.detail,null);assert.equal(full.missing,null);
  assert.equal(viewsCell(row({views:0,unknownViewVideos:0,measuredViewVideos:4,knownViews:0})).value,'0 次');
  assert.equal(viewsText(null),NO_VIEWS);assert.equal(viewsText(0),'0');
 });
@@ -92,7 +92,7 @@ test('ranking table keeps desktop one-line rows, a sticky lead with fixed thumbn
  assert.match(html,/whitespace-nowrap/);assert.match(html,/table-lead sticky/);assert.match(html,/width:48px;height:27px/);
  assert.equal(html.match(/loading="eager"/g)?.length,1);
  assert.match(html,/href="\/keywords\/%E5%8F%B0%E7%A9%8D%E9%9B%BB\/videos\?from=2026-10-07&amp;to=2026-10-13"/);
- assert.match(html,/2 種寫法/);assert.match(html,/≥3,000 次<small[^>]*>（1 支未取得觀看）/);assert.doesNotMatch(html,/>3,000 次</);assert.match(html,new RegExp(INSUFFICIENT));assert.match(html,/href="\/channels\/7"/);
+ assert.match(html,/2 種寫法/);assert.match(html,/>≥3,000 次<\/td><td[^>]*title="1 支未取得觀看">1 支<\/td>/);assert.doesNotMatch(html,/>3,000 次</);assert.match(html,new RegExp(INSUFFICIENT));assert.match(html,/href="\/channels\/7"/);
  assert.doesNotMatch(html,/>0 次</);
 });
 

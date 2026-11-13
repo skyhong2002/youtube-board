@@ -54,11 +54,11 @@ export function sparklineRuns(values:readonly (number|null)[]){
 const compactLowerBound=(value:number)=>compact(value>=1e8?Math.floor(value/1e6)*1e6:value>=1e4?Math.floor(value/100)*100:value);
 /** A complete total is exact; a measured subtotal is a lower bound while missing videos
  * stay missing. Only an entirely unknown measurement reads 無觀看值. */
-export function viewsCell(row:Partial<RankingRow>&Pick<RankingRow,'videoCount'|'views'|'unknownViewVideos'>):{value:string;detail:string|null;title:string}{
- if(finite(row.views))return {value:`${compact(row.views)} 次`,detail:null,title:`${count(row.videoCount)} 支影片目前累計觀看合計`};
+export function viewsCell(row:Partial<RankingRow>&Pick<RankingRow,'videoCount'|'views'|'unknownViewVideos'>):{value:string;detail:string|null;missing:number|null;title:string}{
+ if(finite(row.views))return {value:`${compact(row.views)} 次`,detail:null,missing:null,title:`${count(row.videoCount)} 支影片目前累計觀看合計`};
  const missing=finite(row.measuredViewVideos)?Math.max(0,row.videoCount-row.measuredViewVideos):row.unknownViewVideos;
  const known=finite(row.measuredViewVideos)&&row.measuredViewVideos>0&&finite(row.knownViews)&&row.knownViews>=0?row.knownViews:null;
- return {value:known===null?NO_VIEWS:`≥${compactLowerBound(known)} 次`,detail:`${count(missing)} 支未取得觀看`,
+ return {value:known===null?NO_VIEWS:`≥${compactLowerBound(known)} 次`,detail:`${count(missing)} 支未取得觀看`,missing,
   title:known===null?`${count(missing)} 支影片無觀看值，合計無法計算，不當作 0`:`至少 ${count(known)} 次：已知小計只含有觀看值的 ${count(row.measuredViewVideos)} 支，另 ${count(missing)} 支未取得觀看，不是完整合計`};
 }
 /** One-line text for places without a separate detail slot (word cloud card). */

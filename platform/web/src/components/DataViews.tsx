@@ -31,7 +31,7 @@ function TagLine({ tags, href, lead=false, narrow=false, twoLines=false }: { tag
 /** Channel attribution as its own one-line column. */
 function ChannelCell({ id, title, avatar, narrow=false }: { id: number; title: string; avatar?: VideoRow["channelAvatar"]; narrow?: boolean }) {
     return <Link className="flex min-w-0 items-center gap-1.5 hover:underline" href={`/channels/${id}`} title={title || undefined}>
-        <ChannelAvatar avatar={avatar} title={title} size={16}/><span className={narrow?table.clip.replace('max-w-xs','max-w-40'):table.clip}>{title || "頻道名稱尚未取得"}</span>
+        <ChannelAvatar avatar={avatar} title={title} size={16}/><span className={narrow?table.clip.replace('max-w-xs','max-w-36'):table.clip}>{title || "頻道名稱尚未取得"}</span>
     </Link>;
 }
 const channelColumns = {viewCount:'views',subscriberCount:'subscribers',videoCount:'videoCount',view_week:'weeklyViews',view_month:'monthlyViews',views_pred_week:'estimatedWeeklyViews',views_pred_month:'estimatedMonthlyViews',sub_week:'weeklySubscribers',sub_month:'monthlySubscribers',video_week:'weeklyVideos',video_month:'monthlyVideos'} as const;

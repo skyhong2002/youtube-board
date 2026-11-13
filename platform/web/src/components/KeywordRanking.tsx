@@ -75,6 +75,7 @@ export function KeywordRankingTable({rows,summary,window,basis,priority=false}:{
      <th className={table.num} title="標題命中／僅說明命中的影片數">標題／說明命中</th>
      <th className={table.num}>頻道</th>
      <th className={table.num}>已測觀看</th>
+     <th className={table.num} title="沒有觀看值、未計入已測觀看的影片數">未取得觀看</th>
      <th className={table.cell}>代表頻道</th>
     </tr>
    </thead>
@@ -102,7 +103,9 @@ export function KeywordRankingTable({rows,summary,window,basis,priority=false}:{
      <td className={table.num}>{count(row.videoCount)}</td>
      <td className={`${table.num} text-zinc-600 dark:text-zinc-400`}>{count(row.titleVideos)}／{count(row.descriptionOnlyVideos)}</td>
      <td className={table.num}>{count(row.channelCount)}</td>
-     <td className={table.num} title={views.title}>{views.value}{views.detail&&<small className="block text-xs leading-4 text-zinc-600 dark:text-zinc-400">（{views.detail}）</small>}</td>
+     <td className={table.num} title={views.title}>{views.value}</td>
+     {/* Its own column keeps every row on one line; the lower bound reads with it through the 「≥」 and the title. */}
+     <td className={`${table.num} text-xs text-zinc-600 dark:text-zinc-400`} title={views.missing===null?'每支影片都有觀看值':views.detail??undefined}>{views.missing===null?'—':`${count(views.missing)} 支`}</td>
      <td className={table.cell}>{channel?<Link href={`/channels/${encodeURIComponent(channel.id)}`} className="inline-flex max-w-[12rem] items-center gap-1.5 hover:underline" title={channel.name||channel.title}><ChannelAvatar avatar={channel.avatar??null} title={channel.name||channel.title} size={18}/><span className="truncate">{channel.name||channel.title||'頻道名稱尚未取得'}</span></Link>:<span className="text-xs text-zinc-400">—</span>}</td>
     </tr>;
    })}</tbody>
