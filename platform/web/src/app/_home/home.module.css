@@ -94,6 +94,9 @@
 .legend i { display: inline-block; width: 7px; height: 7px; border-radius: 2px; }
 .legend a { margin-left: auto; text-decoration: underline; text-underline-offset: 3px; }
 .storyList { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); overflow: hidden; }
+/* The lead topic and the list are two cards: the same 12px gap as the live cards beside them
+ * (the 「怎麼算」 row that used to sit between them now lives in the lead card's footer). */
+.hero + .storyList { margin-top: 12px; }
 .story { display: flex; gap: 14px; padding: 18px 16px; align-items: flex-start; }
 .story + .story { border-top: 1px solid var(--soft-line); }
 .storyBody { flex: 1; min-width: 0; }
