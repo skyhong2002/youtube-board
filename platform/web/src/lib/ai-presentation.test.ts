@@ -16,28 +16,34 @@ const topic:TopicRow={id:'t1',dailyId:5581,title:'颱風接近',channelCount:2,n
 const render=(element:ReactElement)=>renderToStaticMarkup(createElement(ImageConfigContext.Provider,{value:{...imageConfigDefault,...config.images}},element));
 const day=(rows:TopicRow[],extra:Partial<AiDaysData>={}):AiDaysData=>({date:'2026-10-20',dateFrom:null,dateTo:null,dailyId:5581,dataType:'oneday',condition:'all',rows,channels:2,source:'daily-cache',updatedAt:null,rawVideoRows:null,sourceChannels:2,...extra});
 
-test('daily topics keep every summary row, but load no YouTube player until asked', () => {
+test('daily topics keep summary rows with a nonzero side, but load no YouTube player until asked', () => {
  const html=render(createElement(AiDailyBoard,{data:day([topic]),dated:true}));
- for(const label of ['媒體數','關鍵字','人物','媒體陣營','報導角度','政黨觀點'])assert.match(html,new RegExp(`>${label}<`));
+ for(const label of ['媒體數','關鍵字','人物','媒體陣營'])assert.match(html,new RegExp(`>${label}<`));
+ // Angle and party views are 0 on both sides here, so those rows say nothing and are left out.
+ for(const label of ['報導角度','政黨觀點'])assert.doesNotMatch(html,new RegExp(`>${label}<`));
  assert.doesNotMatch(html,/<iframe/);
  assert.match(html,/aria-label="播放影片：甲台 - 颱風路徑"/);
  assert.match(html,/href="https:\/\/www\.youtube\.com\/watch\?v=AbCdEfGh123"/);
- // Zero sides stay printed but greyed.
+ // Within a shown row, a zero side stays printed but greyed.
  assert.match(html,/<span class="whitespace-nowrap text-zinc-400 dark:text-zinc-500">泛藍媒體 0 則<\/span>/);
  assert.match(html,/<span class="whitespace-nowrap">泛綠媒體 7 則<\/span>/);
 });
 
-test('the stored record sits with its count; the selected tabs carry date and condition', () => {
+test('the day summary reads channels → cited videos → topics; the stored record is only a tooltip', () => {
  const html=render(createElement(AiDailyBoard,{data:day([topic]),dated:true}));
- assert.match(html,/1 個議題 · 紀錄 #5581 · 資料類型 oneday/);
+ assert.match(html,/title="紀錄 #5581 · 資料類型 oneday"/);
+ assert.doesNotMatch(html,/>[^<]*紀錄 #5581/);
+ assert.match(html,/跨頻道議題<\/div><div[^>]*>1<span[^>]*>個<\/span>/);
  assert.doesNotMatch(html,/條件：/);
- // A missing raw count is one dash, not 「— 則」.
- assert.match(html,/原始收錄<\/div><div[^>]*>—<\/div>/);
+ // A missing raw count leaves its card out instead of showing a dash.
+ assert.doesNotMatch(html,/當日收錄影片/);
+ const withRaw=render(createElement(AiDailyBoard,{data:day([topic],{rawVideoRows:12}),dated:true}));
+ assert.match(withRaw,/當日收錄影片<\/div><div[^>]*>12<span[^>]*>支<\/span>/);
 });
 
 test('an empty day names the day and condition and offers the previous day and all media', () => {
  const html=render(createElement(AiDailyBoard,{data:day([],{condition:'green'}),dated:true}));
- assert.match(html,/2026-10-20「泛綠」條件目前沒有 AI 每日彙整。/);
+ assert.match(html,/2026-10-20 「泛綠」條件還沒有整理好的跨頻道議題/);
  assert.match(html,/href="\/ai\/days\/2026-10-19\/green"/);
  assert.match(html,/href="\/ai\/days\/2026-10-20"[^>]*>改看全部媒體/);
 });

@@ -2,7 +2,7 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 :root {
   --background: #ffffff; --foreground: #171717; --panel: #ffffff;
-  --muted: #71717a; --line: #e4e4e7; --brand: #ff0000;
+  --muted: #52525b; --line: #e4e4e7; --brand: #ff0000;
   --accent: #b91c1c; --tint: #fef2f2; --success: #047857;
   color-scheme: light;
 }
@@ -73,6 +73,13 @@ h2,
 h3,
 p {
     margin-top: 0;
+}
+/* Headings avoid a one-character last line. Not `balance`: in CJK it moves every break to an even
+ * width, which cuts words mid-way (「一審宣／判」); `pretty` only pulls a few characters down. */
+h1,
+h2,
+h3 {
+    text-wrap: pretty;
 }
 h1 {
     font-size: 1.5rem;
@@ -743,3 +750,10 @@ main:has([data-page-method]) { padding-bottom: 0; }
 body:has(main [data-page-method]) [data-site-footer] { margin-top: 0; }
 /* The full write-up (/about) has no 本頁 block, as tag.observe.tw hides FooterMethod on /method/. */
 body:has(main [data-method-page]) [data-footer-method] { display: none; }
+
+/* A horizontally scrolling row (section tabs) fades at the edge it continues past. TabRowScroll sets
+ * data-fade from the row's scroll position (no animation, so it holds under reduced motion too). */
+.scroll-fade[data-fade="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent); }
+/* The start edge fades less: TabRowScroll lands the row on a whole tab, which should stay readable. */
+.scroll-fade[data-fade="both"] { mask-image: linear-gradient(to right, transparent, #000 1.25rem, #000 calc(100% - 2.5rem), transparent); }
+.scroll-fade[data-fade="start"] { mask-image: linear-gradient(to right, transparent, #000 1.25rem); }

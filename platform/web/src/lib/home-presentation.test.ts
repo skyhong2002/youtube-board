@@ -64,7 +64,7 @@ test('ranked pool evidence links retain the exact rolling UTC bounds and state q
  const s=summary({rankingPool});
  const url=new URL(keywordVideosHref('沈伯洋',s),'https://youtube.observe.tw');
  assert.equal(url.searchParams.get('since'),window.since);assert.equal(url.searchParams.get('until'),window.until);assert.equal(url.searchParams.has('from'),false);
- assert.match(homeKeywordState(s,'today').message??'',/過去24小時.*本期新聞詞池與顯示規則/);
+ assert.match(homeKeywordState(s,'today').message??'',/過去24小時.*本期新聞熱詞與顯示規則/);
  const unavailable=summary({status:'unavailable',rankingPool:{status:'unavailable',reason:'contract',windows:{today:window,week:window}}});
  assert.match(homeKeywordState(unavailable,'today').message??'',/無法完整驗證/);
  const path='/keywords/AI/videos';
@@ -76,7 +76,7 @@ test('the cloud keeps all forty ranked terms sized by heat and labels partial vi
  assert.equal(words.length,40);assert.deepEqual(words.map(w=>w.count),rows.map(r=>r.heatScore));
  assert.ok(words.every(w=>w.href.endsWith('?from=2026-10-12&to=2026-10-12')));
  assert.deepEqual(words.map(w=>w.tone).slice(0,4),['brand','brand','brand','strong']);
- const unknown=words[5]!.card.rows.find(([k])=>k==='目前累計觀看')?.[1]??'';assert.match(unknown,/^≥.+ 次（2 支缺值）$/);
+ const unknown=words[5]!.card.rows.find(([k])=>k==='目前累計觀看')?.[1]??'';assert.match(unknown,/^≥.+ 次（2 支未取得觀看）$/);
  assert.equal(words[0]!.card.rows.find(([k])=>k==='熱度')?.[1],'99.0');assert.equal(words[0]!.card.rows.find(([k])=>k==='升溫')?.[1],'資料不足');
  assert.ok(words.every(w=>w.card.rows.every(([,v])=>!/AI|增量|文章/.test(v))));
 });
@@ -125,7 +125,7 @@ test('/keywords uses the same pane and switch markers for its table and method n
   // notes stay plain paragraphs under the disclosure.
   assert.equal(html.match(/data-keyword-window-pane=/g)?.length,1);
   assert.doesNotMatch(html,new RegExp(`data-keyword-window-pane="${other}"`));
-  assert.match(html,new RegExp(`<div id="keyword-ranking-table"><div class="space-y-3" data-keyword-window-pane="${initial}"><p role="status"`));
+  assert.match(html,new RegExp(`<div id="keyword-ranking-table"><div class="space-y-3" data-keyword-window-pane="${initial}"><div class="[^"]*"><p role="status"`));
  }
 });
 test('cloud pictures keep only same-origin tag pictures, short emoji and bounded aspects',()=>{

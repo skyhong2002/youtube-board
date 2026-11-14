@@ -54,12 +54,12 @@ export function sparklineRuns(values:readonly (number|null)[]){
 const compactLowerBound=(value:number)=>compact(value>=1e8?Math.floor(value/1e6)*1e6:value>=1e4?Math.floor(value/100)*100:value);
 /** A complete total is exact; a measured subtotal is a lower bound while missing videos
  * stay missing. Only an entirely unknown measurement reads 無觀看值. */
-export function viewsCell(row:Partial<RankingRow>&Pick<RankingRow,'videoCount'|'views'|'unknownViewVideos'>):{value:string;detail:string|null;title:string}{
- if(finite(row.views))return {value:`${compact(row.views)} 次`,detail:null,title:`${count(row.videoCount)} 支影片目前累計觀看合計`};
+export function viewsCell(row:Partial<RankingRow>&Pick<RankingRow,'videoCount'|'views'|'unknownViewVideos'>):{value:string;detail:string|null;missing:number|null;title:string}{
+ if(finite(row.views))return {value:`${compact(row.views)} 次`,detail:null,missing:null,title:`${count(row.videoCount)} 支影片目前累計觀看合計`};
  const missing=finite(row.measuredViewVideos)?Math.max(0,row.videoCount-row.measuredViewVideos):row.unknownViewVideos;
  const known=finite(row.measuredViewVideos)&&row.measuredViewVideos>0&&finite(row.knownViews)&&row.knownViews>=0?row.knownViews:null;
- return {value:known===null?NO_VIEWS:`≥${compactLowerBound(known)} 次`,detail:`${count(missing)} 支缺值`,
-  title:known===null?`${count(missing)} 支影片無觀看值，合計無法計算，不當作 0`:`至少 ${count(known)} 次：已知小計只含有觀看值的 ${count(row.measuredViewVideos)} 支，另 ${count(missing)} 支缺值，不是完整合計`};
+ return {value:known===null?NO_VIEWS:`≥${compactLowerBound(known)} 次`,detail:`${count(missing)} 支未取得觀看`,missing,
+  title:known===null?`${count(missing)} 支影片無觀看值，合計無法計算，不當作 0`:`至少 ${count(known)} 次：已知小計只含有觀看值的 ${count(row.measuredViewVideos)} 支，另 ${count(missing)} 支未取得觀看，不是完整合計`};
 }
 /** One-line text for places without a separate detail slot (word cloud card). */
 export const viewsSummary=(row:Parameters<typeof viewsCell>[0])=>{const v=viewsCell(row);return v.detail?`${v.value}（${v.detail}）`:v.value;};
@@ -112,7 +112,7 @@ export function keywordMethodNotes(summary:HomeKeywordSummary|null,basis:Ranking
    ?'熱度：標題命中的影片計 3、僅說明命中的影片計 1；同一頻道的影片依序乘以 1、0.5、0.25……遞減（標題命中的影片先計），再加總各頻道。單一頻道大量上片不會無限推高熱度。'
    :'此期間資料服務尚未提供加權熱度，排行依已比對影片數排序；熱度與升溫顯示「資料不足」，不以影片數冒充熱度。',
   `升溫：本期熱度減去前一段等長期間的熱度，只有兩段期間的有效比對都${minimum?`達 ${minimum} 以上`:'完整'}時才計算，否則顯示「${INSUFFICIENT}」，不以 0 代替；未比對或文字已變動的影片不計入。${comparison?`前期 ${dateTime(comparison.from)} 至 ${dateTime(comparison.to)}，有效比對 ${count(comparison.freshVideos)}／${count(comparison.sourceVideos)} 支${matchCoveragePercent(comparison)?`（${matchCoveragePercent(comparison)}）`:''}，${comparison.complete?'兩段期間都達門檻':'未達門檻'}。`:'這個期間沒有前期比較資料。'}走勢為每日熱度，${minimum?`有效比對未達 ${minimum} `:'比對未完成'}的日期留白。`,
-  `觀看：影片目前的累計觀看合計，不是期間增量。有已測觀看但仍有影片缺值時，顯示「≥已知小計」和缺值支數，這是合計下界；下界縮寫向下取整，已知小計不是完整合計。全部缺值或沒有可用小計時才顯示「${NO_VIEWS}」，缺值不補 0，也不排在觀看最低。`,
+  `觀看：影片目前的累計觀看合計，不是期間增量。有已測觀看但仍有影片缺值時，顯示「≥已知小計」和未取得觀看的影片數，這是合計下界；下界縮寫向下取整，已知小計不是完整合計。全部缺值或沒有可用小計時才顯示「${NO_VIEWS}」，缺值不補 0，也不排在觀看最低。`,
   '示例：代表影片、頻道與命中片段只是說明用的例子，不是隨機抽樣，不能用來推算整體比例或全站失真程度。',
   ...(summary?.rankingPool?.status==='available'?[`新聞詞池：先選取新文易數同一期間、至少兩家媒體各兩篇不同文章的合格詞，再依 YouTube 頻道加權熱度排序；新聞文章數不充當影片數。詞池共 ${count(summary.rankingPool.provenance.eligibleTotal)} 詞，截止 ${dateTime(summary.rankingPool.provenance.window.until)}。快照 ${summary.rankingPool.provenance.snapshotId}。升溫與每日走勢沿用本期合格詞的固定集合，非每天重新挑詞。`]:[]),
   `寫法：僅英文大小寫不同的標籤合併為一列，原始寫法保留在詞彙池。${DISPLAY_EXCLUSION_NOTE}${exclusions?(exclusions.terms>0?`本期另有 ${count(exclusions.terms)} 個命中詞依標籤顯示規則不列入排行（${Object.entries(exclusions.reasons).map(([code,n])=>`${exclusionReasonLabel(code)} ${count(n)} 個`).join('、')}）；排除只影響排行顯示，原始詞彙池與比對證據都保留。規則版本 ${exclusions.youtubePolicyVersion}，上游規則 ${exclusions.policyCommit.slice(0,7)}。`:'本期沒有依標籤顯示規則排除的命中詞。'):'排除規則統計目前未提供。'}`,
