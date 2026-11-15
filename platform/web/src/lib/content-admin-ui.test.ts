@@ -4,7 +4,7 @@ import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import type {ContentLookup} from '../../../shared/content-admin';
 import ContentIntake,{ContentStatus} from '../app/admin/ContentIntake';
-import ChannelTools from '../app/admin/ChannelTools';
+import ChannelTools,{TagPicker} from '../app/admin/ChannelTools';
 
 const empty:ContentLookup={source:'https://youtu.be/abcdefghijk',videoId:'abcdefghijk',channel:null,video:null,live:null,matches:[],generatedAt:'2026-11-15T00:00:00.000Z'};
 const html=(lookup:ContentLookup)=>renderToStaticMarkup(createElement(ContentStatus,{lookup,onEdit:()=>{}}));
@@ -22,6 +22,17 @@ test('retired source records clearly distinguish archived channel and stopped li
 test('new workspace opens intake first and keeps old history secondary',()=>{
  const data={channels:[],tags:[],generatedAt:'2026-11-15T00:00:00.000Z',quietDays:30,staleDays:3};
  const out=renderToStaticMarkup(createElement(ChannelTools,{data,editing:null,onEdit:()=>{},onApplied:()=>{}}));
- assert.match(out,/YouTube 內容與頻道標籤/);assert.match(out,/貼上網址 \/ 加入內容/);assert.match(out,/搜尋已收錄內容/);assert.match(out,/安裝快速管理書籤/);assert.doesNotMatch(out,/建立新標籤|收起工具|開啟工具/);assert.match(out,/最近的變更/);assert.doesNotMatch(out,/<details/);
- const intake=renderToStaticMarkup(createElement(ContentIntake,{tags:[],channels:[],onQueued:()=>{},onEdit:()=>{},refreshKey:''}));assert.match(intake,/貼上網址後會自動檢查/);assert.doesNotMatch(intake,/已送出/);assert.match(intake,/aria-label="加入時的頻道標籤"/);assert.doesNotMatch(intake,/<details/);assert.match(intake,/lg:grid-cols-2/);
+ assert.match(out,/YouTube 內容與頻道標籤/);assert.doesNotMatch(out,/搜尋已收錄內容|管理方式/);assert.match(out,/安裝快速管理書籤/);assert.doesNotMatch(out,/建立新標籤|收起工具|開啟工具/);assert.match(out,/最近的變更/);assert.doesNotMatch(out,/<details/);
+ const intake=renderToStaticMarkup(createElement(ContentIntake,{tags:[],channels:[],onQueued:()=>{},onEdit:()=>{},refreshKey:''}));assert.match(intake,/貼上網址後會自動檢查/);assert.doesNotMatch(intake,/已送出/);assert.match(intake,/aria-label="加入時的頻道標籤"/);assert.doesNotMatch(intake,/<details/);assert.match(intake,/lg:grid-cols-3/);
+});
+
+test('channel tags all stay visible without a nested scroll area',()=>{
+ const tags=Array.from({length:120},(_,i)=>({id:i+1,name:`分類 ${i+1}`}));
+ const picker=renderToStaticMarkup(createElement(TagPicker,{tags,selected:new Set([120]),onToggle:()=>{},label:'分類'}));
+ assert.equal((picker.match(/aria-pressed=/g)||[]).length,120);
+ assert.match(picker,/aria-pressed="true"[^>]*>分類 120/);
+ assert.doesNotMatch(picker,/max-h-|overflow-y-auto/);
+ const intake=renderToStaticMarkup(createElement(ContentIntake,{tags,channels:[],onQueued:()=>{},onEdit:()=>{},refreshKey:''}));
+ assert.equal((intake.match(/type="checkbox"/g)||[]).length,120);
+ assert.doesNotMatch(intake,/max-h-|overflow-y-auto/);
 });

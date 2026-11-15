@@ -7,7 +7,7 @@ import {accountMessage} from '@/lib/account-client';
 import {bookmarkletSource} from '@/lib/channel-bookmarklet';
 import {fetchChannelRequests,requestOutcome,requestSummary,submitChannelRequest,tagChange} from '@/lib/channel-admin-client';
 import {dateTime} from '@/lib/format';
-import {button,card,field,note,primary} from '@/app/my/ReaderGate';
+import {button,field,note,primary} from '@/app/my/ReaderGate';
 import ContentIntake from './ContentIntake';
 
 const POLL_MS=4000;
@@ -17,7 +17,7 @@ type Tag={id:number;name:string};
 export function TagPicker({tags,selected,onToggle,label}:{tags:Tag[];selected:ReadonlySet<number>;onToggle:(id:number)=>void;label:string}){
  const [query,setQuery]=useState('');
  const shown=tags.filter(t=>t.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
- return <div className="grid gap-2"><input type="search" className={field+' w-full'} aria-label={`搜尋${label}`} placeholder="搜尋標籤名稱" value={query} onChange={e=>setQuery(e.target.value)}/><div className="flex max-h-56 flex-wrap gap-2 overflow-y-auto" role="group" aria-label={label}>
+ return <div className="grid gap-2"><input type="search" className={field+' w-full'} aria-label={`搜尋${label}`} placeholder="搜尋標籤名稱" value={query} onChange={e=>setQuery(e.target.value)}/><div className="flex flex-wrap gap-2" role="group" aria-label={label}>
   {shown.map(t=><button type="button" key={t.id} aria-pressed={selected.has(t.id)} className={pill+' '+(selected.has(t.id)?pillOn:pillOff)} onClick={()=>onToggle(t.id)}>{t.name}</button>)}
   {!shown.length&&<p className="text-xs text-zinc-500">沒有符合的標籤。</p>}
  </div></div>;
@@ -36,7 +36,7 @@ function TagEditor({channel,tags,onClose,onQueued}:{channel:ManagedChannel;tags:
   catch(e){setError(accountMessage(e));}
   finally{setBusy(false);}
  }
- return <section className={card+' grid gap-3 p-4'} aria-label={`編輯 ${channel.channelTitle} 的分類`}>
+ return <section className="grid gap-3" aria-label={`編輯 ${channel.channelTitle} 的分類`}>
   <div className="flex flex-wrap items-baseline gap-x-3"><h3 className="font-semibold">編輯頻道標籤：{channel.channelTitle}</h3><span className="text-xs text-zinc-500">#{channel.channelId}</span></div>
   <TagPicker tags={tags} selected={wanted} onToggle={id=>setWanted(s=>flip(s,id))} label="分類"/>
   {orphans.length>0&&<p className="text-xs text-zinc-500">這個頻道還帶著已停用的分類（{orphans.join('、')}），不在上面的選項裡，會保持原樣。</p>}
@@ -66,8 +66,8 @@ function History({requests,error,names}:{requests:ChannelAdminRequest[]|null;err
  if(error)return <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>;
  if(!requests)return <p role="status" className={note}>載入中…</p>;
  if(!requests.length)return <p className="text-sm text-zinc-500">還沒有變更紀錄。</p>;
- return <ul className="divide-y divide-zinc-100 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800" aria-label="最近的變更">
-  {requests.slice(0,15).map(r=><li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-sm">
+ return <ul className="divide-y divide-zinc-100 dark:divide-zinc-800" aria-label="最近的變更">
+  {requests.slice(0,15).map(r=><li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
    <span className={'rounded-full px-2 py-0.5 text-xs '+STATUS_TONE[r.status]}>{STATUS_LABEL[r.status]}</span>
    <span className="min-w-0 break-words font-medium">{requestSummary(r,names)}</span>
    <span className="text-xs text-zinc-500">{requestOutcome(r)} · {r.actor==='live-playlist'?'來源 加入直播清單':'帳號 '+r.actor.replace('user:','#')} · {dateTime(r.appliedAt??r.createdAt)}</span>
@@ -99,13 +99,13 @@ export default function ChannelTools({data,editing,onEdit,onApplied}:{data:Manag
  const channel=editing===null?null:data.channels.find(c=>c.channelId===editing)??null;
  const queued=()=>{queuedRefresh.current=true;void load();};
  return <div className="grid gap-4">
-  <section className={card+' overflow-hidden'} aria-label="YouTube 內容管理">
-   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
+  <section className="grid gap-3" aria-label="YouTube 內容管理">
+   <div className="flex flex-wrap items-center justify-between gap-2">
     <h2 className="text-base font-semibold">YouTube 內容與頻道標籤</h2>
    </div>
-   <div className="grid gap-3 p-4"><ContentIntake tags={data.tags} channels={data.channels} onQueued={queued} onEdit={onEdit} refreshKey={data.generatedAt} renderChannelTags={known=><TagEditor key={known.channelId+data.generatedAt} channel={known} tags={data.tags} onClose={()=>onEdit(null)} onQueued={queued}/>}/><Bookmarklet/></div>
+   <div className="grid gap-4"><ContentIntake tags={data.tags} channels={data.channels} onQueued={queued} onEdit={onEdit} refreshKey={data.generatedAt} renderChannelTags={known=><TagEditor key={known.channelId+data.generatedAt} channel={known} tags={data.tags} onClose={()=>onEdit(null)} onQueued={queued}/>}/><Bookmarklet/></div>
   </section>
-  {requests&&requests.some(r=>r.status==='pending')&&<p role="status" className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">有 {requests.filter(r=>r.status==='pending').length} 項操作等待套用，通常約 1 分鐘。完成後會自動更新。</p>}
+  {requests&&requests.some(r=>r.status==='pending')&&<p role="status" className="text-sm text-amber-800 dark:text-amber-200">有 {requests.filter(r=>r.status==='pending').length} 項操作等待套用，通常約 1 分鐘。完成後會自動更新。</p>}
   {channel&&<div ref={editor}><TagEditor key={channel.channelId} channel={channel} tags={data.tags} onClose={()=>onEdit(null)} onQueued={queued}/></div>}
   <section className="text-sm" aria-label="最近的變更"><h2 className="font-medium">最近的變更</h2><div className="mt-2"><History requests={requests} error={error} names={names}/>{error&&<button type="button" className={button+' mt-2'} onClick={()=>void load()}>重新讀取變更</button>}</div></section>
  </div>;
