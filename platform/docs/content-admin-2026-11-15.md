@@ -1,6 +1,6 @@
 # 影片、直播與頻道管理工具（2026-11-15）
 
-本次改動在本機完成，尚未推送或部署。
+已於 2026-11-15 推送 main 並部署，見[發布紀錄](release-content-admin-2026-11-15.md)。
 
 ## 管理流程
 
@@ -24,7 +24,7 @@
 
 經使用者授權，以 SSH 唯讀查看 meta3 的 `/home/urtube/app/admin.php` 與 `redir/add_video.php`、`add_live.php`、`tag.php`。只參考操作語意，沒有執行舊 PHP、資料寫入或管理網址。
 
-針對新增路徑的驗證包括 API 權限／查詢參數／搜尋上限、書籤網址與標題編碼、UI 靜態渲染及狀態呈現、worker 單元測試，以及拋棄式 MariaDB 寫入、重播與故障回滾測試。另在本機隔離的完整來源 schema 上實際執行六種 lookup/search SQL，皆成功。型別檢查與 Next 正式編譯通過。瀏覽器拖曳書籤及真實登入點擊未驗證；正式執行結果需核准部署 web 與 youtube-source worker 後確認。
+針對新增路徑的驗證包括 API 權限／查詢參數／搜尋上限、書籤網址與標題編碼、UI 靜態渲染及狀態呈現、worker 單元測試，以及拋棄式 MariaDB 寫入、重播與故障回滾測試。另在本機隔離的完整來源 schema 上實際執行六種 lookup/search SQL，皆成功。型別檢查與 Next 正式編譯通過。瀏覽器拖曳書籤及真實登入點擊未驗證；正式 lookup 與每分鐘工作已在核准部署後驗證，詳見發布紀錄。
 
 完整 `npm run test:integration` 已成功（所有 workspace、隔離 MariaDB／Redis），另新增介面與客戶端相關的 22 項 focused checks 全數通過。
 
