@@ -78,3 +78,19 @@ Dokploy 於 **2026-11-15 13:55:16 UTC（台灣 21:55:16）**接受發布，web �
 `/home/sky/yt-release-tag-picker-be08a42/release-picker.py` 只允許更換 web image，逐欄保持其他 compose/env 不變。沒有 API、worker、schema 或正式內容資料異動。
 
 Dokploy 於 **2026-11-15 13:59:56 UTC（台灣 21:59:56）**接受發布，web 於 14:00:30 UTC 完成更新並 healthy。候選與正式站各 11 項 HTTP 檢查通過。回復：`python3 /home/sky/yt-release-tag-picker-be08a42/release-picker.py --execute --rollback`，僅把 web 恢復至 `919c638a`。
+
+## 直播辨識、標籤建立與關鍵字覆核修正
+
+`47005aed2dee02c77a81fd7acfef92ba42086b83` 修正未收錄內容被畫成一般影片、無發布頻道資訊、缺少建立標籤入口，以及關鍵字覆核頁拒絕現行 API status 契約的問題。詳見內容管理文件的即時辨識修正。建立標籤沿原有 `create-tag` source 工作流程；編輯草稿在清單刷新時保留並合併同期新增標籤。只加入頻道的按鈕與直播／影片主動作說明各自影響。
+
+API 相關 27 項通過，web 454 項通過、2 既有跳過，API／web 型別檢查及 sky-mini Node 24 Next 正式編譯通過。完成一次有實際回文的獨立審查，已修正草稿刷新、頻道歧義文案及名稱正規化三項問題；新增草稿合併回歸檢查後重跑前端全套通過。
+
+映像 `youtube-board-ts:release-intake-fix-47005ae-amd64`：
+`sha256:995a1c2a26a49890db98671bb48a00a77c2c69e75a5a3c9736021c9b1c7344db`。
+僅更換 web 映像，包含 API 與 shared 模組更新；不更換 worker、不變更 schema、grants、排程或 Dokploy env。發布腳本 `/home/sky/yt-release-intake-fix-47005ae/release-fix.py` 逐欄驗證設定不漂移。
+
+候選容器以自身 reports reader 唯讀查詢使用者提供的 `Vthypqd1Ni0`，確認 YouTube 公開 metadata 為 `live`，發布頻道 `UCvN5h1ShZtc7nly3pezRayg`／Cecilia Immergreen Ch. hololive；本站影片、直播、頻道均未收錄。辨識沒有寫來源表或新增請求。
+
+Dokploy 於 **2026-11-15 14:17:42 UTC（台灣 22:17:42）**接受發布，web 於 14:18:15 UTC 完成更新。候選與正式站各 12 項 HTTP 檢查通過（含 `/admin/keywords`）；正式 web 映像一致且 healthy。正式 web 再以自己的 reports reader 唯讀確認使用者網址仍為進行中的直播、發布頻道正確，本站仍未收錄，未為測試提交來源資料變更。登入後建立標籤／追蹤直播未代使用者提交；既有寫入工作流程與 API 驗證測試通過。
+
+回復此次版本：`python3 /home/sky/yt-release-intake-fix-47005ae/release-fix.py --execute --rollback`，只把 web 恢復至 `86022438`，source worker 與其他服務不變。
