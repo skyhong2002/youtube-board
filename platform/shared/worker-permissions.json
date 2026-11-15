@@ -1808,6 +1808,21 @@
     },
     "youtube.channels.admin": {
       "tables": {
+        "urt_video": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_video_schedule": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
+        "urt_video_live": [
+          "SELECT",
+          "INSERT",
+          "UPDATE"
+        ],
         "urt_channel": [
           "SELECT",
           "INSERT"

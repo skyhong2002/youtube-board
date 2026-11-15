@@ -5,7 +5,7 @@
  */
 export const CHANNEL_ADMIN_JOB = 'youtube.channels.admin';
 export const CHANNEL_ADMIN_COMMAND = 'youtube:channels:admin';
-export const CHANNEL_ADMIN_KINDS = ['add-channel', 'set-tags', 'create-tag'] as const;
+export const CHANNEL_ADMIN_KINDS = ['add-channel', 'add-video', 'add-live', 'set-tags', 'create-tag'] as const;
 export type ChannelAdminKind = typeof CHANNEL_ADMIN_KINDS[number];
 export type ChannelAdminStatus = 'pending' | 'done' | 'failed';
 
@@ -19,6 +19,8 @@ export const REQUEST_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9
 
 export type ChannelAdminPayload =
   | { kind: 'add-channel'; source: string; tags: number[] }
+  | { kind: 'add-video'; source: string; tags: number[] }
+  | { kind: 'add-live'; source: string; tags: number[] }
   | { kind: 'set-tags'; uId: number; add: number[]; remove: number[] }
   | { kind: 'create-tag'; name: string };
 
@@ -28,6 +30,8 @@ export const CHANNEL_ADMIN_ERRORS = {
   CHANNEL_NOT_FOUND: '找不到這個頻道',
   CHANNEL_RETIRED: '這個頻道已封存',
   VIDEO_NOT_FOUND: '找不到這部影片，可能已刪除、設為私人或尚未公開',
+  VIDEO_NOT_LIVE: '這部影片不是直播或直播預告，請改用加入影片',
+  VIDEO_RETIRED: '這場直播已停止追蹤，請先檢查直播頁面的狀態',
   TAG_NOT_FOUND: '有分類編號不存在',
   TAGS_TOO_LONG: '這個頻道的分類已滿（上限約 20 個）',
   PROVIDER_ERROR: 'YouTube 回應異常，稍後再試',
@@ -114,9 +118,9 @@ export function parseChannelSource(input: unknown): string | null {
 export function parsePayload(kind: unknown, value: unknown): ChannelAdminPayload | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const body = value as Record<string, unknown>;
-  if (kind === 'add-channel') {
+  if (kind === 'add-channel' || kind === 'add-video' || kind === 'add-live') {
     const source = parseChannelSource(body.source), tags = body.tags === undefined ? [] : tagIdList(body.tags);
-    return source && tags ? { kind, source, tags } : null;
+    return source && tags && (kind === 'add-channel' || sourceVideoId(source)) ? { kind, source, tags } : null;
   }
   if (kind === 'set-tags') {
     const add = body.add === undefined ? [] : tagIdList(body.add), remove = body.remove === undefined ? [] : tagIdList(body.remove);

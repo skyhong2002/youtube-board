@@ -3,7 +3,7 @@ import mysql, { type Connection, type RowDataPacket } from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { channelAdminJob } from '../src/channel-admin.js';
 import type { SourceJobContext } from '../src/video-statistics.js';
-import type { ChannelProfile } from '../src/youtube.js';
+import type { ChannelProfile, PlaylistItem } from '../src/youtube.js';
 
 // Runs the job against a real MariaDB so transactions, row locks and the SQL itself are exercised, which the scripted
 // fake in channel-admin.test.ts cannot. Needs a throwaway server, e.g.
@@ -13,12 +13,14 @@ import type { ChannelProfile } from '../src/youtube.js';
 const url = process.env.INGESTION_DB_TEST_URL, DATABASE = 'yb_channel_admin_it';
 const enabled = Boolean(url) && ['127.0.0.1', 'localhost', '::1'].includes(new URL(url!).hostname);
 const UC = 'UCnewnewnewnewnewnewnew1', now = new Date('2026-10-26T20:00:00Z');
+const mediaItem: PlaylistItem = { id: '', videoId: 'newvideo_01', channelId: UC, title: '精確影片', description: 'd', thumbnails: 'https://i.ytimg.com/vi/newvideo_01/default.jpg', channelTitle: '新頻道', publishedAt: '2026-10-26T19:00:00Z', playlistId: 'UU' + UC.slice(2), position: 0, liveBroadcastContent: 'none' };
 const profile: ChannelProfile = { id: UC, title: '新頻道 🎉', description: '第一行\n第二行', uploads: 'UU' + UC.slice(2), publishedAt: '2020-01-02T03:04:05Z', thumbnail: 'https://yt3.ggpht.com/a', statistics: { viewCount: 10, videoCount: 2, subscriberCount: null, hiddenSubscriberCount: true } };
 
 describe.skipIf(!enabled)('channelAdminJob on a real database', () => {
   let db: Connection;
+  let liveContent: PlaylistItem['liveBroadcastContent'] = 'none';
   const ctx = () => ({ db, now, clock: () => now, execute: true, assertOwnership: async () => {},
-    youtube: { attemptsMade: 0, channelProfiles: async (ids: string[]) => new Map(ids.filter(id => id === UC).map(id => [id, profile])), channelIdForHandle: async (handle: string) => handle === '@new.channel' ? UC : null, videoChannelId: async (videoId: string) => videoId === 'newvideo_01' ? UC : null } } as unknown as SourceJobContext);
+    youtube: { attemptsMade: 0, videoUploads: async () => [{ ...mediaItem, liveBroadcastContent: liveContent }], videoLiveStreamingDetails: async () => new Map(), channelProfiles: async (ids: string[]) => new Map(ids.filter(id => id === UC).map(id => [id, profile])), channelIdForHandle: async (handle: string) => handle === '@new.channel' ? UC : null, videoChannelId: async (videoId: string) => videoId === 'newvideo_01' ? UC : null } } as unknown as SourceJobContext);
   const rows = async <T = RowDataPacket>(sql: string, params: unknown[] = []) => (await db.query<RowDataPacket[]>(sql, params))[0] as unknown as T[];
   const enqueue = async (kind: string, payload: unknown) => { const [r] = await db.execute<mysql.ResultSetHeader>("INSERT INTO ts_channel_admin_requests (request_id, kind, actor, payload, created_at) VALUES (UUID(), ?, 'user:1', ?, UTC_TIMESTAMP())", [kind, JSON.stringify(payload)]); return r.insertId; };
   const request = async (id: number) => (await rows<RowDataPacket>('SELECT status, error_code, result, applied_at FROM ts_channel_admin_requests WHERE id = ?', [id]))[0]!;
@@ -32,7 +34,8 @@ describe.skipIf(!enabled)('channelAdminJob on a real database', () => {
   });
   afterAll(async () => { if (db) { await db.query(`DROP DATABASE IF EXISTS ${DATABASE}`); await db.end(); } });
   beforeEach(async () => {
-    await db.query("DELETE FROM ts_channel_admin_requests; DELETE FROM urt_tag_log; DELETE FROM urt_count; DELETE FROM urt_channel; DELETE FROM urt_tag;");
+    liveContent = 'none';
+    await db.query("DELETE FROM urt_video_live; DELETE FROM urt_video_schedule; DELETE FROM urt_video; DELETE FROM ts_channel_admin_requests; DELETE FROM urt_tag_log; DELETE FROM urt_count; DELETE FROM urt_channel; DELETE FROM urt_tag;");
     await db.query("ALTER TABLE urt_channel AUTO_INCREMENT = 1; ALTER TABLE urt_tag AUTO_INCREMENT = 1");
     await db.query("INSERT INTO urt_tag (ctime, tag_name, del_flag) VALUES ('2020-01-01 00:00:00','社論',NULL),('2020-01-01 00:00:00','泛藍',NULL),('2020-01-01 00:00:00','已停用',1)");
     await db.query("INSERT INTO urt_channel (ctime, youtube_id, title) VALUES ('2026-01-01 00:00:00','UCexistexistexistexist01','既有頻道')");
@@ -135,4 +138,48 @@ describe.skipIf(!enabled)('channelAdminJob on a real database', () => {
     expect(await rows('SELECT tag_name FROM urt_tag WHERE tag_name IN (?, ?)', ['甲', '乙'])).toEqual([{ tag_name: '乙' }]);
     expect((await request(second)).status).toBe('done');
   });
+  it('adds an exact video, owning channel and tags atomically, and replays without duplicate source rows', async () => {
+    const first = await enqueue('add-video', { source: 'https://youtu.be/newvideo_01', tags: [1] });
+    expect((await channelAdminJob(ctx(), { limit: 10 })).applied).toHaveLength(1);
+    expect(JSON.parse((await request(first)).result)).toMatchObject({ videoId: 'newvideo_01', created: true, channelCreated: true, live: false });
+    expect(await rows('SELECT videoId, u_id, title FROM urt_video')).toEqual([{ videoId: 'newvideo_01', u_id: 2, title: '精確影片' }]);
+    expect(await rows('SELECT videoId FROM urt_video_schedule')).toEqual([{ videoId: 'newvideo_01' }]);
+    expect(await rows('SELECT videoId FROM urt_video_live')).toEqual([]);
+    const second = await enqueue('add-video', { source: 'https://youtu.be/newvideo_01', tags: [2] });
+    await channelAdminJob(ctx(), { limit: 10 });
+    expect(JSON.parse((await request(second)).result)).toMatchObject({ created: false, channelCreated: false });
+    expect(await rows('SELECT videoId FROM urt_video')).toHaveLength(1);
+    expect((await rows('SELECT tags FROM urt_count WHERE u_id = 2'))[0]!.tags).toBe('[1][2]');
+  });
+
+  it('adds actual live broadcasts and rejects ordinary videos without creating the channel', async () => {
+    const ordinary = await enqueue('add-live', { source: 'https://youtu.be/newvideo_01', tags: [1] });
+    await channelAdminJob(ctx(), { limit: 10 });
+    expect((await request(ordinary)).error_code).toBe('VIDEO_NOT_LIVE');
+    expect(await rows('SELECT u_id FROM urt_channel WHERE youtube_id = ?', [UC])).toEqual([]);
+    liveContent = 'live';
+    const broadcast = await enqueue('add-live', { source: 'https://youtu.be/newvideo_01', tags: [1] });
+    await channelAdminJob(ctx(), { limit: 10 });
+    expect((await request(broadcast)).status).toBe('done');
+    expect(await rows('SELECT videoId, u_id FROM urt_video_live')).toEqual([{ videoId: 'newvideo_01', u_id: 2 }]);
+    await db.query("UPDATE urt_video_live SET del_flag = 1");
+    const retired = await enqueue('add-live', { source: 'https://youtu.be/newvideo_01' });
+    await channelAdminJob(ctx(), { limit: 10 });
+    expect((await request(retired)).error_code).toBe('VIDEO_RETIRED');
+  });
+
+  it('rolls back the channel, tags, video and schedule when the live insert fails', async () => {
+    liveContent = 'live';
+    await db.query("CREATE TRIGGER refuse_media_live BEFORE INSERT ON urt_video_live FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'test rollback'");
+    try {
+      const id = await enqueue('add-live', { source: 'https://youtu.be/newvideo_01', tags: [1] });
+      await channelAdminJob(ctx(), { limit: 10 });
+      expect((await request(id)).error_code).toBe('APPLY_FAILED');
+      expect(await rows('SELECT u_id FROM urt_channel WHERE youtube_id = ?', [UC])).toEqual([]);
+      expect(await rows('SELECT videoId FROM urt_video')).toEqual([]);
+      expect(await rows('SELECT videoId FROM urt_video_schedule')).toEqual([]);
+      expect(await rows('SELECT pk FROM urt_tag_log')).toEqual([]);
+    } finally { await db.query('DROP TRIGGER refuse_media_live'); }
+  });
+
 });

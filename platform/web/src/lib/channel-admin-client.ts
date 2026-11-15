@@ -14,8 +14,10 @@ const list=(ids:number[],tag:Names['tag'])=>ids.map(id=>`「${tag(id)}」`).join
 /** What the request asked for, in the words of the page. */
 export function requestSummary(request:ChannelAdminRequest,names:Names):string{
  const p=request.payload;
+ if(p.kind==='add-video'||p.kind==='add-live')return `加入${p.kind==='add-live'?'直播':'影片'} ${p.source}${p.tags.length?`，頻道分類 ${list(p.tags,names.tag)}`:''}`;
  if(p.kind==='add-channel')return `新增${sourceVideoId(p.source)?'影片 ':'頻道 '}${p.source}${sourceVideoId(p.source)?' 的頻道':''}${p.tags.length?`，分類 ${list(p.tags,names.tag)}`:''}`;
  if(p.kind==='create-tag')return `新增分類「${p.name}」`;
+ if(p.kind!=='set-tags')return '';
  return `${names.channel(p.uId)}：${[p.add.length?`加入 ${list(p.add,names.tag)}`:'',p.remove.length?`移除 ${list(p.remove,names.tag)}`:''].filter(Boolean).join('，')}`;
 }
 const num=(value:unknown)=>typeof value==='number'&&Number.isSafeInteger(value)?value:null;
@@ -24,6 +26,7 @@ export function requestOutcome(request:ChannelAdminRequest):string{
  if(request.status==='pending')return '等待套用，約 1 分鐘內';
  if(request.status==='failed')return request.errorCode?CHANNEL_ADMIN_ERRORS[request.errorCode]:'未能套用';
  const r=request.result??{};
+ if(request.kind==='add-video'||request.kind==='add-live')return `已收錄${request.kind==='add-live'?'直播':'影片'}${typeof r.title==='string'?`「${r.title}」`:''}，公開報表稍後更新`;
  if(request.kind==='add-channel'){const uId=num(r.uId),title=typeof r.title==='string'&&r.title&&typeof r.videoId==='string'?`「${r.title}」`:'';return r.created===false?`已有此頻道${title}${uId?`（#${uId}）`:''}，沒有重複新增`:`已新增${title}${uId?`為 #${uId}`:''}，統計與影片稍後補齊`;}
  if(request.kind==='create-tag'){const id=num(r.tagId);return r.created===false?`已有同名分類${id?`（#${id}）`:''}`:`已建立${id?`，編號 ${id}`:''}`;}
  const added=Array.isArray(r.added)?r.added.length:0,removed=Array.isArray(r.removed)?r.removed.length:0;

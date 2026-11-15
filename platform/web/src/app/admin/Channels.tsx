@@ -49,6 +49,7 @@ export default function Channels(){
  const sortedTags=[...data.tags].sort((a,b)=>(tagCounts.get(b.id)??0)-(tagCounts.get(a.id)??0)||a.id-b.id);
  return <div className="grid gap-4">
   <ChannelTools data={data} editing={editing} onEdit={setEditing} onApplied={()=>setRetry(n=>n+1)}/>
+  <div className="mt-4 border-t border-zinc-200 pt-6 dark:border-zinc-800"><h2 className="text-lg font-semibold">頻道清單</h2><p className="mt-1 text-sm text-zinc-500">篩選收錄狀態與標籤，查看頻道的更新情況。</p></div>
   <div className="flex flex-wrap items-center gap-2">
    <input type="search" className={field+' w-64 max-w-full'} placeholder="搜尋頻道名稱、YouTube ID 或編號" aria-label="搜尋頻道" value={query} onChange={e=>setQuery(e.target.value)}/>
    <select className={field} aria-label="頻道分類" value={tag===null?'':String(tag)} onChange={e=>setTag(e.target.value===''?null:Number(e.target.value))}>

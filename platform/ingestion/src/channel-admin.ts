@@ -1,7 +1,7 @@
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { ChannelAdminError, applyTagDelta, parsePayload, sourceVideoId, type ChannelAdminErrorCode, type ChannelAdminPayload } from '../../shared/channel-admin.js';
-import { isRunStoppingYoutubeError } from './channel-jobs.js';
-import { taipeiSql } from './legacy-db.js';
+import { isRunStoppingYoutubeError, publishUploads } from './channel-jobs.js';
+import { selectOne, taipeiSql, upsert } from './legacy-db.js';
 import { YoutubeError } from './quota.js';
 import type { SourceJobContext } from './video-statistics.js';
 import type { ChannelProfile } from './youtube.js';
@@ -63,7 +63,7 @@ async function createTag(ctx: SourceJobContext, id: number, payload: Extract<Cha
  * Insert the channel like the legacy `admin.php` did, from the exact YouTube profile, with no category. `stime` and `vtime`
  * stay empty, so the next statistics and discovery runs pick it up first. A channel we already track is only tagged.
  */
-async function addChannel(ctx: SourceJobContext, id: number, payload: Extract<ChannelAdminPayload, { kind: 'add-channel' }>): Promise<Outcome> {
+async function addChannel(ctx: SourceJobContext, id: number, payload: Extract<ChannelAdminPayload, { kind: 'add-channel' }>, finishRequest = true): Promise<Outcome> {
   const { db, youtube } = ctx;
   // A request for a category that does not exist is refused before it spends any YouTube quota.
   await assertTagsExist(db, payload.tags);
@@ -97,7 +97,35 @@ async function addChannel(ctx: SourceJobContext, id: number, payload: Extract<Ch
   }
   const tagged = payload.tags.length ? await changeTags(ctx, uId, payload.tags, []) : null;
   const outcome = { uId, youtubeId, title: title.slice(0, 100), created: Boolean(profile), tags: tagged?.after ?? null, ...via };
-  await finish(db, id, 'done', null, outcome, ctx.now);
+  if (finishRequest) await finish(db, id, 'done', null, outcome, ctx.now);
+  return outcome;
+}
+
+/** Publish the exact requested video through the same source writer as discovery. */
+async function addVideo(ctx: SourceJobContext, id: number, payload: Extract<ChannelAdminPayload, { kind: 'add-video' | 'add-live' }>): Promise<Outcome> {
+  await assertTagsExist(ctx.db, payload.tags);
+  const videoId = sourceVideoId(payload.source)!;
+  const items = await ctx.youtube.videoUploads([videoId]), item = items.find(item => item.videoId === videoId);
+  if (!item) throw new ChannelAdminError('VIDEO_NOT_FOUND', { videoId });
+  const video = await selectOne(ctx.db, 'urt_video', { videoId });
+  const liveRow = await selectOne(ctx.db, 'urt_video_live', { videoId });
+  let details: Record<string, unknown> | null = null;
+  if (payload.kind === 'add-live') {
+    if (liveRow && Number(liveRow.del_flag ?? 0) >= 1) throw new ChannelAdminError('VIDEO_RETIRED', { videoId });
+    if (item.liveBroadcastContent !== 'live' && item.liveBroadcastContent !== 'upcoming') {
+      details = (await ctx.youtube.videoLiveStreamingDetails([videoId])).get(videoId) ?? null;
+      if (!details) throw new ChannelAdminError('VIDEO_NOT_LIVE', { videoId });
+    }
+  }
+  if (video && String(video.channelId) !== item.channelId) throw new ChannelAdminError('APPLY_FAILED', { videoId });
+  const channel = await addChannel(ctx, id, { kind: 'add-channel', source: item.channelId, tags: payload.tags }, false);
+  await ctx.assertOwnership();
+  await publishUploads(ctx, Number(channel.uId), [item]);
+  // Ended broadcasts have liveBroadcastContent=none; verified streaming details establish their live identity.
+  if (payload.kind === 'add-live' && details) await upsert(ctx.db, 'urt_video_live', { videoId }, { ctime: taipeiSql(ctx.now), publishedAt: taipeiSql(new Date(item.publishedAt)), u_id: Number(channel.uId),
+    ...Object.fromEntries(['actualStartTime', 'actualEndTime', 'scheduledStartTime'].filter(key => typeof details![key] === 'string').map(key => [key, taipeiSql(new Date(String(details![key])))])) });
+  const outcome = { ...channel, channelCreated: channel.created, created: !video, videoId, title: item.title.slice(0, 100), live: payload.kind === 'add-live' || item.liveBroadcastContent === 'live' || item.liveBroadcastContent === 'upcoming' };
+  await finish(ctx.db, id, 'done', null, outcome, ctx.now);
   return outcome;
 }
 
@@ -125,13 +153,13 @@ export async function channelAdminJob(ctx: SourceJobContext, input: { limit: num
       await ctx.db.beginTransaction();
       let outcome: Outcome;
       try {
-        outcome = payload.kind === 'set-tags' ? await setTags(ctx, id, payload) : payload.kind === 'create-tag' ? await createTag(ctx, id, payload) : await addChannel(ctx, id, payload);
+        outcome = payload.kind === 'set-tags' ? await setTags(ctx, id, payload) : payload.kind === 'create-tag' ? await createTag(ctx, id, payload) : payload.kind === 'add-channel' ? await addChannel(ctx, id, payload) : await addVideo(ctx, id, payload);
         await ctx.db.commit();
       } catch (error) { await ctx.db.rollback().catch(() => undefined); throw error; }
       applied.push({ id, kind, outcome });
     } catch (error) {
       if (isRunStoppingYoutubeError(error)) return { ...summary(), stoppedReason: error.code, remaining: rows.length - applied.length - rejected.length };
-      const code = errorCode(error);
+      const code = error instanceof YoutubeError && error.code === 'invalid-response' && (kind === 'add-video' || kind === 'add-live') ? 'PROVIDER_ERROR' : errorCode(error);
       await ctx.assertOwnership();
       await finish(ctx.db, id, 'failed', code, error instanceof ChannelAdminError ? error.detail : null, ctx.now);
       rejected.push({ id, kind, code });

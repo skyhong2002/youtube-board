@@ -8,7 +8,7 @@
  */
 export function bookmarkletSource(origin: string): string {
   const target = JSON.stringify(origin + '/admin/?add=');
-  return `javascript:(function(){var p=location.pathname,v=new URLSearchParams(location.search).get('v'),w=/^\\/(live|shorts)\\/[\\w-]{11}\\/?$/.test(p),m=document.querySelector('meta[itemprop="channelId"]'),c=document.querySelector('link[rel="canonical"]'),s=p==='/watch'&&v?location.origin+'/watch?v='+v:w?location.origin+p:m&&m.content||(c&&/\\/channel\\/UC/.test(c.href)?c.href:location.href);location.href=${target}+encodeURIComponent(s);})()`;
+  return `javascript:(function(){var p=location.pathname,v=new URLSearchParams(location.search).get('v'),w=/^\\/(live|shorts)\\/[\\w-]{11}\\/?$/.test(p),m=document.querySelector('meta[itemprop="channelId"]'),c=document.querySelector('link[rel="canonical"]'),s=p==='/watch'&&v?location.origin+'/watch?v='+v:w?location.origin+p:m&&m.content||(c&&/\\/channel\\/UC/.test(c.href)?c.href:location.href);location.href=${target}+encodeURIComponent(s)+'&title='+encodeURIComponent(document.title||'');})()`;
 }
 /** The channel the bookmark passed along, as typed text for the add form; empty when there is none. */
 export function addParam(search: string): string {

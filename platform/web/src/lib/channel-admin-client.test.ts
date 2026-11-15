@@ -42,3 +42,12 @@ test('toggling categories yields the delta to send, nothing when unchanged, and 
  assert.equal(tagChange([...nearlyFull,1],[...nearlyFull,1,2]).problem,'full');
  assert.equal(tagChange([...nearlyFull,1],[...nearlyFull,2]).problem,null);
 });
+
+test('video and live requests describe ingestion and channel tagging separately',()=>{
+ for(const kind of ['add-video','add-live'] as const){
+  const r=set({kind,payload:{kind,source:'https://youtu.be/abcdefghijk',tags:[1]}});
+  assert.match(requestSummary(r,names),kind==='add-live'?/加入直播/:/加入影片/);
+  assert.match(requestSummary(r,names),/頻道分類 「社論」/);
+  assert.match(requestOutcome({...r,status:'done',result:{title:'測試影片'}}),/已收錄.*測試影片.*公開報表稍後更新/);
+ }
+});

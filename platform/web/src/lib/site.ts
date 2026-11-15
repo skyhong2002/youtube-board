@@ -3,7 +3,7 @@ export const SITE_NAME = '有影儀表板';
 export const SITE_DESCRIPTION = '同一件事，各台怎麼說。追蹤 YouTube 頻道、影片與直播，比較公共議題與共同詞彙，從觀測回到來源。';
 export const SITE_ORIGIN = 'https://youtube.observe.tw';
 /** Bump when public/brand changes so browsers and link-preview crawlers refetch icons and share images. */
-export const BRAND_VERSION = '20261113';
+export const BRAND_VERSION = '20261115';
 export const brandAsset = (path: string) => `${path}?v=${BRAND_VERSION}`;
 export const siteMetadata: Metadata = {
   metadataBase: new URL(SITE_ORIGIN),

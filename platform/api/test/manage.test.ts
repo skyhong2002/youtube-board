@@ -42,7 +42,7 @@ it('admin overview routes are session-admin only and list archived channels with
  });
  const store:ActivityStore={activity:async()=>[{userId:1,follows:1,saves:0,apiKeys:0,feed:false,sessions:1,editorial:{event:0,nomination:0,decision:0},keywordReviews:0,roleChanges:0,lastActiveAt:null}],close:async()=>{}};
  const s=await setup(reader,store);try{
-  for(const url of ['/auth/admin/user-activity','/auth/admin/channels']){
+  for(const url of ['/auth/admin/user-activity','/auth/admin/channels','/auth/admin/content?source=UCabcdefghijklmnopqrstuv']){
    expect((await s.app.inject(url)).statusCode).toBe(401);
    expect((await s.app.inject({url,headers:{cookie:s.reader}})).json()).toEqual({error:{code:'ADMIN_REQUIRED'}});
    expect((await s.app.inject({url,headers:{cookie:s.admin,authorization:'Bearer x'}})).statusCode).toBe(401);
@@ -68,6 +68,23 @@ it('a missing activity store or failing source reads answer 503 without detail',
 it('a failing login store answers 503, not 500',async()=>{
  const s=await setup(fakeReader({}),null);try{
   s.data.store.sessionUser=async()=>{throw new AuthStoreFailure();};
-  for(const url of ['/auth/admin/user-activity','/auth/admin/channels']){const r=await s.app.inject({url,headers:{cookie:s.admin}});expect(r.statusCode).toBe(503);expect(r.json()).toEqual({error:{code:'ACCOUNT_UNAVAILABLE'}});}
+  for(const url of ['/auth/admin/user-activity','/auth/admin/channels','/auth/admin/content?source=UCabcdefghijklmnopqrstuv']){const r=await s.app.inject({url,headers:{cookie:s.admin}});expect(r.statusCode).toBe(503);expect(r.json()).toEqual({error:{code:'ACCOUNT_UNAVAILABLE'}});}
+ }finally{await s.app.close();}
+});
+
+it('content lookup rejects malformed queries before source reads and preserves private response headers',async()=>{
+ const r=fakeReader({});const s=await setup(r,null);try{
+  for(const query of ['q=a','q=abc&kind=all','source=https%3A%2F%2Fevil.test','q=abc&q=def'])expect((await s.app.inject({url:'/auth/admin/content?'+query,headers:{cookie:s.admin}})).statusCode).toBe(400);
+  expect(r.queries).toHaveLength(0);
+  const response=await s.app.inject({url:'/auth/admin/content?source=https%3A%2F%2Fyoutu.be%2Fabcdefghijk',headers:{cookie:s.admin}});
+  expect(response.statusCode).toBe(200);expect(response.headers['cache-control']).toBe('private, no-store');
+  expect(response.json()).toMatchObject({videoId:'abcdefghijk',video:null,live:null,channel:null,matches:[]});
+ }finally{await s.app.close();}
+});
+it('content lookup bounds administrator search frequency',async()=>{
+ const s=await setup(fakeReader({}),null);try{
+  for(let i=0;i<60;i++)expect((await s.app.inject({url:'/auth/admin/content?q=music',headers:{cookie:s.admin}})).statusCode).toBe(200);
+  const response=await s.app.inject({url:'/auth/admin/content?q=music',headers:{cookie:s.admin}});
+  expect(response.statusCode).toBe(429);expect(response.headers['retry-after']).toBe('60');
  }finally{await s.app.close();}
 });

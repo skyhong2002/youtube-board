@@ -24,3 +24,72 @@ CREATE TABLE IF NOT EXISTS ts_channel_admin_requests (
  UNIQUE INDEX channel_admin_request_id (request_id),
  INDEX channel_admin_status (status,id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+CREATE TABLE IF NOT EXISTS `urt_video` (
+  `pk` int(11) NOT NULL AUTO_INCREMENT,
+  `ctime` datetime NOT NULL,
+  `mtime` datetime DEFAULT NULL,
+  `stime` datetime DEFAULT NULL,
+  `u_id` int(11) NOT NULL,
+  `id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `publishedAt` datetime NOT NULL,
+  `channelId` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `title` varchar(512) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `thumbnails` varchar(256) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `channelTitle` varchar(256) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `playlistId` varchar(40) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `position` int(11) NOT NULL,
+  `videoId` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `viewCount` bigint(20) DEFAULT NULL,
+  `likeCount` int(11) DEFAULT NULL,
+  `dislikeCount` int(11) DEFAULT NULL,
+  `favoriteCount` int(11) DEFAULT NULL,
+  `commentCount` int(11) DEFAULT NULL,
+  `description` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  PRIMARY KEY (`pk`),
+  UNIQUE KEY `videoId` (`videoId`),
+  KEY `stime` (`stime`),
+  KEY `publishedAt` (`publishedAt`),
+  KEY `viewCount` (`viewCount`),
+  KEY `likeCount` (`likeCount`),
+  KEY `dislikeCount` (`dislikeCount`),
+  KEY `commentCount` (`commentCount`),
+  KEY `u_id` (`u_id`),
+  KEY `mtime` (`mtime`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `urt_video_schedule` (
+  `pk` int(11) NOT NULL AUTO_INCREMENT,
+  `ctime` datetime NOT NULL,
+  `mtime` datetime DEFAULT NULL,
+  `stime` datetime DEFAULT NULL,
+  `videoId` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `publishedAt` datetime NOT NULL,
+  `viewCount` int(11) DEFAULT NULL,
+  `likeCount` int(11) DEFAULT NULL,
+  `commentCount` int(11) DEFAULT NULL,
+  PRIMARY KEY (`pk`),
+  UNIQUE KEY `videoId` (`videoId`),
+  KEY `stime` (`stime`),
+  KEY `publishedAt` (`publishedAt`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `urt_video_live` (
+  `pk` int(11) NOT NULL AUTO_INCREMENT,
+  `ctime` datetime NOT NULL,
+  `mtime` datetime DEFAULT NULL,
+  `publishedAt` datetime NOT NULL,
+  `videoId` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `u_id` int(11) NOT NULL,
+  `actualStartTime` datetime DEFAULT NULL,
+  `scheduledStartTime` datetime DEFAULT NULL,
+  `concurrentViewers` int(11) DEFAULT NULL,
+  `actualEndTime` datetime DEFAULT NULL,
+  `activeLiveChatId` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  `max_current` int(11) DEFAULT NULL,
+  `del_flag` tinyint(4) DEFAULT NULL,
+  PRIMARY KEY (`pk`),
+  UNIQUE KEY `videoId` (`videoId`),
+  KEY `u_id` (`u_id`),
+  KEY `mtime` (`mtime`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -39,3 +39,12 @@ test('actual editorial workflow errors provide safe recovery guidance rather tha
  for(const [code,expected] of [['PREVIEW_CHANGED',/重新載入後再預覽/],['EXECUTION_GATED',/未開放執行/],['REQUEST_ID_CONFLICT',/請求編號.*另一項異動/],['EVENT_MERGED',/合併後的事件/],['CANDIDATE_ALREADY_DECIDED',/已完成審核/],['REFRESH_UNCHANGED',/沒有變更/]])assert.match(accountMessage(new AccountError(code as string)),expected as RegExp);
  assert.equal(accountMessage(new AccountError('unknown-provider-or-sql-detail')),'操作暫時無法完成，請稍後重試。');
 });
+
+test('content lookup allows private same-origin GET queries only',async()=>{
+ let calls=0; const fetcher=(async()=>{calls++;return Response.json({matches:[]});}) as typeof fetch;
+ await accountFetch('/auth/admin/content?source=https%3A%2F%2Fyoutu.be%2Fabcdefghijk',session,{},fetcher);
+ await accountFetch('/auth/admin/content?q=直播&kind=live',session,{},fetcher);
+ for(const path of ['/auth/admin/content/other?q=x','//outside.test/auth/admin/content','/auth/admin/content?q=x#fragment'])await assert.rejects(accountFetch(path,session,{},fetcher),{code:'INVALID_REQUEST'});
+ await assert.rejects(accountFetch('/auth/admin/content?q=x',session,{method:'POST'},fetcher),{code:'INVALID_REQUEST'});
+ assert.equal(calls,2);
+});

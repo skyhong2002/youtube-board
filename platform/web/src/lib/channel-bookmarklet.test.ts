@@ -5,11 +5,11 @@ import {addParam,bookmarkletSource} from './channel-bookmarklet';
 
 const UC = 'UCabcdefghijklmnopqrstuv';
 /** Run the bookmark's code against a stand-in page and return where it navigates to. */
-function click(page: {meta?: string; canonical?: string; href: string}) {
+function click(page: {meta?: string; canonical?: string; href: string; title?:string}) {
  const source = bookmarkletSource('https://youtube.observe.tw');
  assert.ok(source.startsWith('javascript:'));
  const at = new URL(page.href), location = {href: page.href, origin: at.origin, pathname: at.pathname, search: at.search};
- const document = {querySelector: (selector: string) => selector.startsWith('meta') ? (page.meta ? {content: page.meta} : null) : page.canonical ? {href: page.canonical} : null};
+ const document = {title:page.title??'',querySelector: (selector: string) => selector.startsWith('meta') ? (page.meta ? {content: page.meta} : null) : page.canonical ? {href: page.canonical} : null};
  new Function('document', 'location', source.slice('javascript:'.length))(document, location);
  return location.href;
 }
@@ -52,3 +52,10 @@ test('the add parameter is read back, bounded', () => {
  assert.equal(addParam(''), '');
  assert.equal(addParam('?add=' + 'x'.repeat(301)), '');
 });
+
+ test('bookmark carries a title as display context without executing page text',()=>{
+ const title="音樂 & 直播 <script> '$()";
+ const url=click({href:'https://www.youtube.com/watch?v=abcdefghijk',title});
+ assert.equal(new URL(url).searchParams.get('title'),title);
+ assert.equal(new URL(url).searchParams.get('add'),'https://www.youtube.com/watch?v=abcdefghijk');
+ });
