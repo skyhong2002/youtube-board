@@ -68,3 +68,13 @@ web 型別檢查通過；全套 450 項通過、2 原有跳過，涵蓋媒體輸
 Dokploy 於 **2026-11-15 13:55:16 UTC（台灣 21:55:16）**接受發布，web 於 13:55:49 UTC 完成更新並 healthy。候選與正式站各 11 項 HTTP 檢查通過；另以既有影片 `NMD7UT4hzf4` 驗證縮圖 endpoint 的設定寬度 320、quality 75，候選回傳 JPEG 320×180，正式站 HTTP 200。手動測試使用不允許的寬度 384 被正常拒絕；不存在的影片縮圖回傳 404，既有媒體元件會顯示替代圖示。沒有為驗證而提交正式資料異動。
 
 回復此版：`python3 /home/sky/yt-release-admin-media-0965f0a/release-media.py --execute --rollback`，僅把 web 恢復至 `19c4c02d`。
+
+## 統一標籤選擇器
+
+使用者比較未帶入網址與已辨識頻道兩種畫面後，`be08a422f4b3a6beb1e878afcfc69ade93f2cff9` 將加入時的 checkbox 列表與編輯頻道的圓角按鈕統一成共用 `TagPicker`。選取、搜尋、頻道數、排序、完整展開一致；加入請求與既有分類差異請求仍沿原流程。型別檢查、7 項 focused tests 與 sky-mini Node 24 的 Next 正式編譯通過。
+
+映像 `youtube-board-ts:release-tag-picker-be08a42-amd64`：
+`sha256:860224386daaa3442a93ca4a94460e442955c1ada33b756544e3ba0d8b5ff16f`。
+`/home/sky/yt-release-tag-picker-be08a42/release-picker.py` 只允許更換 web image，逐欄保持其他 compose/env 不變。沒有 API、worker、schema 或正式內容資料異動。
+
+Dokploy 於 **2026-11-15 13:59:56 UTC（台灣 21:59:56）**接受發布，web 於 14:00:30 UTC 完成更新並 healthy。候選與正式站各 11 項 HTTP 檢查通過。回復：`python3 /home/sky/yt-release-tag-picker-be08a42/release-picker.py --execute --rollback`，僅把 web 恢復至 `919c638a`。
