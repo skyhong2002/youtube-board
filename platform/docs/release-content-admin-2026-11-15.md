@@ -39,3 +39,18 @@ Dokploy 在 **2026-11-15 13:26:40 UTC（台灣 21:26:40）**接受發布。sourc
 腳本先檢查兩個服務的映像符合本次版本，再恢復前一版。部署前 compose/env/command 的 0600 備份：
 `/home/sky/yt-release-content-4fa6e4e/release-content-before-20261115T132640Z.private.json`。
 正式驗證通過後移除暫時候選容器與其私有環境檔。
+
+## 介面精簡後續版本
+
+依使用者回饋，`33e2a8984e9e87e916d80b65b49588d74801ef89` 移除重複的收錄內容搜尋分頁與多層灰底／外框，桌面右側標籤佔兩欄；既有頻道與新增時的標籤都完整展開，沒有內部捲動。Tailscale 預覽改用約 100 個示範標籤。
+
+型別檢查通過，web 全套 448 通過、2 原有跳過；其中新增 120 個標籤完整顯示的回歸檢查。以乾淨 commit archive 在 sky-mini 用 Node 24 完成 Next 正式編譯，沿用前次 Linux amd64 runtime 封裝。傳回編譯產物後移除 macOS archive metadata。
+
+後續映像 `youtube-board-ts:release-admin-flat-33e2a89-amd64`：
+`sha256:19c4c02d1645fc7879b7a11ac702eb465dea07d07df79ca9e87c1eb2f2093a15`。
+
+發布腳本 `/home/sky/yt-release-admin-flat-33e2a89/release-flat.py` 逐欄比對，只允許 `web.image` 從前版 `79f86ec4` 更換；不更換 worker、env 或其他 compose 設定。
+
+Dokploy 於 **2026-11-15 13:46:51 UTC（台灣 21:46:51）**接受後續發布，web 於 13:47:25 UTC 完成更新。候選及正式站各 11 項 HTTP 檢查通過，正式 web healthy；source worker 保持前版映像。套件輸出也確認包含加寬的標籤版面，且沒有重複搜尋分頁。沒有為驗證而提交正式資料異動。
+
+回復此次介面版本：`python3 /home/sky/yt-release-admin-flat-33e2a89/release-flat.py --execute --rollback`；此命令只回復 web 到 `79f86ec4`，保留前次已上線的內容管理功能與 source worker。
