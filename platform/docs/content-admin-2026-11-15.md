@@ -8,11 +8,11 @@
 
 主要工具預設展開，貼上網址後自動查詢影片、直播追蹤與頻道各自的來源表紀錄，提供對應公開頁連結與頻道標籤編輯。管理頁移除與全站搜尋重複的「搜尋已收錄內容」分頁；後端搜尋 API 保留。這是本站資料查詢，沒有新增 YouTube 全站搜尋或 discovery 排程。
 
-新增動作分為納入頻道、收錄指定影片與加入直播追蹤。標籤屬於頻道分類，不是影片內容關鍵字或 tag.observe.tw 的新聞詞彙。編輯分類沿用增減差異與稽核日誌。頻道標籤、書籤安裝與變更紀錄直接展開；介面不提供建立新標籤的表單。
+新增動作分為納入頻道、收錄指定影片與加入直播追蹤。標籤屬於頻道分類，不是影片內容關鍵字或 tag.observe.tw 的新聞詞彙。編輯分類沿用增減差異與稽核日誌。頻道標籤、書籤安裝與變更紀錄直接展開；標籤搜尋框可輸入新名稱，透過既有 `create-tag` 工作流程建立後再選取套用。
 
 ## 讀寫邊界
 
-- `GET /auth/admin/content?source=...` 或 `?q=...&kind=live|video|channel`：管理員 session、私有回應、參數驗證與頻率上限；只讀 reports reader，不呼叫外部服務。無法確認影片所屬頻道時明確顯示未知；重複 handle 不任選一筆。
+- `GET /auth/admin/content?source=...` 或 `?q=...&kind=live|video|channel`：管理員 session、私有回應、參數驗證與頻率上限；只讀 reports reader；影片網址另外讀取 YouTube 公開 watch 頁，提供內容類型及發布頻道的預覽，不花 Data API 配額、不寫來源表。無法確認影片所屬頻道時明確顯示未知；重複 handle 不任選一筆。
 - `POST /auth/admin/channel-requests`：沿用同源、CSRF、UUID、防重送、容量上限。新 kind `add-video`、`add-live` 使用 `{source,tags}`，只接受指定影片網址。
 - `youtube.channels.admin`：仍由 youtube-source worker 在既有 workflow ownership 下處理。指定影片透過 YouTube 查核，必要時建立所屬頻道，再沿用 `publishUploads` 寫入影片、統計排程與適用的直播紀錄。一般影片不能冒充直播；已結束直播可用 streaming details 確認。已停用的直播不會自動復活。
 - 每筆請求的頻道、標籤、影片、排程、直播及完成狀態共用交易。失敗回滾；配額／憑證中斷保持 pending。Web 不持有來源表寫權限。
@@ -37,3 +37,9 @@
 管理介面加入影片縮圖與頻道快取頭像，桌面左右欄改為各半。標籤按完整管理頻道清單的使用頻道數（含封存）降冪排列並顯示數字；同數按 tag ID 排序，每頻道每標籤只算一次，零使用標籤仍可選取。沿用既有完整管理清單及媒體元件，不新增資料庫查詢或 YouTube API 呼叫。
 
 加入時選標籤與編輯既有頻道標籤統一使用 `TagPicker` 元件，均為可切換的圓角按鈕，含頻道數、名稱篩選與完整展開；兩者仍分別隨加入請求及標籤差異請求套用。
+
+即時辨識修正：`ContentLookup.youtube` 與本站 `video/live/channel` 收錄紀錄分開，公開 watch 頁的 player JSON 只讀 videoId 精確相符的 metadata；辨識正在直播、預告、回放、一般影片及未知。找不到或無法查核時保留未知，不由缺少資料庫紀錄推論一般影片。已知 YouTube 頻道會再對照本站來源頻道。公開讀取固定 YouTube host，不帶 cookie、不跟隨 redirect，6 秒 timeout、3 MB、4 個並行、100 筆／45 秒快取，失敗快取 10 秒。加入內容仍由 source worker 使用正式 YouTube API 查核並寫入。
+
+「納入所屬頻道」改名「只加入發布頻道」，明示不加入該直播或影片。直播來源改以「追蹤這場直播」為主要操作，選取標籤後提供一起套用的按鈕。頻道標籤搜尋輸入新名稱可建立；建立與套用維持可稽核的兩步流程。
+
+本次覆核另外修正：建立標籤刷新時保留編輯草稿，並將原有增減差異套到最新頻道標籤，避免覆寫其他管理員新加的標籤；搜尋與建立名稱採一致的 NFC／空白正規化。關鍵字覆核頁相容現行 `ranking-display-applied/true` 與舊版 `review-record-only/false` 狀態成對契約，仍拒絕不一致回應。

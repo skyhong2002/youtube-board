@@ -87,6 +87,13 @@ test('runtime validation fails closed on applied, unknown enums, overlay and unb
  const wrote=recorder(()=>Response.json({mode:'preview',command:submit,before:null,after:reviewFixture(),previewHash:HASH,warnings:[],writes:1,applied:false,applicationStatus:'not-applied'}));
  await assert.rejects(previewReviewCommand(submit,session,{fetcher:wrote.fetcher}),{code:'MALFORMED_RESPONSE'});
 });
+test('status accepts the deployed ranking-overlay phase and rejects phase/overlay mismatches',async()=>{
+ const current={...statusFixture,phase:'ranking-display-applied',rankingOverlayEnabled:true};
+ const {fetcher}=recorder(()=>Response.json(current));
+ assert.deepEqual(await fetchReviewStatus({fetcher}),current);
+ assert.equal(parseStatus(statusFixture).phase,'review-record-only');
+ for(const over of [{rankingOverlayEnabled:false},{phase:'review-record-only'},{phase:'unknown'},{rankingOverlayEnabled:'true'},{applicationStatus:'applied'},{writeEnabled:true,enabled:false}])assert.throws(()=>parseStatus({...current,...over}),{code:'MALFORMED_RESPONSE'});
+});
 test('detail keeps exact stored term and only selected provenance fields; audit is bounded',async()=>{
  const audit=[{sequence:1,request_id:REQ,actor:'user:7',action:'submit',reason:'平台用語',before:null,after:reviewFixture(),created_at:'2026-10-01T00:00:00.000Z'}];
  const ok=recorder(()=>Response.json({review:reviewFixture({evidence:{...reviewFixture().evidence,rawTerm:' 直播 '}}),audit}));

@@ -36,6 +36,13 @@ test('gate notices cover login-disabled, sign-in, permission, disabled, schema a
  const summary=html(createElement(GateSummary,{info:parseStatus({enabled:true,writeEnabled:false,schemaReady:true,status:'ready',phase:'review-record-only',applied:false,applicationStatus:'not-applied',rankingOverlayEnabled:false})}));
  assert.match(summary,/未開放（僅能預覽）/);assert.match(summary,/排行疊加關閉/);
 });
+test('current ranking-overlay status renders the available review console gate',()=>{
+ const info=parseStatus({enabled:true,writeEnabled:true,schemaReady:true,status:'ready',phase:'ranking-display-applied',applied:false,applicationStatus:'not-applied',rankingOverlayEnabled:true});
+ const out=html(createElement(GateSummary,{info}));
+ assert.match(out,/覆核功能：可讀取/);assert.match(out,/寫入：已開放/);
+ assert.match(out,/排行顯示決定已啟用/);assert.match(out,/文字比對只記錄/);
+ assert.doesNotMatch(out,/排行疊加關閉|回應格式無法驗證/);
+});
 test('detail escapes stored term/reason, shows selected provenance and audit, and never dumps payload',()=>{
  const detail=parseDetail({review:raw(),audit:[{sequence:'5',request_id:REQ,actor:'user:7',action:'submit',reason:XSS_REASON,before:null,after:raw(),created_at:'2026-10-01T00:00:00.000Z'}]});
  const out=html(createElement(ReviewDetailView,{detail}));

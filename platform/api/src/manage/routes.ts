@@ -6,6 +6,7 @@ import {privateAuthReply} from '../auth/index.js';
 import {AuthStoreFailure} from '../auth/store.js';
 import {boundedLimiter,RateLimitError} from '../rate-limit.js';
 import {lookupContent,parseContentQuery} from './content.js';
+import {youtubePreviewResolver} from './youtube-preview.js';
 import {createReader,DataQueryFailed,DataSourceUnavailable,type Reader,type Row} from '../db/client.js';
 import {enrichPublicMedia} from '../reports/media.js';
 import {integer,tagIds,taipeiSql,text,timestamp} from '../reports/normalize.js';
@@ -86,6 +87,7 @@ const unavailableCodes=new Set(['ECONNREFUSED','ECONNRESET','ETIMEDOUT','PROTOCO
 export async function registerManage(app:FastifyInstance,auth:AuthRuntime,options:{stateUrl?:string;reportsUrl?:string;store?:ActivityStore|null;reader?:Reader;clock?:()=>Date}={}){
  const clock=options.clock??(()=>new Date()),store=options.store!==undefined?options.store:auth.enabled&&options.stateUrl?mysqlActivityStore(options.stateUrl):null,reader=options.reader??createReader(options.reportsUrl);
  app.addHook('onClose',async()=>{if(store&&options.store===undefined)await store.close();if(!options.reader)await reader.close();});
+ const resolveYoutube=youtubePreviewResolver();
  const allowContent=boundedLimiter(60,60000,300);
  await app.register(async routes=>{
   routes.setErrorHandler((error,_request,reply)=>{privateAuthReply(reply);if(error instanceof RateLimitError)return reply.header('Retry-After',String(error.retryAfter)).code(429).send({error:{code:'RATE_LIMITED'}});const code=error&&typeof error==='object'&&'code' in error?String(error.code):'';const unavailable=error instanceof AuthStoreFailure||error instanceof DataSourceUnavailable||error instanceof DataQueryFailed||unavailableCodes.has(code);return reply.code(unavailable?503:500).send({error:{code:unavailable?'ACCOUNT_UNAVAILABLE':'ACCOUNT_FAILED'}});});
@@ -94,7 +96,7 @@ export async function registerManage(app:FastifyInstance,auth:AuthRuntime,option
    const user=await auth.requireAdmin(req,reply);if(!user)return reply;
    const query=parseContentQuery(req.query);if(!query)return reply.code(400).send({error:{code:'INVALID_REQUEST'}});
    if(!allowContent(auth.actor(user),+clock()))throw new RateLimitError();
-   return lookupContent(reader,query,clock());
+   return lookupContent(reader,query,clock(),resolveYoutube);
   });
   routes.get('/auth/admin/channels',async(req,reply)=>{if(!await auth.requireAdmin(req,reply))return reply;return managedChannels(reader,clock());});
  });

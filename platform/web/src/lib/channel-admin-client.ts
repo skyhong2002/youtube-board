@@ -40,3 +40,9 @@ export function tagChange(current:number[],wanted:number[]){
  if(!add.length&&!remove.length)return {add,remove,problem:'none' as const};
  try{applyTagDelta(tagString(current),add,remove);return {add,remove,problem:null};}catch{return {add,remove,problem:'full' as const};}
 }
+
+/** Keep unsaved additions/removals when a tag creation or another editor refreshes the channel list. */
+export function rebaseTagDraft(base:number[],wanted:number[],current:number[]):number[]{
+ const delta=tagChange(base,wanted);
+ return [...new Set([...current.filter(id=>!delta.remove.includes(id)),...delta.add])];
+}

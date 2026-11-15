@@ -4,7 +4,7 @@ import {type ChannelAdminRequest} from '../../../../shared/channel-admin';
 import type {ManagedChannel,ManagedChannelList} from '../../../../shared/manage-contracts';
 import {accountMessage} from '@/lib/account-client';
 import {bookmarkletSource} from '@/lib/channel-bookmarklet';
-import {fetchChannelRequests,requestOutcome,requestSummary,submitChannelRequest,tagChange} from '@/lib/channel-admin-client';
+import {fetchChannelRequests,requestOutcome,requestSummary,submitChannelRequest,tagChange,rebaseTagDraft} from '@/lib/channel-admin-client';
 import {dateTime} from '@/lib/format';
 import {button,note,primary} from '@/app/my/ReaderGate';
 import ContentIntake from './ContentIntake';
@@ -19,9 +19,12 @@ const flip=(set:ReadonlySet<number>,id:number)=>{const next=new Set(set);if(next
 
 /** Change one channel's categories. Only the difference is sent, so two administrators editing at once do not overwrite each other. */
 function TagEditor({channel,tags,onClose,onQueued}:{channel:ManagedChannel;tags:Tag[];onClose:()=>void;onQueued:()=>void}){
- const [wanted,setWanted]=useState<ReadonlySet<number>>(()=>new Set(channel.tags)),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const [draft,setDraft]=useState(()=>({base:channel.tags,wanted:new Set(channel.tags)})),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const wanted=draft.wanted;
+ const channelTags=channel.tags.join(',');
+ useEffect(()=>{setDraft(d=>({base:channel.tags,wanted:new Set(rebaseTagDraft(d.base,[...d.wanted],channel.tags))}));},[channelTags]);
  const known=new Set(tags.map(t=>t.id)),orphans=channel.tags.filter(id=>!known.has(id));
- const change=tagChange(channel.tags,[...wanted]);
+ const change=tagChange(draft.base,[...wanted]);
  async function save(){
   if(change.problem)return;
   setBusy(true);setError('');
@@ -32,13 +35,13 @@ function TagEditor({channel,tags,onClose,onQueued}:{channel:ManagedChannel;tags:
  return <section className="grid gap-3" aria-label={`編輯 ${channel.channelTitle} 的分類`}>
   <div className="flex flex-wrap items-baseline gap-x-3"><h3 className="font-semibold">編輯頻道標籤：{channel.channelTitle}</h3><span className="text-xs text-zinc-500">#{channel.channelId}</span></div>
   <p className="text-xs text-zinc-500">依頻道數由多到少排列（含封存頻道）</p>
-  <TagPicker tags={tags} selected={wanted} onToggle={id=>setWanted(s=>flip(s,id))} label="分類"/>
+  <TagPicker tags={tags} selected={wanted} onToggle={id=>setDraft(d=>({...d,wanted:flip(d.wanted,id)}))} label="分類" onQueued={onQueued}/>
   {orphans.length>0&&<p className="text-xs text-zinc-500">這個頻道還帶著已停用的分類（{orphans.join('、')}），不在上面的選項裡，會保持原樣。</p>}
   {change.problem==='full'&&<p role="alert" className="text-sm text-red-700 dark:text-red-300">分類已滿（上限約 20 個），請先取消幾個再加。</p>}
   {error&&<p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
   <div className="flex flex-wrap items-center gap-2">
    <button type="button" className={primary} disabled={busy||change.problem!==null} onClick={()=>void save()}>{busy?'送出中…':'儲存標籤'}</button>
-   <button type="button" className={button} disabled={busy} onClick={()=>{setWanted(new Set(channel.tags));setError('');onClose();}}>取消變更</button>
+   <button type="button" className={button} disabled={busy} onClick={()=>{setDraft({base:channel.tags,wanted:new Set(channel.tags)});setError('');onClose();}}>取消變更</button>
    <span className="text-xs text-zinc-500">{change.problem==='none'?'沒有變動':`加入 ${change.add.length}、移除 ${change.remove.length}`}。套用約需 1 分鐘。</span>
   </div>
  </section>;
@@ -98,7 +101,7 @@ export default function ChannelTools({data,editing,onEdit,onApplied}:{data:Manag
    <div className="flex flex-wrap items-center justify-between gap-2">
     <h2 className="text-base font-semibold">YouTube 內容與頻道標籤</h2>
    </div>
-   <div className="grid gap-4"><ContentIntake tags={tags} channels={data.channels} onQueued={queued} onEdit={onEdit} refreshKey={data.generatedAt} renderChannelTags={known=><TagEditor key={known.channelId+data.generatedAt} channel={known} tags={tags} onClose={()=>onEdit(null)} onQueued={queued}/>}/><Bookmarklet/></div>
+   <div className="grid gap-4"><ContentIntake tags={tags} channels={data.channels} onQueued={queued} onEdit={onEdit} refreshKey={data.generatedAt} renderChannelTags={known=><TagEditor key={known.channelId} channel={known} tags={tags} onClose={()=>onEdit(null)} onQueued={queued}/>}/><Bookmarklet/></div>
   </section>
   {requests&&requests.some(r=>r.status==='pending')&&<p role="status" className="text-sm text-amber-800 dark:text-amber-200">有 {requests.filter(r=>r.status==='pending').length} 項操作等待套用，通常約 1 分鐘。完成後會自動更新。</p>}
   {channel&&<div ref={editor}><TagEditor key={channel.channelId} channel={channel} tags={tags} onClose={()=>onEdit(null)} onQueued={queued}/></div>}

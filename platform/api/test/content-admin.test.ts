@@ -45,3 +45,10 @@ it('channel results carry their YouTube identity independently of the managed-ch
  expect(result.matches[0]).toMatchObject({id:'8',youtubeChannelId:channelId,href:'/channels/8'});
  expect(f.queries[0]!.sql).toContain('BINARY c.youtube_id=BINARY');
 });
+
+it('resolves a new live owner without creating ingestion records or claiming collection',async()=>{
+ const f=fixture({'FROM urt_channel c':[{u_id:7,youtube_id:channelId,title:'Owner',flag_del:0,tags:'[1]'}]});
+ const result=await lookupContent(f.reader,{source:`https://youtu.be/${id}`},now,async videoId=>({videoId,title:'Live now',channelId,channelTitle:'Owner',broadcast:'live'}));
+ expect(result).toMatchObject({youtube:{broadcast:'live',channelId},channel:{channelId:7},video:null,live:null});
+ expect(f.queries.at(-1)?.params).toEqual([channelId,channelId]);expect(f.queries.every(q=>q.sql.startsWith('SELECT'))).toBe(true);
+});

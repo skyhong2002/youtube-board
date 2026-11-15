@@ -21,23 +21,25 @@ const alert='text-sm text-red-700 dark:text-red-300';
 
 /** Shows stored source observations; report links can lag behind the source writer. */
 export function ContentStatus({lookup,onEdit,showTagAction=true,channelAvatar}:{lookup:ContentLookup;onEdit:(id:number)=>void;showTagAction?:boolean;channelAvatar?:AvatarAsset|null}){
- const {video,live,channel}=lookup;
+ const {video,live,channel,youtube}=lookup;
+ const kind=youtube?.broadcast==='live'?'正在直播':youtube?.broadcast==='upcoming'?'直播預告':youtube?.broadcast==='ended'?'直播回放':youtube?.broadcast==='video'?'影片':live?'直播':'影片／直播';
  return <div className="grid gap-3" aria-label="收錄狀態">
   <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">本站收錄狀態</h3><span className="text-xs text-zinc-500">依目前資料庫紀錄</span></div>
   <div className="grid gap-4">
    {lookup.videoId&&<>
     <div className="flex items-start gap-3">
-     <VideoThumbnail videoId={lookup.videoId} title={video?.title||live?.title||'影片縮圖'} width={144} height={81}/>
-     <div className="grid min-w-0 gap-1"><span className={quiet}>影片 · <strong className="text-zinc-900 dark:text-zinc-100">{video?'已收錄':'尚未收錄'}</strong></span>{video&&<Link className="break-words text-sm text-brand-700 underline dark:text-brand-400" href={`/videos/${video.videoId}`}>{video.title||'開啟影片頁'} ↗</Link>}</div>
+     <VideoThumbnail videoId={lookup.videoId} title={youtube?.title||video?.title||live?.title||'內容縮圖'} width={144} height={81}/>
+     <div className="grid min-w-0 gap-1"><span className={quiet}>{kind} · <strong className="text-zinc-900 dark:text-zinc-100">{video?'已收錄':'尚未收錄'}</strong></span>{video&&<Link className="break-words text-sm text-brand-700 underline dark:text-brand-400" href={`/videos/${video.videoId}`}>{video.title||'開啟影片頁'} ↗</Link>}{!video&&youtube&&<a className="break-words text-sm text-brand-700 underline dark:text-brand-400" href={`https://www.youtube.com/watch?v=${youtube.videoId}`} target="_blank" rel="noopener noreferrer">{youtube.title} ↗</a>}</div>
     </div>
     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><span className={quiet}>直播追蹤</span><strong className="text-sm">{live?(live.retired?'已停止追蹤':'已納入追蹤'):'沒有直播追蹤紀錄'}</strong>{live&&<Link className="text-sm text-brand-700 underline dark:text-brand-400" href={`/live/videos/${live.videoId}/trend`}>開啟直播報表 ↗</Link>}</div>
    </>}
    <div className="flex items-start gap-3">
     {channel&&<ChannelAvatar avatar={channelAvatar} title={channel.title} size={48}/>}
-    <div className="grid min-w-0 gap-1"><span className={quiet}>所屬頻道 · <strong className="text-zinc-900 dark:text-zinc-100">{channel?(channel.archived?'已封存':'已納入頻道'):'尚無可確認的收錄紀錄'}</strong></span>{channel&&<><Link className="break-words text-sm text-brand-700 underline dark:text-brand-400" href={`/channels/${channel.channelId}`}>{channel.title} ↗</Link>{showTagAction&&<button type="button" className="w-fit text-sm underline" onClick={()=>onEdit(channel.channelId)}>增減頻道標籤</button>}</>}</div>
+    <div className="grid min-w-0 gap-1"><span className={quiet}>所屬頻道 · <strong className="text-zinc-900 dark:text-zinc-100">{channel?(channel.archived?'已封存':'已納入頻道'):youtube?'尚未連結本站頻道':'尚無可確認的收錄紀錄'}</strong></span>{channel&&<><Link className="break-words text-sm text-brand-700 underline dark:text-brand-400" href={`/channels/${channel.channelId}`}>{channel.title} ↗</Link>{showTagAction&&<button type="button" className="w-fit text-sm underline" onClick={()=>onEdit(channel.channelId)}>增減頻道標籤</button>}</>}{!channel&&youtube&&<a className="text-sm text-brand-700 underline dark:text-brand-400" href={`https://www.youtube.com/channel/${youtube.channelId}`} target="_blank" rel="noopener noreferrer">{youtube.channelTitle} ↗</a>}</div>
    </div>
   </div>
-  {!channel&&<p className="text-xs text-zinc-500">未收錄的影片或 @名稱可能還無法確認所屬頻道；送出後會由 YouTube 核對，並在需要時加入頻道。</p>}
+  {!youtube&&!channel&&<p className="text-xs text-zinc-500">目前無法從 YouTube 確認內容類型與頻道；尚未收錄不代表不是直播。送出後會由 YouTube 核對。</p>}
+  {youtube&&<p className="text-xs text-zinc-500">內容類型與發布頻道來自 YouTube 即時查詢；收錄與追蹤狀態以本站資料庫為準。</p>}
   {(live||video)&&<p className="text-xs text-zinc-500">來源資料已建立；影片頁、直播報表與統計可能需要等下一輪快取更新。</p>}
  </div>;
 }
@@ -50,6 +52,7 @@ export default function ContentIntake({tags,channels,onQueued,onEdit,refreshKey,
  useEffect(()=>{setNotice('');},[refreshKey]);
  const source=parseChannelSource(text),videoId=source?sourceVideoId(source):null;
  const currentLookup=lookup?.source===source?lookup:null;
+ const isBroadcast=Boolean(currentLookup?.youtube&&currentLookup.youtube.broadcast!=='video'&&currentLookup.youtube.broadcast!=='unknown');
  const archived=currentLookup?.channel?.archived||false;
  const known=currentLookup?.channel?channels.find(c=>c.channelId===currentLookup.channel!.channelId):source&&!videoId?channels.find(c=>c.youtubeChannelId===source):undefined;
  useEffect(()=>{
@@ -71,10 +74,10 @@ export default function ContentIntake({tags,channels,onQueued,onEdit,refreshKey,
    {loading&&<p role="status" className={quiet}>正在查詢收錄狀態…</p>}
    {currentLookup&&<ContentStatus lookup={currentLookup} onEdit={onEdit} showTagAction={!renderChannelTags} channelAvatar={known?.channelAvatar}/>}
    {source&&<div className="grid gap-3">
-    <div><h3 className="text-sm font-semibold">選擇要加入的內容</h3><p className="mt-1 text-xs text-zinc-500">加入影片或直播時，會一併納入尚未追蹤的所屬頻道。直播會先核對 YouTube 資料。</p></div>
+    <div><h3 className="text-sm font-semibold">選擇要加入的內容</h3><p className="mt-1 text-xs text-zinc-500">加入直播或影片時，會同時加入發布頻道，並套用右側選取的標籤。「只加入頻道」則不會收錄這部內容。</p></div>
     <div className="flex flex-wrap gap-2">
-     {videoId&&<><button type="button" className={primary} disabled={busy||loading||Boolean(notice)||archived||known?.status==='archived'||Boolean(currentLookup?.video)} onClick={()=>void submit('add-video')}>{currentLookup?.video?'影片已收錄':'收錄這部影片'}</button><button type="button" className={button} disabled={busy||loading||Boolean(notice)||archived||known?.status==='archived'||Boolean(currentLookup?.live)} onClick={()=>void submit('add-live')}>{currentLookup?.live?(currentLookup.live.retired?'直播已停止追蹤':'直播已追蹤'):'加入直播追蹤'}</button></>}
-     <button type="button" className={videoId?button:primary} disabled={busy||loading||Boolean(notice)||Boolean(known)||Boolean(currentLookup?.channel)} onClick={()=>void submit('add-channel')}>{known||currentLookup?.channel?'頻道已納入':'納入所屬頻道'}</button>
+     {videoId&&<>{!isBroadcast&&<button type="button" className={primary} disabled={busy||loading||Boolean(notice)||archived||known?.status==='archived'||Boolean(currentLookup?.video)} onClick={()=>void submit('add-video')}>{currentLookup?.video?'影片已收錄':'收錄這部影片'}</button>}<button type="button" className={isBroadcast?primary:button} disabled={busy||loading||Boolean(notice)||archived||known?.status==='archived'||Boolean(currentLookup?.live)} onClick={()=>void submit('add-live')}>{currentLookup?.live?(currentLookup.live.retired?'直播已停止追蹤':'直播已追蹤'):currentLookup?.youtube?.broadcast==='live'?'追蹤這場直播':currentLookup?.youtube?.broadcast==='upcoming'?'追蹤直播預告':'加入直播追蹤'}</button></>}
+     <button type="button" className={videoId?button:primary} disabled={busy||loading||Boolean(notice)||Boolean(known)||Boolean(currentLookup?.channel)} onClick={()=>void submit('add-channel')}>{known||currentLookup?.channel?'頻道已加入':videoId?'只加入發布頻道':'加入頻道'}</button>
      {known&&!renderChannelTags&&<button type="button" className={button} onClick={()=>onEdit(known.channelId)}>編輯頻道標籤</button>}
     </div>
     {(archived||known?.status==='archived')&&<p className={alert}>此頻道已封存，無法透過這個工具重新加入內容。</p>}
@@ -82,5 +85,5 @@ export default function ContentIntake({tags,channels,onQueued,onEdit,refreshKey,
    </div>}
    {error&&<p role="alert" className={alert}>{error}<button type="button" className="ml-2 underline" onClick={()=>setCheck(n=>n+1)}>重新查詢</button></p>}
    {notice&&<p role="status" className="text-sm text-amber-800 dark:text-amber-200">{notice}</p>}
-  </div><div className="grid min-w-0 gap-3">{known&&renderChannelTags?renderChannelTags(known):<section className="grid gap-2" aria-label="加入時的頻道標籤"><h3 className="text-sm font-semibold">頻道標籤{selected.length?`（已選 ${selected.length}）`:''}</h3><p className="mt-2 text-xs text-zinc-500">所選標籤會加入所屬頻道；依頻道數由多到少排列（含封存頻道）。</p><TagPicker tags={tags} selected={new Set(selected)} onToggle={id=>setSelected(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id])} label="加入時的頻道標籤"/></section>}</div></div>;
+  </div><div className="grid min-w-0 gap-3">{known&&renderChannelTags?renderChannelTags(known):<section className="grid gap-2" aria-label="加入時的頻道標籤"><h3 className="text-sm font-semibold">頻道標籤{selected.length?`（已選 ${selected.length}）`:''}</h3><p className="mt-2 text-xs text-zinc-500">選取後，點左側「追蹤直播」或「收錄影片」一起儲存。依頻道數由多到少排列（含封存頻道）；輸入新名稱可建立標籤。</p><TagPicker tags={tags} selected={new Set(selected)} onToggle={id=>setSelected(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id])} label="加入時的頻道標籤" onQueued={onQueued}/>{source&&selected.length>0&&<button type="button" className={primary+' w-fit'} disabled={busy||loading||Boolean(notice)||archived} onClick={()=>void submit(videoId?(isBroadcast?'add-live':'add-video'):'add-channel')}>{isBroadcast?'追蹤直播':videoId?'收錄影片':'加入頻道'}並套用 {selected.length} 個標籤</button>}</section>}</div></div>;
 }

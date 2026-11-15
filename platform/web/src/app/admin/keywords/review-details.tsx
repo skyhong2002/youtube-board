@@ -30,7 +30,7 @@ export function GateNotice({state,action}:{state:GateState;action?:ReactNode}){
  }
 }
 export function GateSummary({info}:{info:ReviewStatusInfo}){
- return <p className={styles.note}>覆核功能：{info.status==='ready'?'可讀取':'未就緒'} · 寫入：{info.writeEnabled?'已開放':'未開放（僅能預覽）'} · 階段：只記錄覆核，排行疊加關閉</p>;
+ return <p className={styles.note}>覆核功能：{info.status==='ready'?'可讀取':'未就緒'} · 寫入：{info.writeEnabled?'已開放':'未開放（僅能預覽）'} · 階段：{info.rankingOverlayEnabled?'排行顯示決定已啟用；文字比對只記錄':'只記錄覆核，排行疊加關閉'}</p>;
 }
 function Field({label,children}:{label:string;children:ReactNode}){
  return <div className="grid grid-cols-[8rem_1fr] gap-2"><dt className="text-zinc-500 dark:text-zinc-400">{label}</dt><dd className="break-all">{children}</dd></div>;
@@ -72,7 +72,7 @@ export function ReviewTable({rows,selectedId,onSelect,disabled}:{rows:KeywordRev
  if(!rows.length)return <p className={styles.note}>沒有覆核紀錄。</p>;
  return <ul className="grid gap-2">{rows.map(r=><li key={r.id}><button type="button" disabled={disabled} aria-pressed={r.id===selectedId} onClick={()=>onSelect?.(r.id)} className={'w-full rounded-lg border px-3 py-2 text-left text-sm disabled:opacity-50 '+(r.id===selectedId?'border-brand-600 bg-brand-50 dark:bg-zinc-800':'border-zinc-200 dark:border-zinc-800')}>
   <strong>{r.evidence.rawTerm}</strong> · {decisionLabels[r.decision]} · {contextLabels[r.context]} · {statusLabels[r.status]} · 修訂 {r.revision}
-  <span className={'block '+styles.note}>{r.evidence.vocabularyVersion} · {r.evidence.ruleVersion} · {r.updatedAt} · 未套用</span>
+  <span className={'block '+styles.note}>{r.evidence.vocabularyVersion} · {r.evidence.ruleVersion} · {r.updatedAt} · 覆核紀錄</span>
  </button></li>)}</ul>;
 }
 export function PreviewView({preview,writeEnabled}:{preview:ReviewPreview;writeEnabled:boolean}){
@@ -80,7 +80,7 @@ export function PreviewView({preview,writeEnabled}:{preview:ReviewPreview;writeE
  return <section aria-label="預覽" className={styles.card+' grid gap-2'}>
   <h3 className="font-semibold">預覽：{c.action==='submit'?'提出'+decisionLabels[c.decision]:actionLabels[c.action]+'此提案'}（尚未寫入）</h3>
   <NotAppliedBadge/>
-  <p className={styles.note}>伺服器解析結果如下。執行後只會新增覆核紀錄與稽核，不會改變排行、文字比對或原始詞彙池。</p>
+  <p className={styles.note}>伺服器解析結果如下。核准的排行顯示決定會供熱門標籤排行使用；文字比對決定只記錄。原始詞彙池與命中證據保留。</p>
   <ReviewFields review={a}/>
   {preview.before&&<p>狀態變更：{statusLabels[preview.before.status]}（修訂 {preview.before.revision}）→ {statusLabels[a.status]}（修訂 {a.revision}）</p>}
   {preview.warnings.map((w,i)=><p role="note" key={i}><strong>{w}</strong></p>)}
@@ -126,6 +126,6 @@ export function ExecutionView({result}:{result:ReviewExecution}){
   <h3 className="font-semibold">{result.replayed?'已確認：此請求先前已寫入覆核紀錄（重送未重複建立）':'已寫入覆核紀錄'}</h3>
   <NotAppliedBadge/>
   <p>原始詞彙：<strong>{result.review.evidence.rawTerm}</strong> · {decisionLabels[result.review.decision]} · {statusLabels[result.review.status]} · 修訂 {result.review.revision}</p>
-  <p className={styles.note}>此結果只是覆核紀錄；排行與文字比對完全未變更，未來套用需另行授權。</p>
+  <p className={styles.note}>覆核與稽核紀錄已保存。核准的排行顯示決定會供熱門標籤排行使用；文字比對決定只記錄，原始詞彙與命中證據保留。</p>
  </section>;
 }

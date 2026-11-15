@@ -1,9 +1,9 @@
 import type {AccountSession} from '../../../shared/account-contracts';
 // (Vocabulary lookup below is a separate public read-only helper; it never touches the ops allowlist.)
 /**
- * Restricted same-origin client for the review-record-only keyword review API.
+ * Restricted same-origin client for the keyword review API.
  * Local wire contracts only: never import the backend runtime into the client bundle.
- * Every result is a review record; nothing here applies ranking or text matching.
+ * Stored results are review records; approved ranking decisions feed the server overlay.
  */
 /** Ranking-display approvals feed the ranking overlay; text-matching decisions stay records only. */
 export const NOT_APPLIED_NOTICE='排行顯示的已核准決定會套用到熱門標籤排行；文字比對決定只記錄，尚未套用';
@@ -31,7 +31,7 @@ export interface Provenance {upstreamId:string|null;media:string[]}
 export interface ReviewEvidence {vocabularyVersion:string;termKey:string;rawTerm:string;ruleVersion:RuleVersion;source:'https://tag.observe.tw';sha256:string;provenance:Provenance}
 export interface KeywordReview {id:string;revision:number;status:ReviewStatus;decision:Decision;context:ReviewContext;evidence:ReviewEvidence;submittedBy:string;reason:string;applied:false;applicationStatus:'not-applied';createdAt:string;updatedAt:string}
 export interface AuditRow {sequence:string;requestId:string;actor:string;action:AuditAction;reason:string;fromStatus:ReviewStatus|null;toStatus:ReviewStatus|null;createdAt:string}
-export interface ReviewStatusInfo {enabled:boolean;writeEnabled:boolean;schemaReady:boolean;status:'disabled'|'schema-unavailable'|'ready';phase:'review-record-only';applied:false;applicationStatus:'not-applied';rankingOverlayEnabled:false}
+export interface ReviewStatusInfo {enabled:boolean;writeEnabled:boolean;schemaReady:boolean;status:'disabled'|'schema-unavailable'|'ready';phase:'review-record-only'|'ranking-display-applied';applied:false;applicationStatus:'not-applied';rankingOverlayEnabled:boolean}
 export interface ReviewList {rows:KeywordReview[];page:number;hasMore:boolean;applied:false;applicationStatus:'not-applied'}
 export interface ReviewDetail {review:KeywordReview;audit:AuditRow[]}
 export type SubmitCommand={requestId:string;id:string;action:'submit';reason:string;vocabularyVersion:string;termKey:string;ruleVersion:RuleVersion;context:ReviewContext;decision:Decision};
@@ -176,9 +176,10 @@ function parseAudit(v:unknown):AuditRow{
 }
 export function parseStatus(v:unknown):ReviewStatusInfo{
  if(!isObject(v))return malformed();notApplied(v);
- if(v.phase!=='review-record-only'||v.rankingOverlayEnabled!==false)malformed();
- const info:ReviewStatusInfo={enabled:bool(v.enabled),writeEnabled:bool(v.writeEnabled),schemaReady:bool(v.schemaReady),status:oneOf(v.status,['disabled','schema-unavailable','ready'] as const),phase:'review-record-only',applied:false,applicationStatus:'not-applied',rankingOverlayEnabled:false};
- // Fail closed on internally inconsistent gates.
+ const info:ReviewStatusInfo={enabled:bool(v.enabled),writeEnabled:bool(v.writeEnabled),schemaReady:bool(v.schemaReady),status:oneOf(v.status,['disabled','schema-unavailable','ready'] as const),phase:oneOf(v.phase,['review-record-only','ranking-display-applied'] as const),applied:false,applicationStatus:'not-applied',rankingOverlayEnabled:bool(v.rankingOverlayEnabled)};
+ // The backend keeps record-level applied:false even while approved ranking decisions feed its overlay.
+ // Accept both released phases, but reject mismatched phase/overlay pairs and inconsistent gates.
+ if((info.phase==='ranking-display-applied')!==info.rankingOverlayEnabled)malformed();
  if(info.writeEnabled&&!info.enabled||info.status==='ready'&&!(info.enabled&&info.schemaReady))malformed();
  return info;
 }

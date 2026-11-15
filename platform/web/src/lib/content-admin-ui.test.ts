@@ -49,3 +49,8 @@ test('content status shows a canonical thumbnail and the known channel avatar',(
  assert.match(out,/data-thumbnail-src="https:\/\/i.ytimg.com\/vi\/abcdefghijk\/mqdefault.jpg"/);
  assert.ok(out.includes(url));
 });
+
+test('uncollected current live shows YouTube identity separately from collection status',()=>{
+ const out=html({...empty,youtube:{videoId:'abcdefghijk',title:'Current live',channelId:'UCabcdefghijklmnopqrstuv',channelTitle:'New owner',broadcast:'live'}});
+ assert.match(out,/正在直播/);assert.match(out,/尚未收錄/);assert.match(out,/New owner/);assert.match(out,/尚未連結本站頻道/);assert.match(out,/www.youtube.com\/channel\/UCabcdefghijklmnopqrstuv/);assert.doesNotMatch(out,/href="\/channels\//);
+});

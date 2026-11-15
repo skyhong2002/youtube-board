@@ -51,3 +51,10 @@ test('video and live requests describe ingestion and channel tagging separately'
   assert.match(requestOutcome({...r,status:'done',result:{title:'測試影片'}}),/已收錄.*測試影片.*公開報表稍後更新/);
  }
 });
+
+test('refreshing tags preserves the unsaved delta and concurrent channel additions',async()=>{
+ const {rebaseTagDraft}=await import('./channel-admin-client');
+ assert.deepEqual(rebaseTagDraft([1,2],[2,3],[1,2,4]),[2,4,3]);
+ assert.deepEqual(rebaseTagDraft([1,2],[1,2],[1,2,4]),[1,2,4]);
+ assert.deepEqual(rebaseTagDraft([1,2],[2,3],[2,3]),[2,3]);
+});
