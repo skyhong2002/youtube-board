@@ -2,27 +2,19 @@
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {type ChannelAdminRequest} from '../../../../shared/channel-admin';
 import type {ManagedChannel,ManagedChannelList} from '../../../../shared/manage-contracts';
-import {pill,pillOff,pillOn} from '@/components/reader/FollowButton';
 import {accountMessage} from '@/lib/account-client';
 import {bookmarkletSource} from '@/lib/channel-bookmarklet';
 import {fetchChannelRequests,requestOutcome,requestSummary,submitChannelRequest,tagChange} from '@/lib/channel-admin-client';
 import {dateTime} from '@/lib/format';
-import {button,field,note,primary} from '@/app/my/ReaderGate';
+import {button,note,primary} from '@/app/my/ReaderGate';
 import ContentIntake from './ContentIntake';
+import {TagPicker} from './TagPicker';
+export {TagPicker} from './TagPicker';
 import {channelTagOptions,type ChannelTagOption} from '@/lib/channel-tag-options';
 
 const POLL_MS=4000;
 type Tag=ChannelTagOption;
 
-/** Pick categories by name; a pressed pill is a category the channel will carry. */
-export function TagPicker({tags,selected,onToggle,label}:{tags:Tag[];selected:ReadonlySet<number>;onToggle:(id:number)=>void;label:string}){
- const [query,setQuery]=useState('');
- const shown=tags.filter(t=>t.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
- return <div className="grid gap-2"><input type="search" className={field+' w-full'} aria-label={`搜尋${label}`} placeholder="搜尋標籤名稱" value={query} onChange={e=>setQuery(e.target.value)}/><div className="flex flex-wrap gap-2" role="group" aria-label={label}>
-  {shown.map(t=><button type="button" key={t.id} aria-pressed={selected.has(t.id)} className={pill+' '+(selected.has(t.id)?pillOn:pillOff)} onClick={()=>onToggle(t.id)}>{t.name}<span className="text-xs tabular-nums opacity-70" aria-label={`${t.channelCount??0} 個頻道`}>{t.channelCount??0}</span></button>)}
-  {!shown.length&&<p className="text-xs text-zinc-500">沒有符合的標籤。</p>}
- </div></div>;
-}
 const flip=(set:ReadonlySet<number>,id:number)=>{const next=new Set(set);if(next.has(id))next.delete(id);else next.add(id);return next;};
 
 /** Change one channel's categories. Only the difference is sent, so two administrators editing at once do not overwrite each other. */

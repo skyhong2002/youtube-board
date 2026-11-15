@@ -37,7 +37,9 @@ test('channel tags all stay visible without a nested scroll area',()=>{
  assert.match(picker,/aria-pressed="true"[^>]*>分類 120</);
  assert.doesNotMatch(picker,/max-h-|overflow-y-auto/);
  const intake=render(createElement(ContentIntake,{tags,channels:[],onQueued:()=>{},onEdit:()=>{},refreshKey:''}));
- assert.equal((intake.match(/type="checkbox"/g)||[]).length,120);
+ assert.equal((intake.match(/aria-pressed=/g)||[]).length,120);
+ assert.doesNotMatch(intake,/type="checkbox"/);
+ assert.match(intake,/rounded-full/);
  assert.doesNotMatch(intake,/max-h-|overflow-y-auto/);
 });
 

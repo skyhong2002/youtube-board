@@ -1,6 +1,7 @@
 'use client';
 import {useEffect,useRef,useState,type ReactNode} from 'react';
 import Link from 'next/link';
+import {TagPicker} from './TagPicker';
 import {parseChannelSource,sourceVideoId,type ChannelAdminPayload} from '../../../../shared/channel-admin';
 import type {ContentLookup} from '../../../../shared/content-admin';
 import type {ManagedChannel} from '../../../../shared/manage-contracts';
@@ -43,7 +44,7 @@ export function ContentStatus({lookup,onEdit,showTagAction=true,channelAvatar}:{
 
 export default function ContentIntake({tags,channels,onQueued,onEdit,refreshKey,renderChannelTags}:{tags:Tag[];channels:ManagedChannel[];onQueued:()=>void;onEdit:(id:number)=>void;refreshKey:string;renderChannelTags?:(channel:ManagedChannel)=>ReactNode}){
  const [text,setText]=useState(''),[pageTitle,setPageTitle]=useState('');
- const [lookup,setLookup]=useState<ContentLookup|null>(null),[loading,setLoading]=useState(false),[error,setError]=useState(''),[busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[selected,setSelected]=useState<number[]>([]),[tagQuery,setTagQuery]=useState(''),[check,setCheck]=useState(0);
+ const [lookup,setLookup]=useState<ContentLookup|null>(null),[loading,setLoading]=useState(false),[error,setError]=useState(''),[busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[selected,setSelected]=useState<number[]>([]),[check,setCheck]=useState(0);
  const sequence=useRef(0);
  useEffect(()=>{setText(addParam(location.search));const value=new URLSearchParams(location.search).get('title');if(value&&value.length<=500)setPageTitle(value);},[]);
  useEffect(()=>{setNotice('');},[refreshKey]);
@@ -81,5 +82,5 @@ export default function ContentIntake({tags,channels,onQueued,onEdit,refreshKey,
    </div>}
    {error&&<p role="alert" className={alert}>{error}<button type="button" className="ml-2 underline" onClick={()=>setCheck(n=>n+1)}>重新查詢</button></p>}
    {notice&&<p role="status" className="text-sm text-amber-800 dark:text-amber-200">{notice}</p>}
-  </div><div className="grid min-w-0 gap-3">{known&&renderChannelTags?renderChannelTags(known):<section className="grid gap-2" aria-label="加入時的頻道標籤"><h3 className="text-sm font-semibold">頻道標籤{selected.length?`（已選 ${selected.length}）`:''}</h3><p className="mt-2 text-xs text-zinc-500">所選標籤會加入所屬頻道；依頻道數由多到少排列（含封存頻道）。</p><input type="search" aria-label="搜尋加入時的頻道標籤" className={field+' my-2 w-full'} value={tagQuery} onChange={e=>setTagQuery(e.target.value)} placeholder="搜尋標籤"/><div className="flex flex-wrap gap-2" role="group" aria-label="加入時的頻道標籤">{tags.filter(t=>t.name.includes(tagQuery.trim())).map(t=><label key={t.id} className="flex items-center gap-2 px-2 py-1 text-sm"><input type="checkbox" checked={selected.includes(t.id)} onChange={()=>setSelected(current=>current.includes(t.id)?current.filter(id=>id!==t.id):[...current,t.id])}/>{t.name}<span className="text-xs tabular-nums text-zinc-500" aria-label={`${t.channelCount??0} 個頻道`}>{t.channelCount??0}</span></label>)}</div></section>}</div></div>;
+  </div><div className="grid min-w-0 gap-3">{known&&renderChannelTags?renderChannelTags(known):<section className="grid gap-2" aria-label="加入時的頻道標籤"><h3 className="text-sm font-semibold">頻道標籤{selected.length?`（已選 ${selected.length}）`:''}</h3><p className="mt-2 text-xs text-zinc-500">所選標籤會加入所屬頻道；依頻道數由多到少排列（含封存頻道）。</p><TagPicker tags={tags} selected={new Set(selected)} onToggle={id=>setSelected(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id])} label="加入時的頻道標籤"/></section>}</div></div>;
 }
