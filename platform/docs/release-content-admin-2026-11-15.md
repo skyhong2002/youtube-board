@@ -54,3 +54,17 @@ Dokploy 在 **2026-11-15 13:26:40 UTC（台灣 21:26:40）**接受發布。sourc
 Dokploy 於 **2026-11-15 13:46:51 UTC（台灣 21:46:51）**接受後續發布，web 於 13:47:25 UTC 完成更新。候選及正式站各 11 項 HTTP 檢查通過，正式 web healthy；source worker 保持前版映像。套件輸出也確認包含加寬的標籤版面，且沒有重複搜尋分頁。沒有為驗證而提交正式資料異動。
 
 回復此次介面版本：`python3 /home/sky/yt-release-admin-flat-33e2a89/release-flat.py --execute --rollback`；此命令只回復 web 到 `79f86ec4`，保留前次已上線的內容管理功能與 source worker。
+
+## 縮圖、頭像與標籤數量後續版本
+
+`0965f0a63365d7f448b0381bbe698bc60b4d443e` 在收錄狀態顯示影片縮圖與快取頻道頭像，桌面左右欄各半。兩種標籤編輯入口都顯示頻道數並由多到少排序；數量取完整管理頻道清單（含封存），同一頻道同一標籤不重複計數，零使用標籤保留。同數量按 tag ID 排序。沒有 API、schema、worker 或額外 YouTube API 呼叫的變更。
+
+web 型別檢查通過；全套 450 項通過、2 原有跳過，涵蓋媒體輸出與標籤頻道數／排序。乾淨 commit archive 在 sky-mini 用 Node 24 完成 Next 正式編譯，僅傳回可攜編譯輸出，使用前版 Linux amd64 runtime 封裝。
+
+映像 `youtube-board-ts:release-admin-media-0965f0a-amd64`：
+`sha256:919c638a0070a19262349c91a6f2a2247652fa17fe1d33f25079bd32a84497e5`。
+發布腳本 `/home/sky/yt-release-admin-media-0965f0a/release-media.py` 只允許更換 `web.image`，並逐欄驗證其他 compose/env 不變。
+
+Dokploy 於 **2026-11-15 13:55:16 UTC（台灣 21:55:16）**接受發布，web 於 13:55:49 UTC 完成更新並 healthy。候選與正式站各 11 項 HTTP 檢查通過；另以既有影片 `NMD7UT4hzf4` 驗證縮圖 endpoint 的設定寬度 320、quality 75，候選回傳 JPEG 320×180，正式站 HTTP 200。手動測試使用不允許的寬度 384 被正常拒絕；不存在的影片縮圖回傳 404，既有媒體元件會顯示替代圖示。沒有為驗證而提交正式資料異動。
+
+回復此版：`python3 /home/sky/yt-release-admin-media-0965f0a/release-media.py --execute --rollback`，僅把 web 恢復至 `19c4c02d`。
