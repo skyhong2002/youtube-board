@@ -12,6 +12,13 @@ export const selectionKey = (input: TagSelection) => JSON.stringify([input.tagId
 export function daysBetween(from: string, to: string) { const output: string[] = []; for (const d of [from,to]) if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !Number.isFinite(Date.parse(d)) || new Date(d).toISOString().slice(0,10) !== d) throw new Error('Invalid cache date'); const count = (Date.parse(to)-Date.parse(from))/86400000+1; cap(count,366); for(let i=0;i<count;i++) output.push(new Date(Date.parse(from)+i*86400000).toISOString().slice(0,10)); return output; }
 /** Streamed builders (tag cloud, tags_all, tag date) hold one day of rows at a time, so the scan cap can cover 90-day production windows. */
 export const STREAM_VIDEO_LIMIT = 1000000;
+/** Cache builders run inside the worker process. Matching a whole day of all-channel videos is seconds of synchronous
+ * CPU, which starves the worker's /ready endpoint past its 4 s probe timeout until Swarm replaces the task. Callers
+ * await this between rows; it hands the event loop back once per `sliceMs` of continuous work. */
+export function eventLoopYielder(sliceMs=50) {
+  let last=performance.now();
+  return async()=>{if(performance.now()-last<sliceMs)return;await new Promise(resolve=>setImmediate(resolve));last=performance.now();};
+}
 export function validateCacheInput(input: CacheInput) {
   daysBetween(input.from,input.to); cap(input.days,366); cap(input.channelLimit,5000); cap(input.videoLimit,STREAM_VIDEO_LIMIT);
   if (input.uId !== undefined) cap(input.uId,2147483647);
@@ -47,12 +54,12 @@ export async function scanVideos(ctx:CacheContext,channels:number[],from:string,
   const ids=channels.map(()=>'?').join(',');
   const [sizes]=await ctx.db.query<RowDataPacket[]>(`SELECT COUNT(*) AS n FROM urt_video WHERE u_id IN (${ids}) AND publishedAt>=? AND publishedAt<=?`,[...channels,from,to]);
   const count=Number(sizes[0]?.n??0);if(count>limit)return {count,truncated:true};
-  let seen=0;
+  let seen=0;const pause=eventLoopYielder();
   for(let start=from;start<=to;){
     const next=taipeiSql(new Date(legacyInstant(start)!.getTime()+86400000)),last=next>to;
     const [rows]=await ctx.db.query<RowDataPacket[]>(`SELECT pk,videoId,u_id,title,description,viewCount,publishedAt FROM urt_video WHERE u_id IN (${ids}) AND publishedAt>=? AND publishedAt${last?'<=':'<'}? ORDER BY publishedAt,pk`,[...channels,start,last?to:next]);
     seen+=rows.length;if(seen>limit)throw new Error('Cache video cap reached during scan; prior publication retained');
-    for(const row of rows)visit(row);
+    for(const row of rows){visit(row);await pause();}
     if(last)break;start=next;
   }
   return {count:seen,truncated:false};
@@ -175,10 +182,11 @@ export async function keywordRelationCacheJob(ctx:CacheContext,input:CacheInput,
   // Legacy relation cache identity has no channel selection. Refuse poisoning global cache with a subset.
   if(input.uId||input.tagIds.length||input.orTagIds?.length||input.notTagIds?.length)throw new Error('Keyword relations require all active channels');
   // One day of videos at a time; only each subject's finished day row is kept until publication.
-  const channels=await cacheChannels(ctx,input),days=daysBetween(input.from,input.to),prepared=new Map(subjects.map(s=>[s,[] as {day:string;values:Record<string,unknown>}[]]));
+  const channels=await cacheChannels(ctx,input),days=daysBetween(input.from,input.to),prepared=new Map(subjects.map(s=>[s,[] as {day:string;values:Record<string,unknown>}[]])),pause=eventLoopYielder();
   for(const day of days) {
-    const rows=await cacheVideos(ctx,input,channels,day,day),videos=rows.map(v=>({videoId:v.videoId,uId:Number(v.u_id),publishedAt:v.publishedAt,viewCount:v.viewCount,matches:dictionary.match(v.title??'',v.description??'')}));
-    for(const subject of subjects){const values=keywordDayFromEvidence(videos,subject);prepared.get(subject)!.push({day,values:{...values,videos_json:JSON.stringify(values.videos_json),tags_json:JSON.stringify(values.tags_json)}});}
+    const rows=await cacheVideos(ctx,input,channels,day,day),videos=[];
+    for(const v of rows){videos.push({videoId:v.videoId,uId:Number(v.u_id),publishedAt:v.publishedAt,viewCount:v.viewCount,matches:dictionary.match(v.title??'',v.description??'')});await pause();}
+    for(const subject of subjects){await pause();const values=keywordDayFromEvidence(videos,subject);prepared.get(subject)!.push({day,values:{...values,videos_json:JSON.stringify(values.videos_json),tags_json:JSON.stringify(values.tags_json)}});}
   }
   // The payload cap stays per subject: each subject's dates publish together or not at all. A ranked run
   // skips an oversized subject and keeps going; an explicit single subject still fails the run.
